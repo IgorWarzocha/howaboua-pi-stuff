@@ -1,5 +1,9 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.3
+
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+
 ## 0.0.2
 
 - Batch independent skill reads in one execution cell.

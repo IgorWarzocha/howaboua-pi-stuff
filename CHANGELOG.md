@@ -18,9 +18,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.8
+### @howaboua/pi-ask — 0.0.9
 
-- Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -30,23 +30,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.2
+### @howaboua/pi-better-skills-tool — 0.0.3
 
-- Batch independent skill reads in one execution cell.
-
-- Keep tool results actionable.
-
-  - Browser evaluation errors preserve JavaScript exception details instead of a generic “Uncaught”.
-  - Skill path inventories omit installed dependencies; reference reads list only the requested sources instead of repeating the full inventory.
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.2
+### @howaboua/pi-browser — 0.0.3
 
-- Keep tool results actionable.
-
-  - Browser evaluation errors preserve JavaScript exception details instead of a generic “Uncaught”.
-  - Skill path inventories omit installed dependencies; reference reads list only the requested sources instead of repeating the full inventory.
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -60,35 +52,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.32
+### @howaboua/pi-codex-conversion — 3.0.33
 
-- Fix Notebook's first-run Deno installation in standalone Pi by loading the archive extractor through the extension's static module graph.
-
-- Reduced installation dependencies without removing Notebook or shell-summary features.
-
-  - Removed the general ZIP library and Bash grammar package's native install hook.
-  - Removed the tokenizer dependency and unused encodings while preserving compaction token counts.
-  - Updated OpenAI, Undici, and the shell parser runtime, including transport security fixes.
-
-- Deliver peer messages directly to Pi without submitting unsent human drafts.
-
-  - Preserve slash-command arguments and use the target session's skill and prompt-template expansion.
-  - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply.
-
-  Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
-
-- Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
-
-  - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint.
-  - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior.
-  - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames.
-  - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
-
-- Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
-
-  - Context-window rollover now requests a brief spoken acknowledgement before voice-context refresh, including notes-only mode.
-  - Voice context refresh now preserves the summary and queues arriving spoken requests across call replacement instead of discarding them. Accepted speech finishes on the current call before replacement.
-  - Session diagnostics retain voice call, transcript and delegation identities with text hashes to distinguish event replay from fresh recognition.
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -122,14 +88,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.72
+### @howaboua/pi-extensions — 0.0.73
 
 - Include bundled package updates:
 
-  - @howaboua/pi-auto-trees: Keep custom messages out of the editor when returning to their markers with `/end`. Preserve the marked context by navigating to its existing checkpoint rather than reopening the message for editing.
-  - @howaboua/pi-gippity-control: Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
-  - @howaboua/pi-shepherdr: Deliver peer messages directly to Pi without submitting unsent human drafts. - Preserve slash-command arguments and use the target session's skill and prompt-template expansion. - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply. Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
-  - @howaboua/pi-shepherdr: Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement. - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint. - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior. - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames. - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+  - @howaboua/pi-ask: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-better-skills-tool: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-shepherdr: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -172,21 +137,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.1
+### @howaboua/pi-shepherdr — 0.2.2
 
-- Deliver peer messages directly to Pi without submitting unsent human drafts.
-
-  - Preserve slash-command arguments and use the target session's skill and prompt-template expansion.
-  - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply.
-
-  Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
-
-- Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
-
-  - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint.
-  - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior.
-  - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames.
-  - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -198,9 +151,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
-### @howaboua/pi-skill-code — 0.0.2
+### @howaboua/pi-skill-code — 0.0.3
 
-- Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
+- Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
 
 [Full changelog](./packages/pi-skill-code/CHANGELOG.md)
 
@@ -210,11 +163,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
-### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.1
+### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.2
 
-### Changes
-
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Publish rebuilt portable skills in category packages
+- Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
 
 [Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
@@ -224,12 +175,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.19
+### @howaboua/pi-skills — 0.0.20
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-code: Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
-  - @howaboua/pi-skill-foundations: Updated communication guidance for concise conversation, writing, teaching, and non-code review.
+  - @howaboua/pi-skill-code: Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -244,14 +195,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.79
+### @howaboua/pi-stuff — 0.0.80
 
 - Include bundled package updates:
 
-  - @howaboua/pi-auto-trees: Keep custom messages out of the editor when returning to their markers with `/end`. Preserve the marked context by navigating to its existing checkpoint rather than reopening the message for editing.
-  - @howaboua/pi-gippity-control: Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
-  - @howaboua/pi-shepherdr: Deliver peer messages directly to Pi without submitting unsent human drafts. - Preserve slash-command arguments and use the target session's skill and prompt-template expansion. - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply. Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
-  - @howaboua/pi-shepherdr: Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement. - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint. - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior. - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames. - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+  - @howaboua/pi-ask: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-better-skills-tool: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-shepherdr: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-skill-code: Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
@@ -264,11 +216,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
-### @howaboua/pi-subdir-agents — 0.0.5
+### @howaboua/pi-subdir-agents — 0.0.6
 
-- Directory listings load AGENTS.md guidance only for the queried scope, without preloading rules from every child they name. Explicit child access and content-search matches still load the relevant nested guidance.
-
-  Fixed Windows drive-letter paths in content-search matches so they load nested guidance.
+- Fixed duplicate AGENTS.md load notifications when the context already appears as an expandable message.
 
 [Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 

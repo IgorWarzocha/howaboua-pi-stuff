@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.2
+
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+
 ## 0.2.1
 
 - Deliver peer messages directly to Pi without submitting unsent human drafts.

@@ -1,5 +1,12 @@
 # @howaboua/pi-skills
 
+## 0.0.20
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-code: Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
+
 ## 0.0.19
 
 - Include bundled package updates:

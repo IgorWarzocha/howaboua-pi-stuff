@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.9
+
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+
 ## 0.0.8
 
 - Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.

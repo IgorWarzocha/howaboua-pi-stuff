@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.6
+
+- Fixed duplicate AGENTS.md load notifications when the context already appears as an expandable message.
+
 ## 0.0.5
 
 - Directory listings load AGENTS.md guidance only for the queried scope, without preloading rules from every child they name. Explicit child access and content-search matches still load the relevant nested guidance.

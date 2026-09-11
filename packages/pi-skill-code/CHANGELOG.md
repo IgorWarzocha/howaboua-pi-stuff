@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-code
 
+## 0.0.3
+
+- Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
+
 ## 0.0.2
 
 - Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
