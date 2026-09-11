@@ -131,7 +131,9 @@ export function registerSubdirContextAutoload(
 
 	function outputPathCandidate(line: string): string {
 		// Bare names can come from listings piped through grep, not file content.
-		return line.match(/^(.+?):/)?.[1] ?? "";
+		const start = /^[A-Za-z]:[\\/]/.test(line) ? 2 : 0;
+		const separator = line.indexOf(":", start);
+		return separator > start ? line.slice(0, separator) : "";
 	}
 
 	function looksPathLike(value: string): boolean {

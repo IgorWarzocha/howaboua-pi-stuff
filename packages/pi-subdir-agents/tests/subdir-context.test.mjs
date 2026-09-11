@@ -404,7 +404,7 @@ async function run() {
 			content: [
 				{
 					type: "text",
-					text: 'a/found/leaf/file.ts:1:export const found = "--files";',
+					text: `${path.join(cwd, "a", "found", "leaf", "file.ts")}:1:export const found = "--files";`,
 				},
 			],
 		}),
