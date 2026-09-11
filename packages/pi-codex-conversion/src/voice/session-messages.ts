@@ -6,6 +6,9 @@ import type {
 import { trySendCodexDeveloperCustomMessage } from "../developer-messages.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
+import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
+import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
 import { renderRealtimeTranscriptTail } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
@@ -33,7 +36,7 @@ export interface PreparedVoiceDelegation {
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
 	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<PreparedVoiceDelegation | undefined>;
-	onDelegation(id: string): void;
+	onDelegation(id: string, input: string, source: CodexRealtimeConversation | undefined): void;
 	onDelegationFailed(id: string): void;
 	onWorking(): void;
 }
@@ -50,6 +53,7 @@ export class CodexVoiceSessionMessages {
 		| ReturnType<typeof Promise.withResolvers<void>>
 		| undefined;
 	private contextGeneration = 0;
+	private readonly refreshBarriers = new Set<Promise<void>>();
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
 		this.pi = pi;
@@ -63,6 +67,10 @@ export class CodexVoiceSessionMessages {
 
 	contextSummary(summary: string): void {
 		this.pi.appendEntry(VOICE_CONTEXT_MESSAGE_TYPE, { summary });
+	}
+
+	realtimeEvent(event: RealtimeVoiceEventDetails): void {
+		this.pi.appendEntry(REALTIME_EVENT_ENTRY_TYPE, event);
 	}
 
 	userTranscript(transcript: string): void {
@@ -100,7 +108,7 @@ export class CodexVoiceSessionMessages {
 		this.replaceContext(undefined);
 	}
 
-	voiceTurn(turn: RealtimeVoiceTurn): Promise<void> {
+	voiceTurn(turn: RealtimeVoiceTurn, source?: CodexRealtimeConversation): Promise<void> {
 		if (!turn.delegationId) {
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 				REALTIME_VOICE_MESSAGE_TYPE,
@@ -114,7 +122,7 @@ export class CodexVoiceSessionMessages {
 		const generation = this.contextGeneration;
 		const canDeliver = this.callbacks.canDelegate();
 		const delivery = this.delegationTail.then(() =>
-			this.deliverDelegation(turn, generation, canDeliver),
+			this.deliverDelegation(turn, generation, canDeliver, source),
 		);
 		this.delegationTail = delivery.catch(() => undefined);
 		return delivery;
@@ -126,6 +134,15 @@ export class CodexVoiceSessionMessages {
 
 	cancelPendingDelegations(): void {
 		this.delegationAbortController.abort();
+	}
+
+	holdDelegationsForRefresh(): () => void {
+		const barrier = Promise.withResolvers<void>();
+		this.refreshBarriers.add(barrier.promise);
+		return () => {
+			this.refreshBarriers.delete(barrier.promise);
+			barrier.resolve();
+		};
 	}
 
 	compactionStarted(): void {
@@ -197,6 +214,7 @@ export class CodexVoiceSessionMessages {
 		turn: RealtimeVoiceTurn,
 		generation: number,
 		canDeliver: boolean,
+		source: CodexRealtimeConversation | undefined,
 	): Promise<void> {
 		const ctx = this.context;
 		if (
@@ -212,9 +230,9 @@ export class CodexVoiceSessionMessages {
 		try {
 			for (;;) {
 				for (;;) {
-					const barrier = this.compactionBarrier;
+					const barrier = this.compactionBarrier?.promise ?? this.refreshBarriers.values().next().value;
 					if (!barrier) break;
-					if ((await interruptible(barrier.promise, signal)) === CANCELLED)
+					if ((await interruptible(barrier, signal)) === CANCELLED)
 						signal.throwIfAborted();
 					if (
 						generation !== this.contextGeneration ||
@@ -228,7 +246,7 @@ export class CodexVoiceSessionMessages {
 					generation !== this.contextGeneration ||
 					this.context !== ctx
 				) return;
-				if (this.compactionBarrier) {
+				if (this.compactionBarrier || this.refreshBarriers.size) {
 					preflight = undefined;
 					continue;
 				}
@@ -242,7 +260,7 @@ export class CodexVoiceSessionMessages {
 			const startsTurn = !this.piTurnActive && ctx.isIdle();
 			failureAction = "deliver";
 			deliveryStarted = true;
-			this.callbacks.onDelegation(turn.delegationId);
+			this.callbacks.onDelegation(turn.delegationId, turn.input, source);
 			this.piTurnActive = true;
 			this.callbacks.onWorking();
 			this.pi.sendMessage(

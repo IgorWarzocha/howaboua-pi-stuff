@@ -1,4 +1,61 @@
+import { createHash } from "node:crypto";
 import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
+
+export interface RealtimeVoiceEventDetails {
+	callId: string;
+	type: string;
+	itemId?: string;
+	turnId?: string;
+	handoffId?: string;
+	role?: "user" | "assistant";
+	offsetMs?: number;
+	startMs?: number;
+	endMs?: number;
+	textHash?: string;
+	accepted: boolean;
+}
+
+export function realtimeEventIdentity(value: unknown): string | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	return boundedIdentifier((value as Record<string, unknown>)["id"]);
+}
+
+function boundedIdentifier(id: unknown): string | undefined {
+	return typeof id === "string" && id.length > 0 && Buffer.byteLength(id) <= 256 ? id : undefined;
+}
+
+export function realtimeEventDetails(
+	callId: string,
+	event: Record<string, unknown>,
+	text: string | undefined,
+	accepted: boolean,
+): RealtimeVoiceEventDetails {
+	const item = event["item"];
+	const itemRecord = item && typeof item === "object" ? item as Record<string, unknown> : undefined;
+	const itemId = realtimeEventIdentity(item) ?? boundedIdentifier(event["delegation_item_id"]);
+	const turnId = realtimeEventIdentity(event["turn"]) ?? boundedIdentifier(itemRecord?.["user_bidi_turn_id"]);
+	const handoffId = boundedIdentifier(itemRecord?.["handoff_id"]);
+	const offset = event["offset_ms"];
+	const turn = event["turn"];
+	const record = turn && typeof turn === "object" ? turn as Record<string, unknown> : undefined;
+	const role = record?.["role"];
+	const start = record?.["start_ms"] ?? event["start_ms"];
+	const end = record?.["end_ms"] ?? event["end_ms"];
+	const transcript = text ?? boundedAssistantTranscript(record?.["transcript"]);
+	return {
+		callId,
+		type: String(event["type"]),
+		...(itemId ? { itemId } : {}),
+		...(turnId ? { turnId } : {}),
+		...(handoffId ? { handoffId } : {}),
+		...(role === "user" || role === "assistant" ? { role } : {}),
+		...(typeof offset === "number" && Number.isFinite(offset) ? { offsetMs: offset } : {}),
+		...(typeof start === "number" && Number.isFinite(start) ? { startMs: start } : {}),
+		...(typeof end === "number" && Number.isFinite(end) ? { endMs: end } : {}),
+		...(transcript ? { textHash: createHash("sha256").update(transcript).digest("hex") } : {}),
+		accepted,
+	};
+}
 
 export function boundedTranscript(value: unknown): string | "oversized" | undefined {
 	if (typeof value !== "string") return undefined;

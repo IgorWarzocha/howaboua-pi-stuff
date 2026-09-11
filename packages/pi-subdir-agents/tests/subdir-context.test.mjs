@@ -145,20 +145,7 @@ async function run() {
 		"second read should not emit duplicate unchanged AGENTS context",
 	);
 
-	for (let index = 0; index < 8; index += 1) {
-		await toolResult(
-			{
-				toolName: "bash",
-				isError: false,
-				input: { command: "ls ." },
-				content: [{ type: "text", text: "listing" }],
-				details: {},
-			},
-			ctx,
-		);
-	}
-
-	const tenthQualifyingAction = await toolResult(
+	const repeatedDiscovery = await toolResult(
 		{
 			toolName: "bash",
 			isError: false,
@@ -170,7 +157,7 @@ async function run() {
 	);
 
 	assert.equal(
-		tenthQualifyingAction,
+		repeatedDiscovery,
 		undefined,
 		"unchanged AGENTS context must stay deduplicated across discovery operations",
 	);
@@ -388,47 +375,45 @@ async function run() {
 	await fs.writeFile(path.join(cwd, "a", "found", "AGENTS.md"), "FOUND");
 	await fs.writeFile(
 		path.join(cwd, "a", "found", "leaf", "file.ts"),
-		"export const found = 1;\n",
+		'export const found = "--files";\n',
 	);
-	const findResult = await toolResult(
+	for (const listing of [
+		{ toolName: "ls", input: { path: "./a" } },
+		{ toolName: "find", input: { path: "." } },
+		{ input: { cmd: "ls ./a" } },
+		{ input: { cmd: "find . -name file.ts" } },
+		{ input: { cmd: "rg --files ." } },
+		{ input: { cmd: "rg --files . | rg found" } },
+		{ input: { cmd: "printf '%s\\n' ./a/*; ls ." } },
+	]) {
+		assert.equal(
+			await toolResult(
+				toolEvent({
+					...listing,
+					content: [{ type: "text", text: "a/found\na/found/leaf/file.ts" }],
+				}),
+				ctx,
+			),
+			undefined,
+			"listing names must not activate child guidance",
+		);
+	}
+	const contentSearch = await toolResult(
 		toolEvent({
-			toolName: "find",
-			input: { path: "." },
-			content: [{ type: "text", text: "a/found/leaf/file.ts" }],
+			input: { cmd: "rg -n -- --files ." },
+			content: [
+				{
+					type: "text",
+					text: `${path.join(cwd, "a", "found", "leaf", "file.ts")}:1:export const found = "--files";`,
+				},
+			],
 		}),
 		ctx,
 	);
-	assert.ok(findResult, "find result paths should load nested AGENTS");
+	assert.ok(contentSearch, "content matches should load nested AGENTS");
 	assert.match(
-		textContent(findResult),
+		textContent(contentSearch),
 		/<agents_file path="a\/found\/AGENTS\.md">/,
-	);
-
-	await fs.mkdir(path.join(cwd, "a", "shell-found", "leaf"), {
-		recursive: true,
-	});
-	await fs.writeFile(
-		path.join(cwd, "a", "shell-found", "AGENTS.md"),
-		"SHELL FOUND",
-	);
-	await fs.writeFile(
-		path.join(cwd, "a", "shell-found", "leaf", "file.ts"),
-		"export const shellFound = 1;\n",
-	);
-	const shellFindResult = await toolResult(
-		toolEvent({
-			input: { cmd: "find . -name file.ts" },
-			content: [{ type: "text", text: "a/shell-found/leaf/file.ts" }],
-		}),
-		ctx,
-	);
-	assert.ok(
-		shellFindResult,
-		"shell discovery output paths should load nested AGENTS",
-	);
-	assert.match(
-		textContent(shellFindResult),
-		/<agents_file path="a\/shell-found\/AGENTS\.md">/,
 	);
 
 	await fs.mkdir(path.join(cwd, "a", "separated"), { recursive: true });
@@ -519,9 +504,11 @@ async function run() {
 	);
 	const escapedAppendix = await toolResult(
 		toolEvent({
-			toolName: "find",
+			toolName: "grep",
 			input: { path: "." },
-			content: [{ type: "text", text: 'quote"dir/file.ts' }],
+			content: [
+				{ type: "text", text: 'quote"dir/file.ts:1:export const quoted = 1;' },
+			],
 		}),
 		ctx,
 	);

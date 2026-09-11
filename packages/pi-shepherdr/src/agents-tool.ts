@@ -21,7 +21,7 @@ import {
 import { type AskAnswer, prepareAskAnswer } from "./ask-answer.js";
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
-import { isHerdrResponseError } from "./herdr-client.js";
+import { isDispatchRejected } from "./herdr-client.js";
 import {
 	resolvePreparationDirectory,
 	rollbackStartedAgent,
@@ -119,20 +119,23 @@ export function createAgentsTool(fleet: AgentFleet) {
 					runtime.fallbackCwd,
 					runtime.resolveDirectory,
 				);
+				const input = required(params.message, "message");
 				const message = await prepareProfileMessage(
 					profile,
 					{
 						cwd,
-						message: required(params.message, "message"),
+						message: input,
 						...(params.base ? { base: params.base } : {}),
 					},
 					{ targetLocal: runtime.local },
 				);
 				const attributedMessage = await attributeAgentPrompt(
 					fleet.connected().client,
-					message,
+					input.startsWith("/") ? input : message,
 					"task",
 				);
+				if (input.startsWith("/") && message !== input)
+					attributedMessage.context = message;
 				reportProgress(update, `Spawning ${label}`, {
 					machine: runtime.machine,
 					name,
@@ -152,10 +155,10 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 				let promptSubmissionStarted = false;
 				let promptAccepted = false;
-				let settlement;
+				let dispatch;
 				const blocking = shouldBlockAgentSpawn(profile.name, params.blocking);
 				try {
-					settlement = await dispatchAgentWork(
+					dispatch = await dispatchAgentWork(
 						runtime,
 						started.agent,
 						message,
@@ -164,37 +167,47 @@ export function createAgentsTool(fleet: AgentFleet) {
 						update,
 						async () => {
 							promptSubmissionStarted = true;
-							await runtime.client.request("agent.prompt", {
-								target: started.id,
-								text: attributedMessage,
-							});
+							const receipt = await runtime.client.sendMessage(
+								started.agent,
+								attributedMessage,
+							);
 							promptAccepted = true;
+							return receipt;
 						},
 						{ expectUserMessage: true },
 					);
 				} catch (error) {
 					if (
 						!promptAccepted &&
-						(!promptSubmissionStarted || isHerdrResponseError(error))
+						(!promptSubmissionStarted || isDispatchRejected(error))
 					) {
 						return rollbackStartedAgent(runtime.client, started, error);
 					}
 					throw error;
 				}
 				return toolResult(
-					settlement
+					dispatch.command
 						? {
 								spawned: true,
-								...settlementResult(runtime.machine, settlement),
-							}
-						: {
-								spawned: true,
+								commandSubmitted: true,
 								machine: runtime.machine,
 								target: started.id,
 								name,
-								status: "working",
-								next: "Completion or blockage will be delivered automatically; do not poll",
-							},
+							}
+						: dispatch.settlement
+							? {
+									spawned: true,
+									...settlementResult(runtime.machine, dispatch.settlement),
+								}
+							: {
+									spawned: true,
+									machine: runtime.machine,
+									target: started.id,
+									name,
+									status: "working",
+									next: "Completion or blockage will be delivered automatically; do not poll",
+								},
+					dispatch.warning,
 				);
 			}
 
@@ -272,43 +285,47 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 				if (params.action === "send") {
 					executionSignal.throwIfAborted();
-					await runtime.client.request("agent.prompt", {
-						target: panel.pane_id,
-						text: attributedMessage,
-					});
+					const receipt = await runtime.client.sendMessage(
+						panel,
+						attributedMessage,
+					);
 					return toolResult({
 						sent: true,
+						...(receipt.command ? { commandSubmitted: true } : {}),
 						machine: runtime.machine,
 						target: panel.pane_id,
 					});
 				}
-				const settlement = await dispatchAgentWork(
+				const dispatch = await dispatchAgentWork(
 					runtime,
 					panel,
 					message,
 					params.blocking !== false,
 					executionSignal,
 					update,
-					() =>
-						runtime.client.request("agent.prompt", {
-							target: panel.pane_id,
-							text: attributedMessage,
-						}),
+					() => runtime.client.sendMessage(panel, attributedMessage),
 					{ expectUserMessage: true },
 				);
 				return toolResult(
-					settlement
+					dispatch.command
 						? {
-								assigned: true,
-								...settlementResult(runtime.machine, settlement),
-							}
-						: {
-								assigned: true,
+								commandSubmitted: true,
 								machine: runtime.machine,
 								target: panel.pane_id,
-								status: "working",
-								next: "Completion or blockage will be delivered automatically; do not poll",
-							},
+							}
+						: dispatch.settlement
+							? {
+									assigned: true,
+									...settlementResult(runtime.machine, dispatch.settlement),
+								}
+							: {
+									assigned: true,
+									machine: runtime.machine,
+									target: panel.pane_id,
+									status: "working",
+									next: "Completion or blockage will be delivered automatically; do not poll",
+								},
+					dispatch.warning,
 				);
 			}
 			if (params.action === "answer") {
@@ -322,7 +339,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 				const task = `Answer: ${prepared.ask.prompts
 					.map((prompt) => prompt.title)
 					.join(", ")}`;
-				const settlement = await dispatchAgentWork(
+				const { settlement, warning } = await dispatchAgentWork(
 					runtime,
 					panel,
 					task,
@@ -344,6 +361,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 								status: "working",
 								next: "Completion or blockage will be delivered automatically; do not poll",
 							},
+					warning,
 				);
 			}
 			throw new Error(`unsupported action ${params.action}`);

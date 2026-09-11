@@ -99,6 +99,9 @@ export class RealtimeDelegationHandoff {
 				? paragraphBoundary(this.buffer)
 				: secondSentenceBoundary(this.buffer);
 			if (boundary === undefined) break;
+			// Keep final speech for the request that owns the result. Formatting
+			// alone after the boundary is not a speakable tail.
+			if (!/[\p{L}\p{N}]/u.test(this.buffer.slice(boundary))) break;
 			const chunk = this.buffer.slice(0, boundary);
 			this.buffer = this.buffer.slice(boundary);
 			if (chunk.trim()) {
@@ -139,12 +142,11 @@ export class RealtimeDelegationHandoff {
 	}
 
 	private finishResult(fallback = ""): void {
-		if (this.streamedProgress) {
-			this.finishProgress();
-			return;
-		}
-		const text = (fallback || this.buffer).trim();
+		const text = (
+			this.streamedProgress ? this.buffer : fallback || this.buffer
+		).trim();
 		this.buffer = "";
+		this.streamedProgress = false;
 		if (!this.callbacks.isActive() || !this.target || !text) return;
 		this.callbacks.onContext(this.target, "speakable", text);
 	}

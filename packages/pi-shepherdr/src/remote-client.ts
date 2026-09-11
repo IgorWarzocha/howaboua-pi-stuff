@@ -5,10 +5,18 @@ import { fileURLToPath } from "node:url";
 import type { HerdrConnection } from "./herdr-client.js";
 import type { SshMachine } from "./machine-catalog.js";
 import type { AssistantReader } from "./session-reader.js";
-import type { HerdrEvent, LatestAssistant, SessionView } from "./types.js";
+import type {
+	HerdrEvent,
+	LatestAssistant,
+	PaneInfo,
+	PeerDelivery,
+	PeerMessage,
+	SessionView,
+} from "./types.js";
 
-const BRIDGE_VERSION = 5;
+const BRIDGE_VERSION = 6;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
+const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const DEPLOY_TIMEOUT_MS = 20_000;
@@ -104,12 +112,16 @@ function appendBounded(current: string, chunk: Buffer): string {
 		: next.slice(next.length - MAX_DIAGNOSTIC_BYTES);
 }
 
-async function deploy(config: SshMachine, source: Buffer): Promise<void> {
+async function deploy(
+	config: SshMachine,
+	source: Buffer,
+	target: string,
+): Promise<void> {
 	const command = [
 		"node",
 		"-e",
 		shellQuote(DEPLOY_SOURCE),
-		shellQuote(REMOTE_HELPER),
+		shellQuote(target),
 	].join(" ");
 	const child = spawnConnector(config, command);
 	let stdout = "";
@@ -181,10 +193,16 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		config: SshMachine,
 		onClose: (error: Error) => void,
 	): Promise<RemoteHerdrClient> {
-		const source = await readFile(
-			fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
-		);
-		await deploy(config, source);
+		const [source, peerSource] = await Promise.all([
+			readFile(
+				fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
+			),
+			readFile(
+				fileURLToPath(new URL("./remote/shepherdr-peer.mjs", import.meta.url)),
+			),
+		]);
+		await deploy(config, peerSource, REMOTE_PEER_HELPER);
+		await deploy(config, source, REMOTE_HELPER);
 		const child = spawnConnector(config, remoteCommand(config));
 		const client = new RemoteHerdrClient(child, onClose);
 		try {
@@ -205,6 +223,23 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			{ op: "request", method, params, timeoutMs },
 			timeoutMs + 1_000,
 		)) as T;
+	}
+
+	async sendMessage(
+		agent: PaneInfo,
+		message: PeerMessage,
+	): Promise<PeerDelivery> {
+		const result = await this.call({ op: "message", agent, message }, 26_000);
+		if (
+			!result ||
+			typeof result !== "object" ||
+			!("command" in result) ||
+			typeof result.command !== "boolean"
+		)
+			throw new Error(
+				"Invalid peer acknowledgement; inspect the target before retrying",
+			);
+		return { command: result.command };
 	}
 
 	async subscribe(

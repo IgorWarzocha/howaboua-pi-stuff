@@ -12,10 +12,9 @@ import type { PersistedContextFile } from "./subdir/details.js";
 import { mergePersistedContextDetails } from "./subdir/details.js";
 import { contentRootForTarget, resolvePath } from "./subdir/paths.js";
 import {
+	isContentSearchShellCommand,
 	isDiscoveryShellCommand,
-	isPathOutputShellCommand,
 	shellOutputBase,
-	shellOutputToolName,
 	shellTargets,
 } from "./subdir/shell-targets.js";
 import {
@@ -95,12 +94,14 @@ export function registerSubdirContextAutoload(
 			return pathInput ? [resolvePath(pathInput, eventCwd)] : [eventCwd];
 		if (isPathDiscoveryTool) {
 			const base = pathInput ? resolvePath(pathInput, eventCwd) : eventCwd;
-			return [base, ...pathsFromToolText(event.content, base, event.toolName)];
+			return event.toolName === "grep"
+				? [base, ...pathsFromToolText(event.content, base)]
+				: [base];
 		}
 		if (!shellInput) return [];
 		const base = shellOutputBase(shellInput, eventCwd);
-		const outputPaths = isPathOutputShellCommand(shellInput)
-			? pathsFromToolText(event.content, base, shellOutputToolName(shellInput))
+		const outputPaths = isContentSearchShellCommand(shellInput)
+			? pathsFromToolText(event.content, base)
 			: [];
 		return [...shellTargets(shellInput, eventCwd), ...outputPaths];
 	}
@@ -108,7 +109,6 @@ export function registerSubdirContextAutoload(
 	function pathsFromToolText(
 		content: Array<{ type: string; text?: string }>,
 		base: string,
-		toolName: string,
 	): string[] {
 		const maxLines = 250;
 		return content.flatMap((item) => {
@@ -116,17 +116,24 @@ export function registerSubdirContextAutoload(
 			return item.text
 				.split(/\r?\n/)
 				.slice(0, maxLines)
-				.map((line) => outputPathCandidate(line.trim(), toolName))
+				.map((line) => outputPathCandidate(line.trim()))
 				.filter((line) => line && looksPathLike(line))
 				.map((line) => resolvePath(line, base))
-				.filter((candidate) => fs.existsSync(candidate));
+				.filter((candidate) => {
+					try {
+						return fs.statSync(candidate).isFile();
+					} catch {
+						return false;
+					}
+				});
 		});
 	}
 
-	function outputPathCandidate(line: string, toolName: string): string {
-		if (toolName !== "grep") return line;
-		const match = line.match(/^(.+?):\d+(?::\d+)?:/);
-		return match?.[1] ?? line.split(":", 1)[0] ?? line;
+	function outputPathCandidate(line: string): string {
+		// Bare names can come from listings piped through grep, not file content.
+		const start = /^[A-Za-z]:[\\/]/.test(line) ? 2 : 0;
+		const separator = line.indexOf(":", start);
+		return separator > start ? line.slice(0, separator) : "";
 	}
 
 	function looksPathLike(value: string): boolean {

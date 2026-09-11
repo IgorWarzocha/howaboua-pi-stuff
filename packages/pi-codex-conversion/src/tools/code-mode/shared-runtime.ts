@@ -34,6 +34,7 @@ export interface CodeModeToolProvider {
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
 	richRendering?(): boolean;
+	minimalOutput?(): boolean;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 }
@@ -107,6 +108,11 @@ export class SharedCodeModeRuntime {
 	useRichRendering(): boolean {
 		return [...this.providers.values()].find((provider) => provider.richRendering)
 			?.richRendering?.() ?? true;
+	}
+
+	useMinimalOutput(): boolean {
+		return [...this.providers.values()].find((provider) => provider.minimalOutput)
+			?.minimalOutput?.() ?? false;
 	}
 
 	executionKind(ctx?: unknown): CodeModeExecutionKind {

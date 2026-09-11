@@ -6,6 +6,7 @@ import { registerAgentController } from "./src/controller.js";
 import { registerDeveloperDelivery } from "./src/delivery.js";
 import { AgentFleet } from "./src/fleet.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
+import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
@@ -17,6 +18,7 @@ export default async function shepherdrExtension(
 	registerPackageChangelog(pi);
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
+	registerPeerInbox(pi);
 	const fleet = new AgentFleet(pi);
 	const tool = createAgentsTool(fleet);
 

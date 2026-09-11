@@ -29,7 +29,10 @@ type TokenEncoder = { encode(value: string): ArrayLike<unknown> };
 let tokenEncoderPromise: Promise<TokenEncoder> | undefined;
 
 function getTokenEncoder(): Promise<TokenEncoder> {
-	tokenEncoderPromise ??= import("js-tiktoken").then(({ getEncoding }) => getEncoding("o200k_base"));
+	tokenEncoderPromise ??= Promise.all([
+		import("../../../vendor/js-tiktoken/lite.js"),
+		import("../../../vendor/js-tiktoken/ranks/o200k_base.js"),
+	]).then(([{ Tiktoken }, { default: ranks }]) => new Tiktoken(ranks));
 	return tokenEncoderPromise;
 }
 

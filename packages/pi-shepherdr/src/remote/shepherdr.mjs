@@ -3,8 +3,9 @@ import { open, readFile, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { sendPeerMessage } from "./shepherdr-peer.mjs";
 
-const BRIDGE_VERSION = 5;
+const BRIDGE_VERSION = 6;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
@@ -499,6 +500,9 @@ async function handle(message) {
 	}
 	if (message.op === "request") {
 		return request(message.method, message.params ?? {}, message.timeoutMs);
+	}
+	if (message.op === "message") {
+		return sendPeerMessage(request, message.agent, message.message);
 	}
 	if (message.op === "subscribe") {
 		await subscribe(message.id, message.subscriptions ?? []);

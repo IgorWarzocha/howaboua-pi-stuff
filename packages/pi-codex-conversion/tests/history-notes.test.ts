@@ -106,7 +106,9 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			},
 		} as never;
 		const context = createContext(noteEntries);
-		const [, remoteNotes] = createHistoryNotesTools(pi, () => "remote");
+		let completedWrites = 0;
+		const prepareWrite = () => () => { completedWrites += 1; return false; };
+		const [, remoteNotes] = createHistoryNotesTools(pi, () => "remote", prepareWrite);
 		const noteResult = await remoteNotes.execute(
 			"write-note",
 			{ action: "write_file", path: "checkpoint.md", text: "progress" },
@@ -159,8 +161,9 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			undefined,
 		);
 		assert.equal(failedRequests, 3);
+		assert.equal(completedWrites, 1, "failed backend writes cannot confirm a checkpoint");
 
-		const [localHistory, localNotes] = createHistoryNotesTools(pi, () => "local");
+		const [localHistory, localNotes] = createHistoryNotesTools(pi, () => "local", prepareWrite);
 		await localNotes.execute(
 			"write-local-note",
 			{ action: "write_file", path: "checkpoint.md", text: "progress" },
@@ -193,6 +196,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			undefined,
 			context,
 		);
+		assert.equal(completedWrites, 2, "local saves confirm checkpoints; reads do not");
 		assert.equal(
 			(localRead.details.codexHistoryNotes["file"] as { content: string })
 				.content,

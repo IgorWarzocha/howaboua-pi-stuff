@@ -5,7 +5,7 @@ import type { CodexToolProvider } from "./codex-runtime/types.js";
 export const IMAGE_GENERATION_TOOL_NAME = "imagegen";
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE =
 	"imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
-export const IMAGE_MODEL = "gpt-image-2";
+export const IMAGE_MODEL = "gpt-image-2.5";
 export const MAX_EDIT_IMAGES = 5;
 
 export const IMAGE_GENERATION_PARAMETERS = Type.Object(

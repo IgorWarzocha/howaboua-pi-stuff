@@ -57,9 +57,7 @@ const AskAnswerParameters = Type.Object(
 const AgentsRequest = Type.Object(
 	{
 		action: StringEnum(ACTIONS),
-		machine: Type.Optional(
-			Type.String({ description: "Configured machine; defaults to local" }),
-		),
+		machine: Type.Optional(Type.String()),
 		target: Type.Optional(
 			Type.String({ description: "Agent name or pane ID" }),
 		),

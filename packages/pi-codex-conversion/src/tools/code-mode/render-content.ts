@@ -29,9 +29,13 @@ export function imagesByMimeType(
 	return images;
 }
 
-export function previewText(text: string, theme: CodeModeRenderTheme): string {
+export function previewText(text: string, theme: CodeModeRenderTheme, hideBody = false): string {
 	if (!text) return "";
 	const preview = truncateToVisualLines(text, 5, 100, 0);
+	if (hideBody) {
+		const lines = preview.skippedCount + preview.visualLines.length;
+		return theme.fg("muted", `... (${lines} ${lines === 1 ? "line" : "lines"}, ${expandHint()})`);
+	}
 	if (preview.skippedCount <= 0) return preview.visualLines.join("\n");
 	return `${theme.fg("muted", `... (${preview.skippedCount} more lines, ${expandHint()})`)}\n${preview.visualLines.join("\n")}`;
 }

@@ -9,6 +9,7 @@ import {
 	normalizeAllProvidersMode,
 	normalizeCacheDiagnosticsMode,
 	normalizeCodexVerbosity,
+	normalizeCompactToolsMode,
 	normalizeContextManagementMode,
 	normalizeCustomRustBinariesDir,
 	normalizeDictationShortcutMode,
@@ -106,10 +107,8 @@ export function normalizeCodexConversionConfig(
 					DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
 				),
 			),
-			compactTools: normalizeBoolean(
-				ui["compactTools"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"],
-			),
+			compactTools: normalizeCompactToolsMode(ui["compactTools"])
+				?? DEFAULT_CODEX_CONVERSION_CONFIG.ui.compactTools,
 			codeModeDetails: normalizeBoolean(
 				ui["codeModeDetails"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],

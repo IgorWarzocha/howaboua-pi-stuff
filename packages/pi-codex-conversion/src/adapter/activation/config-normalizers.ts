@@ -2,6 +2,7 @@ import {
 	type AllProvidersMode,
 	type CacheDiagnosticsMode,
 	type CodexVerbosity,
+	type CompactToolsMode,
 	type ContextManagementMode,
 	DEFAULT_VOICE_CONTEXT_REASONING,
 	type DictationShortcutMode,
@@ -23,6 +24,16 @@ export function normalizeAllProvidersMode(
 	if (value === true) return "on";
 	if (value === false) return "off";
 	return value === "off" || value === "on" || value === "extras"
+		? value
+		: undefined;
+}
+
+export function normalizeCompactToolsMode(
+	value: unknown,
+): CompactToolsMode | undefined {
+	if (value === true) return "on";
+	if (value === false) return "off";
+	return value === "off" || value === "on" || value === "minimal"
 		? value
 		: undefined;
 }

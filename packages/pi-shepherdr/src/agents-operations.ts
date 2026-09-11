@@ -3,17 +3,23 @@ import { activityTask } from "./activity.js";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { getSnapshot } from "./herdr.js";
-import { isHerdrResponseError } from "./herdr-client.js";
+import { isDispatchRejected } from "./herdr-client.js";
 import { agentSource } from "./messages.js";
 import type { WorkAttempt } from "./monitor-state.js";
 import { loadAgentProfiles } from "./profiles.js";
 import type { ClaimedSettlement } from "./settlement.js";
-import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
+import type {
+	AgentStatus,
+	PaneInfo,
+	PeerDelivery,
+	SessionSnapshot,
+} from "./types.js";
 
 const MAX_LIST_ITEMS = 30;
 const MAX_TERMINAL_READ_CHARS = 36_000;
 
-export function toolResult(value: Record<string, unknown>) {
+export function toolResult(value: Record<string, unknown>, warning?: string) {
+	if (warning) value = { ...value, next: warning };
 	return {
 		content: [{ type: "text" as const, text: JSON.stringify(value) }],
 		details: value,
@@ -48,7 +54,8 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			answer: "target answers machine? blocking?",
 		},
 		rules: {
-			machine: "Herdr profile ID from list; local = current server",
+			machine:
+				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
 			target: "Use spawn/find target exactly",
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
@@ -60,6 +67,8 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
+			slash:
+				"Leading / uses target Pi commands/skills/templates; extension commands are submission-only, even with assign/spawn; TUI-only commands unavailable",
 			reuse:
 				"Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")
@@ -274,9 +283,13 @@ export async function dispatchAgentWork(
 	blocking: boolean,
 	signal: AbortSignal,
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
-	send: () => Promise<void>,
+	send: () => Promise<PeerDelivery | void>,
 	options: { expectUserMessage?: boolean } = {},
-): Promise<ClaimedSettlement | undefined> {
+): Promise<{
+	settlement?: ClaimedSettlement;
+	command?: true;
+	warning?: string;
+}> {
 	signal.throwIfAborted();
 	const addedWatch = !runtime.monitor
 		.list()
@@ -287,6 +300,7 @@ export async function dispatchAgentWork(
 		);
 	let attempt: WorkAttempt | undefined;
 	let settlement: Promise<ClaimedSettlement> | undefined;
+	let receipt: PeerDelivery | void;
 	let sendStarted = false;
 	try {
 		await runtime.monitor.track(panel);
@@ -305,13 +319,12 @@ export async function dispatchAgentWork(
 		void settlement?.catch(() => undefined);
 		signal.throwIfAborted();
 		sendStarted = true;
-		await send();
-		runtime.monitor.acceptWork(attempt);
+		receipt = await send();
 	} catch (error) {
 		runtime.monitor.releaseWorkClaim(attempt, error);
 		if (sendStarted) await runtime.monitor.handleWorkFailure(attempt, error);
 		else runtime.monitor.rejectWork(attempt);
-		if (addedWatch && (!sendStarted || isHerdrResponseError(error))) {
+		if (addedWatch && (!sendStarted || isDispatchRejected(error))) {
 			const record = runtime.monitor
 				.list()
 				.find((record) => record.terminalId === panel.terminal_id);
@@ -328,13 +341,37 @@ export async function dispatchAgentWork(
 		}
 		throw error;
 	}
-	if (!blocking) return undefined;
+	try {
+		if (receipt?.command) {
+			runtime.monitor.releaseWorkClaim(
+				attempt,
+				new Error("Command submitted without task waiting"),
+			);
+			runtime.monitor.rejectWork(attempt);
+			if (addedWatch) {
+				const record = runtime.monitor
+					.list()
+					.find((record) => record.terminalId === panel.terminal_id);
+				if (record?.scope === "task" && !activityTask(record.activity))
+					await runtime.monitor.unwatch(record.paneId);
+			}
+		} else runtime.monitor.acceptWork(attempt);
+		await runtime.monitor.reconcileNow();
+	} catch (error) {
+		runtime.monitor.releaseWorkClaim(attempt, error);
+		return {
+			...(receipt?.command ? { command: true } : {}),
+			warning: `Submitted, but monitoring refresh failed: ${error instanceof Error ? error.message : String(error)}. Inspect the target before resubmitting`,
+		};
+	}
+	if (receipt?.command) return { command: true };
+	if (!blocking) return {};
 	reportProgress(onUpdate, `Waiting for ${panel.name ?? panel.pane_id}`, {
 		machine: runtime.machine,
 		target: panel.pane_id,
 		status: "working",
 	});
-	return await settlement!;
+	return { settlement: await settlement! };
 }
 
 export async function readAgentTerminal(

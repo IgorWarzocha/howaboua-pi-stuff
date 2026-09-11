@@ -1,7 +1,5 @@
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import type { Node, Parser, Tree } from "web-tree-sitter";
-
-const require = createRequire(import.meta.url);
 
 let parser: Parser | undefined;
 let parserPromise: Promise<void> | undefined;
@@ -90,7 +88,7 @@ async function createBashParser(): Promise<Parser | undefined> {
 	try {
 		const { Language, Parser } = await import("web-tree-sitter");
 		await Parser.init();
-		const language = await Language.load(require.resolve("tree-sitter-bash/tree-sitter-bash.wasm"));
+		const language = await Language.load(fileURLToPath(new URL("../../vendor/tree-sitter-bash/tree-sitter-bash.wasm", import.meta.url)));
 		const parser = new Parser();
 		parser.setLanguage(language);
 		return parser;

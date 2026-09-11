@@ -14,6 +14,13 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	const normalized = normalizeCodexConversionConfig(flat.config);
 	assert.deepEqual(normalized.scope, { allProviders: "on", additionalProviders: [] });
 	assert.equal(normalized.openai.fast, true);
+	for (const [stored, expected] of [
+		[true, "on"], [false, "off"],
+		["off", "off"], ["on", "on"], ["minimal", "minimal"],
+		["invalid", "off"], [undefined, "off"],
+	] as const) {
+		assert.equal(normalizeCodexConversionConfig({ ui: { compactTools: stored } }).ui.compactTools, expected);
+	}
 
 	const code = migrateCodexConversionConfigIfNeeded({ beta: { codeMode: true, responsesLite: false } });
 	assert.equal(code.migrated, true);

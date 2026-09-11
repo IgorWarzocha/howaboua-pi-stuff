@@ -2,6 +2,7 @@ import type { ExecutionMode } from "./execution-mode.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
+export type CompactToolsMode = "off" | "on" | "minimal";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type AllProvidersMode = "off" | "on" | "extras";
 export type ContextManagementMode = "off" | "local" | "tree" | "remote";
@@ -56,7 +57,7 @@ export interface CodexConversionConfig {
 	ui: {
 		statusLine: boolean;
 		toolRenaming: boolean;
-		compactTools: boolean;
+		compactTools: CompactToolsMode;
 		codeModeDetails: boolean;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
@@ -116,7 +117,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	ui: {
 		statusLine: true,
 		toolRenaming: true,
-		compactTools: false,
+		compactTools: "off",
 		codeModeDetails: false,
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",

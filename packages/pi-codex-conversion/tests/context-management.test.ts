@@ -161,7 +161,12 @@ test("context windows preserve rollover and native request semantics", async (t)
 		assert.equal(manager.prepareCompaction({ reason: "manual" } as never, mode, true), undefined);
 		const checkpointManager = new CodexContextWindowManager();
 		const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
-		const pi = { sendMessage: (message: Record<string, unknown>, options: unknown) => sent.push({ message, options }) } as never;
+		const kickoffs: unknown[] = [];
+		const pi = {
+			events: { emit() {} },
+			sendMessage: (message: Record<string, unknown>, options: unknown) => sent.push({ message, options }),
+			sendUserMessage: (content: string, options: unknown) => kickoffs.push({ content, options, messagesBeforeKickoff: sent.length }),
+		} as never;
 		checkpointManager.ensureInitialized(pi, ctx, true);
 		const identity = checkpointManager.currentIdentity();
 		const controller = new AbortController();
@@ -169,20 +174,53 @@ test("context windows preserve rollover and native request semantics", async (t)
 		const cancelled = { reason: "manual", aborted: true } as never;
 		assert.deepEqual(checkpointManager.prepareCompaction(manual, mode), { cancel: true });
 		assert.equal(sent.length, 1, "checkpoint waits until Pi leaves manual compaction");
-		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		checkpointManager.finishManualCheckpointRequest(pi, ctx, cancelled, true);
 		assert.equal(sent.length, 2);
-		assert.deepEqual(sent[1]!.options, { deliverAs: "steer", triggerTurn: true });
+		assert.deepEqual(sent[1]!.options, { triggerTurn: false });
+		assert.deepEqual(kickoffs, [{ content: "Continue.", options: { deliverAs: "steer" }, messagesBeforeKickoff: 2 }]);
 		assert.match(String(sent[1]!.message["content"]), /Preserve the deployment decision/);
 		assert.deepEqual(checkpointManager.currentIdentity(), identity, "manual request does not cut the window");
-		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		checkpointManager.finishManualCheckpointRequest(pi, ctx, cancelled, true);
 		assert.equal(sent.length, 2, "cancellation completion consumes the request once");
 		checkpointManager.prepareCompaction(manual, mode);
-		checkpointManager.finishManualCheckpointRequest(pi, cancelled, false);
+		checkpointManager.finishManualCheckpointRequest(pi, ctx, cancelled, false);
 		assert.equal(sent.length, 2, "disabled mode cannot start a checkpoint turn");
 		checkpointManager.prepareCompaction(manual, mode);
 		controller.abort();
-		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		checkpointManager.finishManualCheckpointRequest(pi, ctx, cancelled, true);
 		assert.equal(sent.length, 2, "user cancellation cannot start a checkpoint turn");
+		assert.equal(kickoffs.length, 1);
+		checkpointManager.prepareCompaction({ reason: "manual", signal: new AbortController().signal } as never, mode);
+		checkpointManager.finishManualCheckpointRequest(
+			pi,
+			{ isIdle: () => false, ui: { notify() {} } } as never,
+			cancelled,
+			true,
+		);
+		assert.deepEqual(sent[2]!.options, { deliverAs: "steer", triggerTurn: true });
+		assert.equal(kickoffs.length, 1, "active runs receive steering without another kickoff");
+
+		const completedCtx = createContext() as ExtensionContext;
+		completedCtx.sessionManager.getBranch = () => [{
+			type: "message", message: { role: "assistant", stopReason: "stop" },
+		}] as never;
+		const compactWithSavedNotes = (customInstructions?: string) => {
+			checkpointManager.prepareCompaction({ reason: "manual", customInstructions, signal: new AbortController().signal } as never, mode);
+			return checkpointManager.finishManualCheckpointRequest(pi, completedCtx, cancelled, true);
+		};
+		checkpointManager.beginTurn(completedCtx);
+		const oldWrite = checkpointManager.trackNoteWrite(completedCtx);
+		oldWrite();
+		checkpointManager.settleTurn(completedCtx);
+		assert.equal(compactWithSavedNotes(), true, "completed note save needs no checkpoint turn");
+		assert.equal(sent.length, 3);
+		assert.equal(kickoffs.length, 1);
+		assert.equal(compactWithSavedNotes("Preserve the decision"), false, "explicit instructions still need a model turn");
+		checkpointManager.clearTurnNotes();
+		checkpointManager.beginTurn(completedCtx);
+		oldWrite();
+		checkpointManager.settleTurn(completedCtx);
+		assert.equal(compactWithSavedNotes(), false, "a late write cannot credit the next turn");
 	}
 	const hybridMessages = [
 		{ role: "user", content: "retained checkpoint tail", timestamp: 1 },

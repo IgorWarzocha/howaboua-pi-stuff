@@ -59,6 +59,33 @@ test("realtime forwards final speech before reporting established drops", async 
 	active.session.piInput("Silent request", "steer");
 	active.session.settleAgentTurn();
 	assert.equal(active.statuses.at(-1), "listening");
+	active.peer.emit({
+		type: "data",
+		message: { type: "input_transcript.added", item: { text: "Check" } },
+	});
+	let inputFinished = false;
+	const input = active.session.waitForInput(new AbortController().signal)
+		.then(() => { inputFinished = true; });
+	await Promise.resolve();
+	assert.equal(inputFinished, false);
+	active.peer.emit({
+		type: "data",
+		message: { type: "turn.done", turn: { role: "user", transcript: "Check the server" } },
+	});
+	await Promise.resolve();
+	assert.equal(inputFinished, false, "keep the call until the utterance is answered or delegated");
+	active.peer.emit({
+		type: "data",
+		message: {
+			type: "delegation.created",
+			item: {
+				type: "delegation", target: "client", id: "before-refresh",
+				content: [{ type: "input_text", text: "Check the server" }],
+			},
+		},
+	});
+	await input;
+	assert.equal(inputFinished, true);
 	active.session.markEstablished();
 	active.peer.emit({
 		type: "error",

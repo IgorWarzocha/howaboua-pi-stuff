@@ -315,5 +315,6 @@ function createResultRenderer(
 			runtime.renderStore,
 			runtime.collectRenderTools(),
 			runtime.useRichRendering(),
+			runtime.useMinimalOutput(),
 		);
 }

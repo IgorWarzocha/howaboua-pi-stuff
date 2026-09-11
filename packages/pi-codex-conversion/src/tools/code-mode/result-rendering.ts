@@ -43,6 +43,7 @@ export function renderTrackedCodeModeResult(
 	renderStore: CodeModeNestedRenderStore,
 	tools: CodeModeToolDefinition[] = [],
 	richRendering = true,
+	minimalOutput = false,
 ): Component {
 	if (!options.isPartial && context?.toolCallId) {
 		const details = asDetails(result.details);
@@ -56,6 +57,7 @@ export function renderTrackedCodeModeResult(
 		tools,
 		renderStore,
 		richRendering,
+		minimalOutput,
 	);
 }
 
@@ -67,6 +69,7 @@ function renderCodeModeResult(
 	tools: CodeModeToolDefinition[],
 	renderStore: CodeModeNestedRenderStore,
 	richRendering: boolean,
+	minimalOutput: boolean,
 ): Component {
 	const details = asDetails(result.details);
 	const content = details.notification || details.status === undefined ? result.content : result.content.slice(1);
@@ -97,11 +100,15 @@ function renderCodeModeResult(
 		|| Boolean(details.scriptError && !scriptErrorRenderedByTrace)
 		|| details.notification === true
 		|| images.length > 0;
-	const output = showOutput && (options.expanded || options.isPartial)
-		? renderTextAndImages(renderedText, [], theme)
-		: showOutput
-			? renderTextAndImages(previewText(renderedText, theme), [], theme)
-			: new Container();
+	const hidePreview = minimalOutput && !options.expanded
+		&& !context?.isError && !details.scriptError && !details.notification;
+	const displayText = !showOutput ? "" : hidePreview
+		? [
+			previewText(text ? theme.fg(tone, text) : "", theme, true),
+			status ? theme.fg(tone, status) : "",
+		].filter(Boolean).join("\n")
+		: options.expanded || options.isPartial ? renderedText : previewText(renderedText, theme);
+	const output = showOutput ? renderTextAndImages(displayText, [], theme) : new Container();
 	const body = renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,

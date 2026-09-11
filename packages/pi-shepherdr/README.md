@@ -14,7 +14,7 @@ With Pi Codex's compatible custom developer-message API active, asynchronous wor
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 0.84.3 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
+Requires Pi 0.84.4 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
 
 ```bash
 herdr integration install pi
@@ -22,7 +22,7 @@ herdr integration install pi
 
 Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; they own the same agent surface.
 
-Pi Codex 3.0.25 or newer is optional. Without it, Shepherdr remains a normal Pi extension.
+Pi Codex is optional. Without it, Shepherdr remains a normal Pi extension.
 
 ## Enable orchestration
 
@@ -36,7 +36,7 @@ The command only records one visible guidance message without triggering a turn.
 
 Shepherdr reads Herdr's existing machine profiles and connects enabled profiles at session startup. Manage profiles in Herdr. `/herdr connect [profile-id]` refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
 
-Profiles belong to the host running Pi, not the laptop or desktop displaying its terminal. Each profile targets one remote session. Agent calls use the opaque profile ID returned by `list`; `local` means Pi's current server. Renaming a profile changes its label, not its routing identity.
+Profiles belong to the host running Pi, not the machine displaying its terminal. Omit `machine` for local agent calls. `list` and `find` search all machines unless filtered. Explicit `local` also means the host running Pi. For remote calls, use the opaque profile ID returned by `list`, not its label or hostname. Renaming a profile changes its label, not its routing identity.
 
 Remote machines connect over noninteractive SSH. The target needs `node` on its SSH PATH, Herdr 0.9 or newer, the Herdr Pi integration and a running Herdr session. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind. Herdr's multi-machine UI does not expose a cross-machine automation socket, so Shepherdr still owns its remote transport and Pi transcript reads.
 
@@ -75,7 +75,11 @@ Cancelling a blocking call does not kill its worker. The waiter detaches and the
 
 Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
 
-Idle task prompts retain Pi's normal user kickoff and extension preparation. When the receiving agent is already running and Pi Codex developer delivery is active, Shepherdr routes attributed messages into that prepared run as developer steering. Without it, messages remain normal prompts. Install Shepherdr on receiving agents as well as controllers for this delivery.
+Messages sent through `agents` bypass the receiving Pi editor, preserving unsent drafts. Update and reload Shepherdr on receiving agents as well as controllers. If a receiver is unavailable, delivery fails without pasting into its terminal. Raw `herdr agent prompt` still uses terminal input and does not provide this protection.
+
+Messages beginning with `/` use the target Pi session's command, skill and prompt-template expansion, with sender attribution kept out of the arguments. Skills and templates retain normal task waiting. Registered extension commands return `commandSubmitted: true` without waiting or adding a task watch, even through `spawn` or `assign`; submission does not confirm command success. TUI-only commands such as `/model` and `/settings` are not available through this route. When Pi Codex Conversion is installed, update and reload it too.
+
+Idle messages start a prepared user turn. Messages arriving during a run use steering, promoted to developer messages when Pi Codex developer delivery is active. Otherwise they remain ordinary Pi custom messages.
 
 For `answer` inside Code or Notebook Mode, update Pi Ask on workers together with Shepherdr on controllers.
 

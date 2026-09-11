@@ -62,7 +62,7 @@ export function registerCodexTools(
 	const registerCore = (config: CodexConversionConfig) => {
 		registerApplyPatchTool(pi, {
 			customRustBinariesDir: config.tools.customRustBinariesDir,
-			showDiffWhenCollapsed: !config.ui.compactTools,
+			showDiffWhenCollapsed: config.ui.compactTools === "off",
 		});
 		registerExecCommandTool(pi, runtime.tracker, runtime.sessions, {
 			...renderOptions(config),

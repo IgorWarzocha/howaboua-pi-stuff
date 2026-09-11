@@ -12,6 +12,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
+import { tryStartCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { loadHistoryNotesThreadHint } from "./history-notes.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
@@ -56,6 +57,12 @@ export class CodexContextWindowManager {
 		signal: AbortSignal;
 	} | undefined;
 	private trimPendingWindowId: string | undefined;
+	private turnNotes: {
+		sessionId: string;
+		windowId: string;
+		phase: "running" | "settled";
+		saved: boolean;
+	} | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
 
@@ -74,6 +81,43 @@ export class CodexContextWindowManager {
 		this.hybridCompaction = undefined;
 		this.manualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
+		this.clearTurnNotes();
+	}
+
+	clearTurnNotes(): void {
+		this.turnNotes = undefined;
+	}
+
+	beginTurn(ctx: ExtensionContext): void {
+		this.turnNotes = this.identity ? {
+			sessionId: ctx.sessionManager.getSessionId(),
+			windowId: this.identity.currentWindowId,
+			phase: "running",
+			saved: false,
+		} : undefined;
+	}
+
+	settleTurn(ctx: ExtensionContext): void {
+		const turn = this.turnNotes;
+		if (!turn || !ctx.isIdle()) return;
+		const lastAssistant = ctx.sessionManager.getBranch().findLast((entry) =>
+			entry.type === "message" && entry.message.role === "assistant");
+		if (lastAssistant?.type !== "message" || lastAssistant.message.role !== "assistant" ||
+			(lastAssistant.message.stopReason !== "stop" && lastAssistant.message.stopReason !== "length")) {
+			this.clearTurnNotes();
+			return;
+		}
+		turn.phase = "settled";
+	}
+
+	trackNoteWrite(ctx: ExtensionContext): () => void {
+		const turn = this.turnNotes;
+		return () => {
+			// A remote write can finish after its run or window has been replaced.
+			if (turn && this.turnNotes === turn && turn.phase === "running" &&
+				turn.sessionId === ctx.sessionManager.getSessionId() &&
+				turn.windowId === this.identity?.currentWindowId) turn.saved = true;
+		};
 	}
 
 	currentIdentity(): ContextWindowIdentity | undefined {
@@ -302,16 +346,24 @@ export class CodexContextWindowManager {
 		return { compaction: this.createCompaction(event) };
 	}
 
-	finishManualCheckpointRequest(pi: ExtensionAPI, event: Extract<ExtensionEvent, { type: "session_compact_failed" }>, active: boolean): void {
+	finishManualCheckpointRequest(pi: ExtensionAPI, ctx: Pick<ExtensionContext, "isIdle" | "ui" | "sessionManager">, event: Extract<ExtensionEvent, { type: "session_compact_failed" }>, active: boolean): boolean {
 		const pending = this.manualCheckpoint;
 		this.manualCheckpoint = undefined;
 		if (
 			!pending || !active || event.reason !== "manual" || !event.aborted ||
 			pending.signal.aborted || pending.identity.currentWindowId !== this.identity?.currentWindowId
-		) return;
+		) return false;
 		// Pi clears its manual compaction controller before session_compact_failed.
+		const idle = ctx.isIdle();
+		const turn = this.turnNotes;
+		if (idle && !pending.customInstructions?.trim() && turn?.phase === "settled" && turn.saved &&
+			turn.sessionId === ctx.sessionManager.getSessionId() &&
+			turn.windowId === pending.identity.currentWindowId) return true;
 		sendContextWindowMessage(pi, renderManualContextCheckpoint(pending.customInstructions),
-			"reminder", pending.identity, { triggerTurn: true });
+			"reminder", pending.identity, { triggerTurn: !idle });
+		if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
+			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+		return false;
 	}
 
 	recordCompaction(details: unknown): void {
@@ -356,6 +408,7 @@ export class CodexContextWindowManager {
 		threadHint?: string,
 	): void {
 		this.identity = identity;
+		this.clearTurnNotes();
 		this.trimPendingWindowId = options.trimPreviousWindow
 			? identity.currentWindowId
 			: undefined;

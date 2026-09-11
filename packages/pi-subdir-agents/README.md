@@ -14,7 +14,7 @@ pi install npm:@howaboua/pi-subdir-agents
 
 When a read or discovery command reaches a file or directory, the extension finds every nested `AGENTS.md` between that target and its repository root. It delivers those files in outer-to-inner order.
 
-The loader recognizes direct file reads, directory tools, common read-oriented shell commands, their reported paths, and completed Code Mode traces. It follows the discovered command working directory, including `cd` and `git -C`.
+The loader recognizes direct file reads, directory tools, common read-oriented shell commands, and completed Code Mode traces. Listings such as `ls`, `find`, and `rg --files` load guidance for the queried directory, not every child they name. Content searches can also load guidance for matching files. It follows the discovered command working directory, including `cd` and `git -C`.
 
 Loaded files are persisted in developer custom-message or tool-result details. A resumed or revisited branch does not receive unchanged guidance again. Discovery reloads guidance only when its content changes. Pi Codex is optional; unavailable developer-message support keeps the tool-result route.
 

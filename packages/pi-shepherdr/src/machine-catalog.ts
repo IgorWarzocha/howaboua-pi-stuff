@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { isAbsolute } from "node:path";
 import { promisify } from "node:util";
 import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
@@ -25,20 +26,36 @@ export type SshMachine = Static<typeof Machine>;
 export async function readMachineCatalog(): Promise<
 	Record<string, SshMachine>
 > {
+	const inheritedBinary = process.env["HERDR_BIN_PATH"]?.trim() || "herdr";
+	let binary = inheritedBinary;
+	const read = (path: string) =>
+		promisify(execFile)(path, ["machine", "list", "--json"], {
+			timeout: 10_000,
+			maxBuffer: 1024 * 1024,
+			encoding: "utf8",
+		});
 	let stdout: string;
 	try {
-		({ stdout } = await promisify(execFile)(
-			process.env["HERDR_BIN_PATH"]?.trim() || "herdr",
-			["machine", "list", "--json"],
-			{
-				timeout: 10_000,
-				maxBuffer: 1024 * 1024,
-				encoding: "utf8",
-			},
-		));
+		try {
+			({ stdout } = await read(binary));
+		} catch (error) {
+			if (
+				!(error instanceof Error) ||
+				!("code" in error) ||
+				error.code !== "ENOENT" ||
+				!isAbsolute(binary) ||
+				!binary.endsWith(" (deleted)")
+			) {
+				throw error;
+			}
+			// Linux /proc executable paths can retain this suffix after replacement.
+			binary = binary.slice(0, -" (deleted)".length);
+			({ stdout } = await read(binary));
+		}
 	} catch (error) {
 		throw new Error(
-			`Could not read Herdr machines; requires Herdr 0.9 or newer: ${error instanceof Error ? error.message : String(error)}`,
+			`Could not read Herdr machines${binary !== inheritedBinary ? " after retrying stale HERDR_BIN_PATH" : ""}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
 		);
 	}
 	let value: unknown;

@@ -125,6 +125,10 @@ export class RealtimeVoiceTurnTracker {
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
 
+	get hasPendingInput(): boolean {
+		return this.unfinishedUserTurns.length > 0 || this.pendingUserInputs.length > 0;
+	}
+
 	inputAdded(input: string): void {
 		const startsTurn = !this.activeUserTurn;
 		if (!this.activeUserTurn) {

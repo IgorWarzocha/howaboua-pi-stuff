@@ -6,13 +6,14 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
-import { sendPolicyMessage } from "./delivery.js";
+import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
 import type {
 	LatestAssistant,
 	MonitoredAgent,
 	PaneInfo,
+	PeerMessage,
 	PendingAsk,
 	SettledAgentStatus,
 } from "./types.js";
@@ -63,7 +64,7 @@ export async function attributeAgentPrompt(
 	client: HerdrConnection,
 	message: string,
 	kind: "message" | "task",
-): Promise<string> {
+): Promise<PeerMessage> {
 	const [pane, snapshot] = await Promise.all([
 		getCurrentPane(client),
 		getSnapshot(client),
@@ -81,7 +82,10 @@ export async function attributeAgentPrompt(
 			...(tab ? { tab } : {}),
 		}),
 	};
-	return `<herdr_sender ${sourceAttributes(source)} />\n${message}`;
+	return {
+		sender: `<herdr_sender ${sourceAttributes(source)} />`,
+		text: message,
+	};
 }
 
 interface AgentEventOptions {
@@ -367,8 +371,9 @@ export function injectAgentEvent(
 	options: AgentEventOptions,
 ): void {
 	const message = agentEvent(options);
-	const delivery = ctx.isIdle()
-		? { triggerTurn: true, deliverAs: "steer" as const }
+	const idle = ctx.isIdle();
+	const delivery = idle
+		? { triggerTurn: false, deliverAs: "steer" as const }
 		: { deliverAs: "steer" as const };
 	sendPolicyMessage(
 		pi,
@@ -380,6 +385,7 @@ export function injectAgentEvent(
 		},
 		delivery,
 	);
+	if (idle) startPreparedIdleTurn(pi, ctx);
 	announceAgentEvent(pi, message.details);
 }
 
