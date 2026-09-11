@@ -262,8 +262,8 @@ export function registerSubdirContextAutoload(
 			loadedAgents.add(absolutePath);
 			loadedAgentsContent.set(absolutePath, file.content);
 		}
-		notifyLoaded(ctx, result.loadedNow);
 		if (sent) return undefined;
+		notifyLoaded(ctx, result.loadedNow);
 		const details = result.persistedFiles.length
 			? mergePersistedContextDetails(event.details, {
 					files: result.persistedFiles,

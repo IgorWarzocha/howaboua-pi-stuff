@@ -628,19 +628,29 @@ async function run() {
 	// Same discovery contract, routed through the optional developer broker.
 	branchEntries.length = 0;
 	sessionStart({}, ctx);
+	const notifications = [];
+	const uiContext = {
+		...ctx,
+		hasUI: true,
+		ui: {
+			notify(message, type) {
+				notifications.push({ message, type });
+			},
+		},
+	};
 	let active = true;
 	const removeBroker = registerCodexDeveloperMessageBroker(pi, () => active);
 	const sendMessage = pi.sendMessage;
 	pi.sendMessage = () => {
 		throw new Error("delivery failed");
 	};
-	await assert.rejects(toolResult(readEvent, ctx), /delivery failed/);
+	await assert.rejects(toolResult(readEvent, uiContext), /delivery failed/);
 	assert.equal(pi.sentMessages.length, 0);
 	pi.sendMessage = (message, options) => {
 		assert.deepEqual(options, { deliverAs: "steer", triggerTurn: false });
 		sendMessage(message);
 	};
-	assert.equal(await toolResult(readEvent, ctx), undefined);
+	assert.equal(await toolResult(readEvent, uiContext), undefined);
 	assert.equal(pi.sentMessages.length, 1);
 	const developerMessage = pi.sentMessages[0];
 	assert.equal(developerMessage.customType, "subdir-agents-context");
@@ -651,16 +661,20 @@ async function run() {
 	assert.equal(textContent(readEvent), "FILE");
 	branchEntries.push({ type: "custom_message", ...developerMessage });
 	sessionStart({}, ctx);
-	assert.equal(await toolResult(readEvent, ctx), undefined);
+	assert.equal(await toolResult(readEvent, uiContext), undefined);
 	assert.equal(pi.sentMessages.length, 1);
+	assert.deepEqual(notifications, []);
 	active = false;
 	branchEntries.length = 0;
 	sessionStart({}, ctx);
 	assert.match(
-		textContent(await toolResult(readEvent, ctx)),
+		textContent(await toolResult(readEvent, uiContext)),
 		/<subdirectory_agents_context>/,
 	);
 	assert.equal(pi.sentMessages.length, 1);
+	assert.deepEqual(notifications, [
+		{ message: "Loaded AGENTS.md context (3 files)", type: "info" },
+	]);
 	removeBroker();
 
 	await fs.rm(root, { recursive: true, force: true });
