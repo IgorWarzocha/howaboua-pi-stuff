@@ -1,7 +1,7 @@
 ---
 name: agent-tool-design
 description: "Read before creating, reviewing, or refining a tool exposed to an agent."
-last-changed: "2026-08-22"
+last-changed: "2026-09-11"
 ---
 
 For a Pi tool, also read `references/pi.md`.
@@ -36,26 +36,15 @@ For a Pi tool, also read `references/pi.md`.
 - Omit cosmetic terminal full stops, backticks, Markdown, examples, and grammatical padding. Preserve punctuation and formatting only when they carry literal syntax or prevent ambiguity.
 - Keep safe compatibility aliases inside argument preparation rather than advertising them in the schema.
 
-## Spend words only where behaviour changes
+## Reject bloated tool contracts
 
-Add model-facing text only for:
-
-- an unfamiliar capability or local deviation
-- a realistic collision with another tool
-- unusual syntax the agent must produce exactly
-- a consequential side effect or safety boundary
-- an observed recurring mistake
-- recovery information needed after failure
-
-Prefer a precise runtime error for rare invalid states instead of preloading every edge case into every call. Do not turn generic coding workflow into tool guidance.
-
-## Avoid duplicate instruction
-
-- Do not repeat the tool name and action in its description.
-- Do not repeat field descriptions in the tool description.
-- Do not repeat schema facts in prompt snippets or guidelines.
-- Keep inventory text to one short capability or exact usage line.
-- Add system-prompt guidance only for cross-tool choice, sequencing, or safety that the schema cannot express and the agent does not already know.
+- Existing text gets no exemption. When touching a tool or its integration, cull its entire model-facing contract before adding anything.
+- Judge the assembled tool block, not individual fields or packages. A collection of short descriptions can still be an oversized manual.
+- Each fact gets one representation per active mode. Reject repetition across usage, descriptions, schemas, snippets, guidelines, and help. Do not restate the tool name and action as its description.
+- Keep inventory text to one short capability or exact usage line. Help-backed tools get one compact discovery entry; detailed actions, optional fields, and examples belong in help.
+- Reject feature inventories, nested optional APIs, troubleshooting manuals, and generic agent workflow in standing prompts. Keep the immediate callable contract and necessary non-obvious constraints. Put rare invalid-state recovery in precise runtime errors.
+- Every additional standing instruction must identify the concrete wrong decision it prevents and why the existing name, schema, help, or error cannot prevent it. Unfamiliar capabilities, local deviations, tool collisions, exact syntax, safety boundaries, and recurring mistakes may justify text; mere feature existence does not.
+- "Preserve metadata", "feature parity", and "might help" do not justify prompt growth. Reject the change until redundant and unjustified text is removed; a net token reduction does not excuse remaining clutter.
 
 ## Return useful state
 
@@ -64,8 +53,8 @@ Prefer a precise runtime error for rare invalid states instead of preloading eve
 - Bound large output and make truncation visible.
 - Keep render-only detail out of the model-facing result.
 
-## Cull
+## Validate
 
-Inspect the exact schema and prompt text sent to the model. For every word, punctuation mark, field, and guideline, ask what plausible wrong call appears if it is removed. Delete it when there is no concrete answer.
+Inspect the exact schema and prompt text sent to the model. Apply the rejection gate to every word, field, and guideline, including unchanged text in the touched contract.
 
 Check representative valid calls, invalid calls, neighbouring-tool selection, empty output, failure, and continuation where relevant. Optimize task success first, then compare token cost.
