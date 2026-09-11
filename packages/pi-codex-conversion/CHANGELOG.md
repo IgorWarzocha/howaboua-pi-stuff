@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.33
+
+- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+
 ## 3.0.32
 
 - Fix Notebook's first-run Deno installation in standalone Pi by loading the archive extractor through the extension's static module graph.

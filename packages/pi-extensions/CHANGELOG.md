@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.73
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-better-skills-tool: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-shepherdr: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+
 ## 0.0.72
 
 - Include bundled package updates:

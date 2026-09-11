@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skill-harness-and-agent-engineering",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Portable Pi skills for harness and agent engineering",
 	"type": "module",
 	"keywords": [
