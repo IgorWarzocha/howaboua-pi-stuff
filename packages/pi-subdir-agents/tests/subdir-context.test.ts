@@ -5,9 +5,9 @@ import path from "node:path";
 import { test } from "node:test";
 import {
 	createEventBus,
-	SessionManager,
 	type ExtensionAPI,
 	type ExtensionContext,
+	SessionManager,
 	type SessionStartEvent,
 	type ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
