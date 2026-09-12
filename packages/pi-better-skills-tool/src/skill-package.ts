@@ -55,56 +55,29 @@ function findSkillByName(
 	);
 }
 
-function resolveSkillRead(
-	skills: CatalogSkill[],
-	name: string,
-	references: string[],
-): { skill: CatalogSkill; references: string[] } | undefined {
-	const direct = findSkillByName(skills, name);
-	if (direct) return { skill: direct, references };
-	const normalized = normalizedPath(name);
-	for (const skill of skills) {
-		if (normalized.toLowerCase() === `${skill.name}/skill.md`) {
-			return { skill, references };
-		}
-		const prefix = `${skill.name}/references/`;
-		if (normalized.toLowerCase().startsWith(prefix)) {
-			const reference = normalized.slice(prefix.length);
-			if (reference) {
-				return {
-					skill,
-					references: [...new Set([reference, ...references])],
-				};
-			}
-		}
-	}
-	if (!isAbsolute(name)) return undefined;
-	const requestedPath = resolve(name);
-	for (const skill of skills) {
-		if (requestedPath === resolve(skill.path)) {
-			return { skill, references };
-		}
-		const reference = referenceFiles(skill).find(
-			(path) => resolve(path) === requestedPath,
-		);
-		if (reference) {
-			return {
-				skill,
-				references: [...new Set([reference, ...references])],
-			};
-		}
-	}
-	return undefined;
-}
-
-function isOwnSkillDocument(reference: string, skill: CatalogSkill): boolean {
-	const normalized = normalizedPath(reference).toLowerCase();
+function isOwnSkillDocument(name: string, skill: CatalogSkill): boolean {
+	const normalized = normalizedPath(name).toLowerCase();
 	return (
 		normalized === "skill.md" ||
 		normalized === `${skill.name}/skill.md` ||
-		(isAbsolute(reference) && resolve(reference) === resolve(skill.path))
+		(isAbsolute(name) && resolve(name) === resolve(skill.path))
 	);
 }
+
+interface SkillSelection {
+	kind: "skill";
+	skill: CatalogSkill;
+}
+
+interface ReferenceSelection {
+	kind: "reference";
+	skill: CatalogSkill;
+	reference: string;
+	path: string;
+}
+
+type ReadSelection = SkillSelection | ReferenceSelection;
+type ReferenceCatalog = Map<CatalogSkill, Map<string, string>>;
 
 function packageFiles(skill: CatalogSkill): string[] {
 	const root = realpathSync(skill.directory);
@@ -176,11 +149,12 @@ function referenceFiles(skill: CatalogSkill): string[] {
 	);
 }
 
-function readReferences(
+function referencesForSkill(
 	skill: CatalogSkill,
-	references: string[],
-	skills: CatalogSkill[],
-): string {
+	catalog: ReferenceCatalog,
+): Map<string, string> {
+	const existing = catalog.get(skill);
+	if (existing) return existing;
 	const root = resolve(skill.directory, "references");
 	const available = new Map(
 		referenceFiles(skill).map((path) => [
@@ -188,72 +162,187 @@ function readReferences(
 			path,
 		]),
 	);
-	const selected: Array<{ reference: string; path: string; content: string }> =
-		[];
-	const seen = new Set<string>();
-	for (const requestedReference of references) {
-		const absoluteReference = isAbsolute(requestedReference)
-			? [...available].find(
-					([, path]) => resolve(path) === resolve(requestedReference),
-				)?.[0]
-			: undefined;
-		const reference =
-			absoluteReference ??
-			referenceCandidates(requestedReference, skill).find((candidate) =>
-				available.has(candidate),
-			);
-		const path = reference ? available.get(reference) : undefined;
-		if (!reference || !path) {
-			const separate = resolveSkillRead(skills, requestedReference, []);
-			if (separate && separate.skill !== skill) {
-				const command = [
-					"read",
-					separate.skill.name,
-					...separate.references,
-				].join(" ");
-				throw new Error(
-					`"${requestedReference}" is a separate skill, not a reference of "${skill.name}". Read it separately with "${command}"`,
-				);
-			}
-			const choices = [...available.keys()].join(", ") || "none";
-			throw new Error(
-				`Unknown reference "${requestedReference}" for skill "${skill.name}". Available: ${choices}`,
+	catalog.set(skill, available);
+	return available;
+}
+
+function findReference(
+	skill: CatalogSkill,
+	name: string,
+	catalog: ReferenceCatalog,
+): ReferenceSelection | undefined {
+	const available = referencesForSkill(skill, catalog);
+	const absoluteReference = isAbsolute(name)
+		? [...available].find(([, path]) => resolve(path) === resolve(name))?.[0]
+		: undefined;
+	const reference =
+		absoluteReference ??
+		referenceCandidates(name, skill).find((candidate) =>
+			available.has(candidate),
+		);
+	const path = reference ? available.get(reference) : undefined;
+	return reference && path
+		? { kind: "reference", skill, reference, path }
+		: undefined;
+}
+
+function unknownReferenceForSkill(name: string, skill: CatalogSkill): never {
+	throw new Error(
+		`Unknown reference "${name}" for skill "${skill.name}". Use "read ${skill.name}" to inspect its reference paths`,
+	);
+}
+
+function resolveExplicitSelection(
+	skills: CatalogSkill[],
+	name: string,
+	catalog: ReferenceCatalog,
+): ReadSelection | undefined {
+	const normalized = normalizedPath(name);
+	for (const skill of skills) {
+		if (normalized.toLowerCase() === `${skill.name}/skill.md`) {
+			return { kind: "skill", skill };
+		}
+		const prefix = `${skill.name}/references/`;
+		if (normalized.toLowerCase().startsWith(prefix)) {
+			const requestedReference = normalized.slice(prefix.length);
+			return (
+				findReference(skill, requestedReference, catalog) ??
+				unknownReferenceForSkill(requestedReference, skill)
 			);
 		}
-		if (seen.has(reference)) continue;
-		seen.add(reference);
-		selected.push({
-			reference,
-			path,
-			content: readFileSync(path, "utf8").trim(),
-		});
 	}
+	if (!isAbsolute(name)) return undefined;
+	const requestedPath = resolve(name);
+	for (const skill of skills) {
+		if (requestedPath === resolve(skill.path)) return { kind: "skill", skill };
+		const reference = findReference(skill, requestedPath, catalog);
+		if (reference) return reference;
+	}
+	return undefined;
+}
+
+function resolvePrimarySelection(
+	skills: CatalogSkill[],
+	name: string,
+	catalog: ReferenceCatalog,
+): ReadSelection {
+	const direct = findSkillByName(skills, name);
+	if (direct) return { kind: "skill", skill: direct };
+	const explicit = resolveExplicitSelection(skills, name, catalog);
+	if (explicit) return explicit;
+	throw new Error(
+		`Unknown skill "${name}". Available: ${skills.map((skill) => skill.name).join(", ") || "none"}`,
+	);
+}
+
+function resolveAdditionalSelection(
+	skills: CatalogSkill[],
+	name: string,
+	catalog: ReferenceCatalog,
+): ReadSelection {
+	const exactSkill = skills.find((skill) => skill.name === name);
+	if (exactSkill) return { kind: "skill", skill: exactSkill };
+	const explicit = resolveExplicitSelection(skills, name, catalog);
+	if (explicit) return explicit;
+	const references = skills.flatMap((skill) => {
+		const reference = findReference(skill, name, catalog);
+		return reference ? [reference] : [];
+	});
+	if (references.length === 1) return references[0] as ReferenceSelection;
+	if (references.length > 1) {
+		throw new Error(
+			`Ambiguous reference "${name}". Use one of: ${references
+				.map(
+					(reference) =>
+						`${reference.skill.name}/references/${reference.reference}`,
+				)
+				.join(", ")}`,
+		);
+	}
+	throw new Error(
+		`Unknown skill or reference "${name}". Use "list" for skill names or "read <skill>" to inspect reference paths`,
+	);
+}
+
+function deduplicateSelections(selections: ReadSelection[]): ReadSelection[] {
+	const seen = new Set<string>();
+	return selections.filter((selection) => {
+		const path = resolve(
+			selection.kind === "skill" ? selection.skill.path : selection.path,
+		);
+		if (seen.has(path)) return false;
+		seen.add(path);
+		return true;
+	});
+}
+
+function formatReferences(selected: ReferenceSelection[]): string {
+	const oneSkill = new Set(selected.map(({ skill }) => skill.name)).size === 1;
+	const withContent = selected.map((selection) => ({
+		...selection,
+		content: readFileSync(selection.path, "utf8").trim(),
+	}));
 	const content =
-		selected.length === 1
-			? (selected[0]?.content ?? "")
-			: selected
-					.map(
-						({ reference, content: body }) => `--- ${reference} ---\n${body}`,
-					)
+		withContent.length === 1
+			? (withContent[0]?.content ?? "")
+			: withContent
+					.map(({ skill, reference, content: body }) => {
+						const label = oneSkill
+							? reference
+							: `${skill.name}/references/${reference}`;
+						return `--- ${label} ---\n${body}`;
+					})
 					.join("\n\n");
-	return `${content}\n\n---\nSources:\n${selected.map(({ path }) => `- ${path}`).join("\n")}`;
+	return `${content}\n\n---\nSources:\n${withContent.map(({ path }) => `- ${path}`).join("\n")}`;
+}
+
+function formatMixedSelections(selections: ReadSelection[]): string {
+	const content = selections
+		.map((selection) => {
+			if (selection.kind === "skill") {
+				return `--- ${selection.skill.name} ---\n${formatSkill(selection.skill)}`;
+			}
+			return `--- ${selection.skill.name}/references/${selection.reference} ---\n${readFileSync(selection.path, "utf8").trim()}`;
+		})
+		.join("\n\n");
+	const sources = selections
+		.filter(
+			(selection): selection is ReferenceSelection =>
+				selection.kind === "reference",
+		)
+		.map(({ path }) => `- ${path}`);
+	return sources.length
+		? `${content}\n\n---\nSources:\n${sources.join("\n")}`
+		: content;
 }
 
 export function readSkillPackage(
 	skills: CatalogSkill[],
 	name: string,
-	references: string[],
+	selectors: string[],
 ): string {
-	const target = resolveSkillRead(skills, name, references);
-	if (!target) {
-		throw new Error(
-			`Unknown skill "${name}". Available: ${skills.map((skill) => skill.name).join(", ") || "none"}`,
-		);
-	}
-	const selectedReferences = target.references.filter(
-		(reference) => !isOwnSkillDocument(reference, target.skill),
+	const catalog: ReferenceCatalog = new Map();
+	const primary = resolvePrimarySelection(skills, name, catalog);
+	const additional = selectors
+		.filter((reference) => !isOwnSkillDocument(reference, primary.skill))
+		.map((reference) => resolveAdditionalSelection(skills, reference, catalog));
+	const selections = deduplicateSelections(
+		primary.kind === "skill" &&
+			additional.length > 0 &&
+			additional.every((selection) => selection.kind === "reference")
+			? additional
+			: [primary, ...additional],
 	);
-	return selectedReferences.length
-		? readReferences(target.skill, selectedReferences, skills)
-		: formatSkill(target.skill);
+	if (selections.length === 1) {
+		const selection = selections[0] as ReadSelection;
+		return selection.kind === "skill"
+			? formatSkill(selection.skill)
+			: formatReferences([selection]);
+	}
+	return selections.every(
+		(selection): selection is ReferenceSelection =>
+			selection.kind === "reference",
+	)
+		? formatReferences(selections)
+		: formatMixedSelections(selections);
 }

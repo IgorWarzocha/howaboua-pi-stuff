@@ -35,4 +35,13 @@ test("execute_reply preserves failures omitted from IOPub", () => {
 		extractDenoSyntaxError("error: SyntaxError: Unexpected token `=`\n  |\n1 | const = 1;\n  |       ~\n    at file:///_stdin.ts:1:7\n"),
 		"SyntaxError: Unexpected token `=`\n  |\n1 | const = 1;\n  |       ~\n    at notebook cell:1:7",
 	);
+	for (const path of ["file:///work/project/_stdin.ts", "file:///C:/work/project/_stdin.ts"]) {
+		const diagnostic = `error: SyntaxError: Expression expected\n    at ${path}:4:1\n`;
+		assert.equal(extractDenoSyntaxError(diagnostic), "SyntaxError: Expression expected\n    at notebook cell:4:1");
+		assert.equal(
+			extractDenoSyntaxError(diagnostic, "generated notebook code"),
+			"SyntaxError: Expression expected\n    at generated notebook code:4:1",
+		);
+	}
+	assert.equal(extractDenoSyntaxError("error: formatter unavailable"), undefined);
 });

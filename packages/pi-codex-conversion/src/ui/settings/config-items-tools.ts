@@ -23,6 +23,16 @@ export function buildToolsSettings(
 			"Use a vision model to describe images for text-only models instead of rejecting image requests.",
 		),
 		toggle(
+			"notebookPlainCommandOutput",
+			"Plain command output",
+			config.notebook.plainCommandOutput,
+			(enabled, current) => ({
+				...current,
+				notebook: { ...current.notebook, plainCommandOutput: enabled },
+			}),
+			"In Code and Notebook modes, send shell output without JSON escaping, keeping command status and continuation details.",
+		),
+		toggle(
 			"applyPatchOnly",
 			"Standalone apply_patch",
 			config.tools.applyPatchOnly,

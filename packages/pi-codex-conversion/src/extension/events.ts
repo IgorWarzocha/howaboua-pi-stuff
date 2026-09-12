@@ -242,13 +242,18 @@ export function registerCodexEvents(
 		}
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		if (state.contextWindows.finishTurn(ctx, async () => {
-			if (plan.contextManagementMode === "tree") {
-				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-				await state.contextTree.settle(pi, ctx);
-			} else await state.contextKickoff.startWindow(pi, ctx, {
-				mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
-			});
-			state.contextKickoff.continue(pi, ctx);
+			let continued = false;
+			try {
+				if (plan.contextManagementMode === "tree") {
+					runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+					await state.contextTree.settle(pi, ctx);
+				} else await state.contextKickoff.startWindow(pi, ctx, {
+					mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
+				});
+				continued = state.contextKickoff.continue(pi, ctx);
+			} finally {
+				if (!continued) runtime.autoReasoning.settle(ctx);
+			}
 		})) return;
 		if (state.contextTree.handoff.active) return;
 		state.contextWindows.recordBudget(
@@ -363,24 +368,34 @@ export function registerCodexEvents(
 		state.contextWindows.settleTurn(ctx);
 		updateCodexPreparedIdleKickoff(pi, "agent_settled");
 		flushCodexReasoningUpdates(pi, ctx);
-		runtime.autoReasoning.settle(ctx);
-		const quotaExhausted = !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
-		turnPrewarm = undefined;
-		if (pendingExtensionToolRefresh) {
-			pendingExtensionToolRefresh = false;
-			syncAdapter(pi, ctx, state);
+		// Hybrid's asynchronous compact() aborts this run before its successor exists.
+		const continuingWork = state.contextWindows.isHybridCompactionRunning()
+			|| state.contextTree.rolloverPending || state.contextKickoff.pending;
+		if (!continuingWork) runtime.autoReasoning.settle(ctx);
+		// Reserve must capture the user's restored level, never a temporary Astra override.
+		const quotaExhausted = !continuingWork && !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
+		let rolled = false;
+		let continued = false;
+		try {
+			turnPrewarm = undefined;
+			if (pendingExtensionToolRefresh) {
+				pendingExtensionToolRefresh = false;
+				syncAdapter(pi, ctx, state);
+			}
+			state.pendingActiveProviderPromptCapture = false;
+			state.voiceSystemPromptOverride = undefined;
+			state.codexTurnState.reset();
+			runtime.voice.settleTurn();
+			runtime.lanVoice.agentSettled();
+			if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
+			rolled = await state.contextTree.settle(pi, ctx) || await state.contextKickoff.settlePostCompaction(pi, ctx);
+			if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+			state.contextTree.handoff.settled(ctx);
+			continued = state.contextKickoff.continue(pi, ctx);
+		} finally {
+			if (continuingWork && !continued && !state.contextWindows.isHybridCompactionRunning()) runtime.autoReasoning.settle(ctx);
 		}
-		state.pendingActiveProviderPromptCapture = false;
-		state.voiceSystemPromptOverride = undefined;
-		state.codexTurnState.reset();
-		runtime.voice.settleTurn();
-		runtime.lanVoice.agentSettled();
-		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
-		const rolled = await state.contextTree.settle(pi, ctx) || await state.contextKickoff.settlePostCompaction(pi, ctx);
-		if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-		state.contextTree.handoff.settled(ctx);
-		const continued = state.contextKickoff.continue(pi, ctx);
-		if (!rolled && !continued && !quotaExhausted) runtime.armCacheKeepalive(ctx);
+		if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isHybridCompactionRunning()) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		await turnPrewarm;
@@ -432,6 +447,7 @@ export function registerCodexEvents(
 		}
 	});
 	pi.on("session_compact_failed", async (event, ctx) => {
+		if (state.contextWindows.isHybridCompactionRunning()) runtime.autoReasoning.settle(ctx);
 		state.pendingPiCompactionNativeWindow = undefined;
 		runtime.voice.compactionFinished();
 		const plan = resolveCodexRuntimePlanForState(ctx, state);

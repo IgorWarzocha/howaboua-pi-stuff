@@ -26,8 +26,8 @@ pub struct AbsolutePathBuf(PathBuf);
 impl AbsolutePathBuf {
     fn maybe_expand_home_directory(path: &Path) -> PathBuf {
         if let Some(path_str) = path.to_str()
-            && let Some(home) = home_dir()
             && let Some(rest) = path_str.strip_prefix('~')
+            && let Some(home) = AbsolutePathBufGuard::home_directory()
         {
             if rest.is_empty() {
                 return home;
@@ -326,6 +326,7 @@ impl TryFrom<String> for AbsolutePathBuf {
 
 thread_local! {
     static ABSOLUTE_PATH_BASE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    static ABSOLUTE_PATH_HOME: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
 
 /// Ensure this guard is held while deserializing `AbsolutePathBuf` values to
@@ -335,11 +336,37 @@ thread_local! {
 pub struct AbsolutePathBufGuard;
 
 impl AbsolutePathBufGuard {
+    /// Reads the native deserialization base and validates the guard requirement
+    /// before home expansion or namespace normalization. Does not look up cwd.
+    pub fn deserialization_base(path: &Path) -> Result<Option<PathBuf>, &'static str> {
+        let base = ABSOLUTE_PATH_BASE.with(|cell| cell.borrow().clone());
+        if base.is_none() && !path.is_absolute() {
+            return Err("AbsolutePathBuf deserialized without a base path");
+        }
+        Ok(base)
+    }
+
+    /// Reads the effective native home, including the thread-local override.
+    pub fn home_directory() -> Option<PathBuf> {
+        ABSOLUTE_PATH_HOME
+            .with(|cell| cell.borrow().clone())
+            .or_else(home_dir)
+    }
+
     pub fn new(base_path: &Path) -> Self {
         ABSOLUTE_PATH_BASE.with(|cell| {
             *cell.borrow_mut() = Some(base_path.to_path_buf());
         });
         Self
+    }
+
+    /// Resolves home-relative paths against `home_directory` during `operation`.
+    /// The operation must complete synchronously on the current thread.
+    pub fn with_home_directory<T>(home_directory: &Path, operation: impl FnOnce() -> T) -> T {
+        let previous_home =
+            ABSOLUTE_PATH_HOME.with(|cell| cell.replace(Some(home_directory.to_path_buf())));
+        let _guard = HomeDirectoryGuard(previous_home);
+        operation()
     }
 }
 
@@ -351,21 +378,29 @@ impl Drop for AbsolutePathBufGuard {
     }
 }
 
+struct HomeDirectoryGuard(Option<PathBuf>);
+
+impl Drop for HomeDirectoryGuard {
+    fn drop(&mut self) {
+        ABSOLUTE_PATH_HOME.with(|cell| {
+            *cell.borrow_mut() = self.0.take();
+        });
+    }
+}
+
 impl<'de> Deserialize<'de> for AbsolutePathBuf {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let path = PathBuf::deserialize(deserializer)?;
-        ABSOLUTE_PATH_BASE.with(|cell| match cell.borrow().as_deref() {
+        match AbsolutePathBufGuard::deserialization_base(&path)
+            .map_err(SerdeError::custom)?
+            .as_deref()
+        {
             Some(base) => Ok(Self::resolve_path_against_base(path, base)),
-            None if path.is_absolute() => {
-                Self::from_absolute_path(path).map_err(SerdeError::custom)
-            }
-            None => Err(SerdeError::custom(
-                "AbsolutePathBuf deserialized without a base path",
-            )),
-        })
+            None => Self::from_absolute_path(path).map_err(SerdeError::custom),
+        }
     }
 }
 
@@ -593,6 +628,50 @@ mod tests {
             serde_json::from_str::<AbsolutePathBuf>("\"~/code\"").expect("failed to deserialize")
         };
         assert_eq!(abs_path_buf.as_path(), home.join("code").as_path());
+    }
+
+    #[test]
+    fn explicit_home_directory_is_used_with_existing_path_guards() {
+        let home_dir = tempdir().expect("explicit home directory");
+        let base_dir = tempdir().expect("base directory");
+
+        let (home_path, relative_path) =
+            AbsolutePathBufGuard::with_home_directory(home_dir.path(), || {
+                let _guard = AbsolutePathBufGuard::new(base_dir.path());
+                let home_path = serde_json::from_str::<AbsolutePathBuf>("\"~/code\"")
+                    .expect("deserialize home-relative path");
+                let relative_path = serde_json::from_str::<AbsolutePathBuf>("\"project/file\"")
+                    .expect("deserialize relative path");
+                (home_path, relative_path)
+            });
+
+        assert_eq!(home_path.as_path(), home_dir.path().join("code"));
+        assert_eq!(
+            relative_path.as_path(),
+            base_dir.path().join("project/file")
+        );
+        assert!(serde_json::from_str::<AbsolutePathBuf>("\"project/file\"").is_err());
+    }
+
+    #[test]
+    fn nested_explicit_home_directories_restore_the_previous_home() {
+        let outer_home = tempdir().expect("outer home directory");
+        let inner_home = tempdir().expect("inner home directory");
+
+        let (inner_path, restored_path) =
+            AbsolutePathBufGuard::with_home_directory(outer_home.path(), || {
+                let inner_path =
+                    AbsolutePathBufGuard::with_home_directory(inner_home.path(), || {
+                        AbsolutePathBuf::from_absolute_path("~/project")
+                            .expect("resolve path with inner home")
+                    });
+                let restored_path = AbsolutePathBuf::from_absolute_path("~/project")
+                    .expect("resolve path with restored home");
+                (inner_path, restored_path)
+            });
+
+        assert_eq!(inner_path.as_path(), inner_home.path().join("project"));
+        assert_eq!(restored_path.as_path(), outer_home.path().join("project"));
     }
 
     #[test]

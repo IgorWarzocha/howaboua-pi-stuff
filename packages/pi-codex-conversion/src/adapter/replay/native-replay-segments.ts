@@ -6,6 +6,7 @@ import { compareResponsesInputParity, serializeMessagesToResponsesInput, type Re
 import { cloneOpaqueCompactedWindow, cloneResponsesInputSlice } from "./payload-structured.ts";
 import { extractFreshAuthoritativePreamble } from "./payload-preamble.ts";
 import { buildLenientNativeReplayPayload, collectReplayMessages, createCompactionSummaryAgentMessage, createReplaySlice, findReplayMatch, type SerializedReplaySlice } from "./native-replay-matching.ts";
+import { CODEX_REASONING_UPDATE_TYPE } from "../reasoning-updates.ts";
 
 export type NativeReplaySegments = {
 	boundaryIndex: number;
@@ -101,7 +102,8 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		};
 	}
 
-	const preCompactionEntries = args.branchEntries.slice(firstKeptEntryIndex, boundaryIndex);
+	const preCompactionEntries = args.branchEntries.slice(firstKeptEntryIndex, boundaryIndex)
+		.filter((entry) => (entry.type !== "custom" && entry.type !== "custom_message") || entry.customType !== CODEX_REASONING_UPDATE_TYPE);
 	const postCompactionEntries = args.branchEntries.slice(boundaryIndex + 1);
 	// Window markers and persisted developer updates belong to history, not the fresh prompt envelope.
 	const persistedInput = serializeMessagesToResponsesInput(args.model,

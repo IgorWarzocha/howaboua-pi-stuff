@@ -11,7 +11,7 @@ import {
 	type RenderedToolContent,
 } from "./render-content.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
-import { formatNotebookMemory } from "./tool-result.js";
+import { formatNotebookMemoryWarning } from "./tool-result.js";
 import {
 	type CodeModeNestedRenderStore,
 	renderTraceAndOutput,
@@ -73,7 +73,7 @@ function renderCodeModeResult(
 ): Component {
 	const details = asDetails(result.details);
 	const content = details.notification || details.status === undefined ? result.content : result.content.slice(1);
-	const notebookMemoryText = details.notebookMemory ? formatNotebookMemory(details.notebookMemory) : undefined;
+	const notebookMemoryText = details.notebookMemory ? formatNotebookMemoryWarning(details.notebookMemory) : undefined;
 	const renderedContent = notebookMemoryText
 		&& content[0]?.type === "text"
 		&& content[0].text === notebookMemoryText

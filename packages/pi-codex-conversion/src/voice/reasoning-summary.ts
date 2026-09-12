@@ -1,7 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 const SUMMARY_MODEL_PATTERNS = [
-	/(?:^|[/.:])gpt-5(?:[.-]|$)/,
+	/(?:^|[/.:])gpt-[56](?:[.-]|$)/,
 	/(?:^|[/.:])claude-(?:opus|sonnet|haiku|fable|mythos)-(?:4|5)(?:[.-]|$)/,
 	/(?:^|[/.:])gemini-3(?:\.\d+)?(?:[.-]|$)/,
 	/(?:^|[/.:])grok-4\.[56](?:[.-]|$)/,

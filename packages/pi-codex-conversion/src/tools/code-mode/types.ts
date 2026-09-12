@@ -37,6 +37,7 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 export interface ProgrammaticCodeModeToolDefinition
 	extends CodeModeToolMetadata {
 	kind: "function" | "freeform";
+	textOutput?: "plain-command" | undefined;
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
 	discoverWhenDeferred?: boolean | undefined;
@@ -166,6 +167,7 @@ export type RuntimeResponse = (
 ) & {
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
+	execSessionIds?: number[] | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 	notebookMemory?: NotebookMemoryUsage | undefined;

@@ -69,15 +69,22 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 	const kernel: Record<string, unknown> = {
 		fetch: async (_url: string, request: { body: string }) => {
 			const payload = JSON.parse(request.body);
-			if (payload.kind === "tool") calls.push(payload.toolName);
-			return { ok: true, text: async () => JSON.stringify({ ok: true, result: "delivered" }) };
+			if (payload.kind === "tool") {
+				calls.push(payload.toolName);
+				return { ok: true, text: async () => JSON.stringify({ ok: true, result: "delivered" }) };
+			}
+			return { ok: true, text: async () => JSON.stringify({ ok: true }) };
 		},
 	};
 	const bootstrap = new Function("globalThis", "Deno", "setInterval", "clearInterval",
 		`return (async () => ${notebookBootstrapSource("http://localhost", "token", "exit", "/project")})()`);
 	await bootstrap(kernel, { chdir() {}, ppid: 1, memoryUsage: () => ({ rss: 0 }) }, () => 0, () => {});
 	const runtime = kernel["__piNotebook"] as {
-		begin(id: string, tools: unknown[], names: Record<string, { name: string }>): Promise<void>;
+		begin(
+			id: string,
+			tools: unknown[],
+			names: Record<string, { name: string }>,
+		): Promise<void>;
 		end(id: string): void;
 	};
 	await runtime.begin("first", state.ALL_TOOLS, {
@@ -93,8 +100,10 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 	assert.equal(await tools["deferred_programmatic_tool"]!({}), "delivered");
 	assert.deepEqual(calls, [{ name: "deferred-programmatic-tool" }]);
 	runtime.end("first");
-	await runtime.begin("second", [], { replacement: { name: "replacement" } });
-	assert.deepEqual(Object.keys(tools), ["replacement"]);
-	assert.equal("exec_command" in tools, false);
+	await runtime.begin("second", [], {
+		exec_command: { name: "exec_command" },
+		write_stdin: { name: "write_stdin" },
+	});
+	assert.deepEqual(Object.keys(tools), ["exec_command", "write_stdin"]);
 	runtime.end("second");
 });

@@ -72,7 +72,7 @@ function stashLatestNativeWindowForPiCompactionFallback(
 
 function cloneCompactedWindow(window: readonly unknown[]): ResponsesInputItem[] | undefined {
 	if (!window.every(isRecord)) return undefined;
-	return window.map((item) => structuredClone(item));
+	return window.filter((item) => item["type"] !== "configuration_update").map((item) => structuredClone(item));
 }
 
 function buildCompactionTools(pi: ExtensionAPI, codeMode: boolean): unknown[] | undefined {

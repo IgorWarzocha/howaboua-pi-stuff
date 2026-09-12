@@ -36,7 +36,8 @@ export async function processWebSocketStream<TApi extends Api>(
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
 	const { socket, entry, release, reused, socketAgeMs } = await acquireWebSocket(url, headers, options?.sessionId, accountId, options?.signal, websocketConnectTimeoutMs, options?.env);
-	let keepConnection = true;
+	// Checkpoint validation happens after streaming; retire its server-side response state.
+	let keepConnection = !options?.canonicalCompaction;
 	let released = false;
 	const responseItems: unknown[] = [];
 	const transport = (options as { transport?: string | undefined } | undefined)?.transport ?? "auto";
@@ -112,7 +113,9 @@ export async function processWebSocketStream<TApi extends Api>(
 		} else {
 			assertSuccessfulCodexOutput(output);
 			for (const item of responseItems) options?.onOutputItemDone?.(item);
-			if (useCachedContext && entry && output.responseId) {
+			// Compaction callers validate and store checkpoints. Until then its output
+			// must not replace the sampling baseline, including on invalid-output failure.
+			if (!options?.canonicalCompaction && useCachedContext && entry && output.responseId) {
 				entry.continuation = {
 					lastRequestBody: fullBody,
 					lastResponseId: output.responseId,
@@ -122,7 +125,7 @@ export async function processWebSocketStream<TApi extends Api>(
 			// A transient socket means another request already owns this session lane.
 			// Its concurrent history has no canonical ordering, so only the retained
 			// cached lane may advance the baseline used by later compaction.
-			if (entry) {
+			if (entry && !options?.canonicalCompaction) {
 				recordCanonicalSessionResponse({
 					sessionId: options?.sessionId,
 					url,

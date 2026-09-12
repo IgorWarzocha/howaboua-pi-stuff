@@ -9,7 +9,10 @@ import { projectCodexReasoningHistory } from "../src/adapter/reasoning-history.t
 import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
 import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { createAutoReasoning } from "../src/adapter/auto-reasoning.ts";
-import { serializeLiveTailToResponsesInput } from "../src/adapter/replay/native-replay-segments.ts";
+import { serializeLiveTailToResponsesInput, rewriteResponsesPayloadWithNativeReplay } from "../src/adapter/replay/native-replay-segments.ts";
+import { createNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY } from "../src/adapter/compaction/types.ts";
+import { buildNativeCompactionInput } from "../src/adapter/compaction/compaction.ts";
+import { resolveLatestNativeCompactionEntry } from "../src/adapter/compaction/details-store.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import {
@@ -76,12 +79,13 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 		assert.equal(resolveCodexRuntimePlan({ model: { ...astra, api: "openai-responses" } }, config, executionMode).autoReasoning, false);
 	}
 	const auto = createAutoReasoning(pi, { config, executionMode: "normal" } as never);
-	const build = (bridge = new CodexDeveloperMessageBridge()) => {
+	const build = (bridge = new CodexDeveloperMessageBridge(), lite = true) => {
 		const body = buildRequestBody(astra, {
 			systemPrompt: "Stable instructions",
 			messages: convertToLlm(bridge.prepare(messages(), true, astra)),
 		}, { reasoning: level, sessionId: session.getSessionId() });
-		return applyResponsesLiteRequest(bridge.rewritePayload(body) as ResponsesBody);
+		const rewritten = bridge.rewritePayload(body) as ResponsesBody;
+		return lite ? applyResponsesLiteRequest(rewritten) : rewritten;
 	};
 	session.appendMessage(user("first", 1) as never);
 	const initial = build();
@@ -118,9 +122,29 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	assert.equal(result.decision, "delta");
 	assert.deepEqual(result.body.input, updated.input.slice(baseline.length));
 	assert.equal(result.body.previous_response_id, "low_response");
+	const beforeCompaction = structuredClone(session.getBranch());
+	const details = createNativeCompactionDetails({
+		provider: astra.provider, api: astra.api, model: astra.id, baseUrl: astra.baseUrl!,
+		// Older checkpoints carried the final override. It must not override a new selection.
+		compactedWindow: [{ type: "compaction", encrypted_content: "sealed" }, update],
+	});
+	session.appendCompaction(NATIVE_COMPACTION_SHIM_SUMMARY, beforeCompaction[0]!.id, 1_000, details);
+	assert.deepEqual(session.getBranch().slice(0, beforeCompaction.length), beforeCompaction, "compaction projection never edits saved reasoning history");
+	assert.equal(codexReasoningUpdates(messages(), astra).length, 0, "kept pre-compaction records cannot pin the next request");
+	assert.deepEqual(projectCodexReasoningHistory(session.getBranch(), buildSessionContext(session.getBranch()).messages), messages());
+	assert.equal(codexReasoningUpdates(projectCodexReasoningHistory(session.getBranch(), undefined, beforeCompaction.at(-1)!.id), astra).length, 2, "an older leaf still sees its own settings history");
+	const rebased = build(undefined, false);
+	assert.equal(rebased.reasoning?.effort, "medium");
+	const compacted = resolveLatestNativeCompactionEntry(session.getBranch());
+	assert.equal(compacted.ok, true);
+	const replay = rewriteResponsesPayloadWithNativeReplay({ model: astra, payload: rebased, branchEntries: session.getBranch(), compactionEntry: compacted.entry });
+	assert.equal(replay.ok, true);
+	assert.deepEqual(replay.rewrittenPayload.input, [{ type: "compaction", encrypted_content: "sealed" }]);
+	assert.deepEqual(buildNativeCompactionInput({ model: astra, branchEntries: session.getBranch(), allEntries: session.getBranch(), latestNativeCompaction: compacted })?.input, replay.rewrittenPayload.input);
 	auto.settle(ctx);
 	assert.equal(level, "low");
 	assert.equal(codexReasoningUpdates(messages(), astra).at(-1)?.effort, "low");
+	assert.equal(codexReasoningUpdates(messages(), astra).at(-1)?.initialEffort, "medium");
 	level = "high";
 	auto.begin(ctx);
 	const floored = await auto.tool.execute("floor", { level: "low" }, undefined, undefined, ctx);

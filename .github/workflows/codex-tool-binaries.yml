@@ -123,7 +123,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          find packages/pi-codex-conversion/src/tools packages/pi-codex-conversion/src/voice/bin -path '*/bin/*' -type f ! -name '*.exe' -exec chmod 755 {} +
+          find packages/pi-codex-conversion/src/tools packages/pi-codex-conversion/src/voice/bin -path '*/bin/*' -type f ! -name '*.exe' ! -name '*.provenance.json' -exec chmod 755 {} +
           rm -rf packages/pi-gippity-control/src/voice/bin
           cp -a packages/pi-codex-conversion/src/voice/bin packages/pi-gippity-control/src/voice/bin
           git add packages/pi-codex-conversion/src/tools/*/bin

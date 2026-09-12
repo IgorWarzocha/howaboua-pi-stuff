@@ -27,13 +27,13 @@ function run(cmd, args, cwd) {
 	return result.stdout.trim();
 }
 
-function replaceRustSources(source, destination) {
+function replaceRustSources(source, destination, preserved = new Set()) {
 	mkdirSync(destination, { recursive: true });
 	for (const entry of readdirSync(destination)) {
-		if (entry.endsWith(".rs")) rmSync(join(destination, entry), { force: true });
+		if (entry.endsWith(".rs") && !preserved.has(entry)) rmSync(join(destination, entry), { force: true });
 	}
 	for (const entry of readdirSync(source)) {
-		if (entry.endsWith(".rs")) cpSync(join(source, entry), join(destination, entry));
+		if (entry.endsWith(".rs") && !preserved.has(entry)) cpSync(join(source, entry), join(destination, entry));
 	}
 }
 
@@ -54,10 +54,7 @@ if (status) {
 	process.exit(1);
 }
 
-const applyPatchEngineFiles = ["invocation.rs", "lib.rs", "main.rs", "parser.rs", "seek_sequence.rs", "streaming_parser.rs"];
-for (const entry of applyPatchEngineFiles) {
-	cpSync(join(applyPatchSource, entry), join(applyPatchDest, entry));
-}
+replaceRustSources(applyPatchSource, applyPatchDest, new Set(["standalone_executable.rs"]));
 replaceRustSources(pathUriSource, pathUriDest);
 replaceRustSources(absolutePathSource, absolutePathDest);
 

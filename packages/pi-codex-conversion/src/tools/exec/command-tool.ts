@@ -138,9 +138,10 @@ function renderCall(
 	tracker.registerRenderContext(context?.toolCallId, context?.invalidate ?? (() => {}));
 	const info = tracker.getRenderInfo(context?.toolCallId, command);
 	if (info.hidden) return new Text("", 0, 0);
+	const expanded = context?.expanded === true;
 	const text = info.actionGroups
-		? renderGroupedExecCommandCall(info.actionGroups, info.status, theme)
-		: renderExecCommandCall(command, info.status, theme);
+		? renderGroupedExecCommandCall(info.actionGroups, info.status, theme, expanded, info.commands ?? [command])
+		: renderExecCommandCall(command, info.status, theme, expanded);
 	return new Text(text, 0, 0);
 }
 

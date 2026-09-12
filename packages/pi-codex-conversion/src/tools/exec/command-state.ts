@@ -6,6 +6,7 @@ export interface ExecCommandRenderInfo {
 	hidden: boolean;
 	status: ExecCommandStatus;
 	actionGroups?: ShellAction[][] | undefined;
+	commands?: string[] | undefined;
 }
 
 interface ExecEntry {
@@ -109,6 +110,7 @@ export function createExecCommandTracker(): ExecCommandTracker {
 				hidden: false,
 				status: entries.some((groupEntry) => groupEntry.status === "running") ? "running" : "done",
 				actionGroups: entries.map((groupEntry) => groupEntry.summary.actions),
+				commands: entries.map((groupEntry) => groupEntry.command),
 			};
 		},
 		registerRenderContext(toolCallId, invalidate) {

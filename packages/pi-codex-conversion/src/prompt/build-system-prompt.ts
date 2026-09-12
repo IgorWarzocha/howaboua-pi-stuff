@@ -71,7 +71,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 	"Filter retained data inside exec and return the needed findings",
 	"Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments",
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
-	"Notebook results report memory; release/prune before pressure becomes critical",
+	"Notebook reports memory warnings; release/prune before pressure becomes critical",
 	"exec calls run sequentially; use wait to observe or terminate the currently yielded call",
 	"Treat Notebook as a persistent Deno REPL: build small programs on retained state across cells",
 ];
