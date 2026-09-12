@@ -31,7 +31,7 @@ export interface RealtimeInitialMessageItem {
 export async function buildRealtimeInitialItems(args: {
 	ctx: ExtensionContext;
 	config: GippityControlConfig;
-	onSummary?: ((summary: string) => void) | undefined;
+	onSummaryGenerated?: ((summary: string) => void) | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
 	signal?: AbortSignal | undefined;
 }): Promise<RealtimeInitialMessageItem[] | undefined> {
@@ -59,13 +59,13 @@ export async function buildRealtimeInitialItems(args: {
 						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
 							summaryCache.delete(summaryCache.keys().next().value!);
 					}
+					args.onSummaryGenerated?.(text);
 				}
 			} finally {
 				args.onSummaryStatus?.(false);
 			}
 		}
 		if (text) {
-			args.onSummary?.(text);
 			initialItems.push({
 				type: "message",
 				role: "developer",

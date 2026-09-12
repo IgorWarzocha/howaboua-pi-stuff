@@ -52,14 +52,14 @@ export async function prepareControllerRealtimeContext(options: {
 	sourceLeafId?: string | undefined;
 	forceSummary?: boolean | undefined;
 }): Promise<PreparedRealtimeContext> {
-	let summary: string | undefined;
+	let generatedSummary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
 		ctx: options.ctx,
 		config: options.config,
 		sourceLeafId: options.sourceLeafId,
 		forceSummary: options.forceSummary,
-		onSummary: (value) => {
-			summary = value;
+		onSummaryGenerated: (value) => {
+			generatedSummary = value;
 		},
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.onSummaryStatus
@@ -68,7 +68,7 @@ export async function prepareControllerRealtimeContext(options: {
 	});
 	return {
 		initialItems,
-		...(summary ? { summary } : {}),
+		...(generatedSummary ? { summary: generatedSummary } : {}),
 	};
 }
 
