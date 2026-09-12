@@ -6,10 +6,10 @@
     "inputsSha256": "6f98a62ec191bcaa2467d9ac52fcfa1cf06714ca45040639011447451c292854"
   },
   "binary": {
-    "sha256": "bbc1479161a6f7aa7e364a0c0986dc06672ace1a94addb9a905c9d7af1d23fcb"
+    "sha256": "b5bd3e8167cf1135fc725feb9fc11b65e7c59162876bbf683c28d628151659df"
   },
   "build": {
-    "target": "x86_64-unknown-linux-gnu",
+    "target": "aarch64-apple-darwin",
     "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
     "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)"
   }
