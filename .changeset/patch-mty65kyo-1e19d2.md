@@ -4,4 +4,7 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-Shepherdr voice updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
+Fixed missing and noisy spoken progress updates.
+
+- Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
+- Reasoning-summary forwarding now recognizes GPT-6 models.
