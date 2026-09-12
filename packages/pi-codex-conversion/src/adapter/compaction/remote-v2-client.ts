@@ -94,24 +94,17 @@ function canonicalSessionIdentity(options: ExecuteRemoteCompactionV2Options): { 
 function withCurrentCompactionControls(
 	canonicalBody: ResponsesBody,
 	currentBody: ResponsesBody,
-	requestOptions: NativeCompactionRequestOptions,
 ): ResponsesBody {
 	const {
 		client_metadata: _canonicalMetadata,
-		reasoning: canonicalReasoning,
 		service_tier: _canonicalServiceTier,
 		temperature: _canonicalTemperature,
 		text: _canonicalText,
 		...historyBody
 	} = canonicalBody;
-	const currentReasoning = requestOptions.reasoning ?? currentBody.reasoning;
-	const reasoningContext = canonicalReasoning?.context;
 	return {
 		...historyBody,
 		text: structuredClone(currentBody.text),
-		...(reasoningContext || currentReasoning
-			? { reasoning: { ...(reasoningContext ? { context: reasoningContext } : {}), ...structuredClone(currentReasoning ?? {}) } }
-			: {}),
 		...(currentBody.service_tier !== undefined ? { service_tier: currentBody.service_tier } : {}),
 		...(currentBody.temperature !== undefined ? { temperature: currentBody.temperature } : {}),
 		...(currentBody.client_metadata ? { client_metadata: structuredClone(currentBody.client_metadata) } : {}),
@@ -154,7 +147,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		onPayload: async (payload) => {
 			const body = payload as ResponsesBody;
 			const requestBody = canonicalBody
-				? withCurrentCompactionControls(canonicalBody, body, options.requestOptions)
+				? withCurrentCompactionControls(canonicalBody, body)
 				: body;
 			const promptInput = normalizeRemoteCompactionV2PromptInput(canonicalInput ?? options.promptInput) as ResponsesInputItem[];
 			const request = await shrinkNativeCompactionRequestForEndpoint({
@@ -171,9 +164,6 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				...requestBody,
 				input: [...request.request.input, { type: "compaction_trigger" }],
 				...(!canonicalBody && options.requestOptions.reasoning ? { reasoning: structuredClone(options.requestOptions.reasoning) } : {}),
-				...(canonicalBody?.reasoning?.effort && request.request.input.some((item) => "type" in item && item.type === "configuration_update")
-					? { reasoning: { ...requestBody.reasoning, effort: canonicalBody.reasoning.effort } }
-					: {}),
 			};
 			return options.rewritePayload ? options.rewritePayload(rewritten) : rewritten;
 		},

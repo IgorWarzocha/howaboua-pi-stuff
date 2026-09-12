@@ -50,6 +50,8 @@ export function cloneOpaqueCompactedWindow(compactedWindow: readonly unknown[]):
 	const cloned: unknown[] = [];
 	for (const item of compactedWindow) {
 		if (!isRecord(item)) return undefined;
+		// Older checkpoints reattached the last reasoning override after compaction.
+		if (item["type"] === "configuration_update") continue;
 		try { cloned.push(cloneStructuredValue(item)); } catch { return undefined; }
 	}
 	return cloned;

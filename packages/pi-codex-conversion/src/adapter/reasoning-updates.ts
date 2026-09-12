@@ -14,12 +14,13 @@ export interface CodexReasoningUpdate {
 	effort: string;
 }
 
-const pendingUpdates = new WeakMap<ExtensionAPI, { sessionId: string; updates: CodexReasoningUpdate[] }>();
+const pendingUpdates = new WeakMap<ExtensionAPI, { sessionId: string; compactionId: string | undefined; updates: CodexReasoningUpdate[] }>();
 
 export function flushCodexReasoningUpdates(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	const pending = pendingUpdates.get(pi);
 	pendingUpdates.delete(pi);
 	if (pending?.sessionId !== ctx.sessionManager.getSessionId()) return;
+	if (pending.compactionId !== ctx.sessionManager.getBranch().findLast((entry) => entry.type === "compaction")?.id) return;
 	for (const update of pending.updates) pi.appendEntry(CODEX_REASONING_UPDATE_TYPE, update);
 }
 
@@ -70,8 +71,9 @@ export function recordCodexReasoningUpdate(pi: ExtensionAPI, ctx: ExtensionConte
 	if (!model || !supportsCodexReasoningUpdates(model)) return;
 	const lane = codexReasoningLane(model);
 	const sessionId = ctx.sessionManager.getSessionId();
+	const compactionId = ctx.sessionManager.getBranch().findLast((entry) => entry.type === "compaction")?.id;
 	const pending = pendingUpdates.get(pi);
-	const queued = pending?.sessionId === sessionId ? pending.updates : [];
+	const queued = pending?.sessionId === sessionId && pending.compactionId === compactionId ? pending.updates : [];
 	const updates = [...codexReasoningUpdates(messages, model), ...queued.filter((update) => update.lane === lane)];
 	const effort = effortForLevel(model, pi.getThinkingLevel());
 	// Streaming changes become bookkeeping only after the current tool batch finishes.
@@ -81,7 +83,7 @@ export function recordCodexReasoningUpdate(pi: ExtensionAPI, ctx: ExtensionConte
 	if (ctx.isIdle()) {
 		flushCodexReasoningUpdates(pi, ctx);
 		pi.appendEntry(CODEX_REASONING_UPDATE_TYPE, update);
-	} else pendingUpdates.set(pi, { sessionId, updates: [...queued, update] });
+	} else pendingUpdates.set(pi, { sessionId, compactionId, updates: [...queued, update] });
 }
 
 export function hasPendingCodexReasoningUpdate(messages: readonly AgentMessage[]): boolean {

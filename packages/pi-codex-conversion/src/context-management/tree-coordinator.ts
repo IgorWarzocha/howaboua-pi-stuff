@@ -74,6 +74,7 @@ export class CodexContextTreeCoordinator {
 	}
 
 	get archiving(): boolean { return this.navigation !== undefined; }
+	get rolloverPending(): boolean { return this.pending !== undefined || this.archiving; }
 
 	register(pi: ExtensionAPI): void {
 		pi.registerCommand(CAPTURE_COMMAND, {

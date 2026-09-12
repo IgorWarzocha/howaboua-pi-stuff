@@ -24,9 +24,8 @@ test("Responses compaction v2 retains real turns and reconciles tool history", (
 	assert.deepEqual(normalizeRemoteCompactionV2PromptInput(normalized), normalized);
 	assert.doesNotMatch(JSON.stringify(window), /private scaffolding|hidden hook|orphan/);
 	assert.match(JSON.stringify(window), /remember this exactly/);
-	assert.equal(window.at(-2)?.["encrypted_content"], "sealed");
-	assert.deepEqual(window.at(-1), { type: "configuration_update", reasoning: { effort: "high" } });
-	assert.equal(window.filter((item) => item["type"] === "configuration_update").length, 1);
+	assert.equal(window.at(-1)?.["encrypted_content"], "sealed");
+	assert.equal(window.some((item) => item["type"] === "configuration_update"), false);
 });
 
 test("Responses compaction v2 does not backfill past an image outside the retained budget", () => {

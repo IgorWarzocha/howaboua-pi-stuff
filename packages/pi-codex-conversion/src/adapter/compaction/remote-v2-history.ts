@@ -140,8 +140,6 @@ export function buildRemoteCompactionV2Window(
 		} else break;
 	}
 	reversed.reverse();
-	// Compaction resets configuration updates. Reapply the last selection in
-	// the new window without retaining updates from the discarded history.
-	const update = promptInput.findLast((item) => isRecord(item) && item["type"] === "configuration_update");
-	return [...reversed, structuredClone(compactionOutput), ...(isRecord(update) ? [structuredClone(update)] : [])];
+	// The next request establishes its selected effort as the new baseline.
+	return [...reversed, structuredClone(compactionOutput)];
 }

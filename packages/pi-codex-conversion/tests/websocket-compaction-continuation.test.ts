@@ -107,7 +107,7 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 		const {
 			input: _firstInput,
 			client_metadata: _firstMetadata,
-			reasoning: _firstReasoning,
+			reasoning: firstReasoning,
 			text: _firstText,
 			...firstHistoryProperties
 		} = firstBody;
@@ -119,7 +119,7 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 			...compactionHistoryProperties
 		} = compactionBody;
 		assert.deepEqual(compactionHistoryProperties, firstHistoryProperties);
-		assert.deepEqual(compactReasoning, { effort: "high", summary: "auto", context: "all_turns" });
+		assert.deepEqual(compactReasoning, firstReasoning, "compaction keeps the last request's reasoning, not the newer selector");
 		assert.deepEqual(compactText, { verbosity: "high" });
 		assert.deepEqual(compactionRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
 		assert.deepEqual(compactionRequest.input?.slice(-3), [
