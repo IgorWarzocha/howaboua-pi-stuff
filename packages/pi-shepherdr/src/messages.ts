@@ -21,7 +21,7 @@ import type {
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
-const MAX_REALTIME_VOICE_PROMPT_BYTES = 4 * 1_024;
+const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 
 function xml(value: string): string {
 	return value
@@ -165,22 +165,14 @@ function eventAsk(value: unknown): PendingAsk | undefined {
 	};
 }
 
-function boundedVoicePrompt(prompt: string, truncationNotice: string): string {
-	const encoder = new TextEncoder();
-	const bytes = encoder.encode(prompt);
+function boundedVoicePrompt(prompt: string): string {
+	const bytes = new TextEncoder().encode(prompt);
 	if (bytes.byteLength <= MAX_REALTIME_VOICE_PROMPT_BYTES) return prompt;
-
-	const suffix = `…\n\n${truncationNotice}`;
-	const decoder = new TextDecoder("utf-8", { fatal: true });
-	let end = MAX_REALTIME_VOICE_PROMPT_BYTES - encoder.encode(suffix).byteLength;
-	while (end > 0) {
-		try {
-			return `${decoder.decode(bytes.subarray(0, end)).trimEnd()}${suffix}`;
-		} catch {
-			end -= 1;
-		}
-	}
-	return truncationNotice;
+	return new TextDecoder()
+		.decode(bytes.subarray(0, MAX_REALTIME_VOICE_PROMPT_BYTES), {
+			stream: true,
+		})
+		.trimEnd();
 }
 
 function agentVoicePrompt(details: AgentEventDetails): string {
@@ -190,12 +182,9 @@ function agentVoicePrompt(details: AgentEventDetails): string {
 	];
 	if (details.task?.trim()) lines.push(`Task:\n${details.task.trim()}`);
 	let instruction: string;
-	let truncationNotice: string;
 	if (details.state === "blocked") {
 		instruction =
 			"Briefly tell the user why this monitored worker is blocked and what attention may be required.";
-		truncationNotice =
-			"The blocked worker details above were truncated. Tell the user and ask whether they would like the rest.";
 		if (details.blockedOn?.trim())
 			lines.push(`Reason:\n${details.blockedOn.trim()}`);
 		if (details.ask) {
@@ -208,15 +197,10 @@ function agentVoicePrompt(details: AgentEventDetails): string {
 			details.state === "failed"
 				? "Briefly tell the user that this monitored worker failed and include useful detail from its report."
 				: "Briefly tell the user what this monitored worker found or completed; do not merely announce that it finished.";
-		truncationNotice =
-			"The worker report above was truncated. Tell the user and ask whether they would like the rest.";
 		if (details.response?.trim())
 			lines.push(`Report:\n${details.response.trim()}`);
 	}
-	return boundedVoicePrompt(
-		`${instruction}\n\n${lines.join("\n\n")}`,
-		truncationNotice,
-	);
+	return boundedVoicePrompt(`${instruction}\n\n${lines.join("\n\n")}`);
 }
 
 function announceAgentEvent(

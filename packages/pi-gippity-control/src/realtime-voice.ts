@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
-export const MAX_REALTIME_VOICE_PROMPT_BYTES = 4 * 1_024;
+export const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 
 export interface RealtimeVoicePromptReport {
 	id: string;
