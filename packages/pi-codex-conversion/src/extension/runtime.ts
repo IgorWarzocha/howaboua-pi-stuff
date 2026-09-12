@@ -91,9 +91,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	});
 	const contextKickoff = new CodexContextWindowKickoff(contextWindows, (input) => {
 		// Extension kickoffs bypass ordinary voice input routing, including after call replacement.
-		voice.piInput(typeof input === "string" ? input : input
+		const text = typeof input === "string" ? input : input
 			.flatMap((part) => part.type === "text" ? [part.text] : [])
-			.join("\n"));
+			.join("\n");
+		voice.piInput(text.trim() ? text : "Continue.");
 	});
 	const state: AdapterState = {
 		enabled: false,
