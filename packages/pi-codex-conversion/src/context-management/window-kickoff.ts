@@ -19,14 +19,19 @@ interface PendingContinuation {
 
 export class CodexContextWindowKickoff {
 	private readonly windows: CodexContextWindowManager;
+	private readonly onContinue: ((input: Parameters<ExtensionAPI["sendUserMessage"]>[0]) => void) | undefined;
 	private continuation: PendingContinuation | undefined;
 	private postCompactionWindow: {
 		sessionId: string;
 		options: StartContextWindowKickoffOptions;
 	} | undefined;
 
-	constructor(windows: CodexContextWindowManager) {
+	constructor(
+		windows: CodexContextWindowManager,
+		onContinue?: (input: Parameters<ExtensionAPI["sendUserMessage"]>[0]) => void,
+	) {
 		this.windows = windows;
+		this.onContinue = onContinue;
 	}
 
 	reset(): void {
@@ -92,9 +97,11 @@ export class CodexContextWindowKickoff {
 		}
 		if (!ctx.isIdle()) return false;
 		this.continuation = undefined;
+		const input = pending.input ?? "Continue.";
+		this.onContinue?.(input);
 		// Only settled user input enters Pi's complete before_agent_start chain.
 		pi.sendUserMessage(
-			pending.input ?? "Continue.",
+			input,
 			pending.input === undefined ? undefined : { expandPromptTemplates: true },
 		);
 		return true;

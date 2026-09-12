@@ -16,6 +16,7 @@ import {
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
+import { RealtimeDelegationHandoff } from "../src/voice/conversation/handoff.ts";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { codexModel } from "./openai-codex-test-support.ts";
@@ -337,6 +338,14 @@ test("context windows preserve rollover and native request semantics", async (t)
 		(["local", "tree", "remote"] as const).flatMap((mode) => [false, true].map(async (hybridCompaction) => {
 			const sent: Array<Record<string, unknown>> = [];
 			const kickoffs: string[] = [];
+			const spoken: string[] = [];
+			const handoff = new RealtimeDelegationHandoff({
+				isActive: () => true,
+				onContext: (_target, channel, content) => {
+					if (channel === "speakable") spoken.push(content);
+				},
+				onSettled() {},
+			});
 			let idle = false;
 			const continuationContext = { ...(ctx as ExtensionContext), isIdle: () => idle } as ExtensionContext;
 			let boundaryRefreshes = 0;
@@ -347,13 +356,16 @@ test("context windows preserve rollover and native request semantics", async (t)
 					boundaryRefreshes++;
 				},
 			);
-			const kickoff = new CodexContextWindowKickoff(windows);
+			const kickoff = new CodexContextWindowKickoff(windows, (input) => handoff.piInput(input));
 			const pi = {
 				sendMessage(message: Record<string, unknown>, options: unknown) {
 					assert.deepEqual(options, { triggerTurn: false }, "window markers never bypass the prompt lifecycle");
 					sent.push(message);
 				},
-				sendUserMessage(text: string) { kickoffs.push(text); },
+				sendUserMessage(text: string) {
+					kickoffs.push(text);
+					handoff.result("Resumed reply");
+				},
 			} as never;
 			windows.ensureInitialized(pi, ctx, true);
 			assert.equal(boundaryRefreshes, 0, "initialization is not a rollover");
@@ -402,6 +414,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 			assert.equal(kickoff.continue(pi, continuationContext), true);
 			assert.equal(kickoff.continue(pi, continuationContext), false, "one kickoff per window");
 			assert.equal(kickoffs.length, 1);
+			assert.deepEqual(spoken, ["Resumed reply"], "successor output has a voice route before the run starts");
 			assert.equal(boundaryRefreshes, 1, "Hybrid compaction and its successor share one refresh");
 			const persisted = sent.map((message) => ({ ...message, role: "custom", timestamp: 1 })) as never;
 			const bridge = new CodexDeveloperMessageBridge();

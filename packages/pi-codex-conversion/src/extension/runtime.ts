@@ -89,7 +89,12 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		voice.announceContextTransition("rollover");
 		await voice.refreshRealtimeContext(ctx, state.config, options);
 	});
-	const contextKickoff = new CodexContextWindowKickoff(contextWindows);
+	const contextKickoff = new CodexContextWindowKickoff(contextWindows, (input) => {
+		// Extension kickoffs bypass ordinary voice input routing, including after call replacement.
+		voice.piInput(typeof input === "string" ? input : input
+			.flatMap((part) => part.type === "text" ? [part.text] : [])
+			.join("\n"));
+	});
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),

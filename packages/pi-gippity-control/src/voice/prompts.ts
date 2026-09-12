@@ -15,7 +15,7 @@ export function renderRealtimeConversationInput(input: string): string {
 }
 
 export function renderRealtimeTranscriptTail(transcriptDelta: string): string {
-	return `<realtime_delegation>\n  <source>transcript_tail_flush</source>\n  <input>The user just ended their realtime session. Here is the remaining transcript tail. Do not respond unless it contains an unhandled request.</input>\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>\n</realtime_delegation>`;
+	return `<realtime_delegation>\n  <source>transcript_tail_flush</source>\n  <input>Remaining voice transcript. Do not respond unless it contains an unhandled request.</input>\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>\n</realtime_delegation>`;
 }
 
 export function renderPiSteer(input: unknown): string | undefined {
