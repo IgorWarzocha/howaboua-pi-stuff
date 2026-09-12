@@ -13,3 +13,4 @@ Fixed context continuity, voice replies, and patch preservation.
 - Reconnecting voice no longer reposts a cached Voice Context summary.
 - Added an opt-in Notebook plain command output toggle under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
 - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths.
+- `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
