@@ -10,14 +10,55 @@ use std::io;
 use std::sync::{Arc, LazyLock};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReadFileOptions {
+    pub follow_symlinks: bool,
+}
+
+impl Default for ReadFileOptions {
+    fn default() -> Self {
+        Self {
+            follow_symlinks: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WriteFileOptions {
+    pub follow_symlinks: bool,
+}
+
+impl Default for WriteFileOptions {
+    fn default() -> Self {
+        Self {
+            follow_symlinks: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GetMetadataOptions {
+    pub follow_symlinks: bool,
+}
+
+impl Default for GetMetadataOptions {
+    fn default() -> Self {
+        Self {
+            follow_symlinks: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CreateDirectoryOptions {
     pub recursive: bool,
+    pub follow_symlinks: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RemoveOptions {
     pub recursive: bool,
     pub force: bool,
+    pub follow_symlinks: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,20 +79,23 @@ pub trait ExecutorFileSystem: Send + Sync {
     async fn read_file(
         &self,
         path: &PathUri,
+        options: ReadFileOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<Vec<u8>>;
     async fn read_file_text(
         &self,
         path: &PathUri,
+        options: ReadFileOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<String> {
-        let bytes = self.read_file(path, sandbox).await?;
+        let bytes = self.read_file(path, options, sandbox).await?;
         String::from_utf8(bytes).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
     }
     async fn write_file(
         &self,
         path: &PathUri,
         contents: Vec<u8>,
+        options: WriteFileOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<()>;
     async fn create_directory(
@@ -63,6 +107,7 @@ pub trait ExecutorFileSystem: Send + Sync {
     async fn get_metadata(
         &self,
         path: &PathUri,
+        options: GetMetadataOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<FileMetadata>;
     async fn remove(
@@ -77,6 +122,16 @@ pub static LOCAL_FS: LazyLock<Arc<dyn ExecutorFileSystem>> =
     LazyLock::new(|| Arc::new(LocalFileSystem));
 struct LocalFileSystem;
 
+fn require_follow_symlinks(follow_symlinks: bool) -> io::Result<()> {
+    if !follow_symlinks {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "follow_symlinks=false is not supported in bundled apply_patch",
+        ));
+    }
+    Ok(())
+}
+
 fn local_path(
     path: &PathUri,
     sandbox: Option<&FileSystemSandboxContext>,
@@ -90,11 +145,11 @@ fn local_path(
     Ok(path.to_abs_path()?.into_path_buf())
 }
 
-fn metadata_to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
+fn metadata_to_file_metadata(metadata: std::fs::Metadata, is_symlink: bool) -> FileMetadata {
     FileMetadata {
         is_directory: metadata.is_dir(),
         is_file: metadata.is_file(),
-        is_symlink: metadata.file_type().is_symlink(),
+        is_symlink,
         size: metadata.len(),
         created_at_ms: metadata
             .created()
@@ -116,16 +171,20 @@ impl ExecutorFileSystem for LocalFileSystem {
     async fn read_file(
         &self,
         path: &PathUri,
+        options: ReadFileOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<Vec<u8>> {
+        require_follow_symlinks(options.follow_symlinks)?;
         std::fs::read(local_path(path, sandbox)?)
     }
     async fn write_file(
         &self,
         path: &PathUri,
         contents: Vec<u8>,
+        options: WriteFileOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<()> {
+        require_follow_symlinks(options.follow_symlinks)?;
         std::fs::write(local_path(path, sandbox)?, contents)
     }
     async fn create_directory(
@@ -134,6 +193,7 @@ impl ExecutorFileSystem for LocalFileSystem {
         options: CreateDirectoryOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<()> {
+        require_follow_symlinks(options.follow_symlinks)?;
         let path = local_path(path, sandbox)?;
         if options.recursive {
             std::fs::create_dir_all(path)
@@ -144,9 +204,19 @@ impl ExecutorFileSystem for LocalFileSystem {
     async fn get_metadata(
         &self,
         path: &PathUri,
+        options: GetMetadataOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<FileMetadata> {
-        std::fs::symlink_metadata(local_path(path, sandbox)?).map(metadata_to_file_metadata)
+        require_follow_symlinks(options.follow_symlinks)?;
+        let path = local_path(path, sandbox)?;
+        let symlink_metadata = std::fs::symlink_metadata(&path)?;
+        let is_symlink = symlink_metadata.file_type().is_symlink();
+        let metadata = if is_symlink {
+            std::fs::metadata(path)?
+        } else {
+            symlink_metadata
+        };
+        Ok(metadata_to_file_metadata(metadata, is_symlink))
     }
     async fn remove(
         &self,
@@ -154,6 +224,7 @@ impl ExecutorFileSystem for LocalFileSystem {
         options: RemoveOptions,
         sandbox: Option<&FileSystemSandboxContext>,
     ) -> io::Result<()> {
+        require_follow_symlinks(options.follow_symlinks)?;
         let path = local_path(path, sandbox)?;
         let metadata = match std::fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
@@ -183,7 +254,13 @@ mod tests {
         std::fs::write(&path, "hello").unwrap();
         let uri = PathUri::from_host_native_path(&path).unwrap();
 
-        assert_eq!(LOCAL_FS.read_file_text(&uri, None).await.unwrap(), "hello");
+        assert_eq!(
+            LOCAL_FS
+                .read_file_text(&uri, ReadFileOptions::default(), None)
+                .await
+                .unwrap(),
+            "hello"
+        );
     }
 
     #[tokio::test]
@@ -191,7 +268,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let uri = PathUri::from_host_native_path(dir.path().join("file.txt")).unwrap();
         let error = LOCAL_FS
-            .write_file(&uri, b"hello".to_vec(), Some(&FileSystemSandboxContext))
+            .write_file(
+                &uri,
+                b"hello".to_vec(),
+                WriteFileOptions::default(),
+                Some(&FileSystemSandboxContext),
+            )
             .await
             .unwrap_err();
 
