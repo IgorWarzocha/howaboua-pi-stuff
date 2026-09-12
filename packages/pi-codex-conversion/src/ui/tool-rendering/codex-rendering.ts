@@ -6,13 +6,15 @@ export interface RenderTheme {
 	bold(text: string): string;
 }
 
-export function renderExecCommandCall(command: string, state: ExecCommandStatus, theme: RenderTheme): string {
+export function renderExecCommandCall(command: string, state: ExecCommandStatus, theme: RenderTheme, expanded = false): string {
 	const summary = summarizeShellCommand(command);
-	return summary.maskAsExplored ? renderExplorationText([summary.actions], state, theme) : renderCommandText(command, state, theme);
+	return summary.maskAsExplored
+		? renderExplorationText([summary.actions], state, theme, expanded ? [command] : undefined)
+		: renderCommandText(command, state, theme, expanded);
 }
 
-export function renderGroupedExecCommandCall(actionGroups: ShellAction[][], state: ExecCommandStatus, theme: RenderTheme): string {
-	return renderExplorationText(actionGroups, state, theme);
+export function renderGroupedExecCommandCall(actionGroups: ShellAction[][], state: ExecCommandStatus, theme: RenderTheme, expanded = false, commands: string[] = []): string {
+	return renderExplorationText(actionGroups, state, theme, expanded ? commands : undefined);
 }
 
 export function renderWriteStdinCall(
@@ -36,7 +38,7 @@ export function renderWriteStdinCall(
 	return text;
 }
 
-function renderExplorationText(actionGroups: ShellAction[][], state: ExecCommandStatus, theme: RenderTheme): string {
+function renderExplorationText(actionGroups: ShellAction[][], state: ExecCommandStatus, theme: RenderTheme, commands?: string[]): string {
 	const header = state === "running" ? "Exploring" : "Explored";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(header)}`;
 
@@ -45,26 +47,34 @@ function renderExplorationText(actionGroups: ShellAction[][], state: ExecCommand
 		text += `\n${theme.fg("dim", prefix)}${theme.fg("accent", line.title)} ${theme.fg("muted", line.body)}`;
 	}
 
+	for (const command of commands ?? []) {
+		for (const line of formatCommandLines(command, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY)) {
+			text += `\n${theme.fg("dim", "    ")}${theme.fg("muted", line)}`;
+		}
+	}
+
 	return text;
 }
 
-function renderCommandText(command: string, state: ExecCommandStatus, theme: RenderTheme): string {
+function renderCommandText(command: string, state: ExecCommandStatus, theme: RenderTheme, expanded: boolean): string {
 	const verb = state === "running" ? "Running" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(verb)}`;
-	for (const [index, line] of formatCommandLines(command).entries()) {
+	const maxLines = expanded ? Number.POSITIVE_INFINITY : 5;
+	const maxLength = expanded ? Number.POSITIVE_INFINITY : 100;
+	for (const [index, line] of formatCommandLines(command, maxLines, maxLength).entries()) {
 		const prefix = index === 0 ? "  └ " : "    ";
 		text += `\n${theme.fg("dim", prefix)}${theme.fg("accent", line)}`;
 	}
 	return text;
 }
 
-function formatCommandLines(command: string, maxLines = 5): string[] {
+function formatCommandLines(command: string, maxLines = 5, maxLength = 100): string[] {
 	const lines = command
 		.replace(/\t/g, "   ")
 		.split("\n")
 		.map((line) => line.trimEnd())
 		.filter((line, index, all) => line.length > 0 || (index > 0 && index < all.length - 1));
-	const visible = lines.slice(0, maxLines).map((line) => shortenLine(line));
+	const visible = lines.slice(0, maxLines).map((line) => shortenLine(line, maxLength));
 	if (lines.length > maxLines) {
 		visible.push("...");
 	}
