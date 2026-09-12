@@ -1,6 +1,6 @@
 # @howaboua/pi-better-skills-tool
 
-Progressive skill discovery for Pi, Code Mode and Notebook Mode. The `skills` tool lists the active catalog by category, reads one skill, or reads selected references without loading an entire package into context.
+Progressive skill discovery for Pi, Code Mode and Notebook Mode. The `skills` tool lists the active catalog by category, reads one or more skills, or reads selected references without loading an entire package into context.
 
 ## Install
 
@@ -42,10 +42,13 @@ Normal Pi uses one structured `command` parameter. Code Mode and Notebook Mode u
 await tools.skills("list")
 await tools.skills("list code session")
 await tools.skills("read code-review")
+await tools.skills("read communication codebase-hygiene")
 await tools.skills("read codebase-hygiene testing js-ts")
 ```
 
-Pi's loaded skill catalog is authoritative during normal use. When Pi has no loaded skills, including `--no-skills` sessions, the tool falls back to the standard global `skills/` directory under Pi's agent directory and `$PWD/.pi/skills/`. A same-named session skill overrides the global skill. Skill reads include absolute package paths for later reference, script, or asset access. Reference reads return only the requested Markdown and its source paths, without repeating the package inventory.
+Pi's loaded skill catalog is authoritative during normal use. When Pi has no loaded skills, including `--no-skills` sessions, the tool falls back to the standard global `skills/` directory under Pi's agent directory and `$PWD/.pi/skills/`. A same-named session skill overrides the global skill. Skill reads include absolute package paths for later reference, script, or asset access.
+
+After the initial skill, an exact skill name adds that full skill package. Other names resolve against references in every visible skill. A unique reference can come from another skill. If multiple skills contain the name, the tool asks for a skill-qualified reference such as `communication/references/conversation` or an absolute source path. A read with only references still returns only the requested Markdown and source paths, without repeating the initial package inventory.
 
 Remove or disable any legacy `codex-conversion-custom-tools/skills.toml` after installing this extension. Keeping both definitions gives Code Mode two tools named `skills`, which it rejects.
 

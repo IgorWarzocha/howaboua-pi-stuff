@@ -19,7 +19,7 @@ const MAX_OUTPUT_BYTES = 48 * 1024;
 
 type SkillRequest =
 	| { action: "list"; categories: string[] }
-	| { action: "read"; name: string; references: string[] };
+	| { action: "read"; name: string; selectors: string[] };
 
 export function parseRequest(input: unknown): SkillRequest {
 	if (typeof input !== "string")
@@ -33,16 +33,16 @@ export function parseRequest(input: unknown): SkillRequest {
 		return {
 			action,
 			name: arguments_[0] ?? "",
-			references: [...new Set(arguments_.slice(1))],
+			selectors: [...new Set(arguments_.slice(1))],
 		};
 	}
 	if (action === "read") {
 		throw new Error(
-			'read expects one skill name and optional reference names: "read <exact-skill-name> [reference...]"',
+			'read expects one skill name and optional skill or reference names: "read <exact-skill-name> [skill-or-reference...]"',
 		);
 	}
 	throw new Error(
-		'Expected "list", "list <category>...", or "read <exact-skill-name> [reference...]"',
+		'Expected "list", "list <category>...", or "read <exact-skill-name> [skill-or-reference...]"',
 	);
 }
 
@@ -120,6 +120,6 @@ export function runSkills(
 	return enforceOutputLimit(
 		request.action === "list"
 			? formatSkillList(skills, request.categories)
-			: readSkillPackage(skills, request.name, request.references),
+			: readSkillPackage(skills, request.name, request.selectors),
 	);
 }

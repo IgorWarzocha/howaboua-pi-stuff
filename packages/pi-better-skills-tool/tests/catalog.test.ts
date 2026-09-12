@@ -46,7 +46,7 @@ test("lists all categories or an exact category selection", (t) => {
 	assert.match(selected, /^# ENGINEERING\n- qa: QA work\.$/);
 });
 
-test("reads instructions with package paths and references with only selected sources", (t) => {
+test("routes mixed skill and reference reads without expanding reference-only output", (t) => {
 	const f = fixture();
 	t.after(() => f.cleanup());
 	f.add(
@@ -55,12 +55,19 @@ test("reads instructions with package paths and references with only selected so
 	);
 	f.file("engineering/tooling/references/api.md", "API reference\n");
 	f.file("engineering/tooling/references/runtime.md", "Runtime reference\n");
+	f.file("engineering/tooling/references/shared.md", "Tooling shared\n");
 	f.file("engineering/tooling/scripts/check.mjs");
 	f.file("engineering/tooling/scripts/node_modules/dependency/index.js");
 	f.file("engineering/tooling/.private", "hidden");
+	f.add(
+		"writing",
+		"---\nname: writing\ndescription: Writing.\n---\n# Writing\n",
+	);
+	f.file("writing/references/shared.md", "Writing shared\n");
+	f.file("writing/references/style.md", "Style reference\n");
 
 	const output = runSkills("read tooling", f.root);
-	assert.match(output, /^# Tooling\n\n---\nSkill paths \(4\):/);
+	assert.match(output, /^# Tooling\n\n---\nSkill paths \(5\):/);
 	assert.match(
 		output,
 		new RegExp(
@@ -75,15 +82,50 @@ test("reads instructions with package paths and references with only selected so
 	assert.doesNotMatch(output, /\.private/);
 	assert.doesNotMatch(output, /node_modules/);
 	const reference = runSkills("read tooling api", f.root);
-	assert.equal(
-		reference,
-		`API reference\n\n---\nSources:\n- ${resolve(f.root, "engineering/tooling/references/api.md")}`,
-	);
+	const apiPath = resolve(f.root, "engineering/tooling/references/api.md");
+	assert.equal(reference, `API reference\n\n---\nSources:\n- ${apiPath}`);
 	assert.equal(runSkills("read tooling/references/api.md", f.root), reference);
+	assert.equal(
+		runSkills("read tooling/references/api.md SKILL.md", f.root),
+		reference,
+	);
+	assert.equal(runSkills(`read ${apiPath}`, f.root), reference);
+	assert.equal(
+		runSkills(
+			`read tooling api SKILL.md api.md tooling/references/api.md ${apiPath}`,
+			f.root,
+		),
+		reference,
+	);
 	assert.equal(
 		runSkills("read tooling runtime api", f.root),
 		`--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSources:\n- ${resolve(f.root, "engineering/tooling/references/runtime.md")}\n- ${resolve(f.root, "engineering/tooling/references/api.md")}`,
 	);
+	assert.equal(
+		runSkills("read tooling style", f.root),
+		`Style reference\n\n---\nSources:\n- ${resolve(f.root, "writing/references/style.md")}`,
+	);
+	assert.throws(
+		() => runSkills("read tooling shared", f.root),
+		/Ambiguous reference "shared".*(?:tooling\/references\/shared.*writing\/references\/shared|writing\/references\/shared.*tooling\/references\/shared)/,
+	);
+	const toolingShared = resolve(
+		f.root,
+		"engineering/tooling/references/shared.md",
+	);
+	const toolingSharedOutput = `Tooling shared\n\n---\nSources:\n- ${toolingShared}`;
+	assert.equal(
+		runSkills("read tooling tooling/references/shared", f.root),
+		toolingSharedOutput,
+	);
+	assert.equal(
+		runSkills(`read tooling ${toolingShared}`, f.root),
+		toolingSharedOutput,
+	);
+	const mixed = runSkills("read tooling writing style", f.root);
+	assert.match(mixed, /^--- tooling ---\n# Tooling/);
+	assert.match(mixed, /--- writing ---\n# Writing/);
+	assert.match(mixed, /--- writing\/references\/style ---\nStyle reference/);
 });
 
 test("rejects malformed commands, unknown categories, and names", (t) => {
@@ -101,10 +143,6 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 	assert.throws(() => parseRequest("search visual"), /Expected/);
 	assert.throws(() => parseRequest("read"), /one skill name/);
 	assert.throws(() => runSkills("read missing", f.root), /Unknown skill/);
-	assert.throws(
-		() => runSkills("read visual review", f.root),
-		/Read it separately with "read review"/,
-	);
 });
 
 test("keeps names unique across category packages", (t) => {
