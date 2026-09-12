@@ -1,3 +1,5 @@
+import { plainCommandOutputFormatterSource } from "../code-mode/command-output.js";
+
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
 const MAX_TEXT_ITEM_CHARS = 4 * 1024 * 1024;
@@ -72,11 +74,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     if (value === undefined) return "undefined";
     try { return JSON.stringify(value); } catch { return String(value); }
   };
-	const __formatPlainCommandOutput = (value) => {
-	  const metadata = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "output"));
-	  const prefix = Object.keys(metadata).length > 0 ? __stringify(metadata) + "\\n" : "";
-	  return prefix + "Output:\\n" + value.output;
-	};
+	const __formatPlainCommandOutput = ${plainCommandOutputFormatterSource};
   const __emit = (items) => {
     if (!__state.cellId) throw new Error("Notebook helper called outside an active exec cell");
 	if (__state.outputTruncated) return;

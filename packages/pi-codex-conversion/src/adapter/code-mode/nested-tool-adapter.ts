@@ -18,7 +18,7 @@ interface NestedToolLifecycle {
 
 interface NestedToolContract {
 	kind?: "function" | "freeform";
-	notebookOutput?: "plain-command";
+	textOutput?: "plain-command";
 	blocking?: boolean;
 	isBlocking?(input: unknown): boolean;
 	deferLoading?: boolean;
@@ -94,7 +94,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 			: {}),
 		deferLoading: contract.deferLoading ?? false,
 		kind,
-		...(contract.notebookOutput ? { notebookOutput: contract.notebookOutput } : {}),
+		...(contract.textOutput ? { textOutput: contract.textOutput } : {}),
 		...(contract.blocking ? { blocking: true } : {}),
 		...(contract.isBlocking ? { isBlocking: contract.isBlocking } : {}),
 		...(contract.discoverWhenDeferred ? { discoverWhenDeferred: true } : {}),

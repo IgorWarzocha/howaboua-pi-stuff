@@ -24,13 +24,13 @@ export function buildToolsSettings(
 		),
 		toggle(
 			"notebookPlainCommandOutput",
-			"Notebook plain command output",
+			"Plain command output",
 			config.notebook.plainCommandOutput,
 			(enabled, current) => ({
 				...current,
 				notebook: { ...current.notebook, plainCommandOutput: enabled },
 			}),
-			"Send shell output to the agent without JSON escaping, keeping command status and continuation details.",
+			"In Code and Notebook modes, send shell output without JSON escaping, keeping command status and continuation details.",
 		),
 		toggle(
 			"applyPatchOnly",

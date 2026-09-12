@@ -11,7 +11,9 @@ Fixed context continuity, voice replies, and patch preservation.
 - Reasoning-summary forwarding now recognizes GPT-6 models.
 - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call.
 - Reconnecting voice no longer reposts a cached Voice Context summary.
-- Added an opt-in Notebook plain command output toggle under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
+- Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
+- Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status.
+- Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells.
 - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately.
 - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths.
 - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.

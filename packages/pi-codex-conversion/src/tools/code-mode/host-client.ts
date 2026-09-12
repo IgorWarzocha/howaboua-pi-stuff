@@ -1,3 +1,4 @@
+import { withPlainCommandOutput } from "./command-output.js";
 import { CodeModeHostCellOperations } from "./host-cell-operations.js";
 import { CodeModeHostDelegation } from "./host-delegation.js";
 import {
@@ -87,7 +88,7 @@ export class CodeModeHostClient {
 				request: {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
-					source: scopeAllToolsToDeferredCustom(code, tools),
+					source: scopeAllToolsToDeferredCustom(withPlainCommandOutput(code, tools), tools),
 					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},

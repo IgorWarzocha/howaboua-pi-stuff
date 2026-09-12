@@ -33,6 +33,8 @@ export class CodeModeDelegateRuntime {
 	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
 	private readonly controllers = new Map<string, DelegateController>();
 	private readonly notifications = new Map<string, string[]>();
+	// Continuation routing must survive bounded display traces.
+	private readonly execSessions = new Map<string, Set<number>>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
@@ -74,6 +76,7 @@ export class CodeModeDelegateRuntime {
 		this.cleanupTimers.set(cellId, setTimeout(() => {
 			this.cleanupTimers.delete(cellId);
 			this.notifications.delete(cellId);
+			this.execSessions.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -86,6 +89,7 @@ export class CodeModeDelegateRuntime {
 		this.traces.clear();
 		this.renderStore.clear();
 		this.notifications.clear();
+		this.execSessions.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
 		this.blockerChanges.clear();
@@ -172,10 +176,12 @@ export class CodeModeDelegateRuntime {
 		this.cleanupTimers.delete(response.cellId);
 		const notifications = this.notifications.get(response.cellId) ?? [];
 		this.notifications.delete(response.cellId);
+		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
+		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
 		const withTraces = this.traces.attach(response);
-		if (notifications.length === 0) return withTraces;
 		return {
 			...withTraces,
+			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
 				...response.contentItems,
@@ -242,6 +248,7 @@ export class CodeModeDelegateRuntime {
 			!isCustomToolDefinition(tool) &&
 			Boolean(tool.renderCall || tool.renderResult);
 		let finalResultCaptured = false;
+		let resultSessionId: number | undefined;
 		if (captureRendererValues)
 			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
@@ -255,6 +262,7 @@ export class CodeModeDelegateRuntime {
 			},
 			captureResult: (result) => {
 				finalResultCaptured = true;
+				resultSessionId = numericSessionId(result.details);
 				if (captureRendererValues)
 					this.renderStore.captureResult(trace.id, result);
 				trace.result = this.traces.captureResult(cellId, trace, result);
@@ -295,6 +303,7 @@ export class CodeModeDelegateRuntime {
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
+			this.recordExecSession(cellId, tool.name, input, finalResultCaptured ? resultSessionId : numericSessionId(result));
 			emitTrace();
 			return result;
 		} catch (error) {
@@ -322,6 +331,16 @@ export class CodeModeDelegateRuntime {
 		} finally {
 			if (blockerActive) this.setBlocked(cellId, trace.id, false);
 		}
+	}
+
+	private recordExecSession(cellId: string, toolName: string, input: unknown, resultSessionId: number | undefined): void {
+		if (toolName !== "exec_command" && toolName !== "write_stdin") return;
+		const sessions = this.execSessions.get(cellId) ?? new Set<number>();
+		const inputSessionId = numericSessionId(input);
+		if (toolName === "write_stdin" && inputSessionId !== undefined) sessions.delete(inputSessionId);
+		if (resultSessionId !== undefined) sessions.add(resultSessionId);
+		if (sessions.size > 0) this.execSessions.set(cellId, sessions);
+		else this.execSessions.delete(cellId);
 	}
 
 	private async invokeSequential(
@@ -400,6 +419,12 @@ export class CodeModeDelegateRuntime {
 			}
 		}
 	}
+}
+
+function numericSessionId(value: unknown): number | undefined {
+	return value && typeof value === "object" && "session_id" in value && typeof value.session_id === "number"
+		? value.session_id
+		: undefined;
 }
 
 function hostControllerKey(id: number): string {
