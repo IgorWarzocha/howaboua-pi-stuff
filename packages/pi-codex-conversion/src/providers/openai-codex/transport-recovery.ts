@@ -407,7 +407,7 @@ export function createCodexTransportStream<TApi extends Api>(
 					assertSuccessfulCodexOutput(output);
 					recordUsage(diagnostics, lane, "sse", output);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
-					recordCanonicalSessionResponse({
+					if (!effectiveOptions?.canonicalCompaction) recordCanonicalSessionResponse({
 						sessionId: effectiveOptions?.sessionId,
 						url: resolveCodexWebSocketUrl(model.baseUrl),
 						accountId,

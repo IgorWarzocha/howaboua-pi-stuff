@@ -7,7 +7,7 @@ import {
 	clearCanonicalSessions,
 	recordCanonicalSessionResponse,
 } from "../src/providers/openai-codex/session-continuity.ts";
-import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
+import { executeRemoteCompactionV2, type ExecuteRemoteCompactionV2Options } from "../src/adapter/compaction/remote-v2-client.ts";
 import { resolveCanonicalCompactionReplay } from "../src/adapter/compaction/compaction.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
@@ -35,6 +35,7 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 			textResponse("resp_1", "first")(socket);
 			socket.emit("close", { code: 1000, reason: "server retired connection" });
 		}],
+		[textResponse("resp_invalid_compact", "not a checkpoint")],
 		[compactionResponse("resp_compact")],
 	]);
 	try {
@@ -73,7 +74,7 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 		const canonicalInput = canonicalReplay.input;
 		assert.ok(canonicalInput);
 
-		const compactResult = await executeRemoteCompactionV2({
+		const compactionOptions: ExecuteRemoteCompactionV2Options = {
 			runtime: {
 				provider: model.provider,
 				api: model.api,
@@ -96,11 +97,17 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 			tokensBefore: 1_000,
 			sessionId,
 			retryDelayMs: 0,
-		});
+		};
+		const baseline = canonicalCompactionPromptInput(sessionId, imageModel.id);
+		const invalid = await executeRemoteCompactionV2(compactionOptions);
+		assert.equal(invalid.ok, false);
+		assert.equal(invalid.reason, "invalid-output");
+		assert.deepEqual(canonicalCompactionPromptInput(sessionId, imageModel.id), baseline, "invalid compaction output never replaces the canonical request");
+		const compactResult = await executeRemoteCompactionV2(compactionOptions);
 
 		assert.equal(compactResult.ok, true);
-		assert.equal(ScriptedWebSocket.opened, 2);
-		const compactionRequest = sentFrames()[1]!;
+		assert.equal(ScriptedWebSocket.opened, 3);
+		const compactionRequest = sentFrames()[2]!;
 		assert.equal(compactionRequest.previous_response_id, undefined);
 		const firstBody = firstRequest as Record<string, unknown>;
 		const compactionBody = compactionRequest as Record<string, unknown>;
