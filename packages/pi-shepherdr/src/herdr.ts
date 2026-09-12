@@ -1,4 +1,4 @@
-import type { HerdrConnection } from "./herdr-client.js";
+import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type {
 	AgentStatus,
 	PaneInfo,
@@ -66,7 +66,12 @@ export async function resolvePiAgent(
 	target: string,
 	controllingPaneId = process.env["HERDR_PANE_ID"],
 ): Promise<PaneInfo> {
-	const agent = await getAgent(client, target);
+	const agent = await getAgent(client, target).catch((error: unknown) => {
+		if (error instanceof Error && isHerdrErrorCode(error, "agent_not_found")) {
+			error.message += "; Use the exact target returned by spawn/find";
+		}
+		throw error;
+	});
 	if (agent.agent !== "pi") throw new Error(`${target} is not a Pi agent`);
 	if (controllingPaneId && agent.pane_id === controllingPaneId) {
 		throw new Error("refusing to target the controlling Pi session");
