@@ -1,5 +1,23 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.3
+
+- Fixed context continuity, voice replies, and patch preservation.
+
+  - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows.
+  - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
+  - Reasoning-summary forwarding now recognizes GPT-6 models.
+  - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call.
+  - Reconnecting voice no longer reposts a cached Voice Context summary.
+  - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
+  - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status.
+  - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells.
+  - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately.
+  - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths.
+  - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
+
+- Shepherdr now adds exact-target recovery guidance to agent-not-found errors without changing accepted agent names or pane IDs.
+
 ## 0.2.2
 
 - Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.

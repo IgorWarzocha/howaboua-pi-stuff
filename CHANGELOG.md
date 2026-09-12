@@ -30,9 +30,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.3
+### @howaboua/pi-better-skills-tool — 0.0.4
 
-- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+- The skills tool now reads mixed skills and unique cross-skill references in one call. Ambiguous reference names report their qualified choices.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
@@ -52,9 +52,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.33
+### @howaboua/pi-codex-conversion — 3.0.34
 
-- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+- Fixed expanded exec_command rows to show the complete command.
+
+- Fixed context continuity, voice replies, and patch preservation.
+
+  - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows.
+  - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
+  - Reasoning-summary forwarding now recognizes GPT-6 models.
+  - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call.
+  - Reconnecting voice no longer reposts a cached Voice Context summary.
+  - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
+  - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status.
+  - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells.
+  - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately.
+  - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths.
+  - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -88,19 +102,32 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.73
+### @howaboua/pi-extensions — 0.0.74
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
-  - @howaboua/pi-better-skills-tool: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
-  - @howaboua/pi-shepherdr: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+  - @howaboua/pi-better-skills-tool: The skills tool now reads mixed skills and unique cross-skill references in one call. Ambiguous reference names report their qualified choices.
+  - @howaboua/pi-gippity-control: Fixed context continuity, voice replies, and patch preservation. - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows. - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest. - Reasoning-summary forwarding now recognizes GPT-6 models. - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call. - Reconnecting voice no longer reposts a cached Voice Context summary. - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping. - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status. - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells. - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately. - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths. - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
+  - @howaboua/pi-shepherdr: Fixed context continuity, voice replies, and patch preservation. - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows. - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest. - Reasoning-summary forwarding now recognizes GPT-6 models. - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call. - Reconnecting voice no longer reposts a cached Voice Context summary. - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping. - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status. - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells. - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately. - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths. - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
+  - @howaboua/pi-shepherdr: Shepherdr now adds exact-target recovery guidance to agent-not-found errors without changing accepted agent names or pane IDs.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.18
+### @howaboua/pi-gippity-control — 0.0.19
 
-- Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+- Fixed context continuity, voice replies, and patch preservation.
+
+  - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows.
+  - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
+  - Reasoning-summary forwarding now recognizes GPT-6 models.
+  - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call.
+  - Reconnecting voice no longer reposts a cached Voice Context summary.
+  - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
+  - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status.
+  - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells.
+  - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately.
+  - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths.
+  - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -137,9 +164,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.2
+### @howaboua/pi-shepherdr — 0.2.3
 
-- Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
+- Fixed context continuity, voice replies, and patch preservation.
+
+  - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows.
+  - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
+  - Reasoning-summary forwarding now recognizes GPT-6 models.
+  - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call.
+  - Reconnecting voice no longer reposts a cached Voice Context summary.
+  - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping.
+  - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status.
+  - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells.
+  - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately.
+  - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths.
+  - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
+
+- Shepherdr now adds exact-target recovery guidance to agent-not-found errors without changing accepted agent names or pane IDs.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -195,15 +236,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.80
+### @howaboua/pi-stuff — 0.0.81
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
-  - @howaboua/pi-better-skills-tool: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
-  - @howaboua/pi-shepherdr: Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
-  - @howaboua/pi-skill-code: Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
+  - @howaboua/pi-better-skills-tool: The skills tool now reads mixed skills and unique cross-skill references in one call. Ambiguous reference names report their qualified choices.
+  - @howaboua/pi-gippity-control: Fixed context continuity, voice replies, and patch preservation. - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows. - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest. - Reasoning-summary forwarding now recognizes GPT-6 models. - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call. - Reconnecting voice no longer reposts a cached Voice Context summary. - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping. - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status. - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells. - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately. - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths. - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
+  - @howaboua/pi-shepherdr: Fixed context continuity, voice replies, and patch preservation. - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows. - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest. - Reasoning-summary forwarding now recognizes GPT-6 models. - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call. - Reconnecting voice no longer reposts a cached Voice Context summary. - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping. - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status. - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells. - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately. - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths. - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
+  - @howaboua/pi-shepherdr: Shepherdr now adds exact-target recovery guidance to agent-not-found errors without changing accepted agent names or pane IDs.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

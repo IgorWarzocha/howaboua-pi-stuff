@@ -1,5 +1,9 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.4
+
+- The skills tool now reads mixed skills and unique cross-skill references in one call. Ambiguous reference names report their qualified choices.
+
 ## 0.0.3
 
 - Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
