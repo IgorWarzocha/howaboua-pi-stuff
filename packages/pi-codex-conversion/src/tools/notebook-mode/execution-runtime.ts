@@ -183,6 +183,7 @@ export class NotebookExecutionRuntime {
 		const session = this.session();
 		try {
 			const result = await session.kernel()!.execute(source, {
+				cellSource: cell.source,
 				signal: cell.controller.signal,
 				interruptOnAbort: false,
 				onOutput: (item) => cell.emit([item]),

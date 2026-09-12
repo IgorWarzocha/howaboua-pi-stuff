@@ -80,6 +80,7 @@ export class DenoJupyterKernel {
 	async execute(
 		code: string,
 		options: {
+			cellSource?: string | undefined;
 			signal?: AbortSignal | undefined;
 			onOutput?: ((item: RuntimeContentItem) => void) | undefined;
 			interruptOnAbort?: boolean | undefined;
@@ -167,7 +168,7 @@ export class DenoJupyterKernel {
 				replied.errorValue === "Execution failed" &&
 				replied.errorText === "Error: Execution failed"
 			) {
-				const diagnostic = await diagnoseDenoSyntax(this.deno, code, this.env);
+				const diagnostic = await diagnoseDenoSyntax(this.deno, code, this.env, options.cellSource);
 				if (diagnostic) {
 					return {
 						...replied,
