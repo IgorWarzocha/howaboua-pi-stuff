@@ -66,20 +66,50 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 	);
 
 	const calls: unknown[] = [];
+	const emitted: string[] = [];
+	const commandResult = {
+		output: "quoted \"value\" and literal \\n\\nactual newline\n",
+		session_id: 41,
+		original_token_count: 19,
+		continuation: "resume session 41",
+	};
+	const stdinResult = {
+		output: "stdout says exit_code: 0\n",
+		exit_code: 7,
+		wall_time_seconds: 0.25,
+	};
 	const kernel: Record<string, unknown> = {
 		fetch: async (_url: string, request: { body: string }) => {
 			const payload = JSON.parse(request.body);
-			if (payload.kind === "tool") calls.push(payload.toolName);
-			return { ok: true, text: async () => JSON.stringify({ ok: true, result: "delivered" }) };
+			if (payload.kind === "emit") {
+				emitted.push(...payload.items.map((item: { text?: string }) => item.text ?? ""));
+				return { ok: true, text: async () => JSON.stringify({ ok: true }) };
+			}
+			if (payload.kind === "tool") {
+				calls.push(payload.toolName);
+				const result = payload.toolName.name === "exec_command"
+					? commandResult
+					: payload.toolName.name === "write_stdin"
+						? stdinResult
+						: "delivered";
+				return { ok: true, text: async () => JSON.stringify({ ok: true, result }) };
+			}
+			return { ok: true, text: async () => JSON.stringify({ ok: true }) };
 		},
 	};
 	const bootstrap = new Function("globalThis", "Deno", "setInterval", "clearInterval",
 		`return (async () => ${notebookBootstrapSource("http://localhost", "token", "exit", "/project")})()`);
 	await bootstrap(kernel, { chdir() {}, ppid: 1, memoryUsage: () => ({ rss: 0 }) }, () => 0, () => {});
 	const runtime = kernel["__piNotebook"] as {
-		begin(id: string, tools: unknown[], names: Record<string, { name: string }>): Promise<void>;
+		begin(
+			id: string,
+			tools: unknown[],
+			names: Record<string, { name: string }>,
+			outputHints?: Record<string, string>,
+		): Promise<void>;
 		end(id: string): void;
 	};
+	const text = kernel["text"] as (value: unknown) => void;
 	await runtime.begin("first", state.ALL_TOOLS, {
 		exec_command: { name: "exec_command" },
 		deferred_programmatic_tool: { name: "deferred-programmatic-tool" },
@@ -91,10 +121,38 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 	assert.equal(Object.hasOwn(tools, "exec_command"), true);
 	assert.equal(Object.hasOwn(tools, "missing"), false);
 	assert.equal(await tools["deferred_programmatic_tool"]!({}), "delivered");
-	assert.deepEqual(calls, [{ name: "deferred-programmatic-tool" }]);
+	const retainedCommandResult = await tools["exec_command"]!({ cmd: "printf output" });
+	assert.deepEqual(retainedCommandResult, commandResult);
+	text(retainedCommandResult);
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(emitted.at(-1), JSON.stringify(commandResult));
+	assert.deepEqual(calls, [{ name: "deferred-programmatic-tool" }, { name: "exec_command" }]);
 	runtime.end("first");
-	await runtime.begin("second", [], { replacement: { name: "replacement" } });
-	assert.deepEqual(Object.keys(tools), ["replacement"]);
-	assert.equal("exec_command" in tools, false);
+	await runtime.begin("second", [], {
+		exec_command: { name: "exec_command" },
+		write_stdin: { name: "write_stdin" },
+	}, {
+		exec_command: "plain-command",
+		write_stdin: "plain-command",
+	});
+	assert.deepEqual(Object.keys(tools), ["exec_command", "write_stdin"]);
+	text(retainedCommandResult);
+	const returnedStdinResult = await tools["write_stdin"]!({ session_id: 41 });
+	assert.deepEqual(returnedStdinResult, stdinResult);
+	text(returnedStdinResult);
+	text({ ...commandResult });
+	text(JSON.stringify(commandResult));
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.deepEqual(emitted.slice(-4), [
+		'{"session_id":41,"original_token_count":19,"continuation":"resume session 41"}\nOutput:\n' + commandResult.output,
+		'{"exit_code":7,"wall_time_seconds":0.25}\nOutput:\n' + stdinResult.output,
+		JSON.stringify(commandResult),
+		JSON.stringify(commandResult),
+	]);
 	runtime.end("second");
+	await runtime.begin("third", [], { exec_command: { name: "exec_command" } });
+	text(retainedCommandResult);
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(emitted.at(-1), JSON.stringify(commandResult));
+	runtime.end("third");
 });

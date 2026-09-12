@@ -78,6 +78,9 @@ function createNestedTools(
 		...options,
 		waitForNonInteractiveExit: true,
 	};
+	const notebookOutput = runtime.state.config.notebook.plainCommandOutput
+		? { notebookOutput: "plain-command" as const }
+		: {};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({
@@ -127,6 +130,7 @@ function createNestedTools(
 			},
 			{
 				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
+				...notebookOutput,
 				resultValue(result) {
 					const details = result.details;
 					if (result.content.some((item) => item.type === "image")) {
@@ -152,7 +156,7 @@ function createNestedTools(
 			createWriteStdinTool(runtime.sessions, options),
 			"await tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number }) // non-empty chars only when the original exec_command used tty=true",
 			{},
-			{ yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS },
+			{ yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS, ...notebookOutput },
 		),
 	];
 	if (!ctx || supportsViewImageInputs(ctx.model) || runtime.state.config.tools.viewImageFallback) {

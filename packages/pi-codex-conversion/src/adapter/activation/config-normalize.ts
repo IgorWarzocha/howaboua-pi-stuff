@@ -154,6 +154,10 @@ export function normalizeCodexConversionConfig(
 				MIN_NOTEBOOK_HEAP_MIB,
 				MAX_NOTEBOOK_HEAP_MIB,
 			),
+			plainCommandOutput: normalizeBoolean(
+				notebook["plainCommandOutput"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.notebook.plainCommandOutput,
+			),
 			...(notebookProfile ? { profile: notebookProfile } : {}),
 		},
 		voice: {

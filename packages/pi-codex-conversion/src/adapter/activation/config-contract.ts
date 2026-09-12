@@ -72,7 +72,11 @@ export interface CodexConversionConfig {
 		portableSummary: boolean;
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
-	notebook: { maxHeapMiB: number; profile?: string | undefined };
+	notebook: {
+		maxHeapMiB: number;
+		plainCommandOutput: boolean;
+		profile?: string | undefined;
+	};
 	voice: {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
@@ -132,7 +136,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		portableSummary: false,
 		v2UserMessageRetention: 64,
 	},
-	notebook: { maxHeapMiB: 4_096 },
+	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false },
 	voice: {
 		v3Voice: "cove",
 		autoResumeRealtime: true,

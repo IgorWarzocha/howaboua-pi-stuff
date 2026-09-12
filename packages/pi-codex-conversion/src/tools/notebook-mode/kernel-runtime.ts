@@ -20,6 +20,8 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	pendingErrors: [],
 	toolPending: new Set(),
 	toolNames: {},
+	toolOutputHints: {},
+	toolResults: new WeakMap(),
 	outputChars: 0,
 	outputItems: 0,
 	outputTruncated: false,
@@ -70,6 +72,11 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     if (value === undefined) return "undefined";
     try { return JSON.stringify(value); } catch { return String(value); }
   };
+	const __formatPlainCommandOutput = (value) => {
+	  const metadata = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "output"));
+	  const prefix = Object.keys(metadata).length > 0 ? __stringify(metadata) + "\\n" : "";
+	  return prefix + "Output:\\n" + value.output;
+	};
   const __emit = (items) => {
     if (!__state.cellId) throw new Error("Notebook helper called outside an active exec cell");
 	if (__state.outputTruncated) return;
@@ -167,15 +174,20 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
         if (!__state.cellId) throw new Error("Nested tool called outside an active exec cell");
         const requestId = ++__state.requestId;
 		const toolName = __state.toolNames[name] || { name };
-		return __trackTool(__post({ kind: "tool", cellId: __state.cellId, requestId, toolName, input }));
+		const result = __post({ kind: "tool", cellId: __state.cellId, requestId, toolName, input }).then((value) => {
+		  if (value && (typeof value === "object" || typeof value === "function")) __state.toolResults.set(value, name);
+		  return value;
+		});
+		return __trackTool(result);
       };
     },
   });
   const __runtime = {
-    async begin(cellId, tools, toolNames) {
+    async begin(cellId, tools, toolNames, toolOutputHints = {}) {
 	  if (__state.memoryTimer !== undefined) clearInterval(__state.memoryTimer);
       __state.cellId = cellId;
 	  __state.toolNames = toolNames;
+	  __state.toolOutputHints = toolOutputHints;
       __state.pending = new Set();
 	  __state.pendingErrors = [];
 	  __state.toolPending = new Set();
@@ -228,7 +240,15 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
   Object.defineProperty(globalThis, "__piNotebook", { value: __runtime, configurable: false });
   globalThis.tools = __tools;
   globalThis.ALL_TOOLS = [];
-  globalThis.text = (value) => __emit([{ type: "input_text", text: __stringify(value) }]);
+  globalThis.text = (value) => {
+	const toolName = value && (typeof value === "object" || typeof value === "function")
+	  ? __state.toolResults.get(value)
+	  : undefined;
+	const plainCommand = toolName !== undefined
+	  && __state.toolOutputHints[toolName] === "plain-command"
+	  && typeof value.output === "string";
+	__emit([{ type: "input_text", text: plainCommand ? __formatPlainCommandOutput(value) : __stringify(value) }]);
+  };
   globalThis.image = __image;
   globalThis.generatedImage = (value) => {
     if (!value || typeof value.image_url !== "string") throw new TypeError("generatedImage expects an image result");

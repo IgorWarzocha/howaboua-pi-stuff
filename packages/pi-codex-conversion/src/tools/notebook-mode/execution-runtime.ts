@@ -112,9 +112,13 @@ export class NotebookExecutionRuntime {
 			codeModeGlobalName(tool.name),
 			resolveCodeModeToolIdentity(tool),
 		]));
+		const outputHints = Object.fromEntries(tools.flatMap((tool) =>
+			"notebookOutput" in tool && tool.notebookOutput !== undefined
+				? [[codeModeGlobalName(tool.name), tool.notebookOutput]]
+				: []));
 		const wrapped = [
 			`if (typeof globalThis.__piNotebook?.begin !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.begin");`,
-			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)}, ${JSON.stringify(toolNames)});`,
+			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)}, ${JSON.stringify(toolNames)}, ${JSON.stringify(outputHints)});`,
 			code,
 			`if (typeof globalThis.__piNotebook?.flush !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.flush");`,
 			`await globalThis.__piNotebook.flush(${JSON.stringify(id)});`,
