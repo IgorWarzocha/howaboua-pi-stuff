@@ -252,9 +252,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
-### @howaboua/pi-subdir-agents — 0.0.6
+### @howaboua/pi-subdir-agents — 0.0.7
 
-- Fixed duplicate AGENTS.md load notifications when the context already appears as an expandable message.
+- Nested AGENTS.md guidance now reaches the model after discovery tools finish in the same task, without retroactive history insertion on the next user turn.
 
 [Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 
