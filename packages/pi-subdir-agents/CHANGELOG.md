@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.7
+
+- Nested AGENTS.md guidance now reaches the model after discovery tools finish in the same task, without retroactive history insertion on the next user turn.
+
 ## 0.0.6
 
 - Fixed duplicate AGENTS.md load notifications when the context already appears as an expandable message.

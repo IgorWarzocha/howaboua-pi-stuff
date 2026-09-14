@@ -500,7 +500,7 @@
     },
     "packages/pi-subdir-agents": {
       "name": "@howaboua/pi-subdir-agents",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-coding-agent": "0.85.1",
