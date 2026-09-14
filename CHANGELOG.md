@@ -72,9 +72,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.4
+### @howaboua/pi-codex-imagegen — 0.0.5
 
-- Image generation and editing now request gpt-image-2.5. Proxy model mappings must use gpt-image-2.5 as their canonical key.
+- Guide image generation prompts toward target aspect ratio and quality, the controls honored by the Codex backend.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
@@ -204,9 +204,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
-### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.2
+### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.3
 
-- Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
+- Refine agent tool design guidance around live route evidence, real caller decisions, and concise positive field instructions.
 
 [Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
@@ -216,12 +216,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.20
+### @howaboua/pi-skills — 0.0.21
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-code: Scratchpad guidance now keeps one-off checks temporary and deletes their artifacts after use. Persistent projects require an explicit request to retain them.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Refine agent tool design guidance around live route evidence, real caller decisions, and concise positive field instructions.
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -236,14 +235,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.81
+### @howaboua/pi-stuff — 0.0.82
 
 - Include bundled package updates:
 
-  - @howaboua/pi-better-skills-tool: The skills tool now reads mixed skills and unique cross-skill references in one call. Ambiguous reference names report their qualified choices.
-  - @howaboua/pi-gippity-control: Fixed context continuity, voice replies, and patch preservation. - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows. - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest. - Reasoning-summary forwarding now recognizes GPT-6 models. - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call. - Reconnecting voice no longer reposts a cached Voice Context summary. - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping. - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status. - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells. - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately. - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths. - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
-  - @howaboua/pi-shepherdr: Fixed context continuity, voice replies, and patch preservation. - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows. - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest. - Reasoning-summary forwarding now recognizes GPT-6 models. - Replies resume in voice after a context-window rollover, and carried transcripts no longer falsely report that the user ended the call. - Reconnecting voice no longer reposts a cached Voice Context summary. - Added an opt-in plain command output toggle for Code and Notebook modes under `/codex Tools`, keeping command metadata while printing output without JSON escaping. - Notebook cell results report heap and RSS figures only under memory pressure; routine figures remain available through notebook status. - Code and Notebook modes show running-command continuation instructions once per response, preserving the distinction between shell sessions and exec cells. - Notebook syntax errors now point to the original cell source, with generated-code diagnostics labeled separately. - `apply_patch` now preserves existing line endings, unchanged context text, and trailing blank lines, and supports same-drive relative Windows paths. - `apply_patch` rejects repeated source-file sections before writing; multiple hunks in one update remain supported.
-  - @howaboua/pi-shepherdr: Shepherdr now adds exact-target recovery guidance to agent-not-found errors without changing accepted agent names or pane IDs.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Refine agent tool design guidance around live route evidence, real caller decisions, and concise positive field instructions.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.5
+
+- Guide image generation prompts toward target aspect ratio and quality, the controls honored by the Codex backend.
+
 ## 0.0.4
 
 - Image generation and editing now request gpt-image-2.5. Proxy model mappings must use gpt-image-2.5 as their canonical key.
