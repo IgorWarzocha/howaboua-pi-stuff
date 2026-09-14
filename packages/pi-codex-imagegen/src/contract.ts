@@ -10,7 +10,9 @@ export const MAX_EDIT_IMAGES = 5;
 
 export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{
-		prompt: Type.String(),
+		prompt: Type.String({
+			description: "Include target aspect ratio and quality",
+		}),
 		referenced_image_paths: Type.Optional(
 			Type.Union([
 				Type.Array(Type.String(), {
