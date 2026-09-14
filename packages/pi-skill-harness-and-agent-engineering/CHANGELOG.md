@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-harness-and-agent-engineering
 
+## 0.0.3
+
+- Refine agent tool design guidance around live route evidence, real caller decisions, and concise positive field instructions.
+
 ## 0.0.2
 
 - Agent tool design now rejects bloated contracts across the assembled prompt, including inherited text and duplicated metadata.

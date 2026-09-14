@@ -1,5 +1,11 @@
 # @howaboua/pi-skills
 
+## 0.0.21
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-harness-and-agent-engineering: Refine agent tool design guidance around live route evidence, real caller decisions, and concise positive field instructions.
+
 ## 0.0.20
 
 - Include bundled package updates:

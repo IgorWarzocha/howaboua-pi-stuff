@@ -161,7 +161,7 @@
     },
     "packages/pi-codex-imagegen": {
       "name": "@howaboua/pi-codex-imagegen",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.10.0",
@@ -410,7 +410,7 @@
     },
     "packages/pi-skill-harness-and-agent-engineering": {
       "name": "@howaboua/pi-skill-harness-and-agent-engineering",
-      "version": "0.0.2",
+      "version": "0.0.3",
     },
     "packages/pi-skill-omarchy-help": {
       "name": "@howaboua/pi-skill-omarchy-help",
@@ -418,7 +418,7 @@
     },
     "packages/pi-skills": {
       "name": "@howaboua/pi-skills",
-      "version": "0.0.20",
+      "version": "0.0.21",
       "dependencies": {
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
         "@howaboua/pi-skill-code": "0.0.0",
@@ -447,7 +447,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.81",
+      "version": "0.0.82",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.7",
         "@howaboua/pi-auto-trees": "0.1.13",
