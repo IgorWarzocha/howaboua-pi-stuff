@@ -17,6 +17,7 @@ For a Pi tool, also read `references/pi.md`.
 
 - When the implementation supports the right behaviour but the model selects the wrong action or argument, treat it as a model-facing contract failure first.
 - Fix the name, default, argument description, or prompt guidance before adding runtime policy, heuristics, or extra state.
+- Before changing a tool contract for external behaviour, exercise the actual route. Accepted fields and public docs do not prove the route honours them. Separate body controls from prompt-mediated behaviour.
 - Describe choices in terms of user intent, not only mechanics. “False returns immediately” explains execution. “Use false only while continuing other work” changes the model's decision.
 - Test paired natural requests that differ only at the decision boundary. Confirm the model chooses correctly before changing implementation.
 
@@ -25,6 +26,7 @@ For a Pi tool, also read `references/pi.md`.
 - Give one tool one coherent job.
 - Expose only decisions the caller must make. Keep providers, models, prompts, commands, internal modes, formatting, and policy inside the implementation unless the agent genuinely chooses them.
 - Require only the minimum valid input. Add an optional field only when omission has a useful deterministic meaning.
+- Do not invent an argument whose only job is to splice ordinary intent into an existing prompt. Attach concise guidance to that prompt field instead.
 - Prefer conventional names such as `cmd`, `path`, `query`, `cwd`, and `message`. Use a small enum when the choice is genuinely closed.
 - If a field needs a paragraph to make sense, remove it, rename it, or reconsider the tool boundary.
 
@@ -33,6 +35,7 @@ For a Pi tool, also read `references/pi.md`.
 - Do not narrate types, requiredness, optionality, enums, defaults, or limits already encoded by the schema.
 - Omit a field description when its name is sufficient.
 - Write necessary descriptions as compact payload fragments: `Cwd`, `Wait ms`, `Recent days`, `Truncate`.
+- Attach guidance to the narrowest field it qualifies, so placement supplies context. Tell the agent what to supply or do. Prefer a concrete supported action over negative capability prose.
 - Omit cosmetic terminal full stops, backticks, Markdown, examples, and grammatical padding. Preserve punctuation and formatting only when they carry literal syntax or prevent ambiguity.
 - Keep safe compatibility aliases inside argument preparation rather than advertising them in the schema.
 
