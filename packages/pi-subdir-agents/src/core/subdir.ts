@@ -253,7 +253,8 @@ export function registerSubdirContextAutoload(
 						files: result.appendixFiles,
 					}),
 				},
-				{ deliverAs: "steer", triggerTurn: false },
+				// triggerTurn:false skips the live loop and only persists history.
+				{ deliverAs: "steer" },
 			);
 
 		// Commit only after delivery; failed sends must remain retryable.

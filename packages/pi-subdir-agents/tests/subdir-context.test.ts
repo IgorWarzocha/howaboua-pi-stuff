@@ -83,7 +83,7 @@ function harness(cwd: string) {
 		},
 		sendMessage(message, options) {
 			if (failDelivery) throw new Error("delivery failed");
-			assert.deepEqual(options, { deliverAs: "steer", triggerTurn: false });
+			assert.deepEqual(options, { deliverAs: "steer" });
 			messages.push(message);
 		},
 		sendUserMessage() {
