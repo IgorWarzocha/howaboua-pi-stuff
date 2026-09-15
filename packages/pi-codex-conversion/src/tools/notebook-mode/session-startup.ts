@@ -102,6 +102,14 @@ export async function startNotebookSession(options: {
 		}
 		const exampleNames = await installNotebookExamples(kernel, signal);
 		for (const name of exampleNames) baselineNames.add(name);
+		for (const { name } of projectState.restored.filter((entry) => entry.autorun).sort((a, b) => a.name.localeCompare(b.name))) {
+			try {
+				const result = await kernel.execute(`await (0, globalThis[${JSON.stringify(name)}])(); undefined;`, { signal });
+				if (result.status !== "ok") throw new Error(result.errorText ?? result.status);
+			} catch (error) {
+				throw new Error(`Notebook autorun ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. Unpin it with notebook to recover; external side effects were not rolled back`, { cause: error });
+			}
+		}
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
 		const npmNotice = formatNotebookNpmImportsNotice(readNotebookNpmImports(checkpointIdentity));
 		const exampleNotice = exampleNames.length === 2

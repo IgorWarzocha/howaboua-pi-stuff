@@ -52,7 +52,7 @@ test("Notebook exec proxy shares control normalization without changing the prom
 		{ action: "checkpoint" },
 		{ action: "save", name: "profile" },
 		{ action: "load", name: "profile" },
-		{ action: "pin", names: ["alpha", "alpha"] },
+		{ action: "pin", names: ["alpha", "alpha"], autorun: true },
 		{ action: "unpin", names: ["alpha"] },
 		{ action: "release", names: ["alpha"] },
 		{ action: "prune", query: "alpha*" },
@@ -60,7 +60,7 @@ test("Notebook exec proxy shares control normalization without changing the prom
 		{ action: "reset" },
 	] as const) {
 		const normalized = request.action === "pin"
-			? { action: "pin" as const, names: ["alpha"] }
+			? { action: "pin" as const, names: ["alpha"], autorun: true }
 			: request;
 		assert.deepEqual(
 			await proxy.invoke(request, context, controller.signal),

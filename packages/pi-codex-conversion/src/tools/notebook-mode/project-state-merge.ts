@@ -22,6 +22,7 @@ export interface ProjectStateMerge {
 export interface ProjectStatePinUpdate {
 	names: readonly string[];
 	pinned: boolean;
+	autorun?: boolean | undefined;
 }
 
 export function mergeProjectState(options: {
@@ -82,6 +83,7 @@ export function mergeProjectState(options: {
 						? currentEntry?.updatedAt ?? options.current?.createdAt ?? capturedAt
 						: capturedAt,
 					...(currentEntry?.pinned ? { pinned: true } : {}),
+					autorun: currentEntry?.autorun,
 				},
 				payload: options.candidatePayload,
 			};
@@ -108,10 +110,19 @@ export function mergeProjectState(options: {
 		for (let index = 0; index < entries.length; index += 1) {
 			const entry = entries[index]!;
 			if (!selected.has(entry.name)) continue;
+			if (options.pins.autorun && (skipped.has(entry.name) || !candidate.has(entry.name))) {
+				throw new Error(`Autorun requires a captured function: ${entry.name}`);
+			}
 			entries[index] = {
 				...entry,
 				...(options.pins.pinned ? { pinned: true } : { pinned: undefined }),
+				autorun: options.pins.pinned ? (options.pins.autorun === undefined ? entry.autorun : options.pins.autorun || undefined) : undefined,
 			};
+		}
+	}
+	for (const entry of entries) {
+		if (entry.autorun && (!entry.pinned || entry.kind !== "function")) {
+			throw new Error(`Autorun requires a pinned function: ${entry.name}; disable autorun or unpin before replacing it`);
 		}
 	}
 	const currentShape = JSON.stringify((options.current?.entries ?? []).map(projectStateEntryShape));
@@ -148,6 +159,6 @@ export function projectStateEntryFingerprint(entry: {
 		: JSON.stringify([entry.hash ?? null, entry.description ?? null, entry.usage ?? null]);
 }
 
-function projectStateEntryShape(entry: ProjectStateEntry): [string, string, string, boolean, string | null, string | null] {
-	return [entry.name, entry.kind, entry.hash, entry.pinned === true, entry.description ?? null, entry.usage ?? null];
+function projectStateEntryShape(entry: ProjectStateEntry): [string, string, string, boolean, boolean, string | null, string | null] {
+	return [entry.name, entry.kind, entry.hash, entry.pinned === true, entry.autorun === true, entry.description ?? null, entry.usage ?? null];
 }

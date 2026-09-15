@@ -34,7 +34,7 @@ test("notebook diagnostics group historical duplicates and put runtime health fi
 	assert.ok(Buffer.byteLength(JSON.stringify(bounded.details), "utf8") <= 16 * 1024);
 });
 
-test("notebook reset preserves the durable project manifest and pins", async () => {
+test("notebook recovery preserves durable state and can unpin without startup", async () => {
 	const root = join(tmpdir(), `pi-notebook-reset-${process.pid}-${Date.now()}`);
 	const project = join(root, "project");
 	const agentDir = join(root, "agent");
@@ -49,7 +49,7 @@ test("notebook reset preserves the durable project manifest and pins", async () 
 		payload: "project-00000000-0000-0000-0000-000000000001.bin",
 		createdAt: "2026-01-01T00:00:00.000Z",
 		sourceSession: "session",
-		entries: [{ name: "prReview", kind: "value", offset: 0, length: payload.length, hash: hash(payload), pinned: true }],
+		entries: [{ name: "prReview", kind: "function", offset: 0, length: payload.length, hash: hash(payload), pinned: true, autorun: true }],
 		skipped: [],
 	};
 	mkdirSync(paths.directory, { recursive: true });
@@ -70,9 +70,18 @@ test("notebook reset preserves the durable project manifest and pins", async () 
 		const restored = readProjectStateManifest(paths.manifest);
 		assert.equal(restored?.entries[0]?.name, "prReview");
 		assert.equal(restored?.entries[0]?.pinned, true);
+		assert.equal(restored?.entries[0]?.autorun, true);
 		assert.deepEqual(JSON.parse(readFileSync(join(paths.directory, "npm-imports.json"), "utf8")).imports, ["npm:example@1.2.3"]);
 		assert.deepEqual(events, ["stop", "start", "checkpoint"]);
 		assert.match(result.message, /preserved 1 project binding including 1 pinned/);
+		events.length = 0;
+		await controller.unpin(["prReview"], { cwd: project, extensionContext } as never);
+		const unpinned = readProjectStateManifest(paths.manifest);
+		assert.deepEqual(events, ["stop"]);
+		assert.equal(unpinned?.entries[0]?.pinned, undefined);
+		assert.equal(unpinned?.entries[0]?.autorun, undefined);
+		assert.notEqual(unpinned?.generation, restored?.generation);
+		assert.deepEqual(readFileSync(join(paths.directory, manifest.payload)), payload);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

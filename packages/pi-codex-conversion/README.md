@@ -159,6 +159,12 @@ text(status);
 
 Notebook Mode keeps `exec` and `wait`, adds a top-level `notebook` lifecycle tool, and preserves JavaScript or TypeScript bindings in one persistent Deno runtime. The `notebook` tool owns status, checkpoints, restarts, resets and stored profiles.
 
+Pin a self-contained initializer with `notebook({ action: "pin", names: ["setup"], autorun: true })` to await it once per fresh kernel, including restarts, after project, session and configured-profile restoration. Pinning does not run it immediately. Initializers run without arguments in name order; keep dependent setup in one function.
+
+Import dependencies inside the initializer and assign recreated helpers or handles through `globalThis`, replacing any restored copies. Pi tools require an active cell and cannot be called during startup. Ordinary pins stay passive; omit `autorun` to preserve an existing setting, set it to `false` to disable, or unpin.
+
+A failure blocks execution and names the failing initializer; unpin still works without starting the kernel. External side effects are not rolled back.
+
 ### Pi extension API
 
 Pi tools that genuinely need Pi's UI can also appear inside Code and Notebook Mode. Install [`pi-ask`](../pi-ask) and `await tools.ask(...)` opens the same interactive panel from a cell.

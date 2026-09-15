@@ -25,7 +25,12 @@ export const NOTEBOOK_PARAMETERS = Type.Union([
 		name: Type.String(),
 	}, { additionalProperties: false }),
 	Type.Object({
-		action: StringEnum(["pin", "unpin", "release"]),
+		action: Type.Literal("pin"),
+		names: Type.Array(Type.String(), { minItems: 1 }),
+		autorun: Type.Optional(Type.Boolean({ description: "Await self-contained functions after restore once per new kernel; false disables" })),
+	}, { additionalProperties: false }),
+	Type.Object({
+		action: StringEnum(["unpin", "release"]),
 		names: Type.Array(Type.String(), { minItems: 1 }),
 	}, { additionalProperties: false }),
 	Type.Object({
@@ -41,6 +46,7 @@ type NotebookToolParameters = {
 	query?: string | undefined;
 	name?: string | undefined;
 	names?: string[] | undefined;
+	autorun?: boolean | undefined;
 };
 
 export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRuntime): void {
@@ -71,7 +77,7 @@ export function createNotebookControlProxy(
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
-		usage: "await tools.notebook({ action, query?, name?, names? })",
+		usage: "await tools.notebook({ action, query?, name?, names?, autorun? })",
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
@@ -120,7 +126,11 @@ export function normalizeNotebookRequest(params: NotebookToolParameters): Notebo
 		...(params.query == null ? {} : { query: params.query }),
 		...(params.name == null ? {} : { name: params.name }),
 		...(params.names == null ? {} : { names: params.names }),
+		...(params.autorun == null ? {} : { autorun: params.autorun }),
 	};
+	if (params.autorun !== undefined && (params.action !== "pin" || typeof params.autorun !== "boolean")) {
+		throw new Error("notebook autorun requires pin and a boolean");
+	}
 	if (params.action === "status" || params.action === "list") {
 		if (params.name !== undefined || params.names !== undefined) throw new Error(`notebook ${params.action} accepts query only`);
 		return { action: params.action, ...(params.query === undefined ? {} : { query: params.query }) };
@@ -133,7 +143,7 @@ export function normalizeNotebookRequest(params: NotebookToolParameters): Notebo
 	if (params.action === "release" || params.action === "pin" || params.action === "unpin") {
 		if (params.query !== undefined || params.name !== undefined) throw new Error(`notebook ${params.action} accepts names only`);
 		if (!params.names?.length) throw new Error(`notebook ${params.action} requires at least one name`);
-		return { action: params.action, names: [...new Set(params.names)] };
+		return { action: params.action, names: [...new Set(params.names)], ...(params.action === "pin" && params.autorun !== undefined ? { autorun: params.autorun } : {}) };
 	}
 	if (params.action === "prune") {
 		if (params.name !== undefined || params.names !== undefined) throw new Error("notebook prune accepts query only");

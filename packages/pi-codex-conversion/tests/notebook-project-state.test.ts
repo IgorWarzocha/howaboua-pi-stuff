@@ -112,7 +112,7 @@ test("project notebook merge treats metadata edits as concurrent changes", () =>
 	assert.equal(merged.entries[0]?.description, "current");
 });
 
-test("project notebook merge applies an uncontested plain global", () => {
+test("project notebook merge preserves pins and validates explicit autorun updates", () => {
 	const previous = Buffer.from("previous");
 	const payload = Buffer.from("value");
 	const merged = mergeProjectState({
@@ -130,6 +130,31 @@ test("project notebook merge applies an uncontested plain global", () => {
 	assert.equal(merged.entries[0]?.pinned, true);
 	assert.ok(merged.entries[0]?.updatedAt);
 	assert.equal(merged.payload.toString(), "value");
+
+	const current = projectManifest("current", payload, true);
+	const options = {
+		baseline: { generation: "current", entries: [{ name: "shared", hash: hash(payload) }] },
+		current,
+		candidate: projectCandidate(payload),
+		candidatePayload: payload,
+		currentPayload: payload,
+	};
+	const enabled = mergeProjectState({ ...options, pins: { names: ["shared"], pinned: true, autorun: true } });
+	assert.equal(enabled.changed, true);
+	assert.equal(enabled.entries[0]?.autorun, true);
+	current.entries = enabled.entries;
+	assert.equal(mergeProjectState(options).entries[0]?.autorun, true);
+	for (const pins of [{ names: ["shared"], pinned: false }, { names: ["shared"], pinned: true, autorun: false }]) {
+		const disabled = mergeProjectState({ ...options, pins });
+		assert.equal(disabled.changed, true);
+		assert.equal(disabled.entries[0]?.autorun, undefined);
+	}
+	assert.throws(() => mergeProjectState({ ...options, candidate: projectCandidate(previous, "value"), candidatePayload: previous }), /requires a pinned function/);
+	assert.throws(() => mergeProjectState({
+		...options,
+		candidate: { ...options.candidate, entries: [], skipped: [{ name: "shared", reason: "native function" }] },
+		pins: { names: ["shared"], pinned: true, autorun: true },
+	}), /requires a captured function/);
 });
 
 test("stale session recovery cannot overwrite a newer project generation", () => {

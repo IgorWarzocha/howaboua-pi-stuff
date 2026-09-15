@@ -19,6 +19,7 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 		bytes?: number | undefined;
 		updatedAt?: string | undefined;
 		pinned?: boolean | undefined;
+		autorun?: true | undefined;
 		description?: string | undefined;
 		usage?: string | undefined;
 	}> | undefined;
@@ -122,10 +123,10 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	return boundMessage(lines.filter(Boolean).join("\n"));
 }
 
-function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined }): string {
+function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined; autorun?: true | undefined }): string {
 	const description = binding.description === undefined ? "" : ` · ${binding.description}`;
 	const usage = binding.usage === undefined ? "" : ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;
-	return `${description}${usage}`;
+	return `${binding.autorun ? " · autorun" : ""}${description}${usage}`;
 }
 
 export function formatRelease(result: NotebookReleaseResult, restarted: boolean): string {

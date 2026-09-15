@@ -142,7 +142,7 @@ export type NotebookControlRequest =
 	| { action: "checkpoint" }
 	| { action: "save"; name: string }
 	| { action: "load"; name: string }
-	| { action: "pin"; names: string[] }
+	| { action: "pin"; names: string[]; autorun?: boolean | undefined }
 	| { action: "unpin"; names: string[] }
 	| { action: "release"; names: string[] }
 	| { action: "prune"; query: string }

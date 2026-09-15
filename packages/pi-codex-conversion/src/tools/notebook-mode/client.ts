@@ -11,6 +11,7 @@ import { NotebookExecutionRuntime } from "./execution-runtime.ts";
 import { NotebookLifecycleController } from "./lifecycle.ts";
 import { NotebookRecoveryController } from "./recovery.ts";
 import { NotebookSessionRuntime } from "./session-runtime.ts";
+import type { ProjectStatePinUpdate } from "./project-state-merge.ts";
 import {
 	promoteProjectStateBindings,
 	projectStateBindingSelection,
@@ -53,6 +54,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			prepare: (context, signal) => this.prepareSession(context, signal),
 			diagnostics: (context, signal) => this.recovery.diagnostics(context, signal),
 			reset: (context, signal) => this.recovery.reset(context, signal),
+			unpinWithoutStartup: (names, context, signal) => this.recovery.unpin(names, context, signal),
 			kernel: () => session.kernel(),
 			activeCellId: () => this.execution.activeCellId(),
 			stopActive: () => this.execution.stopActive(),
@@ -108,7 +110,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	async checkpoint(
 		excludeNames?: ReadonlySet<string>,
-		pins?: { names: readonly string[]; pinned: boolean },
+		pins?: ProjectStatePinUpdate,
 	): Promise<void> {
 		try {
 			await this.session.checkpoints.flush({ requireIdle: true, force: true, excludeNames, pins });
