@@ -80,7 +80,7 @@ export async function unpinProjectStateBindings(
 		const missing = names.filter((name) => !manifest.entries.some((entry) => entry.name === name));
 		if (missing.length > 0) throw new Error(`Durable notebook bindings not found: ${missing.join(", ")}`);
 		const entries = manifest.entries.map((entry) => selected.has(entry.name)
-			? { ...entry, pinned: undefined, autorun: undefined }
+			? { ...entry, pinned: undefined, hook: undefined }
 			: entry);
 		const text = `${JSON.stringify({ ...manifest, entries, parentGeneration: manifest.generation, generation: randomUUID() }, null, 2)}\n`;
 		if (Buffer.byteLength(text) > MAX_PROJECT_MANIFEST_BYTES) throw new Error(`Project manifest exceeds ${MAX_PROJECT_MANIFEST_BYTES} bytes`);
@@ -107,14 +107,14 @@ async function restoreProjectStateLocked(
 	}
 	const payloadPath = join(paths.directory, manifest.payload);
 	if (!readProjectStatePayload(manifest, payloadPath, identity.maxBytes)) {
-		if (manifest.entries.some((entry) => entry.autorun)) throw new Error("Project notebook payload was missing or invalid; autorun could not be restored");
+		if (manifest.entries.some((entry) => entry.hook)) throw new Error("Project notebook payload was missing or invalid; hooks could not be restored");
 		return { ...emptyProjectStateSummary(), message: "Project notebook payload was missing or invalid and was not restored" };
 	}
 	identity.signal?.throwIfAborted();
 	const result = await kernel.execute(projectStateRestoreSource(manifest, payloadPath), { signal: identity.signal });
 	if (result.status !== "ok") {
-		if (manifest.entries.some((entry) => entry.autorun)) {
-			throw new Error(`Project notebook autorun could not be restored: ${result.errorText ?? "unknown error"}. Unpin its functions with notebook to recover`);
+		if (manifest.entries.some((entry) => entry.hook)) {
+			throw new Error(`Project notebook hooks could not be restored: ${result.errorText ?? "unknown error"}. Unpin their functions with notebook to recover`);
 		}
 		return {
 			...emptyProjectStateSummary(),

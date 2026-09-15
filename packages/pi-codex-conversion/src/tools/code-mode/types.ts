@@ -136,13 +136,15 @@ export interface NotebookMemoryUsage {
 	heapLimitBytes: number;
 }
 
+export type NotebookHook = "startup" | "tool_result";
+
 export type NotebookControlRequest =
 	| { action: "status"; query?: string | undefined }
 	| { action: "list"; query?: string | undefined }
 	| { action: "checkpoint" }
 	| { action: "save"; name: string }
 	| { action: "load"; name: string }
-	| { action: "pin"; names: string[]; autorun?: boolean | undefined }
+	| { action: "pin"; names: string[]; hook?: NotebookHook | false | undefined }
 	| { action: "unpin"; names: string[] }
 	| { action: "release"; names: string[] }
 	| { action: "prune"; query: string }

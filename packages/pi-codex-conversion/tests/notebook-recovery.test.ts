@@ -49,7 +49,7 @@ test("notebook recovery preserves durable state and can unpin without startup", 
 		payload: "project-00000000-0000-0000-0000-000000000001.bin",
 		createdAt: "2026-01-01T00:00:00.000Z",
 		sourceSession: "session",
-		entries: [{ name: "prReview", kind: "function", offset: 0, length: payload.length, hash: hash(payload), pinned: true, autorun: true }],
+		entries: [{ name: "prReview", kind: "function", offset: 0, length: payload.length, hash: hash(payload), pinned: true, hook: "startup" }],
 		skipped: [],
 	};
 	mkdirSync(paths.directory, { recursive: true });
@@ -70,7 +70,7 @@ test("notebook recovery preserves durable state and can unpin without startup", 
 		const restored = readProjectStateManifest(paths.manifest);
 		assert.equal(restored?.entries[0]?.name, "prReview");
 		assert.equal(restored?.entries[0]?.pinned, true);
-		assert.equal(restored?.entries[0]?.autorun, true);
+		assert.equal(restored?.entries[0]?.hook, "startup");
 		assert.deepEqual(JSON.parse(readFileSync(join(paths.directory, "npm-imports.json"), "utf8")).imports, ["npm:example@1.2.3"]);
 		assert.deepEqual(events, ["stop", "start", "checkpoint"]);
 		assert.match(result.message, /preserved 1 project binding including 1 pinned/);
@@ -79,7 +79,7 @@ test("notebook recovery preserves durable state and can unpin without startup", 
 		const unpinned = readProjectStateManifest(paths.manifest);
 		assert.deepEqual(events, ["stop"]);
 		assert.equal(unpinned?.entries[0]?.pinned, undefined);
-		assert.equal(unpinned?.entries[0]?.autorun, undefined);
+		assert.equal(unpinned?.entries[0]?.hook, undefined);
 		assert.notEqual(unpinned?.generation, restored?.generation);
 		assert.deepEqual(readFileSync(join(paths.directory, manifest.payload)), payload);
 	} finally {

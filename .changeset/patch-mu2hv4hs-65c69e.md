@@ -2,4 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Added Notebook pin autorun: self-contained initializers are awaited after restoration once per fresh kernel, including restarts. Startup failures block execution; unpin remains available for recovery.
+Added persistent event hooks to pinned Notebook functions.
+
+- Run handlers automatically after Notebook tool calls with their input and outcome, without another model call.
+- Initialize each fresh kernel with a startup hook; unpin remains available if startup fails.

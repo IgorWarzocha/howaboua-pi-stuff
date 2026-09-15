@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import type { NotebookHook } from "../code-mode/types.ts";
 
 export const PROJECT_STATE_SCHEMA = 2;
 export const MAX_PROJECT_ENTRIES = 10_000;
@@ -23,7 +24,7 @@ export interface ProjectStateEntry {
 	usage?: string | undefined;
 	updatedAt?: string | undefined;
 	pinned?: true | undefined;
-	autorun?: true | undefined;
+	hook?: NotebookHook | undefined;
 }
 
 export interface ProjectBindingMetadata {
@@ -219,7 +220,7 @@ export function hashStateBytes(bytes: Uint8Array): string {
 
 function parseEntry(value: unknown, payloadLength: number, requireHash: boolean): ProjectStateEntry | Omit<ProjectStateEntry, "hash"> | undefined {
 	if (!isRecord(value)) return undefined;
-	const { name, kind, offset, length, hash, updatedAt, pinned, autorun } = value;
+	const { name, kind, offset, length, hash, updatedAt, pinned, hook } = value;
 	if (
 		typeof name !== "string" || !IDENTIFIER.test(name) || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES
 		|| kind !== "value" && kind !== "function"
@@ -229,7 +230,7 @@ function parseEntry(value: unknown, payloadLength: number, requireHash: boolean)
 		|| requireHash && typeof hash !== "string"
 		|| updatedAt !== undefined && (typeof updatedAt !== "string" || !Number.isFinite(Date.parse(updatedAt)))
 		|| pinned !== undefined && pinned !== true
-		|| autorun !== undefined && (autorun !== true || pinned !== true || kind !== "function" || !requireHash)
+		|| hook !== undefined && (hook !== "startup" && hook !== "tool_result" || pinned !== true || kind !== "function" || !requireHash)
 	) return undefined;
 	const metadata = parseProjectBindingMetadata(value);
 	if (!metadata) return undefined;
@@ -241,7 +242,7 @@ function parseEntry(value: unknown, payloadLength: number, requireHash: boolean)
 		...metadata,
 		...(typeof updatedAt === "string" ? { updatedAt } : {}),
 		...(pinned === true ? { pinned: true as const } : {}),
-		...(autorun === true ? { autorun: true as const } : {}),
+		...(hook === "startup" || hook === "tool_result" ? { hook } : {}),
 	};
 	return requireHash ? { ...entry, hash: hash as string } : entry;
 }

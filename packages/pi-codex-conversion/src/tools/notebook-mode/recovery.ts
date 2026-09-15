@@ -59,7 +59,7 @@ export class NotebookRecoveryController {
 		await this.host.stopWithoutCheckpoint();
 		await unpinProjectStateBindings(identity, names, this.maxBytes, signal);
 		return {
-			message: `Unpinned durable notebook bindings: ${formatNameList(names)}; autorun disabled`,
+			message: `Unpinned durable notebook bindings: ${formatNameList(names)}; hooks removed`,
 			details: { pinned: false, bindingCount: names.length },
 		};
 	}

@@ -159,11 +159,13 @@ text(status);
 
 Notebook Mode keeps `exec` and `wait`, adds a top-level `notebook` lifecycle tool, and preserves JavaScript or TypeScript bindings in one persistent Deno runtime. The `notebook` tool owns status, checkpoints, restarts, resets and stored profiles.
 
-Pin a self-contained initializer with `notebook({ action: "pin", names: ["setup"], autorun: true })` to await it once per fresh kernel, including restarts, after project, session and configured-profile restoration. Pinning does not run it immediately. Initializers run without arguments in name order; keep dependent setup in one function.
+Pinned functions can react to Notebook events without another model call. Attach one with `notebook({ action: "pin", names: ["onToolResult"], hook: "tool_result" })`. It becomes active for subsequent `tools.*` calls and is restored on each fresh kernel.
 
-Import dependencies inside the initializer and assign recreated helpers or handles through `globalThis`, replacing any restored copies. Pi tools require an active cell and cannot be called during startup. Ordinary pins stay passive; omit `autorun` to preserve an existing setting, set it to `false` to disable, or unpin.
+The function receives `{ type: "tool_result", toolName, input, status, result?, error? }`. Filter by the callable `toolName` inside the function. Input is captured before the call; `status` is `"success"` when the call returns its result or `"error"` when it throws. Each handler gets its own snapshot, is awaited before the caller continues, and cannot replace the tool's result or error. Handlers run in name order; independent calls may overlap. Tools called from a handler do not trigger more handlers. Hook failures are reported without changing the original tool outcome.
 
-A failure blocks execution and names the failing initializer; unpin still works without starting the kernel. External side effects are not rolled back.
+Use `hook: "startup"` for initialization after project, session and configured-profile restoration, once per fresh kernel including restarts. It receives `{ type: "startup" }`; pinning does not run it immediately. Import dependencies inside the function and recreate helpers or handles through `globalThis`. Pi tools require an active cell and cannot run during startup. Startup failures block execution; unpin remains available for recovery.
+
+Ordinary pins stay passive. Omit `hook` to preserve its setting, set `hook: false` to remove it, or unpin. Hook registrations belong to the running Notebook; another session's edits take effect only on restoration. These hooks observe Notebook tool calls, not arbitrary JavaScript calls or tools outside Notebook. External side effects are not rolled back.
 
 ### Pi extension API
 

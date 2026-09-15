@@ -112,7 +112,7 @@ test("project notebook merge treats metadata edits as concurrent changes", () =>
 	assert.equal(merged.entries[0]?.description, "current");
 });
 
-test("project notebook merge preserves pins and validates explicit autorun updates", () => {
+test("project notebook merge preserves pins and validates explicit hook updates", () => {
 	const previous = Buffer.from("previous");
 	const payload = Buffer.from("value");
 	const merged = mergeProjectState({
@@ -139,22 +139,25 @@ test("project notebook merge preserves pins and validates explicit autorun updat
 		candidatePayload: payload,
 		currentPayload: payload,
 	};
-	const enabled = mergeProjectState({ ...options, pins: { names: ["shared"], pinned: true, autorun: true } });
+	const enabled = mergeProjectState({ ...options, pins: { names: ["shared"], pinned: true, hook: "tool_result" } });
 	assert.equal(enabled.changed, true);
-	assert.equal(enabled.entries[0]?.autorun, true);
+	assert.equal(enabled.entries[0]?.hook, "tool_result");
 	current.entries = enabled.entries;
-	assert.equal(mergeProjectState(options).entries[0]?.autorun, true);
-	for (const pins of [{ names: ["shared"], pinned: false }, { names: ["shared"], pinned: true, autorun: false }]) {
+	assert.equal(mergeProjectState(options).entries[0]?.hook, "tool_result");
+	const changed = mergeProjectState({ ...options, pins: { names: ["shared"], pinned: true, hook: "startup" } });
+	assert.equal(changed.changed, true);
+	assert.equal(changed.entries[0]?.hook, "startup");
+	for (const pins of [{ names: ["shared"], pinned: false }, { names: ["shared"], pinned: true, hook: false as const }]) {
 		const disabled = mergeProjectState({ ...options, pins });
 		assert.equal(disabled.changed, true);
-		assert.equal(disabled.entries[0]?.autorun, undefined);
+		assert.equal(disabled.entries[0]?.hook, undefined);
 	}
-	assert.throws(() => mergeProjectState({ ...options, candidate: projectCandidate(previous, "value"), candidatePayload: previous }), /requires a pinned function/);
+	assert.throws(() => mergeProjectState({ ...options, candidate: projectCandidate(previous, "value"), candidatePayload: previous }), /require a pinned function/);
 	assert.throws(() => mergeProjectState({
 		...options,
 		candidate: { ...options.candidate, entries: [], skipped: [{ name: "shared", reason: "native function" }] },
-		pins: { names: ["shared"], pinned: true, autorun: true },
-	}), /requires a captured function/);
+		pins: { names: ["shared"], pinned: true, hook: "startup" },
+	}), /require a captured function/);
 });
 
 test("stale session recovery cannot overwrite a newer project generation", () => {

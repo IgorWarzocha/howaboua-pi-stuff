@@ -11,7 +11,7 @@ import {
 import { ensureNotebookDenoBinary } from "./deno-binary.ts";
 import { initializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
-import { notebookBootstrapSource, notebookExampleSource } from "./kernel-runtime.ts";
+import { notebookBootstrapSource, notebookExampleSource, notebookToolHooksSource } from "./kernel-runtime.ts";
 import { formatNotebookNpmImportsNotice, readNotebookNpmImports } from "./npm-imports.ts";
 import {
 	formatProjectStateNotice,
@@ -102,13 +102,18 @@ export async function startNotebookSession(options: {
 		}
 		const exampleNames = await installNotebookExamples(kernel, signal);
 		for (const name of exampleNames) baselineNames.add(name);
-		for (const { name } of projectState.restored.filter((entry) => entry.autorun).sort((a, b) => a.name.localeCompare(b.name))) {
+		for (const { name } of projectState.restored.filter((entry) => entry.hook === "startup").sort((a, b) => a.name.localeCompare(b.name))) {
 			try {
-				const result = await kernel.execute(`await (0, globalThis[${JSON.stringify(name)}])(); undefined;`, { signal });
+				const result = await kernel.execute(`await (0, globalThis[${JSON.stringify(name)}])({type:"startup"}); undefined;`, { signal });
 				if (result.status !== "ok") throw new Error(result.errorText ?? result.status);
 			} catch (error) {
-				throw new Error(`Notebook autorun ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. Unpin it with notebook to recover; external side effects were not rolled back`, { cause: error });
+				throw new Error(`Notebook startup hook ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. Unpin it with notebook to recover; external side effects were not rolled back`, { cause: error });
 			}
+		}
+		const toolHooks = projectState.restored.filter((entry) => entry.hook === "tool_result").map(({ name }) => name);
+		if (toolHooks.length > 0) {
+			const configured = await kernel.execute(notebookToolHooksSource(toolHooks, true), { signal });
+			if (configured.status !== "ok") throw new Error(`Notebook tool hooks could not be restored: ${configured.errorText ?? configured.status}`);
 		}
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
 		const npmNotice = formatNotebookNpmImportsNotice(readNotebookNpmImports(checkpointIdentity));

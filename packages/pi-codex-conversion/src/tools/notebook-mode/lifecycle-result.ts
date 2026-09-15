@@ -1,4 +1,4 @@
-import type { NotebookMemoryUsage } from "../code-mode/types.ts";
+import type { NotebookHook, NotebookMemoryUsage } from "../code-mode/types.ts";
 import type { NotebookKernelStatus, NotebookReleaseResult } from "./lifecycle-runtime.ts";
 import type { RetainedProjectBinding } from "./project-state-metadata.ts";
 
@@ -19,7 +19,7 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 		bytes?: number | undefined;
 		updatedAt?: string | undefined;
 		pinned?: boolean | undefined;
-		autorun?: true | undefined;
+		hook?: NotebookHook | undefined;
 		description?: string | undefined;
 		usage?: string | undefined;
 	}> | undefined;
@@ -123,10 +123,10 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	return boundMessage(lines.filter(Boolean).join("\n"));
 }
 
-function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined; autorun?: true | undefined }): string {
+function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined; hook?: NotebookHook | undefined }): string {
 	const description = binding.description === undefined ? "" : ` · ${binding.description}`;
 	const usage = binding.usage === undefined ? "" : ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;
-	return `${binding.autorun ? " · autorun" : ""}${description}${usage}`;
+	return `${binding.hook ? ` · hook: ${binding.hook}` : ""}${description}${usage}`;
 }
 
 export function formatRelease(result: NotebookReleaseResult, restarted: boolean): string {
