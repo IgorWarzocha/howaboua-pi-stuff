@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Api, Model } from "@earendil-works/pi-ai";
+import { getCurrentSystemMessage, normalizeContext, type Api, type Model } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
@@ -158,6 +158,14 @@ test("context windows preserve rollover and native request semantics", async (t)
 	});
 
 	for (const mode of ["local", "tree", "remote"] as const) {
+		const promptHistory = [
+			{ role: "system", content: "Base", sections: { policy: "old" }, toolsAdded: createHistoryNotesTools(), timestamp: 0 },
+			{ role: "user", content: "discarded", timestamp: 1 },
+			{ role: "system", content: "", sections: { policy: "current" }, toolsRemoved: [{ name: "history" }], timestamp: 2 },
+		] as const;
+		assert.deepEqual(manager.project([...promptHistory, ...activeWindow] as never, mode), [
+			getCurrentSystemMessage(promptHistory), ...activeWindow,
+		], "window cuts checkpoint effective prompt sections and tool removals");
 		assert.deepEqual(manager.prepareCompaction(compactionEvent(), mode, true), { cancel: true });
 		assert.equal(manager.prepareCompaction({ reason: "manual" } as never, mode, true), undefined);
 		const checkpointManager = new CodexContextWindowManager();
@@ -242,8 +250,6 @@ test("context windows preserve rollover and native request semantics", async (t)
 		contextWindows: manager,
 		contextKickoff,
 		contextTree: new CodexContextTreeCoordinator(manager, contextKickoff),
-		pendingActiveProviderPromptCapture: true,
-		activeProviderSystemPrompt: "",
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			compaction: {
@@ -252,10 +258,10 @@ test("context windows preserve rollover and native request semantics", async (t)
 			},
 		},
 	};
-	const routerTools = buildRequestBody(codexModel, {
+	const routerTools = buildRequestBody(codexModel, normalizeContext({
 		messages: [],
 		tools: createHistoryNotesTools(),
-	} as never).tools as Array<{
+	})).tools as Array<{
 		name: string;
 		parameters: {
 			additionalProperties: boolean;

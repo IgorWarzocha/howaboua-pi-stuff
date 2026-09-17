@@ -43,7 +43,7 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 		},
 	} as never;
 	let active = false;
-	const unregister = registerCodexDeveloperMessageBroker(pi, () => active);
+	const unregister = registerCodexDeveloperMessageBroker(pi, () => active, () => true);
 	const callerPi = { events: eventBus } as never;
 	const kickoffContext = {
 		ui: { notify: (message: string) => notifications.push(message) },
@@ -77,6 +77,7 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true,
 		"a synchronous failure releases the claim without falling back");
 	assert.equal(kickoffs.length, 4);
+	updateCodexPreparedIdleKickoff(pi, "session_reset");
 	active = true;
 	const deliveries = [
 		{ deliverAs: "steer", triggerTurn: true },
@@ -90,7 +91,13 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 	for (let index = 1; index < deliveries.length; index++)
 		sendCodexDeveloperMessage(pi, "Developer " + index, deliveries[index]);
 
-	assert.deepEqual(sent.map(({ options }) => options), deliveries);
+	assert.deepEqual(sent.map(({ options }) => options), [
+		{ deliverAs: "steer", triggerTurn: false },
+		deliveries[1],
+		deliveries[2],
+	]);
+	assert.deepEqual(kickoffs.at(-1), { content: "Continue.", options: { deliverAs: "steer" } },
+		"an idle developer trigger persists its message before a prepared user kickoff");
 	assert.equal(
 		sent.every(({ message }) =>
 			message["customType"] === CODEX_DEVELOPER_MESSAGE_TYPE &&

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ProviderHeaders } from "@earendil-works/pi-ai";
+import { getCurrentSystemMessage, type ProviderHeaders } from "@earendil-works/pi-ai";
 import { ContextWindowBudget, type ContextRemaining } from "./window-budget.ts";
 import { rewriteWindowPayload, rewriteWindowHeaders } from "./window-request.ts";
 import type {
@@ -199,14 +199,14 @@ export class CodexContextWindowManager {
 		if (mode === "tree") {
 			const index = buildTreeArchiveIndex(allEntries, activeEntries);
 			const projected = !hybridCompaction && (index.archives.length === 0 || index.invalidManifest) && boundaryIndex >= 0
-				? messages.slice(boundaryIndex)
+				? checkpointWindow(messages, boundaryIndex)
 				: messages;
 			this.rolloverPending = undefined;
 			return filterTreeArchiveSummaries(projected, index);
 		}
 		if (boundaryIndex < 0) return [...messages];
 		this.rolloverPending = undefined;
-		return hybridCompaction ? [...messages] : messages.slice(boundaryIndex);
+		return hybridCompaction ? [...messages] : checkpointWindow(messages, boundaryIndex);
 	}
 
 	scheduleHybridCompaction(): boolean {
@@ -422,6 +422,13 @@ export class CodexContextWindowManager {
 		);
 	}
 
+}
+
+/** An explicit window cut retires conversation, not the prompt and executable tool declarations. */
+function checkpointWindow(messages: readonly AgentMessage[], boundaryIndex: number): AgentMessage[] {
+	const checkpoint = getCurrentSystemMessage(messages.slice(0, boundaryIndex));
+	const tail = messages.slice(boundaryIndex);
+	return checkpoint ? [checkpoint, ...tail] : tail;
 }
 
 function identityFromDetails(

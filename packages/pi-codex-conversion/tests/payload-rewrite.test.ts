@@ -6,6 +6,7 @@ import { buildNativeReplaySegments } from "../src/adapter/replay/payload-rewrite
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_STRATEGY, type NativeCompactionEntry } from "../src/adapter/compaction/types.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
+import { CODEX_DEVELOPER_MESSAGE_TYPE } from "../src/developer-messages.ts";
 
 const model = {
 	id: "gpt-5.1",
@@ -62,6 +63,12 @@ function compactionEntry(parentId: string): NativeCompactionEntry {
 		summary: "[OpenAI native compaction checkpoint]",
 		firstKeptEntryId: "pre",
 		tokensBefore: 100,
+		systemMessage: {
+			role: "system",
+			content: "Latest effective instructions",
+			sections: { runtime: "<runtime>current</runtime>" },
+			timestamp: 3,
+		},
 		details: {
 			strategy: NATIVE_COMPACTION_STRATEGY,
 			provider: "openai-codex",
@@ -97,13 +104,18 @@ function piCompactionEntry(id: string, parentId: string) {
 
 function runReplay(payloadMessages: AgentMessage[]) {
 	const pre = messageEntry("pre", null, user("pre", 1));
-	const compaction = compactionEntry("pre");
+	const staleSystem = messageEntry("stale-system", "pre", {
+		role: "system",
+		content: "Stale pre-compaction instructions",
+		timestamp: 2,
+	} as AgentMessage);
+	const compaction = compactionEntry("stale-system");
 	const display = customMessageEntry("display", "compact", custom(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, "display", 5));
 	const tail = messageEntry("tail", "display", user("tail", 6));
 	return buildNativeReplaySegments({
 		model,
-		payload: { model: model.id, input: serializeMessagesToResponsesInput(model, payloadMessages), instructions: "" },
-		branchEntries: [pre, compaction, display, tail],
+		payload: { model: model.id, input: serializeMessagesToResponsesInput(model, payloadMessages), instructions: "Latest effective instructions\n\n<runtime>current</runtime>" },
+		branchEntries: [pre, staleSystem, compaction, display, tail],
 		compactionEntry: compaction,
 	});
 }
@@ -119,32 +131,49 @@ test("native replay accepts Pi payloads that include adapter display messages", 
 
 	assert.equal(result.ok, true);
 	if (!result.ok) return;
+	assert.equal(result.rewrittenPayload.instructions, "Latest effective instructions\n\n<runtime>current</runtime>");
+	assert.doesNotMatch(JSON.stringify(result.rewrittenPayload.input), /Stale pre-compaction instructions/);
 	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
 });
 
 test("native replay preserves current payload tail beyond persisted branch entries", () => {
+	const replayModel = { ...model, compat: { supportsMidConvoSystemMessages: true } } as Model<any>;
 	const compaction = compactionEntry("pre");
+	const instructionUpdate = {
+		role: "system",
+		content: "",
+		sections: { runtime: "<runtime>updated</runtime>" },
+		timestamp: 7,
+	} as AgentMessage;
 	const marker = { ...custom(CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, "next window", 7), details: {
 		protocol: 1, id: "marker", contextManagement: {
 			protocol: 1, kind: "window", firstWindowId: "w0", currentWindowId: "w1", previousWindowId: "w0", windowNumber: 1,
 		},
 	} };
+	const developer = { ...custom(CODEX_DEVELOPER_MESSAGE_TYPE, "Persisted developer guidance", 8), details: {
+		protocol: 1, id: "developer-tail",
+	} };
 	for (const current of [[], [user("current", 8)]]) {
 		const result = buildNativeReplaySegments({
-			model,
-			payload: { model: model.id, instructions: "", input: [
+			model: replayModel,
+			payload: { model: replayModel.id, instructions: "", input: [
 				{ role: "developer", content: "fresh prompt" },
-				...serializeMessagesToResponsesInput(model, [compactionSummaryMessage(compaction), user("pre", 1), user("tail", 6), marker, ...current]),
+				...serializeMessagesToResponsesInput(replayModel, [compactionSummaryMessage(compaction), user("pre", 1), user("tail", 6), instructionUpdate, marker, developer, ...current], {
+					transcriptBaseline: compaction.systemMessage,
+				}),
 			] },
 			branchEntries: [messageEntry("pre", null, user("pre", 1)), compaction,
-				messageEntry("tail", "compact", user("tail", 6)), customMessageEntry("marker", "tail", marker)],
+				messageEntry("tail", "compact", user("tail", 6)), messageEntry("instructions", "tail", instructionUpdate),
+				customMessageEntry("marker", "instructions", marker), customMessageEntry("developer", "marker", developer)],
 			compactionEntry: compaction,
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) continue;
 		assert.deepEqual(result.rewrittenPayload.input, [
 			{ role: "developer", content: "fresh prompt" }, ...compaction.details!.compactedWindow,
-			...serializeMessagesToResponsesInput(model, [user("tail", 6), marker, ...current]),
+			...serializeMessagesToResponsesInput(replayModel, [user("tail", 6), instructionUpdate, marker, developer, ...current], {
+				transcriptBaseline: compaction.systemMessage,
+			}),
 		]);
 	}
 });

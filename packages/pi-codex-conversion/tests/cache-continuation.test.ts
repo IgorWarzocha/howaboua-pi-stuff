@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { codexReasoningUpdates, flushCodexReasoningUpdates, hasPendingCodexReasoningUpdate, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
@@ -80,10 +81,10 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	}
 	const auto = createAutoReasoning(pi, { config, executionMode: "normal" } as never);
 	const build = (bridge = new CodexDeveloperMessageBridge(), lite = true) => {
-		const body = buildRequestBody(astra, {
+		const body = buildRequestBody(astra, normalizeContext({
 			systemPrompt: "Stable instructions",
 			messages: convertToLlm(bridge.prepare(messages(), true, astra)),
-		}, { reasoning: level, sessionId: session.getSessionId() });
+		}), { reasoning: level, sessionId: session.getSessionId() });
 		const rewritten = bridge.rewritePayload(body) as ResponsesBody;
 		return lite ? applyResponsesLiteRequest(rewritten) : rewritten;
 	};

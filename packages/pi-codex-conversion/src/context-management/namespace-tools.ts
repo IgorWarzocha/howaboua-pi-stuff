@@ -1,5 +1,7 @@
 import {
 	createAssistantMessageEventStream,
+	getDeclaredTools,
+	normalizeContext,
 	type AssistantMessage,
 	type AssistantMessageEvent,
 	type AssistantMessageEventStream,
@@ -292,9 +294,9 @@ export function rewriteContextNamespaceTools(
 }
 
 export function hasContextNamespaceRouters(
-	context: Pick<Context, "tools">,
+	context: Context,
 ): boolean {
-	const names = new Set(context.tools?.map((tool) => tool.name));
+	const names = new Set(getDeclaredTools(normalizeContext(context).messages).map((tool) => tool.name));
 	return names.has("history") && names.has("notes");
 }
 

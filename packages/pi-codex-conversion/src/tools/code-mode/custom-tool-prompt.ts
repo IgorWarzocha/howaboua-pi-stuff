@@ -25,6 +25,12 @@ const CUSTOM_TOOL_DOCUMENTATION_MARKER = "To create or edit a custom tool, read"
 const CUSTOM_TOOL_DOCUMENTATION_GUIDANCE = "Never read that file to discover or call tools";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
+export const CODE_MODE_TOOLS_SECTION = "codex_tools";
+
+export interface CodeModeSystemPromptOptions {
+	forceSystemPrompt?: string | undefined;
+	sections?: Record<string, string> | undefined;
+}
 
 function isConfiguredCustomTool(
 	tool: CodeModeToolDefinition,
@@ -91,7 +97,6 @@ function buildUsageSection(
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	documentationPath?: string,
-	existingPrompt = "",
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
@@ -99,54 +104,62 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		existingPrompt.includes(BUNDLED_TOOLS_HEADING)
-			? undefined
-			: buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
-		 existingPrompt.includes(CUSTOM_TOOLS_HEADING)
-			? undefined
-			: buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
-		existingPrompt.includes(TOOL_GUIDANCE_HEADING)
-			? undefined
-			: buildGuidanceSection(tools),
-		tools.some(isDeferredDiscoverableTool) && !existingPrompt.includes(DEFERRED_TOOLS_GUIDANCE)
-			? DEFERRED_TOOLS_GUIDANCE
-			: undefined,
-		documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
+		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
+		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
+		buildGuidanceSection(tools),
+		tools.some(isDeferredDiscoverableTool) ? DEFERRED_TOOLS_GUIDANCE : undefined,
+		documentationPath
 			? `${CUSTOM_TOOL_DOCUMENTATION_MARKER} ${documentationPath}; do not read Pi docs\n${CUSTOM_TOOL_DOCUMENTATION_GUIDANCE}`
 			: undefined,
-		custom.length > 0 && !existingPrompt.includes(CUSTOM_TOOLS_GUIDANCE) ? CUSTOM_TOOLS_GUIDANCE : undefined,
+		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");
 }
 
-export function injectCodeModeToolsPrompt(
-	systemPrompt: string,
-	tools: CodeModeToolDefinition[],
-	documentationPath?: string,
-): string {
-	const section = buildCodeModeToolsPrompt(tools, documentationPath, systemPrompt);
+function upsertCodeModeToolsSection(systemPrompt: string, section: string): string {
+	const open = `<${CODE_MODE_TOOLS_SECTION}>`;
+	const close = `</${CODE_MODE_TOOLS_SECTION}>`;
+	const start = systemPrompt.indexOf(open);
+	const end = start === -1 ? -1 : systemPrompt.indexOf(close, start + open.length);
+	if (start !== -1 && end !== -1) {
+		const after = end + close.length;
+		if (!section) return `${systemPrompt.slice(0, start)}${systemPrompt.slice(after)}`.replace(/\n{3,}/g, "\n\n").trim();
+		return `${systemPrompt.slice(0, start)}${open}\n${section}\n${close}${systemPrompt.slice(after)}`;
+	}
 	if (!section) return systemPrompt;
-	const markers = ["\nCurrent shell:", "\nCurrent date:"]
-		.map((marker) => systemPrompt.indexOf(marker))
-		.filter((index) => index !== -1);
-	const insertAt =
-		markers.length > 0 ? Math.min(...markers) : systemPrompt.length;
-	return `${systemPrompt.slice(0, insertAt).trimEnd()}\n\n${section}${systemPrompt.slice(insertAt)}`;
+	return `${systemPrompt.trimEnd()}\n\n${open}\n${section}\n${close}`;
 }
 
-export function replaceCodeModeToolsPrompt(
-	systemPrompt: string,
-	previousSection: string | undefined,
-	nextTools: CodeModeToolDefinition[],
+function defineCodeModeToolsSection(
+	sections: Record<string, string>,
+	section: string,
+	isEnabled: () => boolean,
+): void {
+	let override: string | undefined;
+	Object.defineProperty(sections, CODE_MODE_TOOLS_SECTION, {
+		configurable: true,
+		enumerable: true,
+		get: () => override ?? (isEnabled() ? section : ""),
+		set: (value: string) => {
+			override = value;
+		},
+	});
+}
+
+export function prepareCodeModeToolsPrompt(
+	options: CodeModeSystemPromptOptions,
+	tools: CodeModeToolDefinition[],
 	documentationPath?: string,
-): { systemPrompt: string; section: string } {
-	const hasPrevious = Boolean(previousSection && systemPrompt.includes(previousSection));
-	const basePrompt = hasPrevious ? systemPrompt.replace(previousSection!, "") : systemPrompt;
-	const section = buildCodeModeToolsPrompt(nextTools, documentationPath, basePrompt);
-	return {
-		systemPrompt: hasPrevious
-			? systemPrompt.replace(previousSection!, section)
-			: injectCodeModeToolsPrompt(systemPrompt, nextTools, documentationPath),
-		section,
-	};
+	isEnabled: () => boolean = () => true,
+): string {
+	const sections = options.sections ??= {};
+	const section = buildCodeModeToolsPrompt(tools, documentationPath);
+	if (options.forceSystemPrompt !== undefined) {
+		options.forceSystemPrompt = upsertCodeModeToolsSection(options.forceSystemPrompt, isEnabled() ? section : "");
+	} else if (section) {
+		defineCodeModeToolsSection(sections, section, isEnabled);
+	} else {
+		delete sections[CODE_MODE_TOOLS_SECTION];
+	}
+	return section;
 }

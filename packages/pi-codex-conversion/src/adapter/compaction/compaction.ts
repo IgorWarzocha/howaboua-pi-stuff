@@ -1,5 +1,5 @@
 import { type CompactionResult, type ExtensionAPI, type ExtensionContext, type SessionBeforeCompactEvent, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { clampThinkingLevel, type Api, type Context, type Model, type ModelThinkingLevel } from "@earendil-works/pi-ai";
+import { clampThinkingLevel, getCurrentSystemMessage, normalizeContext, type Api, type Model, type ModelThinkingLevel, type TranscriptContext } from "@earendil-works/pi-ai";
 import { findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
@@ -130,6 +130,37 @@ function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, 
 	};
 }
 
+function buildCompactionTranscript(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	state: AdapterState,
+	runtime: { provider: string; api: string; model: string; baseUrl: string },
+	transport: "responses" | "responses-lite",
+	codeMode: boolean,
+): TranscriptContext {
+	const prepared = state.preparedPrompt;
+	if (
+		prepared?.sessionId === ctx.sessionManager.getSessionId()
+		&& prepared.provider === runtime.provider
+		&& prepared.api === runtime.api
+		&& prepared.model === runtime.model
+		&& prepared.baseUrl === runtime.baseUrl
+		&& prepared.executionMode === state.executionMode
+		&& prepared.transport === transport
+	) {
+		return normalizeContext({ messages: [structuredClone(prepared.systemMessage)] });
+	}
+
+	const current = getCurrentSystemMessage(projectCodexReasoningHistory(compactionBranch(ctx, state)));
+	if (current) return normalizeContext({ messages: [current] });
+	const tools = getActiveToolsInActiveOrder(pi, codeMode);
+	return normalizeContext({
+		systemPrompt: ctx.getSystemPrompt(),
+		messages: [],
+		...(tools.length > 0 ? { tools } : {}),
+	});
+}
+
 function notifyNativeCompactionFallback(ctx: ExtensionContext, state: AdapterState, branchEntries: ReturnType<ExtensionContext["sessionManager"]["getBranch"]>, runtime: { provider: string; api: string; baseUrl: string }, message: string): void {
 	const stashed = stashLatestNativeWindowForPiCompactionFallback(ctx, branchEntries, runtime, state);
 	ctx.ui.notify(`${message}; Pi compaction will run.${stashed ? " Previous native compacted window will be included in Pi compaction fallback." : ""}`, "error");
@@ -173,10 +204,13 @@ export function buildNativeCompactionInput(args: {
 		const compactedWindow = cloneCompactedWindow(args.latestNativeCompaction.entry.details?.compactedWindow ?? []);
 		if (!compactedWindow) return undefined;
 		const liveTailEntries = args.branchEntries.slice(args.latestNativeCompaction.index + 1);
+		const serializationOptions = args.latestNativeCompaction.entry.systemMessage
+			? { ...args.serializationOptions, transcriptBaseline: args.latestNativeCompaction.entry.systemMessage }
+			: args.serializationOptions;
 		return {
 			input: [
 				...compactedWindow,
-				...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries, serializationOptions: args.serializationOptions }),
+				...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries, serializationOptions }),
 			],
 			compactedKeptWindow: false,
 		};
@@ -342,14 +376,14 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 			"warning",
 		);
 	}
-	const tools = getActiveToolsInActiveOrder(pi, codeMode);
-	const context: Context = {
-		// Match the active provider lane so cached WebSocket compaction can send
-		// only previous_response_id plus the trigger instead of the full history.
-		systemPrompt: state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
-		messages: [],
-		...(tools.length > 0 ? { tools } : {}),
-	};
+	const context = buildCompactionTranscript(
+		pi,
+		ctx,
+		state,
+		runtime,
+		plan.transport === "responses-lite" ? "responses-lite" : "responses",
+		codeMode,
+	);
 	const compactResult = await executeRemoteCompactionV2({
 		runtime,
 		modelRegistry: ctx.modelRegistry,

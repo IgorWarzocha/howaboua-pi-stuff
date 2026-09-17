@@ -2,9 +2,18 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { Api, ImageContent, Message, Model, TextContent, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
+import {
+	normalizeContext,
+	type Api,
+	type ImageContent,
+	type Message,
+	type Model,
+	type SystemMessage,
+	type TextContent,
+	type ToolResultMessage,
+	type UserMessage,
+} from "@earendil-works/pi-ai";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
-import { isCodexTransportModel } from "../prompt/codex-model.ts";
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 import { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import { projectCodexReasoningHistory } from "../reasoning-history.ts";
@@ -98,6 +107,8 @@ export type SerializeResponsesMessagesOptions = {
 	includeInstructionsInInput?: boolean | undefined;
 	blockImages?: boolean | undefined;
 	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
+	/** Complete prompt/tool state that precedes a replay slice but is not itself conversation input. */
+	transcriptBaseline?: SystemMessage | undefined;
 };
 
 export type ResponsesParityReport = {
@@ -106,7 +117,6 @@ export type ResponsesParityReport = {
 	expected: string[];
 	mismatches: string[];
 };
-
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -165,19 +175,41 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 		convertToLlm(developerMessages.prepare(messages, true, model)),
 		options.blockImages ?? readBlockImagesSetting(),
 	);
-	const allowedToolCallProviders = isCodexTransportModel(model) && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
+	const transcriptMessages: Message[] = [
+		...(options.includeInstructionsInInput && options.instructions
+			? [{ role: "system", content: options.instructions, timestamp: 0 } satisfies SystemMessage]
+			: []),
+		...(options.transcriptBaseline ? [options.transcriptBaseline] : []),
+		...llmMessages,
+	];
+	const context = normalizeContext({ messages: transcriptMessages });
+	const compat = model.compat as {
+		supportsStrictMode?: boolean | undefined;
+		supportsOpenAIGrammarTools?: boolean | undefined;
+		supportsMidConvoSystemMessages?: boolean | undefined;
+		supportsAdditionalTools?: boolean | undefined;
+		supportsToolSearch?: boolean | undefined;
+	} | undefined;
+	const supportsOpenAIGrammarTools = compat?.supportsOpenAIGrammarTools ?? false;
+	const emitsOpenAIGrammarTools = supportsOpenAIGrammarTools
+		|| (options.grammarToolInputProperties?.size ?? 0) > 0;
+	const allowedToolCallProviders = emitsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
 		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
 		: CODEX_TOOL_CALL_PROVIDERS;
 	const input = convertResponsesMessages(
 		model,
-		{
-			messages: llmMessages,
-			...(options.includeInstructionsInInput && options.instructions ? { systemPrompt: options.instructions } : {}),
-		},
+		context,
 		allowedToolCallProviders,
 		{
 			includeSystemPrompt: options.includeInstructionsInInput ?? false,
 			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),
+			supportsMidConvoSystemMessages: compat?.supportsMidConvoSystemMessages ?? false,
+			supportsAdditionalTools: compat?.supportsAdditionalTools ?? false,
+			supportsToolSearch: compat?.supportsToolSearch ?? false,
+			toolOptions: {
+				supportsStrictMode: compat?.supportsStrictMode ?? true,
+				supportsOpenAIGrammarTools: emitsOpenAIGrammarTools,
+			},
 		},
 	) as ResponsesInputItem[];
 	return (developerMessages.rewritePayload({ input }, model) as { input: ResponsesInputItem[] }).input;

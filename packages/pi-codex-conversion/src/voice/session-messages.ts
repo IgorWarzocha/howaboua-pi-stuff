@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { trySendCodexDeveloperCustomMessage } from "../developer-messages.ts";
+import { trySendCodexDeveloperCustomMessage, tryStartCodexPreparedIdlePrompt } from "../developer-messages.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
@@ -28,14 +28,8 @@ import {
 
 const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
-export interface PreparedVoiceDelegation {
-	commit(): boolean;
-	rollback(): void;
-}
-
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<PreparedVoiceDelegation | undefined>;
 	onDelegation(id: string, input: string, source: CodexRealtimeConversation | undefined): void;
 	onDelegationFailed(id: string): void;
 	onWorking(): void;
@@ -224,58 +218,38 @@ export class CodexVoiceSessionMessages {
 			!canDeliver
 		) return;
 		const signal = this.delegationAbortController.signal;
-		let preflight: PreparedVoiceDelegation | undefined;
 		let deliveryStarted = false;
-		let failureAction = "prepare";
 		try {
 			for (;;) {
-				for (;;) {
-					const barrier = this.compactionBarrier?.promise ?? this.refreshBarriers.values().next().value;
-					if (!barrier) break;
-					if ((await interruptible(barrier, signal)) === CANCELLED)
-						signal.throwIfAborted();
-					if (
-						generation !== this.contextGeneration ||
-						this.context !== ctx
-					) return;
-				}
-				let startsTurn = !this.piTurnActive && ctx.isIdle();
-				if (!startsTurn) break;
-				preflight = await this.callbacks.prepareDelegation(ctx, signal);
+				const barrier = this.compactionBarrier?.promise ?? this.refreshBarriers.values().next().value;
+				if (!barrier) break;
+				if ((await interruptible(barrier, signal)) === CANCELLED)
+					signal.throwIfAborted();
 				if (
 					generation !== this.contextGeneration ||
 					this.context !== ctx
 				) return;
-				if (this.compactionBarrier || this.refreshBarriers.size) {
-					preflight = undefined;
-					continue;
-				}
-				startsTurn = !this.piTurnActive && ctx.isIdle();
-				if (!startsTurn) break;
-				deliveryStarted = true;
-				if (preflight?.commit() !== false) break;
-				deliveryStarted = false;
-				preflight = undefined;
 			}
-			const startsTurn = !this.piTurnActive && ctx.isIdle();
-			failureAction = "deliver";
+			signal.throwIfAborted();
+			const startsTurn = ctx.isIdle();
 			deliveryStarted = true;
 			this.callbacks.onDelegation(turn.delegationId, turn.input, source);
 			this.piTurnActive = true;
 			this.callbacks.onWorking();
-			this.pi.sendMessage(
-				realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
-				startsTurn
-					? { triggerTurn: true }
-					: { triggerTurn: true, deliverAs: "steer" },
-			);
+			const message = realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta);
+			if (startsTurn) {
+				this.pi.sendMessage(message, { triggerTurn: false });
+				if (tryStartCodexPreparedIdlePrompt(this.pi) === false)
+					throw new Error("Prepared voice delegation kickoff is unavailable");
+			} else {
+				this.pi.sendMessage(message, { triggerTurn: true, deliverAs: "steer" });
+			}
 		} catch (error) {
 			if (
 				generation !== this.contextGeneration ||
 				this.context !== ctx
 			) return;
 			if (deliveryStarted) {
-				try { preflight?.rollback(); } catch {}
 				try {
 					this.piTurnActive = this.context ? !this.context.isIdle() : false;
 				} catch {
@@ -284,12 +258,12 @@ export class CodexVoiceSessionMessages {
 				try { this.callbacks.onDelegationFailed(turn.delegationId); } catch {}
 			}
 			const message = signal.aborted
-				? "Voice session stopped before the delegation was prepared"
+				? "Voice session stopped before the delegation was delivered"
 				: error instanceof Error ? error.message : String(error);
 			if (!signal.aborted) {
 				try {
 					ctx.ui.notify(
-						`Could not ${failureAction} voice delegation: ${message}`,
+						`Could not deliver voice delegation: ${message}`,
 						"error",
 					);
 				} catch {}

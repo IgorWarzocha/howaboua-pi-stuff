@@ -22,7 +22,10 @@ export interface ResponsesLiteCompatibleBody {
 }
 
 export function isResponsesLiteRequest(body: ResponsesLiteCompatibleBody): boolean {
-	return isRecord(body.input[0]) && body.input[0]["type"] === "additional_tools";
+	return body.instructions === undefined
+		&& body.tools === undefined
+		&& isRecord(body.input[0])
+		&& body.input[0]["type"] === "additional_tools";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -124,7 +127,7 @@ export async function prepareResponsesLiteRequestImages<TBody extends ResponsesL
 export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleBody>(
 	body: TBody,
 ): TBody {
-	const instructions = body.instructions?.trim();
+	const instructions = body.instructions;
 	const tools = [...(body.tools ?? [])];
 	const prefix: unknown[] = [
 		{
@@ -132,7 +135,9 @@ export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleB
 			role: "developer",
 			tools: namespaceResponsesLiteTools(tools),
 		},
-		...(instructions ? [{ type: "message", role: "developer", content: [{ type: "input_text", text: instructions }] }] : []),
+		...(instructions !== undefined && instructions.length > 0
+			? [{ type: "message", role: "developer", content: [{ type: "input_text", text: instructions }] }]
+			: []),
 	];
 	const { instructions: _instructions, tools: _tools, ...rest } = body;
 	return {

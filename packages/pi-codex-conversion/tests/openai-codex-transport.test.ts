@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { prewarmPreparedOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
 import {
 	ScriptedWebSocket,
 	codexStreamRequest,
@@ -102,7 +104,14 @@ test("WebSocket close 1009 continues through sticky SSE without futile WebSocket
 		}]);
 	}) as typeof fetch;
 	try {
-		const registered = createRegisteredCodexProvider();
+		const registered = createRegisteredCodexProvider({
+			beforeRequestSend: async (model, _context, body, options, responsesLite) => {
+				if (!options) return;
+				await prewarmPreparedOpenAICodexWebSocket(model, body, options, responsesLite, {
+					getConfig: () => ({ executionMode: "normal", openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai }),
+				});
+			},
+		});
 		const request = codexStreamRequest("message-too-big-session");
 		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");

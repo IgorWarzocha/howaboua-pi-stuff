@@ -1,5 +1,16 @@
-import { clampThinkingLevel, type Api, type Context, type Model } from "@earendil-works/pi-ai";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages, convertResponsesTools, splitDeferredTools } from "../openai-responses/shared.ts";
+import {
+	clampThinkingLevel,
+	getDeclaredTools,
+	getInitialSystemMessage,
+	getSystemMessageText,
+	resolveTranscript,
+	resolveTranscriptTools,
+	type Api,
+	type Model,
+	type TranscriptContext,
+} from "@earendil-works/pi-ai";
+import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
+import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages, convertResponsesTools } from "../openai-responses/shared.ts";
 import { OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH } from "./constants.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 
@@ -21,41 +32,59 @@ function clampReasoningEffort(modelId: string, effort: string): string {
 	return effort;
 }
 
+export function resolveCodexTranscript<TApi extends Api>(
+	model: Model<TApi>,
+	context: TranscriptContext,
+): TranscriptContext {
+	const compat = model.compat as { supportsMidConvoSystemMessages?: boolean | undefined } | undefined;
+	return resolveTranscript(context, compat?.supportsMidConvoSystemMessages);
+}
+
 export function buildRequestBody<TApi extends Api>(
 	model: Model<TApi>,
-	context: Context,
+	context: TranscriptContext,
 	options?: OpenAICodexStreamOptions,
 ): ResponsesBody {
 	const compat = model.compat as {
 		supportsStrictMode?: boolean | undefined;
+		supportsOpenAIGrammarTools?: boolean | undefined;
+		supportsMidConvoSystemMessages?: boolean | undefined;
 		supportsAdditionalTools?: boolean | undefined;
 		supportsToolSearch?: boolean | undefined;
 	} | undefined;
 	const supportsStrictMode = compat?.supportsStrictMode ?? true;
-	const deferredToolsMode = compat?.supportsAdditionalTools
-		? "additional-tools"
-		: compat?.supportsToolSearch
-			? "tool-search"
-			: undefined;
-	const grammarToolInputProperties = options?.grammarToolInputProperties ?? new Map<string, string>();
-	const supportsOpenAIGrammarTools = grammarToolInputProperties.size > 0;
-	const allowedToolCallProviders = supportsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
+	const supportsOpenAIGrammarTools = compat?.supportsOpenAIGrammarTools ?? false;
+	const supportsMidConvoSystemMessages = compat?.supportsMidConvoSystemMessages ?? false;
+	const supportsAdditionalTools = compat?.supportsAdditionalTools ?? false;
+	const supportsToolSearch = compat?.supportsToolSearch ?? false;
+	const grammarToolInputProperties = options?.grammarToolInputProperties
+		?? createGrammarToolInputProperties(getDeclaredTools(context.messages), supportsOpenAIGrammarTools);
+	const emitsOpenAIGrammarTools = supportsOpenAIGrammarTools || grammarToolInputProperties.size > 0;
+	const allowedToolCallProviders = emitsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
 		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
 		: CODEX_TOOL_CALL_PROVIDERS;
-	const toolPlacement = splitDeferredTools(context, deferredToolsMode !== undefined);
-	const messages = convertResponsesMessages(model, context, allowedToolCallProviders, {
+	const normalizedContext = resolveCodexTranscript(model, context);
+	const transcriptTools = resolveTranscriptTools(
+		normalizedContext.messages,
+		supportsAdditionalTools || supportsToolSearch,
+	);
+	const toolOptions = { supportsStrictMode, supportsOpenAIGrammarTools: emitsOpenAIGrammarTools };
+	const messages = convertResponsesMessages(model, normalizedContext, allowedToolCallProviders, {
 		includeSystemPrompt: false,
 		grammarToolInputProperties,
-		deferredTools: toolPlacement.deferred,
-		deferredToolsMode,
-		toolOptions: { supportsStrictMode, supportsOpenAIGrammarTools },
+		supportsMidConvoSystemMessages,
+		supportsAdditionalTools,
+		supportsToolSearch,
+		toolOptions,
 	});
+	const initialSystemMessage = getInitialSystemMessage(normalizedContext.messages);
+	const instructions = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : "";
 
 	const body: ResponsesBody = {
 		model: model.id,
 		store: false,
 		stream: true,
-		instructions: context.systemPrompt || "You are a helpful assistant.",
+		instructions: instructions || "You are a helpful assistant.",
 		input: messages,
 		text: { verbosity: ((options as { textVerbosity?: string | undefined } | undefined)?.textVerbosity ?? "low") as string },
 		include: ["reasoning.encrypted_content"],
@@ -79,11 +108,10 @@ export function buildRequestBody<TApi extends Api>(
 		body.service_tier = serviceTier;
 	}
 
-	if (toolPlacement.immediate.length > 0) {
-		body.tools = convertResponsesTools(toolPlacement.immediate, {
+	if (transcriptTools.requestTools.length > 0) {
+		body.tools = convertResponsesTools(transcriptTools.requestTools, {
 			strict: false,
-			supportsStrictMode,
-			supportsOpenAIGrammarTools,
+			...toolOptions,
 		});
 	}
 

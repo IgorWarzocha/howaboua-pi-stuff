@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import {
 	canonicalCompactionPromptInput,
 	captureCanonicalSessionToken,
@@ -90,7 +91,7 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 				getRegisteredProviderConfig: () => undefined,
 				getRegisteredNativeProvider: () => registered.provider,
 			} as never,
-			context: context([], "Changed instructions", [] as never),
+			context: normalizeContext(context([], "Changed instructions", [] as never)),
 			promptInput: canonicalInput as never,
 			promptInputSource: "canonical",
 			requestOptions: { reasoning: { effort: "high", summary: "auto" }, text: { verbosity: "high" } },

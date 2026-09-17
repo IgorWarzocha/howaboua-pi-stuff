@@ -1,4 +1,4 @@
-import { type Api, type AssistantMessage, type Context, type Model, type SimpleStreamOptions, type Transport } from "@earendil-works/pi-ai";
+import { type Api, type AssistantMessage, type Model, type SimpleStreamOptions, type TranscriptContext, type Transport } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { NativeCompactionRuntime } from "./compaction-runtime.ts";
 import type { NativeCompactionRequestOptions, ResponsesInputItem } from "./serializer.ts";
@@ -13,7 +13,7 @@ import { extractAccountId, resolveCodexWebSocketUrl } from "../../providers/open
 import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
 
 const MAX_STREAM_RETRIES = 2;
-type V2Stream = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
+type V2Stream = (model: Model<Api>, context: TranscriptContext, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
 
 export type RemoteCompactionV2Result =
 	| { ok: true; compaction: Record<string, unknown>; responseId: string; createdAt: string; usage?: RemoteCompactionV2Usage | undefined }
@@ -30,7 +30,7 @@ export type RemoteCompactionV2Usage = {
 export type ExecuteRemoteCompactionV2Options = {
 	runtime: NativeCompactionRuntime;
 	modelRegistry: ModelRegistry;
-	context: Context;
+	context: TranscriptContext;
 	promptInput: readonly ResponsesInputItem[];
 	requestOptions: NativeCompactionRequestOptions;
 	tokensBefore: number;

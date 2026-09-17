@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
 import test from "node:test";
-import { buildCodeModeToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
+import {
+	prepareCodexSystemPrompt,
+	type PiSystemPromptOptions,
+} from "../src/prompt/build-system-prompt.ts";
+import {
+	buildCodeModeToolsPrompt,
+	prepareCodeModeToolsPrompt,
+} from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { NotebookCell } from "../src/tools/notebook-mode/cell.ts";
 import { createNotebookControlProxy } from "../src/tools/code-mode/notebook-tool.ts";
 import { SharedCodeModeRuntime } from "../src/tools/code-mode/shared-runtime.ts";
 import type { NotebookControlRequest, ToolExecutionContext } from "../src/tools/code-mode/types.ts";
 
-test("Notebook exec proxy shares control normalization without changing the prompt", async () => {
+test("Notebook exec proxy shares control normalization and structured prompt guidance", async () => {
 	const calls: Array<{
 		request: NotebookControlRequest;
 		context: ToolExecutionContext;
@@ -30,6 +37,78 @@ test("Notebook exec proxy shares control normalization without changing the prom
 
 	assert.equal(proxy.deferLoading, true);
 	assert.equal(buildCodeModeToolsPrompt([proxy]), "");
+	const promptTool = { ...proxy, deferLoading: false };
+	const promptOptions: PiSystemPromptOptions = {
+		selectedTools: ["exec", "wait", "notebook"],
+		toolSnippets: {},
+		toolGuidelines: { exec: ["Keep extension tool guidance"] },
+		promptGuidelines: ["Keep extension prompt guidance"],
+		appendSystemPrompt: "Keep configured addendum",
+		sections: { extension_context: "Keep extension section" },
+		cwd: "/project",
+		contextFiles: [{ path: "/project/AGENTS.md", content: "Keep project context" }],
+		skills: [],
+	};
+	prepareCodeModeToolsPrompt(
+		promptOptions,
+		[promptTool],
+		undefined,
+		() => ["exec", "wait", "notebook"].every((name) => promptOptions.selectedTools.includes(name)),
+	);
+	prepareCodexSystemPrompt(promptOptions, {
+		mode: "notebook",
+		shell: "/usr/bin/zsh",
+		skills: [{ name: "review", description: "Review code", filePath: "/skills/review/SKILL.md" }],
+	});
+	assert.match(promptOptions.sections!["codex_tools"]!, /notebook/);
+	assert.match(promptOptions.sections!["codex_skills"]!, /review: Review code/);
+	assert.equal(promptOptions.sections!["codex_runtime"], "Current shell: /usr/bin/zsh; follow its syntax, quoting, and variable rules; capture $? as rc");
+	assert.equal(promptOptions.sections!["extension_context"], "Keep extension section");
+	assert.equal(promptOptions.appendSystemPrompt, "Keep configured addendum");
+	assert.deepEqual(promptOptions.contextFiles, [{ path: "/project/AGENTS.md", content: "Keep project context" }]);
+	assert.ok(promptOptions.promptGuidelines!.includes("Keep extension prompt guidance"));
+	assert.match(promptOptions.sections!["codex_guidelines"]!, /exec is a persistent Deno\/TypeScript Jupyter notebook/);
+	const notebookTools = promptOptions.selectedTools;
+	promptOptions.selectedTools = ["read"];
+	assert.equal(promptOptions.sections!["codex_tools"], "");
+	assert.equal(promptOptions.sections!["codex_skills"], "");
+	assert.doesNotMatch(promptOptions.sections!["codex_guidelines"]!, /tools\.exec_command/);
+	promptOptions.selectedTools = notebookTools;
+
+	const forcedOptions: PiSystemPromptOptions = { ...promptOptions, sections: {}, forceSystemPrompt: "Forced by an earlier extension" };
+	prepareCodeModeToolsPrompt(forcedOptions, [promptTool]);
+	prepareCodexSystemPrompt(forcedOptions, { mode: "notebook", shell: "/bin/bash" });
+	prepareCodeModeToolsPrompt(forcedOptions, [promptTool]);
+	prepareCodexSystemPrompt(forcedOptions, { mode: "notebook", shell: "/bin/bash" });
+	assert.match(forcedOptions.forceSystemPrompt!, /^Forced by an earlier extension/);
+	assert.match(forcedOptions.forceSystemPrompt!, /<codex_tools>/);
+	assert.match(forcedOptions.forceSystemPrompt!, /<codex_guidelines>/);
+	assert.match(forcedOptions.forceSystemPrompt!, /<codex_runtime>/);
+	assert.equal(forcedOptions.forceSystemPrompt!.match(/<codex_guidelines>/g)?.length, 1);
+
+	const heavyOptions: PiSystemPromptOptions = {
+		...promptOptions,
+		selectedTools: ["bash"],
+		toolGuidelines: { bash: ["Keep extension tool guidance"] },
+		sections: { extension_context: "Keep extension section" },
+		promptGuidelines: ["Be concise in your responses", "Keep extension prompt guidance"],
+	};
+	prepareCodexSystemPrompt(heavyOptions, {
+		mode: "normal",
+		heavySystemPromptOverwrite: true,
+		skills: [{ name: "review", description: "Review code", filePath: "/skills/review/SKILL.md" }],
+	});
+	prepareCodexSystemPrompt(heavyOptions, {
+		mode: "normal",
+		heavySystemPromptOverwrite: true,
+		skills: [{ name: "review", description: "Review code", filePath: "/skills/review/SKILL.md" }],
+	});
+	assert.match(heavyOptions.customPrompt!, /^Guidelines:/);
+	assert.doesNotMatch(heavyOptions.customPrompt!, /Be concise in your responses/);
+	assert.match(heavyOptions.sections!["codex_guidelines"]!, /Keep extension tool guidance/);
+	assert.match(heavyOptions.sections!["codex_guidelines"]!, /Keep extension prompt guidance/);
+	assert.match(heavyOptions.sections!["skills"]!, /review: Review code/);
+	assert.equal(heavyOptions.sections!["extension_context"], "Keep extension section");
 	assert.deepEqual(modes.collectTools("code"), []);
 	assert.equal(modes.collectTools("notebook").at(-1)?.name, "notebook");
 	for (const request of [
