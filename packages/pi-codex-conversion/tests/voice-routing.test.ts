@@ -53,6 +53,21 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 		onSettled: (id) => settled.push(id),
 	});
 	handoff.activate("delegation-1");
+	handoff.stream("One short update.");
+	handoff.flushProgress();
+	assert.deepEqual(contexts.splice(0), [{
+		target: { type: "session" },
+		channel: "speakable",
+		content: "One short update.",
+	}]);
+	handoff.stream("Another update after thinking.");
+	handoff.flushProgress();
+	handoff.progress("One short update.\nAnother update after thinking.");
+	assert.deepEqual(contexts.splice(0), [{
+		target: { type: "session" },
+		channel: "speakable",
+		content: "Another update after thinking.",
+	}]);
 	handoff.stream("First useful sentence. Second useful sentence.");
 	handoff.progress("First useful sentence. Second useful sentence.");
 	handoff.progress("Completed reasoning summary");

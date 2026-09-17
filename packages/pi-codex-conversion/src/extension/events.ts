@@ -249,9 +249,7 @@ export function registerCodexEvents(
 		);
 	});
 	pi.on("message_update", async (event) => {
-		const update = event.assistantMessageEvent;
-		if (update.type === "text_delta" && typeof update.delta === "string")
-			runtime.voice.streamDelta(update.delta);
+		runtime.voice.streamUpdate(event.assistantMessageEvent);
 	});
 	pi.on("tool_execution_start", async (event) => {
 		if (event.toolName !== "exec_command") {

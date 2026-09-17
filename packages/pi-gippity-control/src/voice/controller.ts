@@ -1,4 +1,7 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type {
+	AssistantMessage,
+	AssistantMessageEvent,
+} from "@earendil-works/pi-ai";
 import type {
 	ContextEvent,
 	ExtensionAPI,
@@ -309,9 +312,15 @@ export class CodexVoiceController {
 		);
 	}
 
-	streamDelta(delta: string): void {
-		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.streamAgentDelta(delta);
+	streamUpdate(update: AssistantMessageEvent): void {
+		if (this.runtime.state.type !== "conversation") return;
+		if (update.type === "text_delta")
+			this.runtime.state.session.streamAgentDelta(update.delta);
+		else if (
+			update.type === "thinking_start" ||
+			update.type === "toolcall_start"
+		)
+			this.runtime.state.session.resumeAgentWork();
 	}
 
 	finishAgentMessage(

@@ -38,9 +38,18 @@ test("realtime forwards final speech before reporting established drops", async 
 	active.session.streamAgentDelta(
 		"First useful sentence. Second useful sentence.",
 	);
+	active.session.resumeAgentWork();
+	assert.deepEqual(active.peer.sentText().at(-1), [
+		"session.context.append",
+		"speakable",
+		"First useful sentence. Second useful sentence.",
+	]);
+	const beforeTool = active.peer.sentText().length;
+	active.session.resumeAgentWork();
 	active.session.agentProgress(
 		"First useful sentence. Second useful sentence.",
 	);
+	assert.equal(active.peer.sentText().length, beforeTool);
 	active.session.agentProgress("Completed reasoning summary");
 	active.session.agentResult("Finished result");
 	assert.deepEqual(active.peer.sentText().slice(-3), [

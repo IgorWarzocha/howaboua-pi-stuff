@@ -195,6 +195,10 @@ export class CodexRealtimeConversation {
 		this.handoff.stream(delta);
 	}
 
+	resumeAgentWork(): void {
+		this.handoff.flushProgress();
+	}
+
 	agentProgress(content: string): void {
 		this.handoff.progress(content);
 	}
