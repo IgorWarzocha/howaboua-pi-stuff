@@ -2,6 +2,12 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 export class NonRetryableProviderError extends Error {}
 
+export function codexErrorMessage(code: string | undefined, message: string | undefined): string | undefined {
+	return code === "bio_policy" && !message?.trim()
+		? "This content was flagged for possible biological risk."
+		: message;
+}
+
 const TERMINAL_RATE_LIMIT_PATTERN = /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage_limit_reached|usage_not_included|available balance|insufficient_quota|out of budget|quota exceeded/i;
 
 type CodexErrorEnvelope = {
@@ -169,7 +175,7 @@ export async function parseErrorResponse(response: Response): Promise<{ message:
 				const when = mins !== undefined ? ` Try again in ~${mins} min.` : "";
 				friendlyMessage = `You have hit your ChatGPT usage limit${plan}.${when}`.trim();
 			}
-			message = friendlyMessage || err.message || message;
+			message = friendlyMessage || codexErrorMessage(code, err.message) || message;
 		}
 	} catch {
 		// ignore malformed error bodies

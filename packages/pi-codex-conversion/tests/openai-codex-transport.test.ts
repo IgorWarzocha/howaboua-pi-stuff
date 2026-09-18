@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { prewarmPreparedOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
+import { parseErrorResponse } from "../src/providers/openai-codex/errors.ts";
+import { createCodexHttpError, isRetryableCodexStreamError, mapCodexEvents } from "../src/providers/openai-codex/stream-events.ts";
 import {
 	ScriptedWebSocket,
 	codexStreamRequest,
@@ -57,6 +59,23 @@ test("fatal Codex API errors survive both event shapes without SSE fallback", as
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
+	}
+	for (const message of [undefined, "", "   ", "Provider explanation."]) {
+		const error = { code: "bio_policy", message };
+		const expected = message?.trim() ? message : "This content was flagged for possible biological risk.";
+		const parsed = await parseErrorResponse(new Response(JSON.stringify({ error }), { status: 400 }));
+		assert.equal(parsed.message, expected);
+		assert.equal(isRetryableCodexStreamError(createCodexHttpError(parsed.message, parsed.code, 400)), false);
+		for (const event of [{ type: "error", error }, { type: "response.failed", response: { error } }]) {
+			await assert.rejects(async () => {
+				for await (const _ of mapCodexEvents((async function* () { yield event; })())) { /* consume */ }
+			}, (failure: unknown) => {
+				assert.ok(failure instanceof Error);
+				assert.equal(failure.message, event.type === "error" ? `Codex error: ${expected}` : expected);
+				assert.equal(isRetryableCodexStreamError(failure), false);
+				return true;
+			});
+		}
 	}
 });
 
