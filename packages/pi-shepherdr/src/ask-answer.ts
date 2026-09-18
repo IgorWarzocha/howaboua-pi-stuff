@@ -172,9 +172,23 @@ async function screen(
 }
 
 function askFrame(value: string): string {
-	const lines = value.split("\n");
-	const review = lines.map((line) => line.includes("Review")).lastIndexOf(true);
-	return (review >= 0 ? lines.slice(review) : lines.slice(-30)).join("\n");
+	const lines = value.split("\n").map((line) => line.trimEnd());
+	// Ask's outer rules start at column zero. Nested editors are indented.
+	// Require the tab row so a clipped opening cannot borrow a transcript rule.
+	const start = lines.findLastIndex(
+		(line, index) =>
+			/^─+$/.test(line) &&
+			/^ +[□■] 1(?: +[□■] \d+)* +(?:Review|Resume)(?: +Agent continues while you decide)?$/.test(
+				lines[index + 1] ?? "",
+			),
+	);
+	if (start < 0) return "";
+	const end = lines.findIndex(
+		(line, index) => index > start && /^─+$/.test(line),
+	);
+	return end < 0 || lines[end] !== lines[start]
+		? ""
+		: lines.slice(start + 1, end).join("\n");
 }
 
 function inspectAskScreen(
