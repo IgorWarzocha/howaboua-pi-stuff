@@ -1,4 +1,5 @@
 import type { ContextManagementMode } from "./config-contract.ts";
+import type { CodexUsageStatus } from "../../codex-usage/payload.ts";
 
 export const STATUS_KEY = "codex-adapter";
 export const STATUS_TEXT = "Codex adapter";
@@ -16,7 +17,7 @@ export function buildExtraToolsOnlyStatusText(tools: string[], theme?: StatusThe
 	return formatStatusText(` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`, theme);
 }
 
-export function buildStatusText(options: { mode?: "normal" | "code" | "notebook" | undefined; verbosity?: string | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: boolean | undefined; contextManagement?: ContextManagementMode | undefined; weeklyUsageLeft?: number | undefined }, theme?: StatusTheme | undefined): string {
+export function buildStatusText(options: { mode?: "normal" | "code" | "notebook" | undefined; verbosity?: string | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: boolean | undefined; contextManagement?: ContextManagementMode | undefined; usageStatus?: CodexUsageStatus | undefined }, theme?: StatusTheme | undefined): string {
 	const extras = [
 		options.mode === "notebook" ? "notebook mode" : options.mode === "code" ? "code mode" : undefined,
 		options.useOnAllModels ? "all models" : undefined,
@@ -26,7 +27,8 @@ export function buildStatusText(options: { mode?: "normal" | "code" | "notebook"
 			: undefined,
 		options.compaction ? "compact v2" : undefined,
 		options.fast ? "fast" : undefined,
-		options.weeklyUsageLeft === undefined ? undefined : `weekly: ${Math.round(options.weeklyUsageLeft)}% left`,
+		options.usageStatus?.fiveHourUsageLeft === undefined ? undefined : `5h: ${Math.round(options.usageStatus.fiveHourUsageLeft)}% left`,
+		options.usageStatus?.weeklyUsageLeft === undefined ? undefined : `weekly: ${Math.round(options.usageStatus.weeklyUsageLeft)}% left`,
 	]
 		.filter(Boolean)
 		.join(" • ");

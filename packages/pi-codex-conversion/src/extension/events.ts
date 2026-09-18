@@ -117,7 +117,6 @@ export function registerCodexEvents(
 			cwd: ctx.cwd,
 			projectTrusted: ctx.isProjectTrusted(),
 		});
-		state.weeklyUsageLeft = undefined;
 		state.executionMode = state.config.executionMode;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
@@ -155,7 +154,6 @@ export function registerCodexEvents(
 		ui.invalidateUsageStatus();
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
-		state.weeklyUsageLeft = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {

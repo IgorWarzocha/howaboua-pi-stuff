@@ -1,3 +1,4 @@
+const FIVE_HOUR_WINDOW_MINUTES = 5 * 60;
 const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
 
 export interface CodexUsageWindow {
@@ -18,6 +19,11 @@ export interface CodexUsageSnapshot {
 	limits: CodexUsageLimit[];
 	resetCredits?: CodexRateLimitResetCredits | undefined;
 	raw: unknown;
+}
+
+export interface CodexUsageStatus {
+	fiveHourUsageLeft?: number | undefined;
+	weeklyUsageLeft?: number | undefined;
 }
 
 export interface CodexRateLimitResetCredit {
@@ -135,11 +141,16 @@ export function parseCodexUsagePayload(payload: unknown): CodexUsageSnapshot {
 	return { planType: stringValue(root["plan_type"]!), limits, resetCredits: parseCodexRateLimitResetCreditsSummary(root["rate_limit_reset_credits"]!), raw: payload };
 }
 
-export function codexWeeklyUsageLeft(snapshot: CodexUsageSnapshot): number | undefined {
+export function codexUsageStatus(snapshot: CodexUsageSnapshot): CodexUsageStatus {
 	const limit = snapshot.limits.find(({ limitId }) => limitId === "codex");
-	const weekly = [limit?.primary, limit?.secondary].find(({ windowMinutes } = {}) => windowMinutes === WEEKLY_WINDOW_MINUTES);
-	if (weekly?.usedPercent === undefined) return undefined;
-	return 100 - Math.max(0, Math.min(100, weekly.usedPercent));
+	const usageLeft = (minutes: number): number | undefined => {
+		const window = [limit?.primary, limit?.secondary].find(({ windowMinutes } = {}) => windowMinutes === minutes);
+		return window?.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
+	};
+	return {
+		fiveHourUsageLeft: usageLeft(FIVE_HOUR_WINDOW_MINUTES),
+		weeklyUsageLeft: usageLeft(WEEKLY_WINDOW_MINUTES),
+	};
 }
 
 export function parseCodexRateLimitResetConsumePayload(payload: unknown): CodexRateLimitResetConsumeResult {

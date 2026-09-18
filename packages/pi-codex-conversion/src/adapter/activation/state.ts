@@ -8,6 +8,7 @@ import type { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import type { CodexContextWindowManager } from "../../context-management/window-manager.ts";
 import type { CodexContextWindowKickoff } from "../../context-management/window-kickoff.ts";
 import type { CodexContextTreeCoordinator } from "../../context-management/tree-coordinator.ts";
+import type { CodexUsageStatus } from "../../codex-usage/payload.ts";
 
 export interface PendingPiCompactionNativeWindow {
 	window: ResponsesInputItem[];
@@ -42,7 +43,7 @@ export interface AdapterState {
 		transport: "responses" | "responses-lite";
 		systemMessage: SystemMessage;
 	} | undefined;
-	weeklyUsageLeft?: number | undefined;
+	usageStatus?: CodexUsageStatus | undefined;
 	config: CodexConversionConfig;
 	executionMode: ExecutionMode;
 	codexTurnState: CodexTurnState;
