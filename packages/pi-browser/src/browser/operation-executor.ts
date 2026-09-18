@@ -3,6 +3,8 @@ import {
 	clickRef,
 	clickSelector,
 } from "../cdp/actions/click.js";
+import { fillElement } from "../cdp/actions/fill.js";
+import { pressKey } from "../cdp/actions/key.js";
 import {
 	html,
 	htmlRef,
@@ -17,6 +19,7 @@ import {
 	captureViewport,
 } from "../cdp/actions/screenshot.js";
 import { typeAtFocus, typeRef } from "../cdp/actions/type.js";
+import { waitForCondition } from "../cdp/actions/wait.js";
 import { evaluateText } from "../cdp/evaluate.js";
 import { type ActiveTab, BrowserCdpSession } from "../cdp/session.js";
 import { snapshotData } from "../cdp/snapshot.js";
@@ -196,6 +199,31 @@ export class BrowserOperationExecutor {
 						tab.sessionId,
 						operation.selector,
 						operation.interval_ms,
+						signal,
+					),
+				);
+			case "fill":
+				return this.tabResult(operation.ref_id, signal, (tab) =>
+					fillElement(
+						tab.cdp,
+						tab.sessionId,
+						tab.elementRefs,
+						operation,
+						operation.value,
+						signal,
+					),
+				);
+			case "press":
+				return this.tabResult(operation.ref_id, signal, (tab) =>
+					pressKey(tab.cdp, tab.sessionId, operation.key, signal),
+				);
+			case "wait":
+				return this.tabResult(operation.ref_id, signal, (tab) =>
+					waitForCondition(
+						tab.cdp,
+						tab.sessionId,
+						operation,
+						operation.timeout_ms,
 						signal,
 					),
 				);

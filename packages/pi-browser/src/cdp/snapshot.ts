@@ -15,6 +15,11 @@ interface AxValue {
 	value?: unknown;
 }
 
+interface AxProperty {
+	name: string;
+	value?: AxValue | undefined;
+}
+
 interface AxNode {
 	nodeId: string;
 	parentId?: string | undefined;
@@ -24,6 +29,7 @@ interface AxNode {
 	role?: AxValue | undefined;
 	name?: AxValue | undefined;
 	value?: AxValue | undefined;
+	properties?: AxProperty[] | undefined;
 }
 
 const INTERACTIVE_ROLES = new Set([
@@ -46,6 +52,17 @@ const INTERACTIVE_ROLES = new Set([
 	"treeitem",
 ]);
 const NEXT_ELEMENT_IDS = new WeakMap<ElementRefs, number>();
+
+function axProperty(value: unknown): AxProperty {
+	const record = asRecord(value, "accessibility property");
+	if (typeof record["name"] !== "string") {
+		throw new Error("Accessibility property has no name");
+	}
+	return {
+		name: record["name"],
+		...(record["value"] ? { value: asRecord(record["value"]) } : {}),
+	};
+}
 
 function axNode(value: unknown): AxNode {
 	const record = asRecord(value, "accessibility node");
@@ -73,6 +90,9 @@ function axNode(value: unknown): AxNode {
 		...(record["role"] ? { role: asRecord(record["role"]) } : {}),
 		...(record["name"] ? { name: asRecord(record["name"]) } : {}),
 		...(record["value"] ? { value: asRecord(record["value"]) } : {}),
+		...(Array.isArray(record["properties"])
+			? { properties: record["properties"].map(axProperty) }
+			: {}),
 	};
 }
 
@@ -81,6 +101,7 @@ function shouldShow(node: AxNode): boolean {
 	const name = node.name?.value ?? "";
 	const value = node.value?.value;
 	if (role === "InlineTextBox") return false;
+	if (INTERACTIVE_ROLES.has(role)) return true;
 	return (
 		role !== "none" &&
 		role !== "generic" &&
@@ -125,6 +146,52 @@ function splitText(value: unknown, max = 700): string[] {
 		parts.push(text.slice(start, start + max));
 	}
 	return parts;
+}
+
+function interactiveState(
+	node: AxNode,
+): Pick<SnapshotElement, "checked" | "selected" | "expanded" | "disabled"> {
+	const values = new Map(
+		(node.properties ?? []).map((property) => [
+			property.name,
+			property.value?.value,
+		]),
+	);
+	const checkedValue = values.get("checked");
+	const checked =
+		checkedValue === "true"
+			? true
+			: checkedValue === "false"
+				? false
+				: typeof checkedValue === "boolean" || checkedValue === "mixed"
+					? checkedValue
+					: undefined;
+	const selected = values.get("selected");
+	const expanded = values.get("expanded");
+	const disabled = values.get("disabled");
+	return {
+		...(checked === undefined ? {} : { checked }),
+		...(typeof selected === "boolean" ? { selected } : {}),
+		...(typeof expanded === "boolean" ? { expanded } : {}),
+		...(typeof disabled === "boolean" ? { disabled } : {}),
+	};
+}
+
+function interactiveText(
+	role: string,
+	name: string,
+	value: unknown,
+	state: ReturnType<typeof interactiveState>,
+): string {
+	const states = [
+		state.checked === undefined ? undefined : `checked=${state.checked}`,
+		state.selected === undefined ? undefined : `selected=${state.selected}`,
+		state.expanded === undefined ? undefined : `expanded=${state.expanded}`,
+		state.disabled === undefined ? undefined : `disabled=${state.disabled}`,
+	].filter((entry): entry is string => entry !== undefined);
+	return `${role}${name ? ` ${name}` : ""}${
+		value === "" || value == null ? "" : ` = ${JSON.stringify(value)}`
+	}${states.length > 0 ? ` [${states.join(", ")}]` : ""}`;
 }
 
 export async function snapshotData(
@@ -201,23 +268,25 @@ export async function snapshotData(
 		const value = node.value?.value;
 		let renderedName = parentName;
 		if (!node.ignored && shouldShow(node)) {
-			if (INTERACTIVE_ROLES.has(role) && node.backendDOMNodeId) {
-				const element: SnapshotElement = {
-					id: nextElementId(),
-					role,
-					...(name ? { name } : {}),
-					...(value === "" || value == null ? {} : { value }),
-				};
-				elementRefs.set(element.id, node.backendDOMNodeId);
-				elements.push(element);
-				addLine(
-					`[${element.id}] ${role}${name ? ` ${name}` : ""}${
-						value === "" || value == null ? "" : ` = ${JSON.stringify(value)}`
-					}`,
-					element,
-					"interactive",
-				);
-				renderedName = name;
+			if (INTERACTIVE_ROLES.has(role)) {
+				const state = interactiveState(node);
+				const text = interactiveText(role, name, value, state);
+				if (!node.backendDOMNodeId) {
+					addLine(text, undefined, "interactive");
+					renderedName = name;
+				} else {
+					const element: SnapshotElement = {
+						id: nextElementId(),
+						role,
+						...(name ? { name } : {}),
+						...(value === "" || value == null ? {} : { value }),
+						...state,
+					};
+					elementRefs.set(element.id, node.backendDOMNodeId);
+					elements.push(element);
+					addLine(`[${element.id}] ${text}`, element, "interactive");
+					renderedName = name;
+				}
 			} else if (role === "StaticText") {
 				if (name && name !== parentName) addStaticText(name);
 			} else if (role === "heading" || role === "image") {

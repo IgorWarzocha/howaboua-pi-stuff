@@ -1,3 +1,4 @@
+import { parseKeyChord } from "../cdp/actions/key.js";
 import type { SnapshotResponseLength } from "../cdp/snapshot-contract.js";
 import {
 	BROWSER_ACTIONS,
@@ -17,6 +18,9 @@ const ACTION_FIELDS: Record<BrowserAction, ReadonlySet<string>> = {
 	find: fields("ref_id", "pattern", "lineno", "response_length"),
 	click: fields("ref_id", "id", "selector", "x", "y"),
 	type: fields("ref_id", "id", "text"),
+	fill: fields("ref_id", "id", "selector", "value"),
+	press: fields("ref_id", "key"),
+	wait: fields("ref_id", "selector", "text", "url_includes", "timeout_ms"),
 	screenshot: fields("ref_id", "id", "selector"),
 	html: fields("ref_id", "id", "selector"),
 	navigate: fields("ref_id", "url"),
@@ -233,6 +237,56 @@ export function parseActionRequest(value: unknown): ActionRequest {
 			...(id === undefined ? {} : { id }),
 			...(selector ? { selector } : {}),
 		};
+	}
+	if (action === "fill") {
+		const id = elementId(value["id"]);
+		const selector = optionalString(value["selector"], "selector");
+		if (Number(id !== undefined) + Number(selector !== undefined) !== 1) {
+			throw new Error("fill requires exactly one of id or selector");
+		}
+		const fillValue = value["value"];
+		if (typeof fillValue !== "string" && typeof fillValue !== "boolean") {
+			throw new Error("value must be text or a boolean for checkbox/radio");
+		}
+		if (id !== undefined)
+			return { action, ref_id: refId, id, value: fillValue };
+		if (selector) return { action, ref_id: refId, selector, value: fillValue };
+		throw new Error("fill requires id or selector");
+	}
+	if (action === "press") {
+		const key = requiredString(value["key"], "key");
+		parseKeyChord(key);
+		return { action, ref_id: refId, key };
+	}
+	if (action === "wait") {
+		const conditions = ["selector", "text", "url_includes"] as const;
+		const provided = conditions.filter((field) => value[field] !== undefined);
+		const field = provided[0];
+		if (provided.length !== 1 || !field) {
+			throw new Error(
+				"wait requires exactly one of selector, text, or url_includes",
+			);
+		}
+		const match = value[field];
+		if (typeof match !== "string" || !match.trim()) {
+			throw new Error(`${field} must be a non-empty string`);
+		}
+		const timeout = value["timeout_ms"] ?? 10_000;
+		if (
+			!Number.isInteger(timeout) ||
+			Number(timeout) < 1 ||
+			Number(timeout) > 60_000
+		) {
+			throw new Error("timeout_ms must be an integer from 1 to 60000");
+		}
+		const base = {
+			action,
+			ref_id: refId,
+			timeout_ms: Number(timeout),
+		} as const;
+		if (field === "selector") return { ...base, selector: match };
+		if (field === "text") return { ...base, text: match };
+		return { ...base, url_includes: match };
 	}
 	if (action === "load_all") {
 		const interval = value["interval_ms"] ?? 1_500;

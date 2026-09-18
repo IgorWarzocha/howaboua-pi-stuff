@@ -55,7 +55,7 @@ async function pressAndRelease(
 	}
 }
 
-async function clickBackendNode(
+export async function clickBackendNode(
 	cdp: CdpConnection,
 	sessionId: string,
 	backendNodeId: number,

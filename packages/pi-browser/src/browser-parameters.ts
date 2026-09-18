@@ -25,6 +25,10 @@ export function browserParameters(hosts: readonly string[]) {
 		minLength: 1,
 		description: "Continuation handle returned by browser",
 	});
+	const fillValue = Type.Union([Type.String(), Type.Boolean()], {
+		description: "Replacement text/option; boolean for checkbox/radio",
+	});
+	const timeout = Type.Optional(Type.Integer({ minimum: 1, maximum: 60_000 }));
 	return Type.Union([
 		request({ action: StringEnum(["help", "start"] as const) }),
 		request({
@@ -67,6 +71,31 @@ export function browserParameters(hosts: readonly string[]) {
 			id: Type.Optional(elementId),
 			text: Type.String({ minLength: 1 }),
 		}),
+		request({
+			action: Type.Literal("fill"),
+			ref_id: refId,
+			id: elementId,
+			value: fillValue,
+		}),
+		request({
+			action: Type.Literal("fill"),
+			ref_id: refId,
+			selector: Type.String({ minLength: 1 }),
+			value: fillValue,
+		}),
+		request({
+			action: Type.Literal("press"),
+			ref_id: refId,
+			key: Type.String({ minLength: 1 }),
+		}),
+		...(["selector", "text", "url_includes"] as const).map((condition) =>
+			request({
+				action: Type.Literal("wait"),
+				ref_id: refId,
+				[condition]: Type.String({ minLength: 1 }),
+				timeout_ms: timeout,
+			}),
+		),
 		request({
 			action: StringEnum(["screenshot", "html"] as const),
 			ref_id: refId,

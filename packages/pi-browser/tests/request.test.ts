@@ -93,6 +93,40 @@ test("browser requests share one validated single and batch contract", () => {
 			}),
 		/exactly one/,
 	);
+	for (const value of ["", "  keep whitespace  ", false]) {
+		const request = { action: "fill", ref_id: "ABCDEF12", id: 7, value };
+		assert.deepEqual(parseBrowserRequest(request), { operations: [request] });
+		assert.deepEqual(
+			parseBrowserRequest({ fill: [{ ref_id: "ABCDEF12", id: 7, value }] }),
+			{ operations: [request] },
+		);
+	}
+	for (const request of [
+		{ action: "fill", id: 1, selector: "input", value: "" },
+		{ action: "fill", id: 1, value: 42 },
+		{ action: "wait", text: "Ready", selector: ".ready" },
+		{ action: "wait", text: "Ready", timeout_ms: 0 },
+		{ action: "wait", text: "Ready", timeout_ms: 60_001 },
+		{ action: "press", key: "Unknown+a" },
+		{ action: "press", key: "constructor" },
+	]) {
+		assert.throws(() =>
+			parseBrowserRequest({ ref_id: "ABCDEF12", ...request }),
+		);
+	}
+	assert.deepEqual(
+		parseBrowserRequest({ wait: [{ ref_id: "ABCDEF12", text: " Ready " }] }),
+		{
+			operations: [
+				{
+					action: "wait",
+					ref_id: "ABCDEF12",
+					text: " Ready ",
+					timeout_ms: 10_000,
+				},
+			],
+		},
+	);
 	assert.deepEqual(
 		parseBrowserRequest({
 			host: "workstation",

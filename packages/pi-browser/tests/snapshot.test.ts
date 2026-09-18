@@ -14,7 +14,7 @@ test("snapshots emit compact lines and current interactive references", async ()
 						nodeId: "root",
 						role: { value: "RootWebArea" },
 						name: { value: "" },
-						childIds: ["button", "menu", "text"],
+						childIds: ["button", "menu", "checkbox", "text"],
 					},
 					{
 						nodeId: "button",
@@ -22,13 +22,34 @@ test("snapshots emit compact lines and current interactive references", async ()
 						backendDOMNodeId: 40 + snapshotNumber,
 						role: { value: "button" },
 						name: { value: "Continue" },
+						properties: [
+							{ name: "expanded", value: { value: false } },
+							{ name: "disabled", value: { value: true } },
+						],
 					},
 					{
 						nodeId: "menu",
 						parentId: "root",
 						backendDOMNodeId: 80 + snapshotNumber,
 						role: { value: "menuitemcheckbox" },
-						name: { value: "Show archived" },
+						name: { value: "" },
+						properties: [
+							{ name: "checked", value: { value: "mixed" } },
+							{ name: "selected", value: { value: false } },
+						],
+					},
+					{
+						nodeId: "checkbox",
+						parentId: "root",
+						backendDOMNodeId: 120 + snapshotNumber,
+						role: { value: "checkbox" },
+						name: { value: "Agree" },
+						properties: [
+							{
+								name: "checked",
+								value: { type: "tristate", value: "false" },
+							},
+						],
 					},
 					{
 						nodeId: "text",
@@ -57,13 +78,43 @@ test("snapshots emit compact lines and current interactive references", async ()
 		responseLength: "short",
 	});
 	assert.deepEqual(result.content, [
-		{ line: 1, text: "[1] button Continue", element_id: 1 },
+		{
+			line: 1,
+			text: "[1] button Continue [expanded=false, disabled=true]",
+			element_id: 1,
+		},
 		{
 			line: 2,
-			text: "[2] menuitemcheckbox Show archived",
+			text: "[2] menuitemcheckbox [checked=mixed, selected=false]",
 			element_id: 2,
 		},
-		{ line: 3, text: "Hello world" },
+		{
+			line: 3,
+			text: "[3] checkbox Agree [checked=false]",
+			element_id: 3,
+		},
+		{ line: 4, text: "Hello world" },
+	]);
+	assert.deepEqual(result.elements, [
+		{
+			id: 1,
+			role: "button",
+			name: "Continue",
+			expanded: false,
+			disabled: true,
+		},
+		{
+			id: 2,
+			role: "menuitemcheckbox",
+			checked: "mixed",
+			selected: false,
+		},
+		{
+			id: 3,
+			role: "checkbox",
+			name: "Agree",
+			checked: false,
+		},
 	]);
 	assert.equal(refs.get(1), 41);
 	const next = await snapshotData(cdp, "session", refs, {
@@ -71,8 +122,8 @@ test("snapshots emit compact lines and current interactive references", async ()
 	});
 	assert.deepEqual(
 		next.elements.map((element) => element.id),
-		[3, 4],
+		[4, 5, 6],
 	);
 	assert.equal(refs.has(1), false);
-	assert.equal(refs.get(3), 42);
+	assert.equal(refs.get(4), 42);
 });
