@@ -244,7 +244,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.74",
+      "version": "0.0.75",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.7",
         "@howaboua/pi-auto-trees": "0.1.13",
@@ -374,7 +374,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-ai": "0.85.1",
@@ -447,7 +447,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.82",
+      "version": "0.0.83",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.7",
         "@howaboua/pi-auto-trees": "0.1.13",
