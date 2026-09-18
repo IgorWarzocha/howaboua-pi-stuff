@@ -1,4 +1,5 @@
 mod audio;
+mod codex_audio;
 mod playout;
 mod protocol;
 mod resample;
@@ -19,7 +20,7 @@ struct Dictation {
 
 enum Session {
     Idle,
-    V3(v3::V3Session),
+    V3(Box<v3::V3Session>),
     Dictation(Dictation),
 }
 
@@ -72,7 +73,7 @@ async fn main() -> Result<()> {
                     let (created, sdp) =
                         v3::V3Session::create_devices(microphone, speaker, events_tx.clone())
                             .await?;
-                    session = Session::V3(created);
+                    session = Session::V3(Box::new(created));
                     events_tx.send(Event::Offer { sdp }).await?;
                 }
                 Command::StartV3Bridge => {
@@ -83,7 +84,7 @@ async fn main() -> Result<()> {
                         })
                         .await?;
                     let (created, sdp) = v3::V3Session::create_bridge(events_tx.clone()).await?;
-                    session = Session::V3(created);
+                    session = Session::V3(Box::new(created));
                     events_tx.send(Event::Offer { sdp }).await?;
                 }
                 Command::ApplyAnswer { sdp } => match &session {
@@ -91,13 +92,21 @@ async fn main() -> Result<()> {
                     _ => anyhow::bail!("cannot apply an answer without an active V3 session"),
                 },
                 Command::SetInputMuted { muted } => match &session {
-                    Session::V3(active) => active.set_input_muted(muted),
+                    Session::V3(active) => active.set_input_muted(muted).await?,
                     _ => anyhow::bail!("microphone muting requires an active V3 session"),
+                },
+                Command::SetSpeakerSuppressed { suppressed, epoch } => match &mut session {
+                    Session::V3(active) => {
+                        active.set_speaker_suppressed(suppressed, epoch)?;
+                    }
+                    _ => anyhow::bail!("speaker suppression requires an active V3 session"),
                 },
                 Command::StartDictation { microphone } => {
                     stop(&mut session).await?;
                     let capture = audio::capture(microphone.as_deref())?;
-                    let queue = capture.samples.clone();
+                    let queue = capture.frames.clone();
+                    let dropped = capture.dropped.clone();
+                    let failed = capture.failed.clone();
                     let source_rate = capture.sample_rate;
                     let dictation_events = events_tx.clone();
                     let task = tokio::spawn(async move {
@@ -120,9 +129,25 @@ async fn main() -> Result<()> {
                             tokio::time::interval(std::time::Duration::from_millis(20));
                         loop {
                             ticker.tick().await;
+                            if failed.load(std::sync::atomic::Ordering::Acquire) {
+                                let _ = dictation_events
+                                    .send(Event::Error {
+                                        message: "microphone stream failed".to_owned(),
+                                    })
+                                    .await;
+                                return;
+                            }
+                            if dropped.swap(false, std::sync::atomic::Ordering::AcqRel) {
+                                audio::clear(&queue);
+                                resampler.reset();
+                                pending.clear();
+                            }
                             source.clear();
                             converted.clear();
-                            audio::drain(&queue, source_rate as usize / 25, &mut source);
+                            for _ in 0..queue.capacity() {
+                                let Some(frame) = queue.pop() else { break };
+                                source.extend_from_slice(&frame.samples[..frame.len]);
+                            }
                             resampler.process(&source, &mut converted);
                             pending.extend_from_slice(&converted);
                             while pending.len() >= 480 {
@@ -139,6 +164,7 @@ async fn main() -> Result<()> {
                                         audio: BASE64.encode(bytes),
                                         sample_rate: 24_000,
                                         num_channels: 1,
+                                        epoch: None,
                                     })
                                     .await
                                     .is_err()

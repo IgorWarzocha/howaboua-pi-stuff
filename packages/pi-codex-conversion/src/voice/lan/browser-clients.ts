@@ -38,6 +38,10 @@ export class LanVoiceBrowserClients {
 		this.session.sendConversationAudio(pcm);
 	}
 
+	setConversationSpeakerSuppressed(suppressed: boolean): void {
+		this.session.setConversationSpeakerSuppressed(suppressed);
+	}
+
 	resetConversationInputLevel(): void {
 		this.session.resetConversationInputLevel();
 	}

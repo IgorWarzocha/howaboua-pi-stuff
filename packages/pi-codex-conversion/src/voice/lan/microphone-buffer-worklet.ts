@@ -9,13 +9,18 @@ class PiLanMicrophoneBuffer extends AudioWorkletProcessor {
     this.phase = 'buffering';
     this.threshold = 0.003;
     this.preRoll = sampleRate * 0.1;
-    this.port.onmessage = (event) => { if (event.data?.type === 'release') this.release(); };
+    this.inputMuted = false;
+    this.port.onmessage = (event) => {
+      if (event.data?.type === 'release') this.release();
+      if (event.data?.type === 'input_muted' && typeof event.data.muted === 'boolean') this.setInputMuted(event.data.muted);
+    };
   }
   process(inputs, outputs) {
     const input = inputs[0]?.[0];
     const output = outputs[0]?.[0];
     if (!output) return true;
     output.fill(0);
+    if (this.inputMuted) return true;
     if (this.phase === 'buffering') this.append(input);
     else if (this.phase === 'live') this.copy(input, output);
     else {
@@ -26,6 +31,12 @@ class PiLanMicrophoneBuffer extends AudioWorkletProcessor {
       }
     }
     return true;
+  }
+  setInputMuted(muted) {
+    this.inputMuted = muted;
+    this.length = 0;
+    this.readOffset = 0;
+    this.phase = muted ? 'muted' : 'live';
   }
   release() {
     if (this.phase !== 'buffering') return;

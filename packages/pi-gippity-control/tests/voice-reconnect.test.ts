@@ -34,7 +34,54 @@ test("realtime forwards final speech before reporting established drops", async 
 		DEFAULT_GIPPITY_CONTROL_CONFIG,
 		"instructions",
 	);
+	active.peer.transcript("user", "First request", true);
+	assert.deepEqual(
+		active.peer.playbackControls,
+		[],
+		"quiet turns accept audio before captions",
+	);
+	active.peer.transcript("assistant", "Old answer");
+	active.peer.transcript("user", "Actually");
+	active.peer.transcript("user", "change that");
+	assert.deepEqual(
+		active.peer.playbackControls,
+		[true],
+		"one flush per spoken interruption",
+	);
+	active.peer.transcript("assistant", "old interleaved fragment");
+	active.peer.transcript("user", "Actually change that", true);
+	active.peer.transcript("assistant", "old late fragment");
+	assert.deepEqual(
+		active.peer.playbackControls,
+		[true],
+		"old captions cannot reopen playback",
+	);
+	active.peer.transcript("assistant", "Old answer", true);
+	assert.deepEqual(
+		active.peer.playbackControls,
+		[true],
+		"completion alone cannot release suppression",
+	);
+	active.peer.transcript("assistant", "New answer");
+	assert.deepEqual(active.peer.playbackControls, [true, false]);
+	active.peer.transcript("assistant", "New answer", true);
+	active.peer.emit({ type: "playback_activity" });
+	active.peer.transcript("user", "Interrupt buffered audio", true);
+	assert.deepEqual(
+		active.peer.playbackControls,
+		[true, false, true],
+		"done-only input retires buffered audio",
+	);
+	active.peer.transcript("assistant", "Next answer");
+	active.peer.transcript("assistant", "Next answer", true);
+	assert.deepEqual(active.peer.playbackControls, [true, false, true, false]);
+	const beforeTyping = [...active.peer.playbackControls];
 	active.session.piInput("Typed request", "steer");
+	assert.deepEqual(
+		active.peer.playbackControls,
+		beforeTyping,
+		"typing keeps the existing speech policy",
+	);
 	active.session.streamAgentDelta(
 		"First useful sentence. Second useful sentence.",
 	);
@@ -122,6 +169,7 @@ function createConversation(answerState: "ready" | "closed"): {
 
 class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
+	readonly playbackControls: boolean[] = [];
 	private readonly sent: unknown[] = [];
 	private readonly answerState: "ready" | "closed";
 	private readonly eventListeners = new Set<
@@ -167,5 +215,22 @@ class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 		});
 	}
 	setInputMuted(): void {}
+	setSpeakerSuppressed(suppressed: boolean): void {
+		this.playbackControls.push(suppressed);
+	}
+	transcript(role: "user" | "assistant", text: string, done = false): void {
+		this.emit({
+			type: "data",
+			message: done
+				? { type: "turn.done", turn: { role, transcript: text } }
+				: {
+						type:
+							role === "user"
+								? "input_transcript.added"
+								: "output_transcript.added",
+						item: { text },
+					},
+		});
+	}
 	async close(): Promise<void> {}
 }

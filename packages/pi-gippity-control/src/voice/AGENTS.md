@@ -1,5 +1,6 @@
 - `controller.ts` owns the public facade, teardown, mute, and Pi event bridge; `controller-compaction.ts` owns serialized post-compaction preparation and replacement; `controller-start.ts` owns startup/auth/state transitions; `controller-reconnect.ts` owns dropped-call replacement and peer-owner notifications; `controller-sessions.ts` owns lazy mode construction; `controller-support.ts` owns shared state/presentation helpers. `controls.ts` owns commands/shortcut policy.
 - Under `conversation/`, `session.ts` owns V3 sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation.
+- `conversation/playback.ts` owns spoken-interruption generations; typed input never changes speaker suppression. Quiet turns accept audio before captions.
 - `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - Realtime conversation is V3 only. Dictation owns its separate transcription connection.
 - Seeded summaries are developer `initial_items` labeled as prior Pi `<startup_context>`; voice startup awaits generation before opening V3 and shows the exact sidecar output in a display-only `Voice Context` entry. Context-model reasoning is user-selected, defaults high, and stays on the isolated sidecar call.
@@ -13,7 +14,7 @@
 - Opt-in compaction refresh is awaited at Pi's successful compaction boundary. Summarize while the established call remains active, recheck the branch, then close and replace it serially without lifecycle chatter; summary failure leaves it untouched, while replacement failure is terminal. Preserve LAN ownership and mute.
 - LAN realtime is host-owned: one helper WebRTC V3 call owns authenticated setup and delegation; browser disconnect/takeover preserves it, explicit Stop closes it so the next Start snapshots fresh Pi context.
 - Realtime mic mute keeps V3 warm. Gate browser tracks, discard captured samples, send silence RTP, and reset mute when input ownership ends.
-- Native `v3.rs` owns WebRTC signaling/session state; `v3_media.rs` owns audio tracks, playout, encoding, and silence RTP.
+- Native `v3.rs` owns WebRTC signaling/session state; `v3_media.rs` owns tracks/playout; `v3_capture.rs` owns encoding, mute boundaries, and silence RTP. Keep Codex-derived DSP provenance and licenses in `rust/VENDORED.md` and `rust/vendor/`.
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
 - `REALTIME-SYSTEM-PROMPT.md` is the shipped template and schema source. Record every schema change cumulatively in its adjacent changelog. Never rewrite an existing user prompt; check its marker only when realtime voice is engaged and direct the user's agent to migrate it.
 - Every async resource has one cleanup owner; session shutdown stops LAN before voice.

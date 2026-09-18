@@ -1,10 +1,10 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use anyhow::{Context, Result};
 use crossbeam_queue::ArrayQueue;
 use serde_json::Value;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
@@ -16,10 +16,11 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
-use crate::audio::{self, Capture, Playback};
+use crate::audio::{self, Capture, Playback, SpeakerState};
 use crate::protocol::{Event, MAX_DATA_MESSAGE_BYTES};
 use crate::v3_media::{
-    BRIDGE_RATE, OutputSink, create_audio_sender, register_playout, spawn_encoder,
+    BRIDGE_RATE, DeviceEncoder, InputControl, OutputSink, create_audio_sender, register_playout,
+    spawn_bridge_encoder, spawn_device_encoder,
 };
 
 const BRIDGE_INPUT_SECONDS: usize = 3;
@@ -29,9 +30,11 @@ pub struct V3Session {
     data_channel: Arc<RTCDataChannel>,
     rtcp_task: tokio::task::JoinHandle<()>,
     encoder_task: tokio::task::JoinHandle<()>,
-    input_muted: Arc<AtomicBool>,
+    input: InputControl,
+    speaker: Arc<SpeakerState>,
+    speaker_tx: watch::Sender<audio::SpeakerControl>,
     _capture: Option<Capture>,
-    _playback: Option<Playback>,
+    playback: Option<Playback>,
     bridge_input: Option<Arc<ArrayQueue<f32>>>,
 }
 
@@ -43,41 +46,19 @@ impl V3Session {
     ) -> Result<(Self, String)> {
         let capture = audio::capture(microphone.as_deref())?;
         let playback = audio::playback(speaker.as_deref(), events.clone())?;
-        let input_samples = Arc::clone(&capture.samples);
-        let input_rate = capture.sample_rate;
         let output = OutputSink::Device {
             samples: Arc::clone(&playback.samples),
             sample_rate: playback.sample_rate,
         };
-        Self::create(
-            input_samples,
-            input_rate,
-            output,
-            events,
-            Some(capture),
-            Some(playback),
-            None,
-        )
-        .await
+        Self::create(output, events, Some(capture), Some(playback), None).await
     }
 
     pub async fn create_bridge(events: mpsc::Sender<Event>) -> Result<(Self, String)> {
         let input = Arc::new(ArrayQueue::new(BRIDGE_RATE as usize * BRIDGE_INPUT_SECONDS));
-        Self::create(
-            Arc::clone(&input),
-            BRIDGE_RATE,
-            OutputSink::Bridge,
-            events,
-            None,
-            None,
-            Some(input),
-        )
-        .await
+        Self::create(OutputSink::Bridge, events, None, None, Some(input)).await
     }
 
     async fn create(
-        input_samples: Arc<ArrayQueue<f32>>,
-        input_rate: u32,
         output: OutputSink,
         events: mpsc::Sender<Event>,
         capture: Option<Capture>,
@@ -145,16 +126,51 @@ impl V3Session {
             })
         }));
 
-        register_playout(&peer, output, events.clone());
-        let input_muted = Arc::new(AtomicBool::new(false));
-        let encoder_task = spawn_encoder(
-            track,
-            input_samples,
-            input_rate,
-            input_enabled,
-            Arc::clone(&input_muted),
-            events,
+        let speaker = playback
+            .as_ref()
+            .map(|playback| Arc::clone(&playback.state))
+            .unwrap_or_else(|| Arc::new(SpeakerState::new()));
+        let (speaker_tx, speaker_rx) = watch::channel(speaker.get());
+        register_playout(
+            &peer,
+            output,
+            events.clone(),
+            Arc::clone(&speaker),
+            speaker_rx,
         );
+
+        let (input, encoder_task) = if let Some(capture) = &capture {
+            let playback = playback
+                .as_ref()
+                .context("device capture requires device playback")?;
+            spawn_device_encoder(
+                track,
+                DeviceEncoder {
+                    frames: Arc::clone(&capture.frames),
+                    input_rate: capture.sample_rate,
+                    generation: Arc::clone(&capture.generation),
+                    dropped: Arc::clone(&capture.dropped),
+                    failed: Arc::clone(&capture.failed),
+                    rendered: Arc::clone(&playback.rendered),
+                    output_rate: playback.sample_rate,
+                    render_dropped: Arc::clone(&playback.render_dropped),
+                    speaker: Arc::clone(&speaker),
+                },
+                input_enabled,
+                events,
+            )
+        } else {
+            let bridge_input = bridge_input
+                .as_ref()
+                .context("bridge session requires PCM input")?;
+            spawn_bridge_encoder(
+                track,
+                Arc::clone(bridge_input),
+                Arc::new(AtomicU64::new(0)),
+                input_enabled,
+                events,
+            )
+        };
 
         let offer = peer.create_offer(None).await?;
         let mut gather = peer.gathering_complete_promise().await;
@@ -171,9 +187,11 @@ impl V3Session {
                 data_channel,
                 rtcp_task,
                 encoder_task,
-                input_muted,
+                input,
+                speaker,
+                speaker_tx,
                 _capture: capture,
-                _playback: playback,
+                playback,
                 bridge_input,
             },
             sdp,
@@ -194,8 +212,23 @@ impl V3Session {
         Ok(())
     }
 
-    pub fn set_input_muted(&self, muted: bool) {
-        self.input_muted.store(muted, Ordering::Relaxed);
+    pub async fn set_input_muted(&self, muted: bool) -> Result<()> {
+        self.input.set_muted(muted).await
+    }
+
+    pub fn set_speaker_suppressed(&mut self, suppressed: bool, epoch: u64) -> Result<()> {
+        if let Some(playback) = &mut self.playback {
+            let result = playback.transition(suppressed, epoch);
+            let current = self.speaker.get();
+            if current.epoch == epoch {
+                self.speaker_tx.send_replace(current);
+            }
+            result?;
+        } else {
+            let current = self.speaker.transition(suppressed, epoch)?;
+            self.speaker_tx.send_replace(current);
+        }
+        Ok(())
     }
 
     pub fn send_pcm(&self, pcm: &[u8]) -> Result<()> {
@@ -203,10 +236,13 @@ impl V3Session {
             .bridge_input
             .as_ref()
             .context("PCM input requires a bridge V3 session")?;
-        if pcm.len() % 2 != 0 {
+        if !pcm.len().is_multiple_of(2) {
             anyhow::bail!("bridge PCM must contain complete i16 samples");
         }
-        for bytes in pcm.chunks_exact(2) {
+        if self.input.muted() {
+            return Ok(());
+        }
+        for bytes in pcm.as_chunks::<2>().0 {
             let sample = i16::from_le_bytes([bytes[0], bytes[1]]);
             let normalized = sample as f32 / if sample < 0 { 32_768.0 } else { 32_767.0 };
             audio::push_latest(input, normalized);

@@ -77,6 +77,7 @@
     "LICENSE",
     "src/tools/**/bin/**",
     "src/voice/bin/**",
+    "src/voice/rust/vendor/**",
     "code-mode/UPSTREAM_SYNC.md",
     "code-mode/vendor/code-mode-src/LICENSE",
     "code-mode/vendor/code-mode-src/NOTICE",

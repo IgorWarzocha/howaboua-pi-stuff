@@ -113,6 +113,12 @@ impl PacketPlayout {
     pub fn ready(&self) -> bool {
         self.playing
     }
+
+    pub fn reset(&mut self) {
+        self.pending.clear();
+        self.expected = None;
+        self.playing = false;
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +138,9 @@ mod tests {
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(10)));
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(11)));
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(12)));
+
+        playout.reset();
+        assert_eq!(playout.next(), PlayoutFrame::Buffering);
 
         let mut gap = PacketPlayout::new();
         gap.push(20, packet(20));

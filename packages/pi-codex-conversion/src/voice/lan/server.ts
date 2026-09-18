@@ -76,6 +76,10 @@ export async function startCodexLanVoiceServer(options: {
 						if (activeConversation?.peer === peer)
 							clients.sendConversationAudio(pcm);
 					},
+					onSpeakerSuppressed: (suppressed) => {
+						if (activeConversation?.peer === peer)
+							clients.setConversationSpeakerSuppressed(suppressed);
+					},
 				});
 				return peer;
 			},
@@ -85,6 +89,7 @@ export async function startCodexLanVoiceServer(options: {
 					peer: peer as LanHostRealtimePeer,
 					conversation,
 				};
+				clients.setConversationSpeakerSuppressed(activeConversation.peer.isSpeakerSuppressed);
 			},
 			onInactive: (conversation, error, resuming) => {
 				const ownedActive = activeConversation?.conversation === conversation;

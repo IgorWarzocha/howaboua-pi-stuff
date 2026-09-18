@@ -5,6 +5,7 @@ export type VoiceHelperCommand =
 	| { type: "start_v3"; microphone?: string; speaker?: string }
 	| { type: "start_v3_bridge" }
 	| { type: "set_input_muted"; muted: boolean }
+	| { type: "set_speaker_suppressed"; suppressed: boolean; epoch: number }
 	| { type: "apply_answer"; sdp: string }
 	| { type: "start_dictation"; microphone?: string }
 	| { type: "send_data"; message: unknown }
@@ -18,7 +19,8 @@ export type VoiceHelperEvent =
 	| { type: "offer"; sdp: string }
 	| { type: "state"; state: string }
 	| { type: "data"; message: unknown }
-	| { type: "pcm"; audio: string; sample_rate: number; num_channels: number }
+	| { type: "pcm"; audio: string; sample_rate: number; num_channels: number; epoch?: number }
+	| { type: "playback_activity" }
 	| { type: "error"; message: string }
 	| { type: "stopped" };
 
@@ -103,10 +105,15 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_REALTIME_SDP_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "state" && boundedString(event["state"], 128)) return event as VoiceHelperEvent;
 	if (event["type"] === "data" && boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)) return event as VoiceHelperEvent;
-	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1) return event as VoiceHelperEvent;
+	if (event["type"] === "playback_activity") return { type: "playback_activity" };
+	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1 && validEpoch(event["epoch"])) return event as VoiceHelperEvent;
 	if (event["type"] === "error" && boundedString(event["message"], MAX_TEXT_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "stopped") return event as VoiceHelperEvent;
 	throw new Error(`Invalid Codex voice helper ${event["type"]} event`);
+}
+
+function validEpoch(value: unknown): boolean {
+	return value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
 }
 
 function validDevices(value: unknown): value is VoiceDevice[] {

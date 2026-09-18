@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 5;
+pub const PROTOCOL_VERSION: u8 = 6;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_PCM_BYTES: usize = 64 * 1024;
 pub const MAX_DEVICE_BYTES: usize = 512;
 pub const MAX_DEVICES: usize = 128;
+pub const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 pub fn parse_command(input: &str) -> anyhow::Result<Command> {
     let value: Value = serde_json::from_str(input)?;
@@ -22,6 +23,7 @@ pub fn parse_command(input: &str) -> anyhow::Result<Command> {
         "start_v3" => &["type", "microphone", "speaker"],
         "start_v3_bridge" => &["type"],
         "set_input_muted" => &["type", "muted"],
+        "set_speaker_suppressed" => &["type", "suppressed", "epoch"],
         "apply_answer" => &["type", "sdp"],
         "start_dictation" => &["type", "microphone"],
         "send_data" => &["type", "message"],
@@ -45,6 +47,10 @@ pub enum Command {
     StartV3Bridge,
     SetInputMuted {
         muted: bool,
+    },
+    SetSpeakerSuppressed {
+        suppressed: bool,
+        epoch: u64,
     },
     ApplyAnswer {
         sdp: String,
@@ -87,7 +93,10 @@ pub enum Event {
         audio: String,
         sample_rate: u32,
         num_channels: u16,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        epoch: Option<u64>,
     },
+    PlaybackActivity,
     Error {
         message: String,
     },
@@ -126,6 +135,9 @@ impl Command {
             Self::ApplyAnswer { sdp } if sdp.len() > MAX_SDP_BYTES => {
                 anyhow::bail!("answer SDP exceeds {MAX_SDP_BYTES} bytes")
             }
+            Self::SetSpeakerSuppressed { epoch, .. } if *epoch > MAX_SAFE_INTEGER => {
+                anyhow::bail!("speaker epoch exceeds the JavaScript safe integer range")
+            }
             Self::SendData { message } => {
                 let size = serde_json::to_vec(message)?.len();
                 if size > MAX_DATA_MESSAGE_BYTES {
@@ -160,12 +172,28 @@ mod tests {
         assert!(parse_command(r#"{"type":"stop","extra":true}"#).is_err());
         assert!(parse_command(r#"{"type":"set_input_muted","muted":true}"#).is_ok());
         assert!(parse_command(r#"{"type":"set_input_muted","muted":"yes"}"#).is_err());
+        assert!(
+            parse_command(r#"{"type":"set_speaker_suppressed","suppressed":true,"epoch":1}"#)
+                .is_ok()
+        );
+        assert!(
+            parse_command(r#"{"type":"set_speaker_suppressed","suppressed":true,"epoch":-1}"#)
+                .is_err()
+        );
         assert!(parse_command(r#"{"type":"start_v3_bridge"}"#).is_ok());
         assert!(
             Command::SendPcm {
                 audio: "AA==".to_owned(),
                 sample_rate: 48_000,
                 num_channels: 1,
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            Command::SetSpeakerSuppressed {
+                suppressed: true,
+                epoch: MAX_SAFE_INTEGER + 1,
             }
             .validate()
             .is_err()
