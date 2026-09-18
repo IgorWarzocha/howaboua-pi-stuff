@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.4
+
+- Fixed agent answers being refused when prompt or footer text contains "Review". Shepherdr now reads the complete outer Ask panel, including nested text editors, and refuses incomplete captures without sending input.
+
 ## 0.2.3
 
 - Fixed context continuity, voice replies, and patch preservation.
