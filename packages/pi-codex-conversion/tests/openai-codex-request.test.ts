@@ -170,18 +170,6 @@ function assertTranscriptSerialization() {
 	);
 	assert.equal(liteAfterRemoval.input.slice(1).some((item) => (item as { type?: string }).type === "additional_tools"), false);
 
-	const replaced = buildRequestBody(transcriptModel, normalizeContext({
-		messages: [
-			{ role: "system", content: "Old", toolsAdded: [exampleTool], timestamp: 0 },
-			{ role: "user", content: "before", timestamp: 1 },
-			{ role: "system", content: "New", sections: { rules: "<rules>fresh</rules>" }, toolsAdded: [codeModeTools[1]], replace: true, timestamp: 2 },
-			{ role: "user", content: "after", timestamp: 3 },
-		] as never,
-	}));
-	assert.equal(replaced.instructions, "New\n\n<rules>fresh</rules>");
-	assert.deepEqual((replaced.tools as Array<{ name: string }>).map(({ name }) => name), ["wait"]);
-	assert.deepEqual(replaced.input.map((item) => (item as { role?: string }).role), ["user", "user"]);
-
 	const searched = buildRequestBody({
 		...(codexModel as object),
 		compat: { supportsDeveloperRole: false, supportsMidConvoSystemMessages: true, supportsToolSearch: true },

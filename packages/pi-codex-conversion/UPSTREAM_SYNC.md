@@ -4,7 +4,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi transcript API: `e4c75a732` (source checkout; published `0.85.1` does not contain this API)
+- Pi transcript API: `661619e87` (source checkout; published `0.85.1` does not contain this API)
 - Codex checkout used for the provider comparison: `8ace915aced81ed841e34fa069b2e489c324731c`
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
@@ -14,7 +14,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 ## Implemented portable behavior
 
 - Standard Responses request, retry, error, usage, and terminal-stream handling
-- Chronological system sections and tool declarations, with replacement collapse for incompatible transcripts
+- Chronological system sections and tool declarations, collapsed for models without mid-conversation system messages
 - Prompt/tool checkpoints across Pi compaction and context-window cuts
 - GPT-5.6 Luna, Terra, and Sol model support
 - GPT-5.6 Code Mode as an opt-in Beta setting backed by Responses Lite
@@ -30,6 +30,10 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - zstd SSE requests and stale WebSocket rotation
 
 Idle keepalive refreshes the last finalized provider-request prefix on an isolated socket. It retains all extension rewrites, reacquires matching account credentials, and excludes the latest generated assistant tail rather than rebuilding or appending raw response items. Session, model, transport, and configuration changes invalidate that capture.
+
+Pi projects forced prompts onto requests without recording them in the transcript. Final-request capture retains that effective prompt for native compaction; transcript replay uses the persisted structured sections. `SystemMessage.replace` is no longer part of the upstream contract.
+
+The `661619e87` baseline was source-reviewed; the last build and live cache/compaction validation used `e4c75a732`.
 
 ## Monitor on each Codex sync
 

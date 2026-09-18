@@ -12,7 +12,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Node.js 22.19 or newer. This source revision targets Pi's transcript API at commit `e4c75a732`. That checkout still reports version 0.85.1, but published Pi 0.85.1 does not provide the required API. Use the [checkout setup](#develop-against-upstream-pi) for this revision.
+Requires Node.js 22.19 or newer. This source revision targets Pi's transcript API at commit `661619e87`. That checkout still reports version 0.85.1, but published Pi 0.85.1 does not provide the required API. Use the [checkout setup](#develop-against-upstream-pi) for this revision.
 
 Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
