@@ -9,10 +9,10 @@ export async function startRealtimeOffer(
 	mode: "native" | "bridge",
 ): Promise<string> {
 	await helper.start(config.tools.customRustBinariesDir);
-	if (helper.protocolVersion !== 5) {
+	if (helper.protocolVersion !== 6) {
 		const actualVersion = helper.protocolVersion ?? "unknown";
 		await helper.close();
-		throw new Error(`Incompatible Codex voice helper protocol ${actualVersion}; expected 5`);
+		throw new Error(`Incompatible Codex voice helper protocol ${actualVersion}; expected 6`);
 	}
 	const offer = Promise.withResolvers<string>();
 	const removeEvent = helper.onEvent((event) => {

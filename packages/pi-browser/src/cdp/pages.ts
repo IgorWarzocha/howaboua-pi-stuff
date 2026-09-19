@@ -9,6 +9,9 @@ function pageInfo(value: unknown): PageInfo {
 		title: typeof record["title"] === "string" ? record["title"] : "",
 		url: asString(record["url"], "target URL"),
 		...(typeof record["type"] === "string" ? { type: record["type"] } : {}),
+		...(typeof record["openerId"] === "string"
+			? { openerId: record["openerId"] }
+			: {}),
 	};
 }
 

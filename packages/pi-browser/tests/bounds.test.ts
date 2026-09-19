@@ -16,6 +16,29 @@ test("tab and page results remain bounded with visible continuations", () => {
 	const tabs = boundTabs(pages, "linkedin", 0);
 	assert.equal(tabs["truncated"], true);
 	assert.ok(Buffer.byteLength(JSON.stringify(tabs)) < 50_000);
+	const ownedPages = [
+		{
+			targetId: "12345678A",
+			title: "Own",
+			url: "https://example.com",
+			owned: true,
+		},
+		{
+			targetId: "12345678B",
+			title: "Shared",
+			url: "https://example.com",
+			owned: false,
+		},
+	];
+	assert.deepEqual(boundTabs(ownedPages, undefined, 0, true)["tabs"], [
+		{
+			ref_id: "12345678A",
+			title: "Own",
+			url: "https://example.com",
+			owned: true,
+		},
+	]);
+	assert.deepEqual(boundTabs(ownedPages, "Shared", 0, true)["tabs"], []);
 	const content = Array.from({ length: 300 }, (_, index) => ({
 		line: index + 1,
 		text: `${index} ${"content ".repeat(40)}`,

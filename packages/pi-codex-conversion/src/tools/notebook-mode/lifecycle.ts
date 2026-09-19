@@ -3,12 +3,15 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type {
 	NotebookControlRequest,
 	NotebookControlResult,
+	NotebookHook,
 	NotebookMemoryUsage,
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { globMatcher } from "./glob.ts";
+import { notebookToolHooksSource } from "./kernel-runtime.ts";
 import type { RetainedProjectBinding } from "./project-state-metadata.ts";
+import type { ProjectStatePinUpdate } from "./project-state-merge.ts";
 import {
 	boundedReleaseDetails,
 	formatNameList,
@@ -38,10 +41,11 @@ interface NotebookLifecycleHost {
 	prepare(context: ToolExecutionContext, signal?: AbortSignal): Promise<void>;
 	diagnostics(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
 	reset(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
+	unpinWithoutStartup(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
 	kernel(): DenoJupyterKernel | undefined;
 	activeCellId(): string | undefined;
 	stopActive(): Promise<string | undefined>;
-	checkpoint(excludeNames?: ReadonlySet<string>, pins?: { names: readonly string[]; pinned: boolean }): Promise<void>;
+	checkpoint(excludeNames?: ReadonlySet<string>, pins?: ProjectStatePinUpdate): Promise<void>;
 	retainedBindings(): RetainedProjectBinding[];
 	promoteBindings(names: string[]): Promise<() => Promise<void>>;
 	markChanged(): void;
@@ -75,6 +79,7 @@ export class NotebookLifecycleController {
 		if (request.action === "list") return this.profiles.list(request.query);
 		if (request.action === "diagnostics") return this.host.diagnostics(context, signal);
 		if (request.action === "reset") return this.host.reset(context, signal);
+		if (request.action === "unpin" && this.host.runtimeHealth().state !== "ready") return this.host.unpinWithoutStartup(request.names, context, signal);
 		if (request.action === "restart" && this.host.runtimeHealth().state !== "ready") return this.restart(context, signal);
 		await this.host.prepare(context, signal);
 		switch (request.action) {
@@ -82,7 +87,7 @@ export class NotebookLifecycleController {
 			case "checkpoint": return this.checkpoint();
 			case "save": return this.profiles.save(request.name, context, signal);
 			case "load": return this.profiles.load(request.name, context, signal);
-			case "pin": return this.pin(request.names, true);
+			case "pin": return this.pin(request.names, true, request.hook);
 			case "unpin": return this.pin(request.names, false);
 			case "release": return this.release(request.names, context, signal);
 			case "prune": return this.prune(request.query, context, signal);
@@ -130,6 +135,7 @@ export class NotebookLifecycleController {
 					bytes: retainedBinding.bytes,
 					updatedAt: retainedBinding.updatedAt,
 					pinned: retainedBinding.pinned,
+					hook: retainedBinding.hook,
 					...(retainedBinding.description === undefined ? {} : { description: retainedBinding.description }),
 					...(retainedBinding.usage === undefined ? {} : { usage: retainedBinding.usage }),
 				} : {}),
@@ -185,7 +191,7 @@ export class NotebookLifecycleController {
 		return { message: "Notebook checkpoint complete", details };
 	}
 
-	private async pin(names: string[], pinned: boolean): Promise<NotebookControlResult> {
+	private async pin(names: string[], pinned: boolean, hook?: NotebookHook | false): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot change notebook pins while exec cell "${activeCell}" is running`);
 		let rollbackPromotion: (() => Promise<void>) | undefined;
@@ -197,17 +203,21 @@ export class NotebookLifecycleController {
 			rollbackPromotion = await this.host.promoteBindings(names);
 		}
 		try {
-			await this.host.checkpoint(undefined, { names, pinned });
+			await this.host.checkpoint(undefined, { names, pinned, hook });
 		} catch (error) {
 			await rollbackPromotion?.().catch(() => undefined);
 			throw error;
+		}
+		if (!pinned || hook !== undefined) {
+			const configured = await this.host.kernel()!.execute(notebookToolHooksSource(names, pinned && hook === "tool_result"));
+			if (configured.status !== "ok") throw new Error(`Notebook runtime bootstrap unavailable: __piNotebook.configureToolHooks: ${configured.errorText ?? configured.status}`);
 		}
 		const retained = this.host.retainedBindings();
 		const reportedNames = withinNameBudget(names);
 		const selected = retained.filter((binding) => reportedNames.includes(binding.name));
 		const bindings = takeDetailValues(selected, { remaining: NOTEBOOK_DETAILS_BUDGET });
 		return {
-			message: `${pinned ? "Pinned" : "Unpinned"} durable notebook bindings: ${formatNameList(names)}`,
+			message: `${pinned ? "Pinned" : "Unpinned"} durable notebook bindings: ${formatNameList(names)}${hook === undefined ? "" : `; hook ${hook || "removed"}`}`,
 			details: { pinned, bindings, bindingCount: names.length, omittedBindings: names.length - bindings.length },
 		};
 	}

@@ -12,7 +12,9 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 0.84.4 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
+Requires Node.js 22.19 or newer. This source revision targets Pi's transcript API at commit `661619e87`. That checkout still reports version 0.85.1, but published Pi 0.85.1 does not provide the required API. Use the [checkout setup](#develop-against-upstream-pi) for this revision.
+
+Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
 Open `/codex` after installation. The defaults give Codex-like GPT models the structured adapter and leave Code Mode, heavy prompt overwrite and native compaction opt-in. All of them are highly recommended, though. That's what I'm daily-driving and fine-tuning towards.
 
@@ -27,6 +29,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - [Voice, dictation and GipPity](#voice-dictation-and-gippity)
 - [Models and providers](#models-and-providers)
 - [Migrating from Lite](#migrating-from-lite)
+- [Develop against upstream Pi](#develop-against-upstream-pi)
 - [Troubleshooting](#troubleshooting)
 
 ## What you get
@@ -158,6 +161,14 @@ text(status);
 ```
 
 Notebook Mode keeps `exec` and `wait`, adds a top-level `notebook` lifecycle tool, and preserves JavaScript or TypeScript bindings in one persistent Deno runtime. The `notebook` tool owns status, checkpoints, restarts, resets and stored profiles.
+
+Pinned functions can react to Notebook events without another model call. Attach one with `notebook({ action: "pin", names: ["onToolResult"], hook: "tool_result" })`. It becomes active for subsequent `tools.*` calls and is restored on each fresh kernel.
+
+The function receives `{ type: "tool_result", toolName, input, status, result?, error? }`. Filter by the callable `toolName` inside the function. Input is captured before the call; `status` is `"success"` when the call returns its result or `"error"` when it throws. Each handler gets its own snapshot, is awaited before the caller continues, and cannot replace the tool's result or error. Handlers run in name order; independent calls may overlap. Tools called from a handler do not trigger more handlers. Hook failures are reported without changing the original tool outcome.
+
+Use `hook: "startup"` for initialization after project, session and configured-profile restoration, once per fresh kernel including restarts. It receives `{ type: "startup" }`; pinning does not run it immediately. Import dependencies inside the function and recreate helpers or handles through `globalThis`. Pi tools require an active cell and cannot run during startup. Startup failures block execution; unpin remains available for recovery.
+
+Ordinary pins stay passive. Omit `hook` to preserve its setting, set `hook: false` to remove it, or unpin. Hook registrations belong to the running Notebook; another session's edits take effect only on restoration. These hooks observe Notebook tool calls, not arbitrary JavaScript calls or tools outside Notebook. External side effects are not rolled back.
 
 ### Pi extension API
 
@@ -336,6 +347,26 @@ pi install npm:@howaboua/pi-codex-imagegen
 ```
 
 This is also a major change for users of the old canonical package. Legacy PATH mode and its package binaries are gone. Old PATH-mode settings normalize to the structured adapter. Use structured tools or Code Mode custom commands instead.
+
+## Develop against upstream Pi
+
+Until Pi publishes the transcript API, build an upstream Pi checkout and link it into this repository explicitly:
+
+```bash
+bun run pi:link-checkout -- /absolute/path/to/pi
+```
+
+The command validates the built transcript exports and Pi CLI before replacing only this repository's Pi dependency links. Run `bun install` to restore the manifest-resolved packages. Before publishing, update the Pi dependency versions and peer minimums to the release that provides this API; the current manifest still resolves the older published packages.
+
+Build the extension, then launch that checkout's built CLI with an absolute extension path for live validation:
+
+```bash
+bun run --cwd packages/pi-codex-conversion build
+PI_CHECKOUT="$(cd /absolute/path/to/pi && pwd -P)"
+EXTENSION="$(pwd -P)/packages/pi-codex-conversion"
+node "$PI_CHECKOUT/packages/coding-agent/dist/cli.js" \
+  --no-extensions --no-skills -e "$EXTENSION"
+```
 
 ## Troubleshooting
 

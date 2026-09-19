@@ -79,6 +79,12 @@ test("first native compaction sends the full active Pi context", () => {
 		summary: "Pi summary",
 		firstKeptEntryId: "kept",
 		tokensBefore: 100,
+		systemMessage: {
+			role: "system",
+			content: "Latest effective instructions",
+			sections: { tools: "<tools>current</tools>" },
+			timestamp: 2,
+		},
 	};
 	const tail = entry("tail", "pi-compaction", "exact live tail");
 
@@ -86,10 +92,13 @@ test("first native compaction sends the full active Pi context", () => {
 		model,
 		entries: [old, kept, compaction, tail] as never,
 		leafId: "tail",
+		options: { includeInstructionsInInput: true },
 	});
 	const serialized = JSON.stringify(input);
 
 	assert.match(serialized, /Pi summary/);
+	assert.match(serialized, /Latest effective instructions/);
+	assert.match(serialized, /<tools>current<\/tools>/);
 	assert.match(serialized, /exact kept context/);
 	assert.match(serialized, /exact live tail/);
 	assert.doesNotMatch(serialized, /superseded old context/);

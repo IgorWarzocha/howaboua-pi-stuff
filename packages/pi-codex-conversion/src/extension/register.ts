@@ -10,7 +10,6 @@ import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
-import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
@@ -26,13 +25,9 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			useResponsesLite: (model) => resolveCodexRuntimePlanForState({ model }, runtime.state).transport === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
-			onPreparedPayload: (payload) => {
-				if (!runtime.state.pendingActiveProviderPromptCapture) return;
-				captureActiveProviderSystemPrompt(payload, runtime.state);
-				runtime.state.pendingActiveProviderPromptCapture = false;
-			},
+			beforeRequestSend: runtime.beforeRequestSend,
 		});
-		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames);
+		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames, runtime.beforeRequestSend);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);

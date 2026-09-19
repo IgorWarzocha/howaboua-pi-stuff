@@ -19,6 +19,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
   async function createRealtimeAudio(stream) {
     const context = new AudioContext({ latencyHint:'interactive' });
     let source, microphoneBuffer, processor;
+    let inputEpoch = 0, speakerSuppressed = false;
     try {
       const microphoneUrl = URL.createObjectURL(new Blob([microphoneWorkletSource], { type:'text/javascript' }));
       const audioUrl = URL.createObjectURL(new Blob([audioWorkletSource], { type:'text/javascript' }));
@@ -34,8 +35,21 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       processor.connect(context.destination);
       return {
         context, processor,
+        acceptCapture(value) { return value?.type === 'capture' && value.epoch === inputEpoch && value.pcm instanceof ArrayBuffer ? value.pcm : undefined; },
         releaseInput() { microphoneBuffer.port.postMessage({ type:'release' }); },
-        play(pcm) { processor.port.postMessage(pcm, [pcm]); },
+        setInputMuted(muted) {
+          inputEpoch += 1;
+          const command = { type:'input_muted', muted:Boolean(muted), epoch:inputEpoch };
+          microphoneBuffer.port.postMessage(command);
+          processor.port.postMessage(command);
+        },
+        setSpeakerSuppressed(suppressed) {
+          const next = Boolean(suppressed);
+          if (speakerSuppressed === next) return;
+          speakerSuppressed = next;
+          processor.port.postMessage({ type:'speaker_suppressed', suppressed:next });
+        },
+        play(pcm) { if (!speakerSuppressed) processor.port.postMessage(pcm, [pcm]); },
         close() {
           processor.disconnect(); microphoneBuffer.disconnect(); source.disconnect();
           void context.close().catch(() => {});
@@ -68,9 +82,11 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       processor = undefined; source = undefined; context = undefined;
       stream?.getTracks().forEach((track) => track.stop()); stream = undefined;
     };
-    const setMuted = (next, notify = true) => {
+    const setMuted = (next, notify = true, synchronize = false) => {
       if (notify && (!active || mode !== 'conversation')) return;
-      muted = Boolean(next);
+      const nextMuted = Boolean(next);
+      if (muted !== nextMuted || synchronize) realtimeAudio?.setInputMuted(nextMuted);
+      muted = nextMuted;
       stream?.getAudioTracks().forEach((track) => { track.enabled = !muted; });
       if (notify && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'mute', muted }));
 	  if (!active) { client._emit('audio', snapshot()); return; }
@@ -115,15 +131,15 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         const message = JSON.parse(event.data);
         if (message.type === 'stop') { finishStop(false, message.reason || 'server'); return; }
         if (message.type === 'mute') setMuted(message.muted, false);
+        if (message.type === 'speaker_suppressed') realtimeAudio?.setSpeakerSuppressed(message.suppressed);
         if (message.type === 'active') {
           active = true; busy = false; finishing = false;
           if (mode === 'conversation') {
             inputTooQuiet = false;
-            if (typeof message.muted === 'boolean') {
-              muted = message.muted;
-              stream?.getAudioTracks().forEach((track) => { track.enabled = !muted; });
-            }
-            realtimeAudio?.releaseInput();
+            const initialMuted = typeof message.muted === 'boolean' ? message.muted : muted;
+            setMuted(initialMuted, false, initialMuted);
+            realtimeAudio?.setSpeakerSuppressed(Boolean(message.speakerSuppressed));
+            if (!initialMuted) realtimeAudio?.releaseInput();
           }
           publish(muted ? 'muted' : (mode === 'dictation' ? 'recording' : 'listening'));
         }
@@ -170,7 +186,10 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
           finishStop(false, 'connect-timeout'); publish('error', 'Connection timed out.');
         }, 10000);
         processor.port.onmessage = (event) => {
-          if (active && !muted && socket === current && current.readyState === WebSocket.OPEN && current.bufferedAmount < 65536) current.send(event.data);
+          const pcm = realtimeAudio
+            ? realtimeAudio.acceptCapture(event.data)
+            : event.data?.type === 'capture' && event.data.epoch === 0 && event.data.pcm instanceof ArrayBuffer ? event.data.pcm : undefined;
+          if (pcm && active && !muted && socket === current && current.readyState === WebSocket.OPEN && current.bufferedAmount < 65536) current.send(pcm);
         };
         current.onopen = () => {
           if (socket !== current || !context) return;

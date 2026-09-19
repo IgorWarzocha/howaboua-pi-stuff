@@ -45,8 +45,9 @@ export function createBrowserTool(runtime: BrowserRuntime) {
 		label: "Browser",
 		description: "Control logged-in browser; call help before other actions",
 		parameters,
-		async execute(_toolCallId, input, signal, onUpdate) {
+		async execute(_toolCallId, input, signal, onUpdate, ctx) {
 			const result = await runtime.execute(browserRequest(input), {
+				ownerId: ctx.sessionManager.getSessionId(),
 				signal: signal ?? new AbortController().signal,
 				onOperation(operation, index, total) {
 					onUpdate?.({

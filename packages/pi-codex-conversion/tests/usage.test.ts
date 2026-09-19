@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCodexReserveStatus } from "../src/codex-usage/reserve-policy.ts";
 import {
+	codexUsageStatus,
 	parseCodexRateLimitResetCreditsPayload,
 	parseCodexUsagePayload,
 } from "../src/codex-usage/payload.ts";
 
-test("usage normalization keeps reserve display separate from account-bound switching", () => {
+test("usage normalization separates canonical quota windows from account-bound reserve switching", () => {
 	const payload = {
 		account_id: "account-a",
 		user_id: "user-a",
@@ -24,6 +25,20 @@ test("usage normalization keeps reserve display separate from account-bound swit
 	const snapshot = parseCodexUsagePayload(payload);
 	assert.equal(snapshot.resetCredits?.availableCount, 2);
 	assert.deepEqual(snapshot.limits[1], { limitId: "base_model_inference", limitName: "gpt-reserve", secondary: { usedPercent: 48, windowMinutes: 10_080, resetsAt: undefined } });
+	assert.deepEqual(codexUsageStatus(snapshot), { fiveHourUsageLeft: 0, weeklyUsageLeft: undefined });
+	const fiveHour = { used_percent: 23.5, limit_window_seconds: 18_000 };
+	const weekly = { used_percent: 65, limit_window_seconds: 604_800 };
+	for (const rateLimit of [
+		{ primary_window: fiveHour, secondary_window: weekly },
+		{ primary_window: weekly, secondary_window: fiveHour },
+	]) assert.deepEqual(codexUsageStatus(parseCodexUsagePayload({ rate_limit: rateLimit })), { fiveHourUsageLeft: 76.5, weeklyUsageLeft: 35 });
+	assert.deepEqual(codexUsageStatus(parseCodexUsagePayload({ rate_limit: { primary_window: weekly } })), { fiveHourUsageLeft: undefined, weeklyUsageLeft: 35 });
+	assert.deepEqual(codexUsageStatus(parseCodexUsagePayload({ rate_limit: {
+		primary_window: { ...fiveHour, used_percent: -1 }, secondary_window: { ...weekly, used_percent: 101 },
+	} })), { fiveHourUsageLeft: 100, weeklyUsageLeft: 0 });
+	assert.deepEqual(codexUsageStatus(parseCodexUsagePayload({ rate_limit: {
+		primary_window: { used_percent: 50 }, secondary_window: { limit_window_seconds: 604_800 },
+	} })), { fiveHourUsageLeft: undefined, weeklyUsageLeft: undefined });
 	const identity = { accountId: "account-a", userId: "user-a" };
 	const denied = { accountKey: JSON.stringify([identity.accountId, identity.userId]), entryAllowed: false, ordinaryUsageRecovered: false };
 	assert.deepEqual(parseCodexReserveStatus(payload, identity, "gpt-6-astra"), denied);

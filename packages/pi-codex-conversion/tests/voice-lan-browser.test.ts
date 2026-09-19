@@ -37,12 +37,23 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	assert.equal(hostStarts, 1);
 	assert.deepEqual(received, [Buffer.from([1, 0])]);
 	assert.deepEqual(
-		second.sent.map((value) => JSON.parse(value)),
+		second.sent.map((value) => JSON.parse(String(value))),
 		[
 			{ type: "connected" },
-			{ type: "active", mode: "conversation", muted: false },
+			{ type: "active", mode: "conversation", muted: false, speakerSuppressed: false },
 		],
 	);
+	clients.sendConversationAudio(Buffer.from([2, 0]));
+	clients.setConversationSpeakerSuppressed(true);
+	clients.setConversationSpeakerSuppressed(true);
+	clients.setConversationSpeakerSuppressed(false);
+	clients.sendConversationAudio(Buffer.from([3, 0]));
+	assert.deepEqual(second.sent.slice(-4), [
+		Buffer.from([2, 0]),
+		JSON.stringify({ type: "speaker_suppressed", suppressed: true }),
+		JSON.stringify({ type: "speaker_suppressed", suppressed: false }),
+		Buffer.from([3, 0]),
+	]);
 	second.receive({ type: "release" });
 	await settle();
 	second.receive({ type: "start", mode: "conversation" });
@@ -76,10 +87,11 @@ test("LAN browser takeover shares an in-progress host conversation setup", async
 	await settle();
 	assert.equal(hostStarts, 1);
 	assert.equal(first.readyState, WebSocket.CLOSED);
-	assert.deepEqual(second.sent.map((value) => JSON.parse(value)).at(-1), {
+	assert.deepEqual(second.sent.map((value) => JSON.parse(String(value))).at(-1), {
 		type: "active",
 		mode: "conversation",
 		muted: false,
+		speakerSuppressed: false,
 	});
 	await clients.close();
 });
@@ -105,12 +117,13 @@ function testBrowserClients(overrides: {
 
 class TestWebSocket extends EventEmitter {
 	readyState: number = WebSocket.OPEN;
-	readonly sent: string[] = [];
+	bufferedAmount = 0;
+	readonly sent: Array<string | Buffer> = [];
 
 	asWebSocket(): WebSocket {
 		return this as unknown as WebSocket;
 	}
-	send(value: string): void {
+	send(value: string | Buffer): void {
 		this.sent.push(value);
 	}
 	receive(value: unknown): void {

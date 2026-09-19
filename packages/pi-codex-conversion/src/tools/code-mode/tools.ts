@@ -10,7 +10,6 @@ import {
 	getCustomToolsDir,
 	getProjectCustomToolsDir,
 } from "./custom-tools.js";
-import { replaceCodeModeToolsPrompt } from "./custom-tool-prompt.js";
 import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
@@ -31,7 +30,6 @@ export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
 export interface CodeModeRegistration {
 	prepare(ctx?: unknown): Promise<void> | undefined;
-	refreshPromptTools(systemPrompt: string, ctx?: unknown): string;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
@@ -112,22 +110,6 @@ export async function registerCodeModeTools(
 	let active = true;
 	return {
 		prepare: (ctx) => runtime.prepare(ctx),
-		refreshPromptTools(systemPrompt, ctx) {
-			const activeProviders = runtime.activeProviders(ctx);
-			const documentationPath = activeProviders.find(
-				(provider) => provider.documentationPath,
-			)?.documentationPath;
-			const previousSection = runtime.getPromptSection();
-			const nextTools = runtime.refreshPromptTools(ctx);
-			const replacement = replaceCodeModeToolsPrompt(
-				systemPrompt,
-				previousSection,
-				nextTools,
-				documentationPath,
-			);
-			runtime.setPromptSection(replacement.section);
-			return replacement.systemPrompt;
-		},
 		checkpointNotebook: () => runtime.checkpointNotebook(),
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {

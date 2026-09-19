@@ -9,11 +9,19 @@ test("notebook request schema rejects action mismatches and normalization tolera
 	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "prune" }), false);
 	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "checkpoint", query: "scratch*" }), false);
 	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "save", names: ["scratch"] }), false);
+	for (const hook of ["startup", "tool_result", false] as const) {
+		assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "pin", names: ["setup"], hook }), true);
+		assert.deepEqual(normalizeNotebookRequest({ action: "pin", names: ["setup", "setup"], hook }), { action: "pin", names: ["setup"], hook });
+	}
+	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "unpin", names: ["setup"], hook: "tool_result" }), false);
+	assert.throws(() => normalizeNotebookRequest({ action: "checkpoint", hook: "startup" }), /hook requires pin/);
+	assert.throws(() => normalizeNotebookRequest({ action: "pin", names: ["setup"], hook: "unknown" } as never), /hook requires pin/);
 	assert.deepEqual(normalizeNotebookRequest({
 		action: "status",
 		query: null,
 		name: null,
 		names: null,
+		hook: null,
 	} as never), { action: "status" });
 });
 

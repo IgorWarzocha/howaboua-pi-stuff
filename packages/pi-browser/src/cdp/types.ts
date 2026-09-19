@@ -25,6 +25,8 @@ export interface PageInfo {
 	title: string;
 	url: string;
 	type?: string;
+	openerId?: string;
+	owned?: boolean;
 }
 
 export type ElementRefs = Map<number, number>;

@@ -5,28 +5,29 @@ import { isCanonicalCodexBaseUrl, isCanonicalCodexSubscriptionModel } from "../a
 import { DEFAULT_CODEX_BASE_URL, JWT_CLAIM_PATH } from "../providers/openai-codex/constants.ts";
 import { parseCodexReserveStatus, type CodexReserveStatus } from "./reserve-policy.ts";
 import {
-	codexWeeklyUsageLeft,
+	codexUsageStatus,
 	type CodexRateLimitResetConsumeResult,
 	type CodexRateLimitResetCredits,
 	type CodexUsageSnapshot,
+	type CodexUsageStatus,
 	parseCodexRateLimitResetConsumePayload,
 	parseCodexRateLimitResetCreditsPayload,
 	parseCodexUsagePayload,
 } from "./payload.ts";
 
 const RESET_CREDITS_CACHE_MS = 5_000;
-const WEEKLY_USAGE_CACHE_MS = 5 * 60_000;
-const WEEKLY_USAGE_TIMEOUT_MS = 10_000;
+const USAGE_STATUS_CACHE_MS = 5 * 60_000;
+const USAGE_TIMEOUT_MS = 10_000;
 
 type RuntimeModel = Model<Api>;
 
 let resetCreditsCache: { key: string; expiresAt: number; promise: Promise<CodexRateLimitResetCredits | undefined> } | undefined;
-const weeklyUsageCache = new Map<string, {
-	value?: number | undefined;
+const usageStatusCache = new Map<string, {
+	value?: CodexUsageStatus | undefined;
 	expiresAt: number;
-	promise?: Promise<number | undefined> | undefined;
+	promise?: Promise<CodexUsageStatus | undefined> | undefined;
 }>();
-const weeklyUsageKeyByModel = new WeakMap<RuntimeModel, string>();
+const usageStatusKeyByModel = new WeakMap<RuntimeModel, string>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -146,8 +147,8 @@ export async function fetchCodexReserveStatus(ctx: ExtensionContext): Promise<Co
 	const model = ctx.model;
 	if (!model || !isCanonicalCodexSubscriptionModel(model)) return undefined;
 	const signal = ctx.signal
-		? AbortSignal.any([ctx.signal, AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS)])
-		: AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
+		? AbortSignal.any([ctx.signal, AbortSignal.timeout(USAGE_TIMEOUT_MS)])
+		: AbortSignal.timeout(USAGE_TIMEOUT_MS);
 	const headers = await withAbort(buildCodexUsageHeaders(ctx, model), signal);
 	const { accountId, userId, fedramp } = extractIdentity((headers.get("authorization") ?? "").replace(/^Bearer /, ""));
 	if (!accountId || !userId || fedramp) return undefined;
@@ -159,10 +160,10 @@ export async function fetchCodexReserveStatus(ctx: ExtensionContext): Promise<Co
 	return parseCodexReserveStatus(snapshot.raw, { accountId, userId }, model.id);
 }
 
-export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {
+export async function fetchCodexUsageStatus(ctx: ExtensionContext): Promise<CodexUsageStatus | undefined> {
 	const model = ctx.model;
 	if (!model || !isCanonicalCodexSubscriptionModel(model)) return undefined;
-	const timeoutSignal = AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
+	const timeoutSignal = AbortSignal.timeout(USAGE_TIMEOUT_MS);
 	const signal = ctx.signal
 		? AbortSignal.any([ctx.signal, timeoutSignal])
 		: timeoutSignal;
@@ -170,18 +171,18 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 		const headers = await withAbort(buildCodexUsageHeaders(ctx, model), signal);
 		const key = usageCacheKey(headers);
 		if (!key) return undefined;
-		weeklyUsageKeyByModel.set(model, key);
-		const cached = weeklyUsageCache.get(key);
+		usageStatusKeyByModel.set(model, key);
+		const cached = usageStatusCache.get(key);
 		if (cached?.expiresAt && cached.expiresAt > Date.now()) return cached.value;
 		if (cached?.promise) return cached.promise;
 		const entry = cached ?? { expiresAt: 0 };
 		const previous = entry.value;
 		const promise = (async () => {
 			try {
-				entry.value = codexWeeklyUsageLeft(
+				entry.value = codexUsageStatus(
 					await fetchCodexUsageWithHeaders(headers, signal, false),
 				);
-				entry.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
+				entry.expiresAt = Date.now() + USAGE_STATUS_CACHE_MS;
 			} catch {
 				entry.value = previous;
 			} finally {
@@ -190,11 +191,11 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 			return entry.value;
 		})();
 		entry.promise = promise;
-		weeklyUsageCache.set(key, entry);
+		usageStatusCache.set(key, entry);
 		return promise;
 	} catch {
-		const previousKey = weeklyUsageKeyByModel.get(model);
-		return previousKey ? weeklyUsageCache.get(previousKey)?.value : undefined;
+		const previousKey = usageStatusKeyByModel.get(model);
+		return previousKey ? usageStatusCache.get(previousKey)?.value : undefined;
 	}
 }
 
@@ -232,7 +233,7 @@ export async function consumeCodexRateLimitResetCredit(ctx: ExtensionContext, re
 	const result = parseCodexRateLimitResetConsumePayload(JSON.parse(text));
 	if (result.outcome === "reset" || result.outcome === "already_redeemed") {
 		const key = usageCacheKey(headers);
-		if (key) weeklyUsageCache.delete(key);
+		if (key) usageStatusCache.delete(key);
 	}
 	return result;
 }

@@ -10,6 +10,8 @@ async function createRealtimeBrowserAudio(stream) {
   let source;
   let microphoneBuffer;
   let processor;
+  let inputEpoch = 0;
+  let speakerSuppressed = false;
   try {
     const microphoneUrl = URL.createObjectURL(new Blob([${MICROPHONE_WORKLET_SOURCE}], { type:'text/javascript' }));
     const audioUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
@@ -26,8 +28,21 @@ async function createRealtimeBrowserAudio(stream) {
     return {
       context,
       processor,
+      acceptCapture(value) { return value?.type === 'capture' && value.epoch === inputEpoch && value.pcm instanceof ArrayBuffer ? value.pcm : undefined; },
       releaseInput() { microphoneBuffer.port.postMessage({ type:'release' }); },
-      play(pcm) { processor.port.postMessage(pcm, [pcm]); },
+      setInputMuted(muted) {
+        inputEpoch += 1;
+        const command = { type:'input_muted', muted:Boolean(muted), epoch:inputEpoch };
+        microphoneBuffer.port.postMessage(command);
+        processor.port.postMessage(command);
+      },
+      setSpeakerSuppressed(suppressed) {
+        const next = Boolean(suppressed);
+        if (speakerSuppressed === next) return;
+        speakerSuppressed = next;
+        processor.port.postMessage({ type:'speaker_suppressed', suppressed:next });
+      },
+      play(pcm) { if (!speakerSuppressed) processor.port.postMessage(pcm, [pcm]); },
       close() {
         processor.disconnect();
         microphoneBuffer.disconnect();

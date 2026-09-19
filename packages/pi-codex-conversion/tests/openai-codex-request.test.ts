@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { InMemoryCredentialStore, InMemoryModelsStore } from "@earendil-works/pi-ai";
+import { InMemoryCredentialStore, InMemoryModelsStore, normalizeContext } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
+import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
 import {
 	buildSSEHeaders,
 	buildWebSocketHeaders,
@@ -66,11 +67,11 @@ async function assertCodexCatalogComposition() {
 function assertCodexRequestShape() {
 	const body = buildRequestBody(
 		codexModel,
-		{
+		normalizeContext({
 			systemPrompt: "Instructions",
 			messages: [{ role: "user", content: "Hello" } as never],
 			tools: [exampleTool],
-		},
+		}),
 		{
 			sessionId: "session-" + "x".repeat(80),
 			serviceTier: "priority",
@@ -114,14 +115,78 @@ function assertCodexRequestShape() {
 	assert.equal("max_output_tokens" in body, false, "Codex ChatGPT backend rejects max_output_tokens");
 	assert.equal("max_completion_tokens" in body, false, "Codex ChatGPT backend rejects max token aliases here");
 
-	const normalModeBody = buildRequestBody(codexModel, {
+	const normalModeBody = buildRequestBody(codexModel, normalizeContext({
 		messages: [],
 		tools: codeModeTools,
-	});
+	}));
 	assert.deepEqual(
 		(normalModeBody.tools as Array<{ type: string; name: string }>).map(({ type, name }) => [type, name]),
 		[["function", "exec"], ["function", "wait"]],
 	);
+}
+
+function assertTranscriptSerialization() {
+	const transcriptModel = {
+		...(codexModel as object),
+		compat: {
+			supportsOpenAIGrammarTools: true,
+			supportsMidConvoSystemMessages: true,
+			supportsAdditionalTools: true,
+		},
+	} as never;
+	const transcript = normalizeContext({
+		messages: [
+			{ role: "system", content: "Base", sections: { rules: "<rules>old</rules>" }, toolsAdded: [exampleTool], timestamp: 0 },
+			{ role: "user", content: "Run it", timestamp: 1 },
+			{ role: "system", content: "Use the new runner", sections: { rules: "<rules>new</rules>" }, toolsAdded: [codeModeTools[0]], timestamp: 2 },
+			{
+				role: "assistant",
+				content: [{ type: "toolCall", id: "call_exec|ctc_exec", name: "exec", arguments: { code: "return 1" } }],
+				api: "openai-codex-responses",
+				provider: "openai-codex",
+				model: "gpt-5.4",
+				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+				stopReason: "toolUse",
+				timestamp: 3,
+			},
+			{ role: "toolResult", toolCallId: "call_exec|ctc_exec", toolName: "exec", content: [{ type: "text", text: "1" }], isError: false, timestamp: 4 },
+			{ role: "system", content: "", toolsRemoved: [{ name: "exec" }], timestamp: 5 },
+		] as never,
+	});
+	const body = buildRequestBody(transcriptModel, transcript);
+	assert.equal(body.instructions, "Base\n\n<rules>old</rules>");
+	assert.deepEqual((body.tools as Array<{ name: string }>).map(({ name }) => name), ["example_tool"]);
+	assert.equal(body.input.some((item) => (item as { type?: string }).type === "additional_tools"), false);
+	assert.deepEqual(
+		body.input.filter((item) => "role" in (item as object)).map((item) => (item as { role: string; content: unknown }).role),
+		["user", "developer"],
+	);
+	assert.match(JSON.stringify(body.input), /Updated system prompt section \\"rules\\"/);
+	assert.ok(body.input.some((item) => (item as { type?: string }).type === "custom_tool_call"), "historical grammar calls use every declared tool");
+	const liteAfterRemoval = applyResponsesLiteRequest(body);
+	assert.deepEqual(
+		(liteAfterRemoval.input[0] as { tools: Array<{ tools: Array<{ name: string }> }> }).tools[0]?.tools.map(({ name }) => name),
+		["example_tool"],
+	);
+	assert.equal(liteAfterRemoval.input.slice(1).some((item) => (item as { type?: string }).type === "additional_tools"), false);
+
+	const searched = buildRequestBody({
+		...(codexModel as object),
+		compat: { supportsDeveloperRole: false, supportsMidConvoSystemMessages: true, supportsToolSearch: true },
+	} as never, normalizeContext({
+		messages: [
+			{ role: "system", content: "Base", toolsAdded: [exampleTool], timestamp: 0 },
+			{ role: "user", content: "Find it", timestamp: 1 },
+			{ role: "system", content: "Search update", toolsAdded: [codeModeTools[1]], timestamp: 2 },
+		] as never,
+	}));
+	assert.deepEqual(searched.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), [
+		"user",
+		"tool_search_call",
+		"tool_search_output",
+		"system",
+	]);
+	assert.equal(JSON.stringify(searched.input).includes('"defer_loading":true'), true);
 }
 
 function assertStrictToolConstraints() {
@@ -143,9 +208,9 @@ function assertStrictToolConstraints() {
 		parameters,
 		constrainedSampling: { type: "json_schema", strict: "prefer" },
 	};
-	const ordinaryBody = buildRequestBody(codexModel, { messages: [], tools: [{ ...strictTool, constrainedSampling: undefined }] } as never);
+	const ordinaryBody = buildRequestBody(codexModel, normalizeContext({ messages: [], tools: [{ ...strictTool, constrainedSampling: undefined }] } as never));
 	assert.deepEqual(ordinaryBody.tools, [{ type: "function", name: "strict_tool", description: "Strict tool", parameters, strict: false }]);
-	const body = buildRequestBody(codexModel, { messages: [], tools: [strictTool] } as never);
+	const body = buildRequestBody(codexModel, normalizeContext({ messages: [], tools: [strictTool] } as never));
 	assert.deepEqual(body.tools, [{
 		type: "function",
 		name: "strict_tool",
@@ -175,32 +240,33 @@ function assertStrictToolConstraints() {
 		properties: {},
 		additionalProperties: { type: "string" },
 	};
-	const fallback = buildRequestBody(codexModel, {
+	const fallback = buildRequestBody(codexModel, normalizeContext({
 		messages: [],
 		tools: [{ ...strictTool, parameters: unsupportedParameters }],
-	} as never).tools as Array<{ strict: boolean | null; parameters: unknown }>;
+	} as never)).tools as Array<{ strict: boolean | null; parameters: unknown }>;
 	assert.equal(fallback[0]?.strict, false);
 	assert.equal(fallback[0]?.parameters, unsupportedParameters);
 
-	assert.throws(() => buildRequestBody(codexModel, {
+	assert.throws(() => buildRequestBody(codexModel, normalizeContext({
 		messages: [],
 		tools: [{
 			...strictTool,
 			parameters: unsupportedParameters,
 			constrainedSampling: { type: "json_schema", strict: "require" },
 		}],
-	} as never), /requires JSON-schema constrained sampling.*additionalProperties is unsupported/);
+	} as never)), /requires JSON-schema constrained sampling.*additionalProperties is unsupported/);
 
 	const unsupportedProviderBody = buildRequestBody({
 		...(codexModel as object),
 		compat: { supportsStrictMode: false },
-	} as never, { messages: [], tools: [strictTool] } as never);
+	} as never, normalizeContext({ messages: [], tools: [strictTool] } as never));
 	assert.equal("strict" in (unsupportedProviderBody.tools as object[])[0]!, false);
 }
 
 test("Codex catalog composition and request serialization preserve user overrides, strict schemas and Fast Mode identity", async () => {
 	await assertCodexCatalogComposition();
 	assertCodexRequestShape();
+	assertTranscriptSerialization();
 	assertStrictToolConstraints();
 	const model = "gpt-5.6-luna";
 	const fastRouting = resolveCodexRequestRouting({
@@ -271,9 +337,14 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 			toolCallId: "call_search_2|fc_search_2",
 			toolName: "search_tools",
 			content: [{ type: "text", text: "Loaded tools: deferred_exec" }],
-			addedToolNames: ["deferred_exec"],
 			isError: false,
 			timestamp: 4,
+		},
+		{
+			role: "system",
+			content: "",
+			toolsAdded: [deferredExec],
+			timestamp: 5,
 		},
 	] as never;
 	let captured: RequestInit | undefined;
@@ -287,8 +358,8 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		}) as typeof fetch;
 
 		const events = await collectStream(registered.provider.streamSimple(
-			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsAdditionalTools: true, supportsToolSearch: true } } as never,
-			{ systemPrompt: "Lite instructions", messages, tools: [...codeModeTools, searchToolsTool, exampleTool, deferredExec] } as never,
+			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true } } as never,
+			normalizeContext({ systemPrompt: "Lite instructions", messages, tools: [...codeModeTools, searchToolsTool] } as never),
 			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", reasoning: "medium", toolChoice: "required" } as never,
 		));
 
@@ -313,7 +384,6 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		]);
 		assert.deepEqual(additionalTools[2].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
 		assert.deepEqual(additionalTools[2].tools[0].tools.map((tool: { type: string; name: string; defer_loading?: boolean }) => [tool.type, tool.name, tool.defer_loading]), [
-			["function", "example_tool", undefined],
 			["custom", "deferred_exec", undefined],
 		]);
 		assert.equal(body.input.some((item: { type?: string }) => item.type === "tool_search_output"), false);
@@ -341,8 +411,8 @@ test("Codex turn state is captured and replayed on SSE follow-ups", async () => 
 
 		const options = { apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never;
 		const model = { ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api" } as never;
-		await collectStream(registered.provider.streamSimple(model, { systemPrompt: "Instructions", messages: [] } as never, options));
-		await collectStream(registered.provider.streamSimple(model, { systemPrompt: "Instructions", messages: [] } as never, options));
+		await collectStream(registered.provider.streamSimple(model, normalizeContext({ systemPrompt: "Instructions", messages: [] }), options));
+		await collectStream(registered.provider.streamSimple(model, normalizeContext({ systemPrompt: "Instructions", messages: [] }), options));
 
 		assert.equal(capturedHeaders[0]!.get("x-codex-turn-state"), null);
 		assert.equal(capturedHeaders[1]!.get("x-codex-turn-state"), "ts-1");

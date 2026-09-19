@@ -8,14 +8,14 @@ import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compactio
 import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
-import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
+import { extractPiPromptSkills, prepareCodexSystemPrompt, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
+import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { parseRealtimeVoicePrompt, REALTIME_VOICE_PROMPT_CHANNEL } from "../realtime-voice.ts";
 import { initializeBashParser } from "../shell/bash.ts";
-import { prepareVoiceDelegation } from "../voice/delegation-preflight.ts";
 import { appendNotebookTreeEpoch } from "../tools/notebook-mode/session-identity.ts";
 import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnostics.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -71,13 +71,13 @@ export function registerCodexEvents(
 	const reserve = createCodexReserveController(pi);
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
-	let turnPrewarm: ReturnType<CodexExtensionRuntime["waitForPrewarm"]>;
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
 		pi,
 		() => Boolean(
 			activeContext &&
 			supportsCodexDeveloperMessages(activeContext, state),
 		),
+		() => activeContext?.isIdle() ?? false,
 	);
 	const unregisterExtensionToolRefresh = onCodeModeExtensionToolsRefresh(
 		pi,
@@ -95,12 +95,10 @@ export function registerCodexEvents(
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);
 	});
-	runtime.voice.setDelegationPreflight((ctx, signal) => prepareVoiceDelegation(runtime, codeMode, ctx, signal));
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
 		updateCodexPreparedIdleKickoff(pi, "session_reset");
-		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
@@ -119,10 +117,7 @@ export function registerCodexEvents(
 			cwd: ctx.cwd,
 			projectTrusted: ctx.isProjectTrusted(),
 		});
-		state.weeklyUsageLeft = undefined;
 		state.executionMode = state.config.executionMode;
-		state.activeProviderSystemPrompt = undefined;
-		state.voiceSystemPromptOverride = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -145,8 +140,6 @@ export function registerCodexEvents(
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
-		if (!state.config.prompt.heavySystemPromptOverwrite)
-			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
@@ -156,15 +149,11 @@ export function registerCodexEvents(
 	pi.on("model_select", async (_event, ctx) => {
 		state.contextTree.handoff.reset();
 		reserve.modelSelected(ctx);
-		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
-		state.activeProviderSystemPrompt = undefined;
-		state.voiceSystemPromptOverride = undefined;
-		state.weeklyUsageLeft = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
@@ -182,8 +171,6 @@ export function registerCodexEvents(
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
-		if (!state.config.prompt.heavySystemPromptOverwrite)
-			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
 	pi.on("session_before_switch", () => state.contextTree.handoff.active ? { cancel: true } : undefined);
 	pi.on("session_before_fork", () => state.contextTree.handoff.active ? { cancel: true } : undefined);
@@ -196,12 +183,9 @@ export function registerCodexEvents(
 	});
 	pi.on("session_tree", async (event, ctx) => {
 		updateCodexPreparedIdleKickoff(pi, "session_reset");
-		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		const previousMode = state.executionMode;
-		state.activeProviderSystemPrompt = undefined;
-		state.voiceSystemPromptOverride = undefined;
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		if (state.contextTree.handleSessionTree(event)) return;
 		if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
@@ -263,9 +247,7 @@ export function registerCodexEvents(
 		);
 	});
 	pi.on("message_update", async (event) => {
-		const update = event.assistantMessageEvent;
-		if (update.type === "text_delta" && typeof update.delta === "string")
-			runtime.voice.streamDelta(update.delta);
+		runtime.voice.streamUpdate(event.assistantMessageEvent);
 	});
 	pi.on("tool_execution_start", async (event) => {
 		if (event.toolName !== "exec_command") {
@@ -281,7 +263,6 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		updateCodexPreparedIdleKickoff(pi, "session_reset");
-		turnPrewarm = undefined;
 		const failures: unknown[] = [];
 		pendingExtensionToolRefresh = false;
 		await runShutdownStep(failures, unregisterExtensionToolRefresh);
@@ -326,28 +307,19 @@ export function registerCodexEvents(
 		state.contextTree.handoff.preparing(event.prompt);
 		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
-		turnPrewarm = undefined;
-		const systemPrompt = event.systemPrompt;
-		state.voiceSystemPromptOverride = undefined;
-		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, state))) {
-			state.activeProviderSystemPrompt = undefined;
-			state.pendingActiveProviderPromptCapture = false;
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		if (!isAdapterRuntime(plan)) {
+			state.preparedPrompt = undefined;
 			return undefined;
 		}
 		recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx));
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
-		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
-		state.activeProviderSystemPrompt = codexSystemPrompt;
-		state.pendingActiveProviderPromptCapture = true;
-		// Let Pi display the submitted message; serialize transport at the request boundary.
-		turnPrewarm = runtime.waitForPrewarm(ctx, codexSystemPrompt)?.catch((error: unknown) => {
-			const failure = error instanceof Error ? error : new Error(String(error));
-			ctx.ui.notify(`Codex WebSocket prewarm failed: ${failure.message}`, "warning");
-			return { status: "failed" as const, error: failure };
+		prepareCodexSystemPrompt(event.systemPromptOptions, {
+			skills,
+			shell: getPiCodexRuntimeShell(ctx),
+			mode: plan.prompt ?? "normal",
+			heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
 		});
-		return {
-			systemPrompt: codexSystemPrompt,
-		};
 	});
 	pi.on("agent_start", async (_event, ctx) => {
 		state.contextWindows.beginTurn(ctx);
@@ -355,6 +327,8 @@ export function registerCodexEvents(
 		state.contextTree.handoff.started(ctx);
 		runtime.autoReasoning.begin(ctx);
 		runtime.cancelCacheKeepalive();
+		// Final serialization sees every extension's prompt and native tool edits.
+		runtime.prepareTurn(ctx);
 		runtime.voice.agentStarted();
 		runtime.lanVoice.agentStarted();
 	});
@@ -365,6 +339,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		runtime.finishTurn();
 		state.contextWindows.settleTurn(ctx);
 		updateCodexPreparedIdleKickoff(pi, "agent_settled");
 		flushCodexReasoningUpdates(pi, ctx);
@@ -377,13 +352,10 @@ export function registerCodexEvents(
 		let rolled = false;
 		let continued = false;
 		try {
-			turnPrewarm = undefined;
 			if (pendingExtensionToolRefresh) {
 				pendingExtensionToolRefresh = false;
 				syncAdapter(pi, ctx, state);
 			}
-			state.pendingActiveProviderPromptCapture = false;
-			state.voiceSystemPromptOverride = undefined;
 			state.codexTurnState.reset();
 			runtime.voice.settleTurn();
 			runtime.lanVoice.agentSettled();
@@ -398,7 +370,6 @@ export function registerCodexEvents(
 		if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isHybridCompactionRunning()) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
-		await turnPrewarm;
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
 	});
@@ -407,6 +378,8 @@ export function registerCodexEvents(
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		if (state.contextTree.handoff.active) return { cancel: true };
+		// Summaries can share the model/session routing; keep the live checkpoint.
+		runtime.finishTurn();
 		state.cwd = ctx.cwd;
 		const plan = resolveCodexRuntimePlanForState(
 			ctx,
@@ -476,7 +449,6 @@ export function registerCodexEvents(
 			state.pendingPiCompactionNativeWindow = undefined;
 			state.contextWindows.recordCompaction(event.compactionEntry.details);
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
-			let nativeCompaction = false;
 			let treeRolloverScheduled = false;
 			const contextCompaction =
 				event.fromExtension &&
@@ -484,7 +456,6 @@ export function registerCodexEvents(
 			const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
 			if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
 				const details = compactionEntry.details;
-				nativeCompaction = true;
 				// Presentation entries persist and render without entering Pi's turn queue or LLM context.
 				pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
 					content: hasPortableNativeCompactionSummary(compactionEntry)
@@ -533,17 +504,11 @@ export function registerCodexEvents(
 					});
 				}
 			}
-			const postCompactionPrompt = codeMode.refreshPromptTools(
-				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
-				ctx,
-			);
-			state.activeProviderSystemPrompt = postCompactionPrompt;
 			if (!treeRolloverScheduled) {
 				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 				// Tool-requested rollover appends its marker in onComplete; do not prewarm the old window.
-				if (!state.contextWindows.isHybridCompactionRunning() && !state.contextKickoff.pending) await (nativeCompaction
-					? runtime.startCompactionPrewarm(ctx)
-					: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+				if (!state.contextWindows.isHybridCompactionRunning() && !state.contextKickoff.pending)
+					await runtime.startCompactionPrewarm(ctx);
 			}
 			// Hybrid refreshes at its window boundary, after compaction and before continuation.
 			if (!contextCompaction && !plan.contextManagementHybrid)

@@ -1,16 +1,24 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { Api, Context, Model, Provider } from "@earendil-works/pi-ai";
+import {
+	getDeclaredTools,
+	normalizeContext,
+	type Api,
+	type Context,
+	type Model,
+	type Provider,
+	type TranscriptContext,
+} from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
-import { buildRequestBody } from "./openai-codex/request-body.ts";
+import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
 import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
 import { CODEX_RESERVE_MODEL } from "../codex-usage/reserve-policy.ts";
 import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
-import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
+import type { BeforeCodexRequestSend, CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { codexCacheKeepaliveSocketSessionId, prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
@@ -40,7 +48,7 @@ export function closeOpenAICodexKeepaliveWebSocketSession(sessionId: string): vo
 
 async function prepareCodexRequestBody<TApi extends Api>(
 	model: Model<TApi>,
-	context: Context,
+	context: TranscriptContext,
 	options: OpenAICodexStreamOptions | undefined,
 	responsesLite: boolean,
 ): Promise<ResponsesBody> {
@@ -78,14 +86,42 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
+	const transcript = normalizeContext(context);
+	const resolvedContext = resolveCodexTranscript(model, transcript);
 	const responsesLite = deps.useResponsesLite?.(model)
 		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook")
 			&& supportsResponsesLiteModel(model.id));
-	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
+	const modelSupportsGrammarTools = (model.compat as { supportsOpenAIGrammarTools?: boolean | undefined } | undefined)
+		?.supportsOpenAIGrammarTools ?? false;
+	const grammarToolInputProperties = createGrammarToolInputProperties(
+		getDeclaredTools(transcript.messages),
+		responsesLite || modelSupportsGrammarTools,
+	);
 	const effectiveOptions = runtimeConfig?.compaction?.responsesCompaction
 		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }
 		: { ...options, grammarToolInputProperties };
-	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
+	const body = await prepareCodexRequestBody(model, resolvedContext, effectiveOptions, responsesLite);
+	return prewarmPreparedOpenAICodexWebSocket(model, body, effectiveOptions, responsesLite, deps);
+}
+
+export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
+	model: Model<TApi>,
+	body: ResponsesBody,
+	options: OpenAICodexStreamOptions,
+	responsesLite: boolean,
+	deps: {
+		getConfig?: () => CodexProviderRuntimeConfig | undefined;
+		turnState?: CodexTurnState | undefined;
+		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+		preserveContinuation?: boolean | undefined;
+		retainSocket?: boolean | undefined;
+		generate?: boolean | undefined;
+		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
+	},
+): Promise<CodexPrewarmResult | undefined> {
+	const runtimeConfig = deps.getConfig?.();
+	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
+	if (!options.apiKey || !options.sessionId) return;
 	const accountId = extractAccountId(options.apiKey);
 	const routing = resolveCodexRequestRouting({
 		model: body.model,
@@ -93,7 +129,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		serviceTier: body.service_tier,
 		normalOriginator: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi",
 	});
-	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, routing.originator, routing.routingHint);
+	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId, routing.originator, routing.routingHint);
 	const turnState = deps.preserveContinuation ? undefined : deps.turnState;
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
@@ -103,7 +139,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 			websocketBody,
 			headers,
 			accountId,
-			effectiveOptions,
+			options,
 			turnState,
 			diagnostics,
 			deps.preserveContinuation,
@@ -125,15 +161,17 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 	useResponsesLite?: (model: Model<Api>) => boolean;
 	turnState?: CodexTurnState | undefined;
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
+	beforeRequestSend?: BeforeCodexRequestSend | undefined;
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 }): void {
-	const streamSimple = (model: Model<Api>, context: Context, streamOptions?: CodexProviderStreamOptions) => {
+	const streamSimple = (model: Model<Api>, context: TranscriptContext, streamOptions?: CodexProviderStreamOptions) => {
 		const stream = createCodexTransportStream(model, context, streamOptions, {
 			prepareRequestBody: prepareCodexRequestBody,
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
 			...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
 			...(options.turnState ? { turnState: options.turnState } : {}),
 			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
+			...(options.beforeRequestSend ? { beforeRequestSend: options.beforeRequestSend } : {}),
 			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
 		});
 		return hasContextNamespaceRouters(context)

@@ -1,11 +1,12 @@
 import {
 	createAssistantMessageEventStream,
+	getDeclaredTools,
 	type Api,
 	type AssistantMessage,
-	type Context,
 	type Model,
 	type ProviderHeaders,
 	type SimpleStreamOptions,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
@@ -13,10 +14,10 @@ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/r
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
-import { buildRequestBody } from "./openai-codex/request-body.ts";
+import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
-import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
+import type { BeforeCodexRequestSend, OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 import {
 	hasContextNamespaceRouters,
 	routeContextNamespaceToolStream,
@@ -83,8 +84,9 @@ async function reportErrorResponse<TApi extends Api>(
 
 export function streamCodeModeResponsesProxy<TApi extends Api>(
 	model: Model<TApi>,
-	context: Context,
+	context: TranscriptContext,
 	options?: SimpleStreamOptions,
+	beforeRequestSend?: BeforeCodexRequestSend,
 ) {
 	const stream = createAssistantMessageEventStream();
 	const output = initialAssistantMessage(model);
@@ -92,10 +94,11 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 	void (async () => {
 		try {
 			const { default: OpenAI, APIError } = await import("openai");
-			const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, true);
+			const resolvedContext = resolveCodexTranscript(model, context);
+			const grammarToolInputProperties = createGrammarToolInputProperties(getDeclaredTools(context.messages), true);
 			const effectiveOptions = { ...options, grammarToolInputProperties };
 			let headers = mergeHeaders(model.headers, options?.headers);
-			let body: ResponsesBody = buildRequestBody(model, context, effectiveOptions);
+			let body: ResponsesBody = buildRequestBody(model, resolvedContext, effectiveOptions);
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
 			body = isResponsesLiteRequest(body)
@@ -103,6 +106,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				: applyResponsesLiteRequest(body);
 			body = await prepareResponsesLiteRequestImages(body);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
+			await beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, true);
 
 			const auth = clientAuth(model.provider, options?.apiKey, headers);
 			const client = new OpenAI({
@@ -200,6 +204,7 @@ export function registerCodeModeProxyProvider(
 	getConfig: () => CodexConversionConfig,
 	getExecutionMode: () => ExecutionMode | undefined = () => undefined,
 	getAvailableToolNames: () => string[] | undefined = () => undefined,
+	beforeRequestSend?: BeforeCodexRequestSend,
 ): CodeModeProxyProviderRegistration {
 	const registeredProviders = new Map<string, {
 		previous: RegisteredProviderConfig | undefined;
@@ -257,7 +262,7 @@ export function registerCodeModeProxyProvider(
 					model.api === "openai-responses" &&
 					plan.transport === "responses-lite"
 				)
-					return streamCodeModeResponsesProxy(model, context, options);
+					return streamCodeModeResponsesProxy(model, context, options, beforeRequestSend);
 				const stream = fallbackProvider.streamSimple(
 					model as never,
 					context,

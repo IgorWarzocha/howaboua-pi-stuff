@@ -94,6 +94,21 @@ test("adapter activation requires registered tools and follows scope independent
 		assert.deepEqual(resolveCodexRuntimePlanForState(ctx as never, state), plan);
 		assert.match(String(statuses.at(-1)), /Codex adapter off: unavailable tools/);
 	}
+	const emptyAllowlist = createToolHarness([], ALL_CODEX_ADAPTER_TOOL_NAMES);
+	const emptyAllowlistState = createAdapterState({ executionMode: "code" });
+	syncAdapter(
+		emptyAllowlist as never,
+		createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-6-astra" }) as never,
+		emptyAllowlistState,
+	);
+	assert.deepEqual(emptyAllowlist.activeTools(), ["exec", "wait"]);
+	syncAdapter(
+		emptyAllowlist as never,
+		createContext({ provider: "meta", api: "openai-responses", id: "muse" }) as never,
+		emptyAllowlistState,
+	);
+	assert.deepEqual(emptyAllowlist.activeTools(), []);
+
 	const cases = [
 		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: true, active: true },
@@ -154,6 +169,42 @@ test("adapter activation requires registered tools and follows scope independent
 		),
 		["agents"],
 	);
+	dynamic.registerTool({ name: "temporary" });
+	dynamic.setActiveTools(["wait", "read", "temporary"]);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(dynamic.activeTools(), ["wait", "read", "temporary"]);
+
+	dynamicState.executionMode = "normal";
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.equal(dynamic.activeTools().includes("agents"), true);
+	assert.equal(dynamic.activeTools().includes("temporary"), true);
+	dynamic.setActiveTools(["read", "apply_patch", "temporary"]);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(dynamic.activeTools(), ["read", "apply_patch", "temporary"]);
+
+	dynamicState.executionMode = "code";
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(dynamic.activeTools(), ["exec", "wait", "temporary"]);
+	assert.deepEqual(
+		getCodeModeExtensionTools(
+			dynamic as never,
+			dynamicContext as never,
+			dynamicState.previousToolNames,
+		),
+		[],
+	);
+	dynamic.setActiveTools([...dynamic.activeTools(), "agents"]);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(dynamic.activeTools(), ["exec", "wait", "temporary"]);
+	assert.deepEqual(
+		getCodeModeExtensionTools(
+			dynamic as never,
+			dynamicContext as never,
+			dynamicState.previousToolNames,
+		).map((tool) => tool.name),
+		["agents"],
+	);
+
 	dynamicState.executionMode = "normal";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.equal(dynamic.activeTools().includes("agents"), true);

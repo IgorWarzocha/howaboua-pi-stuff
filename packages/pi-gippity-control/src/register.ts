@@ -74,9 +74,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		lanVoice.piEvent("message_end", event);
 	});
 	pi.on("message_update", async (event) => {
-		const update = event.assistantMessageEvent;
-		if (update.type === "text_delta" && typeof update.delta === "string")
-			voice.streamDelta(update.delta);
+		voice.streamUpdate(event.assistantMessageEvent);
 		lanVoice.piEvent("message_update", event);
 	});
 	pi.on("input", async (event) => {

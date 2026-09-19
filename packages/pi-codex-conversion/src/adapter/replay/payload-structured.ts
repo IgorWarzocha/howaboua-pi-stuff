@@ -7,7 +7,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function isResponsesInputContentItem(value: unknown): value is ResponsesInputContentItem {
 	if (!isRecord(value) || typeof value["type"]! !== "string") return false;
 	if (value["type"] === "input_text") return typeof value["text"]! === "string";
-	if (value["type"] === "input_image") return value["detail"] === "auto" && typeof value["image_url"]! === "string";
+	if (value["type"] === "input_image") return (value["detail"] === "auto" || value["detail"] === "high" || value["detail"] === "original")
+		&& typeof value["image_url"]! === "string";
 	if (value["type"] === "encrypted_content") return typeof value["encrypted_content"]! === "string";
 	return false;
 }
@@ -28,7 +29,7 @@ export function isResponsesInputMessageItem(value: unknown): value is ResponsesI
 function cloneResponsesInputContentItem(item: ResponsesInputContentItem): ResponsesInputContentItem {
 	if (item.type === "input_text") return { type: "input_text", text: item.text };
 	if (item.type === "encrypted_content") return { type: "encrypted_content", encrypted_content: item.encrypted_content };
-	return { type: "input_image", detail: "auto", image_url: item.image_url };
+	return { type: "input_image", detail: item.detail, image_url: item.image_url };
 }
 
 export function cloneResponsesInputMessageItem(item: ResponsesInputMessageItem): ResponsesInputMessageItem {

@@ -13,6 +13,7 @@ import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
 import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
+import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "./activation/tool-set.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 import { createContextWindowTools } from "../context-management/tools.ts";
 
@@ -22,8 +23,15 @@ export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
-	const isActive = (ctx: unknown) =>
-		isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state));
+	const isActive = (ctx: unknown) => {
+		const plan = resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state);
+		if (!isCodeModeRuntime(plan)) return false;
+		const requiredTools = plan.kind === "notebook"
+			? NOTEBOOK_MODE_TOOL_NAMES
+			: CODE_MODE_TOOL_NAMES;
+		const activeTools = pi.getActiveTools();
+		return requiredTools.every((name) => activeTools.includes(name));
+	};
 	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
@@ -32,7 +40,11 @@ export async function registerCodexCodeMode(
 			const context = ctx as ExtensionContext | undefined;
 			return [
 				...createNestedTools(pi, runtime, context),
-				...getCodeModeExtensionTools(pi, context),
+				...getCodeModeExtensionTools(
+					pi,
+					context,
+					runtime.state.previousToolNames ?? pi.getActiveTools(),
+				),
 			];
 		},
 		isActive,
@@ -51,8 +63,6 @@ export async function registerCodexCodeMode(
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
-		refreshPromptTools: (systemPrompt, ctx) =>
-			programmaticRuntime.refreshPromptTools(systemPrompt, ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
@@ -67,6 +77,9 @@ function createNestedTools(
 	runtime: CodexExtensionRuntime,
 	ctx?: ExtensionContext,
 ): ProgrammaticCodeModeToolDefinition[] {
+	const registeredToolNames = new Set(
+		pi.getAllTools().map((tool) => tool.name),
+	);
 	const options = {
 		describeImagesForTextModels: runtime.state.config.tools.viewImageFallback,
 		promptSnippet: false,
@@ -186,7 +199,7 @@ function createNestedTools(
 	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning) {
 		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" }) // ${runtime.autoReasoning.tool.description}`));
 	}
-	return tools;
+	return tools.filter((tool) => registeredToolNames.has(tool.name));
 }
 
 function isExecResult(details: AgentToolResult<unknown>["details"]): details is Record<string, unknown> & { output: string } {

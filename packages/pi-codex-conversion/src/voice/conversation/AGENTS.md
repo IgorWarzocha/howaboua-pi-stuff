@@ -3,4 +3,5 @@
 - Stream Pi progress through session speakable context so successive updates extend live speech; the final reply or unsent final tail belongs to its delegation.
 - Keep Pi session mutation and custom-card queueing outside this subtree; emit typed turns and callbacks.
 - VAD and conversational interruption belong here. Never copy them into manual dictation.
+- `playback.ts` owns spoken-interruption generations; typed input never changes speaker suppression. Quiet turns accept audio before captions.
 - Keep speech and Pi concurrent with request-scoped waits only; never block independent talk on tools, agent, compaction, prewarm, or settlement.

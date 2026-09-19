@@ -31,7 +31,7 @@ const SUPPLEMENTAL_MODELS: Model<"openai-codex-responses">[] = [
 		contextWindow: 272_000,
 		maxTokens: 128_000,
 		thinkingLevelMap: { off: null, minimal: "low", xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsAdditionalTools: true, supportsToolSearch: true },
+		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
 	},
 	{
 		id: "gpt-daybreak-blue-latest",
@@ -45,7 +45,7 @@ const SUPPLEMENTAL_MODELS: Model<"openai-codex-responses">[] = [
 		contextWindow: 272_000,
 		maxTokens: 128_000,
 		thinkingLevelMap: { minimal: "low", xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsAdditionalTools: true, supportsToolSearch: true },
+		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
 	},
 	{
 		id: "gpt-daybreak-red-latest",
@@ -59,7 +59,7 @@ const SUPPLEMENTAL_MODELS: Model<"openai-codex-responses">[] = [
 		contextWindow: 372_000,
 		maxTokens: 128_000,
 		thinkingLevelMap: { minimal: "low", xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsAdditionalTools: true, supportsToolSearch: true },
+		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
 	},
 ];
 

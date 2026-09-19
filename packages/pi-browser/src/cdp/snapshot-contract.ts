@@ -17,6 +17,10 @@ export interface SnapshotElement {
 	role: string;
 	name?: string | undefined;
 	value?: unknown;
+	checked?: boolean | "mixed" | undefined;
+	selected?: boolean | undefined;
+	expanded?: boolean | undefined;
+	disabled?: boolean | undefined;
 }
 
 export interface SnapshotResult {

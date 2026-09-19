@@ -1,4 +1,4 @@
-import { type Context, type Model, uuidv7 } from "@earendil-works/pi-ai";
+import { type Context, type Model, normalizeContext, uuidv7 } from "@earendil-works/pi-ai";
 import {
 	buildSessionContext,
 	type ExtensionContext,
@@ -218,7 +218,7 @@ async function completeWithSelectedModel(
 	let completed:
 		| { content: Array<{ type: string; text?: string }> }
 		| undefined;
-	for await (const event of provider.streamSimple(requestModel, context, {
+	for await (const event of provider.streamSimple(requestModel, normalizeContext(context), {
 		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
 		...(auth.headers ? { headers: auth.headers } : {}),
 		...(auth.env ? { env: auth.env } : {}),

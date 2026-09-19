@@ -11,6 +11,8 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     this.capturePrevious = 0;
     this.capture = new Int16Array(CAPTURE_FRAME_SAMPLES);
     this.captureLength = 0;
+    this.captureEpoch = 0;
+    this.inputMuted = false;
     this.playback = new Float32Array(PLAYBACK_MAX_SAMPLES);
     this.playbackRead = 0;
     this.playbackLength = 0;
@@ -18,12 +20,13 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     this.playbackPhase = 0;
     this.playbackCurrent = 0;
     this.playbackNext = 0;
-    this.port.onmessage = (event) => this.queuePlayback(event.data);
+    this.speakerSuppressed = false;
+    this.port.onmessage = (event) => this.handleMessage(event.data);
   }
 
   process(inputs, outputs) {
     const input = inputs[0];
-    if (input?.[0]) this.captureInput(input);
+    if (!this.inputMuted && input?.[0]) this.captureInput(input);
     const output = outputs[0]?.[0];
     if (output) this.renderPlayback(output);
     return true;
@@ -48,7 +51,7 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
       this.capturePosition += step;
       if (this.captureLength === CAPTURE_FRAME_SAMPLES) {
         const frame = this.capture.buffer;
-        this.port.postMessage(frame, [frame]);
+        this.port.postMessage({ type:'capture', epoch:this.captureEpoch, pcm:frame }, [frame]);
         this.capture = new Int16Array(CAPTURE_FRAME_SAMPLES);
         this.captureLength = 0;
       }
@@ -57,7 +60,32 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     this.capturePrevious = mono[mono.length - 1];
   }
 
+  handleMessage(value) {
+    if (value?.type === 'input_muted' && typeof value.muted === 'boolean' && Number.isSafeInteger(value.epoch)) {
+      this.captureEpoch = value.epoch;
+      this.inputMuted = value.muted;
+      this.resetCapture();
+      return;
+    }
+    if (value?.type === 'speaker_suppressed' && typeof value.suppressed === 'boolean') {
+      if (this.speakerSuppressed !== value.suppressed) {
+        this.speakerSuppressed = value.suppressed;
+        this.resetPlayback();
+      }
+      return;
+    }
+    this.queuePlayback(value);
+  }
+
+  resetCapture() {
+    this.capturePosition = 1;
+    this.capturePrevious = 0;
+    this.capture = new Int16Array(CAPTURE_FRAME_SAMPLES);
+    this.captureLength = 0;
+  }
+
   queuePlayback(value) {
+    if (this.speakerSuppressed) return;
     if (!(value instanceof ArrayBuffer) || value.byteLength === 0 || value.byteLength % 2 !== 0) return;
     const samples = new Int16Array(value);
     for (const sample of samples) {
@@ -68,6 +96,16 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
       this.playback[(this.playbackRead + this.playbackLength) % PLAYBACK_MAX_SAMPLES] = sample / (sample < 0 ? 32768 : 32767);
       this.playbackLength += 1;
     }
+  }
+
+  resetPlayback() {
+    this.playback.fill(0);
+    this.playbackRead = 0;
+    this.playbackLength = 0;
+    this.playing = false;
+    this.playbackPhase = 0;
+    this.playbackCurrent = 0;
+    this.playbackNext = 0;
   }
 
   renderPlayback(output) {

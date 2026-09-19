@@ -54,6 +54,10 @@ export class LanVoiceBrowserConnections {
 		if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) socket.send(pcm);
 	}
 
+	sendAudioControl(socket: WebSocket, value: unknown): void {
+		if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+	}
+
 	heartbeat(): void {
 		for (const response of this.eventResponses.values()) if (!response.writableEnded) response.write(": keepalive\n\n");
 	}

@@ -12,6 +12,7 @@ export interface RetainedProjectBinding {
 	bytes: number;
 	updatedAt: string;
 	pinned: boolean;
+	hook?: ProjectStateEntry["hook"];
 	description?: string | undefined;
 	usage?: string | undefined;
 }
@@ -33,6 +34,7 @@ export function readRetainedProjectBindings(
 		bytes: entry.length,
 		updatedAt: entry.updatedAt ?? manifest.createdAt,
 		pinned: entry.pinned === true,
+		...(entry.hook ? { hook: entry.hook } : {}),
 		...(entry.description === undefined ? {} : { description: entry.description }),
 		...(entry.usage === undefined ? {} : { usage: entry.usage }),
 	}));

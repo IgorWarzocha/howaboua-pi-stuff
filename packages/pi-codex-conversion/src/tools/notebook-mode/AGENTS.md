@@ -3,6 +3,7 @@
 - `journal.ts` appends cell events and rotates at the heap-derived persistence budget, retaining one previous `.ipynb`; `journal-document.ts` materializes standard notebooks
 - Running sessions are private forks; new `globalThis` properties and explicitly pinned bindings merge into project state, never another live kernel
 - Pin promotion and metadata commit under one project lock; failed commits restore kernel tracking. Release/prune preserve pins, and prune requires a caller-selected glob
+- Tool hooks dispatch inside the kernel after bridge settlement, never through a second Jupyter execute while a cell awaits that bridge. Suppress recursion per async hook context, not with a global flag that drops concurrent events
 - Startup lists exact-version npm imports previously used by successful project cells; guidance requires user approval before any unlisted package
 - `notebook-diagnostics.ts` maps journals to one-shot Deno diagnostics; `lsp-process.ts` owns bounded JSON-RPC process transport and never stays resident
 - Profiles load by value and never replay cells

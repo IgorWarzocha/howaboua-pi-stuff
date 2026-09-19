@@ -1,7 +1,6 @@
-import type { Api, Context, Model } from "@earendil-works/pi-ai";
+import type { Api, Message, Model } from "@earendil-works/pi-ai";
 import { isImageGenerationCallBlock, isWebSearchCallBlock, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 
-type Message = Context["messages"][number];
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
 
 const NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)";
@@ -27,7 +26,7 @@ function replaceImagesWithPlaceholder(
 	return result;
 }
 
-function downgradeUnsupportedImages(messages: Context["messages"], model: Model<Api>): Context["messages"] {
+function downgradeUnsupportedImages(messages: Message[], model: Model<Api>): Message[] {
 	if (model.input.includes("image")) return messages;
 	return messages.map((msg) => {
 		if (msg.role === "user" && Array.isArray(msg.content)) {
@@ -41,10 +40,10 @@ function downgradeUnsupportedImages(messages: Context["messages"], model: Model<
 }
 
 export function normalizeResponsesMessageHistory(
-	messages: Context["messages"],
+	messages: Message[],
 	model: Model<Api>,
 	normalizeToolCallId?: (id: string, targetModel: Model<Api>, source: Extract<Message, { role: "assistant" }>) => string,
-): Context["messages"] {
+): Message[] {
 	const toolCallIdMap = new Map<string, string>();
 	const imageAwareMessages = downgradeUnsupportedImages(messages, model);
 	const transformed = imageAwareMessages.map((msg) => {
@@ -89,7 +88,7 @@ export function normalizeResponsesMessageHistory(
 		return msg;
 	});
 
-	const result: Context["messages"] = [];
+	const result: Message[] = [];
 	let pendingToolCalls: Array<Extract<Extract<Message, { role: "assistant" }>["content"][number], { type: "toolCall" }>> = [];
 	let existingToolResultIds = new Set<string>();
 

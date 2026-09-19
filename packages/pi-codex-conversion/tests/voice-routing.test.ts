@@ -6,6 +6,7 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { registerCodexDeveloperMessageBroker } from "../src/developer-messages.ts";
 import { buildRequestBody } from "../src/providers/openai-codex/request-body.ts";
@@ -13,24 +14,30 @@ import { codexVoiceModeMessage } from "../src/voice/ui.ts";
 import { model } from "./websocket-test-support.ts";
 import { RealtimeDelegationHandoff } from "../src/voice/conversation/handoff.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
+import { createCodexVoiceControls } from "../src/voice/controls.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 
 type ExtensionMessage = Parameters<ExtensionAPI["sendMessage"]>[0];
 
 test("voice routing preserves presentation, handoff pacing, and compaction order", async () => {
 	const modelMessages: Array<{ message: ExtensionMessage; options: unknown }> = [];
-	let prepareOperation: Promise<undefined> = Promise.resolve(undefined);
+	const userKickoffs: Array<{ content: unknown; options: unknown }> = [];
 	const pi = {
 		events: createEventBus(),
 		appendEntry() {},
 		sendMessage(message: ExtensionMessage, options: unknown) {
 			modelMessages.push({ message, options });
 		},
+		sendUserMessage(content: unknown, options: unknown) {
+			userKickoffs.push({ content, options });
+		},
 	} as unknown as ExtensionAPI;
 	let active = true;
-	const unregister = registerCodexDeveloperMessageBroker(pi, () => active);
+	let idle = true;
+	const unregister = registerCodexDeveloperMessageBroker(pi, () => active, () => true);
 	const messages = new CodexVoiceSessionMessages(
 		pi,
-		voiceMessageCallbacks(() => prepareOperation),
+		voiceMessageCallbacks(),
 	);
 	messages.modeStarted("dictation");
 	messages.userTranscript("Can you check the server?");
@@ -46,6 +53,21 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 		onSettled: (id) => settled.push(id),
 	});
 	handoff.activate("delegation-1");
+	handoff.stream("One short update.");
+	handoff.flushProgress();
+	assert.deepEqual(contexts.splice(0), [{
+		target: { type: "session" },
+		channel: "speakable",
+		content: "One short update.",
+	}]);
+	handoff.stream("Another update after thinking.");
+	handoff.flushProgress();
+	handoff.progress("One short update.\nAnother update after thinking.");
+	assert.deepEqual(contexts.splice(0), [{
+		target: { type: "session" },
+		channel: "speakable",
+		content: "Another update after thinking.",
+	}]);
 	handoff.stream("First useful sentence. Second useful sentence.");
 	handoff.progress("First useful sentence. Second useful sentence.");
 	handoff.progress("Completed reasoning summary");
@@ -97,7 +119,7 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	assert.deepEqual(settled, ["delegation-1"]);
 
 	messages.setContext({
-		isIdle: () => true,
+		isIdle: () => idle,
 		ui: { notify() {} },
 	} as unknown as ExtensionContext);
 	messages.compactionStarted();
@@ -114,31 +136,19 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	releaseRefresh();
 	await delivery;
 	assert.equal(modelMessages.length, 1);
-	assert.deepEqual(modelMessages[0]?.options, { triggerTurn: true });
-
-	messages.agentSettled();
-	const preflight = Promise.withResolvers<undefined>();
-	prepareOperation = preflight.promise;
-	const racedDelivery = messages.voiceTurn({
-		input: "Queued when compaction starts during preflight",
-		delegationId: "delegation-3",
-	});
-	await Promise.resolve();
-	messages.compactionStarted();
-	preflight.resolve(undefined);
-	await Promise.resolve();
-	assert.equal(modelMessages.length, 1);
-	messages.compactionFinished();
-	await racedDelivery;
-	assert.equal(modelMessages.length, 2);
+	assert.deepEqual(modelMessages[0]?.options, { triggerTurn: false });
+	assert.deepEqual(userKickoffs, [{ content: "Continue.", options: { deliverAs: "steer" } }]);
 
 	messages.agentSettled();
 	messages.modeStarted("realtime");
 	messages.agentStarted();
+	idle = false;
+	await messages.voiceTurn({ input: "Steer the active run", delegationId: "delegation-3" });
+	assert.deepEqual(modelMessages[2]?.options, { triggerTurn: true, deliverAs: "steer" });
 	messages.conversationInputStopped();
 	messages.retainTranscriptTail("A finalized user request");
 	assert.equal(modelMessages.length, 5);
-	for (const [index, state] of [[2, "started"], [3, "ended"]] as const) {
+	for (const [index, state] of [[1, "started"], [3, "ended"]] as const) {
 		const expected = codexVoiceModeMessage("realtime", state);
 		const saved = modelMessages[index]!;
 		assert.deepEqual(saved.options, { triggerTurn: false, deliverAs: "steer" });
@@ -149,20 +159,60 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	const persisted = JSON.parse(JSON.stringify(modelMessages.map(({ message }, index) => ({ ...message, role: "custom", timestamp: index }))));
 	const bridge = new CodexDeveloperMessageBridge();
 	const projected = bridge.prepare(messages.filterContext(persisted), true);
-	const body = bridge.rewritePayload(buildRequestBody(model, { messages: convertToLlm(projected) })) as { input: Array<{ role: string }> };
-	assert.deepEqual(body.input.map(item => item.role), ["user", "user", "developer", "developer", "user"]);
-	for (const index of [0, 1, 4]) assert.deepEqual(projected[index], persisted[index]);
+	const body = bridge.rewritePayload(buildRequestBody(model, normalizeContext({ messages: convertToLlm(projected) }))) as { input: Array<{ role: string }> };
+	assert.deepEqual(body.input.map(item => item.role), ["user", "developer", "user", "developer", "user"]);
+	for (const index of [0, 2, 4]) assert.deepEqual(projected[index], persisted[index]);
 	assert.deepEqual(bridge.prepare(persisted, false), persisted);
+	idle = true;
+	messages.agentSettled();
+	const beforeCancelledDelivery = modelMessages.length;
+	const cancelledDelivery = messages.voiceTurn({ input: "Cancelled queued input", delegationId: "delegation-4" });
+	messages.cancelPendingDelegations();
+	await cancelledDelivery;
+	assert.equal(modelMessages.length, beforeCancelledDelivery);
 	active = false;
 	messages.modeStarted("realtime");
 	assert.deepEqual(modelMessages.at(-1), { message: codexVoiceModeMessage("realtime", "started"), options: { triggerTurn: false, deliverAs: "steer" } });
 	unregister();
+
+	const setupMessages: Array<{ message: ExtensionMessage; options: unknown }> = [];
+	const setupKickoffs: Array<{ content: unknown; options: unknown }> = [];
+	const setupPi = {
+		events: createEventBus(),
+		registerShortcut() {},
+		on() {},
+		sendMessage(message: ExtensionMessage, options: unknown) {
+			setupMessages.push({ message, options });
+		},
+		sendUserMessage(content: unknown, options: unknown) {
+			setupKickoffs.push({ content, options });
+		},
+	} as unknown as ExtensionAPI;
+	const unregisterSetupBroker = registerCodexDeveloperMessageBroker(setupPi, () => true, () => true);
+	const controls = createCodexVoiceControls({
+		pi: setupPi,
+		state: {
+			config: structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
+			codexTurnState: { beginTurn() {} },
+		} as never,
+		voice: { activeMode: undefined } as never,
+		lanVoice: { status: () => ({ running: false }) } as never,
+	});
+	await controls.setup({
+		cwd: process.cwd(),
+		isProjectTrusted: () => false,
+		isIdle: () => true,
+		ui: { notify() {}, onTerminalInput: () => () => {} },
+	} as unknown as ExtensionContext);
+	assert.equal(setupMessages[0]?.message.display, true);
+	assert.deepEqual(setupMessages[0]?.options, { triggerTurn: false });
+	assert.deepEqual(setupKickoffs, [{ content: "Continue.", options: { deliverAs: "steer" } }]);
+	unregisterSetupBroker();
 });
 
-function voiceMessageCallbacks(prepareDelegation = async () => undefined) {
+function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,
-		prepareDelegation,
 		onDelegation: () => {},
 		onDelegationFailed: () => {},
 		onWorking: () => {},

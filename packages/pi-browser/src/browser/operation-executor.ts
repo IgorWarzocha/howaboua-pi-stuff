@@ -3,6 +3,8 @@ import {
 	clickRef,
 	clickSelector,
 } from "../cdp/actions/click.js";
+import { fillElement } from "../cdp/actions/fill.js";
+import { pressKey } from "../cdp/actions/key.js";
 import {
 	html,
 	htmlRef,
@@ -17,6 +19,7 @@ import {
 	captureViewport,
 } from "../cdp/actions/screenshot.js";
 import { typeAtFocus, typeRef } from "../cdp/actions/type.js";
+import { waitForCondition } from "../cdp/actions/wait.js";
 import { evaluateText } from "../cdp/evaluate.js";
 import { type ActiveTab, BrowserCdpSession } from "../cdp/session.js";
 import { snapshotData } from "../cdp/snapshot.js";
@@ -49,6 +52,7 @@ export class BrowserOperationExecutor {
 					await this.cdp.pages(signal),
 					operation.query,
 					operation.offset,
+					operation.owned_only,
 				);
 			case "open":
 				if ("url" in operation) {
@@ -56,6 +60,7 @@ export class BrowserOperationExecutor {
 					return {
 						ref_id: opened.refId,
 						url: operation.url,
+						owned: true,
 					};
 				}
 				return this.cdp.withTab(operation.ref_id, signal, async (tab) =>
@@ -80,6 +85,10 @@ export class BrowserOperationExecutor {
 						}),
 					),
 				);
+			case "show":
+				return { shown: await this.cdp.show(operation.ref_id, signal) };
+			case "close":
+				return { closed: await this.cdp.closeTab(operation.ref_id, signal) };
 			case "read_result":
 				return readCachedResult(operation);
 			case "discard_result":
@@ -196,6 +205,31 @@ export class BrowserOperationExecutor {
 						tab.sessionId,
 						operation.selector,
 						operation.interval_ms,
+						signal,
+					),
+				);
+			case "fill":
+				return this.tabResult(operation.ref_id, signal, (tab) =>
+					fillElement(
+						tab.cdp,
+						tab.sessionId,
+						tab.elementRefs,
+						operation,
+						operation.value,
+						signal,
+					),
+				);
+			case "press":
+				return this.tabResult(operation.ref_id, signal, (tab) =>
+					pressKey(tab.cdp, tab.sessionId, operation.key, signal),
+				);
+			case "wait":
+				return this.tabResult(operation.ref_id, signal, (tab) =>
+					waitForCondition(
+						tab.cdp,
+						tab.sessionId,
+						operation,
+						operation.timeout_ms,
 						signal,
 					),
 				);
