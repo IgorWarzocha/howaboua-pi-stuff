@@ -6,6 +6,8 @@ export const BROWSER_ACTIONS = [
 	"start",
 	"tabs",
 	"open",
+	"show",
+	"close",
 	"find",
 	"click",
 	"type",
@@ -32,7 +34,12 @@ export type BrowserAction = (typeof BROWSER_ACTIONS)[number];
 
 export type BrowserOperation =
 	| { action: "start" }
-	| { action: "tabs"; query?: string | undefined; offset: number }
+	| {
+			action: "tabs";
+			query?: string | undefined;
+			offset: number;
+			owned_only?: boolean | undefined;
+	  }
 	| {
 			action: "open";
 			ref_id: string;
@@ -40,6 +47,7 @@ export type BrowserOperation =
 			response_length: SnapshotResponseLength;
 	  }
 	| { action: "open"; url: string }
+	| { action: "show" | "close"; ref_id: string }
 	| {
 			action: "find";
 			ref_id: string;

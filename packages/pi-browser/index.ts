@@ -28,9 +28,9 @@ export default async function browserExtension(
 	registerBrowserCommand(pi);
 	pi.registerTool(tool);
 	const registration = await registerBrowserInCodeMode(pi, tool);
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", async () => {
 		registration?.unregister();
-		runtime.close();
+		await runtime.close();
 	});
 	if (configError) {
 		pi.on("session_start", (_event, ctx) => {

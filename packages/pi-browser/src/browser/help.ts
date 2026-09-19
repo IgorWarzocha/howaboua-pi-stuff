@@ -15,8 +15,10 @@ export function browserHelp(
 		batch:
 			"top-level nonempty action arrays; items omit action/host/response_length; independent only",
 		actions: {
-			tabs: "query? offset? -> ref_id title url",
-			open: "ref_id lineno? response_length? | url",
+			tabs: "query? offset? owned_only? -> ref_id title url owned",
+			open: "ref_id lineno? response_length? | url; new tabs open in background",
+			show: "ref_id; bring tab to foreground",
+			close: "ref_id; only session-owned tabs",
 			find: "ref_id pattern lineno? response_length?",
 			click: "ref_id id|selector|x+y",
 			type: "ref_id text id?; id focuses",
@@ -31,7 +33,7 @@ export function browserHelp(
 			load_all: "ref_id selector interval_ms?",
 			raw: "ref_id method params?",
 			start: "",
-			stop: "ref_id?",
+			stop: "ref_id?; detach without closing tabs",
 			read_result: "handle offset",
 			discard_result: "handle",
 		},

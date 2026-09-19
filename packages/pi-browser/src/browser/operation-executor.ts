@@ -52,6 +52,7 @@ export class BrowserOperationExecutor {
 					await this.cdp.pages(signal),
 					operation.query,
 					operation.offset,
+					operation.owned_only,
 				);
 			case "open":
 				if ("url" in operation) {
@@ -59,6 +60,7 @@ export class BrowserOperationExecutor {
 					return {
 						ref_id: opened.refId,
 						url: operation.url,
+						owned: true,
 					};
 				}
 				return this.cdp.withTab(operation.ref_id, signal, async (tab) =>
@@ -83,6 +85,10 @@ export class BrowserOperationExecutor {
 						}),
 					),
 				);
+			case "show":
+				return { shown: await this.cdp.show(operation.ref_id, signal) };
+			case "close":
+				return { closed: await this.cdp.closeTab(operation.ref_id, signal) };
 			case "read_result":
 				return readCachedResult(operation);
 			case "discard_result":

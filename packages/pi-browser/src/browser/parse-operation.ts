@@ -13,8 +13,10 @@ const fields = (...names: string[]) => new Set(["action", ...names]);
 const ACTION_FIELDS: Record<BrowserAction, ReadonlySet<string>> = {
 	help: fields(),
 	start: fields(),
-	tabs: fields("query", "offset"),
+	tabs: fields("query", "offset", "owned_only"),
 	open: fields("ref_id", "url", "lineno", "response_length"),
+	show: fields("ref_id"),
+	close: fields("ref_id"),
 	find: fields("ref_id", "pattern", "lineno", "response_length"),
 	click: fields("ref_id", "id", "selector", "x", "y"),
 	type: fields("ref_id", "id", "text"),
@@ -118,10 +120,14 @@ export function parseActionRequest(value: unknown): ActionRequest {
 	if (action === "help" || action === "start") return { action };
 	if (action === "tabs") {
 		const query = optionalString(value["query"], "query");
+		const ownedOnly = value["owned_only"];
+		if (ownedOnly !== undefined && typeof ownedOnly !== "boolean")
+			throw new Error("owned_only must be a boolean");
 		return {
 			action,
 			...(query ? { query } : {}),
 			offset: offset(value["offset"]),
+			...(ownedOnly === undefined ? {} : { owned_only: ownedOnly }),
 		};
 	}
 	if (action === "open") {
@@ -164,7 +170,8 @@ export function parseActionRequest(value: unknown): ActionRequest {
 	}
 
 	const refId = requiredRef(value["ref_id"], action);
-	if (action === "network") return { action, ref_id: refId };
+	if (action === "network" || action === "show" || action === "close")
+		return { action, ref_id: refId };
 	if (action === "navigate") {
 		return {
 			action,

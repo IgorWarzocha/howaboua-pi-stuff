@@ -35,6 +35,7 @@ export function browserParameters(hosts: readonly string[]) {
 			action: Type.Literal("tabs"),
 			query: Type.Optional(Type.String({ minLength: 1 })),
 			offset: Type.Optional(Type.Integer({ minimum: 0 })),
+			owned_only: Type.Optional(Type.Boolean()),
 		}),
 		request({
 			action: Type.Literal("open"),
@@ -52,6 +53,10 @@ export function browserParameters(hosts: readonly string[]) {
 			pattern: Type.String({ minLength: 1 }),
 			lineno: Type.Optional(Type.Integer({ minimum: 1 })),
 			response_length: Type.Optional(responseLength),
+		}),
+		request({
+			action: StringEnum(["show", "close"] as const),
+			ref_id: refId,
 		}),
 		request({ action: Type.Literal("click"), ref_id: refId, id: elementId }),
 		request({

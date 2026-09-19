@@ -32,6 +32,14 @@ test("browser requests share one validated single and batch contract", () => {
 			],
 		},
 	);
+	assert.deepEqual(parseBrowserRequest({ tabs: [{ owned_only: true }] }), {
+		operations: [{ action: "tabs", offset: 0, owned_only: true }],
+	});
+	assert.throws(
+		() => parseBrowserRequest({ action: "tabs", owned_only: "true" }),
+		/boolean/,
+	);
+	assert.throws(() => parseBrowserRequest({ action: "close" }), /ref_id/);
 	assert.deepEqual(
 		parseBrowserRequest(
 			JSON.stringify({

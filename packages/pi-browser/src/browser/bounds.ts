@@ -50,14 +50,17 @@ export function boundTabs(
 	pages: PageInfo[],
 	query: string | undefined,
 	offset: number,
+	ownedOnly = false,
 ): Record<string, unknown> {
 	const prefixLength = getDisplayPrefixLength(
 		pages.map((page) => page.targetId),
 	);
-	let filtered = pages;
+	let filtered = ownedOnly
+		? pages.filter((page) => page.owned === true)
+		: pages;
 	if (query) {
 		const normalized = query.toLowerCase();
-		filtered = pages.filter((page) =>
+		filtered = filtered.filter((page) =>
 			`${page.title}\n${page.url}`.toLowerCase().includes(normalized),
 		);
 	}
@@ -68,12 +71,14 @@ export function boundTabs(
 		ref_id: string;
 		title: string;
 		url: string;
+		owned: boolean;
 	}> = [];
 	for (const page of filtered.slice(offset)) {
 		const compact = {
 			ref_id: page.targetId.slice(0, prefixLength),
 			title: page.title.slice(0, 500),
 			url: page.url.slice(0, 8_000),
+			owned: page.owned === true,
 		};
 		if (byteLength({ tabs: [...tabs, compact] }) > OUTPUT_BUDGET_BYTES) {
 			break;
