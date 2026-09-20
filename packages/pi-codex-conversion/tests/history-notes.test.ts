@@ -171,21 +171,30 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			undefined,
 			context,
 		);
+		const systemMessage = {
+			role: "system", content: "", timestamp: 2,
+			sections: { policy: "Preserve the deployment decision", obsolete: null },
+			toolsAdded: [{ name: "inspect", description: "Inspect", parameters: { type: "object" } }],
+			toolsRemoved: [{ name: "old_inspect" }],
+		};
 		const localItems = await localHistory.execute(
-			"list-old-window",
-			{ action: "list_items", window_id: windowId },
+			"find-prompt-update",
+			{ action: "search_contents", window_id: windowId, role: "system", query: "deployment decision" },
 			undefined,
 			undefined,
-			context,
+			createContext([{
+				type: "message", id: "system-entry", parentId: "user-entry",
+				timestamp: new Date(2).toISOString(), message: systemMessage,
+			}]),
 		);
 		assert.deepEqual(localItems.details.codexHistoryNotes, {
 			source: "pi-session",
 			items: [{
 				window_id: windowId,
-				item_id: "user-entry",
-				role: "user",
-				truncated_content: "recover me",
-				content_chars: 10,
+				item_id: "system-entry",
+				role: "system",
+				truncated_content: JSON.stringify(systemMessage),
+				content_chars: JSON.stringify(systemMessage).length,
 			}],
 		});
 

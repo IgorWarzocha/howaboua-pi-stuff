@@ -280,6 +280,8 @@ function toolIdentityFromMessage(
 }
 
 function renderMessage(message: Record<string, unknown>): string {
+	// Prompt sections and tool declarations live outside system-message content.
+	if (message["role"] === "system") return JSON.stringify(message);
 	const content = message["content"];
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return JSON.stringify(message);

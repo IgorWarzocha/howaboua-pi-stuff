@@ -46,7 +46,10 @@ function createContext() {
 }
 
 test("context windows preserve rollover and native request semantics", async (t) => {
-	t.mock.method(SettingsManager, "create", () => SettingsManager.inMemory({ compaction: { reserveTokens: 32_768 } }));
+	t.mock.method(SettingsManager, "create", () => SettingsManager.inMemory({ compaction: {
+		reserveTokens: 16_384,
+		modelOverrides: { "openai-codex/gpt-5.6": { reserveTokens: 32_768 } },
+	} }));
 	const contextMessages: Array<Record<string, unknown>> = [];
 	const contextPi = {
 		sendMessage(message: Record<string, unknown>) {

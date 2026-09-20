@@ -50,7 +50,7 @@ export class ContextWindowBudget {
 		const settings = SettingsManager.create(ctx.cwd, getAgentDir(), {
 			projectTrusted: ctx.isProjectTrusted(),
 		});
-		const reserveTokens = Math.max(CONTEXT_WINDOW_MIN_RESERVE, settings.getCompactionSettings().reserveTokens);
+		const reserveTokens = Math.max(CONTEXT_WINDOW_MIN_RESERVE, settings.getCompactionSettings(ctx.model).reserveTokens);
 		const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 		const limit = Math.max(0, contextWindow - reserveTokens);
 		const tokens = contextTokens ?? usage?.tokens;

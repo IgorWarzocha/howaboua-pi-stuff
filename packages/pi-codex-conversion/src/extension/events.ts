@@ -369,6 +369,12 @@ export function registerCodexEvents(
 		}
 		if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isHybridCompactionRunning()) runtime.armCacheKeepalive(ctx);
 	});
+	pi.on("cache_warming_decision", (_event, ctx) => {
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		// These routes cannot honor Pi's one-token cap and must not advance the live response chain.
+		if (plan.codexTransport || plan.transport === "responses-lite") return { action: "stop" };
+		return undefined;
+	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
