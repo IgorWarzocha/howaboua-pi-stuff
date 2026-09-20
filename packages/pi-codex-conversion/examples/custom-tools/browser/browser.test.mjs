@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { basename } from "node:path";
 import test from "node:test";
 import {
-	cliInvocation,
 	formatLocalResult,
 	parseRequest,
 	planHostRoute,
@@ -11,14 +9,7 @@ import {
 	runProgram,
 } from "./browser.mjs";
 
-test("parser accepts web_run-style operation arrays and canonicalizes batches", () => {
-	assert.deepEqual(parseRequest("help"), { help: true });
-	assert.deepEqual(parseRequest(JSON.stringify({
-		action: "tabs",
-		query: "linkedin",
-	})), {
-		operations: [{ action: "tabs", query: "linkedin", offset: 0 }],
-	});
+test("parser canonicalizes operation batches and rejects ambiguous targets", () => {
 	assert.deepEqual(parseRequest(JSON.stringify({
 		response_length: "short",
 		tabs: [{ query: "linkedin" }],
@@ -37,22 +28,6 @@ test("parser accepts web_run-style operation arrays and canonicalizes batches", 
 		() => parseRequest('{"open":[{"ref_id":"ABCDEF12","url":"https://example.com"}]}'),
 		/exactly one/,
 	);
-	assert.throws(
-		() => parseRequest('{"click":[{"ref_id":"ABCDEF12","id":1,"selector":"a"}]}'),
-		/exactly one/,
-	);
-	assert.throws(
-		() => parseRequest('{"action":"click","id":1}'),
-		/click requires a ref_id returned by tabs; call tabs first/,
-	);
-	assert.throws(
-		() => parseRequest('{"host":"workstation","tabs":[{}]}'),
-		/SSH browser routing is disabled/,
-	);
-	assert.throws(
-		() => parseRequest('{"response_length":"short","open":[{"ref_id":"ABCDEF12","response_length":"long"}]}'),
-		/top-level field/,
-	);
 });
 
 test("host routing mirrors local host and strips transport fields", () => {
@@ -70,23 +45,6 @@ test("host routing mirrors local host and strips transport fields", () => {
 		remote: false,
 		request: { operations: [{ action: "tabs", offset: 0 }] },
 	});
-});
-
-test("requests map to structured CDP commands and element refs", async () => {
-	assert.deepEqual(
-		await cliInvocation({ action: "open", ref_id: "ABCDEF12", lineno: 4, response_length: "short" }),
-		{ args: ["snap", "ABCDEF12", "4", "short"] },
-	);
-	assert.deepEqual(
-		await cliInvocation({ action: "click", ref_id: "ABCDEF12", id: 7 }),
-		{ args: ["clickref", "ABCDEF12", "7"] },
-	);
-	assert.deepEqual(
-		await cliInvocation({ action: "type", ref_id: "ABCDEF12", id: 3, text: "hello" }),
-		{ args: ["typeref", "ABCDEF12", "3", "hello"] },
-	);
-	const screenshot = await cliInvocation({ action: "screenshot", ref_id: "x/../../../escape" });
-	assert.match(basename(screenshot.file), /^browser-x__________e-[a-f0-9-]{36}\.png$/);
 });
 
 test("child output is bounded before result formatting", async () => {

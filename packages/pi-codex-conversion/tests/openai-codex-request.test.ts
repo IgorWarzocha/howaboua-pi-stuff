@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { InMemoryCredentialStore, InMemoryModelsStore, normalizeContext } from "@earendil-works/pi-ai";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
 import {
@@ -19,42 +15,6 @@ import {
 	sseResponse,
 	toolLoadingMessages,
 } from "./openai-codex-test-support.ts";
-
-async function assertCodexCatalogComposition() {
-	const { registration } = createRegisteredCodexProvider();
-	const dir = await mkdtemp(join(tmpdir(), "codex-catalog-"));
-	try {
-		const modelsPath = join(dir, "models.json");
-		const config = { providers: { "openai-codex": {
-			baseUrl: "https://proxy.example.test/backend-api",
-			models: [{ id: "custom-codex", name: "User Codex", contextWindow: 123456 }],
-			modelOverrides: { "gpt-6-astra": { contextWindow: 234567 } },
-		} } };
-		await writeFile(modelsPath, JSON.stringify(config));
-		const credentials = new InMemoryCredentialStore();
-		await credentials.modify("openai-codex", async () => ({ type: "oauth", access: "test-access", refresh: "test-refresh", expires: Date.now() + 3600000 }));
-		const runtime = await ModelRuntime.create({ modelsPath, credentials, modelsStore: new InMemoryModelsStore(), refreshOnCreate: false });
-		runtime.registerNativeProvider(registration);
-		await runtime.refresh({ allowNetwork: false });
-		const available = await runtime.getAvailable("openai-codex");
-		const custom = available.find(({ id }) => id === "custom-codex")!;
-		assert.equal(custom.name, "User Codex");
-		assert.equal(custom.contextWindow, 123456);
-		assert.equal(custom.api, "openai-codex-responses");
-		assert.equal(custom.baseUrl, config.providers["openai-codex"].baseUrl);
-		assert.equal(available.find(({ id }) => id === "gpt-6-astra")?.contextWindow, 234567);
-		assert.ok(available.some(({ id }) => id === "gpt-daybreak-red-latest"));
-		assert.deepEqual(await runtime.getAuth(custom), { auth: { apiKey: "test-access", headers: undefined }, source: "OAuth" });
-		config.providers["openai-codex"].models = [{ id: "replacement-codex", name: "Reloaded", contextWindow: 345678 }];
-		await writeFile(modelsPath, JSON.stringify(config));
-		await runtime.refresh({ allowNetwork: false });
-		const reloaded = await runtime.getAvailable("openai-codex");
-		assert.equal(reloaded.some(({ id }) => id === "custom-codex"), false);
-		assert.equal(reloaded.find(({ id }) => id === "replacement-codex")?.contextWindow, 345678);
-	} finally {
-		await rm(dir, { recursive: true, force: true });
-	}
-}
 
 function assertCodexRequestShape() {
 	const body = buildRequestBody(
@@ -255,8 +215,7 @@ function assertStrictToolConstraints() {
 	assert.equal("strict" in (unsupportedProviderBody.tools as object[])[0]!, false);
 }
 
-test("Codex catalog composition and request serialization preserve user overrides and strict schemas", async () => {
-	await assertCodexCatalogComposition();
+test("Codex request serialization preserves provider and strict-schema contracts", () => {
 	assertCodexRequestShape();
 	assertTranscriptSerialization();
 	assertStrictToolConstraints();

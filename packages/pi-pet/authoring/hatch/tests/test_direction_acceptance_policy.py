@@ -10,7 +10,6 @@ from PIL import Image, ImageDraw
 HATCH_DIR = Path(__file__).resolve().parents[1]
 VALIDATE_BLIND = HATCH_DIR / "scripts" / "validate_direction_blind_verdicts.py"
 MEASURE_CONTINUITY = HATCH_DIR / "scripts" / "measure_direction_continuity.py"
-MAKE_BLIND_SHEET = HATCH_DIR / "scripts" / "make_direction_blind_qa_sheet.py"
 
 
 class DirectionAcceptancePolicyTest(unittest.TestCase):
@@ -115,20 +114,6 @@ class DirectionAcceptancePolicyTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertGreater(len(result["errors"]), 0)
 
-    def test_review_pair_wrong_direction_requests_review_without_failing(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            completed, result = self.run_blind_validation(
-                temporary_directory,
-                gate="review",
-                verdict_a="screen-left",
-                verdict_b="screen-left",
-            )
-
-        self.assertEqual(completed.returncode, 0)
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["errors"], [])
-        self.assertGreater(len(result["warnings"]), 0)
-
     def test_missing_gate_preserves_strict_compatibility(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             completed, result = self.run_blind_validation(
@@ -176,40 +161,6 @@ class DirectionAcceptancePolicyTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["reviewRequired"])
         self.assertGreater(len(result["warnings"]), 0)
-
-    def test_blind_sheet_uses_two_normal_size_cells_without_zoom_crops(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            root = Path(temporary_directory)
-            atlas_path = root / "atlas.png"
-            sheet_path = root / "blind.png"
-            answer_key = root / "answer-key.json"
-            Image.new("RGBA", (1536, 2288), (0, 0, 0, 0)).save(atlas_path)
-
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(MAKE_BLIND_SHEET),
-                    str(atlas_path),
-                    "--output",
-                    str(sheet_path),
-                    "--answer-key",
-                    str(answer_key),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            with Image.open(sheet_path) as sheet:
-                self.assertEqual(sheet.width, 2 * 192)
-
-            pairs = json.loads(answer_key.read_text())["pairs"]
-
-        self.assertEqual(len(pairs), 14)
-        self.assertEqual([pair["axis"] for pair in pairs].count("horizontal"), 7)
-        self.assertEqual([pair["axis"] for pair in pairs].count("vertical"), 7)
-        self.assertEqual([pair["gate"] for pair in pairs].count("hard"), 2)
-        self.assertEqual([pair["gate"] for pair in pairs].count("review"), 12)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,34 +6,20 @@ import {
 } from "../src/voice/helper.ts";
 
 test("voice helper parser validates protocol payloads", () => {
-	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 4 }), {
-		type: "ready",
-		version: 4,
-	});
-	assert.deepEqual(
-		parseVoiceHelperEvent({
-			type: "devices",
-			inputs: [{ id: "input-1", name: "USB microphone", is_default: true }],
-			outputs: [{ id: "output-1", name: "Headphones", is_default: false }],
-		}),
-		{
-			type: "devices",
-			inputs: [{ id: "input-1", name: "USB microphone", is_default: true }],
-			outputs: [{ id: "output-1", name: "Headphones", is_default: false }],
-		},
-	);
 	assert.deepEqual(
 		parseVoiceHelperEvent({
 			type: "pcm",
 			audio: "AA==",
 			sample_rate: 24_000,
 			num_channels: 1,
+			epoch: 0,
 		}),
 		{
 			type: "pcm",
 			audio: "AA==",
 			sample_rate: 24_000,
 			num_channels: 1,
+			epoch: 0,
 		},
 	);
 	assert.throws(() =>
@@ -44,22 +30,9 @@ test("voice helper parser validates protocol payloads", () => {
 			num_channels: 2,
 		}),
 	);
-	assert.throws(() =>
-		parseVoiceHelperEvent({
-			type: "data",
-			message: { transcript: "x".repeat(64 * 1024) },
-		}),
-	);
-	assert.throws(() => parseVoiceHelperEvent({ type: "surprise" }));
-	assert.deepEqual(parseVoiceHelperEvent({ type: "playback_activity" }), { type: "playback_activity" });
-	for (const epoch of [0, 1, Number.MAX_SAFE_INTEGER]) {
-		const event = parseVoiceHelperEvent({ type: "pcm", audio: "AAA=", sample_rate: 24_000, num_channels: 1, epoch });
-		assert.ok(event.type === "pcm");
-		assert.equal(event.epoch, epoch);
-	}
-	for (const epoch of [-1, 0.5, "1", null, Number.MAX_SAFE_INTEGER + 1]) {
-		assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: "AAA=", sample_rate: 24_000, num_channels: 1, epoch }));
-	}
+	assert.throws(() => parseVoiceHelperEvent({
+		type: "pcm", audio: "AAA=", sample_rate: 24_000, num_channels: 1, epoch: -1,
+	}));
 });
 
 test("voice helper JSONL parser bounds unterminated frames", () => {

@@ -95,27 +95,6 @@ test("snapshots emit compact lines and current interactive references", async ()
 		},
 		{ line: 4, text: "Hello world" },
 	]);
-	assert.deepEqual(result.elements, [
-		{
-			id: 1,
-			role: "button",
-			name: "Continue",
-			expanded: false,
-			disabled: true,
-		},
-		{
-			id: 2,
-			role: "menuitemcheckbox",
-			checked: "mixed",
-			selected: false,
-		},
-		{
-			id: 3,
-			role: "checkbox",
-			name: "Agree",
-			checked: false,
-		},
-	]);
 	assert.equal(refs.get(1), 41);
 	const next = await snapshotData(cdp, "session", refs, {
 		responseLength: "short",

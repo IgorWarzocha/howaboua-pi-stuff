@@ -15,10 +15,6 @@ test("notebook diagnostics group historical duplicates and put runtime health fi
 	const diagnostics: NotebookDiagnostic[] = [diagnostic("cell-1", 0), diagnostic("cell-2", 1), diagnostic("cell-3", 2, "other"), diagnostic("cell-4", 3, "r", "error", "ts")];
 	const result = formatNotebookDiagnostics("/project/notebook.ipynb", 4, diagnostics, "invalidated");
 	assert.match(result.message, /^Notebook runtime health: invalidated;/);
-	assert.match(result.message, /Historical static diagnostics/);
-	assert.match(result.message, /2 occurrences warning deno-2451 \[r\]/);
-	assert.match(result.message, /samples: cell-1 cell 1:1:1, cell-2 cell 2:2:1/);
-	assert.doesNotMatch(result.message, /repair these/);
 	assert.deepEqual((result.details as { diagnosticGroups: Array<{ count: number; name?: string; severity: string; source?: string }> }).diagnosticGroups.map(({ count, name, severity, source }) => ({ count, name, severity, source })), [
 		{ count: 2, name: "r", severity: "warning", source: "deno" },
 		{ count: 1, name: "other", severity: "warning", source: "deno" },

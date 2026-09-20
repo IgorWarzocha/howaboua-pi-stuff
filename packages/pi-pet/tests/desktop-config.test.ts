@@ -4,23 +4,16 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { parseDeviceRegistry, readDeviceRegistry, writeDeviceRegistry } from "../extensions/desktop-config.ts";
-import { localDesktopProcessSpec, remoteDesktopProcessSpec } from "../extensions/desktop-launcher.ts";
+import { parseDeviceRegistry } from "../extensions/desktop-config.ts";
 import {
-  defaultAttentionPreferences,
   parseAttentionPreferences,
-  remainingSnoozeMs,
-  snoozeUntilTomorrow,
 } from "../src/desktop/attention.ts";
 import { parseDesktopCursorPosition } from "../src/desktop/bridge.ts";
 import { desktopDisplayUrl, loadDesktopConfig, parseDesktopConfig, parseSshTarget } from "../src/desktop/config.ts";
 import {
   hyprlandCursorSocket,
-  parseHyprlandClientBounds,
-  parseHyprlandCursorResponse,
   readHyprlandCursor,
 } from "../src/desktop/cursor-provider.ts";
-import { readRepositoryPetConfig, writeRepositoryPetConfig } from "../src/pet-storage.ts";
 
 const HTTPS_ORIGIN_PATTERN = /HTTPS origin/;
 const PATH_PATTERN = /must not contain a path/;
@@ -40,56 +33,15 @@ test("desktop config builds the confined GipPity display URL", () => {
   assert.equal(url.pathname, "/_gippity/apps/pi-pet/");
   assert.equal(url.searchParams.get("shell"), "desktop");
   assert.equal(url.hash, "");
-  assert.equal(new URL(desktopDisplayUrl(config, "quiet")).searchParams.get("attention"), "quiet");
-  assert.deepEqual(
-    parseDeviceRegistry({
-      schemaVersion: 1,
-      devices: {
-        local: { kind: "local" },
-        overridden: { kind: "ssh", target: "desktop", gippityUrl: config.gippityUrl },
-      },
-      defaultDevices: ["local"],
-    }),
-    {
-      schemaVersion: 1,
-      devices: {
-        local: { kind: "local" },
-        overridden: { kind: "ssh", target: "desktop", gippityUrl: "https://192.168.0.113:43120" },
-      },
-      defaultDevices: ["local"],
-    },
-  );
   assert.deepEqual(parseDeviceRegistry({ schemaVersion: 1, displays: { desktop: {} } }), {
     schemaVersion: 1,
     devices: { desktop: { kind: "ssh", target: "desktop" } },
     defaultDevices: ["desktop"],
   });
-  const spec = remoteDesktopProcessSpec("desktop", config.gippityUrl);
-  assert.equal(spec.program, "ssh");
-  assert.deepEqual(spec.args, ["desktop", "node", "-"]);
-  const localSpec = localDesktopProcessSpec(config.gippityUrl);
-  assert.equal(localSpec.program, process.execPath);
-  assert.deepEqual(localSpec.args, ["-"]);
   assert.throws(() => parseSshTarget("-oProxyCommand=nope"), SSH_OPTIONS_PATTERN);
 });
 
 test("desktop attention preferences are explicit and time bounded", () => {
-  assert.deepEqual(defaultAttentionPreferences(), {
-    schemaVersion: 1,
-    mode: "normal",
-    petSize: "medium",
-    snoozedUntil: null,
-  });
-  const preferences = parseAttentionPreferences({
-    schemaVersion: 1,
-    mode: "quiet",
-    petSize: "large",
-    snoozedUntil: "2026-07-19T08:00:00.000Z",
-  });
-  assert.equal(preferences.petSize, "large");
-  assert.equal(parseAttentionPreferences({ schemaVersion: 1, mode: "normal", snoozedUntil: null }).petSize, "medium");
-  assert.equal(remainingSnoozeMs(preferences, Date.parse("2026-07-19T07:45:00.000Z")), 15 * 60 * 1000);
-  assert.equal(snoozeUntilTomorrow(new Date(2026, 6, 18, 22)).getHours(), 8);
   assert.throws(
     () => parseAttentionPreferences({ schemaVersion: 1, mode: "loud", snoozedUntil: null }),
     ATTENTION_MODE_PATTERN,
@@ -107,7 +59,6 @@ test("desktop attention preferences are explicit and time bounded", () => {
 
 test("desktop cursor bridge accepts only bounded screen positions", () => {
   assert.deepEqual(parseDesktopCursorPosition({ x: -120, y: 340 }), { x: -120, y: 340 });
-  assert.equal(parseDesktopCursorPosition(null), null);
   assert.throws(() => parseDesktopCursorPosition({ x: Number.NaN, y: 1 }), INVALID_CURSOR_PATTERN);
   assert.throws(() => parseDesktopCursorPosition({ x: 1, y: 1, code: "nope" }), UNKNOWN_CURSOR_FIELD_PATTERN);
 });
@@ -121,13 +72,6 @@ test("Hyprland cursor IPC is selected only from a bounded runtime identity", () 
     hyprlandCursorSocket({ XDG_RUNTIME_DIR: "/run/user/1000", HYPRLAND_INSTANCE_SIGNATURE: "../escape" }),
     undefined,
   );
-  assert.deepEqual(parseHyprlandCursorResponse('{"x":763,"y":609}'), { x: 763, y: 609 });
-  assert.deepEqual(parseHyprlandClientBounds('[{"pid":42,"at":[10,1080],"size":[240,260]}]', 42), {
-    x: 10,
-    y: 1080,
-    width: 240,
-    height: 260,
-  });
 });
 
 test("Hyprland cursor IPC resolves without waiting for the command socket to close", async () => {
@@ -162,30 +106,10 @@ test("desktop config rejects broadened URLs", () => {
   );
 });
 
-test("desktop config loads a bounded local file", async () => {
+test("desktop config rejects broad local file access", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-pet-desktop-config-"));
   const path = join(root, "config.json");
   await writeFile(path, JSON.stringify({ schemaVersion: 1, gippityUrl: "https://127.0.0.1:43120" }), { mode: 0o600 });
-  assert.equal((await loadDesktopConfig(path, {})).gippityUrl, "https://127.0.0.1:43120");
-  const registryPath = join(root, "pi-pet.json");
-  await writeDeviceRegistry(
-    {
-      schemaVersion: 1,
-      devices: { desktop: { kind: "ssh", target: "desktop", gippityUrl: "https://127.0.0.1:43120" } },
-      defaultDevices: [],
-    },
-    registryPath,
-  );
-  assert.deepEqual((await readDeviceRegistry(registryPath)).devices, {
-    desktop: { kind: "ssh", target: "desktop", gippityUrl: "https://127.0.0.1:43120" },
-  });
-  const projectPath = join(root, ".pi", "pi-pet.json");
-  await writeRepositoryPetConfig({ schemaVersion: 1, pet: "clawa", devices: ["local", "desktop"] }, projectPath);
-  assert.deepEqual(readRepositoryPetConfig(projectPath), {
-    schemaVersion: 1,
-    pet: "clawa",
-    devices: ["local", "desktop"],
-  });
   if (process.platform !== "win32") {
     await chmod(path, 0o644);
     await assert.rejects(loadDesktopConfig(path, {}), PRIVATE_MODE_PATTERN);

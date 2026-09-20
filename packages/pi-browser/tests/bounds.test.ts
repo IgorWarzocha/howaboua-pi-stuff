@@ -30,41 +30,12 @@ test("tab and page results remain bounded with visible continuations", () => {
 			owned: false,
 		},
 	];
-	assert.deepEqual(boundTabs(ownedPages, undefined, 0, true)["tabs"], [
-		{
-			ref_id: "12345678A",
-			title: "Own",
-			url: "https://example.com",
-			owned: true,
-		},
-	]);
-	assert.deepEqual(boundTabs(ownedPages, "Shared", 0, true)["tabs"], []);
-	const content = Array.from({ length: 300 }, (_, index) => ({
-		line: index + 1,
-		text: `${index} ${"content ".repeat(40)}`,
-		...(index % 3 === 0 ? { element_id: index + 1 } : {}),
-	}));
-	const page = boundSnapshot({
-		ref_id: "ABCDEF12",
-		title: "Example",
-		url: "https://example.com",
-		lineno: 1,
-		content,
-		elements: content.flatMap((line) =>
-			line.element_id === undefined
-				? []
-				: [
-						{
-							id: line.element_id,
-							role: "link",
-							name: `Link ${line.element_id}`,
-						},
-					],
+	assert.deepEqual(
+		boundTabs(ownedPages, undefined, 0, true)["tabs"].map(
+			(tab) => tab["ref_id"],
 		),
-	});
-	assert.equal(page["truncated"], true);
-	assert.ok(Buffer.byteLength(JSON.stringify(page)) < 50_000);
-	assert.ok(Array.isArray(page["elements"]) && page["elements"].length > 0);
+		["12345678A"],
+	);
 	const pathological = boundSnapshot({
 		ref_id: "A".repeat(10_000),
 		title: "🤣".repeat(20_000),

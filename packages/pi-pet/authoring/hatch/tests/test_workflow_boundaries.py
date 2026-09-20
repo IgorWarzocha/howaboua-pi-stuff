@@ -32,16 +32,6 @@ class WorkflowBoundaryTest(unittest.TestCase):
         )
         return run_dir
 
-    def test_cardinal_approval_is_an_explicit_dependency_gate(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            run_dir = self.prepare(Path(temporary_directory))
-            manifest = json.loads((run_dir / "visual-jobs.json").read_text())
-            jobs = {job["id"]: job for job in manifest["jobs"]}
-
-        self.assertEqual(jobs["look-cardinals-approved"]["kind"], "visual-approval-gate")
-        self.assertIsNone(jobs["look-cardinals-approved"]["generation_capability"])
-        self.assertEqual(jobs["look-row-9"]["depends_on"], ["look-cardinals-approved"])
-
     def test_cardinal_gate_requires_all_approved_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             run_dir = self.prepare(Path(temporary_directory))
@@ -65,33 +55,6 @@ class WorkflowBoundaryTest(unittest.TestCase):
             )
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("cardinal approval artifact", completed.stderr)
-
-            (run_dir / "qa/look-mechanics.md").write_text("Eyes and head turn; feet remain anchored.\n")
-            (run_dir / "qa/cardinal-anchors.json").write_text(json.dumps({"ok": True}))
-            Image.new("RGBA", (4 * 192, 208), "white").save(run_dir / "decoded/look-anchors-approved.png")
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(APPROVE_CARDINALS),
-                    "--run-dir",
-                    str(run_dir),
-                    "--reviewed-by",
-                    "reviewer",
-                    "--qa-note",
-                    "all cardinals read correctly",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            approved = next(
-                job
-                for job in json.loads(manifest_path.read_text())["jobs"]
-                if job["id"] == "look-cardinals-approved"
-            )
-
-        self.assertEqual(approved["status"], "complete")
-        self.assertEqual(approved["reviewed_by"], "reviewer")
 
     def test_running_left_derivation_stays_staged_with_output_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

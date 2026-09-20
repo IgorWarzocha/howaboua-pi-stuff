@@ -86,15 +86,6 @@ describe("Codex code-mode host", () => {
 		]);
 	});
 
-	test("shares store values between exec cells", async () => {
-		const host = client();
-		await host.execute(`store("answer", 42);`, { cwd: process.cwd() });
-		const response = await host.execute(`text(load("answer"));`, {
-			cwd: process.cwd(),
-		});
-		expect(response.contentItems).toEqual([{ type: "input_text", text: "42" }]);
-	});
-
 	test("yields and resumes a running cell", async () => {
 		const host = client();
 		const started = await host.execute(

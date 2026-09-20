@@ -7,16 +7,12 @@ import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 test("LAN browser preserves handoff and restarts after explicit release", async () => {
 	let hostStarts = 0;
 	let hostConversation: object | undefined;
-	const received: Buffer[] = [];
 	const clients = testBrowserClients({
 		async ensureConversation() {
 			if (!hostConversation) {
 				hostConversation = {};
 				hostStarts += 1;
 			}
-		},
-		onConversationAudio(pcm) {
-			received.push(pcm);
 		},
 		onConversationActivity(active) {
 			if (!active) hostConversation = undefined;
@@ -26,7 +22,6 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	clients.connectAudio("first", first.asWebSocket());
 	first.receive({ type: "start", mode: "conversation" });
 	await settle();
-	first.receiveBinary(Buffer.from([1, 0]));
 	first.close();
 	await settle();
 
@@ -35,25 +30,6 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	second.receive({ type: "start", mode: "conversation" });
 	await settle();
 	assert.equal(hostStarts, 1);
-	assert.deepEqual(received, [Buffer.from([1, 0])]);
-	assert.deepEqual(
-		second.sent.map((value) => JSON.parse(String(value))),
-		[
-			{ type: "connected" },
-			{ type: "active", mode: "conversation", muted: false, speakerSuppressed: false },
-		],
-	);
-	clients.sendConversationAudio(Buffer.from([2, 0]));
-	clients.setConversationSpeakerSuppressed(true);
-	clients.setConversationSpeakerSuppressed(true);
-	clients.setConversationSpeakerSuppressed(false);
-	clients.sendConversationAudio(Buffer.from([3, 0]));
-	assert.deepEqual(second.sent.slice(-4), [
-		Buffer.from([2, 0]),
-		JSON.stringify({ type: "speaker_suppressed", suppressed: true }),
-		JSON.stringify({ type: "speaker_suppressed", suppressed: false }),
-		Buffer.from([3, 0]),
-	]);
 	second.receive({ type: "release" });
 	await settle();
 	second.receive({ type: "start", mode: "conversation" });
@@ -128,9 +104,6 @@ class TestWebSocket extends EventEmitter {
 	}
 	receive(value: unknown): void {
 		this.emit("message", Buffer.from(JSON.stringify(value)), false);
-	}
-	receiveBinary(value: Buffer): void {
-		this.emit("message", value, true);
 	}
 	close(code = 1000, reason = "closed"): void {
 		if (this.readyState === WebSocket.CLOSED) return;

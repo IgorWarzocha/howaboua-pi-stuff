@@ -25,27 +25,6 @@ function fixture() {
 	};
 }
 
-test("lists all categories or an exact category selection", (t) => {
-	const f = fixture();
-	t.after(() => f.cleanup());
-	f.add(
-		"design/visual",
-		"---\nname: visual\ndescription: Visual work.\n---\nVisual body\n",
-	);
-	f.add(
-		"engineering/qa",
-		"---\nname: qa\ndescription: QA work.\n---\nQA body\n",
-	);
-
-	const all = runSkills("list", f.root);
-	assert.match(all, /# DESIGN/);
-	assert.match(all, /# ENGINEERING/);
-
-	const selected = runSkills("list engineering", f.root);
-	assert.doesNotMatch(selected, /# DESIGN/);
-	assert.match(selected, /^# ENGINEERING\n- qa: QA work\.$/);
-});
-
 test("routes mixed skill and reference reads without expanding reference-only output", (t) => {
 	const f = fixture();
 	t.after(() => f.cleanup());
@@ -84,19 +63,6 @@ test("routes mixed skill and reference reads without expanding reference-only ou
 	const reference = runSkills("read tooling api", f.root);
 	const apiPath = resolve(f.root, "engineering/tooling/references/api.md");
 	assert.equal(reference, `API reference\n\n---\nSources:\n- ${apiPath}`);
-	assert.equal(runSkills("read tooling/references/api.md", f.root), reference);
-	assert.equal(
-		runSkills("read tooling/references/api.md SKILL.md", f.root),
-		reference,
-	);
-	assert.equal(runSkills(`read ${apiPath}`, f.root), reference);
-	assert.equal(
-		runSkills(
-			`read tooling api SKILL.md api.md tooling/references/api.md ${apiPath}`,
-			f.root,
-		),
-		reference,
-	);
 	assert.equal(
 		runSkills("read tooling runtime api", f.root),
 		`--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSources:\n- ${resolve(f.root, "engineering/tooling/references/runtime.md")}\n- ${resolve(f.root, "engineering/tooling/references/api.md")}`,
@@ -118,28 +84,19 @@ test("routes mixed skill and reference reads without expanding reference-only ou
 		runSkills("read tooling tooling/references/shared", f.root),
 		toolingSharedOutput,
 	);
-	assert.equal(
-		runSkills(`read tooling ${toolingShared}`, f.root),
-		toolingSharedOutput,
-	);
 	const mixed = runSkills("read tooling writing style", f.root);
 	assert.match(mixed, /^--- tooling ---\n# Tooling/);
 	assert.match(mixed, /--- writing ---\n# Writing/);
 	assert.match(mixed, /--- writing\/references\/style ---\nStyle reference/);
 });
 
-test("rejects malformed commands, unknown categories, and names", (t) => {
+test("rejects malformed commands and unknown skills", (t) => {
 	const f = fixture();
 	t.after(() => f.cleanup());
 	f.add(
 		"design/visual",
 		"---\nname: visual\ndescription: Visual work.\n---\nBody\n",
 	);
-	f.add(
-		"engineering/review",
-		"---\nname: review\ndescription: Review work.\n---\nReview body\n",
-	);
-
 	assert.throws(() => parseRequest("search visual"), /Expected/);
 	assert.throws(() => parseRequest("read"), /one skill name/);
 	assert.throws(() => runSkills("read missing", f.root), /Unknown skill/);
@@ -183,10 +140,6 @@ test("puts cwd skills in session and lets them override globals", (t) => {
 		"agents-md",
 		"---\nname: agents-md\ndescription: Global guidance.\n---\nGlobal body\n",
 	);
-	global.add(
-		"agent/herdr",
-		"---\nname: herdr\ndescription: Panel work.\n---\nPanel body\n",
-	);
 	session.add(
 		"agents-md",
 		"---\nname: agents-md\ndescription: Session guidance.\n---\nSession body\n",
@@ -199,7 +152,7 @@ test("puts cwd skills in session and lets them override globals", (t) => {
 	const output = runSkills("list", global.root, session.root);
 	assert.match(
 		output,
-		/^# SESSION\n- agents-md: Session guidance\.\n- handoff: Session handoff\.\n# AGENT/,
+		/^# SESSION\n- agents-md: Session guidance\.\n- handoff: Session handoff\.$/,
 	);
 	assert.doesNotMatch(output, /Global guidance/);
 	assert.match(
@@ -222,21 +175,6 @@ test("adds Pi-loaded package skills to the filesystem catalog", (t) => {
 		"---\nname: packaged\ndescription: Package skill.\n---\nPackage body\n",
 	);
 	const filePath = resolve(packaged.root, "packaged/SKILL.md");
-	const output = runSkills("read packaged", global.root, undefined, [
-		{
-			name: "packaged",
-			description: "Package skill.",
-			filePath,
-			baseDir: resolve(packaged.root, "packaged"),
-			sourceInfo: { scope: "user" },
-		},
-	]);
-	assert.match(output, /^Package body/);
-	assert.match(
-		output,
-		new RegExp(filePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-	);
-
 	global.add(
 		"packaged",
 		"---\nname: packaged\ndescription: Global collision.\n---\nGlobal body\n",

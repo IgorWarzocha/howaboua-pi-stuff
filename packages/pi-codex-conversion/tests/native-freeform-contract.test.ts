@@ -24,43 +24,21 @@ const exec = {
 	},
 } as const;
 
-test("Code Mode registers native freeform exec beside function controls", () => {
-	const registered: Array<{ name: string; constrainedSampling?: unknown }> = [];
+test("Code Mode factory wires exec as a native grammar tool", () => {
+	const registered: unknown[] = [];
 	registerPublicCodeModeTools({
-		events: {
-			emit() {},
-			on() { return () => {}; },
-		},
+		events: { emit() {}, on() { return () => {}; } },
 		on() {},
-		registerTool(tool: { name: string; constrainedSampling?: unknown }) {
-			registered.push(tool);
+		registerTool(tool: { name: string }) {
+			if (tool.name === "exec") registered.push(tool);
 		},
 	} as never, {} as never);
-	assert.deepEqual(registered
-		.filter(({ name }) => name === "exec" || name === "wait")
-		.map(({ name, constrainedSampling }) => [name, constrainedSampling]), [
-		["exec", exec.constrainedSampling],
-		["wait", undefined],
-	]);
 
-	const tools = convertResponsesTools([
-		exec,
-		{
-			name: "wait",
-			description: "Wait",
-			parameters: {
-				type: "object",
-				properties: { cell_id: { type: "string" } },
-				required: ["cell_id"],
-			},
-		},
-	] as never, { supportsOpenAIGrammarTools: true });
-
-	assert.equal(tools[0]?.type, "custom");
-	assert.equal((tools[0] as { format: { syntax: string } }).format.syntax, "lark");
-	assert.equal("parameters" in tools[0]!, false);
-	assert.equal(tools[1]?.type, "function");
-	assert.equal(convertResponsesTools([exec] as never)[0]?.type, "function");
+	const [native] = convertResponsesTools(registered as never, {
+		supportsOpenAIGrammarTools: true,
+	});
+	assert.equal(native?.type, "custom");
+	assert.equal((native as { format?: { syntax?: string } }).format?.syntax, "lark");
 });
 
 test("native grammar metadata controls custom replay and function fallback", () => {

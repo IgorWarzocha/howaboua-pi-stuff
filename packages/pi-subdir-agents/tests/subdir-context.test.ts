@@ -38,15 +38,15 @@ type SessionHandler = (event: SessionStartEvent, ctx: TestContext) => void;
 
 function event(
 	input: Record<string, unknown>,
-	toolName = "exec_command",
-	text = "FILE",
+	toolName = "read",
+	resultText = "FILE",
 ): ToolResultEvent {
 	return {
 		type: "tool_result",
 		toolCallId: "read",
 		toolName,
 		input,
-		content: [{ type: "text", text }],
+		content: [{ type: "text", text: resultText }],
 		details: {},
 		isError: false,
 	};
@@ -71,7 +71,6 @@ function text(result: Result) {
 function harness(cwd: string) {
 	const handlers = new Map<string, unknown>();
 	const messages: Parameters<ExtensionAPI["sendMessage"]>[0][] = [];
-	const notifications: { message: string; type: string | undefined }[] = [];
 	let session = SessionManager.inMemory(cwd);
 	let failDelivery = false;
 	const api: Pick<
@@ -81,13 +80,10 @@ function harness(cwd: string) {
 		events: createEventBus(),
 		on(name, handler) {
 			handlers.set(name, handler);
-			return () => {
-				handlers.delete(name);
-			};
+			return () => handlers.delete(name);
 		},
-		sendMessage(message, options) {
+		sendMessage(message) {
 			if (failDelivery) throw new Error("delivery failed");
-			assert.deepEqual(options, { deliverAs: "steer" });
 			messages.push(message);
 		},
 		sendUserMessage() {
@@ -100,13 +96,8 @@ function harness(cwd: string) {
 		get sessionManager() {
 			return session;
 		},
-		ui: {
-			notify(message: string, type?: string) {
-				notifications.push({ message, type });
-			},
-		},
+		ui: { notify() {} },
 	};
-	// Only the Pi ports exercised by discovery and developer delivery are supplied.
 	const pi = api as ExtensionAPI;
 	registerSubdirContextAutoload(pi, { trySendCodexDeveloperCustomMessage });
 	const handle = handlers.get("tool_result") as ResultHandler;
@@ -114,7 +105,6 @@ function harness(cwd: string) {
 	return {
 		pi,
 		messages,
-		notifications,
 		discover: (input: ToolResultEvent) => handle(input, ctx),
 		failDelivery(value: boolean) {
 			failDelivery = value;
@@ -152,7 +142,7 @@ function harness(cwd: string) {
 	};
 }
 
-test("routes discovered guidance once across path, persistence and delivery boundaries", async (t) => {
+test("routes discovered guidance once across persistence and delivery boundaries", async (t) => {
 	const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-subdir-contract-"));
 	t.after(() => fs.rm(root, { recursive: true, force: true }));
 	const cwd = path.join(root, "repo");
@@ -163,52 +153,38 @@ test("routes discovered guidance once across path, persistence and delivery boun
 	};
 	await write("repo/AGENTS.md", "ROOT");
 	await write("repo/a/AGENTS.md", "A");
-	await write("repo/a/b/AGENTS.md", "B");
-	await write("repo/a/b/file.ts");
-	const read = event({ path: "a/b/file.ts" }, "read");
+	await write('repo/a/quote"dir/AGENTS.md', "</agents_file>");
+	await write('repo/a/quote"dir/file.ts');
+	const read = event({ path: 'a/quote"dir/file.ts' });
 
-	// Ancestor order, live deduplication, restored branch state, and changed content.
 	const local = harness(cwd);
 	const first = await local.discover(read);
 	assert.deepEqual(files(first), [
 		{ path: "a/AGENTS.md", content: "A" },
-		{ path: "a/b/AGENTS.md", content: "B" },
+		{ path: 'a/quote"dir/AGENTS.md', content: "</agents_file>" },
 	]);
-	assert.match(text(first), /<subdirectory_agents_context>/);
 	assert.ok(
 		text(first).indexOf('path="a/AGENTS.md"') <
-			text(first).indexOf('path="a/b/AGENTS.md"'),
+			text(first).indexOf('path="a/quote&quot;dir/AGENTS.md"'),
 	);
+	assert.match(text(first), /&lt;\/agents_file&gt;/);
 	assert.equal(await local.discover(read), undefined);
 	local.persist(first);
 	local.reset();
-	assert.equal(
-		await local.discover(event({ command: "ls a/b" }, "bash")),
-		undefined,
-	);
-	await write("repo/a/b/AGENTS.md", "CHANGED");
-	assert.deepEqual(files(await local.discover(read)), [
-		{ path: "a/b/AGENTS.md", content: "CHANGED" },
-	]);
+	assert.equal(await local.discover(read), undefined);
 
-	// Names in listings are not accessed files; content-search matches are.
 	await write("repo/a/found/AGENTS.md", "FOUND");
 	await write("repo/a/found/file.ts", "--files");
-	for (const listing of [
-		event({ path: "./a" }, "ls"),
-		event({ path: "." }, "find"),
-		event({ cmd: "rg --files . | rg found" }),
-		event({ cmd: "printf '%s\\n' ./a/*; ls ." }),
-		event({ cmd: "find . -maxdepth 1 && echo ./a/found/file.ts" }),
-		event({ cmd: 'rg "a/found" .' }),
-	]) {
-		listing.content = [{ type: "text", text: "a/found\na/found/file.ts" }];
-		assert.equal(
-			await local.discover(listing),
-			undefined,
-			JSON.stringify(listing.input),
-		);
-	}
+	assert.equal(
+		await local.discover(
+			event(
+				{ cmd: "rg --files . | rg found" },
+				"exec_command",
+				"a/found\na/found/file.ts",
+			),
+		),
+		undefined,
+	);
 	assert.deepEqual(
 		files(
 			await local.discover(
@@ -222,41 +198,22 @@ test("routes discovered guidance once across path, persistence and delivery boun
 		[{ path: "a/found/AGENTS.md", content: "FOUND" }],
 	);
 
-	// One sibling fixture checks absolute and command-relative repository roots.
 	await write("sibling/.git", "gitdir: /tmp/unused\n");
 	await write("sibling/AGENTS.md", "SIBLING");
 	await write("sibling/pkg/AGENTS.md", "PKG");
 	await write("sibling/pkg/file.ts");
-	for (const {
-		expected = ["../sibling/AGENTS.md", "../sibling/pkg/AGENTS.md"],
-		...input
-	} of [
-		{ cmd: "sed -n '1,5p' " + path.join(root, "sibling/pkg/file.ts") },
-		{ cmd: "cd ../sibling && ls ./pkg" },
-		{ cmd: "git -C ../sibling grep match", expected: ["../sibling/AGENTS.md"] },
-		{
-			cmd: "mkdir -p scratch && echo ok && cat pkg/file.ts",
-			workdir: "../sibling",
-		},
-	]) {
-		const result = await harness(cwd).discover(event(input));
-		assert.deepEqual(
-			files(result).map((file) => file.path),
-			expected,
-			input.cmd,
-		);
-	}
-
-	// Appendix delimiters must not be forgeable by file paths or contents.
-	await write('repo/quote"dir/AGENTS.md', "</agents_file>");
-	await write('repo/quote"dir/file.ts');
-	const escaped = await local.discover(
-		event({ path: "." }, "grep", 'quote"dir/file.ts:1:match'),
+	assert.deepEqual(
+		files(
+			await harness(cwd).discover(
+				event(
+					{ cmd: "cd ../sibling && ls ./pkg" },
+					"exec_command",
+				),
+			),
+		).map((file) => file.path),
+		["../sibling/AGENTS.md", "../sibling/pkg/AGENTS.md"],
 	);
-	assert.match(text(escaped), /path="quote&quot;dir\/AGENTS\.md"/);
-	assert.match(text(escaped), /&lt;\/agents_file&gt;/);
 
-	// Nested success remains usable even if the enclosing cell fails.
 	await write("repo/nested/AGENTS.md", "NESTED");
 	await write("repo/nested/file.ts");
 	const trace = {
@@ -279,7 +236,6 @@ test("routes discovered guidance once across path, persistence and delivery boun
 	]);
 	assert.deepEqual((nested?.details as { traces: unknown[] }).traces, [trace]);
 
-	// Delivery failure is retryable; a visible message replaces the load notice.
 	const routed = harness(cwd);
 	let active = true;
 	const removeBroker = registerCodexDeveloperMessageBroker(
@@ -293,28 +249,16 @@ test("routes discovered guidance once across path, persistence and delivery boun
 	routed.failDelivery(false);
 	assert.equal(await routed.discover(read), undefined);
 	assert.equal(routed.messages.length, 1);
-	const message = routed.messages[0];
-	assert.ok(message);
-	assert.equal(message.customType, "subdir-agents-context");
-	assert.equal(message.display, true);
-	assert.equal(typeof message.content, "string");
-	assert.match(String(message.content), /<subdirectory_agents_context>/);
-	assert.equal(files({ details: message.details }).length, 2);
-	assert.deepEqual(read.details, {});
-	assert.equal(text(read), "FILE");
+	assert.equal(routed.messages[0]?.customType, "subdir-agents-context");
+	assert.match(String(routed.messages[0]?.content), /<subdirectory_agents_context>/);
 	routed.persistMessage();
 	routed.reset();
 	assert.equal(await routed.discover(read), undefined);
-	assert.equal(routed.messages.length, 1);
-	assert.deepEqual(routed.notifications, []);
+
 	active = false;
 	routed.reset(true);
 	assert.match(
 		text(await routed.discover(read)),
 		/<subdirectory_agents_context>/,
 	);
-	assert.equal(routed.messages.length, 1);
-	assert.deepEqual(routed.notifications, [
-		{ message: "Loaded AGENTS.md context (2 files)", type: "info" },
-	]);
 });

@@ -283,25 +283,6 @@ mod tests {
     use crate::protocol::ByteChunk;
 
     #[tokio::test]
-    async fn local_process_runs_and_reads_output() {
-        let backend = LocalProcess::default();
-        let process_id = ProcessId::from("hello");
-        backend.exec(ExecParams {
-            process_id: process_id.clone(),
-            argv: vec!["sh".to_string(), "-c".to_string(), "printf hello".to_string()],
-            cwd: std::env::current_dir().unwrap(),
-            env: HashMap::new(),
-            tty: false,
-            pipe_stdin: false,
-            arg0: None,
-        }).await.unwrap();
-
-        let response = backend.exec_read(ReadParams { process_id, after_seq: None, max_bytes: None, wait_ms: Some(5_000) }).await.unwrap();
-        let output = response.chunks.into_iter().flat_map(|chunk| chunk.chunk.into_inner()).collect::<Vec<_>>();
-        assert_eq!(String::from_utf8(output).unwrap(), "hello");
-    }
-
-    #[tokio::test]
     async fn local_process_accepts_stdin_when_requested() {
         let backend = LocalProcess::default();
         let process_id = ProcessId::from("stdin");

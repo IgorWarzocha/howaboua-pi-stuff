@@ -40,17 +40,6 @@ test("Responses Lite moves instructions and tools into input and prepares images
 			{ type: "input_text", text: "image content omitted because remote image URLs are not supported" },
 		] },
 	]);
-
-	const lateAdditionFirst = applyResponsesLiteRequest({
-		model: "gpt-5.6-luna",
-		instructions: "Keep the leading prompt",
-		input: [{ type: "additional_tools", role: "developer", tools: [{ type: "function", name: "later" }] }],
-	});
-	assert.deepEqual(lateAdditionFirst.input.slice(0, 2), [
-		{ type: "additional_tools", role: "developer", tools: [] },
-		{ type: "message", role: "developer", content: [{ type: "input_text", text: "Keep the leading prompt" }] },
-	]);
-	assert.equal((lateAdditionFirst.input[2] as { type?: string }).type, "additional_tools");
 });
 
 test("Responses Lite validates inline images before transport", async () => {

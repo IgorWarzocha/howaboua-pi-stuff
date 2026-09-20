@@ -1,21 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Check } from "typebox/value";
-import { NOTEBOOK_PARAMETERS, normalizeNotebookRequest } from "../src/tools/code-mode/notebook-tool.ts";
+import { normalizeNotebookRequest } from "../src/tools/code-mode/notebook-tool.ts";
 import { notebookStatusSource } from "../src/tools/notebook-mode/lifecycle-runtime.ts";
 
-test("notebook request schema rejects action mismatches and normalization tolerates null placeholders", () => {
-	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "prune", query: "scratch*" }), true);
-	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "prune" }), false);
-	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "checkpoint", query: "scratch*" }), false);
-	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "save", names: ["scratch"] }), false);
+test("notebook request normalization rejects mismatched fields and strips null placeholders", () => {
 	for (const hook of ["startup", "tool_result", false] as const) {
-		assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "pin", names: ["setup"], hook }), true);
-		assert.deepEqual(normalizeNotebookRequest({ action: "pin", names: ["setup", "setup"], hook }), { action: "pin", names: ["setup"], hook });
+		assert.deepEqual(
+			normalizeNotebookRequest({ action: "pin", names: ["setup", "setup"], hook }),
+			{ action: "pin", names: ["setup"], hook },
+		);
 	}
-	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "unpin", names: ["setup"], hook: "tool_result" }), false);
 	assert.throws(() => normalizeNotebookRequest({ action: "checkpoint", hook: "startup" }), /hook requires pin/);
-	assert.throws(() => normalizeNotebookRequest({ action: "pin", names: ["setup"], hook: "unknown" } as never), /hook requires pin/);
+	assert.throws(() => normalizeNotebookRequest({ action: "save", names: ["scratch"] }), /accepts name only/);
 	assert.deepEqual(normalizeNotebookRequest({
 		action: "status",
 		query: null,

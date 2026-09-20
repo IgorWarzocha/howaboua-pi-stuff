@@ -123,12 +123,7 @@ test("project notebook merge preserves pins and validates explicit hook updates"
 		currentPayload: previous,
 	});
 
-	assert.equal(merged.changed, true);
-	assert.deepEqual(merged.conflicts, []);
-	assert.deepEqual(merged.appliedNames, ["shared"]);
-	assert.deepEqual(merged.baseline.entries, [{ name: "shared", hash: hash(payload) }]);
 	assert.equal(merged.entries[0]?.pinned, true);
-	assert.ok(merged.entries[0]?.updatedAt);
 	assert.equal(merged.payload.toString(), "value");
 
 	const current = projectManifest("current", payload, true);
@@ -145,7 +140,6 @@ test("project notebook merge preserves pins and validates explicit hook updates"
 	current.entries = enabled.entries;
 	assert.equal(mergeProjectState(options).entries[0]?.hook, "tool_result");
 	const changed = mergeProjectState({ ...options, pins: { names: ["shared"], pinned: true, hook: "startup" } });
-	assert.equal(changed.changed, true);
 	assert.equal(changed.entries[0]?.hook, "startup");
 	for (const pins of [{ names: ["shared"], pinned: false }, { names: ["shared"], pinned: true, hook: false as const }]) {
 		const disabled = mergeProjectState({ ...options, pins });

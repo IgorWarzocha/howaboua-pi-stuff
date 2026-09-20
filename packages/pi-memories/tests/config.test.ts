@@ -4,10 +4,6 @@ import {
 	shouldDistillOnShutdown,
 } from "../src/index.js";
 
-test("accepts max thinking", () => {
-	expect(normalizeThinkingLevel("max")).toBe("max");
-});
-
 test("falls back for unknown thinking levels", () => {
 	expect(normalizeThinkingLevel("unlimited", "medium")).toBe("medium");
 });

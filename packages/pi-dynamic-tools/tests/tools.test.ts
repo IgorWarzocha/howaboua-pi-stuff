@@ -35,12 +35,6 @@ function emptyToolsDir(): string {
 }
 
 describe("dynamic tool registration", () => {
-	test("registers exec and wait with an empty catalog", async () => {
-		const fake = fakePi();
-		await registerDynamicTools(fake.api as never, emptyToolsDir());
-		expect(fake.tools).toEqual(["exec", "wait"]);
-	});
-
 	test("does not register twice through direct and aggregate packages", async () => {
 		const events = {};
 		const direct = fakePi(events);

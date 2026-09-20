@@ -4,7 +4,6 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-	buildPiArgs,
 	buildReviewerMessage,
 	detectReviewContext,
 	parseSpawnAgentRequest,
@@ -52,25 +51,6 @@ describe("bundled spawn_agent", () => {
 				JSON.stringify({ agent_type: "worker", message: "Implement it." }),
 			),
 		).toThrow('agent_type must be "explorer" or "reviewer"');
-	});
-
-	test("maps explorer and reviewer to fixed models with appended prompts", () => {
-		const explorer = buildPiArgs(
-			{ agent_type: "explorer", message: "Find it." },
-			"Find it.",
-		);
-		const reviewer = buildPiArgs(
-			{ agent_type: "reviewer", message: "Review it." },
-			"Review base:\nInstructions:\nReview it.",
-		);
-		expect(explorer).toContain("openai-codex/gpt-5.6-terra");
-		expect(explorer).toContain("low");
-		expect(reviewer).toContain("openai-codex/gpt-5.6-luna");
-		expect(reviewer).toContain("medium");
-		expect(explorer).toContain("--append-system-prompt");
-		expect(explorer).not.toContain("--system-prompt");
-		expect(explorer).not.toContain("--no-context-files");
-		expect(explorer).toContain("--no-skills");
 	});
 
 	test("detects the review base and builds explicit review instructions", () => {

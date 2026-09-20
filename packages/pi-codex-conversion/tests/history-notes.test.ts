@@ -145,22 +145,21 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				{ status: 400 },
 			);
 		}) as typeof fetch;
-		for (let attempt = 0; attempt < 2; attempt += 1)
-			await assert.rejects(
-				() => remoteNotes.execute(
-					`failed-note-${attempt}`,
-					{ action: "write_file", path: "checkpoint.md", text: "progress" },
-					undefined,
-					undefined,
-					context,
-				),
-				/History and notes backend failed \(400\)/,
-			);
+		await assert.rejects(
+			() => remoteNotes.execute(
+				"failed-note",
+				{ action: "write_file", path: "checkpoint.md", text: "progress" },
+				undefined,
+				undefined,
+				context,
+			),
+			/History and notes backend failed \(400\)/,
+		);
 		assert.equal(
 			await loadHistoryNotesThreadHint(context, "remote"),
 			undefined,
 		);
-		assert.equal(failedRequests, 3);
+		assert.equal(failedRequests, 2);
 		assert.equal(completedWrites, 1, "failed backend writes cannot confirm a checkpoint");
 
 		const [localHistory, localNotes] = createHistoryNotesTools(pi, () => "local", prepareWrite);

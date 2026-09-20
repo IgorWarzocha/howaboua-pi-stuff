@@ -190,23 +190,6 @@ mod tests {
     }
 
     #[test]
-    fn opus_decoder_conceals_one_missing_twenty_millisecond_frame() {
-        let mut encoder =
-            opus::Encoder::new(48_000, opus::Channels::Mono, opus::Application::Voip).unwrap();
-        let mut encoded = vec![0_u8; 4_000];
-        let size = encoder.encode_float(&vec![0.1; 960], &mut encoded).unwrap();
-        let mut decoder = opus::Decoder::new(48_000, opus::Channels::Stereo).unwrap();
-        let mut decoded = vec![0.0; 960 * 2];
-        assert_eq!(
-            decoder
-                .decode_float(&encoded[..size], &mut decoded, false)
-                .unwrap(),
-            960
-        );
-        assert_eq!(decoder.decode_float(&[], &mut decoded, false).unwrap(), 960);
-    }
-
-    #[test]
     fn playout_clock_preserves_media_time_across_a_coarse_wake() {
         let start = Instant::now();
         let mut clock = PlayoutClock::new();

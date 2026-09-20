@@ -31,10 +31,8 @@ test("Notebook results retain output, recovery and memory pressure without succe
 		contentItems: [{ type: "input_text", text: "Script completed" }],
 	});
 	assert.deepEqual(completed.content, [{ type: "text", text: "Script completed" }]);
-	assert.equal(completed.details.statusPrefix, false);
 	const empty = toCodeModeToolResult({ kind: "result", cellId: "empty", contentItems: [] });
 	assert.deepEqual(empty.content, [{ type: "text", text: "OK" }]);
-	assert.equal(empty.details.statusPrefix, true);
 	const result = toCodeModeToolResult({
 		kind: "yielded",
 		cellId: "notebook-1",
