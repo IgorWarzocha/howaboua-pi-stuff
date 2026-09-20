@@ -24,6 +24,8 @@ export interface CodexUiController {
 }
 
 export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
+	// Labels must match registered bindings, not later folder config changes.
+	const backgroundShellShortcuts = { ...runtime.state.config.ui };
 	let renderTimer: ReturnType<typeof setTimeout> | undefined;
 	let backgroundWidgetGeneration = 0;
 	let usageGeneration = 0;
@@ -50,10 +52,10 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			clearBackgroundWidget();
 			return;
 		}
-		renderBackgroundBashWidget(ctx, runtime.backgroundWidget, runtime.sessions);
+		renderBackgroundBashWidget(ctx, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts);
 	};
 
-	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, runtime.state.config.ui, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
+	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
 	const renderNativeCompaction = (
 		content: string,
 		kind: NativeCompactionDisplayEntry["kind"],

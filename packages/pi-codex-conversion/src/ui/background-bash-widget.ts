@@ -6,6 +6,8 @@ import type { ExecSessionManager, ExecSessionSnapshot } from "../tools/exec/sess
 export const BACKGROUND_BASH_WIDGET_ID = "codex-background-bashes";
 const OUTPUT_TAIL_CHARS = 4_000;
 
+type BackgroundShellShortcuts = Pick<CodexConversionConfig["ui"], "backgroundShellCloseShortcut" | "backgroundShellNextShortcut" | "backgroundShellPrevShortcut" | "backgroundShellToggleShortcut">;
+
 export interface BackgroundBashWidgetState {
 	activeSessionId?: number | undefined;
 	folded: boolean;
@@ -47,7 +49,7 @@ function resolveActiveSessionId(state: BackgroundBashWidgetState, snapshots: Exe
 	return fallback;
 }
 
-export function renderBackgroundBashWidget(ctx: ExtensionContext, state: BackgroundBashWidgetState, sessions: ExecSessionManager): void {
+export function renderBackgroundBashWidget(ctx: ExtensionContext, state: BackgroundBashWidgetState, sessions: ExecSessionManager, config: BackgroundShellShortcuts): void {
 	if (ctx.mode !== "tui") return;
 	const snapshots = sessions.listSessions(OUTPUT_TAIL_CHARS);
 	if (snapshots.length === 0) {
@@ -78,7 +80,7 @@ export function renderBackgroundBashWidget(ctx: ExtensionContext, state: Backgro
 		lines.push(`${theme.fg("muted", "│")} ${theme.fg("dim", `session ${active.id} · updated ${ageLabel(active.updatedAt)} ago`)}`);
 	}
 
-	lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", "alt+q/e select · alt+w fold/open · alt+r close")}`);
+	lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", `${config.backgroundShellPrevShortcut}/${config.backgroundShellNextShortcut} select · ${config.backgroundShellToggleShortcut} fold/open · ${config.backgroundShellCloseShortcut} close`)}`);
 	ctx.ui.setWidget(BACKGROUND_BASH_WIDGET_ID, lines, { placement: "aboveEditor" });
 }
 
@@ -86,13 +88,13 @@ export function registerBackgroundBashWidgetShortcuts(
 	pi: ExtensionAPI,
 	state: BackgroundBashWidgetState,
 	sessions: ExecSessionManager,
-	config: Pick<CodexConversionConfig["ui"], "backgroundShellCloseShortcut" | "backgroundShellNextShortcut" | "backgroundShellPrevShortcut" | "backgroundShellToggleShortcut">,
+	config: BackgroundShellShortcuts,
 	isEnabled: () => boolean,
 ): void {
 	function rerender(ctx: ExtensionContext): void {
 		if (!isEnabled()) return;
 		state.ctx = ctx;
-		renderBackgroundBashWidget(ctx, state, sessions);
+		renderBackgroundBashWidget(ctx, state, sessions, config);
 	}
 
 	pi.registerShortcut(config.backgroundShellToggleShortcut as "alt+w", {
