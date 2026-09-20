@@ -80,7 +80,7 @@ export function renderContextWindowMessage(
 
 export function renderContextWindowReminder(remainingPercent: number, urgent: boolean): string {
 	return `<context_window_reminder>
-${urgent ? "Urgent: " : ""}${remainingPercent}% of the context window remains. Checkpoint the active request, state and known history IDs in notes, then call new_context ${urgent ? "now, before other work" : "before continuing work"}.
+${urgent ? "Urgent: " : ""}${remainingPercent}% remaining. Checkpoint the active request, state and known history IDs in notes, then call new_context ${urgent ? "now, before other work" : "before continuing work"}.
 </context_window_reminder>`;
 }
 

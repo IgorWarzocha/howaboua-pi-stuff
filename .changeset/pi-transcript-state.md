@@ -10,6 +10,7 @@ Pi 0.86.0 or newer is now required. Prompt and tool state now survives transcrip
 - Prewarm the fully prepared request and retain that exact prefix for idle cache keepalive, after every extension has contributed its instructions and tools.
 - Run idle developer messages, voice delegations, and voice setup through the complete prompt-preparation chain.
 - Supply Notebook startup status and retained bindings automatically instead of requiring an opening status tool call.
+- Removed redundant developer-message wording and internal Notebook generation IDs. Realtime voice now explicitly requests progress between tool calls instead of silence until the final answer.
 - Save `/codex` settings immediately but defer applying them until the current run settles, keeping active tools and instructions in sync. The settings UI and voice stop, mute and server controls remain immediately available.
 - Report context budgets against the active model's full configured window, request a notes checkpoint at 85% used, and send an urgent reminder at 90% without forcing rollover.
 - Compact on overflow instead of cutting to a fresh window, even with Hybrid off. Preserve the checkpoint and recent conversation in the current window.

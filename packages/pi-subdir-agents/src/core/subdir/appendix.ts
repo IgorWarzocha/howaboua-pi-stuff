@@ -17,7 +17,6 @@ export function appendAgentsContext<TContent extends { type: string }>(
 	if (!files.length) return content;
 	const appendix = [
 		"<subdirectory_agents_context>",
-		"AGENTS.md context relevant to this tool result.",
 		...files.map(
 			(file) =>
 				`<agents_file path="${escapeXml(file.path)}">\n${escapeXml(file.content)}\n</agents_file>`,

@@ -19,21 +19,9 @@ export type ReviewDeveloperMessages = Partial<
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const REVIEW_LOOP_PREFACE_MESSAGE = [
-	"A review subagent is about to inspect the repository in isolation. Its findings are advisory only and may be wrong, overbroad, or missing session context.",
-	"",
-	"Do not treat review findings as a TODO list. Do not implement review findings automatically.",
-	"",
-	"When findings return, compare each one against the user’s actual request, prior conversation, accepted decisions, intentional tradeoffs from this session, and the current implementation.",
-	"",
-	"Default response: verify and triage, not code.",
-	"",
-	"For each verified finding, recommend one of:",
-	"",
-	"- address: concrete, in-scope, necessary for the current implementation",
-	"- defer: plausible but outside the current work",
-	"- skip: stylistic, speculative, preference-based, overengineered, or not useful",
-	"",
-	"After triage, obtain the user’s disposition. If a finding is not obviously required for the current implementation, recommend deferring or skipping it.",
+	"Review findings are advisory and may be wrong or lack session context. Verify each against the user's request, prior decisions, tradeoffs and current state.",
+	"Recommend address (necessary and in scope), defer (outside current work), or skip (stylistic, speculative or not useful).",
+	"Obtain the user's disposition before making changes.",
 ].join("\n");
 
 const REVIEW_SUMMARY_STARTED_PROMPT =
@@ -41,9 +29,9 @@ const REVIEW_SUMMARY_STARTED_PROMPT =
 const REVIEW_FINDINGS_READY_PROMPT =
 	"The isolated code review has finished, and its findings have been sent to the main agent for triage. Announce this briefly in your natural voice. When the main agent responds, continue with its substantive triage without repeating this status.";
 const REVIEW_FINDINGS_FOLLOW_UP = [
-	"Treat the findings above as advisory and unverified. Read the cited files and trace the relevant paths before deciding whether each finding is true, necessary, and in scope. Compare them against the user’s request, prior decisions, and current implementation. Do not merely summarize the reviewer output.",
+	"Treat the findings above as advisory and unverified. Read the cited files and trace the relevant paths before deciding whether each finding is true, necessary, and in scope. Compare them against the user’s request, prior decisions, and current state. Do not merely summarize the reviewer output.",
 	"",
-	"Before changing code, get the user’s disposition on the verified findings using an available ask/questions tool, or a normal message if none is available. After dispositions are agreed, do not summarize them again: start the agreed work. If any remain ambiguous, complete the clear, simple, non-blocking agreed fixes first, then return to the ambiguous findings.",
+	"Before making changes, get the user’s disposition on the verified findings using an available ask/questions tool, or a normal message if none is available. After dispositions are agreed, do not summarize them again: start the agreed work. If any remain ambiguous, complete the clear, simple, non-blocking agreed fixes first, then return to the ambiguous findings.",
 ].join("\n");
 
 function announceReviewStatus(

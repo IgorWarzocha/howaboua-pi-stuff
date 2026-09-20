@@ -93,7 +93,7 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	const lines = [
 		`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""} · ${details.userCells} completed cell${details.userCells === 1 ? "" : "s"}`,
 		memory ? `Memory ${formatBytes(memory.heapUsedBytes)} heap used / ${formatBytes(memory.heapLimitBytes)} limit · ${formatBytes(memory.rssBytes)} RSS` : undefined,
-		`Checkpoint ${checkpoint["dirty"] ? "pending" : "current"} · project generation ${String(checkpoint["projectGeneration"] ?? "root")} · ${String(checkpoint["projectBindings"] ?? 0)} durable binding(s)`,
+		`Checkpoint ${checkpoint["dirty"] ? "pending" : "current"} · ${String(checkpoint["projectBindings"] ?? 0)} durable binding(s)`,
 		`Retained state ${details.retainedBindings} binding(s) · ${formatBytes(details.retainedBytes)} serialized · ${details.pinnedBindings} pinned`,
 		details.userBindings === undefined ? undefined : `Top-level bindings: ${details.userBindings}`,
 	];

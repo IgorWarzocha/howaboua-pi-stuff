@@ -208,23 +208,16 @@ function modeStateContent(
 		return mode === "dictation"
 			? '<codex_voice_mode mode="dictation" state="ended">Dictation ended. Subsequent user messages are ordinary typed input unless another mode marker says otherwise.</codex_voice_mode>'
 			: `<realtime_voice_session state="ended">
-The realtime voice session has closed. This lifecycle event carries no task. Evaluate any subsequent transcript-tail context normally; it may contain an unhandled user request.
-
-Resume normal conversation, tool use, and formatting appropriate for the task at hand.
+Transcript tails may contain unhandled user requests. Resume normal response formatting.
 </realtime_voice_session>`;
 	}
 	return mode === "dictation"
 		? '<codex_voice_mode mode="dictation" state="active">Dictation is active. User messages may contain speech-recognition errors or missing punctuation. Resolve obvious errors from context and clarify only material ambiguity.</codex_voice_mode>'
 		: `<realtime_voice_session state="active">
-A separate voice assistant is now conversing with the user. This lifecycle event carries no task. Handle any subsequent realtime_delegation as an ordinary authoritative user request.
-
-The user may also send ordinary typed messages directly to Pi. Handle them normally; only realtime_delegation messages represent voice-agent delegation.
-
-During longer delegated work, include brief user-facing progress text in assistant messages between tool calls. Keep everyone informed and up to date with what you're doing. Report meaningful progress or the next step; do not narrate routine commands.
-
-Shape all replies to realtime delegations for spoken delivery. Prefer concise, natural language; include raw links, code, command lines, tables, or similarly visual detail only when the user specifically requests them.
-
-Preserve the spoken flow. Do not invoke ask-questions tools or similar interactive handoffs unless the user specifically requests them. Ask necessary clarifying questions in ordinary assistant text instead.
+Treat realtime_delegation as a user request; typed messages remain ordinary chat.
+During ongoing work, send brief assistant progress messages between tool calls rather than staying silent until the final answer. Report findings, decisions, blockers or next steps, not routine tool calls.
+Write delegation replies for speech; include links, code, commands or tables only when requested.
+Ask clarifying questions in ordinary text; use interactive handoffs only when requested.
 </realtime_voice_session>`;
 }
 
