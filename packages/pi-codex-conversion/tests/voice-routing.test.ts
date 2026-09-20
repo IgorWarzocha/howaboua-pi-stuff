@@ -189,15 +189,22 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 		},
 	} as unknown as ExtensionAPI;
 	const unregisterSetupBroker = registerCodexDeveloperMessageBroker(setupPi, () => true, () => true);
+	const activeConfig = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+	const setupState = { config: activeConfig, codexTurnState: { beginTurn() {} } };
 	const controls = createCodexVoiceControls({
 		pi: setupPi,
-		state: {
-			config: structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
-			codexTurnState: { beginTurn() {} },
-		} as never,
+		state: setupState as never,
 		voice: { activeMode: undefined } as never,
 		lanVoice: { status: () => ({ running: false }) } as never,
 	});
+	await controls.setup({
+		cwd: process.cwd(),
+		isProjectTrusted: () => false,
+		isIdle: () => false,
+		ui: { notify() {} },
+	} as unknown as ExtensionContext);
+	assert.equal(setupState.config, activeConfig);
+	assert.equal(setupMessages.length, 0);
 	await controls.setup({
 		cwd: process.cwd(),
 		isProjectTrusted: () => false,

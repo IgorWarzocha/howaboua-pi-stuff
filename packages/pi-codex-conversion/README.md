@@ -63,7 +63,9 @@ On Pi 0.86, change tool loadouts between runs. If another extension changes acti
 
 ## Settings
 
-`/codex` opens the settings UI:
+`/codex` opens immediately and saves changes as you make them. During a run, changes take effect only after it settles, including retries and queued continuations. Voice stop, mute and server controls remain immediate.
+
+The settings tabs cover:
 
 | Tab | Covers |
 | --- | --- |

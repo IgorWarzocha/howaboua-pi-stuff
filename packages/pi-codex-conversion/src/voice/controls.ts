@@ -34,10 +34,10 @@ export function createCodexVoiceControls(options: {
 		force: boolean,
 		mode?: CodexVoiceMode,
 	): Promise<boolean> => {
-		const currentConfig = readEffectiveCodexConversionConfig({
+		const currentConfig = ctx.isIdle() ? readEffectiveCodexConversionConfig({
 			cwd: ctx.cwd,
 			projectTrusted: ctx.isProjectTrusted(),
-		});
+		}) : state.config;
 		const configPath = hasFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted())
 			? getProjectCodexConversionConfigPath(ctx.cwd)
 			: getCodexConversionConfigPath();
