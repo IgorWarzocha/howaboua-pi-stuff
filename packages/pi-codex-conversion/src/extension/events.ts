@@ -196,6 +196,7 @@ export function registerCodexEvents(
 			pi,
 			ctx,
 			plan.contextManagement,
+			event.newLeafId,
 		);
 		prepareCodeModeHost(codeMode, ctx);
 		if (previousMode === "notebook" || state.executionMode === "notebook") {

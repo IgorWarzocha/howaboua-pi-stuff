@@ -213,9 +213,12 @@ test("context windows preserve rollover and native request semantics", async (t)
 		assert.equal(kickoffs.length, 1, "active runs receive steering without another kickoff");
 
 		const completedCtx = createContext() as ExtensionContext;
-		completedCtx.sessionManager.getBranch = () => [{
-			type: "message", message: { role: "assistant", stopReason: "stop" },
-		}] as never;
+		const completedAssistant = { type: "message", id: "checkpoint-complete", message: { role: "assistant", stopReason: "stop" } };
+		const completedBranch = [
+			{ ...sent[0]!.message, type: "custom_message", id: "checkpoint-boundary" },
+			completedAssistant,
+		];
+		completedCtx.sessionManager.getBranch = () => completedBranch as never;
 		const compactWithSavedNotes = (customInstructions?: string) => {
 			checkpointManager.prepareCompaction({ reason: "manual", customInstructions, signal: new AbortController().signal } as never, mode);
 			return checkpointManager.finishManualCheckpointRequest(pi, completedCtx, cancelled, true);
@@ -224,11 +227,15 @@ test("context windows preserve rollover and native request semantics", async (t)
 		const oldWrite = checkpointManager.trackNoteWrite(completedCtx);
 		oldWrite();
 		checkpointManager.settleTurn(completedCtx);
-		assert.equal(compactWithSavedNotes(), true, "completed note save needs no checkpoint turn");
+		checkpointManager.ensureInitialized(pi, completedCtx, true, completedAssistant.id);
+		assert.equal(compactWithSavedNotes(), true, "returning to the note-saving final reply needs no checkpoint turn");
 		assert.equal(sent.length, 3);
 		assert.equal(kickoffs.length, 1);
 		assert.equal(compactWithSavedNotes("Preserve the decision"), false, "explicit instructions still need a model turn");
-		checkpointManager.clearTurnNotes();
+		completedBranch.pop();
+		checkpointManager.ensureInitialized(pi, completedCtx, true, "checkpoint-boundary");
+		assert.equal(compactWithSavedNotes(), false, "navigating before the completed note save cannot retain its credit");
+		completedBranch.push(completedAssistant);
 		checkpointManager.beginTurn(completedCtx);
 		oldWrite();
 		checkpointManager.settleTurn(completedCtx);

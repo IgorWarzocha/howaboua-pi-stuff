@@ -62,6 +62,7 @@ export class CodexContextWindowManager {
 		windowId: string;
 		phase: "running" | "settled";
 		saved: boolean;
+		settledEntryId?: string;
 	} | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
@@ -108,6 +109,7 @@ export class CodexContextWindowManager {
 			return;
 		}
 		turn.phase = "settled";
+		turn.settledEntryId = lastAssistant.id;
 	}
 
 	trackNoteWrite(ctx: ExtensionContext): () => void {
@@ -152,9 +154,22 @@ export class CodexContextWindowManager {
 		pi: ExtensionAPI,
 		ctx: ExtensionContext,
 		active: boolean,
+		selectedTreeLeafId?: string | null,
 	): void {
 		if (!active) return;
-		this.restore(ctx.sessionManager.getBranch());
+		const turn = this.turnNotes;
+		const branch = ctx.sessionManager.getBranch();
+		this.restore(branch);
+		// Only an explicit return to this completed turn can retain its checkpoint credit.
+		if (selectedTreeLeafId && turn?.phase === "settled" && turn.saved &&
+			turn.settledEntryId === selectedTreeLeafId &&
+			turn.sessionId === ctx.sessionManager.getSessionId() &&
+			turn.windowId === this.identity?.currentWindowId &&
+			branch.some((entry) => entry.id === selectedTreeLeafId && entry.type === "message" &&
+				entry.message.role === "assistant" &&
+				(entry.message.stopReason === "stop" || entry.message.stopReason === "length"))) {
+			this.turnNotes = turn;
+		}
 		if (this.identity) return;
 		const windowId = randomUUID();
 		this.sendWindowMessage(
