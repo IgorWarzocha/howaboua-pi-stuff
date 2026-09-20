@@ -134,7 +134,6 @@
       "version": "3.0.34",
       "dependencies": {
         "openai": "7.10.0",
-        "partial-json": "^0.1.7",
         "proxy-from-env": "2.1.0",
         "selfsigned": "^5.5.0",
         "smol-toml": "^1.8.0",
@@ -289,8 +288,8 @@
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
-        "@earendil-works/pi-ai": ">=0.84.3",
-        "@earendil-works/pi-coding-agent": ">=0.84.4",
+        "@earendil-works/pi-ai": ">=0.86.0",
+        "@earendil-works/pi-coding-agent": ">=0.86.0",
         "@earendil-works/pi-tui": ">=0.84.3",
       },
     },

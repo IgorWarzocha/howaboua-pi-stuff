@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import type { JsonValue } from "@earendil-works/pi-ai";
 import {
 	createEventBus,
 	type ExtensionAPI,
@@ -80,6 +81,9 @@ function harness(cwd: string) {
 		events: createEventBus(),
 		on(name, handler) {
 			handlers.set(name, handler);
+			return () => {
+				handlers.delete(name);
+			};
 		},
 		sendMessage(message, options) {
 			if (failDelivery) throw new Error("delivery failed");
@@ -121,12 +125,16 @@ function harness(cwd: string) {
 		},
 		persist(result: Result) {
 			assert.ok(result);
+			const details: JsonValue | undefined =
+				result.details === undefined
+					? undefined
+					: JSON.parse(JSON.stringify(result.details));
 			session.appendMessage({
 				role: "toolResult",
 				toolCallId: "read",
 				toolName: "read",
 				content: result.content ?? [],
-				details: result.details,
+				...(details !== undefined ? { details } : {}),
 				isError: false,
 				timestamp: 0,
 			});

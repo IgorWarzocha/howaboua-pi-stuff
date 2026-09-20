@@ -326,7 +326,7 @@ export function createCodexTransportStream<TApi extends Api>(
 							output,
 							createAssistantMessageDiagnostic(retryableWebSocketError ? "provider_transport_failure" : "provider_stream_failure", error, {
 								configuredTransport: preferredTransport,
-								fallbackTransport: fallbackArmed ? "sse" : undefined,
+								...(fallbackArmed ? { fallbackTransport: "sse" } : {}),
 								eventsEmitted: websocketStarted,
 								phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
 								requestBytes: new TextEncoder().encode(bodyJson).byteLength,

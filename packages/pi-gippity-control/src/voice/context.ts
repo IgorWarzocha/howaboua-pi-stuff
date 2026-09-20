@@ -1,5 +1,5 @@
 import type { Context, Model } from "@earendil-works/pi-ai";
-import { uuidv7 } from "@earendil-works/pi-ai";
+import { normalizeContext, uuidv7 } from "@earendil-works/pi-ai";
 import {
 	buildSessionContext,
 	type ExtensionContext,
@@ -208,16 +208,20 @@ async function completeWithSelectedModel(
 	let completed:
 		| { content: Array<{ type: string; text?: string }> }
 		| undefined;
-	for await (const event of provider.streamSimple(requestModel, context, {
-		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
-		...(auth.headers ? { headers: auth.headers } : {}),
-		...(auth.env ? { env: auth.env } : {}),
-		...(signal ? { signal } : {}),
-		maxTokens: requestModel.maxTokens,
-		cacheRetention: "none",
-		sessionId: uuidv7(),
-		...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
-	})) {
+	for await (const event of provider.streamSimple(
+		requestModel,
+		normalizeContext(context),
+		{
+			...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
+			...(auth.headers ? { headers: auth.headers } : {}),
+			...(auth.env ? { env: auth.env } : {}),
+			...(signal ? { signal } : {}),
+			maxTokens: requestModel.maxTokens,
+			cacheRetention: "none",
+			sessionId: uuidv7(),
+			...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
+		},
+	)) {
 		if (event.type === "done") completed = event.message;
 		if (event.type === "error")
 			throw new Error(event.error.errorMessage || "Voice context model failed");

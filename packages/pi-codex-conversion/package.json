@@ -130,7 +130,6 @@
   },
   "dependencies": {
     "openai": "7.10.0",
-    "partial-json": "^0.1.7",
     "proxy-from-env": "2.1.0",
     "selfsigned": "^5.5.0",
     "smol-toml": "^1.8.0",
