@@ -2,7 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Preserve prompt and tool state across transcript-native Pi turns, compaction, and session replay.
+Pi 0.86.0 or newer is now required. Prompt and tool state now survives transcript-native Pi turns, compaction, and session replay.
 
 - Apply structured prompt and tool updates without replacing the conversation prefix, including Code and Notebook loadout changes.
 - Preserve Responses and Responses Lite grammar calls, developer messages, and native compaction checkpoints across replay and model switches.

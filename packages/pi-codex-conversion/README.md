@@ -12,7 +12,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Node.js 22.19 or newer. This source revision targets Pi's transcript API at commit `661619e87`. That checkout still reports version 0.85.1, but published Pi 0.85.1 does not provide the required API. Use the [checkout setup](#develop-against-upstream-pi) for this revision.
+Requires Pi 0.86.0 or newer and Node.js 22.19 or newer.
 
 Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
@@ -350,13 +350,13 @@ This is also a major change for users of the old canonical package. Legacy PATH 
 
 ## Develop against upstream Pi
 
-Until Pi publishes the transcript API, build an upstream Pi checkout and link it into this repository explicitly:
+Normal development uses the published Pi packages installed by `bun install`. To test newer upstream changes, build a Pi checkout and link it into this repository explicitly:
 
 ```bash
 bun run pi:link-checkout -- /absolute/path/to/pi
 ```
 
-The command validates the built transcript exports and Pi CLI before replacing only this repository's Pi dependency links. Run `bun install` to restore the manifest-resolved packages. Before publishing, update the Pi dependency versions and peer minimums to the release that provides this API; the current manifest still resolves the older published packages.
+The command validates the built transcript exports and Pi CLI before replacing only this repository's Pi dependency links. Run `bun install` to restore the manifest-resolved packages.
 
 Build the extension, then launch that checkout's built CLI with an absolute extension path for live validation:
 
