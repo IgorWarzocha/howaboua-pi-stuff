@@ -78,8 +78,9 @@ export class SharedCodeModeRuntime {
 		return tools;
 	}
 
-	resetPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
-		return this.refreshPromptTools(ctx);
+	resetPromptTools(): void {
+		// Capture on the next prompt, after every session/model handler has settled activation.
+		this.customPromptToolsSnapshot = undefined;
 	}
 
 	collectPromptTools(ctx?: unknown): CodeModeToolDefinition[] {

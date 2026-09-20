@@ -8,11 +8,11 @@ export function registerCodeModeEvents(
 	pi: ExtensionAPI,
 	runtime: SharedCodeModeRuntime,
 ): void {
-	pi.on("session_start", (_event, ctx) => {
-		runtime.resetPromptTools(ctx);
+	pi.on("session_start", () => {
+		runtime.resetPromptTools();
 	});
-	pi.on("model_select", (_event, ctx) => {
-		runtime.resetPromptTools(ctx);
+	pi.on("model_select", () => {
+		runtime.resetPromptTools();
 	});
 	pi.on("before_agent_start", (event, ctx) => {
 		const requiredTools = runtime.executionKind(ctx) === "notebook"
