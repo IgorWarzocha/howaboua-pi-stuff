@@ -1,5 +1,56 @@
 # Changelog
 
+## 3.0.35
+
+- Fast Mode now requests priority processing without changing the configured client identity or injecting routing hints.
+
+- Show remaining 5-hour Codex subscription usage alongside weekly usage in the status line, using the same cached request. Omit indicators for unavailable windows.
+
+- Removed redundant completion text and routine command metadata from model-visible tool results.
+
+  - Code and Notebook results now return output without a repeated success header. Empty results, errors, running sessions and memory warnings remain explicit.
+  - Command results omit chunk IDs, elapsed time and unneeded token counts. Truncated output remains marked, and raw JavaScript result fields remain available.
+
+- Fixed history searches failing on extra arguments. Unsupported fields are now ignored.
+
+- Added persistent event hooks to pinned Notebook functions.
+
+  - Run handlers automatically after Notebook tool calls with their input and outcome, without another model call.
+  - Initialize each fresh kernel with a startup hook; unpin remains available if startup fails or saved payloads are unreadable.
+  - Failed hook registration no longer persists a partial pin change.
+
+- Fixed voice progress waiting through subsequent thinking or tool-call generation after assistant text was ready to speak.
+
+- Remove retired Spark from Codex tool authentication preferences. Codex Conversion now explains biological-policy errors when the server omits an explanation.
+
+- Show configured background-shell shortcuts in the widget footer instead of hard-coded defaults.
+
+- Pi 0.86.0 or newer is now required. Prompt and tool state now survives transcript-native Pi turns, compaction, and session replay.
+
+  - Apply structured prompt and tool updates without replacing the conversation prefix, including Code and Notebook loadout changes between runs.
+  - Preserve promoted custom-tool instructions when trusted project settings activate Code or Notebook mode.
+  - Preserve Responses and Responses Lite grammar calls, developer messages, and native compaction checkpoints across replay and model switches.
+  - Repair malformed JSON string escapes in streamed tool arguments using Pi's parser.
+  - Prewarm the fully prepared request and retain that exact prefix for idle cache keepalive, after every extension has contributed its instructions and tools.
+  - Run idle developer messages, voice delegations, and voice setup through the complete prompt-preparation chain.
+  - Supply Notebook startup status and retained bindings automatically instead of requiring an opening status tool call.
+  - Removed redundant developer-message wording and internal Notebook generation IDs. Realtime voice now explicitly requests progress between tool calls instead of silence until the final answer.
+  - Save `/codex` settings immediately but defer applying them until the current run settles, keeping active tools and instructions in sync. The settings UI and voice stop, mute and server controls remain immediately available.
+  - Report context budgets against the active model's full configured window, request a notes checkpoint at 85% used, and send an urgent reminder at 90% without forcing rollover.
+  - Compact on overflow instead of cutting to a fresh window, even with Hybrid off. Preserve the checkpoint and recent conversation in the current window.
+  - Added opt-in current time reminders at 30 or 60 minute intervals during active inference, without changing the system prompt or starting extra turns.
+  - Include structured prompt updates in Local and Tree history searches.
+  - Avoid an unnecessary checkpoint model turn after tree navigation back to the final reply of a run that just saved notes.
+  - Prevent Pi's generic cache warmer from generating uncapped responses or disturbing continuation on Codex and Responses Lite routes; retain isolated Codex keepalive.
+
+- Update Notebook to Deno 2.9.7 without requiring saved state to match the active Deno or V8 version. Checkpoints, project state, and profiles restore compatible serialized data across runtime upgrades, and project state remains writable afterward.
+
+- Realtime voice now isolates muted capture and clears interrupted playback.
+
+  - Native voice cancels echo and reduces background noise.
+  - Spoken interruptions clear buffered audio in native and LAN playback.
+  - Microphone failures are reported instead of leaving a silent session.
+
 ## 3.0.34
 
 - Fixed expanded exec_command rows to show the complete command.

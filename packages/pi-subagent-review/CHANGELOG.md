@@ -1,5 +1,9 @@
 # @howaboua/pi-subagent-review
 
+## 0.2.22
+
+- Removed redundant developer-message wording while preserving review approval rules and nested AGENTS.md guidance.
+
 ## 0.2.21
 
 - Restore full extension prompt preparation when continuing into a new context window or starting review triage.
