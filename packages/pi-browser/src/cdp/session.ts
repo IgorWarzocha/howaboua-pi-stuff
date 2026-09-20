@@ -201,10 +201,6 @@ export class BrowserCdpSession {
 	async closeTab(refId: string, signal?: AbortSignal): Promise<string> {
 		const root = await this.rootConnection(signal);
 		const resolved = await root.tabs.resolve(refId, signal);
-		if (!resolved.page.owned)
-			throw new Error(
-				"Only tabs owned by this Pi session can be closed; shared tabs remain open",
-			);
 		const targetId = resolved.page.targetId;
 		this.stopPendingTab(targetId, "Tab is closing");
 		const bridge = this.tabs.get(targetId);

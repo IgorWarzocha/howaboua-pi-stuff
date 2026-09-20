@@ -18,7 +18,7 @@ export function browserHelp(
 			tabs: "query? offset? owned_only? -> ref_id title url owned",
 			open: "ref_id lineno? response_length? | url; new tabs open in background",
 			show: "ref_id; bring tab to foreground",
-			close: "ref_id; only session-owned tabs",
+			close: "ref_id",
 			find: "ref_id pattern lineno? response_length?",
 			click: "ref_id id|selector|x+y",
 			type: "ref_id text id?; id focuses",

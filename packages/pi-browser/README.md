@@ -26,7 +26,7 @@ Normal Pi exposes the single-action contract. Code and Notebook Mode also accept
 
 Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancellation stops pending CDP work, though an already dispatched browser mutation may still take effect.
 
-New tabs open in the background and belong to the current Pi session. Owned tabs keep rendering during control without being brought forward. The agent can list only its own tabs, show a tab when you want to see it, and close its own tabs without closing shared ones. Existing tabs remain accessible through their refs and are not silently claimed.
+New tabs open in the background and belong to the current Pi session. Owned tabs keep rendering during control without being brought forward. The agent can filter the tab list to its own tabs, show a tab when you want to see it, and close any tab by reference. Existing tabs remain accessible through their refs and are not silently claimed.
 
 Ownership survives extension reloads and managed-worker restarts while the browser and local runtime state remain. Restarting the browser makes restored tabs shared again. Popups inherit ownership through Chrome's opener metadata, but can still take focus. This tool does not install a Chrome extension or create Chrome tab groups.
 

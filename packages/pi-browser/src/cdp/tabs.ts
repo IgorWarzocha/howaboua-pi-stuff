@@ -27,8 +27,8 @@ export class BrowserTabs {
 		browserUrl: string,
 	) {
 		this.cdp = cdp;
-		// Browser endpoint identity changes on restart. Restored user tabs must
-		// never inherit an old automation session's permission to close them.
+		// Browser endpoint identity changes on restart, so restored tabs do not
+		// inherit an old automation session's ownership.
 		const scope = createHash("sha256")
 			.update(`${browserUrl}\0${ownerId}`)
 			.digest("hex");
@@ -152,10 +152,6 @@ export class BrowserTabs {
 		signal?: AbortSignal,
 	): Promise<{ targetId: string; refId: string }> {
 		const resolved = await this.resolve(refId, signal);
-		if (!resolved.page.owned)
-			throw new Error(
-				"Only tabs owned by this Pi session can be closed; shared tabs remain open",
-			);
 		const targetId = resolved.page.targetId;
 		const response = asRecord(
 			await this.cdp.send(
