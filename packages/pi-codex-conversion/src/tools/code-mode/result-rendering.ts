@@ -27,6 +27,7 @@ import type {
 interface CodeModeResultDetails {
 	cellId?: string | undefined;
 	status?: "running" | "yielded" | "terminated" | "result" | undefined;
+	statusPrefix?: boolean | undefined;
 	notification?: boolean | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
@@ -72,7 +73,9 @@ function renderCodeModeResult(
 	minimalOutput: boolean,
 ): Component {
 	const details = asDetails(result.details);
-	const content = details.notification || details.status === undefined ? result.content : result.content.slice(1);
+	// Older results always carried a leading status block. Never strip user output from new results.
+	const hasStatusPrefix = details.statusPrefix ?? (details.status !== undefined && !details.notification);
+	const content = hasStatusPrefix ? result.content.slice(1) : result.content;
 	const notebookMemoryText = details.notebookMemory ? formatNotebookMemoryWarning(details.notebookMemory) : undefined;
 	const renderedContent = notebookMemoryText
 		&& content[0]?.type === "text"

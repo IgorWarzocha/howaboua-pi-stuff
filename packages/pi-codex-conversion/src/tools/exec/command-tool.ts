@@ -185,7 +185,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 				? { ...parsedInput, defaultShell: getPiConfiguredShellPath(ctx) }
 				: parsedInput;
 			const toToolResult = (partial: UnifiedExecResult) => ({
-				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, input.cmd) }],
+				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial) }],
 				details: partial,
 			});
 			const execInput = input.tty

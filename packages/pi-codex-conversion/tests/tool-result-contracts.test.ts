@@ -25,7 +25,16 @@ test("apply_patch partial mutations remain error results", () => {
 	assert.equal(handler?.({ toolName: "apply_patch", details: { status: "success", result } }), undefined);
 });
 
-test("Notebook recovery and memory pressure are model-visible", () => {
+test("Notebook results retain output, recovery and memory pressure without success boilerplate", () => {
+	const completed = toCodeModeToolResult({
+		kind: "result", cellId: "complete",
+		contentItems: [{ type: "input_text", text: "Script completed" }],
+	});
+	assert.deepEqual(completed.content, [{ type: "text", text: "Script completed" }]);
+	assert.equal(completed.details.statusPrefix, false);
+	const empty = toCodeModeToolResult({ kind: "result", cellId: "empty", contentItems: [] });
+	assert.deepEqual(empty.content, [{ type: "text", text: "OK" }]);
+	assert.equal(empty.details.statusPrefix, true);
 	const result = toCodeModeToolResult({
 		kind: "yielded",
 		cellId: "notebook-1",

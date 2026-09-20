@@ -10,9 +10,8 @@ export interface ExecResultSessionState extends ExecOutputSessionState {
 	terminating: boolean;
 }
 
-function fromSnapshot(session: ExecResultSessionState, waitMs: number, snapshot: { output: string; original_token_count?: number | undefined }): UnifiedExecResult {
-	const result: UnifiedExecResult = { chunk_id: generateChunkId(), wall_time_seconds: waitMs / 1000, output: snapshot.output };
-	if (snapshot.original_token_count !== undefined) result.original_token_count = snapshot.original_token_count;
+function fromSnapshot(session: ExecResultSessionState, waitMs: number, snapshot: ReturnType<typeof truncateOutput>): UnifiedExecResult {
+	const result: UnifiedExecResult = { chunk_id: generateChunkId(), wall_time_seconds: waitMs / 1000, ...snapshot };
 	if (session.exitCode === undefined || session.exitCode === null) result.session_id = session.id;
 	else result.exit_code = session.exitCode;
 	return result;

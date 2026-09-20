@@ -93,7 +93,7 @@ function createNestedTools(
 	};
 	const textOutput = runtime.state.config.notebook.plainCommandOutput
 		? { textOutput: "plain-command" as const }
-		: {};
+		: { textOutput: "command" as const };
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({

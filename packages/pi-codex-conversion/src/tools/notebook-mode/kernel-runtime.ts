@@ -1,4 +1,4 @@
-import { plainCommandOutputFormatterSource } from "../code-mode/command-output.js";
+import { commandOutputFormatterSource } from "../code-mode/command-output.js";
 
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
@@ -77,7 +77,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     if (value === undefined) return "undefined";
     try { return JSON.stringify(value); } catch { return String(value); }
   };
-	const __formatPlainCommandOutput = ${plainCommandOutputFormatterSource};
+	const __formatCommandOutput = ${commandOutputFormatterSource};
   const __emit = (items) => {
     if (!__state.cellId) throw new Error("Notebook helper called outside an active exec cell");
 	if (__state.outputTruncated) return;
@@ -280,10 +280,10 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	const toolName = value && (typeof value === "object" || typeof value === "function")
 	  ? __state.toolResults.get(value)
 	  : undefined;
-	const plainCommand = toolName !== undefined
-	  && __state.toolOutputHints[toolName] === "plain-command"
+	const outputHint = toolName === undefined ? undefined : __state.toolOutputHints[toolName];
+	const command = (outputHint === "command" || outputHint === "plain-command")
 	  && typeof value.output === "string";
-	__emit([{ type: "input_text", text: plainCommand ? __formatPlainCommandOutput(value) : __stringify(value) }]);
+	__emit([{ type: "input_text", text: command ? __formatCommandOutput(value, outputHint === "plain-command") : __stringify(value) }]);
   };
   globalThis.image = __image;
   globalThis.generatedImage = (value) => {

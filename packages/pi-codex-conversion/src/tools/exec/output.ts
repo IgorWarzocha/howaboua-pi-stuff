@@ -79,12 +79,12 @@ export function generateChunkId(): string {
 	return randomBytes(3).toString("hex");
 }
 
-export function truncateOutput(text: string, maxOutputTokens?: number, originalCharCount = text.length): { output: string; original_token_count?: number | undefined } {
+export function truncateOutput(text: string, maxOutputTokens?: number, originalCharCount = text.length): { output: string; original_token_count?: number | undefined; truncated?: true | undefined } {
 	if (text.length === 0 && originalCharCount === 0) return { output: "" };
 	const maxChars = maxCharsForTokens(maxOutputTokens);
 	const originalTokenCount = Math.ceil(Math.max(text.length, originalCharCount) / 4);
-	if (text.length <= maxChars) return { output: text, original_token_count: originalTokenCount };
-	return { output: truncateToTail(text, maxChars).output, original_token_count: originalTokenCount };
+	const output = text.length <= maxChars ? text : truncateToTail(text, maxChars).output;
+	return { output, original_token_count: originalTokenCount, ...(output.length < originalCharCount ? { truncated: true } : {}) };
 }
 
 function outputSince(session: ExecOutputSessionState, offset: number): { text: string; originalCharCount: number; endOffset: number } {
@@ -97,18 +97,18 @@ function outputSince(session: ExecOutputSessionState, offset: number): { text: s
 	};
 }
 
-export function consumeOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
+export function consumeOutput(session: ExecOutputSessionState, maxOutputTokens?: number): ReturnType<typeof truncateOutput> {
 	const output = outputSince(session, session.emittedOffset);
 	session.emittedOffset = output.endOffset;
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
-export function peekUnconsumedOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
+export function peekUnconsumedOutput(session: ExecOutputSessionState, maxOutputTokens?: number): ReturnType<typeof truncateOutput> {
 	const output = outputSince(session, session.emittedOffset);
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
-export function peekOutputSince(session: ExecOutputSessionState, baselineOffset: number, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
+export function peekOutputSince(session: ExecOutputSessionState, baselineOffset: number, maxOutputTokens?: number): ReturnType<typeof truncateOutput> {
 	const output = outputSince(session, baselineOffset);
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }

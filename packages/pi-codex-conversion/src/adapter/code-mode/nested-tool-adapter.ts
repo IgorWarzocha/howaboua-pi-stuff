@@ -18,7 +18,7 @@ interface NestedToolLifecycle {
 
 interface NestedToolContract {
 	kind?: "function" | "freeform";
-	textOutput?: "plain-command";
+	textOutput?: "command" | "plain-command";
 	blocking?: boolean;
 	isBlocking?(input: unknown): boolean;
 	deferLoading?: boolean;

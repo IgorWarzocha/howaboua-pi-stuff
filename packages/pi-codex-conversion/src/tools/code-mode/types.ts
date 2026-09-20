@@ -37,7 +37,7 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 export interface ProgrammaticCodeModeToolDefinition
 	extends CodeModeToolMetadata {
 	kind: "function" | "freeform";
-	textOutput?: "plain-command" | undefined;
+	textOutput?: "command" | "plain-command" | undefined;
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
 	discoverWhenDeferred?: boolean | undefined;
