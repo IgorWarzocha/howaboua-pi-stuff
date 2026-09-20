@@ -1,5 +1,6 @@
 - Keep this optional runtime cold: import it only after Notebook Code Mode is selected; download Deno only on first execution/prepare.
 - Keep host persistence/validation separate from injected kernel source; session checkpoint payloads are deltas against project generations
+- Saved runtime versions are provenance, not restore or write gates; let deserialization report actual incompatibility
 - `journal.ts` appends cell events and rotates at the heap-derived persistence budget, retaining one previous `.ipynb`; `journal-document.ts` materializes standard notebooks
 - Running sessions are private forks; new `globalThis` properties and explicitly pinned bindings merge into project state, never another live kernel
 - Pin promotion and metadata commit under one project lock; failed commits restore kernel tracking. Release/prune preserve pins, and prune requires a caller-selected glob

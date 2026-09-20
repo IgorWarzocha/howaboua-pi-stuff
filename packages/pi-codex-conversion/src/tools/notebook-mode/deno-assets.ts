@@ -1,4 +1,4 @@
-export const DENO_VERSION = "2.9.5";
+export const DENO_VERSION = "2.9.7";
 
 export interface DenoAsset {
 	archive: string;
@@ -12,51 +12,51 @@ export interface DenoAsset {
 const ASSETS: Record<string, DenoAsset> = {
 	"linux-x64": {
 		archive: "deno-x86_64-unknown-linux-gnu.zip",
-		archiveSha256: "8b010a3b1a4a0188a67cdb8a7a27348b2a501af78aec7fc74f2ace167368d530",
-		archiveBytes: 41_638_854,
+		archiveSha256: "c6527f24f4b16031d3ae4fa9f658d5f11534c8d84ce7dc8502420280919c3490",
+		archiveBytes: 41_596_794,
 		executable: "deno",
-		binarySha256: "dc480c462c8c3582524f3e75c160613d0a975e1f66b5465995d58bae236da7d3",
-		binaryBytes: 95_582_008,
+		binarySha256: "ce6a052beb97c2b92de67077e3f3924ba7c9661ede0d8dc2f66a116a3c841f21",
+		binaryBytes: 95_830_104,
 	},
 	"linux-arm64": {
 		archive: "deno-aarch64-unknown-linux-gnu.zip",
-		archiveSha256: "6b7cae3a8fc4385a59dea3146fcb8bad7fea4230e0ad36a8c692afacbc254be0",
-		archiveBytes: 39_902_077,
+		archiveSha256: "c832298b1ad4422481334855f6003e0f54145762c5a134f20a489511d2f65bbf",
+		archiveBytes: 39_821_318,
 		executable: "deno",
-		binarySha256: "e1a70c5eb03b0ebaf761077029ef86b9ba22d50e2b54ca45ce5437457f701b63",
-		binaryBytes: 84_842_080,
+		binarySha256: "5ecc9a6b862d61d4cf8cae3ac5f29488ffc839d675cfd60c11d908121dfe5bf1",
+		binaryBytes: 84_971_392,
 	},
 	"darwin-x64": {
 		archive: "deno-x86_64-apple-darwin.zip",
-		archiveSha256: "c1b8b89a81e91b2a8b3f96def3195d08cfe3a105651da7908d53061f7140510d",
-		archiveBytes: 42_346_648,
+		archiveSha256: "95daaff11c116a52ad54785e7914c8e9c9cdcaba793c5ed929c74ca2d8e6259a",
+		archiveBytes: 42_295_422,
 		executable: "deno",
-		binarySha256: "befc4fee79127584c0f5c9f76ca6bb73c8e6ff523c01acd52e9c5db1968a09cb",
-		binaryBytes: 97_740_224,
+		binarySha256: "325cf9c4b7156f4efd96ad22177a276a4bf4384147d4c9d9f40f9caee28e5719",
+		binaryBytes: 97_829_808,
 	},
 	"darwin-arm64": {
 		archive: "deno-aarch64-apple-darwin.zip",
-		archiveSha256: "b796aadd131f6930560c1ee040cf0d6f53933fbb987464e9ff46bd7ea4830615",
-		archiveBytes: 38_511_993,
+		archiveSha256: "5cd46d6268f6f78f5d88bdc7159d20bd44cdaa4b3303474839f87ec6fe7ae25c",
+		archiveBytes: 38_469_316,
 		executable: "deno",
-		binarySha256: "b5bd08edab254d42d7b05aa5b6cb4c9b8d4dede4975aff76951ce2cce18866fa",
-		binaryBytes: 80_900_512,
+		binarySha256: "b73737579d5a84c160e3316487594783fa5c15f4e13252a6a07050b755317f1a",
+		binaryBytes: 80_982_000,
 	},
 	"win32-x64": {
 		archive: "deno-x86_64-pc-windows-msvc.zip",
-		archiveSha256: "171efab55ac6b9881fd53ee4c20f8bf3bb1340ffc618483746909014db12216a",
-		archiveBytes: 42_691_248,
+		archiveSha256: "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
+		archiveBytes: 42_630_221,
 		executable: "deno.exe",
-		binarySha256: "98f8c2a2d470e4ccb04c935c86ff8050817d877762aec5eaeeb9e409ccb3b9fd",
-		binaryBytes: 97_408_288,
+		binarySha256: "e020f3e232bd16e33768dee528e5983349c962952051ced0a5d58ad42f5d9b33",
+		binaryBytes: 97_462_048,
 	},
 	"win32-arm64": {
 		archive: "deno-aarch64-pc-windows-msvc.zip",
-		archiveSha256: "73f20b3566a0a6e3f6912fd7bf5b3a7ccd04d68414baedea3b397437bdec6472",
-		archiveBytes: 40_905_829,
+		archiveSha256: "c4c4ac8bfdaa37814bda5c05fc9cdf2154904e2ef8277673a30bdceaaa649807",
+		archiveBytes: 40_847_024,
 		executable: "deno.exe",
-		binarySha256: "ec503fba3b205fd47777d0e90e84ac7ae74d45d94041b46d31b414894c52ad3b",
-		binaryBytes: 88_836_384,
+		binarySha256: "970a5255e78f436abed194017648f8a5ab8135cbd95702ec803123c60b6a5cc0",
+		binaryBytes: 88_891_168,
 	},
 };
 

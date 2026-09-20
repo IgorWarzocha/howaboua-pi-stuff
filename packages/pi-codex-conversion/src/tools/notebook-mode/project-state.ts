@@ -240,9 +240,6 @@ async function commitCandidate(options: {
 	pins?: ProjectStatePinUpdate | undefined;
 }): Promise<{ manifest?: ProjectStateManifest | undefined; baseline: ProjectStateBaseline; conflicts: string[] }> {
 	const current = readProjectStateManifest(options.paths.manifest);
-	if (current && current.entries.length > 0 && (current.deno !== options.candidate.deno || current.v8 !== options.candidate.v8)) {
-		throw new Error("Project notebook uses an incompatible Deno/V8 version; the existing state was preserved");
-	}
 	const currentPayload = current
 		? readProjectStatePayload(current, join(options.paths.directory, current.payload), options.maxBytes)
 		: Buffer.alloc(0);
