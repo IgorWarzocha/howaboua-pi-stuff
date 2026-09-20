@@ -5,7 +5,7 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { historyNotesRenderers } from "./rendering.ts";
 import {
@@ -179,6 +179,17 @@ export function createHistoryNotesTools(
 			description: HISTORY_DESCRIPTION,
 			parameters: HISTORY_PARAMETERS,
 			...historyNotesRenderers("history"),
+			prepareArguments(args) {
+				// Ignore extra search fields without advertising them or forwarding them to storage.
+				if (args && typeof args === "object" && !Array.isArray(args) &&
+					"action" in args && args.action === "search_contents") {
+					args = Object.fromEntries(Object.entries(args).filter(([field]) =>
+						field === "action" || HISTORY_ACTION_FIELDS.search_contents.includes(field),
+					));
+				}
+				// Pi validates the prepared value against parameters before execution.
+				return args as Static<typeof HISTORY_PARAMETERS>;
+			},
 			async execute(_id, params, signal, _update, ctx) {
 				const action = historyAction(params.action);
 				validateHistoryArguments(action, params);

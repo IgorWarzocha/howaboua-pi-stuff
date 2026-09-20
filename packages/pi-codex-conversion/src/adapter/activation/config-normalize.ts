@@ -66,6 +66,8 @@ export function normalizeCodexConversionConfig(
 			DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly,
 		),
 		prompt: {
+			currentTimeReminderMinutes: prompt["currentTimeReminderMinutes"] === 30 || prompt["currentTimeReminderMinutes"] === 60
+				? prompt["currentTimeReminderMinutes"] : 0,
 			heavySystemPromptOverwrite: normalizeBoolean(
 				prompt["heavySystemPromptOverwrite"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite,

@@ -36,10 +36,13 @@ describe("LAN conversation setup", () => {
 		second.receive({ type: "start", mode: "conversation" });
 		await settle();
 		expect(hostStarts).toBe(1);
-		expect(second.sent.map((value) => JSON.parse(value)).at(-1)).toEqual({
+		expect(
+			second.sent.map((value) => JSON.parse(String(value))).at(-1),
+		).toEqual({
 			type: "active",
 			mode: "conversation",
 			muted: false,
+			speakerSuppressed: false,
 		});
 		second.receive({ type: "release" });
 		await settle();
@@ -74,10 +77,13 @@ describe("LAN conversation setup", () => {
 		await settle();
 		expect(hostStarts).toBe(1);
 		expect(first.readyState).toBe(WebSocket.CLOSED);
-		expect(second.sent.map((value) => JSON.parse(value)).at(-1)).toEqual({
+		expect(
+			second.sent.map((value) => JSON.parse(String(value))).at(-1),
+		).toEqual({
 			type: "active",
 			mode: "conversation",
 			muted: false,
+			speakerSuppressed: false,
 		});
 		await clients.close();
 	});
@@ -92,7 +98,7 @@ describe("LAN conversation setup", () => {
 		clients.connectAudio("first", socket.asWebSocket());
 		socket.receive({ type: "start", mode: "conversation" });
 		await settle();
-		expect(socket.sent.map((value) => JSON.parse(value))).toEqual([
+		expect(socket.sent.map((value) => JSON.parse(String(value)))).toEqual([
 			{ type: "connected" },
 			{ type: "error", message: "authentication failed" },
 		]);
@@ -124,13 +130,14 @@ async function settle(): Promise<void> {
 
 class TestWebSocket extends EventEmitter {
 	readyState: number = WebSocket.OPEN;
-	readonly sent: string[] = [];
+	bufferedAmount = 0;
+	readonly sent: Array<string | Buffer> = [];
 
 	asWebSocket(): WebSocket {
 		return this as unknown as WebSocket;
 	}
 
-	send(value: string): void {
+	send(value: string | Buffer): void {
 		this.sent.push(value);
 	}
 

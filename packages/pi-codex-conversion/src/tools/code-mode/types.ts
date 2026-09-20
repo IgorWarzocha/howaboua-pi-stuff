@@ -37,7 +37,7 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 export interface ProgrammaticCodeModeToolDefinition
 	extends CodeModeToolMetadata {
 	kind: "function" | "freeform";
-	textOutput?: "plain-command" | undefined;
+	textOutput?: "command" | "plain-command" | undefined;
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
 	discoverWhenDeferred?: boolean | undefined;
@@ -136,13 +136,15 @@ export interface NotebookMemoryUsage {
 	heapLimitBytes: number;
 }
 
+export type NotebookHook = "startup" | "tool_result";
+
 export type NotebookControlRequest =
 	| { action: "status"; query?: string | undefined }
 	| { action: "list"; query?: string | undefined }
 	| { action: "checkpoint" }
 	| { action: "save"; name: string }
 	| { action: "load"; name: string }
-	| { action: "pin"; names: string[] }
+	| { action: "pin"; names: string[]; hook?: NotebookHook | false | undefined }
 	| { action: "unpin"; names: string[] }
 	| { action: "release"; names: string[] }
 	| { action: "prune"; query: string }

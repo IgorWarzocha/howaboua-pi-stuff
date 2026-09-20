@@ -101,9 +101,6 @@ ${BINDING_METADATA_READER_SOURCE}
 export function restoreSource(manifest: CheckpointManifest, payloadPath: string, excludeNames: ReadonlySet<string> = new Set()): string {
 	return `{
   const { deserialize } = await import("node:v8");
-  if (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)}) {
-    throw new Error("checkpoint Deno/V8 version does not match the active kernel");
-  }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
 	const __excluded = new Set(${JSON.stringify([...excludeNames])});
 	const __entries = ${JSON.stringify(manifest.entries)}.filter(({ name }) => !__excluded.has(name));

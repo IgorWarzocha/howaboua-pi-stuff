@@ -7,16 +7,12 @@ import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 test("LAN browser preserves handoff and restarts after explicit release", async () => {
 	let hostStarts = 0;
 	let hostConversation: object | undefined;
-	const received: Buffer[] = [];
 	const clients = testBrowserClients({
 		async ensureConversation() {
 			if (!hostConversation) {
 				hostConversation = {};
 				hostStarts += 1;
 			}
-		},
-		onConversationAudio(pcm) {
-			received.push(pcm);
 		},
 		onConversationActivity(active) {
 			if (!active) hostConversation = undefined;
@@ -26,7 +22,6 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	clients.connectAudio("first", first.asWebSocket());
 	first.receive({ type: "start", mode: "conversation" });
 	await settle();
-	first.receiveBinary(Buffer.from([1, 0]));
 	first.close();
 	await settle();
 
@@ -35,14 +30,6 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	second.receive({ type: "start", mode: "conversation" });
 	await settle();
 	assert.equal(hostStarts, 1);
-	assert.deepEqual(received, [Buffer.from([1, 0])]);
-	assert.deepEqual(
-		second.sent.map((value) => JSON.parse(value)),
-		[
-			{ type: "connected" },
-			{ type: "active", mode: "conversation", muted: false },
-		],
-	);
 	second.receive({ type: "release" });
 	await settle();
 	second.receive({ type: "start", mode: "conversation" });
@@ -76,10 +63,11 @@ test("LAN browser takeover shares an in-progress host conversation setup", async
 	await settle();
 	assert.equal(hostStarts, 1);
 	assert.equal(first.readyState, WebSocket.CLOSED);
-	assert.deepEqual(second.sent.map((value) => JSON.parse(value)).at(-1), {
+	assert.deepEqual(second.sent.map((value) => JSON.parse(String(value))).at(-1), {
 		type: "active",
 		mode: "conversation",
 		muted: false,
+		speakerSuppressed: false,
 	});
 	await clients.close();
 });
@@ -105,19 +93,17 @@ function testBrowserClients(overrides: {
 
 class TestWebSocket extends EventEmitter {
 	readyState: number = WebSocket.OPEN;
-	readonly sent: string[] = [];
+	bufferedAmount = 0;
+	readonly sent: Array<string | Buffer> = [];
 
 	asWebSocket(): WebSocket {
 		return this as unknown as WebSocket;
 	}
-	send(value: string): void {
+	send(value: string | Buffer): void {
 		this.sent.push(value);
 	}
 	receive(value: unknown): void {
 		this.emit("message", Buffer.from(JSON.stringify(value)), false);
-	}
-	receiveBinary(value: Buffer): void {
-		this.emit("message", value, true);
 	}
 	close(code = 1000, reason = "closed"): void {
 		if (this.readyState === WebSocket.CLOSED) return;

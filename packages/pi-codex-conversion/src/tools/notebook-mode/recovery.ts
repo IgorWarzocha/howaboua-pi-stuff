@@ -10,7 +10,8 @@ import { initializeNotebookJournal } from "./journal.ts";
 import { diagnoseNotebook } from "./notebook-diagnostics.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
 import { notebookProfileBindingNames } from "./profile-state.ts";
-import { projectStateBindingNames } from "./project-state.ts";
+import { projectStateBindingNames, unpinProjectStateBindings } from "./project-state.ts";
+import { formatNameList } from "./lifecycle-result.ts";
 import { readRetainedProjectBindings } from "./project-state-metadata.ts";
 import type { NotebookRuntimeHealth } from "./runtime-health.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
@@ -51,6 +52,16 @@ export class NotebookRecoveryController {
 				: []),
 		]);
 		return diagnoseNotebook({ deno, cwd: identity.project, path: journal.path, runtimeBindings, runtimeHealth: this.host.runtimeHealth(requireExtensionContext(context, "diagnostics")).state, signal });
+	}
+
+	async unpin(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+		const identity = this.identity(context, "unpin");
+		await this.host.stopWithoutCheckpoint();
+		await unpinProjectStateBindings(identity, names, signal);
+		return {
+			message: `Unpinned durable notebook bindings: ${formatNameList(names)}; hooks removed`,
+			details: { pinned: false, bindingCount: names.length },
+		};
 	}
 
 	async reset(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {

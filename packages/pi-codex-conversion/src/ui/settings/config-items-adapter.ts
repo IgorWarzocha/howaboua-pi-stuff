@@ -88,6 +88,22 @@ export function buildAdapterSettings(
 				},
 			}),
 		),
+		setting(
+			{
+				id: "currentTimeReminderMinutes",
+				label: "Current time reminders",
+				description: "Include UTC time on the first inference and at the chosen interval. Never starts a turn.",
+				currentValue: config.prompt.currentTimeReminderMinutes === 0 ? "off" : `${config.prompt.currentTimeReminderMinutes} mins`,
+				values: ["off", "30 mins", "60 mins"],
+			},
+			(value, current) => ({
+				...current,
+				prompt: {
+					...current.prompt,
+					currentTimeReminderMinutes: value === "30 mins" ? 30 : value === "60 mins" ? 60 : 0,
+				},
+			}),
+		),
 		{
 			item: {
 				id: "editConfig",

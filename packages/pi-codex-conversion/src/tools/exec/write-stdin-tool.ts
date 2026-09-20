@@ -32,7 +32,7 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 	const output = markerIndex !== -1 ? text.slice(markerIndex + marker.length) : text;
 	const metadata = markerIndex !== -1 ? text.slice(0, markerIndex) : text;
 	const sessionMatch = metadata.match(/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/);
-	const exitCodeMatch = metadata.match(/Process exited with code (-?\d+)/);
+	const exitCodeMatch = metadata.match(/(?:Process exited with code |Exit code: )(-?\d+)/);
 	return {
 		output,
 		sessionId: sessionMatch ? Number(sessionMatch[1]!) : undefined,
@@ -84,11 +84,10 @@ export function createWriteStdinTool(sessions: ExecSessionManager, options: { pr
 		parameters: WRITE_STDIN_PARAMETERS,
 		async execute(_toolCallId, params, signal, onUpdate) {
 			const typed = parseWriteStdinParams(params);
-			const command = sessions.getSessionCommand(typed.session_id) ?? "";
 			let result: UnifiedExecResult;
 			try {
 				const toToolResult = (partial: UnifiedExecResult) => ({
-					content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, command) }],
+					content: [{ type: "text" as const, text: formatUnifiedExecResult(partial) }],
 					details: partial,
 				});
 				result = await sessions.write(typed, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
@@ -97,7 +96,7 @@ export function createWriteStdinTool(sessions: ExecSessionManager, options: { pr
 				throw new Error(`write_stdin failed: ${message}`);
 			}
 			return {
-				content: [{ type: "text", text: formatUnifiedExecResult(result, command) }],
+				content: [{ type: "text", text: formatUnifiedExecResult(result) }],
 				details: result,
 			};
 		},

@@ -45,6 +45,7 @@ export class LanVoiceBrowserSession {
 	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
 	private conversationOwnerId: string | undefined;
+	private conversationSpeakerSuppressed = false;
 	private readonly microphoneLevel: MicrophoneLevelMonitor;
 
 	constructor(
@@ -66,6 +67,18 @@ export class LanVoiceBrowserSession {
 		const active = this.state;
 		if (active.type === "active" && active.mode === "conversation")
 			this.connections.sendAudio(active.socket, pcm);
+	}
+
+	setConversationSpeakerSuppressed(suppressed: boolean): void {
+		if (this.conversationSpeakerSuppressed === suppressed) return;
+		this.conversationSpeakerSuppressed = suppressed;
+		const active = this.state;
+		if (active.type === "active" && active.mode === "conversation") {
+			this.connections.sendAudioControl(active.socket, {
+				type: "speaker_suppressed",
+				suppressed,
+			});
+		}
 	}
 
 	release(
@@ -190,7 +203,10 @@ export class LanVoiceBrowserSession {
 					type: "active",
 					mode,
 					...(mode === "conversation"
-						? { muted: this.options.conversationMuted() }
+						? {
+								muted: this.options.conversationMuted(),
+								speakerSuppressed: this.conversationSpeakerSuppressed,
+							}
 						: {}),
 				}),
 			);

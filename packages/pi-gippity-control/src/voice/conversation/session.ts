@@ -15,6 +15,7 @@ import {
 	type RealtimePiInputBehavior,
 } from "./handoff.ts";
 import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
+import { RealtimePlayback } from "./playback.ts";
 import {
 	boundedAssistantTranscript,
 	boundedTranscript,
@@ -42,6 +43,7 @@ export class CodexRealtimeConversation {
 	private readonly peer: CodexRealtimePeer;
 	private readonly turnTracker = new RealtimeVoiceTurnTracker();
 	private readonly handoff: RealtimeDelegationHandoff;
+	private readonly playback: RealtimePlayback;
 	private state: ConversationState = "idle";
 	private setupAbortController: AbortController | undefined;
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
@@ -54,6 +56,9 @@ export class CodexRealtimeConversation {
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
 		this.peer = peer;
+		this.playback = new RealtimePlayback((suppressed) =>
+			this.peer.setSpeakerSuppressed(suppressed),
+		);
 		this.handoff = new RealtimeDelegationHandoff({
 			isActive: () => this.state === "active",
 			onContext: (target, channel, content) =>
@@ -185,6 +190,10 @@ export class CodexRealtimeConversation {
 		this.handoff.stream(delta);
 	}
 
+	resumeAgentWork(): void {
+		this.handoff.flushProgress();
+	}
+
 	agentProgress(content: string): void {
 		this.handoff.progress(content);
 	}
@@ -229,6 +238,7 @@ export class CodexRealtimeConversation {
 			else this.fail(error);
 			return;
 		}
+		if (event.type === "playback_activity") this.playback.audioActivity();
 		if (event.type === "data") this.handleServerEvent(event.message);
 		if (event.type === "state") this.handleHelperState(event.state);
 	}
@@ -260,14 +270,20 @@ export class CodexRealtimeConversation {
 				this.fail(new Error("Codex voice transcript was oversized"));
 				return;
 			}
-			if (input) this.turnTracker.inputAdded(input);
+			if (input) {
+				this.playback.inputStarted(this.speakableResponsePending);
+				this.turnTracker.inputAdded(input);
+			}
 			return;
 		}
 		if (event["type"] === "output_transcript.added") {
 			const output = boundedAssistantTranscript(
 				transcriptItemText(event["item"]),
 			);
-			if (output) this.turnTracker.outputAdded(output);
+			if (output) {
+				this.playback.outputAdded();
+				this.turnTracker.outputAdded(output);
+			}
 			this.callbacks.onStatus("speaking");
 			return;
 		}
@@ -317,12 +333,17 @@ export class CodexRealtimeConversation {
 				this.fail(new Error("Codex voice transcript was oversized"));
 				return;
 			}
+			this.playback.inputFinished(
+				this.speakableResponsePending,
+				Boolean(input),
+			);
 			if (input && this.turnTracker.userFinished(input))
 				this.callbacks.onUserTranscript(input);
 			this.callbacks.onStatus("responding");
 			return;
 		}
 		if (record["role"] !== "assistant") return;
+		this.playback.outputFinished();
 		const completed = this.turnTracker.assistantFinished(
 			boundedAssistantTranscript(record["transcript"]),
 		);

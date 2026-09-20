@@ -8,16 +8,16 @@ import {
 	uuidv7,
 	type Api,
 	type AssistantMessageEventStream,
-	type Context,
 	type Model,
 	type ProviderHeaders,
 	type SimpleStreamOptions,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { openAICodexResponsesApi, openAIResponsesApi } from "@earendil-works/pi-ai/compat";
 
 type PortableSummaryStream = (
 	model: Model<Api>,
-	context: Context,
+	context: TranscriptContext,
 	options?: SimpleStreamOptions,
 ) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
 

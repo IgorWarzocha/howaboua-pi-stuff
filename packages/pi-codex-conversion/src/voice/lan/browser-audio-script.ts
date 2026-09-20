@@ -33,9 +33,11 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     muteButton.disabled = busy || !active || mode !== 'conversation';
     modeButtons.forEach((item) => { item.disabled = busy || active; });
   };
-  const setMuted = (nextMuted, notify = true) => {
+  const setMuted = (nextMuted, notify = true, synchronize = false) => {
     if ((!active || mode !== 'conversation') && notify) return;
-    muted = Boolean(nextMuted);
+    const next = Boolean(nextMuted);
+    if (muted !== next || synchronize) realtimeAudio?.setInputMuted(next);
+    muted = next;
     stream?.getAudioTracks().forEach((track) => { track.enabled = !muted; });
     muteButton.setAttribute('aria-pressed', String(muted));
     muteButton.setAttribute('aria-label', muted ? 'Unmute microphone' : 'Mute microphone');
@@ -105,6 +107,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       const message = JSON.parse(event.data);
 	  if (message.type === 'stop') { stop(false, message.reason || 'server'); return; }
 	  if (message.type === 'mute') setMuted(message.muted, false);
+      if (message.type === 'speaker_suppressed') realtimeAudio?.setSpeakerSuppressed(message.suppressed);
       if (message.type === 'active') {
         active = true;
         busy = false;
@@ -113,8 +116,10 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
         button.setAttribute('aria-label', mode === 'dictation' ? 'Finish dictation' : 'Stop voice');
         if (mode === 'conversation') {
           inputTooQuiet = false;
-          if (typeof message.muted === 'boolean') muted = message.muted;
-          realtimeAudio?.releaseInput();
+          const initialMuted = typeof message.muted === 'boolean' ? message.muted : muted;
+          setMuted(initialMuted, false, initialMuted);
+          realtimeAudio?.setSpeakerSuppressed(Boolean(message.speakerSuppressed));
+          if (!initialMuted) realtimeAudio?.releaseInput();
         }
         setMuted(muted, false);
         setStatus(mode === 'dictation' ? 'Recording' : 'Listening', mode === 'dictation' ? 'Tap to finish' : 'Tap to stop');
@@ -172,7 +177,10 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
         setStatus('Could not start', 'Connection timed out. Tap to retry.');
       }, 10000);
       if (processor) processor.port.onmessage = (event) => {
-        if (active && !muted && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(event.data);
+        const pcm = realtimeAudio
+          ? realtimeAudio.acceptCapture(event.data)
+          : event.data?.type === 'capture' && event.data.epoch === 0 && event.data.pcm instanceof ArrayBuffer ? event.data.pcm : undefined;
+        if (pcm && active && !muted && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(pcm);
       };
       currentSocket.onopen = () => {
 		if (socket !== currentSocket || !context) return;

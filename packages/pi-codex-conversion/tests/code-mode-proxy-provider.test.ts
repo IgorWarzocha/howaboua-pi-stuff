@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { getCurrentSystemPrompt, normalizeContext, type TranscriptContext } from "@earendil-works/pi-ai";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { CodexConversionConfig } from "../src/adapter/activation/config.ts";
 import { registerCodeModeProxyProvider, streamCodeModeResponsesProxy } from "../src/providers/code-mode-proxy-provider.ts";
@@ -19,10 +20,10 @@ async function collect(stream: AsyncIterable<unknown>): Promise<unknown[]> {
 
 function fallbackResponsesStream(
 	_model?: unknown,
-	context?: { systemPrompt?: string },
+	context?: TranscriptContext,
 ) {
 	return (async function* () {
-		const content = context?.systemPrompt === "Context windows"
+		const content = context && getCurrentSystemPrompt(context.messages) === "Context windows"
 			? [{
 				type: "toolCall",
 				id: "call_note|fc_note",
@@ -62,7 +63,7 @@ test("the Code Mode proxy rejects unfinished terminal response statuses", async 
 
 			const events = await collect(streamCodeModeResponsesProxy(
 				proxyModel as never,
-				{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
+				normalizeContext({ systemPrompt: "Use Code Mode", messages: [], tools: [] }),
 				{ apiKey: "test-key" },
 			));
 			const terminal = events.at(-1) as { type: string; error: { stopReason: string } };
@@ -109,7 +110,7 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	const provider = [...providers.values()][0]!;
 	const events = await collect(provider.streamSimple(
 		{ ...proxyModel, id: "gpt-5.5" } as never,
-		{ systemPrompt: "Be useful", messages: [{ role: "user", content: "Hello", timestamp: Date.now() }] } as never,
+		normalizeContext({ systemPrompt: "Be useful", messages: [{ role: "user", content: "Hello", timestamp: Date.now() }] }) as never,
 		{ apiKey: "test-key" } as never,
 	));
 	const done = events.at(-1) as { type: string; message: { content: Array<{ type: string; text?: string }> } };
@@ -127,11 +128,11 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	});
 	const contextEvents = await collect(provider.streamSimple(
 		{ ...proxyModel, id: "gpt-5.5" } as never,
-		{
+		normalizeContext({
 			systemPrompt: "Context windows",
 			messages: [],
 			tools: [{ name: "history" }, { name: "notes" }],
-		} as never,
+		} as never) as never,
 		{ apiKey: "test-key" } as never,
 	));
 	assert.deepEqual(

@@ -59,12 +59,12 @@ test("durable binding metadata ignores getters, survives restore, and is shown b
 		const previousNotebook = Object.getOwnPropertyDescriptor(globalThis, "__piNotebook");
 		try {
 			Object.defineProperty(globalThis, "__piNotebook", { value: { syncProjectBindings() {} }, configurable: true });
-			const restore = new Function("Deno", "crypto", `return (async () => ${projectStateRestoreSource({
-				deno: "2.9.5",
-				v8: "test",
+			const manifest = {
+				...candidate!,
 				entries: [entry as never],
-			}, join(root, "candidate.bin"))})()`);
-			await restore({ version: { deno: "2.9.5", v8: "test" }, async readFile() { return payload; } }, { randomUUID });
+			};
+			const restore = new Function("Deno", "crypto", `return (async () => ${projectStateRestoreSource(manifest, join(root, "candidate.bin"))})()`);
+			await restore({ version: { deno: "2.9.7", v8: "new-runtime" }, async readFile() { return payload; } }, { randomUUID });
 			const restored = (globalThis as Record<string, unknown>)["probe"] as { usage?: string; description?: string };
 			assert.equal(restored.usage, 'await helper("check")');
 			assert.equal(restored.description, undefined);

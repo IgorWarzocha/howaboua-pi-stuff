@@ -4,11 +4,10 @@ import {
 	getWebSocketUrl,
 	resolvePrefix,
 } from "./discovery.js";
-import { getPages, waitForOpenedTarget } from "./pages.js";
 import { waitForTurn } from "./serial.js";
+import { BrowserTabs } from "./tabs.js";
 import type { ElementRefs, PageInfo } from "./types.js";
 import { asRecord } from "./types.js";
-import { assertHttpUrl } from "./url.js";
 
 const TAB_IDLE_MS = 20 * 60 * 1_000;
 
@@ -25,6 +24,11 @@ interface PendingConnection<T> {
 	value?: T;
 }
 
+interface BrowserConnection {
+	cdp: CdpClient;
+	tabs: BrowserTabs;
+}
+
 class TabBridge {
 	readonly elementRefs: ElementRefs = new Map();
 	readonly targetId: string;
@@ -33,6 +37,7 @@ class TabBridge {
 	private tail = Promise.resolve();
 	private idleTimer: ReturnType<typeof setTimeout> | undefined;
 	private closed = false;
+	private backgroundRendering: boolean | undefined = false;
 	private readonly onClose: () => void;
 
 	private constructor(
@@ -114,6 +119,23 @@ class TabBridge {
 		}
 	}
 
+	async setBackgroundRendering(
+		enabled: boolean,
+		signal?: AbortSignal,
+	): Promise<void> {
+		if (this.backgroundRendering === enabled) return;
+		// An interrupted command may already have applied. Keep the state unknown
+		// until Chrome acknowledges it, so the next action reestablishes it.
+		this.backgroundRendering = undefined;
+		await this.cdp.send(
+			"Emulation.setFocusEmulationEnabled",
+			{ enabled },
+			this.sessionId,
+			signal,
+		);
+		this.backgroundRendering = enabled;
+	}
+
 	close(detach = true): void {
 		if (this.closed) return;
 		this.closed = true;
@@ -143,16 +165,24 @@ class TabBridge {
 }
 
 export class BrowserCdpSession {
-	private root: CdpClient | undefined;
-	private rootPending: PendingConnection<CdpClient> | undefined;
+	private closing: Promise<void> | undefined;
+	private root: BrowserConnection | undefined;
+	private rootPending: PendingConnection<BrowserConnection> | undefined;
+	private readonly ownerId: string;
+	private readonly ownershipDirectory: string;
 	private readonly tabs = new Map<string, TabBridge>();
 	private readonly tabPromises = new Map<
 		string,
 		PendingConnection<TabBridge>
 	>();
 
+	constructor(ownerId: string, ownershipDirectory: string) {
+		this.ownerId = ownerId;
+		this.ownershipDirectory = ownershipDirectory;
+	}
+
 	async pages(signal?: AbortSignal): Promise<PageInfo[]> {
-		return getPages(await this.rootConnection(signal), signal);
+		return (await this.rootConnection(signal)).tabs.list(signal);
 	}
 
 	async open(
@@ -161,32 +191,25 @@ export class BrowserCdpSession {
 	): Promise<{
 		refId: string;
 	}> {
-		assertHttpUrl(url);
+		return (await this.rootConnection(signal)).tabs.open(url, signal);
+	}
+
+	async show(refId: string, signal?: AbortSignal): Promise<string> {
+		return (await this.rootConnection(signal)).tabs.show(refId, signal);
+	}
+
+	async closeTab(refId: string, signal?: AbortSignal): Promise<string> {
 		const root = await this.rootConnection(signal);
-		const response = asRecord(
-			await root.send("Target.createTarget", { url }, undefined, signal),
-			"Target.createTarget response",
-		);
-		if (typeof response["targetId"] !== "string") {
-			throw new Error("Chrome did not return a new tab target");
-		}
-		const page = await waitForOpenedTarget(
-			root,
-			response["targetId"],
-			url,
-			5_000,
-			signal,
-		);
-		const pages = await getPages(root, signal);
-		if (!pages.some((candidate) => candidate.targetId === page.targetId)) {
-			pages.push(page);
-		}
-		const prefixLength = getDisplayPrefixLength(
-			pages.map((candidate) => candidate.targetId),
-		);
-		return {
-			refId: page.targetId.slice(0, prefixLength),
-		};
+		const resolved = await root.tabs.resolve(refId, signal);
+		const targetId = resolved.page.targetId;
+		this.stopPendingTab(targetId, "Tab is closing");
+		const bridge = this.tabs.get(targetId);
+		const close = () => root.tabs.close(targetId, signal);
+		const closed = bridge
+			? await bridge.run(resolved.refId, signal, close)
+			: await close();
+		bridge?.close(false);
+		return closed.refId;
 	}
 
 	async withTab<T>(
@@ -237,7 +260,14 @@ export class BrowserCdpSession {
 		const prefixLength = getDisplayPrefixLength(
 			pages.map((page) => page.targetId),
 		);
-		return bridge.run(targetId.slice(0, prefixLength), signal, action);
+		const owned = pages.some(
+			(page) => page.targetId === targetId && page.owned === true,
+		);
+		const current = bridge;
+		return current.run(targetId.slice(0, prefixLength), signal, async (tab) => {
+			await current.setBackgroundRendering(owned, signal);
+			return action(tab);
+		});
 	}
 
 	async stop(refId?: string): Promise<void> {
@@ -260,7 +290,8 @@ export class BrowserCdpSession {
 		this.tabs.delete(targetId);
 	}
 
-	close(): void {
+	close(): Promise<void> {
+		if (this.closing) return this.closing;
 		for (const targetId of this.tabPromises.keys()) {
 			this.stopPendingTab(targetId, "Browser session closed");
 		}
@@ -268,18 +299,27 @@ export class BrowserCdpSession {
 		this.tabs.clear();
 		const rootPending = this.rootPending;
 		this.rootPending = undefined;
-		if (rootPending) {
-			rootPending.controller.abort(new Error("Browser session closed"));
-			void rootPending.promise.then(
-				(client) => client.close(),
-				() => undefined,
-			);
-		}
-		this.root?.close();
+		rootPending?.controller.abort(new Error("Browser session closed"));
+		const root = this.root;
 		this.root = undefined;
+		this.closing = (async () => {
+			const connected = await rootPending?.promise.catch(() => undefined);
+			for (const connection of new Set([root, connected])) {
+				if (!connection) continue;
+				try {
+					await connection.tabs.shutdown();
+				} finally {
+					connection.cdp.close();
+				}
+			}
+		})();
+		return this.closing;
 	}
 
-	private async rootConnection(signal?: AbortSignal): Promise<CdpClient> {
+	private async rootConnection(
+		signal?: AbortSignal,
+	): Promise<BrowserConnection> {
+		if (this.closing) throw new Error("Browser session closed");
 		if (this.root) return this.root;
 		let pending = this.rootPending;
 		if (!pending) {
@@ -332,14 +372,26 @@ export class BrowserCdpSession {
 		);
 	}
 
-	private async connectRoot(signal: AbortSignal): Promise<CdpClient> {
+	private async connectRoot(signal: AbortSignal): Promise<BrowserConnection> {
 		const client = new CdpClient();
-		await client.connect(await getWebSocketUrl(), signal);
-		this.root = client;
+		const url = await getWebSocketUrl();
+		try {
+			await client.connect(url, signal);
+			signal.throwIfAborted();
+			if (this.closing) throw new Error("Browser session closed");
+		} catch (error) {
+			client.close();
+			throw error;
+		}
+		const connection = {
+			cdp: client,
+			tabs: new BrowserTabs(client, this.ownerId, this.ownershipDirectory, url),
+		};
+		this.root = connection;
 		client.onClose(() => {
-			if (this.root !== client) return;
+			if (this.root !== connection) return;
 			this.root = undefined;
 		});
-		return client;
+		return connection;
 	}
 }

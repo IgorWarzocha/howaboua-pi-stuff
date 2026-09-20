@@ -36,7 +36,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun x tsx packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts
-      - name: Run through standalone Pi 0.85.1
+      - name: Run through standalone Pi 0.86.0
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -48,7 +48,7 @@ jobs:
           suffix=tar.gz
           if [[ "$RUNNER_OS" == Windows ]]; then suffix=zip; fi
           archive="pi-$target.$suffix"
-          gh release download v0.85.1 --repo earendil-works/pi --pattern "$archive" --pattern SHA256SUMS --dir "$dir"
+          gh release download v0.86.0 --repo earendil-works/pi --pattern "$archive" --pattern SHA256SUMS --dir "$dir"
           if [[ "$RUNNER_OS" == macOS ]]; then
             (cd "$dir" && grep " $archive$" SHA256SUMS | shasum -a 256 --check --status)
           else

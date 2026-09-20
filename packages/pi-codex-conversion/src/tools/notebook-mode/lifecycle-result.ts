@@ -1,4 +1,4 @@
-import type { NotebookMemoryUsage } from "../code-mode/types.ts";
+import type { NotebookHook, NotebookMemoryUsage } from "../code-mode/types.ts";
 import type { NotebookKernelStatus, NotebookReleaseResult } from "./lifecycle-runtime.ts";
 import type { RetainedProjectBinding } from "./project-state-metadata.ts";
 
@@ -19,6 +19,7 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 		bytes?: number | undefined;
 		updatedAt?: string | undefined;
 		pinned?: boolean | undefined;
+		hook?: NotebookHook | undefined;
 		description?: string | undefined;
 		usage?: string | undefined;
 	}> | undefined;
@@ -92,7 +93,7 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	const lines = [
 		`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""} · ${details.userCells} completed cell${details.userCells === 1 ? "" : "s"}`,
 		memory ? `Memory ${formatBytes(memory.heapUsedBytes)} heap used / ${formatBytes(memory.heapLimitBytes)} limit · ${formatBytes(memory.rssBytes)} RSS` : undefined,
-		`Checkpoint ${checkpoint["dirty"] ? "pending" : "current"} · project generation ${String(checkpoint["projectGeneration"] ?? "root")} · ${String(checkpoint["projectBindings"] ?? 0)} durable binding(s)`,
+		`Checkpoint ${checkpoint["dirty"] ? "pending" : "current"} · ${String(checkpoint["projectBindings"] ?? 0)} durable binding(s)`,
 		`Retained state ${details.retainedBindings} binding(s) · ${formatBytes(details.retainedBytes)} serialized · ${details.pinnedBindings} pinned`,
 		details.userBindings === undefined ? undefined : `Top-level bindings: ${details.userBindings}`,
 	];
@@ -122,10 +123,10 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	return boundMessage(lines.filter(Boolean).join("\n"));
 }
 
-function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined }): string {
+function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined; hook?: NotebookHook | undefined }): string {
 	const description = binding.description === undefined ? "" : ` · ${binding.description}`;
 	const usage = binding.usage === undefined ? "" : ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;
-	return `${description}${usage}`;
+	return `${binding.hook ? ` · hook: ${binding.hook}` : ""}${description}${usage}`;
 }
 
 export function formatRelease(result: NotebookReleaseResult, restarted: boolean): string {

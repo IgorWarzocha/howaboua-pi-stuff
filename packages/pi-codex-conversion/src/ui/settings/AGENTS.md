@@ -3,4 +3,5 @@
 - `config-items.ts` dispatches tabs; `config-items-<tab>.ts` builds each tab; `config-items-shared.ts` owns shared controls and update types.
 - `/codex` opens General; arguments target only other tabs. Do not add a default-tab argument or quick-toggle/action aliases.
 - Keep persistence synchronous and simple. Do not add process locks or concurrency machinery without a reproduced background writer or realistic overlapping-write path.
+- Open settings immediately and save synchronously; defer live config/tool application, not the command or UI, until idle. Pending edits must not leak through config reloads in other controls.
 - For apparent setting flips, trace the config source, read lifecycle, and UI draft first; do not promote a theoretical write race into the cause.

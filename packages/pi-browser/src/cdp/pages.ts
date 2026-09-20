@@ -9,10 +9,13 @@ function pageInfo(value: unknown): PageInfo {
 		title: typeof record["title"] === "string" ? record["title"] : "",
 		url: asString(record["url"], "target URL"),
 		...(typeof record["type"] === "string" ? { type: record["type"] } : {}),
+		...(typeof record["openerId"] === "string"
+			? { openerId: record["openerId"] }
+			: {}),
 	};
 }
 
-export async function getPages(
+export async function getPageTargets(
 	cdp: CdpConnection,
 	signal?: AbortSignal,
 ): Promise<PageInfo[]> {
@@ -24,11 +27,11 @@ export async function getPages(
 	if (!Array.isArray(targetInfos)) {
 		throw new Error("Target.getTargets response has no targetInfos");
 	}
-	return targetInfos
-		.map(pageInfo)
-		.filter(
-			(target) => target.type === "page" && !target.url.startsWith("chrome://"),
-		);
+	return targetInfos.map(pageInfo).filter((target) => target.type === "page");
+}
+
+export function getDisplayedPages(targets: PageInfo[]): PageInfo[] {
+	return targets.filter((target) => !target.url.startsWith("chrome://"));
 }
 
 export async function waitForOpenedTarget(

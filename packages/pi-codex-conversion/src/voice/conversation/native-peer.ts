@@ -6,6 +6,8 @@ import type { CodexRealtimePeerEvent, CodexRealtimeWebRtcPeer } from "./peer.ts"
 export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
 	private readonly helper = new VoiceHelperClient();
+	private playbackEpoch = 0;
+	private speakerSuppressed = false;
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
 		return this.helper.onEvent((event) => {
@@ -34,6 +36,12 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 		this.helper.send({ type: "set_input_muted", muted });
 	}
 
+	setSpeakerSuppressed(suppressed: boolean): void {
+		if (this.speakerSuppressed === suppressed) return;
+		this.helper.send({ type: "set_speaker_suppressed", suppressed, epoch: ++this.playbackEpoch });
+		this.speakerSuppressed = suppressed;
+	}
+
 	close(): Promise<void> {
 		return this.helper.close();
 	}
@@ -42,7 +50,7 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 function toPeerEvent(
 	event: VoiceHelperEvent,
 ): CodexRealtimePeerEvent | undefined {
-	if (event.type === "state" || event.type === "data" || event.type === "error")
+	if (event.type === "state" || event.type === "data" || event.type === "error" || event.type === "playback_activity")
 		return event;
 	return undefined;
 }

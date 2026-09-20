@@ -15,10 +15,6 @@ test("notebook diagnostics group historical duplicates and put runtime health fi
 	const diagnostics: NotebookDiagnostic[] = [diagnostic("cell-1", 0), diagnostic("cell-2", 1), diagnostic("cell-3", 2, "other"), diagnostic("cell-4", 3, "r", "error", "ts")];
 	const result = formatNotebookDiagnostics("/project/notebook.ipynb", 4, diagnostics, "invalidated");
 	assert.match(result.message, /^Notebook runtime health: invalidated;/);
-	assert.match(result.message, /Historical static diagnostics/);
-	assert.match(result.message, /2 occurrences warning deno-2451 \[r\]/);
-	assert.match(result.message, /samples: cell-1 cell 1:1:1, cell-2 cell 2:2:1/);
-	assert.doesNotMatch(result.message, /repair these/);
 	assert.deepEqual((result.details as { diagnosticGroups: Array<{ count: number; name?: string; severity: string; source?: string }> }).diagnosticGroups.map(({ count, name, severity, source }) => ({ count, name, severity, source })), [
 		{ count: 2, name: "r", severity: "warning", source: "deno" },
 		{ count: 1, name: "other", severity: "warning", source: "deno" },
@@ -34,7 +30,7 @@ test("notebook diagnostics group historical duplicates and put runtime health fi
 	assert.ok(Buffer.byteLength(JSON.stringify(bounded.details), "utf8") <= 16 * 1024);
 });
 
-test("notebook reset preserves the durable project manifest and pins", async () => {
+test("notebook recovery preserves durable state and can unpin without startup", async () => {
 	const root = join(tmpdir(), `pi-notebook-reset-${process.pid}-${Date.now()}`);
 	const project = join(root, "project");
 	const agentDir = join(root, "agent");
@@ -49,7 +45,7 @@ test("notebook reset preserves the durable project manifest and pins", async () 
 		payload: "project-00000000-0000-0000-0000-000000000001.bin",
 		createdAt: "2026-01-01T00:00:00.000Z",
 		sourceSession: "session",
-		entries: [{ name: "prReview", kind: "value", offset: 0, length: payload.length, hash: hash(payload), pinned: true }],
+		entries: [{ name: "prReview", kind: "function", offset: 0, length: payload.length, hash: hash(payload), pinned: true, hook: "startup" }],
 		skipped: [],
 	};
 	mkdirSync(paths.directory, { recursive: true });
@@ -58,21 +54,42 @@ test("notebook reset preserves the durable project manifest and pins", async () 
 	writeFileSync(join(paths.directory, "npm-imports.json"), `${JSON.stringify({ schema: 1, project, imports: ["npm:example@1.2.3"] })}\n`);
 	const extensionContext = { cwd: project, sessionManager: { getSessionId: () => "session-id", getBranch: () => [] } };
 	const events: string[] = [];
-	const controller = new NotebookRecoveryController({ agentDir, maxBytes: 8 * 1024 * 1024 }, {
+	const host = {
 		stopWithoutCheckpoint: async () => { events.push("stop"); return undefined; },
 		startClean: async () => { events.push("start"); },
 		checkpointEmpty: async () => { events.push("checkpoint"); },
 		configuredProfileActive: () => false,
-		runtimeHealth: () => ({ state: "ready" }),
-	});
+		runtimeHealth: () => ({ state: "ready" as const }),
+	} as const;
+	const controller = new NotebookRecoveryController({ agentDir, maxBytes: 8 * 1024 * 1024 }, host);
 	try {
 		const result = await controller.reset({ cwd: project, extensionContext } as never);
 		const restored = readProjectStateManifest(paths.manifest);
 		assert.equal(restored?.entries[0]?.name, "prReview");
 		assert.equal(restored?.entries[0]?.pinned, true);
+		assert.equal(restored?.entries[0]?.hook, "startup");
 		assert.deepEqual(JSON.parse(readFileSync(join(paths.directory, "npm-imports.json"), "utf8")).imports, ["npm:example@1.2.3"]);
 		assert.deepEqual(events, ["stop", "start", "checkpoint"]);
 		assert.match(result.message, /preserved 1 project binding including 1 pinned/);
+		events.length = 0;
+		await controller.unpin(["prReview"], { cwd: project, extensionContext } as never);
+		const unpinned = readProjectStateManifest(paths.manifest);
+		assert.deepEqual(events, ["stop"]);
+		assert.equal(unpinned?.entries[0]?.pinned, undefined);
+		assert.equal(unpinned?.entries[0]?.hook, undefined);
+		assert.notEqual(unpinned?.generation, restored?.generation);
+		assert.deepEqual(readFileSync(join(paths.directory, manifest.payload)), payload);
+
+		for (const [condition, maxBytes] of [["missing", 8 * 1024 * 1024], ["corrupt", 8 * 1024 * 1024], ["oversized", payload.length - 1]] as const) {
+			writeFileSync(paths.manifest, `${JSON.stringify({ ...manifest, generation: `generation-${condition}` })}\n`);
+			if (condition === "missing") rmSync(join(paths.directory, manifest.payload), { force: true });
+			else writeFileSync(join(paths.directory, manifest.payload), condition === "corrupt" ? Buffer.from("corrupt") : payload);
+			await new NotebookRecoveryController({ agentDir, maxBytes }, host)
+				.unpin(["prReview"], { cwd: project, extensionContext } as never);
+			const recovered = readProjectStateManifest(paths.manifest);
+			assert.equal(recovered?.entries[0]?.pinned, undefined, condition);
+			assert.equal(recovered?.entries[0]?.hook, undefined, condition);
+		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -148,7 +165,7 @@ test("terminating a notebook cell invalidates its kernel before another cell can
 	assert.equal(quickKernel, undefined);
 });
 
-test("notebook restart bypasses capture after the runtime is invalidated", async () => {
+test("notebook lifecycle recovers invalid runtimes and failed pin transactions", async () => {
 	let checkpoints = 0;
 	let prepares = 0;
 	let restarts = 0;
@@ -176,6 +193,61 @@ test("notebook restart bypasses capture after the runtime is invalidated", async
 	assert.equal(prepares, 0);
 	assert.equal(restarts, 1);
 	assert.match(result.message, /restarted from the last completed checkpoint/);
+
+	let configurationFails = true;
+	let checkpointFails = false;
+	let durableHook: "tool_result" | undefined;
+	let runtimeHook = false;
+	let promoted = false;
+	const kernel = {
+		complete: async () => ["setup"],
+		execute: async (source: string) => {
+			if (configurationFails) return { status: "error", items: [], errorText: "configure rejected" };
+			runtimeHook = !source.includes('["setup", null]');
+			return { status: "ok", items: [] };
+		},
+	};
+	const pins = new NotebookLifecycleController({
+		prepare: async () => {},
+		diagnostics: async () => ({ message: "", details: {} }),
+		reset: async () => ({ message: "", details: {} }),
+		kernel: () => kernel,
+		activeCellId: () => undefined,
+		stopActive: async () => undefined,
+		checkpoint: async () => {
+			if (checkpointFails) throw new Error("checkpoint rejected");
+			durableHook = "tool_result";
+		},
+		retainedBindings: () => [],
+		promoteBindings: async () => {
+			promoted = true;
+			return async () => { promoted = false; };
+		},
+		markChanged: () => {},
+		restart: async () => undefined,
+		rollback: async () => {},
+		baselineNames: () => new Set(),
+		profileStorage: () => ({ agentDir: "/tmp", maxBytes: 8 * 1024 * 1024 }),
+		runtimeHealth: () => ({ state: "ready" }),
+		metadata: () => ({ userCells: 0, checkpoint: {} }),
+	} as never);
+	await assert.rejects(
+		pins.control({ action: "pin", names: ["setup"], hook: "tool_result" }, { cwd: "/tmp", extensionContext: {} } as never),
+		/configure rejected.*Durable pin and hook metadata was not changed/,
+	);
+	assert.equal(durableHook, undefined);
+	assert.equal(runtimeHook, false);
+	assert.equal(promoted, false);
+
+	configurationFails = false;
+	checkpointFails = true;
+	await assert.rejects(
+		pins.control({ action: "pin", names: ["setup"], hook: "tool_result" }, { cwd: "/tmp", extensionContext: {} } as never),
+		/checkpoint rejected.*transient notebook state was restored/,
+	);
+	assert.equal(durableHook, undefined);
+	assert.equal(runtimeHook, false);
+	assert.equal(promoted, false);
 });
 
 function diagnostic(cellId: string, cellIndex: number, name = "r", severity: NotebookDiagnostic["severity"] = "warning", source = "deno"): NotebookDiagnostic {

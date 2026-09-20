@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { BranchSummaryEntry, CustomMessageEntry, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 import { isProviderContextExcludedCustomMessageEntry } from "../prompt/context-filter.ts";
-import { projectCodexReasoningEntry } from "../reasoning-history.ts";
+import { projectCodexDeveloperEntry } from "../developer-history.ts";
 
 function toBranchSummaryMessage(entry: BranchSummaryEntry): AgentMessage {
 	return { role: "branchSummary", summary: entry.summary, fromId: entry.fromId, timestamp: new Date(entry.timestamp).getTime() } as AgentMessage;
@@ -16,7 +16,7 @@ function toSessionMessage(entry: SessionMessageEntry): AgentMessage {
 }
 
 export function toReplayAgentMessage(entry: SessionEntry): AgentMessage | undefined {
-	entry = projectCodexReasoningEntry(entry);
+	entry = projectCodexDeveloperEntry(entry);
 	if (entry.type === "message") return toSessionMessage(entry);
 	if (entry.type === "custom_message") {
 		if (isProviderContextExcludedCustomMessageEntry(entry)) return undefined;
@@ -26,7 +26,7 @@ export function toReplayAgentMessage(entry: SessionEntry): AgentMessage | undefi
 	return undefined;
 }
 export function toPiReplayAgentMessage(entry: SessionEntry): AgentMessage | undefined {
-	entry = projectCodexReasoningEntry(entry);
+	entry = projectCodexDeveloperEntry(entry);
 	if (entry.type === "message") return toSessionMessage(entry);
 	if (entry.type === "custom_message") return toCustomMessage(entry);
 	if (entry.type === "branch_summary") return toBranchSummaryMessage(entry);

@@ -61,6 +61,37 @@ export function projectStateBindingNames(identity: { project: string; agentDir: 
 		: [];
 }
 
+export async function unpinProjectStateBindings(
+	identity: { project: string; agentDir: string },
+	names: string[],
+	signal?: AbortSignal,
+): Promise<void> {
+	const paths = projectStatePaths(identity.project, identity.agentDir);
+	mkdirSync(paths.directory, { recursive: true });
+	await withProjectStateLock(paths.lock, async () => {
+		signal?.throwIfAborted();
+		const manifest = readProjectStateManifest(paths.manifest);
+		if (!manifest || manifest.project !== resolve(identity.project)) {
+			throw new Error("Durable notebook state is missing or invalid; it was preserved");
+		}
+		const selected = new Set(names);
+		const missing = names.filter((name) => !manifest.entries.some((entry) => entry.name === name));
+		if (missing.length > 0) throw new Error(`Durable notebook bindings not found: ${missing.join(", ")}`);
+		const entries = manifest.entries.map((entry) => selected.has(entry.name)
+			? { ...entry, pinned: undefined, hook: undefined }
+			: entry);
+		const text = `${JSON.stringify({ ...manifest, entries, parentGeneration: manifest.generation, generation: randomUUID() }, null, 2)}\n`;
+		if (Buffer.byteLength(text) > MAX_PROJECT_MANIFEST_BYTES) throw new Error(`Project manifest exceeds ${MAX_PROJECT_MANIFEST_BYTES} bytes`);
+		const temporary = `${paths.manifest}.${randomUUID()}.tmp`;
+		try {
+			writeFileSync(temporary, text, { mode: 0o600 });
+			renameSync(temporary, paths.manifest);
+		} finally {
+			rmSync(temporary, { force: true });
+		}
+	}, signal);
+}
+
 async function restoreProjectStateLocked(
 	kernel: DenoJupyterKernel,
 	identity: { project: string; maxBytes: number; signal?: AbortSignal | undefined },
@@ -74,11 +105,15 @@ async function restoreProjectStateLocked(
 	}
 	const payloadPath = join(paths.directory, manifest.payload);
 	if (!readProjectStatePayload(manifest, payloadPath, identity.maxBytes)) {
+		if (manifest.entries.some((entry) => entry.hook)) throw new Error("Project notebook payload was missing or invalid; hooks could not be restored");
 		return { ...emptyProjectStateSummary(), message: "Project notebook payload was missing or invalid and was not restored" };
 	}
 	identity.signal?.throwIfAborted();
 	const result = await kernel.execute(projectStateRestoreSource(manifest, payloadPath), { signal: identity.signal });
 	if (result.status !== "ok") {
+		if (manifest.entries.some((entry) => entry.hook)) {
+			throw new Error(`Project notebook hooks could not be restored: ${result.errorText ?? "unknown error"}. Unpin their functions with notebook to recover`);
+		}
 		return {
 			...emptyProjectStateSummary(),
 			message: `Project notebook was incompatible and was not restored: ${result.errorText ?? "unknown error"}`,
@@ -203,9 +238,6 @@ async function commitCandidate(options: {
 	pins?: ProjectStatePinUpdate | undefined;
 }): Promise<{ manifest?: ProjectStateManifest | undefined; baseline: ProjectStateBaseline; conflicts: string[] }> {
 	const current = readProjectStateManifest(options.paths.manifest);
-	if (current && current.entries.length > 0 && (current.deno !== options.candidate.deno || current.v8 !== options.candidate.v8)) {
-		throw new Error("Project notebook uses an incompatible Deno/V8 version; the existing state was preserved");
-	}
 	const currentPayload = current
 		? readProjectStatePayload(current, join(options.paths.directory, current.payload), options.maxBytes)
 		: Buffer.alloc(0);

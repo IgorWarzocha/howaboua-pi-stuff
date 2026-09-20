@@ -11,14 +11,27 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
 	private readonly helper = new VoiceHelperClient();
 	private readonly onAudio: (pcm: Buffer) => void;
+	private readonly onSpeakerSuppressed: (suppressed: boolean) => void;
+	private playbackEpoch = 0;
+	private speakerSuppressed = false;
 
-	constructor(options: { onAudio(pcm: Buffer): void }) {
+	constructor(options: {
+		onAudio(pcm: Buffer): void;
+		onSpeakerSuppressed(suppressed: boolean): void;
+	}) {
 		this.onAudio = options.onAudio;
+		this.onSpeakerSuppressed = options.onSpeakerSuppressed;
+	}
+
+	get isSpeakerSuppressed(): boolean {
+		return this.speakerSuppressed;
 	}
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
 		return this.helper.onEvent((event) => {
 			if (event.type === "pcm") {
+				if (this.speakerSuppressed || event.epoch !== this.playbackEpoch)
+					return;
 				this.onAudio(Buffer.from(event.audio, "base64"));
 				return;
 			}
@@ -33,11 +46,11 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	async start(_config: GippityControlConfig): Promise<string> {
 		await this.helper.start();
-		if (this.helper.protocolVersion !== 5) {
+		if (this.helper.protocolVersion !== 6) {
 			const actualVersion = this.helper.protocolVersion ?? "unknown";
 			await this.helper.close();
 			throw new Error(
-				`Incompatible Codex voice helper protocol ${actualVersion}; expected 5`,
+				`Incompatible Codex voice helper protocol ${actualVersion}; expected 6`,
 			);
 		}
 		const offer = Promise.withResolvers<string>();
@@ -80,6 +93,15 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 		this.helper.send({ type: "set_input_muted", muted });
 	}
 
+	setSpeakerSuppressed(suppressed: boolean): void {
+		if (this.speakerSuppressed === suppressed) return;
+		const epoch = this.playbackEpoch + 1;
+		this.helper.send({ type: "set_speaker_suppressed", suppressed, epoch });
+		this.playbackEpoch = epoch;
+		this.speakerSuppressed = suppressed;
+		this.onSpeakerSuppressed(suppressed);
+	}
+
 	close(): Promise<void> {
 		return this.helper.close();
 	}
@@ -88,7 +110,12 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 function toPeerEvent(
 	event: VoiceHelperEvent,
 ): CodexRealtimePeerEvent | undefined {
-	if (event.type === "state" || event.type === "data" || event.type === "error")
+	if (
+		event.type === "state" ||
+		event.type === "data" ||
+		event.type === "error" ||
+		event.type === "playback_activity"
+	)
 		return event;
 	return undefined;
 }

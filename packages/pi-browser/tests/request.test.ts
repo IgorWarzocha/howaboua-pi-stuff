@@ -13,10 +13,6 @@ import { parseBrowserRequest } from "../src/browser/request.js";
 import { parseBrowserRoutes } from "../src/browser/routes.js";
 
 test("browser requests share one validated single and batch contract", () => {
-	assert.deepEqual(parseBrowserRequest("help"), { help: true });
-	assert.deepEqual(parseBrowserRequest({ action: "help" }), {
-		help: true,
-	});
 	assert.deepEqual(
 		parseBrowserRequest({
 			action: "tabs",
@@ -32,48 +28,9 @@ test("browser requests share one validated single and batch contract", () => {
 			],
 		},
 	);
-	assert.deepEqual(
-		parseBrowserRequest(
-			JSON.stringify({
-				response_length: "short",
-				tabs: [{ query: "linkedin" }],
-				open: [{ ref_id: "ABCDEF12" }],
-				click: [{ ref_id: "ABCDEF12", id: 7 }],
-				raw: [
-					{
-						ref_id: "ABCDEF12",
-						method: "DOM.getDocument",
-					},
-				],
-			}),
-		),
-		{
-			operations: [
-				{
-					action: "tabs",
-					query: "linkedin",
-					offset: 0,
-				},
-				{
-					action: "open",
-					ref_id: "ABCDEF12",
-					lineno: 1,
-					response_length: "short",
-				},
-				{
-					action: "click",
-					ref_id: "ABCDEF12",
-					id: 7,
-				},
-				{
-					action: "raw",
-					ref_id: "ABCDEF12",
-					method: "DOM.getDocument",
-					params: {},
-				},
-			],
-		},
-	);
+	assert.deepEqual(parseBrowserRequest({ tabs: [{ owned_only: true }] }), {
+		operations: [{ action: "tabs", offset: 0, owned_only: true }],
+	});
 	assert.throws(
 		() =>
 			parseBrowserRequest({
@@ -83,15 +40,31 @@ test("browser requests share one validated single and batch contract", () => {
 			}),
 		/exactly one/,
 	);
-	assert.throws(
-		() =>
-			parseBrowserRequest({
-				action: "click",
-				ref_id: "ABCDEF12",
-				id: 1,
-				selector: "a",
-			}),
-		/exactly one/,
+	for (const value of ["", "  keep whitespace  ", false]) {
+		const request = { action: "fill", ref_id: "ABCDEF12", id: 7, value };
+		assert.deepEqual(parseBrowserRequest(request), { operations: [request] });
+	}
+	for (const request of [
+		{ action: "fill", id: 1, value: 42 },
+		{ action: "wait", text: "Ready", selector: ".ready" },
+		{ action: "press", key: "constructor" },
+	]) {
+		assert.throws(() =>
+			parseBrowserRequest({ ref_id: "ABCDEF12", ...request }),
+		);
+	}
+	assert.deepEqual(
+		parseBrowserRequest({ wait: [{ ref_id: "ABCDEF12", text: " Ready " }] }),
+		{
+			operations: [
+				{
+					action: "wait",
+					ref_id: "ABCDEF12",
+					text: " Ready ",
+					timeout_ms: 10_000,
+				},
+			],
+		},
 	);
 	assert.deepEqual(
 		parseBrowserRequest({
@@ -137,14 +110,6 @@ test("browser requests share one validated single and batch contract", () => {
 				remoteNodePath: "/usr/bin/node;false",
 			}),
 		/unsupported shell characters/,
-	);
-	assert.throws(
-		() =>
-			parseBrowserRequest({
-				response_length: "huge",
-				tabs: [{}],
-			}),
-		/response_length/,
 	);
 	const directory = mkdtempSync(join(tmpdir(), "pi-browser-config-"));
 	const path = join(directory, "pi-browser.json");

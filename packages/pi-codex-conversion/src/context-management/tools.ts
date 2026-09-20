@@ -17,6 +17,7 @@ interface NewContextDetails {
 
 export interface ContextRemainingDetails {
 	remainingTokens?: number | undefined;
+	remainingPercent?: number | undefined;
 	windowId?: string | undefined;
 	contextWindow: number;
 }
@@ -83,7 +84,7 @@ export function createContextWindowTools(
 							text:
 								remaining.remainingTokens === undefined
 									? "You have unknown tokens left in this context window."
-									: `You have ${remaining.remainingTokens} tokens left in this context window.`,
+									: `${remaining.remainingPercent}% remaining (${remaining.remainingTokens} of ${remaining.contextWindow} tokens).`,
 						},
 					],
 					details: remaining,

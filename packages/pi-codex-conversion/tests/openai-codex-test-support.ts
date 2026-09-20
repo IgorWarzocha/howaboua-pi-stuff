@@ -1,9 +1,9 @@
 import { zstdDecompressSync } from "node:zlib";
-import type { Provider } from "@earendil-works/pi-ai";
+import { normalizeContext, type Provider } from "@earendil-works/pi-ai";
 import { registerOpenAICodexCustomProvider, closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
-import type { CodexDiagnosticsSink } from "../src/providers/openai-codex/types.ts";
+import type { BeforeCodexRequestSend, CodexDiagnosticsSink } from "../src/providers/openai-codex/types.ts";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
 
 export const exampleTool = {
@@ -64,9 +64,14 @@ export const toolLoadingMessages = [
 		toolCallId: "call_search|fc_search",
 		toolName: "search_tools",
 		content: [{ type: "text", text: "Loaded tools: example_tool" }],
-		addedToolNames: ["example_tool"],
 		isError: false,
 		timestamp: 2,
+	},
+	{
+		role: "system",
+		content: "",
+		toolsAdded: [exampleTool],
+		timestamp: 3,
 	},
 ] as never;
 
@@ -189,7 +194,7 @@ export function installScriptedWebSocket(scripts: Array<WebSocketScript | WebSoc
 export function codexStreamRequest(sessionId: string) {
 	return {
 		model: { ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api" } as never,
-		context: { systemPrompt: "Instructions", messages: [] } as never,
+		context: normalizeContext({ systemPrompt: "Instructions", messages: [] }),
 		options: {
 			apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }),
 			transport: "auto",
@@ -201,6 +206,7 @@ export function codexStreamRequest(sessionId: string) {
 export function createRegisteredCodexProvider(options?: {
 	codeMode?: boolean | undefined;
 	onPreparedPayload?: ((payload: unknown) => void) | undefined;
+	beforeRequestSend?: BeforeCodexRequestSend | undefined;
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 }) {
 	const turnState = createCodexTurnState();
@@ -230,6 +236,7 @@ export function createRegisteredCodexProvider(options?: {
 		}),
 		turnState,
 		...(options?.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload as never } : {}),
+		...(options?.beforeRequestSend ? { beforeRequestSend: options.beforeRequestSend } : {}),
 		...(options?.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
 	});
 	const provider = providers.get("openai-codex")!;

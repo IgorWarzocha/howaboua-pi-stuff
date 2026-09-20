@@ -22,7 +22,7 @@ export function hyprlandCursorSocket(env: NodeJS.ProcessEnv): string | undefined
   return join(runtime, "hypr", signature, ".socket.sock");
 }
 
-export function parseHyprlandCursorResponse(value: string): DesktopCursorPosition {
+function parseHyprlandCursorResponse(value: string): DesktopCursorPosition {
   const position = parseDesktopCursorPosition(JSON.parse(value) as unknown);
   if (!position) throw new Error("Hyprland returned an empty cursor position.");
   return position;
@@ -42,7 +42,7 @@ function parseCoordinatePair(value: unknown, label: string): [number, number] {
   return [value[0], value[1]];
 }
 
-export function parseHyprlandClientBounds(value: string, pid: number): DesktopWindowBounds {
+function parseHyprlandClientBounds(value: string, pid: number): DesktopWindowBounds {
   const clients = JSON.parse(value) as unknown;
   if (!Array.isArray(clients)) throw new Error("Hyprland clients response must be an array.");
   const client = clients.find(

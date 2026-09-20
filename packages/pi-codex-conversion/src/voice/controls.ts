@@ -6,6 +6,7 @@ import {
 	readEffectiveCodexConversionConfig,
 } from "../adapter/activation/config-store.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
+import { tryStartCodexPreparedIdlePrompt } from "../developer-messages.ts";
 import { resolveVoiceHelperBinary } from "./binary.ts";
 import type { CodexVoiceController } from "./controller.ts";
 import type { CodexLanVoiceServerController } from "./lan/controller.ts";
@@ -33,10 +34,10 @@ export function createCodexVoiceControls(options: {
 		force: boolean,
 		mode?: CodexVoiceMode,
 	): Promise<boolean> => {
-		const currentConfig = readEffectiveCodexConversionConfig({
+		const currentConfig = ctx.isIdle() ? readEffectiveCodexConversionConfig({
 			cwd: ctx.cwd,
 			projectTrusted: ctx.isProjectTrusted(),
-		});
+		}) : state.config;
 		const configPath = hasFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted())
 			? getProjectCodexConversionConfigPath(ctx.cwd)
 			: getCodexConversionConfigPath();
@@ -63,8 +64,10 @@ export function createCodexVoiceControls(options: {
 					retryCommand,
 				}),
 			),
-			{ triggerTurn: true },
+			{ triggerTurn: false },
 		);
+		if (tryStartCodexPreparedIdlePrompt(pi) === false)
+			throw new Error("Prepared voice setup kickoff is unavailable");
 		return true;
 	};
 

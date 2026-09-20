@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import test from "node:test";
-import { hasCodexCacheKeepalivePlanChanged, resolveCodexCacheKeepalivePlan } from "../src/adapter/activation/cache-keepalive.ts";
+import { resolveCodexCacheKeepalivePlan } from "../src/adapter/activation/cache-keepalive.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import {
 	codexDiagnosticsLogPath,
@@ -19,40 +19,15 @@ import {
 } from "./openai-codex-test-support.ts";
 import { context, model, sentFrames, streamOptions, textResponse, user } from "./websocket-test-support.ts";
 
-test("model cache policy is bounded and its diagnostics omit raw provider payloads", async () => {
-	for (const [minutes, maxOperations] of [[5, 2], [10, 4], [15, 6]] as const) {
-		assert.deepEqual(resolveCodexCacheKeepalivePlan("gpt-5.6-luna", {
-			...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-			lunaCacheKeepaliveMinutes: minutes,
-		}), {
-			strategy: "generated-current",
-			intervalMs: 150_000,
-			maxOperations,
-		});
-	}
-	assert.deepEqual(resolveCodexCacheKeepalivePlan("gpt-5.6-sol", {
+test("paid cache keepalive is bounded and diagnostics omit raw provider payloads", async () => {
+	assert.deepEqual(resolveCodexCacheKeepalivePlan("gpt-5.6-luna", {
 		...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-		cacheKeepalive: true,
+		lunaCacheKeepaliveMinutes: 15,
 	}), {
 		strategy: "generated-current",
-		intervalMs: 1_500_000,
+		intervalMs: 150_000,
+		maxOperations: 6,
 	});
-	assert.equal(resolveCodexCacheKeepalivePlan("gpt-5.6-terra", DEFAULT_CODEX_CONVERSION_CONFIG.openai), undefined);
-	assert.equal(resolveCodexCacheKeepalivePlan("gpt-5.5", {
-		...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-		cacheKeepalive: true,
-		lunaCacheKeepaliveMinutes: 15,
-	}), undefined);
-	assert.equal(hasCodexCacheKeepalivePlanChanged(
-		"gpt-5.6-sol",
-		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, cacheKeepalive: true },
-		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, cacheKeepalive: true, lunaCacheKeepaliveMinutes: 15 },
-	), false);
-	assert.equal(hasCodexCacheKeepalivePlanChanged(
-		"gpt-5.6-luna",
-		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, lunaCacheKeepaliveMinutes: 5 },
-		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, lunaCacheKeepaliveMinutes: 10 },
-	), true);
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-codex-log-"));
 	try {
 		const sessionId = "019fd7ca-66ba-7c47-8925-d2cdc17e2bd7";

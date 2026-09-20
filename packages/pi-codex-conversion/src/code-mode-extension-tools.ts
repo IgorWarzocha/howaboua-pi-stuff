@@ -76,8 +76,14 @@ export function onCodeModeExtensionToolsRefresh(
 export function getCodeModeExtensionTools(
 	pi: ExtensionAPI,
 	context: ExtensionContext | undefined,
+	eligibleTopLevelNames?: readonly string[],
 ): ProgrammaticCodeModeToolDefinition[] {
-	return getCodeModeExtensionToolSnapshot(pi, context).tools;
+	const tools = getCodeModeExtensionToolSnapshot(pi, context).tools;
+	if (eligibleTopLevelNames === undefined) return tools;
+	const eligible = new Set(eligibleTopLevelNames);
+	return tools.filter(
+		(tool) => tool.topLevelName === undefined || eligible.has(tool.topLevelName),
+	);
 }
 
 export function getCodeModeExtensionToolSnapshot(

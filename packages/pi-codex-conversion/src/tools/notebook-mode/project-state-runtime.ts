@@ -106,7 +106,7 @@ ${BINDING_METADATA_READER_SOURCE}
 }
 
 export function projectStateRestoreSource(
-	manifest: Pick<ProjectStateManifest, "deno" | "v8" | "entries">,
+	manifest: Pick<ProjectStateManifest, "entries">,
 	payloadPath: string,
 	clearNames: string[] = [],
 ): string {
@@ -118,9 +118,6 @@ export function projectStateRestoreSource(
   try { __current.set(${JSON.stringify(name)}, ${name}); } catch {}`).join("");
 	return `{
   const { deserialize, serialize } = await import("node:v8");
-  if (${manifest.entries.length > 0} && (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)})) {
-    throw new Error("project checkpoint Deno/V8 version does not match the active kernel");
-  }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
   const __restores = [];
   for (const __entry of ${JSON.stringify(manifest.entries)}) {

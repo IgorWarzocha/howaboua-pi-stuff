@@ -10,7 +10,7 @@ GipPity uses an OpenAI Codex login for its realtime audio connection, then route
 pi install npm:@howaboua/pi-gippity-control
 ```
 
-Requires Pi 0.84.4 or newer and Node.js 22.19 or newer. Log into `openai-codex` in Pi, then run `/gippity`.
+Requires Pi 0.86.0 or newer and Node.js 22.19 or newer. Log into `openai-codex` in Pi, then run `/gippity`.
 
 Do not install this alongside `@howaboua/pi-codex-conversion`; that package already includes GipPity voice control.
 

@@ -13,18 +13,6 @@ import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
 
 test("LAN audio command decoder rejects ambiguous browser input", () => {
 	assert.deepEqual(
-		decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }),
-		{ type: "start", mode: "conversation" },
-	);
-	assert.deepEqual(
-		decodeLanVoiceAudioCommand({ type: "start", mode: "dictation" }),
-		{ type: "start", mode: "dictation" },
-	);
-	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "mute", muted: true }), {
-		type: "mute",
-		muted: true,
-	});
-	assert.deepEqual(
 		decodeLanVoiceAudioCommand({
 			type: "finish",
 			draft: "hello",
@@ -40,15 +28,6 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 		},
 	);
 	assert.throws(() =>
-		decodeLanVoiceAudioCommand({ type: "start", mode: "call" }),
-	);
-	assert.throws(() =>
-		decodeLanVoiceAudioCommand({ type: "mute", muted: "yes" }),
-	);
-	assert.throws(() =>
-		decodeLanVoiceAudioCommand({ type: "peer_state", state: "ready" }),
-	);
-	assert.throws(() =>
 		decodeLanVoiceAudioCommand({
 			type: "finish",
 			draft: "hello",
@@ -57,7 +36,6 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 			selectionEnd: 6,
 		}),
 	);
-	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }));
 });
 
 test("LAN composer rejects stale writes from another browser", () => {

@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import {
 	clearFolderCodexConversionConfig,
@@ -33,6 +33,11 @@ export function registerCodexCommand(
 	lanVoice: CodexLanVoiceServerController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
 ): void {
+	let pendingApplication: object | undefined;
+	const cancelPendingApplication = () => { pendingApplication = undefined; };
+	pi.on("session_start", cancelPendingApplication);
+	pi.on("session_shutdown", cancelPendingApplication);
+
 	function effectiveConfig(ctx: ExtensionContext): CodexConversionConfig {
 		return readEffectiveCodexConversionConfig({
 			cwd: ctx.cwd,
@@ -40,16 +45,50 @@ export function registerCodexCommand(
 		});
 	}
 
-	function applyEffectiveConfig(ctx: ExtensionContext, previousConfig: CodexConversionConfig): void {
-		const config = effectiveConfig(ctx);
-		state.config = config;
-		state.executionMode = config.executionMode;
-		onConfigApplied?.(config, ctx, previousConfig);
-		syncAdapter(pi, ctx, state);
+	function applySavedConfig(ctx: ExtensionContext): void {
+		pendingApplication = undefined;
+		try {
+			const previousConfig = state.config;
+			const config = effectiveConfig(ctx);
+			state.config = config;
+			state.executionMode = config.executionMode;
+			onConfigApplied?.(config, ctx, previousConfig);
+			syncAdapter(pi, ctx, state);
+		} catch (error) {
+			reportApplicationError(ctx, error);
+		}
+	}
+
+	function reportApplicationError(ctx: ExtensionContext, error: unknown): void {
+		ctx.ui.notify(`Could not apply saved settings: ${error instanceof Error ? error.message : String(error)}; reload to retry.`, "error");
+	}
+
+	function applyEffectiveConfig(ctx: ExtensionCommandContext): void {
+		if (pendingApplication) return;
+		if (ctx.isIdle()) {
+			applySavedConfig(ctx);
+			return;
+		}
+		const pending = pendingApplication = {};
+		ctx.ui.notify("Settings saved; changes will apply when the current run settles.", "info");
+		// Wait past settled handlers that can start successors, and past manual compaction.
+		void (async () => {
+			try {
+				do {
+					await ctx.waitForIdle();
+					if (pendingApplication !== pending) return;
+				} while (!ctx.isIdle());
+				applySavedConfig(ctx);
+			} catch (error) {
+				if (pendingApplication !== pending) return;
+				pendingApplication = undefined;
+				reportApplicationError(ctx, error);
+			}
+		})();
 	}
 
 	function saveAndApply(
-		ctx: ExtensionContext,
+		ctx: ExtensionCommandContext,
 		scope: CodexConversionConfigScope,
 		nextConfig: CodexConversionConfig,
 	): boolean {
@@ -61,14 +100,13 @@ export function registerCodexCommand(
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
 		}
-		const previousConfig = state.config;
-		applyEffectiveConfig(ctx, previousConfig);
+		applyEffectiveConfig(ctx);
 		return true;
 	}
 
 	const voiceControls = createCodexVoiceControls({ pi, state, voice, lanVoice });
 
-	async function openSettings(ctx: ExtensionContext, tab: SettingsTab): Promise<void> {
+	async function openSettings(ctx: ExtensionCommandContext, tab: SettingsTab): Promise<void> {
 		if (!ctx.hasUI) {
 			if (tab === "usage") {
 				const [{ fetchCodexUsage }, { formatCodexUsage }] = await Promise.all([
@@ -120,8 +158,7 @@ export function registerCodexCommand(
 					ctx.ui.notify(`Failed to save global Luna cache keepalive: ${result.error}`, "error");
 					return undefined;
 				}
-				const previousConfig = state.config;
-				applyEffectiveConfig(ctx, previousConfig);
+				applyEffectiveConfig(ctx);
 				return readSelectedConfig();
 			},
 			onProjectCacheKeepalive: (enabled) => {
@@ -130,8 +167,7 @@ export function registerCodexCommand(
 					ctx.ui.notify(`Failed to save project cache keepalive: ${result.error}`, "error");
 					return undefined;
 				}
-				const previousConfig = state.config;
-				applyEffectiveConfig(ctx, previousConfig);
+				applyEffectiveConfig(ctx);
 				return readSelectedConfig();
 			},
 			configScope: {
@@ -142,7 +178,6 @@ export function registerCodexCommand(
 					: getCodexConversionConfigPath(),
 				reload: readSelectedConfig,
 				set: (scope) => {
-					const previousConfig = state.config;
 					const result = scope === "folder"
 						? materializeFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted())
 						: clearFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted());
@@ -151,7 +186,7 @@ export function registerCodexCommand(
 						return undefined;
 					}
 					configScope = scope;
-					applyEffectiveConfig(ctx, previousConfig);
+					applyEffectiveConfig(ctx);
 					return readSelectedConfig();
 				},
 			},
@@ -167,7 +202,6 @@ export function registerCodexCommand(
 		getArgumentCompletions: (prefix) =>
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
-			state.config = effectiveConfig(ctx);
 			const arg = args.trim().toLowerCase();
 
 			if (arg === "voice setup") {

@@ -17,7 +17,7 @@ function prepareCodexProviderRequest(payload: unknown, ctx: ExtensionContext, st
 	}
 	return {
 		plan,
-		configuredPayload: applyCodexRequestOptions(applyVoiceSystemPrompt(payload, state.voiceSystemPromptOverride), state.config, {
+		configuredPayload: applyCodexRequestOptions(payload, state.config, {
 			serviceTier: plan.effectiveOpenAICodex,
 			verbosity: true,
 		}),
@@ -31,11 +31,6 @@ export function supportsCodexDeveloperMessages(
 	if (state.config.voiceFeaturesOnly) return false;
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	return isAdapterRuntime(plan) && isResponsesContext(ctx);
-}
-
-function applyVoiceSystemPrompt(payload: unknown, systemPrompt: string | undefined): unknown {
-	if (!systemPrompt || !isRecord(payload)) return payload;
-	return { ...payload, instructions: systemPrompt };
 }
 
 function applyCodexRuntimePayload(payload: unknown, responsesLite: boolean): unknown {
@@ -59,12 +54,6 @@ export function rewriteCodexProviderHeaders(
 		usesRemoteHistoryNotes(ctx, plan.contextManagementMode)
 	)
 		state.contextWindows.rewriteHeaders(headers, ctx);
-}
-
-export function captureActiveProviderSystemPrompt(payload: unknown, state: AdapterState): void {
-	if (!isRecord(payload)) return;
-	const instructions = providerSystemPrompt(payload);
-	if (instructions !== undefined) state.activeProviderSystemPrompt = instructions;
 }
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
@@ -93,42 +82,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		rewrittenPayload,
 		plan.transport === "responses-lite",
 	);
-	// Stock Responses providers and configured Code Mode overlays have no
-	// post-serialization callback. Keep native replay on the instructions that
-	// reached this final hook boundary; the custom Codex provider captures again
-	// after its transport-specific transforms.
-	if (state.pendingActiveProviderPromptCapture) captureActiveProviderSystemPrompt(finalPayload, state);
 	return finalPayload;
-}
-
-export function rewriteCodexPrewarmProviderRequest(
-	payload: unknown,
-	ctx: ExtensionContext,
-	state: AdapterState,
-): unknown | undefined {
-	const prepared = prepareCodexProviderRequest(payload, ctx, state);
-	if (!prepared) return undefined;
-	let rewritten = state.developerMessages.rewritePayload(
-		prepared.configuredPayload,
-		ctx.model,
-	);
-	if (prepared.plan.contextManagement) {
-		const remoteHistoryNotes = usesRemoteHistoryNotes(
-			ctx,
-			prepared.plan.contextManagementMode,
-		);
-		rewritten = rewriteContextTools(
-			rewritten,
-			ctx,
-			prepared.plan.contextManagementRemote && remoteHistoryNotes,
-		);
-		if (prepared.plan.contextManagementRemote && remoteHistoryNotes)
-			rewritten = state.contextWindows.rewritePayload(rewritten, ctx);
-	}
-	return applyCodexRuntimePayload(
-		rewritten,
-		prepared.plan.transport === "responses-lite",
-	);
 }
 
 function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {
@@ -147,22 +101,4 @@ function rewriteContextTools(
 	return !codexTransport || remote
 		? rewriteContextNamespaceTools(payload, { encrypted: remote })
 		: payload;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function providerSystemPrompt(payload: Record<string, unknown>): string | undefined {
-	if (typeof payload["instructions"] === "string") return payload["instructions"];
-	if (!Array.isArray(payload["input"])) return undefined;
-	for (const item of payload["input"]) {
-		if (!isRecord(item) || item["role"] !== "developer" || !Array.isArray(item["content"])) continue;
-		const text = item["content"]
-			.filter((part): part is Record<string, unknown> => isRecord(part) && part["type"] === "input_text" && typeof part["text"] === "string")
-			.map((part) => part["text"] as string)
-			.join("\n");
-		if (text !== "") return text;
-	}
-	return undefined;
 }

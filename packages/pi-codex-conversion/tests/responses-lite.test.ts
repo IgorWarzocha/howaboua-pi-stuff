@@ -5,7 +5,7 @@ import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages } from "..
 test("Responses Lite moves instructions and tools into input and prepares images", () => {
 	const body = applyResponsesLiteRequest({
 		model: "gpt-5.6-luna",
-		instructions: "Be useful",
+		instructions: " Be useful ",
 		tools: [{ type: "function", name: "exec_command" }],
 		parallel_tool_calls: true,
 		reasoning: { effort: "medium", summary: "auto" },
@@ -31,7 +31,7 @@ test("Responses Lite moves instructions and tools into input and prepares images
 			description: "",
 			tools: [{ type: "function", name: "exec_command" }],
 		}] },
-		{ type: "message", role: "developer", content: [{ type: "input_text", text: "Be useful" }] },
+		{ type: "message", role: "developer", content: [{ type: "input_text", text: " Be useful " }] },
 		{ type: "message", role: "user", content: [
 			{ type: "input_image", image_url: "data:image/png;base64,AAA" },
 			{ type: "input_text", text: "image content omitted because remote image URLs are not supported" },

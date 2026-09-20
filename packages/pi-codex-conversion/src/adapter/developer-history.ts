@@ -1,15 +1,17 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { CODEX_REASONING_UPDATE_TYPE, readCodexReasoningUpdate } from "./reasoning-updates.ts";
+import { CODEX_CURRENT_TIME_REMINDER_TYPE, projectCurrentTimeReminder } from "./current-time-reminder.ts";
+import { isCodexDeveloperMessageDetails } from "../developer-messages.ts";
 
-export function projectCodexReasoningEntry(entry: SessionEntry): SessionEntry {
-	if (entry.type !== "custom" || entry.customType !== CODEX_REASONING_UPDATE_TYPE) return entry;
+export function projectCodexDeveloperEntry(entry: SessionEntry): SessionEntry {
+	if (entry.type !== "custom" || entry.customType !== CODEX_REASONING_UPDATE_TYPE) return projectCurrentTimeReminder(entry);
 	const update = readCodexReasoningUpdate(entry.data);
 	return { ...entry, type: "custom_message", content: `Reasoning effort: ${update.effort}`, display: false, details: update };
 }
 
 /** Rehydrate bookkeeping only in model context; leave Pi's tree and stored entries intact. */
-export function projectCodexReasoningHistory(
+export function projectCodexDeveloperHistory(
 	entries: readonly SessionEntry[],
 	messages?: readonly AgentMessage[],
 	leafId?: string | null,
@@ -31,8 +33,9 @@ export function projectCodexReasoningHistory(
 	messages = messages?.filter(survives);
 	const virtualIds = new Set<string>();
 	const projectedEntries = entries.map((entry): SessionEntry => {
-		const projected = projectCodexReasoningEntry(entry);
-		if (projected !== entry && projected.type === "custom_message" && !retired.has(readCodexReasoningUpdate(projected.details).id)) virtualIds.add(readCodexReasoningUpdate(projected.details).id);
+		const projected = projectCodexDeveloperEntry(entry);
+		if (projected !== entry && projected.type === "custom_message" && isCodexDeveloperMessageDetails(projected.details)
+			&& !retired.has(projected.details.id)) virtualIds.add(projected.details.id);
 		return projected;
 	});
 	if (messages && virtualIds.size === 0) return [...messages];
@@ -56,8 +59,8 @@ export function projectCodexReasoningHistory(
 			if (pending.length) insertions.set(index, [...(insertions.get(index) ?? []), ...pending]);
 			pending = [];
 			last = index;
-		} else if (message.role === "custom" && message.customType === CODEX_REASONING_UPDATE_TYPE
-			&& virtualIds.has(readCodexReasoningUpdate(message.details).id)) pending.push(message);
+		} else if (isVirtualMessage(message) && isCodexDeveloperMessageDetails(message.details)
+			&& virtualIds.has(message.details.id)) pending.push(message);
 	}
 	if (pending.length) insertions.set(last + 1, [...(insertions.get(last + 1) ?? []), ...pending]);
 	return messages.flatMap((message, index) => [...(insertions.get(index) ?? []), message])
@@ -66,7 +69,12 @@ export function projectCodexReasoningHistory(
 
 function messageKey(message: AgentMessage): string {
 	return JSON.stringify([message.role, message.timestamp,
-		message.role === "custom" ? (message.customType === CODEX_REASONING_UPDATE_TYPE
-			? readCodexReasoningUpdate(message.details).id : message.customType)
+		message.role === "custom" ? (isVirtualMessage(message) && isCodexDeveloperMessageDetails(message.details)
+			? message.details.id : message.customType)
 			: message.role === "toolResult" ? message.toolCallId : undefined]);
+}
+
+function isVirtualMessage(message: AgentMessage): message is Extract<AgentMessage, { role: "custom" }> {
+	return message.role === "custom" && (message.customType === CODEX_REASONING_UPDATE_TYPE
+		|| message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE);
 }

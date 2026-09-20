@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { codexReasoningUpdates, flushCodexReasoningUpdates, hasPendingCodexReasoningUpdate, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
-import { projectCodexReasoningHistory } from "../src/adapter/reasoning-history.ts";
+import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
 import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
 import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { createAutoReasoning } from "../src/adapter/auto-reasoning.ts";
@@ -67,7 +68,7 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 		appendEntry: (type: string, data: unknown) => session.appendCustomEntry(type, data),
 	} as never;
 	const ctx = { model: astra, sessionManager: session, isIdle: () => idle } as never;
-	const messages = () => projectCodexReasoningHistory(session.getBranch());
+	const messages = () => projectCodexDeveloperHistory(session.getBranch());
 	const config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	assert.equal(resolveCodexRuntimePlan({ model: astra }, config).autoReasoning, false);
 	config.tools.autoReasoning = true;
@@ -80,10 +81,10 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	}
 	const auto = createAutoReasoning(pi, { config, executionMode: "normal" } as never);
 	const build = (bridge = new CodexDeveloperMessageBridge(), lite = true) => {
-		const body = buildRequestBody(astra, {
+		const body = buildRequestBody(astra, normalizeContext({
 			systemPrompt: "Stable instructions",
 			messages: convertToLlm(bridge.prepare(messages(), true, astra)),
-		}, { reasoning: level, sessionId: session.getSessionId() });
+		}), { reasoning: level, sessionId: session.getSessionId() });
 		const rewritten = bridge.rewritePayload(body) as ResponsesBody;
 		return lite ? applyResponsesLiteRequest(rewritten) : rewritten;
 	};
@@ -101,7 +102,7 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	idle = true;
 	assert.equal(session.getBranch().filter((entry) => entry.type === "custom_message").length, 0);
 	assert.equal(buildSessionContext(session.getBranch()).messages.length, 2, "bookkeeping stays out of Pi chat/tree context");
-	assert.deepEqual(projectCodexReasoningHistory(session.getBranch(), buildSessionContext(session.getBranch()).messages), messages());
+	assert.deepEqual(projectCodexDeveloperHistory(session.getBranch(), buildSessionContext(session.getBranch()).messages), messages());
 	const persistedCount = session.getBranch().length;
 	recordCodexReasoningUpdate(pi, ctx, messages());
 	assert.equal(session.getBranch().length, persistedCount);
@@ -131,8 +132,8 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	session.appendCompaction(NATIVE_COMPACTION_SHIM_SUMMARY, beforeCompaction[0]!.id, 1_000, details);
 	assert.deepEqual(session.getBranch().slice(0, beforeCompaction.length), beforeCompaction, "compaction projection never edits saved reasoning history");
 	assert.equal(codexReasoningUpdates(messages(), astra).length, 0, "kept pre-compaction records cannot pin the next request");
-	assert.deepEqual(projectCodexReasoningHistory(session.getBranch(), buildSessionContext(session.getBranch()).messages), messages());
-	assert.equal(codexReasoningUpdates(projectCodexReasoningHistory(session.getBranch(), undefined, beforeCompaction.at(-1)!.id), astra).length, 2, "an older leaf still sees its own settings history");
+	assert.deepEqual(projectCodexDeveloperHistory(session.getBranch(), buildSessionContext(session.getBranch()).messages), messages());
+	assert.equal(codexReasoningUpdates(projectCodexDeveloperHistory(session.getBranch(), undefined, beforeCompaction.at(-1)!.id), astra).length, 2, "an older leaf still sees its own settings history");
 	const rebased = build(undefined, false);
 	assert.equal(rebased.reasoning?.effort, "medium");
 	const compacted = resolveLatestNativeCompactionEntry(session.getBranch());

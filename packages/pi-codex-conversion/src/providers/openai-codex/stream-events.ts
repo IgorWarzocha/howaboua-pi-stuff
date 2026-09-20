@@ -1,7 +1,7 @@
 import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS } from "./constants.ts";
-import { isRetryableStreamStatus, isTerminalRateLimitError } from "./errors.ts";
+import { codexErrorMessage, isRetryableStreamStatus, isTerminalRateLimitError } from "./errors.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";
 import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./types.ts";
 
@@ -188,7 +188,7 @@ export async function* mapCodexEvents(
 			const { code, message } = extractCodexEventError(event);
 			const status = eventStatus(event);
 			const retryDelayMs = codexApiRetryDelayMs(code, message);
-			throw new CodexApiError(`Codex error: ${message || code || JSON.stringify(event)}`, {
+			throw new CodexApiError(`Codex error: ${codexErrorMessage(code, message) || code || JSON.stringify(event)}`, {
 				code,
 				payload: event,
 				retryable: isRetryableCodexApiFailure(code, message, status, true),
@@ -207,7 +207,7 @@ export async function* mapCodexEvents(
 			const message = typeof error?.["message"] === "string" ? error["message"] : undefined;
 			const status = eventStatus(event);
 			const retryDelayMs = codexApiRetryDelayMs(code, message);
-			throw new CodexApiError(message || "Codex response failed", {
+			throw new CodexApiError(codexErrorMessage(code, message) || "Codex response failed", {
 				code,
 				payload: event,
 				retryable: isRetryableCodexApiFailure(code, message, status, true),

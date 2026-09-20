@@ -6,10 +6,8 @@ import test from "node:test";
 import {
 	clearFolderCodexConversionConfig,
 	getProjectCodexConversionConfigPath,
-	hasFolderCodexConversionConfig,
 	materializeFolderCodexConversionConfig,
 	readEffectiveCodexConversionConfig,
-	setGlobalCodexLunaCacheKeepalive,
 	setProjectCodexCacheKeepalive,
 	writeCodexConversionConfig,
 } from "../src/adapter/activation/config-store.ts";
@@ -20,21 +18,16 @@ test("trusted folder config overrides globals without crossing folder or process
 	try {
 		const globalPath = join(root, "agent", "pi-codex-conversion.json");
 		const project = join(root, "project");
-		const projectPath = getProjectCodexConversionConfigPath(project);
 		mkdirSync(join(root, "agent"), { recursive: true });
 		mkdirSync(join(project, ".pi"), { recursive: true });
-		writeFileSync(globalPath, JSON.stringify({ openai: { cacheKeepalive: true, lunaCacheKeepaliveMinutes: 10 } }), { encoding: "utf8" });
-
-		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).openai.cacheKeepalive, false);
-		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).openai.lunaCacheKeepaliveMinutes, 10);
-		assert.equal(setGlobalCodexLunaCacheKeepalive(5, globalPath).ok, true);
-		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).openai.lunaCacheKeepaliveMinutes, 5);
+		writeFileSync(globalPath, JSON.stringify({ openai: { cacheKeepalive: true } }));
+		assert.equal(readEffectiveCodexConversionConfig({
+			cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {},
+		}).openai.cacheKeepalive, false);
 		assert.equal(setProjectCodexCacheKeepalive(project, true, true).ok, true);
-		assert.deepEqual(JSON.parse(readFileSync(projectPath, "utf8")), { openai: { cacheKeepalive: true } });
-		assert.equal(hasFolderCodexConversionConfig(project, true), false);
-		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).openai.cacheKeepalive, true);
-		assert.equal(setProjectCodexCacheKeepalive(project, true, false).ok, true);
-		assert.equal(existsSync(projectPath), false);
+		assert.equal(readEffectiveCodexConversionConfig({
+			cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {},
+		}).openai.cacheKeepalive, true);
 
 		writeCodexConversionConfig({
 			...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
@@ -72,17 +65,6 @@ test("trusted folder config overrides globals without crossing folder or process
 			globalConfigPath: globalPath,
 			env: { PI_CODEX_FAST: "0" },
 		}).openai.fast, false);
-		const experiment = readEffectiveCodexConversionConfig({
-			cwd: project,
-			projectTrusted: true,
-			globalConfigPath: globalPath,
-			env: {
-				PI_CODEX_CACHE_KEEPALIVE: "generated-current",
-				PI_CODEX_CACHE_DIAGNOSTICS: "status-and-log",
-			},
-		});
-		assert.equal(experiment.openai.cacheKeepalive, false);
-		assert.equal(experiment.openai.cacheDiagnostics, "status-and-log");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

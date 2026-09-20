@@ -5,6 +5,7 @@ export const MAX_REALTIME_SDP_BYTES = 256 * 1024;
 export type CodexRealtimePeerEvent =
 	| { type: "state"; state: string }
 	| { type: "data"; message: unknown }
+	| { type: "playback_activity" }
 	| { type: "error"; message: string };
 
 interface CodexRealtimePeerBase {
@@ -12,6 +13,7 @@ interface CodexRealtimePeerBase {
 	onExit(listener: (error: Error) => void): () => void;
 	sendData(message: unknown): void;
 	setInputMuted(muted: boolean): void;
+	setSpeakerSuppressed(suppressed: boolean): void;
 	close(): Promise<void>;
 }
 

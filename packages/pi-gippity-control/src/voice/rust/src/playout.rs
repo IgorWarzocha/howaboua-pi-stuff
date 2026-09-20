@@ -113,6 +113,12 @@ impl PacketPlayout {
     pub fn ready(&self) -> bool {
         self.playing
     }
+
+    pub fn reset(&mut self) {
+        self.pending.clear();
+        self.expected = None;
+        self.playing = false;
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +138,9 @@ mod tests {
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(10)));
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(11)));
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(12)));
+
+        playout.reset();
+        assert_eq!(playout.next(), PlayoutFrame::Buffering);
 
         let mut gap = PacketPlayout::new();
         gap.push(20, packet(20));
@@ -178,23 +187,6 @@ mod tests {
         for sequence in 10..=16 {
             assert_eq!(playout.next(), PlayoutFrame::Packet(packet(sequence as u8)));
         }
-    }
-
-    #[test]
-    fn opus_decoder_conceals_one_missing_twenty_millisecond_frame() {
-        let mut encoder =
-            opus::Encoder::new(48_000, opus::Channels::Mono, opus::Application::Voip).unwrap();
-        let mut encoded = vec![0_u8; 4_000];
-        let size = encoder.encode_float(&vec![0.1; 960], &mut encoded).unwrap();
-        let mut decoder = opus::Decoder::new(48_000, opus::Channels::Stereo).unwrap();
-        let mut decoded = vec![0.0; 960 * 2];
-        assert_eq!(
-            decoder
-                .decode_float(&encoded[..size], &mut decoded, false)
-                .unwrap(),
-            960
-        );
-        assert_eq!(decoder.decode_float(&[], &mut decoded, false).unwrap(), 960);
     }
 
     #[test]

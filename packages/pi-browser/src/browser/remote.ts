@@ -85,6 +85,7 @@ async function localizeScreenshots(
 export async function executeRemoteBrowser(
 	route: BrowserRoute,
 	operations: BrowserOperation[],
+	ownerId: string,
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
 	if (!route.remote) {
@@ -94,7 +95,7 @@ export async function executeRemoteBrowser(
 	const executed = await runProgram(
 		"ssh",
 		[route.name, remoteNodeCommand(route.remote)],
-		JSON.stringify({ operations }),
+		JSON.stringify({ owner_id: ownerId, operations }),
 		signal,
 	);
 	if (executed.code !== 0) {

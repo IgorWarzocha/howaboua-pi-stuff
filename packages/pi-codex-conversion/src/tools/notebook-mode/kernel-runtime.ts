@@ -1,4 +1,4 @@
-import { plainCommandOutputFormatterSource } from "../code-mode/command-output.js";
+import { commandOutputFormatterSource } from "../code-mode/command-output.js";
 
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
@@ -11,6 +11,8 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
   const __token = ${JSON.stringify(token)};
   const __fetch = globalThis.fetch.bind(globalThis);
   const { getHeapStatistics: __getHeapStatistics } = await import("node:v8");
+	const { AsyncLocalStorage: __AsyncLocalStorage } = await import("node:async_hooks");
+	const __hookScope = new __AsyncLocalStorage();
 	const __parentPid = Deno.ppid;
 	setInterval(() => {
 	  if (Deno.ppid !== __parentPid) Deno.exit(70);
@@ -24,6 +26,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	toolNames: {},
 	toolOutputHints: {},
 	toolResults: new WeakMap(),
+	toolHooks: new Map(),
 	outputChars: 0,
 	outputItems: 0,
 	outputTruncated: false,
@@ -74,7 +77,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     if (value === undefined) return "undefined";
     try { return JSON.stringify(value); } catch { return String(value); }
   };
-	const __formatPlainCommandOutput = ${plainCommandOutputFormatterSource};
+	const __formatCommandOutput = ${commandOutputFormatterSource};
   const __emit = (items) => {
     if (!__state.cellId) throw new Error("Notebook helper called outside an active exec cell");
 	if (__state.outputTruncated) return;
@@ -155,6 +158,18 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	}
 	__emit([{ type: "input_image", image_url, detail: resolvedDetail }]);
   };
+	const __hookFailure = (cellId, name, error) => {
+	  if (__state.cellId !== cellId) return;
+	  __emit([{ type: "input_text", text: "Notebook tool_result hook " + name + " failed: " + String(error instanceof Error ? error.message : error).slice(0, 1000) + "; unpin or set hook:false to disable" }]);
+	};
+	const __dispatchToolResult = async (cellId, event) => {
+	  for (const [name, getHandler] of [...__state.toolHooks].sort(([a], [b]) => a.localeCompare(b))) {
+		if (__state.cellId !== cellId) return;
+		try {
+		  await __hookScope.run(cellId, () => getHandler()(structuredClone(event)));
+		} catch (error) { __hookFailure(cellId, name, error); }
+	  }
+	};
   const __tools = new Proxy({}, {
     ownKeys() {
       return Object.keys(__state.toolNames);
@@ -170,12 +185,29 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
       if (typeof name !== "string") return undefined;
       return (input) => {
         if (!__state.cellId) throw new Error("Nested tool called outside an active exec cell");
+		const cellId = __state.cellId;
+		const hookCellId = __hookScope.getStore();
+		if (hookCellId && hookCellId !== cellId) throw new Error("Notebook hook tool called outside its originating exec cell");
         const requestId = ++__state.requestId;
 		const toolName = __state.toolNames[name] || { name };
-		const result = __post({ kind: "tool", cellId: __state.cellId, requestId, toolName, input }).then((value) => {
-		  if (value && (typeof value === "object" || typeof value === "function")) __state.toolResults.set(value, name);
-		  return value;
-		});
+		let observe = __state.toolHooks.size > 0 && !hookCellId;
+		let eventInput;
+		if (observe) {
+		  try { eventInput = structuredClone(input); }
+		  catch (error) { observe = false; __hookFailure(cellId, "input snapshot for " + name, error); }
+		}
+		const event = { type: "tool_result", toolName: name, input: eventInput };
+		const result = __post({ kind: "tool", cellId, requestId, toolName, input }).then(
+		  async (value) => {
+			if (value && (typeof value === "object" || typeof value === "function")) __state.toolResults.set(value, name);
+			if (observe) await __dispatchToolResult(cellId, { ...event, status: "success", result: value });
+			return value;
+		  },
+		  async (error) => {
+			if (observe) await __dispatchToolResult(cellId, { ...event, status: "error", error: String(error instanceof Error ? error.message : error) });
+			throw error;
+		  },
+		);
 		return __trackTool(result);
       };
     },
@@ -200,11 +232,11 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     },
     async flush(cellId) {
       if (__state.cellId !== cellId) throw new Error("Notebook cell identity changed while executing");
-	  await Promise.allSettled([...__state.pending]);
+	  await __post({ kind: "cancel_tools", cellId });
+	  while (__state.toolPending.size > 0) await Promise.allSettled([...__state.toolPending]);
+	  while (__state.pending.size > 0) await Promise.allSettled([...__state.pending]);
 	  const [error] = __state.pendingErrors.splice(0);
 	  if (error) throw error;
-	  await __post({ kind: "cancel_tools", cellId });
-	  await Promise.allSettled([...__state.toolPending]);
 	  await __reportMemory(cellId);
     },
     async finish(cellId) {
@@ -234,6 +266,12 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	syncProjectBindings(names) {
 	  __state.projectBindings = new Set(names);
 	},
+	configureToolHooks(entries) {
+	  for (const [name, getHandler] of entries) {
+		if (getHandler === null) __state.toolHooks.delete(name);
+		else __state.toolHooks.set(name, getHandler);
+	  }
+	},
   };
   Object.defineProperty(globalThis, "__piNotebook", { value: __runtime, configurable: false });
   globalThis.tools = __tools;
@@ -242,10 +280,10 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	const toolName = value && (typeof value === "object" || typeof value === "function")
 	  ? __state.toolResults.get(value)
 	  : undefined;
-	const plainCommand = toolName !== undefined
-	  && __state.toolOutputHints[toolName] === "plain-command"
+	const outputHint = toolName === undefined ? undefined : __state.toolOutputHints[toolName];
+	const command = (outputHint === "command" || outputHint === "plain-command")
 	  && typeof value.output === "string";
-	__emit([{ type: "input_text", text: plainCommand ? __formatPlainCommandOutput(value) : __stringify(value) }]);
+	__emit([{ type: "input_text", text: command ? __formatCommandOutput(value, outputHint === "plain-command") : __stringify(value) }]);
   };
   globalThis.image = __image;
   globalThis.generatedImage = (value) => {
@@ -280,6 +318,11 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
   };
 }`;
+}
+
+export function notebookToolHooksSource(names: readonly string[], enabled: boolean): string {
+	const entries = names.map((name) => `[${JSON.stringify(name)}, ${enabled ? `() => ${name}` : "null"}]`);
+	return `if (typeof globalThis.__piNotebook?.configureToolHooks !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.configureToolHooks"); globalThis.__piNotebook.configureToolHooks([${entries.join(",")}]); undefined;`;
 }
 
 export function notebookExampleSource(marker: string, occupied = false): string {

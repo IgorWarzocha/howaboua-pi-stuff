@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi-ai";
 import type {
 	ContextEvent,
 	ExtensionAPI,
@@ -26,10 +26,7 @@ import {
 } from "./controller-support.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import { completedVoiceReasoningSummary } from "./reasoning-summary.ts";
-import {
-	CodexVoiceSessionMessages,
-	type PreparedVoiceDelegation,
-} from "./session-messages.ts";
+import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
@@ -44,15 +41,10 @@ export class CodexVoiceController {
 	private readonly contextRefresh: RealtimeContextRefresh;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
 	private readonly activePrompts = new Map<string, string>();
-	private delegationPreflight: (
-		ctx: ExtensionContext,
-		signal: AbortSignal,
-	) => Promise<PreparedVoiceDelegation | undefined> = async () => undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
-			prepareDelegation: (ctx, signal) => this.delegationPreflight(ctx, signal),
 			onDelegation: (id, input, source) => {
 				if (this.runtime.state.type !== "conversation") return;
 				const current = this.runtime.state.session;
@@ -83,15 +75,6 @@ export class CodexVoiceController {
 					),
 			},
 		);
-	}
-
-	setDelegationPreflight(
-		preflight: (
-			ctx: ExtensionContext,
-			signal: AbortSignal,
-		) => Promise<PreparedVoiceDelegation | undefined>,
-	): void {
-		this.delegationPreflight = preflight;
 	}
 
 	setPrompt(report: { id: string; active: boolean; prompt: string }): void {
@@ -347,9 +330,12 @@ export class CodexVoiceController {
 		);
 	}
 
-	streamDelta(delta: string): void {
-		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.streamAgentDelta(delta);
+	streamUpdate(update: AssistantMessageEvent): void {
+		if (this.runtime.state.type !== "conversation") return;
+		if (update.type === "text_delta")
+			this.runtime.state.session.streamAgentDelta(update.delta);
+		else if (update.type === "thinking_start" || update.type === "toolcall_start")
+			this.runtime.state.session.resumeAgentWork();
 	}
 
 	finishAgentMessage(

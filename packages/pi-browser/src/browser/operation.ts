@@ -1,3 +1,4 @@
+import type { WaitCondition } from "../cdp/actions/wait.js";
 import type { SnapshotResponseLength } from "../cdp/snapshot-contract.js";
 
 export const BROWSER_ACTIONS = [
@@ -5,9 +6,14 @@ export const BROWSER_ACTIONS = [
 	"start",
 	"tabs",
 	"open",
+	"show",
+	"close",
 	"find",
 	"click",
 	"type",
+	"fill",
+	"press",
+	"wait",
 	"screenshot",
 	"html",
 	"navigate",
@@ -28,7 +34,12 @@ export type BrowserAction = (typeof BROWSER_ACTIONS)[number];
 
 export type BrowserOperation =
 	| { action: "start" }
-	| { action: "tabs"; query?: string | undefined; offset: number }
+	| {
+			action: "tabs";
+			query?: string | undefined;
+			offset: number;
+			owned_only?: boolean | undefined;
+	  }
 	| {
 			action: "open";
 			ref_id: string;
@@ -36,6 +47,7 @@ export type BrowserOperation =
 			response_length: SnapshotResponseLength;
 	  }
 	| { action: "open"; url: string }
+	| { action: "show" | "close"; ref_id: string }
 	| {
 			action: "find";
 			ref_id: string;
@@ -73,6 +85,12 @@ export type BrowserOperation =
 			id?: number | undefined;
 			text: string;
 	  }
+	| ({ action: "fill"; ref_id: string; value: string | boolean } & (
+			| { id: number; selector?: never }
+			| { selector: string; id?: never }
+	  ))
+	| { action: "press"; ref_id: string; key: string }
+	| ({ action: "wait"; ref_id: string; timeout_ms: number } & WaitCondition)
 	| {
 			action: "screenshot";
 			ref_id: string;

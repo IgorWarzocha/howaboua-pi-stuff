@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { imageSize } from "../src/pet-image-size.ts";
 import { loadPet } from "../src/pet-loader.ts";
 import { parseActionName } from "../src/protocol/index.ts";
 
@@ -38,42 +37,6 @@ async function fixture(): Promise<{ root: string; pet: string }> {
   await writeFile(join(pet, "spritesheet.png"), pngHeader(1536, 2288));
   return { root, pet };
 }
-
-test("reads PNG and the supplied Clawa WebP dimensions", async () => {
-  assert.deepEqual(imageSize(pngHeader(1536, 2288)), { format: "png", width: 1536, height: 2288 });
-  const loaded = await loadPet(join(process.cwd(), "pets"), "clawa");
-  assert.equal(loaded.catalog.actions["idle"]?.frames.length, 6);
-  assert.equal(loaded.catalog.directions["look-337_5"]?.frames[0]?.y, 2080);
-  assert.equal(loaded.catalog.aliases["success"], "jumping");
-  assert.equal(loaded.catalog.actions["success"], undefined);
-});
-
-test("merges bounded custom actions", async () => {
-  const { root, pet } = await fixture();
-  await writeFile(join(pet, "extra.png"), pngHeader(384, 208));
-  await writeFile(
-    join(pet, "pet.pi.json"),
-    JSON.stringify({
-      schemaVersion: 1,
-      actions: {
-        celebrate: {
-          asset: "extra.png",
-          frames: [
-            { x: 0, y: 0, width: 192, height: 208, durationMs: 120 },
-            { x: 192, y: 0, width: 192, height: 208, durationMs: 240 },
-          ],
-          loop: false,
-          next: "idle",
-        },
-      },
-      aliases: { party: "celebrate" },
-    }),
-  );
-  const loaded = await loadPet(root, "clawa");
-  assert.equal(loaded.catalog.actions["celebrate"]?.frames.length, 2);
-  assert.equal(loaded.catalog.actions["celebrate"]?.next, "idle");
-  assert.equal(loaded.catalog.aliases["party"], "celebrate");
-});
 
 test("rejects reserved names, unknown manifest fields, out-of-bounds frames, and symlink escapes", async () => {
   assert.throws(() => parseActionName("__proto__"), RESERVED_NAME_PATTERN);

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clickSelector } from "../src/cdp/actions/click.js";
+import { pressKey } from "../src/cdp/actions/key.js";
 import { FakeCdp } from "./fake-cdp.js";
 
-test("clicks verify the hit target before dispatching a press", async () => {
+test("input dispatch verifies click targets and releases keys after cancellation", async () => {
 	let hitTests = 0;
 	const cdp = new FakeCdp(({ method, params }) => {
 		if (method === "Runtime.evaluate") {
@@ -49,5 +50,34 @@ test("clicks verify the hit target before dispatching a press", async () => {
 			.filter((call) => call.method === "Input.dispatchMouseEvent")
 			.map((call) => call.params["type"]),
 		["mouseMoved"],
+	);
+	const controller = new AbortController();
+	const keyboard = new FakeCdp(({ params }) => {
+		if (params["key"] === "a" && params["type"] === "rawKeyDown") {
+			controller.abort(new Error("Cancelled after key dispatch"));
+			throw controller.signal.reason;
+		}
+		return {};
+	});
+	await assert.rejects(
+		pressKey(keyboard, "session", "Control+a", controller.signal),
+		/Cancelled/,
+	);
+	assert.deepEqual(
+		keyboard.calls.map(({ params }) => [
+			params["type"],
+			params["key"],
+			params["modifiers"],
+		]),
+		[
+			["rawKeyDown", "Control", 2],
+			["rawKeyDown", "a", 2],
+			["keyUp", "a", 2],
+			["keyUp", "Control", 0],
+		],
+	);
+	assert.equal(
+		keyboard.calls.some(({ params }) => "text" in params),
+		false,
 	);
 });

@@ -20,6 +20,11 @@ interface WorkerResponse {
 	result?: Record<string, unknown>;
 }
 
+interface WorkerRequest {
+	operations: BrowserOperation[];
+	ownerId: string;
+}
+
 function workerSocketPath(workerId: string): string {
 	if (IS_WINDOWS) return `\\\\.\\pipe\\pi-browser-worker-${workerId}`;
 	const directory = process.env["XDG_RUNTIME_DIR"]
@@ -47,7 +52,7 @@ async function ensureWorkerSocketDirectory(workerId: string): Promise<void> {
 	if ((info.mode & 0o077) !== 0) await chmod(directory, 0o700);
 }
 
-function parseWorkerOperations(input: string): BrowserOperation[] {
+function parseWorkerRequest(input: string): WorkerRequest {
 	let value: unknown;
 	try {
 		value = JSON.parse(input);
@@ -57,14 +62,25 @@ function parseWorkerOperations(input: string): BrowserOperation[] {
 		);
 	}
 	if (!isRecordValue(value)) throw new Error("worker input must be an object");
-	const unknown = Object.keys(value).filter((key) => key !== "operations");
+	const unknown = Object.keys(value).filter(
+		(key) => key !== "owner_id" && key !== "operations",
+	);
 	if (unknown.length > 0) {
 		throw new Error(`unknown worker field(s): ${unknown.join(", ")}`);
+	}
+	if (
+		typeof value["owner_id"] !== "string" ||
+		value["owner_id"].length === 0 ||
+		value["owner_id"].length > 256
+	) {
+		throw new Error(
+			"worker owner_id must be a non-empty string no longer than 256 characters",
+		);
 	}
 	if (!Array.isArray(value["operations"]) || value["operations"].length === 0) {
 		throw new Error("worker operations must be a non-empty array");
 	}
-	return value["operations"].map((operation, index) => {
+	const operations = value["operations"].map((operation, index) => {
 		if (!isRecordValue(operation)) {
 			throw new Error(`worker operations[${index}] must be an object`);
 		}
@@ -74,6 +90,7 @@ function parseWorkerOperations(input: string): BrowserOperation[] {
 		}
 		return parsed;
 	});
+	return { operations, ownerId: value["owner_id"] };
 }
 
 function readLine(socket: Socket): Promise<string> {
@@ -121,12 +138,12 @@ async function handleConnection(
 	socket.once("error", abort);
 	let response: WorkerResponse;
 	try {
-		const operations = parseWorkerOperations(await readLine(socket));
+		const request = parseWorkerRequest(await readLine(socket));
 		response = {
 			ok: true,
 			result: await runtime.execute(
-				{ operations },
-				{ signal: controller.signal },
+				{ operations: request.operations },
+				{ ownerId: request.ownerId, signal: controller.signal },
 			),
 		};
 	} catch (error) {
@@ -172,7 +189,7 @@ export async function serveBrowserWorker(workerId: string): Promise<void> {
 		if (idleTimer) clearTimeout(idleTimer);
 		process.removeListener("SIGINT", close);
 		process.removeListener("SIGTERM", close);
-		runtime.close();
+		await runtime.close();
 		if (!IS_WINDOWS && ownsSocket) await rm(path, { force: true });
 	}
 }

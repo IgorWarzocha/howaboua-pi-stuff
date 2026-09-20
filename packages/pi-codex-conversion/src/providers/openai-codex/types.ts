@@ -1,4 +1,4 @@
-import type { AssistantMessage, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, Model, SimpleStreamOptions, TranscriptContext } from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexCompactionDiagnostic } from "../../adapter/compaction/diagnostics.ts";
 import type { CodexCacheKeepaliveStrategy } from "../../adapter/activation/cache-keepalive.ts";
@@ -198,6 +198,14 @@ export interface ResponsesBody {
 	client_metadata?: Record<string, string> | undefined;
 	[key: string]: unknown;
 }
+
+export type BeforeCodexRequestSend = (
+	model: Model<Api>,
+	context: TranscriptContext,
+	payload: ResponsesBody,
+	options: OpenAICodexStreamOptions | undefined,
+	responsesLite: boolean,
+) => void | Promise<void>;
 
 export interface CodexPrewarmUsage {
 	inputTokens: number;

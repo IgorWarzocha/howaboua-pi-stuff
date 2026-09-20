@@ -10,13 +10,13 @@ import {
 	getCustomToolsDir,
 	getProjectCustomToolsDir,
 } from "./custom-tools.js";
-import { replaceCodeModeToolsPrompt } from "./custom-tool-prompt.js";
 import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
 	type CodeModeToolProvider,
 } from "./shared-runtime.js";
 import { registerCodeModeEvents } from "./tool-events.js";
+import type { NotebookControlResult } from "./types.ts";
 
 // Providers in one extension instance share a process-lifetime host runtime.
 // Pi replaces ExtensionAPI registrations on reload, so each API binds its own surface.
@@ -31,7 +31,7 @@ export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
 export interface CodeModeRegistration {
 	prepare(ctx?: unknown): Promise<void> | undefined;
-	refreshPromptTools(systemPrompt: string, ctx?: unknown): string;
+	notebookStatus(ctx: ExtensionContext): Promise<NotebookControlResult>;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
@@ -112,22 +112,7 @@ export async function registerCodeModeTools(
 	let active = true;
 	return {
 		prepare: (ctx) => runtime.prepare(ctx),
-		refreshPromptTools(systemPrompt, ctx) {
-			const activeProviders = runtime.activeProviders(ctx);
-			const documentationPath = activeProviders.find(
-				(provider) => provider.documentationPath,
-			)?.documentationPath;
-			const previousSection = runtime.getPromptSection();
-			const nextTools = runtime.refreshPromptTools(ctx);
-			const replacement = replaceCodeModeToolsPrompt(
-				systemPrompt,
-				previousSection,
-				nextTools,
-				documentationPath,
-			);
-			runtime.setPromptSection(replacement.section);
-			return replacement.systemPrompt;
-		},
+		notebookStatus: (ctx) => runtime.controlNotebook({ action: "status", query: "*" }, { cwd: ctx.cwd, extensionContext: ctx }, ctx.signal),
 		checkpointNotebook: () => runtime.checkpointNotebook(),
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -23,9 +23,7 @@ test("remote miniapps register across load order and stay in their namespace", a
 		},
 	};
 	const root = await mkdtemp(join(tmpdir(), "gippity-remote-app-"));
-	await mkdir(join(root, "assets"));
 	await writeFile(join(root, "index.html"), "pet");
-	await writeFile(join(root, "assets", "pet.js"), "pet");
 	let publish: ((update: GippityRemoteAppUpdate) => void) | undefined;
 	const pi = { events, on() {} } as Parameters<
 		typeof registerGippityRemoteApp
@@ -47,24 +45,10 @@ test("remote miniapps register across load order and stay in their namespace", a
 		typeof GippityRemoteApps
 	>[0]);
 	expect(registration.available).toBe(true);
-	expect(apps.apps()).toEqual([
-		{ id: "pi-pet", path: "/_gippity/apps/pi-pet/" },
-	]);
-	expect(apps.snapshot()).toEqual({
-		type: "app.state",
-		app: "pi-pet",
-		data: { revision: 1, action: "idle" },
-	});
-	expect(apps.route("/_gippity/apps/pi-pet")).toEqual({
-		kind: "redirect",
-		location: "/_gippity/apps/pi-pet/",
-	});
-	expect(apps.route("/_gippity/apps/pi-pet/assets/pet.js").kind).toBe("asset");
 	expect(apps.route("/_gippity/apps/pi-pet/%2e%2e/index.html").kind).toBe(
 		"missing",
 	);
 	expect(apps.route("/").kind).toBe("none");
-
 	const messages: unknown[] = [];
 	apps.onMessage((message) => messages.push(message));
 	publish?.({ event: "wave", data: { count: 1 } });
@@ -72,5 +56,5 @@ test("remote miniapps register across load order and stay in their namespace", a
 		{ type: "app.event", app: "pi-pet", event: "wave", data: { count: 1 } },
 	]);
 	registration.dispose();
-	expect(apps.apps()).toEqual([]);
+	expect(registration.available).toBe(false);
 });

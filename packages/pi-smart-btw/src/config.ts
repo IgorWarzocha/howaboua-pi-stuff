@@ -16,7 +16,7 @@ export const THINKING_LEVELS = [
 
 const ALLOWED = new Set<ThinkingLevel>(THINKING_LEVELS);
 
-export function normalizeThinkingLevel(
+function normalizeThinkingLevel(
 	value: unknown,
 	fallback: ThinkingLevel = "low",
 ): ThinkingLevel {

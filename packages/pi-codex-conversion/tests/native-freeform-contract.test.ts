@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
 import { registerPublicCodeModeTools } from "../src/tools/code-mode/public-tools.ts";
 import {
@@ -7,6 +8,7 @@ import {
 	convertResponsesTools,
 } from "../src/providers/openai-responses/shared.ts";
 import { buildRequestBody } from "../src/providers/openai-codex/request-body.ts";
+import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 
 const exec = {
 	name: "exec",
@@ -22,43 +24,21 @@ const exec = {
 	},
 } as const;
 
-test("Code Mode registers native freeform exec beside function controls", () => {
-	const registered: Array<{ name: string; constrainedSampling?: unknown }> = [];
+test("Code Mode factory wires exec as a native grammar tool", () => {
+	const registered: unknown[] = [];
 	registerPublicCodeModeTools({
-		events: {
-			emit() {},
-			on() { return () => {}; },
-		},
+		events: { emit() {}, on() { return () => {}; } },
 		on() {},
-		registerTool(tool: { name: string; constrainedSampling?: unknown }) {
-			registered.push(tool);
+		registerTool(tool: { name: string }) {
+			if (tool.name === "exec") registered.push(tool);
 		},
 	} as never, {} as never);
-	assert.deepEqual(registered
-		.filter(({ name }) => name === "exec" || name === "wait")
-		.map(({ name, constrainedSampling }) => [name, constrainedSampling]), [
-		["exec", exec.constrainedSampling],
-		["wait", undefined],
-	]);
 
-	const tools = convertResponsesTools([
-		exec,
-		{
-			name: "wait",
-			description: "Wait",
-			parameters: {
-				type: "object",
-				properties: { cell_id: { type: "string" } },
-				required: ["cell_id"],
-			},
-		},
-	] as never, { supportsOpenAIGrammarTools: true });
-
-	assert.equal(tools[0]?.type, "custom");
-	assert.equal((tools[0] as { format: { syntax: string } }).format.syntax, "lark");
-	assert.equal("parameters" in tools[0]!, false);
-	assert.equal(tools[1]?.type, "function");
-	assert.equal(convertResponsesTools([exec] as never)[0]?.type, "function");
+	const [native] = convertResponsesTools(registered as never, {
+		supportsOpenAIGrammarTools: true,
+	});
+	assert.equal(native?.type, "custom");
+	assert.equal((native as { format?: { syntax?: string } }).format?.syntax, "lark");
 });
 
 test("native grammar metadata controls custom replay and function fallback", () => {
@@ -218,20 +198,23 @@ test("cross-provider replay keeps deterministic type-correct item IDs", () => {
 	];
 
 	for (const { target, source } of cases) {
-		const context = { messages: messages(source.provider, source.api), tools: [exec] } as never;
+		const context = normalizeContext({ messages: messages(source.provider, source.api), tools: [exec] } as never);
 		const first = buildRequestBody(target as never, context, { grammarToolInputProperties } as never);
 		const second = buildRequestBody(target as never, context, { grammarToolInputProperties } as never);
 		const call = first.input.find((item) => (item as { type?: string }).type === "custom_tool_call") as { id: string };
 		assert.match(call.id, /^ctc_/);
 		assert.notEqual(call.id, "ctc_source");
 		assert.deepEqual(second.input, first.input);
+		assert.deepEqual(serializeMessagesToResponsesInput(target as never, messages(source.provider, source.api), {
+			grammarToolInputProperties,
+		}), first.input);
 		assert.equal(first.input.some((item) => (item as { type?: string }).type === "custom_tool_call_output"), true);
 	}
 
-	const functionBody = buildRequestBody(cases[0]!.target as never, {
+	const functionBody = buildRequestBody(cases[0]!.target as never, normalizeContext({
 		messages: messages("litellm", "openai-responses"),
 		tools: [exec],
-	} as never);
+	} as never));
 	const functionCall = functionBody.input.find((item) => (item as { type?: string }).type === "function_call") as { id: string };
 	assert.match(functionCall.id, /^fc_/);
 });

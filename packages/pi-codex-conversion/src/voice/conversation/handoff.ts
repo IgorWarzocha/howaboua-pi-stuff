@@ -111,6 +111,16 @@ export class RealtimeDelegationHandoff {
 		}
 	}
 
+	// A following thinking/tool block proves the buffered text is progress.
+	// Keep its streamed marker until message_end so the full text is not replayed.
+	flushProgress(): void {
+		const text = this.buffer.trim();
+		if (!this.callbacks.isActive() || !this.target || !text) return;
+		this.buffer = "";
+		this.streamedProgress = true;
+		this.callbacks.onContext({ type: "session" }, "speakable", text);
+	}
+
 	progress(content: string): void {
 		this.finishProgress(content);
 	}

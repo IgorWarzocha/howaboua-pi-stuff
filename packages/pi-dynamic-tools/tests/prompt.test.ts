@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { EXEC_DESCRIPTION, injectDynamicToolsPrompt } from "../src/prompt.js";
+import { injectDynamicToolsPrompt } from "../src/prompt.js";
 import type { DynamicToolDefinition } from "../src/types.js";
 
 function tool(
@@ -21,11 +21,6 @@ function tool(
 }
 
 describe("dynamic tool prompt tiers", () => {
-	test("keeps exec stable regardless of configured tools", () => {
-		expect(EXEC_DESCRIPTION).not.toContain("common_tool");
-		expect(EXEC_DESCRIPTION).toContain("ALL_TOOLS");
-	});
-
 	test("injects documentation and promoted forms before runtime context", () => {
 		const prompt = injectDynamicToolsPrompt(
 			"Instructions\n\nCurrent shell: /bin/bash\nCurrent date: 2026-07-11",

@@ -157,6 +157,7 @@ function dispatchCodexDeveloperMessage(
 export function registerCodexDeveloperMessageBroker(
 	pi: ExtensionAPI,
 	isActive: () => boolean,
+	isIdle: () => boolean = () => false,
 ): () => void {
 	let preparedIdleKickoff: "preparing" | "running" | "queued" | undefined;
 	const startKickoff = (start?: () => void): PreparedIdleKickoffRequest["outcome"] => {
@@ -185,6 +186,9 @@ export function registerCodexDeveloperMessageBroker(
 		}
 		try {
 			const metadata: CodexDeveloperMessageDetails = { protocol: 1, id: randomUUID() };
+			const preparedIdleTurn = value.options?.triggerTurn === true
+				&& value.options.deliverAs !== "nextTurn"
+				&& isIdle();
 			pi.sendMessage<object>(
 				value.message ? {
 					...value.message,
@@ -195,8 +199,10 @@ export function registerCodexDeveloperMessageBroker(
 					display: true,
 					details: metadata,
 				},
-				value.options,
+				preparedIdleTurn ? { ...value.options, triggerTurn: false } : value.options,
 			);
+			if (preparedIdleTurn && tryStartCodexPreparedIdlePrompt(pi) === false)
+				throw new Error("Prepared developer message kickoff is unavailable");
 			value.outcome = { ok: true };
 		} catch (error) {
 			value.outcome = {

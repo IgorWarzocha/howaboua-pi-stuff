@@ -24,9 +24,7 @@ function nonEmptyName(value: unknown, field: string): string {
 	return value.trim();
 }
 
-export function normalizeCodexToolRouteConfig(
-	value: unknown,
-): CodexToolRouteConfig {
+function normalizeCodexToolRouteConfig(value: unknown): CodexToolRouteConfig {
 	if (!value || typeof value !== "object" || Array.isArray(value))
 		throw new Error("pi-codex-tools config must be an object");
 	const input = value as CodexToolRouteConfigInput;

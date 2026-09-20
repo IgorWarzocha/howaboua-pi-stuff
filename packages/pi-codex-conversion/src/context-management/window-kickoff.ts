@@ -21,10 +21,6 @@ export class CodexContextWindowKickoff {
 	private readonly windows: CodexContextWindowManager;
 	private readonly onContinue: ((input: Parameters<ExtensionAPI["sendUserMessage"]>[0]) => void) | undefined;
 	private continuation: PendingContinuation | undefined;
-	private postCompactionWindow: {
-		sessionId: string;
-		options: StartContextWindowKickoffOptions;
-	} | undefined;
 
 	constructor(
 		windows: CodexContextWindowManager,
@@ -36,11 +32,10 @@ export class CodexContextWindowKickoff {
 
 	reset(): void {
 		this.continuation = undefined;
-		this.postCompactionWindow = undefined;
 	}
 
 	get pending(): boolean {
-		return this.continuation !== undefined || this.postCompactionWindow !== undefined;
+		return this.continuation !== undefined;
 	}
 
 	async startWindow(
@@ -60,23 +55,6 @@ export class CodexContextWindowKickoff {
 			windowId: identity.currentWindowId,
 		};
 		return true;
-	}
-
-	schedulePostCompactionWindow(
-		ctx: ExtensionContext,
-		options: StartContextWindowKickoffOptions,
-	): void {
-		this.postCompactionWindow = {
-			sessionId: ctx.sessionManager.getSessionId(),
-			options,
-		};
-	}
-
-	async settlePostCompaction(pi: ExtensionAPI, ctx: ExtensionContext): Promise<boolean> {
-		const pending = this.postCompactionWindow;
-		this.postCompactionWindow = undefined;
-		if (!pending || pending.sessionId !== ctx.sessionManager.getSessionId()) return false;
-		return this.startWindow(pi, ctx, pending.options);
 	}
 
 	queueInput(content: Parameters<ExtensionAPI["sendUserMessage"]>[0]): void {

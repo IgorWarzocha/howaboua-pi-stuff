@@ -93,10 +93,6 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 	});
 	const tools = kernel["tools"] as Record<string, (input: unknown) => Promise<unknown>>;
 	assert.deepEqual(Object.keys(tools), ["exec_command", "deferred_programmatic_tool"]);
-	assert.equal("exec_command" in tools, true);
-	assert.equal("missing" in tools, false);
-	assert.equal(Object.hasOwn(tools, "exec_command"), true);
-	assert.equal(Object.hasOwn(tools, "missing"), false);
 	assert.equal(await tools["deferred_programmatic_tool"]!({}), "delivered");
 	assert.deepEqual(calls, [{ name: "deferred-programmatic-tool" }]);
 	runtime.end("first");

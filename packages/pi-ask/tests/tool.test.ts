@@ -10,27 +10,14 @@ describe("ask tool results", () => {
 		const blocked: Array<{
 			id: string;
 			active: boolean;
-			handoff: boolean;
 			prompts: unknown[];
 		}> = [];
 		const tool = createAskTool({
-			onBlockedChange: (state) => blocked.push(state),
-			askInComposer: async () => {
-				expect(blocked).toMatchObject([
-					{
-						id: "call-1",
-						active: true,
-						handoff: false,
-						prompts: [
-							{
-								title: "Delivery can duplicate",
-								choices: [{ label: "Fix" }, { label: "Defer" }],
-							},
-						],
-					},
-				]);
-				return [{ selections: ["Defer"], comment: "After the release." }];
-			},
+			onBlockedChange: ({ id, active, prompts }) =>
+				blocked.push({ id, active, prompts }),
+			askInComposer: async () => [
+				{ selections: ["Defer"], comment: "After the release." },
+			],
 		});
 
 		const result = await tool.execute(
@@ -52,7 +39,15 @@ describe("ask tool results", () => {
 			{ id: "call-1", active: true },
 			{ id: "call-1", active: false },
 		]);
-
+		expect(blocked[0]?.prompts).toEqual([
+			{
+				id: "p1",
+				title: "Delivery can duplicate",
+				body: "Two paths enqueue the same delivery.",
+				multiple: false,
+				choices: [{ label: "Fix" }, { label: "Defer" }],
+			},
+		]);
 		expect(result.content).toEqual([
 			{
 				type: "text",
@@ -138,7 +133,7 @@ describe("ask tool results", () => {
 			undefined,
 			context,
 		);
-		const second = await tool.execute(
+		await tool.execute(
 			"steer-2",
 			{ delivery: "steer", prompts: [{ title: "Second" }] },
 			undefined,
@@ -155,11 +150,6 @@ describe("ask tool results", () => {
 				},
 			],
 			details: { kind: "prompt", pending: true, id: "steer-1" },
-		});
-		expect(second.details).toEqual({
-			kind: "prompt",
-			pending: true,
-			id: "steer-2",
 		});
 		expect(presentations).toEqual(["First"]);
 
@@ -201,10 +191,6 @@ describe("ask tool results", () => {
 			{ state: "closed", id: "steer-1" },
 			{ state: "closed", id: "steer-2" },
 		]);
-		expect(pendingUpdates[0]).toMatchObject({
-			prompts: [{ title: "First" }],
-		});
-
 		await expect(
 			tool.execute(
 				"steer-handoff",
