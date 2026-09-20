@@ -29,7 +29,7 @@ import { CodexContextWindowKickoff } from "../context-management/window-kickoff.
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
-import { projectCodexReasoningHistory } from "../adapter/reasoning-history.ts";
+import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 
 export type CodexContext = ExtensionContext;
@@ -282,7 +282,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		const checkpointBranch = plan.contextManagementMode === "tree" && plan.contextManagementHybrid
 			? projectTreeCheckpointBranch(branch, allEntries) : branch;
 		const projected = state.contextWindows.project(
-			projectCodexReasoningHistory(checkpointBranch, projectTreeCheckpointMessages(branch, checkpointBranch, messages)),
+			projectCodexDeveloperHistory(checkpointBranch, projectTreeCheckpointMessages(branch, checkpointBranch, messages)),
 			plan.contextManagementMode,
 			branch,
 			allEntries,

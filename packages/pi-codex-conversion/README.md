@@ -69,7 +69,7 @@ The settings tabs cover:
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, extension mode, providers and heavy prompt overwrite |
+| General | Settings scope, execution mode, extension mode, providers, heavy prompt overwrite and current time reminders |
 | Context | Notes, history, Hybrid compaction, Responses V2 and preserved user messages |
 | Tools | Auto reasoning (Astra only), image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
@@ -92,6 +92,8 @@ Without folder settings, the project inherits the complete global configuration.
 
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
 
+**Current time reminders** under `/codex` → **General** are off by default. Choose 30 or 60 minutes to include the UTC time on the first inference in each context and when the interval has elapsed before a later inference. Reminders are persisted developer messages on active Responses adapters. They do not change the system prompt, start turns, or run on a timer.
+
 On GPT-6 Astra over Codex transport, Pi's usual **Shift+Tab** reasoning selector appends a native configuration update instead of changing the request's original effort. This preserves prompt-cache and WebSocket continuation eligibility; cache hits still depend on the server. Updates persist across session resume and native compaction. Other models keep Pi's usual behaviour. Server-side automatic truncation and compaction are incompatible with these updates; the extension's explicit Responses compaction V2 is supported.
 
 Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Parallel Pi-native compaction** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
@@ -102,20 +104,20 @@ Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If yo
 
 Keep Context management enabled when resuming sessions that used it. Disabling it removes its recovery tools and may rejoin previously separated windows into ordinary Pi context. Notes-only `/compact` is a checkpoint request, not an exit from context management.
 
-Choose its backend under `/codex` → **General**:
+Choose its backend under `/codex` → **Context**:
 
 - **Off** disables context management.
 - **Local** keeps the current latest-boundary projection, reads prior windows from Pi's JSONL and persists note updates there as model-invisible entries.
 - **Tree** archives completed windows as Pi side branches. Pi's branch summary stays visible in the transcript but out of model context; history search prioritizes it and can still return every archived raw entry.
 - **Remote** uses Codex's history and notes service on `openai-codex-responses`. It uses the native encrypted contract and fails without changing storage modes. Other transports ignore this setting.
 
-**Hybrid compaction** is a separate toggle for Local, Tree and Remote. Off by default, rollover starts without a conversation summary. Turn it on to preserve a compaction checkpoint alongside notes: Responses V2 where supported, Pi's readable summary elsewhere. Tree still archives completed windows and preserves the original checkpoint by reference. Reaching the token threshold requests a notes checkpoint; compaction waits for `new_context`, manual `/compact` or overflow recovery. Native checkpoints remain encrypted and require a compatible transport.
+**Hybrid compaction** is a separate toggle for Local, Tree and Remote. Off by default, explicit rollover starts without a conversation summary. Turn it on to preserve a compaction checkpoint alongside notes: Responses V2 where supported, Pi's readable summary elsewhere. Tree archives completed windows and preserves the original checkpoint by reference. Overflow always compacts in the current window, even with Hybrid off. Native checkpoints remain encrypted and require a compatible transport.
 
 With context management active, choosing a summary in Pi's tree navigator asks the current agent to summarize what happened since the selected conversation boundary, following any summary instructions you provide. The prompt identifies that boundary by a previous summary, context window, note or quoted message, not an internal branch ID. Local and Tree carry the note into the destination without replacing its existing notes. Remote uses its normal notes service. Completing the requested note write ends the agent turn without another reply. The destination receives a branch summary directing the agent to read the note's exact path before resuming. Remote results remain encrypted, so the extension cannot independently verify the saved contents. An interrupted or errored handoff cancels the jump. Choosing **No summary** remains a plain jump. This works with or without Hybrid.
 
 The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
 
-After each completed assistant/tool turn, usage is checked against the model context size minus Pi's configured compaction reserve for the active model (at least 16,384 tokens). At 6,144 tokens remaining before that reserve, a developer message requests a notes checkpoint and `new_context`, including after a final assistant reply. The checkpoint turn keeps the same tools; no tool is interrupted or notes content validated. Pi's server-overflow recovery remains available. Without Hybrid, manual `/compact` asks the agent to save the current state in notes if it hasn't just done so, then call `new_context` immediately. Pi's existing preparation limits and queued-message order still apply. Local and Remote still use a fixed no-summary marker for internal Pi compaction. With Hybrid, Tree also archives manual and overflow checkpoints; overflow waits for the retry tail to settle.
+After each completed assistant or tool turn, a developer message requests a notes checkpoint at **85% used**, with an urgent reminder at **90%**. Percentages use the active model's full configured context window, so both smaller and larger windows scale correctly. `get_context_remaining` reports the remaining percentage and token count. Warnings do not force rollover, interrupt tools or validate notes. They can request a checkpoint turn after a final reply. If context overflows, Pi compaction preserves a summary and recent conversation instead of cutting to a fresh window. With Hybrid on, the configured V2 or Pi checkpoint is used. Without Hybrid, manual `/compact` asks the agent to save its state in notes, then call `new_context`.
 
 Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport, without a model-name gate. Other provider APIs ignore context management. Without Hybrid, enabling a backend mid-session starts a fresh model window on the next input. Hybrid retains the current conversation until compaction. Standalone V2 and Parallel Pi-native compaction remain available when Context management is Off.
 

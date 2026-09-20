@@ -14,6 +14,7 @@ import {
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
 } from "../src/context-management/messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { ContextWindowBudget } from "../src/context-management/window-budget.ts";
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { RealtimeDelegationHandoff } from "../src/voice/conversation/handoff.ts";
@@ -72,8 +73,11 @@ test("context windows preserve rollover and native request semantics", async (t)
 			display: message["display"],
 			details: message["details"],
 		}));
-	const compactionEvent = (branchEntries = contextEntries()) => ({
-		reason: "threshold",
+	const compactionEvent = (
+		branchEntries = contextEntries(),
+		reason: "threshold" | "overflow" = "threshold",
+	) => ({
+		reason,
 		branchEntries,
 		preparation: {
 			firstKeptEntryId: "default-cut",
@@ -127,10 +131,30 @@ test("context windows preserve rollover and native request semantics", async (t)
 		}
 	).contextManagement.currentWindowId;
 	assert.deepEqual(manager.remaining(ctx), {
-		remainingTokens: 227_232,
+		remainingTokens: 260_000,
+		remainingPercent: 95.6,
 		windowId: currentWindowId,
-		contextWindow: 239_232,
+		contextWindow: 272_000,
 	});
+	manager.recordBudget(contextPi, ctx, true, 244_800);
+	assert.equal(contextMessages.length, 3);
+	manager.recordBudget(contextPi, ctx, true, 244_800);
+	assert.equal(contextMessages.length, 3, "an urgent warning is emitted once per checkpoint");
+	manager.recordCompaction({ readFiles: [], modifiedFiles: [] });
+	manager.recordBudget(contextPi, ctx, true, 244_800);
+	assert.equal(contextMessages.length, 4, "real compaction rearms context warnings");
+	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "local"), { cancel: true },
+		"a pending notes-only trim cannot replace a real checkpoint");
+	for (const contextWindow of [272_000, 872_000]) {
+		const budget = new ContextWindowBudget();
+		const budgetContext = { getContextUsage: () => ({ contextWindow }) } as never;
+		const identity = manager.currentIdentity()!;
+		assert.equal(budget.record(budgetContext, identity, contextWindow * 0.85 - 1), undefined);
+		assert.equal(budget.record(budgetContext, identity, contextWindow * 0.85)?.kind, "reminder");
+		assert.equal(budget.record(budgetContext, identity, contextWindow * 0.90 - 1), undefined);
+		assert.equal(budget.record(budgetContext, identity, contextWindow * 0.90)?.kind, "urgent");
+		assert.equal(budget.record(budgetContext, identity, contextWindow), undefined);
+	}
 	const expectedCompaction = {
 		compaction: {
 			summary: CONTEXT_WINDOW_COMPACTION_SUMMARY,
@@ -144,6 +168,11 @@ test("context windows preserve rollover and native request semantics", async (t)
 		},
 	};
 	manager.restore(contextEntries() as never);
+	for (const mode of ["local", "tree", "remote"] as const) {
+		const overflow = compactionEvent(contextEntries(), "overflow");
+		assert.equal(manager.prepareCompaction(overflow, mode), undefined);
+		assert.equal(manager.prepareCompaction(overflow, mode, true), undefined);
+	}
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "tree"), {
 		cancel: true,
 	});
@@ -169,6 +198,31 @@ test("context windows preserve rollover and native request semantics", async (t)
 		assert.deepEqual(manager.project([...promptHistory, ...activeWindow] as never, mode), [
 			getCurrentSystemMessage(promptHistory), ...activeWindow,
 		], "window cuts checkpoint effective prompt sections and tool removals");
+		const branchWithRealCompaction = [
+			...contextEntries(),
+			{
+				type: "compaction",
+				id: "real-compaction",
+				parentId: contextEntries().at(-1)!.id,
+				timestamp: new Date(10).toISOString(),
+				summary: "A real Pi checkpoint",
+				firstKeptEntryId: "entry-1",
+				tokensBefore: 240_000,
+			},
+		] as never;
+		const compactedMessages = [
+			getCurrentSystemMessage(promptHistory),
+			{ role: "compactionSummary", summary: "A real Pi checkpoint", tokensBefore: 240_000, timestamp: 10 },
+			...activeWindow,
+		] as never;
+		assert.deepEqual(
+			manager.project(compactedMessages, mode, branchWithRealCompaction, branchWithRealCompaction),
+			compactedMessages,
+			"a retained window marker cannot displace the real compaction checkpoint",
+		);
+		manager.restore(branchWithRealCompaction);
+		assert.deepEqual(manager.prepareCompaction(compactionEvent(branchWithRealCompaction), mode), { cancel: true },
+			"resume cannot rearm a notes-only trim superseded by compaction");
 		assert.deepEqual(manager.prepareCompaction(compactionEvent(), mode, true), { cancel: true });
 		assert.equal(manager.prepareCompaction({ reason: "manual" } as never, mode, true), undefined);
 		const checkpointManager = new CodexContextWindowManager();

@@ -31,7 +31,7 @@ export function buildContextSettings(config: CodexConversionConfig): ConfigSetti
 		...(config.compaction.contextManagement === "off" ? [] : [setting(
 			{ id: "hybridCompaction", label: "Hybrid compaction",
 				currentValue: config.compaction.hybridCompaction ? "on" : "off", values: ["off", "on"],
-				description: "Allow standard compaction on overflow, rollover or /compact: V2 where supported, Pi summary elsewhere." },
+				description: "Compact on rollover or /compact: V2 where supported, Pi summary elsewhere. Overflow always compacts, even when off." },
 			(value, current) => ({
 				...current,
 				compaction: { ...current.compaction, hybridCompaction: value === "on" },

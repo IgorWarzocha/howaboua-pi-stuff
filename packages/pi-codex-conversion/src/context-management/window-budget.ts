@@ -1,7 +1,7 @@
-import { getAgentDir, SettingsManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-	CONTEXT_WINDOW_MIN_RESERVE,
-	CONTEXT_WINDOW_REMINDER_THRESHOLD,
+	CONTEXT_WINDOW_REMINDER_PERCENT,
+	CONTEXT_WINDOW_URGENT_PERCENT,
 	renderContextWindowReminder,
 	type ContextManagementMessageKind,
 	type ContextWindowIdentity,
@@ -9,35 +9,40 @@ import {
 
 export interface ContextRemaining {
 	remainingTokens: number | undefined;
+	remainingPercent: number | undefined;
 	windowId: string | undefined;
 	contextWindow: number;
 }
 
 export class ContextWindowBudget {
 	private readonly remindedWindows = new Set<string>();
+	private readonly urgentWindows = new Set<string>();
 
 	reset(): void {
 		this.remindedWindows.clear();
+		this.urgentWindows.clear();
 	}
 
 	restore(kind: ContextManagementMessageKind, windowId: string): void {
-		if (kind === "reminder" || kind === "fallback") this.remindedWindows.add(windowId);
+		if (kind === "reminder" || kind === "urgent" || kind === "fallback") this.remindedWindows.add(windowId);
+		if (kind === "urgent" || kind === "fallback") this.urgentWindows.add(windowId);
 	}
 
 	record(
 		ctx: ExtensionContext,
 		identity: ContextWindowIdentity,
 		contextTokens?: number,
-	): { content: string; kind: "reminder" } | undefined {
+	): { content: string; kind: "reminder" | "urgent" } | undefined {
 		const remaining = this.remaining(ctx, identity, contextTokens);
-		if (remaining.remainingTokens === undefined) return;
+		if (remaining.remainingTokens === undefined || remaining.remainingPercent === undefined) return;
 		const windowId = identity.currentWindowId;
-		if (
-			remaining.remainingTokens <= CONTEXT_WINDOW_REMINDER_THRESHOLD &&
-			!this.remindedWindows.has(windowId)
-		) {
+		const usedPercent = 100 * (1 - remaining.remainingTokens / remaining.contextWindow);
+		const urgent = usedPercent >= CONTEXT_WINDOW_URGENT_PERCENT;
+		if (urgent ? !this.urgentWindows.has(windowId)
+			: usedPercent >= CONTEXT_WINDOW_REMINDER_PERCENT && !this.remindedWindows.has(windowId)) {
 			this.remindedWindows.add(windowId);
-			return { content: renderContextWindowReminder(remaining.remainingTokens), kind: "reminder" };
+			if (urgent) this.urgentWindows.add(windowId);
+			return { content: renderContextWindowReminder(remaining.remainingPercent, urgent), kind: urgent ? "urgent" : "reminder" };
 		}
 	}
 
@@ -47,17 +52,16 @@ export class ContextWindowBudget {
 		contextTokens?: number,
 	): ContextRemaining {
 		const usage = ctx.getContextUsage();
-		const settings = SettingsManager.create(ctx.cwd, getAgentDir(), {
-			projectTrusted: ctx.isProjectTrusted(),
-		});
-		const reserveTokens = Math.max(CONTEXT_WINDOW_MIN_RESERVE, settings.getCompactionSettings(ctx.model).reserveTokens);
 		const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-		const limit = Math.max(0, contextWindow - reserveTokens);
 		const tokens = contextTokens ?? usage?.tokens;
+		const remainingTokens = tokens === null || tokens === undefined || !Number.isFinite(tokens)
+			|| !Number.isFinite(contextWindow) || contextWindow <= 0
+			? undefined : Math.max(0, contextWindow - Math.max(0, tokens));
 		return {
-			remainingTokens: tokens === null || tokens === undefined ? undefined : Math.max(0, limit - tokens),
+			remainingTokens,
+			remainingPercent: remainingTokens === undefined ? undefined : Math.round(remainingTokens / contextWindow * 1000) / 10,
 			windowId: identity?.currentWindowId,
-			contextWindow: limit,
+			contextWindow,
 		};
 	}
 }

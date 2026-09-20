@@ -16,7 +16,7 @@ import {
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 import { CodexDeveloperMessageBridge } from "../developer-messages.ts";
-import { projectCodexReasoningHistory } from "../reasoning-history.ts";
+import { projectCodexDeveloperHistory } from "../developer-history.ts";
 
 /**
  * Responses compaction reuses the provider's serializer.
@@ -160,7 +160,7 @@ export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	leafId?: string | null | undefined;
 	options?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
-	const messages = projectCodexReasoningHistory(args.entries, undefined, args.leafId)
+	const messages = projectCodexDeveloperHistory(args.entries, undefined, args.leafId)
 		.filter((message) => !isProviderContextExcludedMessage(message));
 	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }

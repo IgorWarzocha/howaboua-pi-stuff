@@ -213,7 +213,10 @@ export class CodexContextWindowManager {
 		}
 		if (mode === "tree") {
 			const index = buildTreeArchiveIndex(allEntries, activeEntries);
-			const projected = !hybridCompaction && (index.archives.length === 0 || index.invalidManifest) && boundaryIndex >= 0
+			const projected = !hybridCompaction &&
+				(index.archives.length === 0 || index.invalidManifest) &&
+				boundaryIndex >= 0 &&
+				!hasRealCompactionAfterWindowBoundary(activeEntries)
 				? checkpointWindow(messages, boundaryIndex)
 				: messages;
 			this.rolloverPending = undefined;
@@ -221,7 +224,9 @@ export class CodexContextWindowManager {
 		}
 		if (boundaryIndex < 0) return [...messages];
 		this.rolloverPending = undefined;
-		return hybridCompaction ? [...messages] : checkpointWindow(messages, boundaryIndex);
+		return hybridCompaction || hasRealCompactionAfterWindowBoundary(activeEntries)
+			? [...messages]
+			: checkpointWindow(messages, boundaryIndex);
 	}
 
 	scheduleHybridCompaction(): boolean {
@@ -339,6 +344,7 @@ export class CodexContextWindowManager {
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
 		if (hybridCompaction) return event.reason === "threshold" ? { cancel: true } : undefined;
+		if (event.reason === "overflow") return undefined;
 		if (event.reason === "manual") {
 			if (!this.identity) return { cancel: true };
 			this.manualCheckpoint = {
@@ -382,10 +388,11 @@ export class CodexContextWindowManager {
 	}
 
 	recordCompaction(details: unknown): void {
-		if (
-			isContextWindowCompactionDetails(details) &&
-			details.windowId === this.trimPendingWindowId
-		)
+		if (!isContextWindowCompactionDetails(details)) {
+			this.budget.reset();
+			// A real checkpoint supersedes any pending notes-only trim.
+			this.trimPendingWindowId = undefined;
+		} else if (details.windowId === this.trimPendingWindowId)
 			this.trimPendingWindowId = undefined;
 	}
 
@@ -437,6 +444,23 @@ export class CodexContextWindowManager {
 		);
 	}
 
+}
+
+function hasRealCompactionAfterWindowBoundary(entries: readonly SessionEntry[]): boolean {
+	let boundaryIndex = -1;
+	let compactionIndex = -1;
+	for (let index = 0; index < entries.length; index += 1) {
+		const entry = entries[index]!;
+		if (
+			entry.type === "custom_message" &&
+			entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
+			isCodexContextManagementMessageDetails(entry.details) &&
+			entry.details.contextManagement.kind === "window"
+		) boundaryIndex = index;
+		if (entry.type === "compaction" && !isContextWindowCompactionDetails(entry.details))
+			compactionIndex = index;
+	}
+	return boundaryIndex >= 0 && compactionIndex > boundaryIndex;
 }
 
 /** An explicit window cut retires conversation, not the prompt and executable tool declarations. */

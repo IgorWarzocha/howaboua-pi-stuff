@@ -24,7 +24,7 @@ import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
 import { prepareResponsesLiteConversationInput } from "../../providers/openai-codex/responses-lite.ts";
 import { runPortablePiCompaction } from "./portable-summary.ts";
 import { codexReasoningUpdates } from "../reasoning-updates.ts";
-import { projectCodexReasoningHistory } from "../reasoning-history.ts";
+import { projectCodexDeveloperHistory } from "../developer-history.ts";
 import { rewriteContextNamespaceTools } from "../../context-management/namespace-tools.ts";
 import { projectTreeCheckpointBranch } from "../../context-management/tree-checkpoint.ts";
 
@@ -89,7 +89,7 @@ function buildCompactionReasoning(
 ): NativeCompactionRequestOptions["reasoning"] {
 	const level = pi.getThinkingLevel();
 	if (!compactionTargetModel.reasoning || level === "off") return undefined;
-	const initialEffort = codexReasoningUpdates(projectCodexReasoningHistory(compactionBranch(ctx, state)), compactionTargetModel)[0]?.initialEffort;
+	const initialEffort = codexReasoningUpdates(projectCodexDeveloperHistory(compactionBranch(ctx, state)), compactionTargetModel)[0]?.initialEffort;
 	if (initialEffort) return { effort: initialEffort, summary: "auto" };
 	const clampedLevel = clampThinkingLevel(compactionTargetModel, level as ModelThinkingLevel);
 	const rawEffort = compactionTargetModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
@@ -151,7 +151,7 @@ function buildCompactionTranscript(
 		return normalizeContext({ messages: [structuredClone(prepared.systemMessage)] });
 	}
 
-	const current = getCurrentSystemMessage(projectCodexReasoningHistory(compactionBranch(ctx, state)));
+	const current = getCurrentSystemMessage(projectCodexDeveloperHistory(compactionBranch(ctx, state)));
 	if (current) return normalizeContext({ messages: [current] });
 	const tools = getActiveToolsInActiveOrder(pi, codeMode);
 	return normalizeContext({

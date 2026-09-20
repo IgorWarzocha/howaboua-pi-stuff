@@ -26,6 +26,7 @@ import { CODEX_DEVELOPER_MESSAGE_TYPE, registerCodexDeveloperMessageBroker, upda
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
+import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
@@ -386,7 +387,7 @@ export function registerCodexEvents(
 			runtime.voice.settleTurn();
 			runtime.lanVoice.agentSettled();
 			if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
-			rolled = await state.contextTree.settle(pi, ctx) || await state.contextKickoff.settlePostCompaction(pi, ctx);
+			rolled = await state.contextTree.settle(pi, ctx);
 			if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 			state.contextTree.handoff.settled(ctx);
 			continued = state.contextKickoff.continue(pi, ctx);
@@ -503,38 +504,19 @@ export function registerCodexEvents(
 					});
 				}
 			}
-			if (plan.contextManagementHybrid) {
+			// Overflow compaction keeps the current window and resumes from its checkpoint.
+			if (plan.contextManagementHybrid && event.reason !== "overflow") {
 				if (plan.contextManagementMode === "tree" && compactionEntry) {
 					const requested = state.contextWindows.isHybridCompactionRunning();
 					treeRolloverScheduled = state.contextTree.schedule(ctx, {
 						compactionEntryId: compactionEntry.id,
-						triggerTurn: requested || event.reason === "overflow",
+						triggerTurn: requested,
 					});
 					if (event.reason === "manual" && !requested) {
 						await state.contextTree.settle(pi, ctx);
 						treeRolloverScheduled = false;
 					}
-				} else if (event.reason === "overflow") {
-					state.contextKickoff.schedulePostCompactionWindow(ctx, {
-						mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
-					});
 				} else await state.contextWindows.completeHybridCompaction(pi, ctx, plan.contextManagementMode);
-			} else if (
-				contextCompaction &&
-				event.reason === "overflow"
-			) {
-				if (plan.contextManagementMode === "tree") {
-					treeRolloverScheduled = state.contextTree.schedule(ctx, {
-						sourceLeafId: compactionEntry?.parentId ?? undefined,
-					});
-				} else {
-					state.contextKickoff.schedulePostCompactionWindow(ctx, {
-						triggerTurn: true,
-						mode: plan.contextManagementMode,
-						trimPreviousWindow: false,
-						sourceLeafId: compactionEntry?.parentId ?? undefined,
-					});
-				}
 			}
 			if (!treeRolloverScheduled) {
 				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
@@ -542,19 +524,22 @@ export function registerCodexEvents(
 				if (!state.contextWindows.isHybridCompactionRunning() && !state.contextKickoff.pending)
 					await runtime.startCompactionPrewarm(ctx);
 			}
-			// Hybrid refreshes at its window boundary, after compaction and before continuation.
-			if (!contextCompaction && !plan.contextManagementHybrid)
+			// Explicit Hybrid rollover refreshes at its window boundary; overflow stays here.
+			if (!contextCompaction && (!plan.contextManagementHybrid || event.reason === "overflow"))
 				await runtime.voice.refreshRealtimeContext(ctx, state.config);
 		} finally {
 			runtime.voice.compactionFinished();
 		}
 	});
 	pi.on("context", async (event, ctx) => {
-		const messages = runtime.projectContextMessages(ctx, event.messages);
+		let messages = runtime.projectContextMessages(ctx, event.messages);
+		const developerMessages = supportsCodexDeveloperMessages(ctx, state);
+		if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
+			messages = runtime.projectContextMessages(ctx, event.messages);
 		return {
 			messages: state.developerMessages.prepare(
 				messages,
-				supportsCodexDeveloperMessages(ctx, state),
+				developerMessages,
 				ctx.model,
 			),
 		};

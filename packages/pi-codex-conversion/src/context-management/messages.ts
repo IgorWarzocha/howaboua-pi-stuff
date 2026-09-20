@@ -9,12 +9,13 @@ export const CONTEXT_WINDOW_COMPACTION_SUMMARY =
 export const CONTEXT_WINDOW_COMPACTION_STRATEGY =
 	"codex-context-window";
 
-export const CONTEXT_WINDOW_REMINDER_THRESHOLD = 6_144;
-export const CONTEXT_WINDOW_MIN_RESERVE = 16_384;
+export const CONTEXT_WINDOW_REMINDER_PERCENT = 85;
+export const CONTEXT_WINDOW_URGENT_PERCENT = 90;
 
 export type ContextManagementMessageKind =
 	| "window"
 	| "reminder"
+	| "urgent"
 	| "fallback";
 
 export interface ContextWindowIdentity {
@@ -77,9 +78,9 @@ export function renderContextWindowMessage(
 	return `${CONTEXT_WINDOW_GUIDANCE}\n\n${lines.join("\n")}`;
 }
 
-export function renderContextWindowReminder(remainingTokens: number): string {
+export function renderContextWindowReminder(remainingPercent: number, urgent: boolean): string {
 	return `<context_window_reminder>
-Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain before the compaction reserve. Checkpoint the active request, state and known history IDs in notes, then call new_context before continuing work.
+${urgent ? "Urgent: " : ""}${remainingPercent}% of the context window remains. Checkpoint the active request, state and known history IDs in notes, then call new_context ${urgent ? "now, before other work" : "before continuing work"}.
 </context_window_reminder>`;
 }
 
@@ -107,6 +108,7 @@ export function isCodexContextManagementMessageDetails(
 		record["protocol"] === 1 &&
 		(record["kind"] === "window" ||
 			record["kind"] === "reminder" ||
+			record["kind"] === "urgent" ||
 			record["kind"] === "fallback") &&
 		typeof record["firstWindowId"] === "string" &&
 		record["firstWindowId"] !== "" &&

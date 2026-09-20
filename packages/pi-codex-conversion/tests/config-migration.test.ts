@@ -14,6 +14,10 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	const normalized = normalizeCodexConversionConfig(flat.config);
 	assert.deepEqual(normalized.scope, { allProviders: "on", additionalProviders: [] });
 	assert.equal(normalized.openai.fast, true);
+	for (const value of [undefined, 0, 30, 60, 15, "30", null]) {
+		assert.equal(normalizeCodexConversionConfig({ prompt: { currentTimeReminderMinutes: value } }).prompt.currentTimeReminderMinutes,
+			value === 30 || value === 60 ? value : 0);
+	}
 	for (const [stored, expected] of [
 		[true, "on"], [false, "off"],
 		["off", "off"], ["on", "on"], ["minimal", "minimal"],
