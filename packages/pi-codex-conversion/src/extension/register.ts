@@ -33,6 +33,9 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
+			if (executionModeChanged || config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
+				config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB || config.notebook.profile !== previousConfig.notebook.profile)
+				runtime.state.notebookStatusMessageId = undefined;
 			const contextManagementChanged =
 				config.compaction.contextManagement !==
 				previousConfig.compaction.contextManagement;

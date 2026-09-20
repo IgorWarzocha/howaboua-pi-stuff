@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
@@ -21,7 +22,7 @@ import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnosti
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
-import { registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
+import { CODEX_DEVELOPER_MESSAGE_TYPE, registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
@@ -101,6 +102,7 @@ export function registerCodexEvents(
 		updateCodexPreparedIdleKickoff(pi, "session_reset");
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
+		state.notebookStatusMessageId = undefined;
 		ui.invalidateUsageStatus();
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
@@ -188,6 +190,7 @@ export function registerCodexEvents(
 		const previousMode = state.executionMode;
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		if (state.contextTree.handleSessionTree(event)) return;
+		state.notebookStatusMessageId = undefined;
 		if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
 		await codeMode.shutdownHost();
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -309,6 +312,7 @@ export function registerCodexEvents(
 		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		if (plan.kind !== "notebook") state.notebookStatusMessageId = undefined;
 		if (!isAdapterRuntime(plan)) {
 			state.preparedPrompt = undefined;
 			return undefined;
@@ -321,6 +325,27 @@ export function registerCodexEvents(
 			mode: plan.prompt ?? "normal",
 			heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
 		});
+		if (plan.kind !== "notebook" || !["exec", "wait", "notebook"].every((name) => event.systemPromptOptions.selectedTools.includes(name))) return;
+		// Count only persisted delivery, including snapshots archived by internal Tree rollover.
+		if (state.notebookStatusMessageId && ctx.sessionManager.getEntries().some((entry) =>
+			entry.type === "custom_message" && entry.customType === CODEX_DEVELOPER_MESSAGE_TYPE &&
+			(entry.details as { id?: unknown } | undefined)?.id === state.notebookStatusMessageId)) return;
+		let content: string;
+		let failed = false;
+		try {
+			content = (await codeMode.notebookStatus(ctx)).message;
+		} catch (error) {
+			if (ctx.signal?.aborted) throw error;
+			failed = true;
+			content = `Notebook startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
+		}
+		state.notebookStatusMessageId = randomUUID();
+		return { message: {
+			customType: CODEX_DEVELOPER_MESSAGE_TYPE,
+			content,
+			display: failed,
+			details: { protocol: 1, id: state.notebookStatusMessageId },
+		} };
 	});
 	pi.on("agent_start", async (_event, ctx) => {
 		state.contextWindows.beginTurn(ctx);

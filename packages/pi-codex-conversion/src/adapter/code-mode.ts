@@ -63,6 +63,7 @@ export async function registerCodexCodeMode(
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
+		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {

@@ -168,6 +168,8 @@ text(status);
 
 Notebook Mode keeps `exec` and `wait`, adds a top-level `notebook` lifecycle tool, and preserves JavaScript or TypeScript bindings in one persistent Deno runtime. The `notebook` tool owns status, checkpoints, restarts, resets and stored profiles.
 
+The first Notebook turn receives its current status and retained bindings automatically, without an opening status tool call. Use `notebook` for fresh or more targeted inspection later.
+
 Pinned functions can react to Notebook events without another model call. Attach one with `notebook({ action: "pin", names: ["onToolResult"], hook: "tool_result" })`. It becomes active for subsequent `tools.*` calls and is restored on each fresh kernel.
 
 The function receives `{ type: "tool_result", toolName, input, status, result?, error? }`. Filter by the callable `toolName` inside the function. Input is captured before the call; `status` is `"success"` when the call returns its result or `"error"` when it throws. Each handler gets its own snapshot, is awaited before the caller continues, and cannot replace the tool's result or error. Handlers run in name order; independent calls may overlap. Tools called from a handler do not trigger more handlers. Hook failures are reported without changing the original tool outcome.

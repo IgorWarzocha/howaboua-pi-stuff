@@ -46,6 +46,7 @@ export interface AdapterState {
 	usageStatus?: CodexUsageStatus | undefined;
 	config: CodexConversionConfig;
 	executionMode: ExecutionMode;
+	notebookStatusMessageId?: string | undefined;
 	codexTurnState: CodexTurnState;
 	developerMessages: CodexDeveloperMessageBridge;
 	contextWindows: CodexContextWindowManager;
