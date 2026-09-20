@@ -1,5 +1,9 @@
 # @howaboua/pi-pet
 
+## 0.1.4
+
+- Remove obsolete test-only helper exports without changing tool behavior.
+
 ## 0.1.3
 
 - Expose Pi Pet's extension from the package root so aggregate extension packages can load it.

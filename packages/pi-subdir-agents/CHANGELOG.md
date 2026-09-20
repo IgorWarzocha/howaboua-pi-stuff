@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.8
+
+- Removed redundant developer-message wording while preserving review approval rules and nested AGENTS.md guidance.
+
 ## 0.0.7
 
 - Nested AGENTS.md guidance now reaches the model after discovery tools finish in the same task, without retroactive history insertion on the next user turn.

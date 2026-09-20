@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.84
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Fixed voice progress waiting through subsequent thinking or tool-call generation after assistant text was ready to speak.
+  - @howaboua/pi-gippity-control: Pi 0.86.0 or newer is now required. Fixed voice context summaries to use Pi's transcript-native provider interface.
+  - @howaboua/pi-gippity-control: Realtime voice now isolates muted capture and clears interrupted playback. - Native voice cancels echo and reduces background noise. - Spoken interruptions clear buffered audio in native and LAN playback. - Microphone failures are reported instead of leaving a silent session.
+  - @howaboua/pi-pet: Remove obsolete test-only helper exports without changing tool behavior.
+  - @howaboua/pi-smart-btw: Remove obsolete test-only helper exports without changing tool behavior.
+  - @howaboua/pi-subagent-review: Removed redundant developer-message wording while preserving review approval rules and nested AGENTS.md guidance.
+
 ## 0.0.83
 
 - Include bundled package updates:

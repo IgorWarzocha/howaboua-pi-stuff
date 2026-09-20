@@ -1,5 +1,17 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.20
+
+- Fixed voice progress waiting through subsequent thinking or tool-call generation after assistant text was ready to speak.
+
+- Pi 0.86.0 or newer is now required. Fixed voice context summaries to use Pi's transcript-native provider interface.
+
+- Realtime voice now isolates muted capture and clears interrupted playback.
+
+  - Native voice cancels echo and reduces background noise.
+  - Spoken interruptions clear buffered audio in native and LAN playback.
+  - Microphone failures are reported instead of leaving a silent session.
+
 ## 0.0.19
 
 - Fixed context continuity, voice replies, and patch preservation.

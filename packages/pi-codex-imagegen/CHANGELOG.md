@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.6
+
+- Remove retired Spark from Codex tool authentication preferences. Codex Conversion now explains biological-policy errors when the server omits an explanation.
+
 ## 0.0.5
 
 - Guide image generation prompts toward target aspect ratio and quality, the controls honored by the Codex backend.

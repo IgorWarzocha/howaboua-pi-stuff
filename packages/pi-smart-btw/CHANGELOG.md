@@ -1,5 +1,9 @@
 # @howaboua/pi-smart-btw
 
+## 0.2.7
+
+- Remove obsolete test-only helper exports without changing tool behavior.
+
 ## 0.2.6
 
 ### Changes
