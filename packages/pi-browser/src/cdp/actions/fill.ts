@@ -34,10 +34,21 @@ function prepareFill(this: HTMLElement, value: string | boolean) {
 				"Select another radio option with value true instead of unchecking this one",
 			);
 		}
+		const indeterminate = this.type === "checkbox" && this.indeterminate;
+		if (indeterminate && this.checked === value) {
+			const setter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"checked",
+			)?.set;
+			if (!setter) throw new Error("Checkbox has no native checked setter");
+			// A click clears indeterminate and toggles checked. Start from the
+			// opposite state so that single click lands on the requested value.
+			setter.call(this, !value);
+		}
 		return {
 			kind: "checked",
 			expected: value,
-			needsClick: this.checked !== value || this.indeterminate,
+			needsClick: this.checked !== value || indeterminate,
 		};
 	}
 	if (typeof value !== "string")

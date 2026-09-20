@@ -57,7 +57,7 @@ export class NotebookRecoveryController {
 	async unpin(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const identity = this.identity(context, "unpin");
 		await this.host.stopWithoutCheckpoint();
-		await unpinProjectStateBindings(identity, names, this.maxBytes, signal);
+		await unpinProjectStateBindings(identity, names, signal);
 		return {
 			message: `Unpinned durable notebook bindings: ${formatNameList(names)}; hooks removed`,
 			details: { pinned: false, bindingCount: names.length },

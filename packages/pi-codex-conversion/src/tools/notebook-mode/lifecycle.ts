@@ -194,6 +194,10 @@ export class NotebookLifecycleController {
 	private async pin(names: string[], pinned: boolean, hook?: NotebookHook | false): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot change notebook pins while exec cell "${activeCell}" is running`);
+		const selectedNames = new Set(names);
+		const previousToolResultHooks = new Set(this.host.retainedBindings()
+			.filter((binding) => selectedNames.has(binding.name) && binding.hook === "tool_result")
+			.map(({ name }) => name));
 		let rollbackPromotion: (() => Promise<void>) | undefined;
 		if (pinned) {
 			const kernel = this.host.kernel()!;
@@ -202,15 +206,37 @@ export class NotebookLifecycleController {
 			if (invalid.length > 0) throw new Error(`Notebook bindings not found or not pinnable: ${invalid.join(", ")}`);
 			rollbackPromotion = await this.host.promoteBindings(names);
 		}
+		const configureHooks = !pinned || hook !== undefined;
+		let hooksConfigured = false;
 		try {
+			if (configureHooks) {
+				await this.configureToolHooks(names, pinned && hook === "tool_result");
+				hooksConfigured = true;
+			}
 			await this.host.checkpoint(undefined, { names, pinned, hook });
 		} catch (error) {
-			await rollbackPromotion?.().catch(() => undefined);
-			throw error;
-		}
-		if (!pinned || hook !== undefined) {
-			const configured = await this.host.kernel()!.execute(notebookToolHooksSource(names, pinned && hook === "tool_result"));
-			if (configured.status !== "ok") throw new Error(`Notebook runtime bootstrap unavailable: __piNotebook.configureToolHooks: ${configured.errorText ?? configured.status}`);
+			const recoveryFailures: string[] = [];
+			if (hooksConfigured) {
+				try {
+					await this.configureToolHooks(names, false);
+					if (previousToolResultHooks.size > 0) await this.configureToolHooks([...previousToolResultHooks], true);
+				} catch (recoveryError) {
+					recoveryFailures.push(`hook registration: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`);
+				}
+			}
+			if (rollbackPromotion) {
+				try {
+					await rollbackPromotion();
+				} catch (recoveryError) {
+					recoveryFailures.push(`promotion tracking: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`);
+				}
+			}
+			if (recoveryFailures.length > 0) {
+				const reason = error instanceof Error ? error.message : String(error);
+				throw new Error(`${reason}. Durable pin and hook metadata was not changed, but notebook runtime recovery failed (${recoveryFailures.join("; ")}); restart the notebook before retrying`, { cause: error });
+			}
+			const reason = error instanceof Error ? error.message : String(error);
+			throw new Error(`${reason}. Durable pin and hook metadata was not changed${hooksConfigured || rollbackPromotion ? "; transient notebook state was restored" : ""}`, { cause: error });
 		}
 		const retained = this.host.retainedBindings();
 		const reportedNames = withinNameBudget(names);
@@ -220,6 +246,11 @@ export class NotebookLifecycleController {
 			message: `${pinned ? "Pinned" : "Unpinned"} durable notebook bindings: ${formatNameList(names)}${hook === undefined ? "" : `; hook ${hook || "removed"}`}`,
 			details: { pinned, bindings, bindingCount: names.length, omittedBindings: names.length - bindings.length },
 		};
+	}
+
+	private async configureToolHooks(names: string[], enabled: boolean): Promise<void> {
+		const configured = await this.host.kernel()!.execute(notebookToolHooksSource(names, enabled));
+		if (configured.status !== "ok") throw new Error(`Notebook runtime bootstrap unavailable: __piNotebook.configureToolHooks: ${configured.errorText ?? configured.status}`);
 	}
 
 	private async release(names: string[], context: ToolExecutionContext, signal?: AbortSignal, preservedNames: string[] = []): Promise<NotebookControlResult> {

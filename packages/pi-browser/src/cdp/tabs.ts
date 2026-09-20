@@ -1,24 +1,78 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getDisplayPrefixLength, resolvePrefix } from "./discovery.js";
-import { getPages, waitForOpenedTarget } from "./pages.js";
+import {
+	getDisplayedPages,
+	getPageTargets,
+	waitForOpenedTarget,
+} from "./pages.js";
 import { waitForTurn } from "./serial.js";
 import type { CdpConnection, PageInfo } from "./types.js";
 import { asRecord, errorMessage } from "./types.js";
 import { assertHttpUrl } from "./url.js";
 
 const TARGET_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const SCOPE_ID = /^[a-f0-9]{64}$/;
+// Listings refresh active scopes. One connection retires at most 32 month-old
+// scopes, bounding cleanup while catching up faster than scopes are created.
+const SCOPE_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+const SCOPE_PRUNE_LIMIT = 32;
 
 function missing(error: unknown): boolean {
 	return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
+async function pruneOwnershipScopes(
+	directory: string,
+	currentScope: string,
+	now = Date.now(),
+): Promise<void> {
+	let entries;
+	try {
+		entries = await readdir(directory, { withFileTypes: true });
+	} catch (error) {
+		if (missing(error)) return;
+		throw error;
+	}
+	const stale: { path: string; mtimeMs: number }[] = [];
+	for (const entry of entries) {
+		if (
+			entry.name === currentScope ||
+			!SCOPE_ID.test(entry.name) ||
+			!entry.isDirectory()
+		)
+			continue;
+		const path = join(directory, entry.name);
+		try {
+			const info = await lstat(path);
+			if (
+				info.isDirectory() &&
+				!info.isSymbolicLink() &&
+				now - info.mtimeMs > SCOPE_TTL_MS
+			) {
+				stale.push({ path, mtimeMs: info.mtimeMs });
+			}
+		} catch (error) {
+			if (!missing(error)) throw error;
+		}
+	}
+	stale.sort((left, right) => left.mtimeMs - right.mtimeMs);
+	await Promise.all(
+		stale
+			.slice(0, SCOPE_PRUNE_LIMIT)
+			.map((scope) => rm(scope.path, { force: true, recursive: true })),
+	);
+}
+
 export class BrowserTabs {
 	private readonly cdp: CdpConnection;
 	private readonly directory: string;
+	private readonly ownershipDirectory: string;
+	private readonly scope: string;
 	private tail: Promise<void> = Promise.resolve();
 	private closed = false;
+	private prepared = false;
 
 	constructor(
 		cdp: CdpConnection,
@@ -27,12 +81,13 @@ export class BrowserTabs {
 		browserUrl: string,
 	) {
 		this.cdp = cdp;
+		this.ownershipDirectory = directory;
 		// Browser endpoint identity changes on restart, so restored tabs do not
 		// inherit an old automation session's ownership.
-		const scope = createHash("sha256")
+		this.scope = createHash("sha256")
 			.update(`${browserUrl}\0${ownerId}`)
 			.digest("hex");
-		this.directory = join(directory, scope);
+		this.directory = join(directory, this.scope);
 	}
 
 	list(signal?: AbortSignal): Promise<PageInfo[]> {
@@ -48,9 +103,14 @@ export class BrowserTabs {
 		action: () => Promise<T>,
 		signal?: AbortSignal,
 	): Promise<T> {
-		const pending = this.tail.then(() => {
+		const pending = this.tail.then(async () => {
 			signal?.throwIfAborted();
 			if (this.closed) throw new Error("Browser session closed");
+			if (!this.prepared) {
+				await this.touchDirectory();
+				await pruneOwnershipScopes(this.ownershipDirectory, this.scope);
+				this.prepared = true;
+			}
 			return action();
 		});
 		this.tail = pending.then(
@@ -64,7 +124,8 @@ export class BrowserTabs {
 		// Read ownership first so a concurrent creation is not pruned against an
 		// older browser target snapshot.
 		const owned = await this.readOwned();
-		const pages = await getPages(this.cdp, signal);
+		const targets = await getPageTargets(this.cdp, signal);
+		const pages = getDisplayedPages(targets);
 		const known = new Set(owned);
 		// Resolve descendants before removing closed openers from the registry.
 		let changed = true;
@@ -82,7 +143,7 @@ export class BrowserTabs {
 				changed = true;
 			}
 		}
-		const live = new Set(pages.map((page) => page.targetId));
+		const live = new Set(targets.map((page) => page.targetId));
 		await Promise.all(
 			owned.filter((id) => !live.has(id)).map((id) => this.forget(id)),
 		);
@@ -175,10 +236,8 @@ export class BrowserTabs {
 	}
 
 	private async readOwned(): Promise<string[]> {
+		if (!(await this.touchDirectory())) return [];
 		try {
-			const info = await lstat(this.directory);
-			if (!info.isDirectory() || info.isSymbolicLink())
-				throw new Error("Invalid browser ownership directory");
 			const files = await readdir(this.directory, { withFileTypes: true });
 			for (const file of files) {
 				if (!file.isFile() || !TARGET_ID.test(file.name))
@@ -189,6 +248,20 @@ export class BrowserTabs {
 			return files.map((file) => file.name);
 		} catch (error) {
 			if (missing(error)) return [];
+			throw error;
+		}
+	}
+
+	private async touchDirectory(): Promise<boolean> {
+		try {
+			const info = await lstat(this.directory);
+			if (!info.isDirectory() || info.isSymbolicLink())
+				throw new Error("Invalid browser ownership directory");
+			const now = new Date();
+			await utimes(this.directory, now, now);
+			return true;
+		} catch (error) {
+			if (missing(error)) return false;
 			throw error;
 		}
 	}

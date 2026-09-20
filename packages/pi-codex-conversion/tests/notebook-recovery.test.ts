@@ -58,13 +58,14 @@ test("notebook recovery preserves durable state and can unpin without startup", 
 	writeFileSync(join(paths.directory, "npm-imports.json"), `${JSON.stringify({ schema: 1, project, imports: ["npm:example@1.2.3"] })}\n`);
 	const extensionContext = { cwd: project, sessionManager: { getSessionId: () => "session-id", getBranch: () => [] } };
 	const events: string[] = [];
-	const controller = new NotebookRecoveryController({ agentDir, maxBytes: 8 * 1024 * 1024 }, {
+	const host = {
 		stopWithoutCheckpoint: async () => { events.push("stop"); return undefined; },
 		startClean: async () => { events.push("start"); },
 		checkpointEmpty: async () => { events.push("checkpoint"); },
 		configuredProfileActive: () => false,
-		runtimeHealth: () => ({ state: "ready" }),
-	});
+		runtimeHealth: () => ({ state: "ready" as const }),
+	} as const;
+	const controller = new NotebookRecoveryController({ agentDir, maxBytes: 8 * 1024 * 1024 }, host);
 	try {
 		const result = await controller.reset({ cwd: project, extensionContext } as never);
 		const restored = readProjectStateManifest(paths.manifest);
@@ -82,6 +83,17 @@ test("notebook recovery preserves durable state and can unpin without startup", 
 		assert.equal(unpinned?.entries[0]?.hook, undefined);
 		assert.notEqual(unpinned?.generation, restored?.generation);
 		assert.deepEqual(readFileSync(join(paths.directory, manifest.payload)), payload);
+
+		for (const [condition, maxBytes] of [["missing", 8 * 1024 * 1024], ["corrupt", 8 * 1024 * 1024], ["oversized", payload.length - 1]] as const) {
+			writeFileSync(paths.manifest, `${JSON.stringify({ ...manifest, generation: `generation-${condition}` })}\n`);
+			if (condition === "missing") rmSync(join(paths.directory, manifest.payload), { force: true });
+			else writeFileSync(join(paths.directory, manifest.payload), condition === "corrupt" ? Buffer.from("corrupt") : payload);
+			await new NotebookRecoveryController({ agentDir, maxBytes }, host)
+				.unpin(["prReview"], { cwd: project, extensionContext } as never);
+			const recovered = readProjectStateManifest(paths.manifest);
+			assert.equal(recovered?.entries[0]?.pinned, undefined, condition);
+			assert.equal(recovered?.entries[0]?.hook, undefined, condition);
+		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -157,7 +169,7 @@ test("terminating a notebook cell invalidates its kernel before another cell can
 	assert.equal(quickKernel, undefined);
 });
 
-test("notebook restart bypasses capture after the runtime is invalidated", async () => {
+test("notebook lifecycle recovers invalid runtimes and failed pin transactions", async () => {
 	let checkpoints = 0;
 	let prepares = 0;
 	let restarts = 0;
@@ -185,6 +197,61 @@ test("notebook restart bypasses capture after the runtime is invalidated", async
 	assert.equal(prepares, 0);
 	assert.equal(restarts, 1);
 	assert.match(result.message, /restarted from the last completed checkpoint/);
+
+	let configurationFails = true;
+	let checkpointFails = false;
+	let durableHook: "tool_result" | undefined;
+	let runtimeHook = false;
+	let promoted = false;
+	const kernel = {
+		complete: async () => ["setup"],
+		execute: async (source: string) => {
+			if (configurationFails) return { status: "error", items: [], errorText: "configure rejected" };
+			runtimeHook = !source.includes('["setup", null]');
+			return { status: "ok", items: [] };
+		},
+	};
+	const pins = new NotebookLifecycleController({
+		prepare: async () => {},
+		diagnostics: async () => ({ message: "", details: {} }),
+		reset: async () => ({ message: "", details: {} }),
+		kernel: () => kernel,
+		activeCellId: () => undefined,
+		stopActive: async () => undefined,
+		checkpoint: async () => {
+			if (checkpointFails) throw new Error("checkpoint rejected");
+			durableHook = "tool_result";
+		},
+		retainedBindings: () => [],
+		promoteBindings: async () => {
+			promoted = true;
+			return async () => { promoted = false; };
+		},
+		markChanged: () => {},
+		restart: async () => undefined,
+		rollback: async () => {},
+		baselineNames: () => new Set(),
+		profileStorage: () => ({ agentDir: "/tmp", maxBytes: 8 * 1024 * 1024 }),
+		runtimeHealth: () => ({ state: "ready" }),
+		metadata: () => ({ userCells: 0, checkpoint: {} }),
+	} as never);
+	await assert.rejects(
+		pins.control({ action: "pin", names: ["setup"], hook: "tool_result" }, { cwd: "/tmp", extensionContext: {} } as never),
+		/configure rejected.*Durable pin and hook metadata was not changed/,
+	);
+	assert.equal(durableHook, undefined);
+	assert.equal(runtimeHook, false);
+	assert.equal(promoted, false);
+
+	configurationFails = false;
+	checkpointFails = true;
+	await assert.rejects(
+		pins.control({ action: "pin", names: ["setup"], hook: "tool_result" }, { cwd: "/tmp", extensionContext: {} } as never),
+		/checkpoint rejected.*transient notebook state was restored/,
+	);
+	assert.equal(durableHook, undefined);
+	assert.equal(runtimeHook, false);
+	assert.equal(promoted, false);
 });
 
 function diagnostic(cellId: string, cellIndex: number, name = "r", severity: NotebookDiagnostic["severity"] = "warning", source = "deno"): NotebookDiagnostic {

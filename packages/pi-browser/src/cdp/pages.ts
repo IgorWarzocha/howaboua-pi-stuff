@@ -15,7 +15,7 @@ function pageInfo(value: unknown): PageInfo {
 	};
 }
 
-export async function getPages(
+export async function getPageTargets(
 	cdp: CdpConnection,
 	signal?: AbortSignal,
 ): Promise<PageInfo[]> {
@@ -27,11 +27,11 @@ export async function getPages(
 	if (!Array.isArray(targetInfos)) {
 		throw new Error("Target.getTargets response has no targetInfos");
 	}
-	return targetInfos
-		.map(pageInfo)
-		.filter(
-			(target) => target.type === "page" && !target.url.startsWith("chrome://"),
-		);
+	return targetInfos.map(pageInfo).filter((target) => target.type === "page");
+}
+
+export function getDisplayedPages(targets: PageInfo[]): PageInfo[] {
+	return targets.filter((target) => !target.url.startsWith("chrome://"));
 }
 
 export async function waitForOpenedTarget(

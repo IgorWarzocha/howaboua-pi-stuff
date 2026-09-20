@@ -64,7 +64,6 @@ export function projectStateBindingNames(identity: { project: string; agentDir: 
 export async function unpinProjectStateBindings(
 	identity: { project: string; agentDir: string },
 	names: string[],
-	maxBytes: number,
 	signal?: AbortSignal,
 ): Promise<void> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
@@ -72,8 +71,7 @@ export async function unpinProjectStateBindings(
 	await withProjectStateLock(paths.lock, async () => {
 		signal?.throwIfAborted();
 		const manifest = readProjectStateManifest(paths.manifest);
-		if (!manifest || manifest.project !== resolve(identity.project)
-			|| !readProjectStatePayload(manifest, join(paths.directory, manifest.payload), maxBytes)) {
+		if (!manifest || manifest.project !== resolve(identity.project)) {
 			throw new Error("Durable notebook state is missing or invalid; it was preserved");
 		}
 		const selected = new Set(names);
