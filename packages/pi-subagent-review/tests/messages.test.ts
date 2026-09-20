@@ -79,9 +79,9 @@ test("review findings remain lower authority than the promoted preface", () => {
 			})),
 		}) as { input: Array<{ role: string; content: string }> };
 
-		expect(result.input.filter((item) => item.role === "developer")).toHaveLength(
-			1,
-		);
+		expect(
+			result.input.filter((item) => item.role === "developer"),
+		).toHaveLength(1);
 		const findings = result.input.filter((item) => item.content.includes(raw));
 		expect(findings).toHaveLength(2);
 		expect(findings.map((item) => item.role)).toEqual(["user", "user"]);

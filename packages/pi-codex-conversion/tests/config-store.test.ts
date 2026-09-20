@@ -18,7 +18,6 @@ test("trusted folder config overrides globals without crossing folder or process
 	try {
 		const globalPath = join(root, "agent", "pi-codex-conversion.json");
 		const project = join(root, "project");
-		const projectPath = getProjectCodexConversionConfigPath(project);
 		mkdirSync(join(root, "agent"), { recursive: true });
 		mkdirSync(join(project, ".pi"), { recursive: true });
 		writeFileSync(globalPath, JSON.stringify({ openai: { cacheKeepalive: true } }));

@@ -57,7 +57,7 @@ function webpSize(buffer: Buffer): ImageSize | undefined {
   throw new Error("WebP dimensions were not found.");
 }
 
-export function imageSize(buffer: Buffer): ImageSize {
+function imageSize(buffer: Buffer): ImageSize {
   const pngSignature = "89504e470d0a1a0a";
   if (buffer.length >= 24 && buffer.subarray(0, 8).toString("hex") === pngSignature) {
     return { format: "png", width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };

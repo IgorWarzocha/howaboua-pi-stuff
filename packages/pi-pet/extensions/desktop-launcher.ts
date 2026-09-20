@@ -175,7 +175,7 @@ main()
   .finally(() => { clearInterval(heartbeat); clearTimeout(stopTimer); });
 `;
 
-export interface DesktopProcessSpec {
+interface DesktopProcessSpec {
   program: string;
   args: string[];
   source: string;
@@ -197,11 +197,7 @@ function packagedDesktopSource(): { files: Record<string, string>; packageVersio
   return { files, packageVersion: manifest.version, sourceDigest: digest.digest("hex") };
 }
 
-export function remoteDesktopProcessSpec(
-  target: string,
-  gippityUrl: string,
-  useSshSourceAddress = false,
-): DesktopProcessSpec {
+function remoteDesktopProcessSpec(target: string, gippityUrl: string, useSshSourceAddress = false): DesktopProcessSpec {
   const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
   const options = { ...packagedDesktopSource(), gippityUrl: origin, useSshSourceAddress };
   return {
@@ -211,7 +207,7 @@ export function remoteDesktopProcessSpec(
   };
 }
 
-export function localDesktopProcessSpec(gippityUrl: string): DesktopProcessSpec {
+function localDesktopProcessSpec(gippityUrl: string): DesktopProcessSpec {
   const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
   const agentDirectory = process.env["PI_CODING_AGENT_DIR"]?.trim() || join(homedir(), ".pi", "agent");
   const options = {

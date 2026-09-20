@@ -5,15 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parseDeviceRegistry } from "../extensions/desktop-config.ts";
-import {
-  parseAttentionPreferences,
-} from "../src/desktop/attention.ts";
+import { parseAttentionPreferences } from "../src/desktop/attention.ts";
 import { parseDesktopCursorPosition } from "../src/desktop/bridge.ts";
 import { desktopDisplayUrl, loadDesktopConfig, parseDesktopConfig, parseSshTarget } from "../src/desktop/config.ts";
-import {
-  hyprlandCursorSocket,
-  readHyprlandCursor,
-} from "../src/desktop/cursor-provider.ts";
+import { hyprlandCursorSocket, readHyprlandCursor } from "../src/desktop/cursor-provider.ts";
 
 const HTTPS_ORIGIN_PATTERN = /HTTPS origin/;
 const PATH_PATTERN = /must not contain a path/;

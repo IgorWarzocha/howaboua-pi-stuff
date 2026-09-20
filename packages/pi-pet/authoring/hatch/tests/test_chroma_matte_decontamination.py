@@ -107,23 +107,27 @@ class ChromaMatteDecontaminationTest(unittest.TestCase):
         self.assertGreater(report["spill_suppressed_pixels"], 0)
 
     def test_preserves_non_key_opaque_boundary_color(self) -> None:
-        image = Image.new("RGBA", (9, 9), (0, 0, 0, 0))
-        for y in range(2, 7):
-            for x in range(2, 7):
-                image.putpixel((x, y), (20, 90, 210, 255))
-        for y in range(3, 6):
-            for x in range(3, 6):
-                image.putpixel((x, y), (10, 60, 160, 255))
+        for boundary, interior in [
+            ((20, 90, 210, 255), (10, 60, 160, 255)),
+            ((101, 100, 101, 255), (20, 20, 20, 255)),
+        ]:
+            image = Image.new("RGBA", (9, 9), (0, 0, 0, 0))
+            for y in range(2, 7):
+                for x in range(2, 7):
+                    image.putpixel((x, y), boundary)
+            for y in range(3, 6):
+                for x in range(3, 6):
+                    image.putpixel((x, y), interior)
 
-        cleaned, report = DESPILL.decontaminate_image(
-            image,
-            chroma_key=(255, 0, 255),
-            edge_radius=2,
-            spill_tolerance=0.04,
-        )
+            cleaned, report = DESPILL.decontaminate_image(
+                image,
+                chroma_key=(255, 0, 255),
+                edge_radius=2,
+                spill_tolerance=0.04,
+            )
 
-        self.assertEqual(cleaned.getpixel((2, 4)), image.getpixel((2, 4)))
-        self.assertEqual(report["spill_suppressed_pixels"], 0)
+            self.assertEqual(cleaned.getpixel((2, 4)), boundary)
+            self.assertEqual(report["spill_suppressed_pixels"], 0)
 
     def test_extends_interior_color_through_non_key_translucent_edge(self) -> None:
         image = Image.new("RGBA", (7, 7), (0, 0, 0, 0))

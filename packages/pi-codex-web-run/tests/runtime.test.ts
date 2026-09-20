@@ -1,20 +1,32 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { createEventBus } from "@earendil-works/pi-coding-agent";
 import { ChatGptCloudflareCookieStore } from "../src/codex-runtime/cloudflare-cookies.js";
 import {
 	isCodexToolRoute,
-	normalizeCodexToolRouteConfig,
+	readCodexToolRouteConfig,
 	resolveCodexToolModel,
 } from "../src/codex-runtime/config.js";
 import { fetchCodexTool } from "../src/codex-runtime/http.js";
+import { resolveHostedCodexToolProvider } from "../src/codex-runtime/policy.js";
 import { resolveCodexToolProvider } from "../src/codex-runtime/resolve.js";
 
-test("Codex requests preserve configured routing and bounded HTTP state", async () => {
-	const routes = normalizeCodexToolRouteConfig({
-		providers: {
-			"Company-Codex": { "gpt-5.6-luna": "company-luna" },
-		},
-	});
+test("Codex requests preserve configured routing and bounded HTTP state", async (t) => {
+	const directory = mkdtempSync(join(tmpdir(), "codex-routes-"));
+	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	const configPath = join(directory, "pi-codex-tools.json");
+	writeFileSync(
+		configPath,
+		JSON.stringify({
+			providers: {
+				"Company-Codex": { "gpt-5.6-luna": "company-luna" },
+			},
+		}),
+	);
+	const routes = readCodexToolRouteConfig(configPath);
 	assert.equal(
 		resolveCodexToolModel(
 			routes,
@@ -52,6 +64,41 @@ test("Codex requests preserve configured routing and bounded HTTP state", async 
 			token: "token",
 			accountId: "account",
 		},
+	);
+
+	const pi = { events: createEventBus() };
+	const provider = { token: "hosted-provider-token" };
+	pi.events.on(
+		"@howaboua/pi-codex-conversion.provider-resolver/v1",
+		(request) => {
+			const { use } = request as {
+				use(
+					resolver: (ctx: {
+						model: { provider: string };
+					}) => Promise<typeof provider>,
+				): void;
+			};
+			use(async (ctx) => {
+				assert.equal(ctx.model.provider, "openai-codex");
+				return provider;
+			});
+		},
+	);
+	assert.equal(
+		await resolveHostedCodexToolProvider(
+			pi as never,
+			{
+				model: { provider: "meta", api: "openai-responses", id: "muse" },
+				modelRegistry: {
+					find: () => ({
+						provider: "openai-codex",
+						api: "openai-codex-responses",
+						id: "gpt-5.6-luna",
+					}),
+				},
+			} as never,
+		),
+		provider,
 	);
 
 	const cookies = new ChatGptCloudflareCookieStore();

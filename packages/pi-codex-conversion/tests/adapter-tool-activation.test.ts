@@ -127,8 +127,9 @@ test("adapter activation requires registered tools and follows scope independent
 	const registration = registerCodeModeExtensionTools(
 		dynamic as never,
 		() => [{
-			name: "agents",
+			name: "orchestration__agents",
 			topLevelName: "agents",
+			toolName: { namespace: "orchestration", name: "agents" },
 			usage: "await tools.agents(input)",
 			deferLoading: false,
 			kind: "function",
@@ -149,21 +150,28 @@ test("adapter activation requires registered tools and follows scope independent
 		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).map(
 			(tool) => tool.name,
 		),
-		["agents"],
+		["orchestration__agents"],
 	);
+	assert.equal(dynamic.activeTools().includes("agents"), false);
+	dynamic.registerTool({ name: "temporary" });
+	dynamic.setActiveTools(["wait", "read", "temporary"]);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(dynamic.activeTools(), ["wait", "read", "temporary"]);
 	dynamicState.executionMode = "normal";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.equal(dynamic.activeTools().includes("agents"), true);
+	assert.equal(dynamic.activeTools().includes("temporary"), true);
 
 	dynamicState.executionMode = "code";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(dynamic.activeTools(), ["exec", "wait", "temporary"]);
 	assert.deepEqual(
 		getCodeModeExtensionTools(
 			dynamic as never,
 			dynamicContext as never,
 			dynamicState.previousToolNames,
 		).map((tool) => tool.name),
-		["agents"],
+		["orchestration__agents"],
 	);
 
 	registration.unregister();

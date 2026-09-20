@@ -31,9 +31,12 @@ test("tab and page results remain bounded with visible continuations", () => {
 		},
 	];
 	assert.deepEqual(
-		boundTabs(ownedPages, undefined, 0, true)["tabs"].map(
-			(tab) => tab["ref_id"],
-		),
+		(
+			boundTabs(ownedPages, undefined, 0, true)["tabs"] as Record<
+				string,
+				unknown
+			>[]
+		).map((tab) => tab["ref_id"]),
 		["12345678A"],
 	);
 	const pathological = boundSnapshot({

@@ -205,10 +205,7 @@ test("routes discovered guidance once across persistence and delivery boundaries
 	assert.deepEqual(
 		files(
 			await harness(cwd).discover(
-				event(
-					{ cmd: "cd ../sibling && ls ./pkg" },
-					"exec_command",
-				),
+				event({ cmd: "cd ../sibling && ls ./pkg" }, "exec_command"),
 			),
 		).map((file) => file.path),
 		["../sibling/AGENTS.md", "../sibling/pkg/AGENTS.md"],
@@ -250,7 +247,10 @@ test("routes discovered guidance once across persistence and delivery boundaries
 	assert.equal(await routed.discover(read), undefined);
 	assert.equal(routed.messages.length, 1);
 	assert.equal(routed.messages[0]?.customType, "subdir-agents-context");
-	assert.match(String(routed.messages[0]?.content), /<subdirectory_agents_context>/);
+	assert.match(
+		String(routed.messages[0]?.content),
+		/<subdirectory_agents_context>/,
+	);
 	routed.persistMessage();
 	routed.reset();
 	assert.equal(await routed.discover(read), undefined);
