@@ -13,5 +13,4 @@ Codex Conversion, Imagegen, and Subagent Review require Pi 0.87.0 or newer.
 - Context reminders no longer start an extra checkpoint turn if the current run already saved a note in the current window.
 - Fixed Imagegen recent-image selection ignoring context removals and replacements.
 - Fixed review summaries and preface tracking ignoring context removals and replacements.
-- Review findings ready at settlement now arrive together with triage instead of as separate follow-up messages. Late findings are saved without restarting stopped work.
 - Kept GipPity browser turn notifications from including full context previews and losing their fields to truncation.

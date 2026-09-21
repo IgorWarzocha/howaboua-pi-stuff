@@ -26,7 +26,7 @@ Anything after `/review` becomes additional reviewer guidance. A leading `loop` 
 
 Findings are advisory. The command tells the main agent to verify and categorize them against the current implementation and session context, then get your disposition before making changes.
 
-If findings finish while the main agent is working, they arrive together with triage instructions before it settles. The main agent does not wait for an unfinished reviewer. Findings arriving too late for that delivery are saved for your next message, without restarting a potentially stopped run. Review-loop tree navigation still waits for idle.
+`/review` waits for current agent work to finish, runs the reviewer, then sends its findings back to the main agent.
 
 With a compatible optional Pi Codex Responses adapter, the review preface uses developer-role policy. Raw findings and triage instructions remain lower-authority messages. Idle delivery starts a normal user-message turn.
 

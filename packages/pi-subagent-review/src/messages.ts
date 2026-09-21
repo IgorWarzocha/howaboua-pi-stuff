@@ -177,19 +177,30 @@ function buildReviewFindingsMessage(
 	].join("\n");
 }
 
-export function buildReviewFindings(review: ReviewContext, findings: string) {
+export function sendReviewFindings(
+	pi: ExtensionAPI,
+	ctx: ExtensionCommandContext,
+	review: ReviewContext,
+	findings: string,
+): void {
 	const normalizedFindings = findings.trim();
-	return {
-		entry: {
-			type: "custom_message" as const,
+	const idle = ctx.isIdle();
+	pi.sendMessage(
+		{
 			customType: REVIEW_FINDINGS_MESSAGE_TYPE,
 			content: buildReviewFindingsMessage(review, findings),
 			display: true,
 			details: { repoRoot: review.repoRoot, scope: review.scope },
 		},
-		triage:
-			normalizedFindings && normalizedFindings !== "No actionable issues found."
-				? REVIEW_FINDINGS_FOLLOW_UP
-				: undefined,
-	};
+		idle ? { triggerTurn: false } : { deliverAs: "followUp" },
+	);
+	if (
+		!normalizedFindings ||
+		normalizedFindings === "No actionable issues found."
+	)
+		return;
+	pi.sendUserMessage(
+		REVIEW_FINDINGS_FOLLOW_UP,
+		idle ? undefined : { deliverAs: "followUp" },
+	);
 }
