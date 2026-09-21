@@ -7,6 +7,7 @@ import {
 	createAssistantMessageEventStream,
 	type Model,
 	type SimpleStreamOptions,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import {
 	type ExtensionCommandContext,
@@ -141,11 +142,20 @@ function summarize(
 	signal?: AbortSignal,
 ) {
 	const sessionManager = SessionManager.inMemory(process.cwd());
-	sessionManager.appendMessage({
+	const replaced = sessionManager.appendMessage({
 		role: "user",
-		content: "Please review this change",
+		content: "Superseded review direction",
 		timestamp: Date.now(),
 	});
+	const omitted = sessionManager.appendCustomMessageEntry(
+		"old-context",
+		"Omitted review context",
+		false,
+	);
+	sessionManager.appendContextEdit(replaced, {
+		content: "Please review this change",
+	});
+	sessionManager.appendContextEdit(omitted, null);
 	const ctx = {
 		cwd: process.cwd(),
 		modelRegistry,
@@ -181,12 +191,14 @@ async function summarizeWithAuth(
 	});
 	registry = new ModelRegistry(runtime);
 	let receivedOptions: SimpleStreamOptions | undefined;
+	let receivedContext: TranscriptContext | undefined;
 	registry.registerProvider(PROVIDER, {
 		baseUrl: "https://summary.invalid/v1",
 		api: API,
 		...authConfig,
-		streamSimple(model, _context, options) {
+		streamSimple(model, context, options) {
 			receivedOptions = options;
+			receivedContext = context;
 			return responseStream(options, model).stream;
 		},
 		models: [
@@ -204,7 +216,7 @@ async function summarizeWithAuth(
 	await runtime.refresh({ allowNetwork: false });
 
 	const summary = await summarize(registry);
-	return { summary, receivedOptions };
+	return { summary, receivedOptions, receivedContext };
 }
 
 test("uses the public Pi session path for extension-registered providers", async () => {
@@ -220,6 +232,10 @@ test("uses the public Pi session path for extension-registered providers", async
 	);
 
 	expect(result.summary).toBe("Review context summary");
+	const request = JSON.stringify(result.receivedContext);
+	expect(request).toContain("Please review this change");
+	expect(request).not.toContain("Superseded review direction");
+	expect(request).not.toContain("Omitted review context");
 	expect(result.receivedOptions?.apiKey).toBe("stored-key");
 	expect(result.receivedOptions?.headers?.Authorization).toBe(
 		"Bearer stored-key",

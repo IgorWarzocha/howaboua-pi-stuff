@@ -12,7 +12,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 0.86.0 or newer and Node.js 22.19 or newer.
+Requires Pi 0.87.0 or newer and Node.js 22.19 or newer.
 
 Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
@@ -59,7 +59,7 @@ Structured mode has no separate text `read`, `edit` or `write` tool. The model i
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-On Pi 0.86, change tool loadouts between runs. If another extension changes active tools during a tool loop, Pi updates the native tool schemas but retains this extension's prepared prompt sections until the next prepared turn. Code and Notebook instructions can therefore describe tools that are no longer active.
+Change tool loadouts between runs. If another extension changes active tools during a tool loop, Pi updates the native tool schemas but retains this extension's prepared prompt sections until the next prepared turn. Code and Notebook instructions can therefore describe tools that are no longer active.
 
 ## Settings
 

@@ -531,7 +531,7 @@ export function registerCodexEvents(
 			runtime.voice.compactionFinished();
 		}
 	});
-	pi.on("context", async (event, ctx) => {
+	pi.on("context_with_system", async (event, ctx) => {
 		let messages = runtime.projectContextMessages(ctx, event.messages);
 		const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 		if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))

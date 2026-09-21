@@ -1,6 +1,6 @@
 import type {
 	ExtensionCommandContext,
-	SessionEntry,
+	ProjectedSessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { completeSummary } from "./summary-session.js";
 import type { ResolvedReviewConfig } from "./types.js";
@@ -23,20 +23,27 @@ function textFromContent(content: unknown): string {
 		.join("\n");
 }
 
-function serializeEntry(entry: SessionEntry): string | undefined {
+function serializeEntry({
+	sourceEntry: entry,
+	messages,
+}: ProjectedSessionEntry): string | undefined {
 	switch (entry.type) {
 		case "message": {
-			const message = entry.message as { role?: string; content?: unknown };
+			const message = messages[0];
+			if (!message || !("content" in message)) return undefined;
 			const text = textFromContent(message.content).trim();
 			if (!text) return undefined;
-			return `## ${message.role || "message"} (${entry.timestamp})\n${text}`;
+			return `## ${message.role} (${entry.timestamp})\n${text}`;
 		}
 		case "branch_summary":
 			return `## branch summary (${entry.timestamp})\n${entry.summary}`;
 		case "compaction":
+			if (messages.length === 0) return undefined;
 			return `## compaction summary (${entry.timestamp})\n${entry.summary}`;
 		case "custom_message": {
-			const text = textFromContent(entry.content).trim();
+			const message = messages[0];
+			if (message?.role !== "custom") return undefined;
+			const text = textFromContent(message.content).trim();
 			if (!text) return undefined;
 			return `## custom message: ${entry.customType} (${entry.timestamp})\n${text}`;
 		}
@@ -49,7 +56,7 @@ function serializeEntry(entry: SessionEntry): string | undefined {
 	}
 }
 
-function buildSummaryInput(entries: SessionEntry[]): string {
+function buildSummaryInput(entries: ProjectedSessionEntry[]): string {
 	return entries
 		.map(serializeEntry)
 		.filter((value): value is string => Boolean(value))
@@ -107,7 +114,7 @@ export async function buildReviewConversationSummary(
 	if (!config.summary.enabled) return undefined;
 
 	const conversation = buildSummaryInput(
-		ctx.sessionManager.buildContextEntries(),
+		ctx.sessionManager.buildSessionProjection().entries,
 	);
 	if (!conversation.trim()) return undefined;
 

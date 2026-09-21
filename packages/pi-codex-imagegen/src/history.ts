@@ -1,14 +1,14 @@
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { SessionProjection } from "@earendil-works/pi-coding-agent";
 
 export function recentConversationImageUrls(
-	entries: readonly SessionEntry[],
+	messages: Readonly<SessionProjection["messages"]>,
 	count: number,
 ): string[] {
 	const images: string[] = [];
-	for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex--) {
-		const entry = entries[entryIndex];
-		if (!entry) continue;
-		const content = contentFromEntry(entry);
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (!message || !("content" in message)) continue;
+		const content = message.content;
 		if (!Array.isArray(content)) continue;
 		for (
 			let contentIndex = content.length - 1;
@@ -22,17 +22,6 @@ export function recentConversationImageUrls(
 		}
 	}
 	return images.reverse();
-}
-
-function contentFromEntry(entry: SessionEntry): unknown {
-	if (entry.type === "custom_message") return entry.content;
-	if (
-		entry.type !== "message" ||
-		!entry.message ||
-		typeof entry.message !== "object"
-	)
-		return undefined;
-	return "content" in entry.message ? entry.message.content : undefined;
 }
 
 function imageDataUrl(value: unknown): string | undefined {
