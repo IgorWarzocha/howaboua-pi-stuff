@@ -71,6 +71,26 @@ test("context windows preserve rollover and native request semantics", async () 
 		},
 	}) as never;
 
+	manager.beginTurn(ctx);
+	const staleWrite = manager.trackNoteWrite(ctx);
+	manager.clearTurnNotes();
+	manager.beginTurn(ctx);
+	staleWrite();
+	assert.equal(manager.recordBudget(ctx, true, 230_000), undefined);
+	const reminder = manager.recordBudget(ctx, true, 232_000);
+	assert.equal(reminder?.type, "custom_message");
+	assert.match(String(reminder?.content), /context_window_reminder/);
+	assert.equal(contextMessages.length, 1, "boundary drafts must not enqueue steering");
+	assert.equal(manager.recordBudget(ctx, true, 232_000), undefined);
+	manager.trackNoteWrite(ctx)();
+	assert.equal(manager.recordBudget(ctx, true, 250_000), undefined);
+	manager.beginTurn(ctx);
+	assert.equal(manager.recordBudget(ctx, true, 250_000), undefined, "continuation keeps note credit");
+	manager.clearTurnNotes();
+	manager.beginTurn(ctx);
+	assert.match(String(manager.recordBudget(ctx, true, 250_000)?.content), /Urgent/);
+	assert.equal(manager.recordBudget(ctx, true, 250_000), undefined);
+
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), { cancel: true });
 	assert.equal(await manager.startNewWindow(contextPi, ctx, {
 		mode: "remote",

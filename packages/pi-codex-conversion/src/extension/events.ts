@@ -245,11 +245,8 @@ export function registerCodexEvents(
 			}
 		})) return;
 		if (state.contextTree.handoff.active) return;
-		state.contextWindows.recordBudget(
-			pi,
-			ctx,
-			plan.contextManagement,
-		);
+		const reminder = state.contextWindows.recordBudget(ctx, plan.contextManagement);
+		if (reminder) return { entries: [...event.entries, reminder], continue: true };
 	});
 	pi.on("message_update", async (event) => {
 		runtime.voice.streamUpdate(event.assistantMessageEvent);
