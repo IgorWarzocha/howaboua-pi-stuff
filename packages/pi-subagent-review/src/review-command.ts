@@ -3,13 +3,12 @@ import { resolveReviewConfig } from "./config.js";
 import { REVIEW_COMMAND } from "./constants.js";
 import { buildReviewConversationSummary } from "./conversation-summary.js";
 import {
-	announceReviewFindingsReady,
 	announceReviewSummaryStarted,
 	type ReviewDeveloperMessages,
-	sendReviewFindings,
 	sendReviewPreface,
 } from "./messages.js";
 import { detectReviewContext } from "./review-context.js";
+import { registerReviewDelivery } from "./review-delivery.js";
 import {
 	appendReviewLoopBoundary,
 	applyReviewLoopMarker,
@@ -32,6 +31,7 @@ export function registerReviewCommand(
 	navigateWithSummaryModel: NavigateWithSummaryModel,
 	developerMessages?: ReviewDeveloperMessages,
 ) {
+	const sendReviewFindings = registerReviewDelivery(pi);
 	pi.registerCommand(REVIEW_COMMAND, {
 		description:
 			"Run an isolated code-review subagent; in a JJ workspace, pass stack=<ancestor revset> to review a cumulative stack",
@@ -132,6 +132,7 @@ export function registerReviewCommand(
 				}
 			}
 
+			const reviewLeafId = ctx.sessionManager.getLeafId();
 			reviewConfig ??= await resolveReviewConfig(pi, ctx);
 			let conversationSummary: string | undefined;
 			let details = createChildRunDetails("", review.repoRoot, reviewConfig);
@@ -190,12 +191,7 @@ export function registerReviewCommand(
 						details.errorMessage || details.stderr || finalOutput,
 					);
 
-				sendReviewFindings(pi, ctx, review, finalOutput);
-				announceReviewFindingsReady(pi);
-				ctx.ui.notify(
-					`Review findings sent back to the main agent from /${REVIEW_COMMAND}.`,
-					"info",
-				);
+				sendReviewFindings(ctx, review, finalOutput, reviewLeafId);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				details.exitCode = details.exitCode || 1;

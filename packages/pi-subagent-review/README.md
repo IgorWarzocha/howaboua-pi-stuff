@@ -4,6 +4,8 @@ Adds `/review`, which sends the current repository state to an isolated review s
 
 ## Install
 
+Requires Pi 0.87.0 or newer.
+
 ```bash
 pi install npm:@howaboua/pi-subagent-review
 ```
@@ -22,9 +24,11 @@ Run `/reload` after installation if Pi is already open.
 
 Anything after `/review` becomes additional reviewer guidance. A leading `loop` starts review-loop mode and is removed from that guidance. In a JJ workspace, `stack=<ancestor revset>` selects a cumulative review base and is removed from that guidance; quote a revset containing spaces. Only one `stack=` argument is accepted.
 
-Findings are advisory. The command tells the main agent to verify and categorize them against the current implementation and session context rather than treating them as a TODO list.
+Findings are advisory. The command tells the main agent to verify and categorize them against the current implementation and session context, then get your disposition before making changes.
 
-With a compatible optional Pi Codex Responses adapter, the review preface and triage follow-up use developer-role policy. The preface keeps its existing display and deduplication; the follow-up appears as an extension developer message rather than user input. Raw reviewer findings remain lower-authority custom-message content. Without the API or active adapter, ordinary Pi delivery is unchanged.
+If findings finish while the main agent is working, they arrive together with triage instructions before it settles. The main agent does not wait for an unfinished reviewer. Findings arriving too late for that delivery are saved for your next message, without restarting a potentially stopped run. Review-loop tree navigation still waits for idle.
+
+With a compatible optional Pi Codex Responses adapter, the review preface uses developer-role policy. Raw findings and triage instructions remain lower-authority messages. Idle delivery starts a normal user-message turn.
 
 ## Review scope
 
