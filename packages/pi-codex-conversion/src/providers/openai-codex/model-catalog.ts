@@ -43,7 +43,7 @@ const SUPPLEMENTAL_MODELS: Model<"openai-codex-responses">[] = [
 		input: ["text", "image"],
 		// The live Codex catalogue advertises capabilities, not token prices.
 		cost: UNKNOWN_SUBSCRIPTION_COST,
-		contextWindow: tier === "Luna" ? 472_000 : 272_000,
+		contextWindow: 272_000,
 		maxTokens: 128_000,
 		thinkingLevelMap: { off: null, minimal: "low", xhigh: "xhigh", max: "max" },
 		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
