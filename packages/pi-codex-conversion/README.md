@@ -332,11 +332,11 @@ The server belongs only to the Pi session that started it and stops when that se
 
 ## Models and providers
 
-GPT-6 Astra, Sol and Luna share Responses Lite, native reasoning updates and the same terse context-window guidance. All three default to 272K context in this provider. Sol and Luna token prices are unconfirmed, so their cost counters use zero placeholders rather than estimates.
+GPT-6 Astra, Sol and Luna share Responses Lite, native reasoning updates and the same terse context-window guidance. All three default to 272K context in this provider. Cost estimates use [published Standard API rates](https://developers.openai.com/api/docs/pricing), including cache reads, cache writes and the long-context tier above 272K input tokens.
 
 The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
-Voice, usage and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. The standalone web and image-generation extensions use the same login independently.
+Voice, usage and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. Image descriptions use GPT-6 Luna. The standalone web and image-generation extensions use the same login independently.
 
 Native Responses compaction is intentionally narrower: OpenAI Codex and explicitly configured OpenAI/Codex-compatible passthrough providers only. Unsupported states fail visibly or fall back to Pi compaction rather than silently discarding context. A portable summary must be enabled before the native checkpoint that you want to carry across providers.
 
