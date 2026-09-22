@@ -15,7 +15,7 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Slash commands are for users; agents use tools. Prefer one routed entry command over several command names unless explicitly requested.
 - Amend only tiny, immediate, behavior-preserving corrections to the latest unpublished commit. Record behavior changes, revised approaches, and later fixes in new commits to preserve traceability.
 - Treat related package work from one session as one release unit: one PR or one directly, atomically merged stack. Installed users should not absorb serial cleanup releases.
-- Changed published behavior or payload requires a changeset; ordinary docs and tests do not. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.
+- Changed published behavior or payload requires a changeset; dependency-only updates, ordinary docs, and tests do not. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.
 - Changeset bodies become changelog copy: lead with one concise outcome; for broad releases add short user-facing capability bullets. Never dump implementation, tests, review history, or a multi-feature release into one prose lump.
 - Before new work on `dev`, check whether its previous `dev` → `main` PR merged. If so, use the retained `repoDance` binding for alignment, not an ad hoc reset. Preserve dirty files and unpublished commits; a blocked dance is not permission to discard them. Never merge `main` into `dev`.
 - `bun run check:changed` selects committed branch changes, not working edits; use focused package checks while editing. Prefer patch-autodetecting `bun changeset -- "summary"`; use `bun changeset:raw` only for intentional non-patch bumps.

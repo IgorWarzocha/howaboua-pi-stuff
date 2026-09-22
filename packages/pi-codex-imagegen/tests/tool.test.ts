@@ -3,7 +3,9 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { imagegenCodeModeResult } from "../index.js";
+import { recentConversationImageUrls } from "../src/history.js";
 import { buildImageGenerationRequest } from "../src/request.js";
 
 test("image generation preserves Codex request and Code Mode value contracts", async () => {
@@ -44,13 +46,36 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 		},
 	);
 	const recent = "data:image/png;base64,aW1hZ2U=";
+	const session = SessionManager.inMemory();
+	const image = (data: string) => ({
+		type: "image" as const,
+		data,
+		mimeType: "image/png",
+	});
+	const replaced = session.appendMessage({
+		role: "user",
+		content: [image("b2xk")],
+		timestamp: 1,
+	});
+	const omitted = session.appendCustomMessageEntry(
+		"image",
+		[image("b21pdHRlZA==")],
+		false,
+	);
+	session.appendContextEdit(replaced, { content: [image("aW1hZ2U=")] });
+	session.appendContextEdit(omitted, null);
+	const selected = recentConversationImageUrls(
+		session.buildSessionProjection().messages,
+		1,
+	);
+	assert.deepEqual(selected, [recent]);
 	assert.deepEqual(
 		await buildImageGenerationRequest(
 			{
 				prompt: "add snow",
 				num_last_images_to_include: 1,
 			},
-			[recent],
+			selected,
 			process.cwd(),
 		),
 		{

@@ -5,6 +5,7 @@ import { ContextWindowBudget, type ContextRemaining } from "./window-budget.ts";
 import { rewriteWindowPayload, rewriteWindowHeaders } from "./window-request.ts";
 import type {
 	CompactionResult,
+	CustomMessageEntryDraft,
 	ExtensionAPI,
 	ExtensionContext,
 	ExtensionEvent,
@@ -26,7 +27,7 @@ import {
 	isContextWindowCompactionDetails,
 	renderContextWindowMessage,
 	renderManualContextCheckpoint,
-	sendContextWindowMessage,
+	createContextWindowMessage,
 } from "./messages.ts";
 import {
 	buildTreeArchiveIndex,
@@ -90,6 +91,10 @@ export class CodexContextWindowManager {
 	}
 
 	beginTurn(ctx: ExtensionContext): void {
+		// Retries and boundary continuations share the current prepared activity.
+		if (this.turnNotes?.phase === "running" &&
+			this.turnNotes.sessionId === ctx.sessionManager.getSessionId() &&
+			this.turnNotes.windowId === this.identity?.currentWindowId) return;
 		this.turnNotes = this.identity ? {
 			sessionId: ctx.sessionManager.getSessionId(),
 			windowId: this.identity.currentWindowId,
@@ -318,17 +323,17 @@ export class CodexContextWindowManager {
 	}
 
 	recordBudget(
-		pi: ExtensionAPI,
 		ctx: ExtensionContext,
 		active: boolean,
 		contextTokens?: number,
-	): void {
+	): CustomMessageEntryDraft | undefined {
 		if (!active || !this.identity || this.rolloverPending) return;
+		const turn = this.turnNotes;
+		if (turn?.phase === "running" && turn.saved &&
+			turn.sessionId === ctx.sessionManager.getSessionId() &&
+			turn.windowId === this.identity.currentWindowId) return;
 		const reminder = this.budget.record(ctx, this.identity, contextTokens);
-		if (reminder) sendContextWindowMessage(
-			pi, reminder.content, reminder.kind, this.identity,
-			{ triggerTurn: true },
-		);
+		if (reminder) return createContextWindowMessage(reminder.content, reminder.kind, this.identity);
 	}
 
 	remaining(ctx: ExtensionContext, contextTokens?: number): ContextRemaining {
@@ -380,8 +385,8 @@ export class CodexContextWindowManager {
 		if (idle && !pending.customInstructions?.trim() && turn?.phase === "settled" && turn.saved &&
 			turn.sessionId === ctx.sessionManager.getSessionId() &&
 			turn.windowId === pending.identity.currentWindowId) return true;
-		sendContextWindowMessage(pi, renderManualContextCheckpoint(pending.customInstructions),
-			"reminder", pending.identity, { triggerTurn: !idle });
+		pi.sendMessage(createContextWindowMessage(renderManualContextCheckpoint(pending.customInstructions),
+			"reminder", pending.identity), idle ? { triggerTurn: false } : { deliverAs: "steer", triggerTurn: true });
 		if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
 			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
 		return false;
@@ -434,14 +439,12 @@ export class CodexContextWindowManager {
 		this.trimPendingWindowId = options.trimPreviousWindow
 			? identity.currentWindowId
 			: undefined;
-		sendContextWindowMessage(
-			pi,
+		pi.sendMessage(createContextWindowMessage(
 			renderContextWindowMessage(identity, threadHint),
 			"window",
 			identity,
-			{ ...options, triggerTurn: false },
 			options.trimPreviousWindow,
-		);
+		), { triggerTurn: false });
 	}
 
 }

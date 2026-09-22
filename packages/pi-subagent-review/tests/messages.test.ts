@@ -47,6 +47,13 @@ test("review findings remain lower authority than the promoted preface", () => {
 
 	try {
 		sendReviewPreface(pi, ctx, { freshLoop: true }, developerMessages);
+		const firstPreface = sessionManager.getLeafId();
+		if (!firstPreface) throw new Error("Missing review preface");
+		sendReviewPreface(pi, ctx, {}, developerMessages);
+		expect(sent).toHaveLength(1);
+		sessionManager.appendContextEdit(firstPreface, null);
+		sendReviewPreface(pi, ctx, {}, developerMessages);
+		expect(sent).toHaveLength(2);
 		for (const isIdle of [true, false]) {
 			idle = isIdle;
 			const count = sent.length;

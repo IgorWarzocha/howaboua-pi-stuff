@@ -245,11 +245,8 @@ export function registerCodexEvents(
 			}
 		})) return;
 		if (state.contextTree.handoff.active) return;
-		state.contextWindows.recordBudget(
-			pi,
-			ctx,
-			plan.contextManagement,
-		);
+		const reminder = state.contextWindows.recordBudget(ctx, plan.contextManagement);
+		if (reminder) return { entries: [...event.entries, reminder], continue: true };
 	});
 	pi.on("message_update", async (event) => {
 		runtime.voice.streamUpdate(event.assistantMessageEvent);
@@ -531,7 +528,7 @@ export function registerCodexEvents(
 			runtime.voice.compactionFinished();
 		}
 	});
-	pi.on("context", async (event, ctx) => {
+	pi.on("context_with_system", async (event, ctx) => {
 		let messages = runtime.projectContextMessages(ctx, event.messages);
 		const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 		if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))

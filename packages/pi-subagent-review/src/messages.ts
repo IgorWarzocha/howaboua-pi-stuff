@@ -63,12 +63,16 @@ function getReviewPrefaceMessageId(
 	ctx: ExtensionCommandContext,
 ): string | undefined {
 	let messageId: string | undefined;
-	for (const entry of ctx.sessionManager.buildContextEntries()) {
+	for (const {
+		sourceEntry,
+		messages,
+	} of ctx.sessionManager.buildSessionProjection().entries) {
 		if (
-			entry.type === "custom_message" &&
-			entry.customType === REVIEW_PREFACE_MESSAGE_TYPE
+			sourceEntry.type === "custom_message" &&
+			sourceEntry.customType === REVIEW_PREFACE_MESSAGE_TYPE &&
+			messages.length > 0
 		) {
-			messageId = entry.id;
+			messageId = sourceEntry.id;
 		}
 	}
 	return messageId;

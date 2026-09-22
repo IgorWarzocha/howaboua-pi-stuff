@@ -12,7 +12,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 0.86.0 or newer and Node.js 22.19 or newer.
+Requires Pi 0.87.0 or newer and Node.js 22.19 or newer.
 
 Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
@@ -59,7 +59,7 @@ Structured mode has no separate text `read`, `edit` or `write` tool. The model i
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-On Pi 0.86, change tool loadouts between runs. If another extension changes active tools during a tool loop, Pi updates the native tool schemas but retains this extension's prepared prompt sections until the next prepared turn. Code and Notebook instructions can therefore describe tools that are no longer active.
+Change tool loadouts between runs. If another extension changes active tools during a tool loop, Pi updates the native tool schemas but retains this extension's prepared prompt sections until the next prepared turn. Code and Notebook instructions can therefore describe tools that are no longer active.
 
 ## Settings
 
@@ -117,7 +117,9 @@ With context management active, choosing a summary in Pi's tree navigator asks t
 
 The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
 
-After each completed assistant or tool turn, a developer message requests a notes checkpoint at **85% used**, with an urgent reminder at **90%**. Percentages use the active model's full configured context window, so both smaller and larger windows scale correctly. `get_context_remaining` reports the remaining percentage and token count. Warnings do not force rollover, interrupt tools or validate notes. They can request a checkpoint turn after a final reply. If context overflows, Pi compaction preserves a summary and recent conversation instead of cutting to a fresh window. With Hybrid on, the configured V2 or Pi checkpoint is used. Without Hybrid, manual `/compact` asks the agent to save its state in notes, then call `new_context`.
+After each completed assistant or tool turn, a developer message requests a notes checkpoint at **85% used**, with an urgent reminder at **90%**. Reminders are skipped if the current run has already saved a note in this window. Otherwise they can request a checkpoint turn after a final reply. Percentages use the active model's full configured context window. `get_context_remaining` reports the remaining percentage and token count. Warnings do not force rollover, interrupt tools or validate notes.
+
+If context overflows, Pi compaction preserves a summary and recent conversation instead of cutting to a fresh window. With Hybrid on, the configured V2 or Pi checkpoint is used. Without Hybrid, manual `/compact` reuses notes saved by the just-completed run and rolls over without another checkpoint turn. If no fresh note is available or you supply checkpoint instructions, it asks the agent to save its state in notes, then call `new_context`.
 
 Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport, without a model-name gate. Other provider APIs ignore context management. Without Hybrid, enabling a backend mid-session starts a fresh model window on the next input. Hybrid retains the current conversation until compaction. Standalone V2 and Parallel Pi-native compaction remain available when Context management is Off.
 

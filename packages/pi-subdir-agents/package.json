@@ -52,7 +52,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "0.86.1",
+		"@earendil-works/pi-coding-agent": "0.87.0",
 		"@howaboua/pi-codex-conversion": "3.0.35",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2"

@@ -82,7 +82,7 @@ export async function executeCodexImageGeneration(
 		args.num_last_images_to_include == null
 			? undefined
 			: recentConversationImageUrls(
-					ctx.sessionManager.buildContextEntries(),
+					ctx.sessionManager.buildSessionProjection().messages,
 					args.num_last_images_to_include,
 				);
 	if (
