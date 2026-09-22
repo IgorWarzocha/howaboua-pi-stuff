@@ -1,9 +1,7 @@
 ---
 "@howaboua/pi-auto-trees": patch
 "@howaboua/pi-codex-conversion": patch
-"@howaboua/pi-codex-imagegen": patch
 "@howaboua/pi-codex-web-run": patch
-"@howaboua/pi-dynamic-tools": patch
 "@howaboua/pi-explore-subagents": patch
 "@howaboua/pi-gpt-switcher": patch
 "@howaboua/pi-shepherdr": patch
@@ -15,4 +13,4 @@ GPT-6 Sol and Luna now share Astra's Codex support.
 
 - Removed `/terra`; use `/luna` instead.
 - Added Responses Lite, non-destructive reasoning changes and terse context guidance for GPT-6 Sol and Luna.
-- Assistant, review, exploration, web and image defaults now use GPT-6; Luna replaces Terra defaults and retains 472K context.
+- Agent, review, exploration, web search, voice summary and image-description defaults now use GPT-6; Luna replaces Terra defaults and retains 472K context.
