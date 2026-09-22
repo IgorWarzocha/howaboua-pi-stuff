@@ -5,7 +5,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 const CONFIG_FILENAME = "pi-auto-trees.json";
 const DEFAULT_SUMMARY_CONFIG = {
 	enabled: true,
-	model: "openai-codex/gpt-5.6-luna",
+	model: "openai-codex/gpt-6-luna",
 	thinking: "low",
 } as const;
 

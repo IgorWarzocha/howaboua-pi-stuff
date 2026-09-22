@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { supportsCodexReasoningUpdates } from "../reasoning-updates.ts";
 import { supportsViewImageInputs } from "../tool-support.ts";
-import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
+import { isGpt6ModelId, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
 import { isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
 import type { CodexConversionConfig, ContextManagementMode } from "./config.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
@@ -86,7 +86,7 @@ function proxySupportsResponsesLite(ctx: RuntimeContext, config: CodexConversion
 	const modelId = ctx.model?.id;
 	if (!modelId) return false;
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return /^(?:gpt-6-astra|gpt-5\.6(?:-(?:luna|terra|sol))?)$/.test(id.toLowerCase());
+	return isGpt6ModelId(id) || /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
 }
 
 function usesResponsesLite(ctx: RuntimeContext, config: CodexConversionConfig): boolean {

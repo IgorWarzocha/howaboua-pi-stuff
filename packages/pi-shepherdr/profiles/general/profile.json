@@ -1,6 +1,6 @@
 {
 	"description": "General implementation",
-	"model": "openai-codex/gpt-5.6-sol",
+	"model": "openai-codex/gpt-6-sol",
 	"thinking": "high",
 	"prompt": "prompt.md",
 	"accepts": [],

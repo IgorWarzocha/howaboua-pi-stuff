@@ -10,12 +10,12 @@ const EXAMPLE_DIR = dirname(fileURLToPath(import.meta.url));
 const SETTLED_EXTENSION = resolve(EXAMPLE_DIR, "settled.mjs");
 const AGENT_CONFIG = {
 	explorer: {
-		model: "openai-codex/gpt-5.6-terra",
+		model: "openai-codex/gpt-6-luna",
 		thinking: "low",
 		promptPath: resolve(EXAMPLE_DIR, "explorer.prompt.md"),
 	},
 	reviewer: {
-		model: "openai-codex/gpt-5.6-luna",
+		model: "openai-codex/gpt-6-luna",
 		thinking: "medium",
 		promptPath: resolve(EXAMPLE_DIR, "reviewer.prompt.md"),
 	},

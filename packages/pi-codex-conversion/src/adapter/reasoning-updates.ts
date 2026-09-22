@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { clampThinkingLevel, type Api, type Model } from "@earendil-works/pi-ai";
+import { isGpt6ModelId } from "../providers/openai-codex/responses-lite-model.ts";
 
 export const CODEX_REASONING_UPDATE_TYPE = "codex-reasoning-update";
 type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
@@ -25,7 +26,7 @@ export function flushCodexReasoningUpdates(pi: ExtensionAPI, ctx: ExtensionConte
 }
 
 export function supportsCodexReasoningUpdates(model: Model<Api> | undefined): boolean {
-	return model?.api === "openai-codex-responses" && model.id.split("/").at(-1)?.toLowerCase() === "gpt-6-astra";
+	return model?.api === "openai-codex-responses" && isGpt6ModelId(model.id);
 }
 
 export function codexReasoningLane(model: Model<Api>): string {
@@ -51,7 +52,7 @@ function validEffort(value: unknown): value is string {
 function effortForLevel(model: Model<Api>, level: ThinkingLevel): string {
 	const clamped = clampThinkingLevel(model, level);
 	const effort = model.thinkingLevelMap?.[clamped] ?? (clamped === "minimal" ? "low" : clamped);
-	if (!validEffort(effort)) throw new Error(`Unsupported Astra reasoning effort: ${effort}`);
+	if (!validEffort(effort)) throw new Error(`Unsupported GPT-6 reasoning effort: ${effort}`);
 	return effort;
 }
 
@@ -99,10 +100,10 @@ export function hasPendingCodexReasoningUpdate(messages: readonly AgentMessage[]
 export function normalizeCodexConfigurationUpdates<T extends { input: unknown[]; model?: string | undefined; [key: string]: unknown }>(body: T): T {
 	const isUpdate = (item: unknown): boolean => Boolean(item && typeof item === "object" && "type" in item && item.type === "configuration_update");
 	if (!body.input.some(isUpdate)) return body;
-	// A model switch is a new lane; Astra-only configuration is not portable.
-	if (body.model && body.model.split("/").at(-1)?.toLowerCase() !== "gpt-6-astra") return { ...body, input: body.input.filter((item) => !isUpdate(item)) };
+	// A model switch is a new lane; native configuration is not portable to older models.
+	if (body.model && !isGpt6ModelId(body.model)) return { ...body, input: body.input.filter((item) => !isUpdate(item)) };
 	if (body["truncation"] === "auto" || (Array.isArray(body["context_management"]) && body["context_management"].length > 0)) {
-		throw new Error("Astra reasoning updates cannot use automatic truncation or server automatic compaction; use an explicit compaction_trigger");
+		throw new Error("GPT-6 reasoning updates cannot use automatic truncation or server automatic compaction; use an explicit compaction_trigger");
 	}
 	// Multiple selector presses before a response are one effective update.
 	// Persisted records stay intact; never append adjacent native updates.

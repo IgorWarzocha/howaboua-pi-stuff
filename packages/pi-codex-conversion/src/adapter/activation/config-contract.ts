@@ -151,7 +151,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		dictationShortcutMode: "push",
 		contextModel: {
 			provider: "openai-codex",
-			modelId: "gpt-5.6-luna",
+			modelId: "gpt-6-luna",
 		},
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
 	},

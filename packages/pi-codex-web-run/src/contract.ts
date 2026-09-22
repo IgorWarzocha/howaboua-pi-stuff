@@ -5,7 +5,7 @@ import type { CodexToolProvider } from "./codex-runtime/types.js";
 export const WEB_SEARCH_TOOL_NAME = "web_run";
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE =
 	"web_run requires an OpenAI Codex-compatible Responses provider or /login openai-codex";
-export const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.6-luna";
+export const DEFAULT_WEB_SEARCH_MODEL = "gpt-6-luna";
 export const WEB_SEARCH_MAX_OUTPUT_TOKENS = 2_500;
 export const WEB_SEARCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 

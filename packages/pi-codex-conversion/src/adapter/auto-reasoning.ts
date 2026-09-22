@@ -50,9 +50,9 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 				};
 			}),
 			async execute(_id: string, params: { level: "low" | "medium" | "high" }, _signal: AbortSignal | undefined, _update: unknown, ctx: ExtensionContext) {
-				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning) throw new Error("change_reasoning requires Auto reasoning enabled on Astra Codex transport");
+				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning) throw new Error("change_reasoning requires Auto reasoning enabled on GPT-6 Codex transport");
 				begin(ctx);
-				if (!baseline) throw new Error("No Astra reasoning baseline");
+				if (!baseline) throw new Error("No GPT-6 reasoning baseline");
 				const previous = pi.getThinkingLevel();
 				// A user selector change supersedes the tool's last selection.
 				if (previous !== (applied ?? baseline.level)) baseline.level = previous;

@@ -4,9 +4,8 @@ Pi extension adding quick model commands:
 
 | Command | Model |
 | --- | --- |
-| `/sol [reasoning]` | `openai-codex/gpt-5.6-sol` |
-| `/terra [reasoning]` | `openai-codex/gpt-5.6-terra` |
-| `/luna [reasoning]` | `openai-codex/gpt-5.6-luna` |
+| `/sol [reasoning]` | `openai-codex/gpt-6-sol` |
+| `/luna [reasoning]` | `openai-codex/gpt-6-luna` |
 | `/astra [reasoning]` | `openai-codex/gpt-6-astra` |
 
 An explicit reasoning argument overrides the configured default. Valid arguments
@@ -21,7 +20,6 @@ agent directory:
 ```json
 {
   "sol": { "contextWindow": 272000, "reasoning": "high" },
-  "terra": { "contextWindow": 872000, "reasoning": "high" },
   "luna": { "contextWindow": 472000, "reasoning": "xhigh" },
   "astra": { "contextWindow": 272000, "reasoning": "low" }
 }
@@ -32,7 +30,7 @@ reasoning. Changes apply on the next shortcut invocation and do not alter the
 provider catalogue. Context windows may be lowered to 128k but not raised
 above the shortcut's shipped limit.
 
-Existing config files need no migration: omitted shortcuts use their shipped defaults.
+Existing config files need no migration: omitted shortcuts use their shipped defaults, and unknown entries are ignored.
 
 ## Install
 

@@ -19,11 +19,11 @@ export const DEEP_PROMPT_PATH = path.join(ROOT_DIR, "deep.prompt.md");
 
 export const DEFAULT_CONFIG: Record<ExploreMode, Required<ExploreConfig>> = {
 	shallow: {
-		model: "openai-codex/gpt-5.6-luna",
+		model: "openai-codex/gpt-6-luna",
 		thinking: "low",
 	},
 	deep: {
-		model: "openai-codex/gpt-5.6-terra",
+		model: "openai-codex/gpt-6-luna",
 		thinking: "low",
 	},
 };

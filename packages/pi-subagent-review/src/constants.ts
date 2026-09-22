@@ -16,11 +16,11 @@ export const REVIEW_PROMPT_PATH = path.join(
 );
 
 export const DEFAULT_CONFIG = {
-	model: "openai-codex/gpt-5.6-sol",
+	model: "openai-codex/gpt-6-sol",
 	thinking: "medium",
 	summary: {
 		enabled: true,
-		model: "openai-codex/gpt-5.6-luna",
+		model: "openai-codex/gpt-6-luna",
 		thinking: "low",
 	},
 } as const;

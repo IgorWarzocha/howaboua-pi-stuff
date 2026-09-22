@@ -47,7 +47,7 @@ On first load, the extension creates `~/.pi/agent/pi-auto-trees.json`, or the eq
 {
   "summary": {
     "enabled": true,
-    "model": "openai-codex/gpt-5.6-luna",
+    "model": "openai-codex/gpt-6-luna",
     "thinking": "low"
   }
 }

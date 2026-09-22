@@ -16,7 +16,7 @@ import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts"
 import { supportsViewImageInputs } from "../../adapter/tool-support.ts";
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
-const IMAGE_DESCRIPTION_MODEL = "gpt-5.6-luna";
+const IMAGE_DESCRIPTION_MODEL = "gpt-6-luna";
 const IMAGE_DESCRIPTION_PROMPT = "Describe this image in detail. Output only the image description, no other commentary";
 interface ViewImageParams {
 	path: string;

@@ -10,6 +10,7 @@ type CommandHandler = (args: string, ctx: ExtensionContext) => unknown;
 
 test("reports model authentication failures without changing reasoning", async () => {
 	const notifications: string[] = [];
+	const modelQueries: string[] = [];
 	const pi = {
 		events: {
 			emit(_channel: string, event: unknown) {
@@ -20,7 +21,7 @@ test("reports model authentication failures without changing reasoning", async (
 			void options;
 		},
 		setModel: async () => {
-			throw new Error("No API key for openai-codex/gpt-5.6-sol");
+			throw new Error("No API key for openai-codex/gpt-6-sol");
 		},
 		setThinkingLevel() {
 			throw new Error("reasoning level should not change");
@@ -28,7 +29,12 @@ test("reports model authentication failures without changing reasoning", async (
 		getThinkingLevel: () => "high",
 	} as unknown as ExtensionAPI;
 	const ctx = {
-		modelRegistry: { find: () => ({ id: "gpt-5.6-sol", name: "GPT-5.6 Sol" }) },
+		modelRegistry: {
+			find: (provider: string, modelId: string) => {
+				modelQueries.push(`${provider}/${modelId}`);
+				return { id: "gpt-6-sol", name: "GPT-6 Sol" };
+			},
+		},
 		ui: { notify: (message: string) => notifications.push(message) },
 	} as unknown as ExtensionContext;
 	const commands = new Map<string, { handler: CommandHandler }>();
@@ -44,7 +50,8 @@ test("reports model authentication failures without changing reasoning", async (
 	});
 	await commands.get("sol")?.handler("", ctx);
 
+	expect(modelQueries).toEqual(["openai-codex/gpt-6-sol"]);
 	expect(notifications).toEqual([
-		"Could not switch to GPT-5.6 Sol: No API key for openai-codex/gpt-5.6-sol",
+		"Could not switch to GPT-6 Sol: No API key for openai-codex/gpt-6-sol",
 	]);
 });

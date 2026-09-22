@@ -87,9 +87,9 @@ For `answer` inside Code or Notebook Mode, update Pi Ask on workers together wit
 
 On first load, Shepherdr installs three editable profiles:
 
-- `general` uses `openai-codex/gpt-5.6-sol` with `high` thinking for implementation
-- `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
-- `reviewer` uses `openai-codex/gpt-5.6-luna` with `xhigh` thinking for generic read-only review
+- `general` uses `openai-codex/gpt-6-sol` with `high` thinking for implementation
+- `explorer` uses `openai-codex/gpt-6-luna` with `high` thinking for read-only discovery
+- `reviewer` uses `openai-codex/gpt-6-luna` with `xhigh` thinking for generic read-only review
 
 Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create and prepare a dedicated worktree, then pass it as `cwd`.
 

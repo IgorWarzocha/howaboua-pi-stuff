@@ -17,8 +17,8 @@ export function buildOpenAISettings(
 		{
 			item: {
 				id: "lunaCacheKeepaliveMinutes",
-				description: "Send idle requests every 2.5 minutes for this duration to keep Luna's prompt cache warm. Uses quota.",
-				label: "Luna cache keepalive (global)",
+				description: "Send idle requests every 2.5 minutes for this duration to keep GPT-5.6 Luna's prompt cache warm. Uses quota.",
+				label: "GPT-5.6 Luna cache keepalive (global)",
 				currentValue: config.openai.lunaCacheKeepaliveMinutes === 0
 					? "off"
 					: `${config.openai.lunaCacheKeepaliveMinutes} mins`,
@@ -28,7 +28,7 @@ export function buildOpenAISettings(
 		},
 		projectCacheKeepalive(
 			"cacheKeepalive",
-			"Sol/Terra cache keepalive (this project)",
+			"GPT-5.6 Sol/Terra cache keepalive (this project)",
 			config.openai.cacheKeepalive,
 		),
 		setting(
