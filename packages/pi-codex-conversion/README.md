@@ -332,7 +332,7 @@ The server belongs only to the Pi session that started it and stops when that se
 
 ## Models and providers
 
-GPT-6 Astra, Sol and Luna share Responses Lite, native reasoning updates and the same terse context-window guidance. Astra and Sol default to 272K context; Luna retains 472K. Sol and Luna token prices are unconfirmed, so their cost counters use zero placeholders rather than estimates.
+GPT-6 Astra, Sol and Luna share Responses Lite, native reasoning updates and the same terse context-window guidance. All three default to 272K context in this provider. Sol and Luna token prices are unconfirmed, so their cost counters use zero placeholders rather than estimates.
 
 The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
