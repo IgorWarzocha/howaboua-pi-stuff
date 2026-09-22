@@ -36,4 +36,4 @@ Answers live in the transcript and survive restarts, but stay outside the main m
 
 ## Configuration
 
-Settings live at `~/.pi/agent/pi-smart-btw.json`. `/btw config` edits provider, model, and thinking. **Edit shortcuts** opens the JSON file in `$VISUAL` or `$EDITOR`; reload after changing shortcuts or advanced options such as `command`. Thinking is clamped to the selected model.
+Settings live at `~/.pi/agent/pi-smart-btw.json`. New configurations default to `openai-codex/gpt-6-luna` with `low` thinking. `/btw config` edits provider, model, and thinking. **Edit shortcuts** opens the JSON file in `$VISUAL` or `$EDITOR`; reload after changing shortcuts or advanced options such as `command`. Thinking is clamped to the selected model.

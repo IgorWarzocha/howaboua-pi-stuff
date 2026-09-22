@@ -15,10 +15,9 @@ import {
 } from "./config.js";
 
 const MODELS = {
-	sol: "gpt-5.6-sol",
-	terra: "gpt-5.6-terra",
-	luna: "gpt-5.6-luna",
-	astra: "gpt-6-astra",
+	sol: { id: "gpt-6-sol", name: "GPT-6 Sol" },
+	luna: { id: "gpt-6-luna", name: "GPT-6 Luna" },
+	astra: { id: "gpt-6-astra", name: "GPT-6 Astra" },
 } as const;
 
 type Alias = keyof typeof MODELS & ShortcutAlias;
@@ -42,8 +41,9 @@ export default function (
 	if (!options.getConfig) ensureGptSwitcherConfig();
 
 	for (const alias of Object.keys(MODELS) as Alias[]) {
+		const shortcut = MODELS[alias];
 		pi.registerCommand(alias, {
-			description: `Switch to GPT-${alias === "astra" ? "6" : "5.6"} ${alias.charAt(0).toUpperCase()}${alias.slice(1)}`,
+			description: `Switch to ${shortcut.name}`,
 			handler: async (args, ctx) => {
 				const defaults = getConfig()[alias];
 				const thinkingLevel = parseThinkingLevel(args, defaults.reasoning);
@@ -55,7 +55,7 @@ export default function (
 					return;
 				}
 
-				const modelId = MODELS[alias];
+				const modelId = shortcut.id;
 				const model = ctx.modelRegistry.find("openai-codex", modelId);
 
 				if (!model) {

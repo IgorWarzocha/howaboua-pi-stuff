@@ -22,11 +22,11 @@ On first use, the extension creates `~/.pi/agent/pi-explore-subagents.json`, or 
 ```json
 {
   "shallow": {
-    "model": "openai-codex/gpt-5.6-luna",
+    "model": "openai-codex/gpt-6-luna",
     "thinking": "low"
   },
   "deep": {
-    "model": "openai-codex/gpt-5.6-terra",
+    "model": "openai-codex/gpt-6-luna",
     "thinking": "low"
   }
 }

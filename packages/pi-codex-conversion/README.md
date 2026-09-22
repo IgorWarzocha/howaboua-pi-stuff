@@ -71,7 +71,7 @@ The settings tabs cover:
 | --- | --- |
 | General | Settings scope, execution mode, extension mode, providers, heavy prompt overwrite and current time reminders |
 | Context | Notes, history, Hybrid compaction, Responses V2 and preserved user messages |
-| Tools | Auto reasoning (Astra only), image description fallback and standalone tools |
+| Tools | Auto reasoning (GPT-6), image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
 | Voice | LAN server, realtime behaviour, context summarisation, dictation, shortcuts and prompt paths |
@@ -82,9 +82,9 @@ Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/co
 
 **Luna Reserve** (`gpt-reserve` in backend usage) is a separate, limited allowance that OpenAI offers to eligible accounts after ordinary Codex quota runs out. After a quota failure, the extension switches only when the backend authorizes Reserve for your account and model, then asks you to send `continue` if you want to use Luna. It never retries on your behalf or redeems a reset credit. Your original model and reasoning level return on the next input after the backend confirms ordinary usage has recovered. Reserve stays out of the ordinary model picker; choosing another model ends automatic return for that branch.
 
-**Auto reasoning (Astra only)** in `/codex tools` lets Astra adjust effort by work phase with `change_reasoning`: a JSON tool in Structured mode, or `tools.change_reasoning` in Code and Notebook modes. Disabled by default (`tools.autoReasoning`). It offers low, medium and high, never below your starting level, and restores that level after the run settles, including retries and compaction. Astra's native configuration updates preserve the existing request prefix; the tool is absent on other models and transports.
+**Auto reasoning (GPT-6)** in `/codex tools` lets Astra, Sol and Luna adjust effort by work phase with `change_reasoning`: a JSON tool in Structured mode, or `tools.change_reasoning` in Code and Notebook modes. Disabled by default (`tools.autoReasoning`). It offers low, medium and high, never below your starting level, and restores that level after the run settles, including retries and compaction. Native configuration updates preserve the existing request prefix; the tool is absent on other models and transports.
 
-The first `/codex` setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **This project** creates a project snapshot at `.pi/pi-codex-conversion.json`. Every tab and **Edit config** then targets that file. Luna cache keepalive remains global, while Sol and Terra keepalive follows the project. Switching back to Global removes the project overrides. Project settings are read only for trusted folders.
+The first `/codex` setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **This project** creates a project snapshot at `.pi/pi-codex-conversion.json`. Every tab and **Edit config** then targets that file. GPT-5.6 Luna cache keepalive remains global, while GPT-5.6 Sol and Terra keepalive follows the project. Switching back to Global removes the project overrides. Project settings are read only for trusted folders.
 
 Without folder settings, the project inherits the complete global configuration. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` can override Fast Mode for one Pi process, which is useful for independently launched workers. Run `/reload` after changing files by hand.
 
@@ -94,7 +94,7 @@ The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known
 
 **Current time reminders** under `/codex` → **General** are off by default. Choose 30 or 60 minutes to include the UTC time on the first inference in each context and when the interval has elapsed before a later inference. Reminders are persisted developer messages on active Responses adapters. They do not change the system prompt, start turns, or run on a timer.
 
-On GPT-6 Astra over Codex transport, Pi's usual **Shift+Tab** reasoning selector appends a native configuration update instead of changing the request's original effort. This preserves prompt-cache and WebSocket continuation eligibility; cache hits still depend on the server. Updates persist across session resume and native compaction. Other models keep Pi's usual behaviour. Server-side automatic truncation and compaction are incompatible with these updates; the extension's explicit Responses compaction V2 is supported.
+On GPT-6 Astra, Sol and Luna over Codex transport, Pi's usual **Shift+Tab** reasoning selector appends a native configuration update instead of changing the request's original effort. This preserves prompt-cache and WebSocket continuation eligibility; cache hits still depend on the server. Updates persist across session resume and native compaction. Other models keep Pi's usual behaviour. Server-side automatic truncation and compaction are incompatible with these updates; the extension's explicit Responses compaction V2 is supported.
 
 Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Parallel Pi-native compaction** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
 
@@ -331,6 +331,8 @@ GipPity provides realtime voice with a microphone mute button, editable dictatio
 The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
 
 ## Models and providers
+
+GPT-6 Astra, Sol and Luna share Responses Lite, native reasoning updates and the same terse context-window guidance. Astra and Sol default to 272K context; Luna retains 472K. Sol and Luna token prices are unconfirmed, so their cost counters use zero placeholders rather than estimates.
 
 The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 

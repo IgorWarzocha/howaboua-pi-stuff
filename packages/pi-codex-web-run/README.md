@@ -16,7 +16,7 @@ Pi Codex 3.0.25 or newer is optional. With it installed, the normal web_run tool
 
 Use explicit search and navigation operations. Returned ref_ids belong to that search result and can be passed to open, click, or find. Cite the returned source URLs rather than internal ref_ids.
 
-The Codex route uses GPT-5.6 Luna by default. Set `PI_CODEX_MODEL` to override it. Configured Responses routes keep their active configured model.
+The Codex route uses GPT-6 Luna by default. Set `PI_CODEX_MODEL` to override it. Configured Responses routes keep their active configured model.
 
 For a proxy that renames Codex providers or models, create `pi-codex-tools.json` in Pi's agent directory:
 
@@ -24,7 +24,7 @@ For a proxy that renames Codex providers or models, create `pi-codex-tools.json`
 {
   "providers": {
     "company-codex": {
-      "gpt-5.6-luna": "company-luna"
+      "gpt-6-luna": "company-luna"
     }
   }
 }

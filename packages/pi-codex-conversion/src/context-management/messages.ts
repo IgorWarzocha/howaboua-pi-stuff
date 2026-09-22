@@ -56,9 +56,9 @@ Notes persist across windows; history retrieves earlier conversation. Update exi
 ${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
-export function rewriteContextWindowGuidance(content: string, astra: boolean): string {
+export function rewriteContextWindowGuidance(content: string, concise: boolean): string {
 	return content.replace(/^<context_window_guidance>[\s\S]*?<\/context_window_guidance>/,
-		astra ? CONTEXT_WINDOW_GUIDANCE : CONTEXT_WINDOW_EXPLICIT_GUIDANCE);
+		concise ? CONTEXT_WINDOW_GUIDANCE : CONTEXT_WINDOW_EXPLICIT_GUIDANCE);
 }
 
 export function renderContextWindowMessage(

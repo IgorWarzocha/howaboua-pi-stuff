@@ -371,7 +371,7 @@ export function registerCodexEvents(
 		const continuingWork = state.contextWindows.isHybridCompactionRunning()
 			|| state.contextTree.rolloverPending || state.contextKickoff.pending;
 		if (!continuingWork) runtime.autoReasoning.settle(ctx);
-		// Reserve must capture the user's restored level, never a temporary Astra override.
+		// Reserve must capture the user's restored level, never a temporary auto-reasoning override.
 		const quotaExhausted = !continuingWork && !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
 		let rolled = false;
 		let continued = false;
