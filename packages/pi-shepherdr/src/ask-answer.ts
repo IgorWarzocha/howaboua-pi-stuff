@@ -6,10 +6,41 @@ import type { HerdrConnection } from "./herdr-client.js";
 import type { AgentMonitor } from "./monitor.js";
 import type { PaneInfo, PendingAsk } from "./types.js";
 
+const REPHRASE_REQUEST_RESPONSE =
+	"User asked for rephrase, split, or follow-up.";
+
 export interface AskAnswer {
 	comment?: string;
 	other?: string;
 	selections?: string[];
+}
+
+export function answersMatch(
+	answers: AskAnswer[],
+	responses:
+		| Array<{ comment?: string; id: string; selections: string[] }>
+		| undefined,
+): boolean {
+	if (!responses || responses.length !== answers.length) return false;
+	return answers.every((answer, index) => {
+		const response = responses[index];
+		if (!response || response.id !== `p${index + 1}`) return false;
+		const selections =
+			answer.other !== undefined
+				? [answer.other.trim() || REPHRASE_REQUEST_RESPONSE]
+				: (answer.selections ?? []).length > 0
+					? (answer.selections ?? [])
+					: answer.comment !== undefined
+						? [REPHRASE_REQUEST_RESPONSE]
+						: [];
+		if (
+			[...selections].sort().join("\0") !==
+			[...response.selections].sort().join("\0")
+		) {
+			return false;
+		}
+		return (answer.comment?.trim() || undefined) === response.comment;
+	});
 }
 
 interface InputStep {

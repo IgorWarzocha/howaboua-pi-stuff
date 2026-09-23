@@ -20,6 +20,7 @@ import {
 } from "./agents-operations.js";
 import {
 	type AskAnswer,
+	answersMatch,
 	prepareAskAnswer,
 	sameAgentIdentity,
 } from "./ask-answer.js";
@@ -327,6 +328,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 			}
 			if (params.action === "answer") {
+				const answers = (params.answers ?? []) as AskAnswer[];
 				const askId = params.ask_id?.trim();
 				if (params.ask_id !== undefined && !askId) {
 					throw new Error("ask_id must not be empty");
@@ -338,11 +340,19 @@ export function createAgentsTool(fleet: AgentFleet) {
 					const view = await runtime.monitor.view(panel);
 					const prior = view.askResults?.[askId];
 					if (prior) {
+						const accepted =
+							prior.status === "accepted" &&
+							answersMatch(answers, prior.responses);
 						return toolResult({
-							answered: prior === "accepted",
+							answered: accepted,
 							ask_id: askId,
 							machine: runtime.machine,
-							status: prior,
+							status:
+								prior.status === "rejected"
+									? "rejected"
+									: accepted
+										? "accepted"
+										: "unknown",
 							target: panel.pane_id,
 						});
 					}
@@ -360,7 +370,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 					runtime.client,
 					runtime.monitor,
 					panel,
-					(params.answers ?? []) as AskAnswer[],
+					answers,
 					executionSignal,
 					askId,
 				);
@@ -378,10 +388,13 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 				if (askId) {
 					const current = await getAgent(runtime.client, panel.pane_id);
+					const result = (await runtime.monitor.view(current)).askResults?.[
+						askId
+					];
 					const accepted =
 						sameAgentIdentity(panel, current) &&
-						(await runtime.monitor.view(current)).askResults?.[askId] ===
-							"accepted";
+						result?.status === "accepted" &&
+						answersMatch(answers, result.responses);
 					return toolResult(
 						{
 							answered: accepted,
