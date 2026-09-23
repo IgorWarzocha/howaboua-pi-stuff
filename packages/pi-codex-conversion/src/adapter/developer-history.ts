@@ -52,17 +52,24 @@ export function projectCodexDeveloperHistory(
 	});
 	const insertions = new Map<number, AgentMessage[]>();
 	let pending: AgentMessage[] = [];
+	const leadingSystem = messages[0]?.role === "system";
+	const insertPending = (index: number) => {
+		if (!pending.length) return;
+		// Pi reads the prompt and initial tools from index 0, even when bookkeeping predates that system entry.
+		const position = leadingSystem && index === 0 ? 1 : index;
+		insertions.set(position, [...(insertions.get(position) ?? []), ...pending]);
+		pending = [];
+	};
 	let last = -1;
 	for (const message of reconstructed) {
 		const index = positions.get(messageKey(message))?.shift();
 		if (index !== undefined) {
-			if (pending.length) insertions.set(index, [...(insertions.get(index) ?? []), ...pending]);
-			pending = [];
+			insertPending(index);
 			last = index;
 		} else if (isVirtualMessage(message) && isCodexDeveloperMessageDetails(message.details)
 			&& virtualIds.has(message.details.id)) pending.push(message);
 	}
-	if (pending.length) insertions.set(last + 1, [...(insertions.get(last + 1) ?? []), ...pending]);
+	insertPending(last + 1);
 	return messages.flatMap((message, index) => [...(insertions.get(index) ?? []), message])
 		.concat(insertions.get(messages.length) ?? []);
 }
