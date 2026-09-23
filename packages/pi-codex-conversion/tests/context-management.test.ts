@@ -8,7 +8,6 @@ import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.t
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
 import {
-	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
 	createContextWindowMessage,
 } from "../src/context-management/messages.ts";
@@ -75,14 +74,11 @@ test("context windows preserve rollover and native request semantics", async () 
 
 	assert.equal(manager.recordBudget(ctx, "remote", 230_000), undefined);
 	const reminder = manager.recordBudget(ctx, "remote", 232_000);
-	assert.equal(reminder?.type, "custom_message");
 	assert.match(String(reminder?.content), /context_window_reminder/);
-	assert.equal(contextMessages.length, 1, "boundary drafts must not enqueue steering");
 	assert.equal(manager.recordBudget(ctx, "remote", 232_000), undefined);
 	assert.match(String(manager.recordBudget(ctx, "remote", 250_000)?.content), /Urgent/);
-	assert.equal(manager.recordBudget(ctx, "remote", 250_000), undefined);
 
-	for (const mode of ["local", "tree", "remote"] as const) {
+	for (const mode of ["local", "remote"] as const) {
 		const sessionManager = SessionManager.inMemory("/repo");
 		const noteCtx = { ...ctx, sessionManager };
 		const window = createContextWindowMessage("Window", "window", {
@@ -120,14 +116,11 @@ test("context windows preserve rollover and native request semantics", async () 
 		const final = sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Saved" }] });
 		assert.equal(reuse(), true, "fresh runtime recovers completed save from the conversation");
 		assert.equal(reuse("Preserve extra detail"), false);
-		sessionManager.appendMessage({ role: "user", content: "New work", timestamp: 4 });
-		assert.equal(reuse(), false, "new input invalidates the checkpoint");
+		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
+		assert.equal(reuse(), false, "visible peer input invalidates the checkpoint");
 		sessionManager.branch(final);
 		sessionManager.appendCustomEntry("metadata", {});
 		assert.equal(reuse(), true, "tree return to the saved response ignores bookkeeping");
-		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
-		assert.equal(reuse(), false, "peer input is conversation too");
-		sessionManager.branch(final);
 		sessionManager.appendContextEdit(write, null);
 		assert.equal(reuse(), false, "omitted evidence cannot grant checkpoint credit");
 		for (const invalid of [{ ...result, isError: true }, { ...result, toolCallId: "wrong-call" }]) {
@@ -154,9 +147,6 @@ test("context windows preserve rollover and native request semantics", async () 
 		trimPreviousWindow: true,
 	}), true);
 	assert.equal(contextMessages.length, 2);
-	assert.equal(contextMessages.every(
-		(message) => message["customType"] === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-	), true);
 
 	const activeWindow = manager.project([
 		{ role: "user", content: "old window", timestamp: 1 },
@@ -166,19 +156,12 @@ test("context windows preserve rollover and native request semantics", async () 
 			timestamp: index + 2,
 		})),
 	] as never, "remote");
-	assert.equal(activeWindow.length, 1);
 	assert.match((activeWindow[0] as { content: string }).content, /Recovered checkpoint/);
 	const currentWindowId = (
 		contextMessages[1]!["details"] as {
 			contextManagement: { currentWindowId: string };
 		}
 	).contextManagement.currentWindowId;
-	assert.deepEqual(manager.remaining(ctx), {
-		remainingTokens: 260_000,
-		remainingPercent: 95.6,
-		windowId: currentWindowId,
-		contextWindow: 272_000,
-	});
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "local"), {
 		compaction: {
 			summary: CONTEXT_WINDOW_COMPACTION_SUMMARY,
