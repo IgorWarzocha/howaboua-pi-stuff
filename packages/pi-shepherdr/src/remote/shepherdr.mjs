@@ -330,6 +330,7 @@ function askResult(message) {
 	if (typeof id !== "string") return undefined;
 	if (message.isError === true) return [id, { status: "rejected" }];
 	if (message.isError !== false) return [id, { status: "unknown" }];
+	if (message.details?.dismissed === true) return [id, { status: "rejected" }];
 	const rawResponses = message.details?.responses;
 	const rawResponseCount = Array.isArray(rawResponses)
 		? rawResponses.length

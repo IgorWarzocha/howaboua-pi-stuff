@@ -236,13 +236,14 @@ export async function allocateAgentName(
 export function settlementResult(
 	machine: string,
 	settlement: ClaimedSettlement,
+	options: { reportWorkerError?: boolean } = {},
 ): Record<string, unknown> {
-	if (settlement.reply?.stopReason === "error") {
-		throw new Error(
-			settlement.reply.text ||
-				`${settlement.agent.pane_id} assistant stopped with an error`,
-		);
-	}
+	const workerError =
+		settlement.reply?.stopReason === "error"
+			? settlement.reply.text ||
+				`${settlement.agent.pane_id} assistant stopped with an error`
+			: undefined;
+	if (workerError && !options.reportWorkerError) throw new Error(workerError);
 	const { pane, name, ...source } = agentSource(
 		settlement.agent,
 		settlement.labels,
@@ -253,6 +254,7 @@ export function settlementResult(
 		...(name ? { name } : {}),
 		source,
 		status: settlement.status,
+		...(workerError ? { worker_error: workerError } : {}),
 		...(settlement.reply ? { reply: settlement.reply.text } : {}),
 		...(settlement.ask
 			? {
@@ -276,7 +278,7 @@ export async function dispatchAgentWork(
 	signal: AbortSignal,
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
 	send: () => Promise<PeerDelivery | void>,
-	options: { expectUserMessage?: boolean } = {},
+	options: { expectUserMessage?: boolean; answeringAskId?: string } = {},
 ): Promise<{
 	settlement?: ClaimedSettlement;
 	command?: true;
@@ -306,7 +308,7 @@ export async function dispatchAgentWork(
 		);
 		if (!attempt) throw new Error(`${panel.pane_id} is not monitored`);
 		settlement = blocking
-			? runtime.monitor.claimWork(attempt, signal)
+			? runtime.monitor.claimWork(attempt, signal, options.answeringAskId)
 			: undefined;
 		void settlement?.catch(() => undefined);
 		signal.throwIfAborted();

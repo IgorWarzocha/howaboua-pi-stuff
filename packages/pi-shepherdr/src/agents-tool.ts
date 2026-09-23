@@ -373,6 +373,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 					executionSignal,
 					update,
 					prepared.submit,
+					{ answeringAskId: askId },
 				);
 				const current = await getAgent(runtime.client, panel.pane_id);
 				const result = (await runtime.monitor.view(current)).askResults?.[
@@ -387,7 +388,11 @@ export function createAgentsTool(fleet: AgentFleet) {
 					status: workerStatus,
 					target: _workerTarget,
 					...workerResult
-				} = settlement ? settlementResult(runtime.machine, settlement) : {};
+				} = settlement
+					? settlementResult(runtime.machine, settlement, {
+							reportWorkerError: true,
+						})
+					: {};
 				return toolResult(
 					{
 						...workerResult,

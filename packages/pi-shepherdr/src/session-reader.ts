@@ -143,6 +143,7 @@ function askResult(
 	if (message["isError"] === true) return [id, { status: "rejected" }];
 	if (message["isError"] !== false) return [id, { status: "unknown" }];
 	const details = record(message["details"]);
+	if (details?.["dismissed"] === true) return [id, { status: "rejected" }];
 	const rawResponses = details?.["responses"];
 	const rawResponseCount = Array.isArray(rawResponses)
 		? rawResponses.length
