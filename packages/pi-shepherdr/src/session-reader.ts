@@ -131,6 +131,18 @@ function resolvedToolCallId(
 	return typeof value === "string" ? value : undefined;
 }
 
+function askResult(
+	message: Record<string, unknown>,
+): [string, "accepted" | "rejected"] | undefined {
+	if (message["role"] !== "toolResult" || message["toolName"] !== "ask") {
+		return undefined;
+	}
+	const id = resolvedToolCallId(message);
+	return id
+		? [id, message["isError"] === true ? "rejected" : "accepted"]
+		: undefined;
+}
+
 async function readSessionView(
 	path: string,
 	size: number,
@@ -140,6 +152,7 @@ async function readSessionView(
 	let assistant: LatestAssistant | undefined;
 	let assistantDepth: number | undefined;
 	let ask: PendingAsk | undefined;
+	const askResults = new Map<string, "accepted" | "rejected">();
 	let depth = 0;
 	let input: LatestInput | undefined;
 	let inputDepth: number | undefined;
@@ -147,6 +160,9 @@ async function readSessionView(
 	const result = (): SessionView => ({
 		...(assistant ? { assistant } : {}),
 		...(ask ? { ask } : {}),
+		...(askResults.size > 0
+			? { askResults: Object.fromEntries(askResults) }
+			: {}),
 		...(input ? { input } : {}),
 		...(assistantDepth !== undefined && inputDepth !== undefined
 			? { assistantAfterInput: assistantDepth < inputDepth }
@@ -192,6 +208,8 @@ async function readSessionView(
 		}
 		const message = record(entry["message"]);
 		if (message) {
+			const result = askResult(message);
+			if (result && !askResults.has(result[0])) askResults.set(...result);
 			const resolvedId = resolvedToolCallId(message);
 			if (resolvedId) resolved.add(resolvedId);
 			if (!assistant) {

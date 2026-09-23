@@ -18,9 +18,13 @@ import {
 	settlementResult,
 	toolResult,
 } from "./agents-operations.js";
-import { type AskAnswer, prepareAskAnswer } from "./ask-answer.js";
+import {
+	type AskAnswer,
+	prepareAskAnswer,
+	sameAgentIdentity,
+} from "./ask-answer.js";
 import type { AgentFleet } from "./fleet.js";
-import { resolvePiAgent } from "./herdr.js";
+import { getAgent, resolvePiAgent } from "./herdr.js";
 import { isDispatchRejected } from "./herdr-client.js";
 import {
 	resolvePreparationDirectory,
@@ -256,6 +260,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 					...(panel.agent_status === "blocked" && view.ask
 						? {
 								ask: {
+									id: view.ask.toolCallId,
 									handoff: view.ask.handoff,
 									prompts: view.ask.prompts,
 								},
@@ -322,12 +327,42 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 			}
 			if (params.action === "answer") {
+				const askId = params.ask_id?.trim();
+				if (params.ask_id !== undefined && !askId) {
+					throw new Error("ask_id must not be empty");
+				}
+				if (askId && params.blocking === false) {
+					throw new Error("confirmed Ask delivery requires blocking");
+				}
+				if (askId) {
+					const view = await runtime.monitor.view(panel);
+					const prior = view.askResults?.[askId];
+					if (prior) {
+						return toolResult({
+							answered: prior === "accepted",
+							ask_id: askId,
+							machine: runtime.machine,
+							status: prior,
+							target: panel.pane_id,
+						});
+					}
+					if (view.ask?.toolCallId !== askId) {
+						return toolResult({
+							answered: false,
+							ask_id: askId,
+							machine: runtime.machine,
+							status: "unknown",
+							target: panel.pane_id,
+						});
+					}
+				}
 				const prepared = await prepareAskAnswer(
 					runtime.client,
 					runtime.monitor,
 					panel,
 					(params.answers ?? []) as AskAnswer[],
 					executionSignal,
+					askId,
 				);
 				const task = `Answer: ${prepared.ask.prompts
 					.map((prompt) => prompt.title)
@@ -341,6 +376,23 @@ export function createAgentsTool(fleet: AgentFleet) {
 					update,
 					prepared.submit,
 				);
+				if (askId) {
+					const current = await getAgent(runtime.client, panel.pane_id);
+					const accepted =
+						sameAgentIdentity(panel, current) &&
+						(await runtime.monitor.view(current)).askResults?.[askId] ===
+							"accepted";
+					return toolResult(
+						{
+							answered: accepted,
+							ask_id: askId,
+							machine: runtime.machine,
+							status: accepted ? "accepted" : "unknown",
+							target: panel.pane_id,
+						},
+						warning,
+					);
+				}
 				return toolResult(
 					settlement
 						? {

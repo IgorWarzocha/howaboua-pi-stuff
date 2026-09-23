@@ -129,6 +129,7 @@ export interface PendingAsk {
 
 export interface SessionView {
 	ask?: PendingAsk;
+	askResults?: Record<string, "accepted" | "rejected">;
 	assistant?: LatestAssistant;
 	assistantAfterInput?: boolean;
 	input?: LatestInput;

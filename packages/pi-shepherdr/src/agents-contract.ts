@@ -42,7 +42,14 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	send: new Set(["action", "machine", "target", "message"]),
 	assign: new Set(["action", "machine", "target", "message", "blocking"]),
 	read: new Set(["action", "machine", "target", "source", "lines"]),
-	answer: new Set(["action", "machine", "target", "answers", "blocking"]),
+	answer: new Set([
+		"action",
+		"machine",
+		"target",
+		"ask_id",
+		"answers",
+		"blocking",
+	]),
 };
 
 const AskAnswerParameters = Type.Object(
@@ -86,6 +93,7 @@ const AgentsRequest = Type.Object(
 		status: Type.Optional(StringEnum(STATUSES)),
 		source: Type.Optional(StringEnum(READ_SOURCES)),
 		lines: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+		ask_id: Type.Optional(Type.String()),
 		answers: Type.Optional(Type.Array(AskAnswerParameters)),
 	},
 	{ additionalProperties: false },

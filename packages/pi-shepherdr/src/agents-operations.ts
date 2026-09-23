@@ -51,7 +51,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			send: "target message machine?",
 			assign: "target message machine? blocking?",
 			read: "target machine? source? lines?",
-			answer: "target answers machine? blocking?",
+			answer: "target answers machine? ask_id? blocking?",
 		},
 		rules: {
 			machine:
@@ -59,6 +59,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			target: "Use spawn/find target exactly",
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
+			ask_id: "Exact pending Ask ID from read; enables confirmed safe retry",
 			send: "Peer questions, updates, replies; submission only, no wait or watch",
 			assign: "Delegate a task to an existing agent",
 			blocking:
