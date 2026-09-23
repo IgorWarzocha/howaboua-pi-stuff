@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
-import { normalizeContext } from "@earendil-works/pi-ai";
+import { getSupportedThinkingLevels, normalizeContext } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { codexReasoningUpdates, flushCodexReasoningUpdates, hasPendingCodexReasoningUpdate, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
 import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
+import { openAICodexProviderModels } from "../src/providers/openai-codex/model-catalog.ts";
 import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { createAutoReasoning } from "../src/adapter/auto-reasoning.ts";
 import { serializeLiveTailToResponsesInput, rewriteResponsesPayloadWithNativeReplay } from "../src/adapter/replay/native-replay-segments.ts";
@@ -74,6 +75,13 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 	}), { reasoning: "high", sessionId: fresh.getSessionId() })) as ResponsesBody;
 	assert.equal(firstBody.reasoning?.effort, "medium");
 	assert.deepEqual(firstBody.input.at(-2), { type: "configuration_update", reasoning: { effort: "high" } });
+	const registeredModels = openAICodexProviderModels();
+	for (const id of ["gpt-6-sol", "gpt-6-luna"]) {
+		const registeredModel = registeredModels.find((candidate) => candidate.id === id);
+		assert.ok(registeredModel);
+		assert.equal(registeredModel.thinkingLevelMap?.off, null);
+		assert.equal(getSupportedThinkingLevels(registeredModel).includes("off"), false);
+	}
 
 	for (const id of ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]) {
 		const gpt6 = { ...model, id };
