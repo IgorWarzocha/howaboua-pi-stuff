@@ -102,6 +102,14 @@ interface AgentEventOptions {
 	status: SettledAgentStatus;
 }
 
+export function modelAsk(ask: PendingAsk) {
+	return {
+		ask_id: ask.toolCallId,
+		handoff: ask.handoff,
+		prompts: ask.prompts,
+	};
+}
+
 interface AgentEventDetails {
 	ask?: PendingAsk;
 	blockedOn?: string;
@@ -313,9 +321,7 @@ function agentEvent(options: AgentEventOptions): {
 		lines.push(`<blocked_on>${xml(blockedMessage)}</blocked_on>`);
 	}
 	if (blocked && ask) {
-		lines.push(
-			`<ask>${xml(JSON.stringify({ handoff: ask.handoff, prompts: ask.prompts }))}</ask>`,
-		);
+		lines.push(`<ask>${xml(JSON.stringify(modelAsk(ask)))}</ask>`);
 	}
 	if (blocked) {
 		lines.push(

@@ -6,10 +6,42 @@ import type { HerdrConnection } from "./herdr-client.js";
 import type { AgentMonitor } from "./monitor.js";
 import type { PaneInfo, PendingAsk } from "./types.js";
 
+const REPHRASE_REQUEST_RESPONSE =
+	"User asked for rephrase, split, or follow-up.";
+
 export interface AskAnswer {
 	comment?: string;
 	other?: string;
 	selections?: string[];
+}
+
+export function answersMatch(
+	answers: AskAnswer[],
+	responses:
+		| Array<{ comment?: string; id: string; selections: string[] }>
+		| undefined,
+): boolean {
+	if (!responses || responses.length !== answers.length) return false;
+	return answers.every((answer, index) => {
+		const response = responses[index];
+		if (!response || response.id !== `p${index + 1}`) return false;
+		let selections = [...(answer.selections ?? [])];
+		if (answer.other !== undefined) {
+			const custom = answer.other.trim() || REPHRASE_REQUEST_RESPONSE;
+			selections = [
+				...selections.filter((selection) => selection !== custom),
+				custom,
+			];
+		}
+		if (selections.length === 0) selections.push(REPHRASE_REQUEST_RESPONSE);
+		if (
+			[...selections].sort().join("\0") !==
+			[...response.selections].sort().join("\0")
+		) {
+			return false;
+		}
+		return (answer.comment?.trim() || undefined) === response.comment;
+	});
 }
 
 interface InputStep {
@@ -237,12 +269,28 @@ async function sendInput(
 	}
 }
 
+export function sameAgentIdentity(
+	expected: PaneInfo,
+	current: PaneInfo,
+): boolean {
+	return (
+		current.pane_id === expected.pane_id &&
+		current.workspace_id === expected.workspace_id &&
+		current.tab_id === expected.tab_id &&
+		current.terminal_id === expected.terminal_id &&
+		current.agent_session?.agent === expected.agent_session?.agent &&
+		current.agent_session?.kind === expected.agent_session?.kind &&
+		current.agent_session?.source === expected.agent_session?.source &&
+		current.agent_session?.value === expected.agent_session?.value
+	);
+}
+
 async function requireSameAgent(
 	client: HerdrConnection,
 	panel: PaneInfo,
 ): Promise<void> {
 	const current = await getAgent(client, panel.pane_id);
-	if (current.terminal_id !== panel.terminal_id) {
+	if (!sameAgentIdentity(panel, current)) {
 		throw new Error(`${panel.pane_id} no longer hosts the targeted Pi agent`);
 	}
 }
@@ -253,6 +301,7 @@ export async function prepareAskAnswer(
 	panel: PaneInfo,
 	answers: AskAnswer[],
 	signal: AbortSignal,
+	expectedAskId: string,
 ): Promise<{ ask: PendingAsk; submit(): Promise<void> }> {
 	if (panel.agent_status !== "blocked") {
 		throw new Error(
@@ -266,6 +315,9 @@ export async function prepareAskAnswer(
 		);
 	}
 	const ask = view.ask;
+	if (ask.toolCallId !== expectedAskId) {
+		throw new Error(`${panel.pane_id} is blocked on a different Ask call`);
+	}
 	const initial = inspectAskScreen(await screen(client, panel.pane_id), ask);
 	const first = ask.prompts[0];
 	const expectedSelection = first?.choices[0]?.label ?? "Other/rephrase";
@@ -291,7 +343,7 @@ export async function prepareAskAnswer(
 		await new Promise((resolve) => setTimeout(resolve, 35));
 		const current = await getAgent(client, panel.pane_id);
 		if (
-			current.terminal_id !== panel.terminal_id ||
+			!sameAgentIdentity(panel, current) ||
 			current.agent_status !== "blocked"
 		) {
 			throw new Error("ask closed before all requested answers were entered");

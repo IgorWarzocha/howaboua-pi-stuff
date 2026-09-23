@@ -102,13 +102,7 @@ export function registerContextManagementTools(
 	const [history, notes] = createHistoryNotesTools(
 		pi,
 		(ctx) => resolveCodexRuntimePlanForState(ctx, state).contextManagementMode,
-		(action, path, ctx) => {
-			const recordWrite = state.contextWindows.trackNoteWrite(ctx);
-			return () => {
-				recordWrite();
-				return state.contextTree.handoff.finishNoteWrite(action, path, ctx);
-			};
-		},
+		(action, path, ctx) => () => state.contextTree.handoff.finishNoteWrite(action, path, ctx),
 	);
 	pi.registerTool(newContext);
 	pi.registerTool(getContextRemaining);

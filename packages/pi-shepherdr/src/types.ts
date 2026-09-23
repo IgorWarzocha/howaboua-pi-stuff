@@ -127,8 +127,14 @@ export interface PendingAsk {
 	toolCallId: string;
 }
 
+export interface AskResult {
+	responses?: Array<{ comment?: string; id: string; selections: string[] }>;
+	status: "accepted" | "rejected" | "unknown";
+}
+
 export interface SessionView {
 	ask?: PendingAsk;
+	askResults?: Record<string, AskResult>;
 	assistant?: LatestAssistant;
 	assistantAfterInput?: boolean;
 	input?: LatestInput;

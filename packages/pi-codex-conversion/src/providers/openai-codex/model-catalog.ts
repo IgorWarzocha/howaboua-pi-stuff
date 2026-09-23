@@ -93,9 +93,13 @@ export function openAICodexProviderModels(): Model<"openai-codex-responses">[] {
 		models.push({ ...luna, id: CODEX_RESERVE_MODEL, name: "Luna Reserve", cost: UNKNOWN_SUBSCRIPTION_COST, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW });
 	}
 	const existing = new Set(models.map(({ id }) => id));
-	return [...models, ...SUPPLEMENTAL_MODELS.filter(({ id }) => !existing.has(id))].map((model) =>
-		/^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
+	return [...models, ...SUPPLEMENTAL_MODELS.filter(({ id }) => !existing.has(id))].map((model) => {
+		// Pi's built-ins can advertise "none", but the Codex catalog has no off effort here.
+		if (/^gpt-6-(?:sol|luna)$/.test(model.id)) {
+			return { ...model, thinkingLevelMap: { ...model.thinkingLevelMap, off: null } };
+		}
+		return /^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
 			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
-			: model,
-	);
+			: model;
+	});
 }

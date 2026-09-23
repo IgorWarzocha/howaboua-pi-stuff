@@ -45,6 +45,7 @@ export interface ClaimedSettlement extends CollectedSettlement {
 }
 
 interface SettlementClaim {
+	answeringAskId?: string;
 	cleanup(): void;
 	reject(error: Error): void;
 	resolve(settlement: ClaimedSettlement): void;
@@ -225,7 +226,11 @@ export class SettlementReporter {
 		this.retries.clear();
 	}
 
-	claim(attempt: WorkAttempt, signal: AbortSignal): Promise<ClaimedSettlement> {
+	claim(
+		attempt: WorkAttempt,
+		signal: AbortSignal,
+		answeringAskId?: string,
+	): Promise<ClaimedSettlement> {
 		signal.throwIfAborted();
 		if (this.claims.has(attempt.attemptId)) {
 			throw new Error(`work attempt ${attempt.attemptId} is already claimed`);
@@ -243,6 +248,7 @@ export class SettlementReporter {
 				);
 			};
 			const claim: SettlementClaim = {
+				...(answeringAskId ? { answeringAskId } : {}),
 				cleanup: () => signal.removeEventListener("abort", abort),
 				reject,
 				resolve,
@@ -324,6 +330,18 @@ export class SettlementReporter {
 			const retryRequest = task ? { ...request, task } : request;
 			const expectedUser = activityExpectedUser(current.activity);
 			const blocked = settlement.status === "blocked";
+			const answeringAskId = retryState.attemptId
+				? this.claims.get(retryState.attemptId)?.answeringAskId
+				: undefined;
+			// The original Ask's blocked snapshot is not settlement of its answer.
+			if (
+				blocked &&
+				answeringAskId &&
+				settlement.ask?.toolCallId === answeringAskId &&
+				!settlement.session.askResults?.[answeringAskId]
+			) {
+				return;
+			}
 			// A blocked status is authoritative even when Pi has not persisted the turn.
 			// Pi persists expanded skills/templates, not the submitted command text.
 			if (

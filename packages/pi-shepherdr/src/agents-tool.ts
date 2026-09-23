@@ -1,52 +1,28 @@
 import { defineTool, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { answerAgent } from "./agents-answer.js";
 import {
 	AgentsParameters,
 	type AgentsParams,
 	type AgentsToolParams,
 	parseAgentsRequest,
-	shouldBlockAgentSpawn,
+	requiredAgentField as required,
 } from "./agents-contract.js";
 import {
 	agentsHelp,
-	allocateAgentName,
-	dispatchAgentWork,
 	findFleetAgents,
 	listFleetAgents,
 	readAgentTerminal,
-	reportProgress,
+} from "./agents-discovery.js";
+import { spawnAgent } from "./agents-spawn.js";
+import {
+	dispatchAgentWork,
 	settlementResult,
 	toolResult,
-} from "./agents-operations.js";
-import { type AskAnswer, prepareAskAnswer } from "./ask-answer.js";
+} from "./agents-work.js";
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
-import { isDispatchRejected } from "./herdr-client.js";
-import {
-	resolvePreparationDirectory,
-	rollbackStartedAgent,
-	startAgent,
-} from "./launch.js";
-import { attributeAgentPrompt } from "./messages.js";
-import {
-	loadAgentProfiles,
-	prepareProfileMessage,
-	profileAgentArgs,
-} from "./profiles.js";
-
-function required(value: string | undefined, field: string): string {
-	if (!value?.trim()) throw new Error(`${field} is required for this action`);
-	return value.trim();
-}
-
-function agentLabel(value: string | undefined): string {
-	const label = required(value, "label");
-	const words = label.split(/\s+/u);
-	if (words.length < 2 || words.length > 3) {
-		throw new Error("label must contain 2 or 3 words");
-	}
-	return label;
-}
+import { attributeAgentPrompt, modelAsk } from "./messages.js";
 
 export function createAgentsTool(fleet: AgentFleet) {
 	return defineTool({
@@ -77,131 +53,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 
 			const runtime = fleet.connected(params.machine);
 			if (params.action === "spawn") {
-				const profiles = await loadAgentProfiles();
-				const profileName = required(params.agent_type, "agent_type");
-				const profile = profiles.get(profileName);
-				if (!profile) {
-					throw new Error(
-						`unknown agent_type ${JSON.stringify(profileName)}; available: ${[...profiles.keys()].join(", ")}`,
-					);
-				}
-				const label = agentLabel(params.label);
-				const name =
-					params.name?.trim() || (await allocateAgentName(runtime, label));
-				const placement =
-					params.placement ??
-					(runtime.local && process.env["HERDR_WORKSPACE_ID"]
-						? "new_tab"
-						: "new_workspace");
-				const workspace =
-					params.workspace ??
-					(placement === "new_tab" && runtime.local
-						? process.env["HERDR_WORKSPACE_ID"]
-						: undefined);
-				const startParams = {
-					name,
-					label,
-					placement,
-					...(workspace ? { workspace } : {}),
-					...(params.pane ? { pane: params.pane } : {}),
-					...(params.cwd ? { cwd: params.cwd } : {}),
-				};
-				const cwd = await resolvePreparationDirectory(
-					runtime.client,
-					startParams,
-					runtime.fallbackCwd,
-					runtime.resolveDirectory,
-				);
-				const input = required(params.message, "message");
-				const message = await prepareProfileMessage(
-					profile,
-					{
-						cwd,
-						message: input,
-						...(params.base ? { base: params.base } : {}),
-					},
-					{ targetLocal: runtime.local },
-				);
-				const attributedMessage = await attributeAgentPrompt(
-					fleet.connected().client,
-					input.startsWith("/") ? input : message,
-					"task",
-				);
-				if (input.startsWith("/") && message !== input)
-					attributedMessage.context = message;
-				reportProgress(update, `Spawning ${label}`, {
-					machine: runtime.machine,
-					name,
-					profile: profile.name,
-					status: "starting",
-				});
-				const started = await startAgent(
-					runtime.client,
-					startParams,
-					runtime.fallbackCwd,
-					runtime.resolveDirectory,
-					{
-						agentArgs: profileAgentArgs(profile, {
-							targetLocal: runtime.local,
-						}),
-					},
-				);
-				let promptSubmissionStarted = false;
-				let promptAccepted = false;
-				let dispatch;
-				const blocking = shouldBlockAgentSpawn(profile.name, params.blocking);
-				try {
-					dispatch = await dispatchAgentWork(
-						runtime,
-						started.agent,
-						message,
-						blocking,
-						executionSignal,
-						update,
-						async () => {
-							promptSubmissionStarted = true;
-							const receipt = await runtime.client.sendMessage(
-								started.agent,
-								attributedMessage,
-							);
-							promptAccepted = true;
-							return receipt;
-						},
-						{ expectUserMessage: true },
-					);
-				} catch (error) {
-					if (
-						!promptAccepted &&
-						(!promptSubmissionStarted || isDispatchRejected(error))
-					) {
-						return rollbackStartedAgent(runtime.client, started, error);
-					}
-					throw error;
-				}
-				return toolResult(
-					dispatch.command
-						? {
-								spawned: true,
-								commandSubmitted: true,
-								machine: runtime.machine,
-								target: started.id,
-								name,
-							}
-						: dispatch.settlement
-							? {
-									spawned: true,
-									...settlementResult(runtime.machine, dispatch.settlement),
-								}
-							: {
-									spawned: true,
-									machine: runtime.machine,
-									target: started.id,
-									name,
-									status: "working",
-									next: "Completion or blockage will be delivered automatically; do not poll",
-								},
-					dispatch.warning,
-				);
+				return spawnAgent(fleet, runtime, params, executionSignal, update);
 			}
 
 			const target = required(params.target, "target");
@@ -255,10 +107,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 						: { reply: null }),
 					...(panel.agent_status === "blocked" && view.ask
 						? {
-								ask: {
-									handoff: view.ask.handoff,
-									prompts: view.ask.prompts,
-								},
+								ask: modelAsk(view.ask),
 							}
 						: {}),
 				});
@@ -322,40 +171,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 			}
 			if (params.action === "answer") {
-				const prepared = await prepareAskAnswer(
-					runtime.client,
-					runtime.monitor,
-					panel,
-					(params.answers ?? []) as AskAnswer[],
-					executionSignal,
-				);
-				const task = `Answer: ${prepared.ask.prompts
-					.map((prompt) => prompt.title)
-					.join(", ")}`;
-				const { settlement, warning } = await dispatchAgentWork(
-					runtime,
-					panel,
-					task,
-					params.blocking !== false,
-					executionSignal,
-					update,
-					prepared.submit,
-				);
-				return toolResult(
-					settlement
-						? {
-								answered: true,
-								...settlementResult(runtime.machine, settlement),
-							}
-						: {
-								answered: true,
-								machine: runtime.machine,
-								target: panel.pane_id,
-								status: "working",
-								next: "Completion or blockage will be delivered automatically; do not poll",
-							},
-					warning,
-				);
+				return answerAgent(runtime, panel, params, executionSignal, update);
 			}
 			throw new Error(`unsupported action ${params.action}`);
 		},

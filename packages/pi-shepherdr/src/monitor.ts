@@ -166,8 +166,9 @@ export class AgentMonitor {
 	claimWork(
 		attempt: WorkAttempt,
 		signal: AbortSignal,
+		answeringAskId?: string,
 	): Promise<ClaimedSettlement> {
-		return this.settlements.claim(attempt, signal);
+		return this.settlements.claim(attempt, signal, answeringAskId);
 	}
 
 	releaseWorkClaim(attempt: WorkAttempt | undefined, error: unknown): void {

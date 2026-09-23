@@ -1,5 +1,6 @@
 import { open, stat } from "node:fs/promises";
 import type {
+	AskResult,
 	LatestAssistant,
 	LatestInput,
 	PendingAsk,
@@ -131,6 +132,57 @@ function resolvedToolCallId(
 	return typeof value === "string" ? value : undefined;
 }
 
+function askResult(
+	message: Record<string, unknown>,
+): [string, AskResult] | undefined {
+	if (message["role"] !== "toolResult" || message["toolName"] !== "ask") {
+		return undefined;
+	}
+	const id = resolvedToolCallId(message);
+	if (!id) return undefined;
+	if (message["isError"] === true) return [id, { status: "rejected" }];
+	if (message["isError"] !== false) return [id, { status: "unknown" }];
+	const details = record(message["details"]);
+	if (details?.["dismissed"] === true) return [id, { status: "rejected" }];
+	const rawResponses = details?.["responses"];
+	const rawResponseCount = Array.isArray(rawResponses)
+		? rawResponses.length
+		: -1;
+	const responses = Array.isArray(rawResponses)
+		? rawResponses
+				.map((value) => {
+					const response = record(value);
+					if (
+						!response ||
+						typeof response["id"] !== "string" ||
+						!Array.isArray(response["selections"]) ||
+						!response["selections"].every(
+							(selection) => typeof selection === "string",
+						)
+					) {
+						return undefined;
+					}
+					return {
+						id: response["id"],
+						selections: response["selections"] as string[],
+						...(typeof response["comment"] === "string"
+							? { comment: response["comment"] }
+							: {}),
+					};
+				})
+				.filter((response) => response !== undefined)
+		: undefined;
+	return [
+		id,
+		{
+			status: "accepted",
+			...(responses && responses.length === rawResponseCount
+				? { responses }
+				: {}),
+		},
+	];
+}
+
 async function readSessionView(
 	path: string,
 	size: number,
@@ -140,6 +192,7 @@ async function readSessionView(
 	let assistant: LatestAssistant | undefined;
 	let assistantDepth: number | undefined;
 	let ask: PendingAsk | undefined;
+	const askResults = new Map<string, AskResult>();
 	let depth = 0;
 	let input: LatestInput | undefined;
 	let inputDepth: number | undefined;
@@ -147,6 +200,9 @@ async function readSessionView(
 	const result = (): SessionView => ({
 		...(assistant ? { assistant } : {}),
 		...(ask ? { ask } : {}),
+		...(askResults.size > 0
+			? { askResults: Object.fromEntries(askResults) }
+			: {}),
 		...(input ? { input } : {}),
 		...(assistantDepth !== undefined && inputDepth !== undefined
 			? { assistantAfterInput: assistantDepth < inputDepth }
@@ -192,6 +248,8 @@ async function readSessionView(
 		}
 		const message = record(entry["message"]);
 		if (message) {
+			const result = askResult(message);
+			if (result && !askResults.has(result[0])) askResults.set(...result);
 			const resolvedId = resolvedToolCallId(message);
 			if (resolvedId) resolved.add(resolvedId);
 			if (!assistant) {
