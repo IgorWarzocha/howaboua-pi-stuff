@@ -97,6 +97,14 @@ export const AgentsParameters = Type.Object({ action: StringEnum(ACTIONS) });
 export type AgentsParams = Static<typeof AgentsRequest>;
 export type AgentsToolParams = Static<typeof AgentsParameters>;
 
+export function requiredAgentField(
+	value: string | undefined,
+	field: string,
+): string {
+	if (!value?.trim()) throw new Error(`${field} is required for this action`);
+	return value.trim();
+}
+
 export function parseAgentsRequest(input: unknown): AgentsParams {
 	let value = input;
 	if (typeof input === "string") {
