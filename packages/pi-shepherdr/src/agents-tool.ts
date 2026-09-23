@@ -32,7 +32,7 @@ import {
 	rollbackStartedAgent,
 	startAgent,
 } from "./launch.js";
-import { attributeAgentPrompt } from "./messages.js";
+import { attributeAgentPrompt, modelAsk } from "./messages.js";
 import {
 	loadAgentProfiles,
 	prepareProfileMessage,
@@ -260,11 +260,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 						: { reply: null }),
 					...(panel.agent_status === "blocked" && view.ask
 						? {
-								ask: {
-									id: view.ask.toolCallId,
-									handoff: view.ask.handoff,
-									prompts: view.ask.prompts,
-								},
+								ask: modelAsk(view.ask),
 							}
 						: {}),
 				});
@@ -328,43 +324,35 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 			}
 			if (params.action === "answer") {
-				const answers = (params.answers ?? []) as AskAnswer[];
-				const askId = params.ask_id?.trim();
-				if (params.ask_id !== undefined && !askId) {
-					throw new Error("ask_id must not be empty");
+				const answers = params.answers as AskAnswer[];
+				const askId = params.ask_id!.trim();
+				const view = await runtime.monitor.view(panel);
+				const prior = view.askResults?.[askId];
+				if (prior) {
+					const accepted =
+						prior.status === "accepted" &&
+						answersMatch(answers, prior.responses);
+					return toolResult({
+						answered: accepted,
+						ask_id: askId,
+						machine: runtime.machine,
+						status:
+							prior.status === "rejected"
+								? "rejected"
+								: accepted
+									? "accepted"
+									: "unknown",
+						target: panel.pane_id,
+					});
 				}
-				if (askId && params.blocking === false) {
-					throw new Error("confirmed Ask delivery requires blocking");
-				}
-				if (askId) {
-					const view = await runtime.monitor.view(panel);
-					const prior = view.askResults?.[askId];
-					if (prior) {
-						const accepted =
-							prior.status === "accepted" &&
-							answersMatch(answers, prior.responses);
-						return toolResult({
-							answered: accepted,
-							ask_id: askId,
-							machine: runtime.machine,
-							status:
-								prior.status === "rejected"
-									? "rejected"
-									: accepted
-										? "accepted"
-										: "unknown",
-							target: panel.pane_id,
-						});
-					}
-					if (view.ask?.toolCallId !== askId) {
-						return toolResult({
-							answered: false,
-							ask_id: askId,
-							machine: runtime.machine,
-							status: "unknown",
-							target: panel.pane_id,
-						});
-					}
+				if (view.ask?.toolCallId !== askId) {
+					return toolResult({
+						answered: false,
+						ask_id: askId,
+						machine: runtime.machine,
+						status: "unknown",
+						target: panel.pane_id,
+					});
 				}
 				const prepared = await prepareAskAnswer(
 					runtime.client,
@@ -381,44 +369,40 @@ export function createAgentsTool(fleet: AgentFleet) {
 					runtime,
 					panel,
 					task,
-					params.blocking !== false,
+					true,
 					executionSignal,
 					update,
 					prepared.submit,
 				);
-				if (askId) {
-					const current = await getAgent(runtime.client, panel.pane_id);
-					const result = (await runtime.monitor.view(current)).askResults?.[
-						askId
-					];
-					const accepted =
-						sameAgentIdentity(panel, current) &&
-						result?.status === "accepted" &&
-						answersMatch(answers, result.responses);
-					return toolResult(
-						{
-							answered: accepted,
-							ask_id: askId,
-							machine: runtime.machine,
-							status: accepted ? "accepted" : "unknown",
-							target: panel.pane_id,
-						},
-						warning,
-					);
-				}
+				const current = await getAgent(runtime.client, panel.pane_id);
+				const result = (await runtime.monitor.view(current)).askResults?.[
+					askId
+				];
+				const accepted =
+					sameAgentIdentity(panel, current) &&
+					result?.status === "accepted" &&
+					answersMatch(answers, result.responses);
+				const {
+					machine: _workerMachine,
+					status: workerStatus,
+					target: _workerTarget,
+					...workerResult
+				} = settlement ? settlementResult(runtime.machine, settlement) : {};
 				return toolResult(
-					settlement
-						? {
-								answered: true,
-								...settlementResult(runtime.machine, settlement),
-							}
-						: {
-								answered: true,
-								machine: runtime.machine,
-								target: panel.pane_id,
-								status: "working",
-								next: "Completion or blockage will be delivered automatically; do not poll",
-							},
+					{
+						...workerResult,
+						answered: accepted,
+						ask_id: askId,
+						machine: runtime.machine,
+						status:
+							result?.status === "rejected"
+								? "rejected"
+								: accepted
+									? "accepted"
+									: "unknown",
+						target: panel.pane_id,
+						...(workerStatus ? { worker_status: workerStatus } : {}),
+					},
 					warning,
 				);
 			}

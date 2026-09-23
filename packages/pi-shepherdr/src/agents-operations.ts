@@ -4,7 +4,7 @@ import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { getSnapshot } from "./herdr.js";
 import { isDispatchRejected } from "./herdr-client.js";
-import { agentSource } from "./messages.js";
+import { agentSource, modelAsk } from "./messages.js";
 import type { WorkAttempt } from "./monitor-state.js";
 import { loadAgentProfiles } from "./profiles.js";
 import type { ClaimedSettlement } from "./settlement.js";
@@ -51,7 +51,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			send: "target message machine?",
 			assign: "target message machine? blocking?",
 			read: "target machine? source? lines?",
-			answer: "target answers machine? ask_id? blocking?",
+			answer: "target ask_id answers machine?",
 		},
 		rules: {
 			machine:
@@ -59,11 +59,11 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			target: "Use spawn/find target exactly",
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
-			ask_id: "Exact pending Ask ID from read; enables confirmed safe retry",
+			ask_id: "Exact pending Ask ID",
 			send: "Peer questions, updates, replies; submission only, no wait or watch",
 			assign: "Delegate a task to an existing agent",
 			blocking:
-				"spawn/assign/answer default true; false pushes task settlement; never poll. Reviewer spawns always block; await review before working its scope",
+				"spawn/assign default true; false pushes task settlement; never poll. Reviewer spawns always block; await review before working its scope",
 			watch:
 				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
 			prompt:
@@ -256,15 +256,7 @@ export function settlementResult(
 		...(settlement.reply ? { reply: settlement.reply.text } : {}),
 		...(settlement.ask
 			? {
-					ask: {
-						handoff: settlement.ask.handoff,
-						prompts: settlement.ask.prompts.map((prompt) => ({
-							title: prompt.title,
-							multiple: prompt.multiple,
-							choices: prompt.choices,
-							...(prompt.body ? { body: prompt.body } : {}),
-						})),
-					},
+					ask: modelAsk(settlement.ask),
 				}
 			: {}),
 		...(settlement.blockedMessage

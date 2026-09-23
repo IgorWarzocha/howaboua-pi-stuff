@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 
-const BRIDGE_VERSION = 6;
+const BRIDGE_VERSION = 7;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
@@ -323,12 +323,58 @@ function askFromInput(toolCallId, input) {
 	};
 }
 
+function askResult(message) {
+	if (message.role !== "toolResult" || message.toolName !== "ask")
+		return undefined;
+	const id = message.toolCallId ?? message.tool_call_id;
+	if (typeof id !== "string") return undefined;
+	if (message.isError === true) return [id, { status: "rejected" }];
+	if (message.isError !== false) return [id, { status: "unknown" }];
+	const rawResponses = message.details?.responses;
+	const rawResponseCount = Array.isArray(rawResponses)
+		? rawResponses.length
+		: -1;
+	const responses = Array.isArray(rawResponses)
+		? rawResponses
+				.map((response) => {
+					if (
+						!response ||
+						typeof response !== "object" ||
+						typeof response.id !== "string" ||
+						!Array.isArray(response.selections) ||
+						!response.selections.every(
+							(selection) => typeof selection === "string",
+						)
+					)
+						return undefined;
+					return {
+						id: response.id,
+						selections: response.selections,
+						...(typeof response.comment === "string"
+							? { comment: response.comment }
+							: {}),
+					};
+				})
+				.filter(Boolean)
+		: undefined;
+	return [
+		id,
+		{
+			status: "accepted",
+			...(responses && responses.length === rawResponseCount
+				? { responses }
+				: {}),
+		},
+	];
+}
+
 async function sessionView(path, size) {
 	const file = await open(path, "r");
 	let targetId;
 	let assistant;
 	let assistantDepth;
 	let ask;
+	const askResults = new Map();
 	let depth = 0;
 	let input;
 	let inputDepth;
@@ -336,6 +382,9 @@ async function sessionView(path, size) {
 	const result = () => ({
 		...(assistant ? { assistant } : {}),
 		...(ask ? { ask } : {}),
+		...(askResults.size > 0
+			? { askResults: Object.fromEntries(askResults) }
+			: {}),
 		...(input ? { input } : {}),
 		...(assistantDepth !== undefined && inputDepth !== undefined
 			? { assistantAfterInput: assistantDepth < inputDepth }
@@ -379,6 +428,8 @@ async function sessionView(path, size) {
 		}
 		const message = entry.message;
 		if (message && typeof message === "object") {
+			const result = askResult(message);
+			if (result && !askResults.has(result[0])) askResults.set(...result);
 			if (
 				(message.role === "toolResult" || message.role === "tool") &&
 				typeof (message.toolCallId ?? message.tool_call_id) === "string"

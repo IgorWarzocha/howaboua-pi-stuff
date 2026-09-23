@@ -61,7 +61,9 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
-`spawn`, `assign` and `answer` block by default. Set `blocking: false` when the controller should continue other work immediately. Task completion and blockage are then delivered automatically.
+`spawn` and `assign` block by default. Set `blocking: false` when the controller should continue other work immediately. Task completion and blockage are then delivered automatically.
+
+`answer` requires the pending `ask_id` from `read` or a blocked report. It returns `accepted` only when that exact Ask persisted the supplied responses; an accepted retry sends no input.
 
 Questions, status updates and replies use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages.
 

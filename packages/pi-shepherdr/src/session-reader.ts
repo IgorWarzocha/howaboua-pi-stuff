@@ -141,6 +141,7 @@ function askResult(
 	const id = resolvedToolCallId(message);
 	if (!id) return undefined;
 	if (message["isError"] === true) return [id, { status: "rejected" }];
+	if (message["isError"] !== false) return [id, { status: "unknown" }];
 	const details = record(message["details"]);
 	const rawResponses = details?.["responses"];
 	const rawResponseCount = Array.isArray(rawResponses)

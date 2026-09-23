@@ -129,7 +129,7 @@ export interface PendingAsk {
 
 export interface AskResult {
 	responses?: Array<{ comment?: string; id: string; selections: string[] }>;
-	status: "accepted" | "rejected";
+	status: "accepted" | "rejected" | "unknown";
 }
 
 export interface SessionView {

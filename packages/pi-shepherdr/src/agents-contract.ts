@@ -42,14 +42,7 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	send: new Set(["action", "machine", "target", "message"]),
 	assign: new Set(["action", "machine", "target", "message", "blocking"]),
 	read: new Set(["action", "machine", "target", "source", "lines"]),
-	answer: new Set([
-		"action",
-		"machine",
-		"target",
-		"ask_id",
-		"answers",
-		"blocking",
-	]),
+	answer: new Set(["action", "machine", "target", "ask_id", "answers"]),
 };
 
 const AskAnswerParameters = Type.Object(
@@ -130,6 +123,14 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		throw new Error(
 			"send is message-only; omit blocking. Use assign to delegate work",
 		);
+	}
+	const request = value as Record<string, unknown>;
+	const askId = request["ask_id"];
+	if (action === "answer" && (typeof askId !== "string" || !askId.trim())) {
+		throw new Error("ask_id is required for answer");
+	}
+	if (action === "answer" && !Array.isArray(request["answers"])) {
+		throw new Error("answers is required for answer");
 	}
 	const unknown = Object.keys(value).filter(
 		(key) => !ACTION_FIELDS[action as keyof typeof ACTION_FIELDS].has(key),
