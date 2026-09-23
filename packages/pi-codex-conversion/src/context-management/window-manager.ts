@@ -15,6 +15,7 @@ import type {
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { tryStartCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { loadHistoryNotesThreadHint } from "./history-notes.ts";
+import { hasFreshContextNotes } from "./saved-notes.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_STRATEGY,
@@ -54,17 +55,11 @@ export class CodexContextWindowManager {
 	private hybridCompaction: { phase: "scheduled" | "running" } | undefined;
 	private manualCheckpoint: {
 		identity: ContextWindowIdentity;
+		mode: ContextManagementMode;
 		customInstructions: string | undefined;
 		signal: AbortSignal;
 	} | undefined;
 	private trimPendingWindowId: string | undefined;
-	private turnNotes: {
-		sessionId: string;
-		windowId: string;
-		phase: "running" | "settled";
-		saved: boolean;
-		settledEntryId?: string;
-	} | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
 
@@ -83,48 +78,6 @@ export class CodexContextWindowManager {
 		this.hybridCompaction = undefined;
 		this.manualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
-		this.clearTurnNotes();
-	}
-
-	clearTurnNotes(): void {
-		this.turnNotes = undefined;
-	}
-
-	beginTurn(ctx: ExtensionContext): void {
-		// Retries and boundary continuations share the current prepared activity.
-		if (this.turnNotes?.phase === "running" &&
-			this.turnNotes.sessionId === ctx.sessionManager.getSessionId() &&
-			this.turnNotes.windowId === this.identity?.currentWindowId) return;
-		this.turnNotes = this.identity ? {
-			sessionId: ctx.sessionManager.getSessionId(),
-			windowId: this.identity.currentWindowId,
-			phase: "running",
-			saved: false,
-		} : undefined;
-	}
-
-	settleTurn(ctx: ExtensionContext): void {
-		const turn = this.turnNotes;
-		if (!turn || !ctx.isIdle()) return;
-		const lastAssistant = ctx.sessionManager.getBranch().findLast((entry) =>
-			entry.type === "message" && entry.message.role === "assistant");
-		if (lastAssistant?.type !== "message" || lastAssistant.message.role !== "assistant" ||
-			(lastAssistant.message.stopReason !== "stop" && lastAssistant.message.stopReason !== "length")) {
-			this.clearTurnNotes();
-			return;
-		}
-		turn.phase = "settled";
-		turn.settledEntryId = lastAssistant.id;
-	}
-
-	trackNoteWrite(ctx: ExtensionContext): () => void {
-		const turn = this.turnNotes;
-		return () => {
-			// A remote write can finish after its run or window has been replaced.
-			if (turn && this.turnNotes === turn && turn.phase === "running" &&
-				turn.sessionId === ctx.sessionManager.getSessionId() &&
-				turn.windowId === this.identity?.currentWindowId) turn.saved = true;
-		};
 	}
 
 	currentIdentity(): ContextWindowIdentity | undefined {
@@ -159,22 +112,9 @@ export class CodexContextWindowManager {
 		pi: ExtensionAPI,
 		ctx: ExtensionContext,
 		active: boolean,
-		selectedTreeLeafId?: string | null,
 	): void {
 		if (!active) return;
-		const turn = this.turnNotes;
-		const branch = ctx.sessionManager.getBranch();
-		this.restore(branch);
-		// Only an explicit return to this completed turn can retain its checkpoint credit.
-		if (selectedTreeLeafId && turn?.phase === "settled" && turn.saved &&
-			turn.settledEntryId === selectedTreeLeafId &&
-			turn.sessionId === ctx.sessionManager.getSessionId() &&
-			turn.windowId === this.identity?.currentWindowId &&
-			branch.some((entry) => entry.id === selectedTreeLeafId && entry.type === "message" &&
-				entry.message.role === "assistant" &&
-				(entry.message.stopReason === "stop" || entry.message.stopReason === "length"))) {
-			this.turnNotes = turn;
-		}
+		this.restore(ctx.sessionManager.getBranch());
 		if (this.identity) return;
 		const windowId = randomUUID();
 		this.sendWindowMessage(
@@ -324,14 +264,11 @@ export class CodexContextWindowManager {
 
 	recordBudget(
 		ctx: ExtensionContext,
-		active: boolean,
+		mode: ContextManagementMode,
 		contextTokens?: number,
 	): CustomMessageEntryDraft | undefined {
-		if (!active || !this.identity || this.rolloverPending) return;
-		const turn = this.turnNotes;
-		if (turn?.phase === "running" && turn.saved &&
-			turn.sessionId === ctx.sessionManager.getSessionId() &&
-			turn.windowId === this.identity.currentWindowId) return;
+		if (mode === "off" || !this.identity || this.rolloverPending) return;
+		if (hasFreshContextNotes(ctx.sessionManager.getBranch(), this.identity.currentWindowId, mode, false)) return;
 		const reminder = this.budget.record(ctx, this.identity, contextTokens);
 		if (reminder) return createContextWindowMessage(reminder.content, reminder.kind, this.identity);
 	}
@@ -354,6 +291,7 @@ export class CodexContextWindowManager {
 			if (!this.identity) return { cancel: true };
 			this.manualCheckpoint = {
 				identity: { ...this.identity },
+				mode,
 				customInstructions: event.customInstructions,
 				signal: event.signal,
 			};
@@ -381,10 +319,9 @@ export class CodexContextWindowManager {
 		) return false;
 		// Pi clears its manual compaction controller before session_compact_failed.
 		const idle = ctx.isIdle();
-		const turn = this.turnNotes;
-		if (idle && !pending.customInstructions?.trim() && turn?.phase === "settled" && turn.saved &&
-			turn.sessionId === ctx.sessionManager.getSessionId() &&
-			turn.windowId === pending.identity.currentWindowId) return true;
+		if (idle && !pending.customInstructions?.trim() && hasFreshContextNotes(
+			ctx.sessionManager.getBranch(), pending.identity.currentWindowId, pending.mode, true,
+		)) return true;
 		pi.sendMessage(createContextWindowMessage(renderManualContextCheckpoint(pending.customInstructions),
 			"reminder", pending.identity), idle ? { triggerTurn: false } : { deliverAs: "steer", triggerTurn: true });
 		if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
@@ -435,7 +372,6 @@ export class CodexContextWindowManager {
 		threadHint?: string,
 	): void {
 		this.identity = identity;
-		this.clearTurnNotes();
 		this.trimPendingWindowId = options.trimPreviousWindow
 			? identity.currentWindowId
 			: undefined;

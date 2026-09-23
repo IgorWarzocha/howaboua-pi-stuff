@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeContext } from "@earendil-works/pi-ai";
+import { normalizeContext, type AssistantMessage } from "@earendil-works/pi-ai";
+import { SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
@@ -9,6 +10,7 @@ import { createHistoryNotesTools } from "../src/context-management/history-notes
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
+	createContextWindowMessage,
 } from "../src/context-management/messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
@@ -17,7 +19,7 @@ import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { codexModel } from "./openai-codex-test-support.ts";
 
-function createContext() {
+function createContext(): ExtensionContext {
 	return {
 		cwd: "/repo",
 		model: {
@@ -71,25 +73,80 @@ test("context windows preserve rollover and native request semantics", async () 
 		},
 	}) as never;
 
-	manager.beginTurn(ctx);
-	const staleWrite = manager.trackNoteWrite(ctx);
-	manager.clearTurnNotes();
-	manager.beginTurn(ctx);
-	staleWrite();
-	assert.equal(manager.recordBudget(ctx, true, 230_000), undefined);
-	const reminder = manager.recordBudget(ctx, true, 232_000);
+	assert.equal(manager.recordBudget(ctx, "remote", 230_000), undefined);
+	const reminder = manager.recordBudget(ctx, "remote", 232_000);
 	assert.equal(reminder?.type, "custom_message");
 	assert.match(String(reminder?.content), /context_window_reminder/);
 	assert.equal(contextMessages.length, 1, "boundary drafts must not enqueue steering");
-	assert.equal(manager.recordBudget(ctx, true, 232_000), undefined);
-	manager.trackNoteWrite(ctx)();
-	assert.equal(manager.recordBudget(ctx, true, 250_000), undefined);
-	manager.beginTurn(ctx);
-	assert.equal(manager.recordBudget(ctx, true, 250_000), undefined, "continuation keeps note credit");
-	manager.clearTurnNotes();
-	manager.beginTurn(ctx);
-	assert.match(String(manager.recordBudget(ctx, true, 250_000)?.content), /Urgent/);
-	assert.equal(manager.recordBudget(ctx, true, 250_000), undefined);
+	assert.equal(manager.recordBudget(ctx, "remote", 232_000), undefined);
+	assert.match(String(manager.recordBudget(ctx, "remote", 250_000)?.content), /Urgent/);
+	assert.equal(manager.recordBudget(ctx, "remote", 250_000), undefined);
+
+	for (const mode of ["local", "tree", "remote"] as const) {
+		const sessionManager = SessionManager.inMemory("/repo");
+		const noteCtx = { ...ctx, sessionManager };
+		const window = createContextWindowMessage("Window", "window", {
+			firstWindowId: "saved-window", currentWindowId: "saved-window", windowNumber: 0,
+		});
+		sessionManager.appendCustomMessageEntry(window.customType, window.content, true, window.details);
+		const user = sessionManager.appendMessage({ role: "user", content: "Save progress", timestamp: 1 });
+		const assistant: AssistantMessage = {
+			role: "assistant", content: [], stopReason: "stop", timestamp: 2,
+			api: "openai-codex-responses", provider: "openai-codex", model: "gpt-6-luna",
+			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+		};
+		const call = sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+			type: "toolCall", id: "save", name: "notes", arguments: { action: "write_file", path: "state", text: "state" },
+		}] });
+		const result = { role: "toolResult" as const, toolCallId: "save", toolName: "notes", isError: false,
+			content: [{ type: "text" as const, text: "saved" }], timestamp: 3,
+			details: { codexHistoryNotes: mode === "remote" ? { encrypted_output: "opaque" } : { source: "pi-session" } } };
+		const write = sessionManager.appendMessage(result);
+		const quietPi = { sendMessage() {}, sendUserMessage() {}, events: { emit() {} } } as never;
+		const restored = () => {
+			const fresh = new CodexContextWindowManager();
+			fresh.ensureInitialized(quietPi, noteCtx, true);
+			return fresh;
+		};
+		const reuse = (customInstructions?: string) => {
+			const fresh = restored();
+			fresh.prepareCompaction({ reason: "manual", customInstructions, signal: new AbortController().signal } as never, mode);
+			return fresh.finishManualCheckpointRequest(quietPi, noteCtx,
+				{ type: "session_compact_failed", reason: "manual", aborted: true, willRetry: false, fromExtension: false }, true);
+		};
+		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "persisted writes suppress reminders");
+		assert.equal(reuse(), false, "an unfinished run cannot silently roll over");
+		const final = sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Saved" }] });
+		assert.equal(reuse(), true, "fresh runtime recovers completed save from the conversation");
+		assert.equal(reuse("Preserve extra detail"), false);
+		sessionManager.appendMessage({ role: "user", content: "New work", timestamp: 4 });
+		assert.equal(reuse(), false, "new input invalidates the checkpoint");
+		sessionManager.branch(final);
+		sessionManager.appendCustomEntry("metadata", {});
+		assert.equal(reuse(), true, "tree return to the saved response ignores bookkeeping");
+		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
+		assert.equal(reuse(), false, "peer input is conversation too");
+		sessionManager.branch(final);
+		sessionManager.appendContextEdit(write, null);
+		assert.equal(reuse(), false, "omitted evidence cannot grant checkpoint credit");
+		for (const invalid of [{ ...result, isError: true }, { ...result, toolCallId: "wrong-call" }]) {
+			sessionManager.branch(call);
+			sessionManager.appendMessage(invalid);
+			sessionManager.appendMessage(assistant);
+			assert.equal(reuse(), false, "only a successful matched write counts");
+		}
+		sessionManager.branch(final);
+		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+			type: "toolCall", id: "work", name: "exec", arguments: { code: "work()" },
+		}] });
+		sessionManager.appendMessage({ ...result, toolCallId: "work", toolName: "exec" });
+		sessionManager.appendMessage(assistant);
+		assert.equal(reuse(), false, "work after a save invalidates it even without a new user turn");
+		sessionManager.branch(user);
+		sessionManager.appendMessage(assistant);
+		assert.equal(reuse(), false, "abandoned branch saves do not count");
+	}
 
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), { cancel: true });
 	assert.equal(await manager.startNewWindow(contextPi, ctx, {
