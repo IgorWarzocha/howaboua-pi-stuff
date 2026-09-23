@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.38
+
+- Fixed Codex GPT-6 Sol and Luna offering an unsupported off thinking level.
+
+- Fixed redundant `/compact` note-save prompts after resume, reload or tree navigation. Checkpoint reuse now follows successful note writes on the selected conversation branch and expires after new input or further tool work.
+
+- Fixed a system-message ordering error when changing GPT-6 reasoning before the first prompt.
+
 ## 3.0.37
 
 - GPT-6 Sol and Luna now share Astra's Codex support.
