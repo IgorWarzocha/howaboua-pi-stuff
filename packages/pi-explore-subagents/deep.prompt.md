@@ -14,22 +14,4 @@ Rules:
 - Call out conflicting evidence, missing links, and still-unverified areas.
 - Be concise, but more complete than shallow mode.
 
-Output format:
-# Deep Summary
-3-6 sentences on what is confirmed, how the pieces connect, and why it matters.
-
-# System Map
-- `path/to/file:start-end` - role in the overall behavior
-- `path/to/other:start-end` - relationship, dependency, or boundary
-
-# Evidence Map
-- `path/to/file:start-end` - concrete finding
-- `path/to/other:start-end` - supporting or conflicting evidence
-
-# Unknowns / Conflicts
-- unresolved gaps, ambiguities, or contradictory signals
-
-# Retrieval Priority
-1. Next best file or artifact to open
-2. Next best file or artifact to open
-3. Next best file or artifact to open
+Return a concise summary, one evidence map with relevant relationships, and unknowns or conflicts. Include next reads only when further inspection would help.

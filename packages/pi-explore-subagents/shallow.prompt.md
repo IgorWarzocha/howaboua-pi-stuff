@@ -13,18 +13,4 @@ Rules:
 - Use only the tools available to you to locate the most relevant code and configuration, identify the nearest relationships, and note what is still unknown.
 - Be concise and retrieval-oriented.
 
-Output format:
-# Shallow Summary
-2-4 sentences on what is confirmed and why it matters.
-
-# Key Evidence
-- `path/to/file:start-end` - what is there and why it matters
-- `path/to/other:start-end` - relationship to another asset
-
-# Unknowns / Not Verified
-- explicit gaps, ambiguities, or areas not inspected
-
-# Best Next Reads
-1. Next best file or artifact to open
-2. Next best file or artifact to open
-3. Next best file or artifact to open
+Return a brief summary, evidence with relevant relationships, and explicit gaps. Include next reads only when further inspection would help.

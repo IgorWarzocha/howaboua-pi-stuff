@@ -44,13 +44,6 @@ export async function runReviewSubagent(
 			REVIEW_PROMPT_PATH,
 		],
 	});
-	const prompt = [
-		"Run as the Review Subagent inside an isolated no-session RPC subprocess.",
-		"Stay strictly in review mode. Do not edit files or propose implementation plans beyond concise fixes.",
-		"Do not stop after one or two findings; keep looking for additional credible issues, aiming for roughly 10-20 if warranted.",
-		"Mode: review",
-		`Task: ${task}`,
-	].join("\n\n");
 	const abort = () => {
 		void client.abort().catch(() => undefined);
 	};
@@ -64,7 +57,7 @@ export async function runReviewSubagent(
 		await client.setAutoRetry(true);
 		if (signal?.aborted) throw new Error(`${REVIEW_LABEL} aborted.`);
 		const events = await client.promptAndWait(
-			prompt,
+			`Task: ${task}`,
 			undefined,
 			REVIEW_TIMEOUT_MS,
 		);

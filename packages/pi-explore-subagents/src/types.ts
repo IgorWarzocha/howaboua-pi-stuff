@@ -43,13 +43,6 @@ export interface PersistedChildRunDetails {
 	cwd: string;
 }
 
-export interface ModeSpec {
-	label: string;
-	shortDescription: string;
-	promptPath: string;
-	systemPreamble: string;
-}
-
 export interface SubagentMessageDetails {
 	status: "running" | "done" | "failed";
 	details?: ChildRunDetails;

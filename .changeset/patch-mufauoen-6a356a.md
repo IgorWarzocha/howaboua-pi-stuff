@@ -2,4 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Fixed notes-only /compact to open a new context window without a checkpoint turn when the completed run saved notes before later tool work. Context reminders now also reuse those notes.
+Improved context handoffs and bundled review guidance.
+
+- Notes-only `/compact` opens a new context window without a checkpoint turn when the completed run saved notes before later tool work. Context reminders reuse those notes.
+- Bundled reviewer prompts ask for concrete findings without issue-count targets.

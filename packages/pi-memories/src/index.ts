@@ -61,11 +61,7 @@ type PiCompactionEntry = {
 	firstKeptEntryId?: string;
 };
 
-const DEFAULT_PROMPT = `You are running as an ephemeral memory distiller after a Pi session ended.
-
-You already received Pi's normal context files (global and project AGENTS.md/CLAUDE.md), but skills were intentionally disabled.
-
-Use the compacted session context, if present, and the recent conversation tail to find durable memories useful in the future — coming days, weeks, or months.
+const DEFAULT_PROMPT = `Use the compacted session context, if present, and the recent conversation tail to find durable memories useful in the future — coming days, weeks, or months.
 
 Find 3-5 durable memory candidates if they genuinely exist. Prefer fewer strong memories over filling the quota.
 
@@ -83,7 +79,7 @@ Bad memories:
 - one-off facts
 - obvious summaries
 - secrets or credentials
-- anything already clearly covered by existing context files
+- anything already clearly covered by supplied context files
 
 Output markdown only. If nothing is worth remembering, output exactly: No durable memories.
 

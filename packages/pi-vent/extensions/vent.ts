@@ -10,12 +10,8 @@ import registerPackageChangelog from "../changelog.js";
 
 const ventSchema = Type.Object(
 	{
-		thought: Type.String({
-			description: "Vent entry text.",
-		}),
-		trigger: Type.Optional(
-			Type.String({ description: "Optional short trigger label." }),
-		),
+		thought: Type.String(),
+		trigger: Type.Optional(Type.String({ description: "Short trigger label" })),
 	},
 	{ additionalProperties: false },
 );
@@ -39,15 +35,11 @@ export default function ventExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "vent",
 		label: "vent",
-		description: "Append workflow-friction feedback to VENT.md.",
-		promptSnippet: "Log repeated workflow friction.",
+		description: "Append workflow-friction feedback to VENT.md",
 		promptGuidelines: [
-			"vent: Use for repeated or systemic workflow friction, especially when the same manual workaround happens more than once.",
-			"vent: Use after a second hook/tool failure with the same root cause, or when tool output forces the same retry sequence.",
-			"vent: Use when project instructions, docs, or tooling cause avoidable backtracking that should become automation, docs, or workflow fixes.",
-			"vent: Do not use for one-off lint/type errors or ordinary coding mistakes.",
-			"vent: Call near the end of the turn after completing the task; batch related feedback instead of calling repeatedly.",
-			"vent: Include what failed, what workaround was repeated, and what would prevent it next time; never use vent as a substitute for finishing the task.",
+			"vent: Use for repeated or systemic workflow friction: recurring same-cause tool/hook failures, repeated workarounds/retries, or avoidable backtracking caused by instructions, docs, or tooling",
+			"vent: Exclude one-off lint/type errors and ordinary coding mistakes",
+			"vent: Finish the task first, then batch related feedback near turn end; include what failed, the repeated workaround, and prevention",
 		],
 		parameters: ventSchema,
 		executionMode: "sequential",

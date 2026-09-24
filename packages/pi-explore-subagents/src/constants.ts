@@ -33,14 +33,12 @@ export const MODE_SPECS = {
 		label: "Shallow",
 		shortDescription: "Tight, bounded scan. Find key files and stop early.",
 		promptPath: SHALLOW_PROMPT_PATH,
-		systemPreamble: "Stay strictly in discovery mode.",
 	},
 	deep: {
 		label: "Deep",
 		shortDescription:
 			"Broad scan. Good for surveys, triage, and compare/rank work.",
 		promptPath: DEEP_PROMPT_PATH,
-		systemPreamble: "Stay strictly in discovery mode.",
 	},
 } as const;
 
