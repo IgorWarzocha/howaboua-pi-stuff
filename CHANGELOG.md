@@ -65,13 +65,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.38
+### @howaboua/pi-codex-conversion — 3.0.39
 
-- Fixed Codex GPT-6 Sol and Luna offering an unsupported off thinking level.
-
-- Fixed redundant `/compact` note-save prompts after resume, reload or tree navigation. Checkpoint reuse now follows successful note writes on the selected conversation branch and expires after new input or further tool work.
-
-- Fixed a system-message ordering error when changing GPT-6 reasoning before the first prompt.
+- Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -122,25 +118,17 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.79
+### @howaboua/pi-extensions — 0.0.80
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Fixed exact Ask answer confirmation and retry reconciliation without resending input. - Keep answers pending while the original Ask is still open. - Preserve accepted receipts when the worker's reply fails. - Report dismissed Asks as rejected.
+  - @howaboua/pi-gippity-control: Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.21
+### @howaboua/pi-gippity-control — 0.0.22
 
-- Adapt Codex, Imagegen, review, and GipPity to Pi 0.87.
-
-  Codex Conversion, Imagegen, and Subagent Review require Pi 0.87.0 or newer.
-
-  - Fixed Codex prompt and tool updates rewriting the cached conversation prefix.
-  - Context reminders no longer start an extra checkpoint turn if the current run already saved a note in the current window.
-  - Fixed Imagegen recent-image selection ignoring context removals and replacements.
-  - Fixed review summaries and preface tracking ignoring context removals and replacements.
-  - Kept GipPity browser turn notifications from including full context previews and losing their fields to truncation.
+- Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -245,11 +233,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.87
+### @howaboua/pi-stuff — 0.0.88
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Fixed exact Ask answer confirmation and retry reconciliation without resending input. - Keep answers pending while the original Ask is still open. - Preserve accepted receipts when the worker's reply fails. - Report dismissed Asks as rejected.
+  - @howaboua/pi-gippity-control: Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

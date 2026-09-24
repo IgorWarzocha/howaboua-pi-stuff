@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.22
+
+- Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
+
 ## 0.0.21
 
 - Adapt Codex, Imagegen, review, and GipPity to Pi 0.87.

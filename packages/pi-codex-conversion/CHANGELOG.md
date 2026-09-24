@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.39
+
+- Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
+
 ## 3.0.38
 
 - Fixed Codex GPT-6 Sol and Luna offering an unsupported off thinking level.
