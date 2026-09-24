@@ -224,6 +224,14 @@ export function boundedString(
 		: undefined;
 }
 
+export function isLanVoiceOriginAllowed(request: IncomingMessage): boolean {
+	const { origin, host } = request.headers;
+	// Browsers send Origin; non-browser clients retain trusted-LAN access.
+	return (
+		origin === undefined || (host !== undefined && origin === `https://${host}`)
+	);
+}
+
 class LanVoiceRequestError extends Error {
 	readonly status: number;
 	constructor(status: number, message: string) {
@@ -324,6 +332,7 @@ async function sendFile(
 		"cache-control": cache ? "public, max-age=86400" : "no-store",
 		"content-type": asset.contentType,
 		"x-content-type-options": "nosniff",
+		"content-security-policy": "frame-ancestors 'self'",
 	});
 	await pipeline(createReadStream(asset.path), response);
 }
@@ -335,9 +344,7 @@ function assertJsonPost(request: IncomingMessage): void {
 			415,
 			"GipPity requests must use application/json",
 		);
-	const origin = request.headers.origin;
-	const host = request.headers.host;
-	if (origin && (!host || origin !== `https://${host}`))
+	if (!isLanVoiceOriginAllowed(request))
 		throw new LanVoiceRequestError(
 			403,
 			"Cross-origin GipPity requests are not allowed",
