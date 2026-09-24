@@ -35,7 +35,7 @@ const NORMAL_CODEX_GUIDELINES = [
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source",
 	"Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source",
-	"Await long tools.exec_command calls inside exec; resume their yielded cell_id with wait near completion",
+	"Await long tools.exec_command calls inside exec",
 	"Use tty=true for input and persistent processes",
 	"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled, inspect every result, and resolve failures; reserve shell/Python for formatting and bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
@@ -43,7 +43,6 @@ const CODE_MODE_GUIDELINES = [
 ];
 
 const NOTEBOOK_MODE_GUIDELINES = [
-	"exec is a persistent Deno/TypeScript Jupyter notebook; project globals may come from earlier agents and sessions",
 	"Reuse matching retained globals; inspect description/usage before creating reusable ones",
 	"Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning",
 	...CODE_MODE_GUIDELINES,
@@ -51,9 +50,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 	"Filter retained data inside exec and return the needed findings",
 	"Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments",
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
-	"Notebook reports memory warnings; release/prune before pressure becomes critical",
-	"exec calls run sequentially; use wait to observe or terminate the currently yielded call",
-	"Treat Notebook as a persistent Deno REPL: build small programs on retained state across cells",
+	"exec calls run sequentially",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
@@ -219,8 +216,9 @@ function selectedToolGuidelines(options: PiSystemPromptOptions): string[] {
 	return (options.selectedTools ?? []).flatMap((name) => options.toolGuidelines?.[name] ?? []);
 }
 
-function formatGuidelines(guidelines: readonly string[]): string {
-	return `Guidelines:\n${guidelines.map((line) => `- ${line}`).join("\n")}`;
+function formatGuidelines(guidelines: readonly string[], shell?: string): string {
+	const lines = shell ? [...guidelines, formatShellContext(shell)] : guidelines;
+	return `Guidelines:\n${lines.map((line) => `- ${line}`).join("\n")}`;
 }
 
 function withoutCodexGuidelines(guidelines: readonly string[]): string[] {
@@ -293,12 +291,13 @@ export function prepareCodexSystemPrompt(
 	const skills = config.skills ?? [];
 	const shell = config.shell;
 	const sections = options.sections ??= {};
+	delete sections["codex_runtime"];
 
 	if (options.forceSystemPrompt !== undefined) {
-		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }));
+		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell);
 		let forced = upsertOpaqueSection(options.forceSystemPrompt, "codex_guidelines", guidelines);
 		forced = upsertOpaqueSection(forced, "codex_skills", buildSkillsContent(skills));
-		forced = upsertOpaqueSection(forced, "codex_runtime", shell ? formatShellContext(shell) : "");
+		forced = upsertOpaqueSection(forced, "codex_runtime", "");
 		options.forceSystemPrompt = forced;
 		return;
 	}
@@ -322,17 +321,15 @@ export function prepareCodexSystemPrompt(
 			const sectionGuidelines = customPrompt
 				? guidelines
 				: guidelines.filter((guideline) => guideline !== FOLLOW_THROUGH_GUIDELINE);
-			return sectionGuidelines.length > 0 ? formatGuidelines(sectionGuidelines) : "";
+			return sectionGuidelines.length > 0 || shell ? formatGuidelines(sectionGuidelines, shell) : "";
 		});
 	} else {
 		options.promptGuidelines = withoutCodexGuidelines(options.promptGuidelines);
 		defineOwnedSection(sections, "codex_guidelines", () =>
-			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools })));
+			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell));
 	}
 
 	prepareStructuredSkills(options, skills, mode, Boolean(config.heavySystemPromptOverwrite));
-	if (shell) sections["codex_runtime"] = formatShellContext(shell);
-	else delete sections["codex_runtime"];
 }
 
 function formatShellContext(shell: string): string {

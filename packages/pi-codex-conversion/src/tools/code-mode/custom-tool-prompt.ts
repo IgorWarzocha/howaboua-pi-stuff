@@ -3,6 +3,7 @@ import type {
 	CodeModeToolMetadata,
 	CustomToolDefinition,
 } from "./types.js";
+import type { CodeModeExecutionKind } from "./shared-runtime.js";
 import {
 	translateCodeModeGuideline,
 	translateCodeModeToolReferences,
@@ -10,7 +11,6 @@ import {
 } from "./tool-identity.ts";
 
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
-Runtime follows the selected mode: Code is fresh restricted JS with no console/imports/Node/browser APIs; Notebook is one persistent Deno TypeScript global environment shared by every exec call, with console, imports, npm, Deno, and Web APIs
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Await work; bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
@@ -97,6 +97,7 @@ function buildUsageSection(
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	documentationPath?: string,
+	executionKind: CodeModeExecutionKind = "code",
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
@@ -104,6 +105,9 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
+		executionKind === "notebook"
+			? "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
+			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		buildGuidanceSection(tools),
@@ -151,15 +155,14 @@ export function prepareCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	documentationPath?: string,
 	isEnabled: () => boolean = () => true,
+	executionKind: CodeModeExecutionKind = "code",
 ): string {
 	const sections = options.sections ??= {};
-	const section = buildCodeModeToolsPrompt(tools, documentationPath);
+	const section = buildCodeModeToolsPrompt(tools, documentationPath, executionKind);
 	if (options.forceSystemPrompt !== undefined) {
 		options.forceSystemPrompt = upsertCodeModeToolsSection(options.forceSystemPrompt, isEnabled() ? section : "");
-	} else if (section) {
-		defineCodeModeToolsSection(sections, section, isEnabled);
 	} else {
-		delete sections[CODE_MODE_TOOLS_SECTION];
+		defineCodeModeToolsSection(sections, section, isEnabled);
 	}
 	return section;
 }
