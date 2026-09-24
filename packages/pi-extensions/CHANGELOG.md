@@ -1,5 +1,11 @@
 # @howaboua/pi-extensions
 
+## 0.0.80
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.
+
 ## 0.0.79
 
 - Include bundled package updates:
