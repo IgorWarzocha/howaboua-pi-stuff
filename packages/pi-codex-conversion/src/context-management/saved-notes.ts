@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionProjection, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isCodexContextManagementMessageDetails } from "./messages.ts";
@@ -19,35 +20,41 @@ export function hasFreshContextNotes(
 		entry.details.contextManagement.currentWindowId !== windowId) return false;
 	// Pi owns context edits and compaction selection. Metadata never counts as new work.
 	const messages = buildSessionProjection(branch.slice(boundary + 1)).messages;
-	const results = new Set<string>();
-	let finalReply = false;
+	const results = new Map<string, Extract<AgentMessage, { role: "toolResult" }>>();
+	let atEnd = true;
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		const message = messages[index]!;
 		if (message.role === "system") continue;
+		if (atEnd) {
+			atEnd = false;
+			if (message.role === "assistant" && message.stopReason === "stop" &&
+				!message.content.some((part) => part.type === "toolCall")) continue;
+			if (requireFinalReply) return false;
+		}
 		if (message.role === "assistant") {
 			if (message.stopReason !== "stop" && message.stopReason !== "toolUse") return false;
 			const calls = message.content.filter((part) => part.type === "toolCall");
-			if (calls.length === 0) {
-				if (message.stopReason !== "stop") return false;
-				finalReply = true;
-				continue;
-			}
-			// A mixed or unfinished batch can contain work not covered by the saved note.
-			return (!requireFinalReply || finalReply) && calls.length === results.size &&
-				calls.every((call) => call.name === "notes" && results.has(call.id) &&
-					(call.arguments["action"] === "write_file" || call.arguments["action"] === "append_to_file"));
+			// A previous final reply ends the run. Within it, completed tool batches do not stale notes.
+			if (calls.length === 0 || calls.length !== results.size ||
+				calls.some((call) => results.get(call.id)?.toolName !== call.name)) return false;
+			const writes = calls.filter((call) => call.name === "notes" &&
+				(call.arguments["action"] === "write_file" || call.arguments["action"] === "append_to_file"));
+			if (writes.length > 0) return writes.every((call) => {
+				const result = results.get(call.id)!;
+				if (result.isError) return false;
+				const details = result.details;
+				if (!details || typeof details !== "object" || !("codexHistoryNotes" in details)) return false;
+				const note = details["codexHistoryNotes"];
+				return !!note && typeof note === "object" &&
+					(mode === "remote"
+						? "encrypted_output" in note && typeof note["encrypted_output"] === "string"
+						: "source" in note && note["source"] === "pi-session");
+			});
+			results.clear();
+			continue;
 		}
-		if (message.role !== "toolResult" || message.toolName !== "notes" || message.isError ||
-			(requireFinalReply && !finalReply)) return false;
-		const details = message.details;
-		if (!details || typeof details !== "object" || !("codexHistoryNotes" in details)) return false;
-		const result = details["codexHistoryNotes"];
-		if (!result || typeof result !== "object" ||
-			(mode === "remote"
-				? !("encrypted_output" in result && typeof result["encrypted_output"] === "string")
-				: !("source" in result && result["source"] === "pi-session"))) return false;
-		if (results.has(message.toolCallId)) return false;
-		results.add(message.toolCallId);
+		if (message.role !== "toolResult" || results.has(message.toolCallId)) return false;
+		results.set(message.toolCallId, message);
 	}
 	return false;
 }

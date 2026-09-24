@@ -78,7 +78,7 @@ test("context windows preserve rollover and native request semantics", async () 
 	assert.equal(manager.recordBudget(ctx, "remote", 232_000), undefined);
 	assert.match(String(manager.recordBudget(ctx, "remote", 250_000)?.content), /Urgent/);
 
-	for (const mode of ["local", "remote"] as const) {
+	for (const mode of ["local", "tree", "remote"] as const) {
 		const sessionManager = SessionManager.inMemory("/repo");
 		const noteCtx = { ...ctx, sessionManager };
 		const window = createContextWindowMessage("Window", "window", {
@@ -113,8 +113,14 @@ test("context windows preserve rollover and native request semantics", async () 
 		};
 		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "persisted writes suppress reminders");
 		assert.equal(reuse(), false, "an unfinished run cannot silently roll over");
+		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+			type: "toolCall", id: "cleanup", name: "exec", arguments: { code: "cleanup()" },
+		}] });
+		assert.equal(reuse(), false, "a pending tool batch cannot silently roll over");
+		sessionManager.appendMessage({ ...result, toolCallId: "cleanup", toolName: "exec", details: {} });
+		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "later tools in the same run do not stale notes");
 		const final = sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Saved" }] });
-		assert.equal(reuse(), true, "fresh runtime recovers completed save from the conversation");
+		assert.equal(reuse(), true, "fresh runtime recovers notes saved before cleanup in the completed run");
 		assert.equal(reuse("Preserve extra detail"), false);
 		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
 		assert.equal(reuse(), false, "visible peer input invalidates the checkpoint");
@@ -135,7 +141,7 @@ test("context windows preserve rollover and native request semantics", async () 
 		}] });
 		sessionManager.appendMessage({ ...result, toolCallId: "work", toolName: "exec" });
 		sessionManager.appendMessage(assistant);
-		assert.equal(reuse(), false, "work after a save invalidates it even without a new user turn");
+		assert.equal(reuse(), false, "a later run cannot reuse notes from before the previous final reply");
 		sessionManager.branch(user);
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");
