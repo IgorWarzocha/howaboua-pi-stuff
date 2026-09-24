@@ -63,6 +63,7 @@ export async function handleLanVoiceHttpRequest(
 			sendJson(response, 404, { error: "Not found" });
 			return;
 		}
+		assertJsonPost(request);
 		const body = await readJson(request);
 		if (!handlers.ownerIsActive() || handlers.closing) {
 			sendJson(response, 409, { error: "The Pi session that started this voice server is no longer active" });
@@ -94,6 +95,12 @@ export async function handleLanVoiceHttpRequest(
 
 export function boundedString(value: unknown, maxBytes: number): string | undefined {
 	return typeof value === "string" && value.length > 0 && Buffer.byteLength(value) <= maxBytes ? value : undefined;
+}
+
+export function isLanVoiceOriginAllowed(request: IncomingMessage): boolean {
+	const { origin, host } = request.headers;
+	// Browsers send Origin; non-browser clients retain trusted-LAN access.
+	return origin === undefined || (host !== undefined && origin === `https://${host}`);
 }
 
 class LanVoiceRequestError extends Error {
@@ -158,4 +165,12 @@ function sendBinary(response: ServerResponse, contentType: string, body: Buffer)
 		"x-content-type-options": "nosniff",
 	});
 	response.end(body);
+}
+
+function assertJsonPost(request: IncomingMessage): void {
+	const contentType = request.headers["content-type"]?.split(";", 1)[0]?.trim();
+	if (contentType !== "application/json")
+		throw new LanVoiceRequestError(415, "GipPity requests must use application/json");
+	if (!isLanVoiceOriginAllowed(request))
+		throw new LanVoiceRequestError(403, "Cross-origin GipPity requests are not allowed");
 }

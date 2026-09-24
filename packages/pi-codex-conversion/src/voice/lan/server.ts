@@ -14,7 +14,7 @@ import { LanVoiceBrowserClients, MAX_CONTROL_BYTES } from "./browser-clients.ts"
 import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
-import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
+import { boundedString, handleLanVoiceHttpRequest, isLanVoiceOriginAllowed } from "./http-handler.ts";
 import { collectFailures, configureServer, lanVoiceUrls, listen } from "./server-runtime.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
 
@@ -189,6 +189,10 @@ export async function startCodexLanVoiceServer(options: {
 			if (url.pathname !== "/api/audio" || !clientId || !ownerIsActive() || closing) {
 				socket.write("HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n");
 				socket.destroy();
+				return;
+			}
+			if (!isLanVoiceOriginAllowed(request)) {
+				socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n", () => socket.destroy());
 				return;
 			}
 			webSockets.handleUpgrade(request, socket, head, (webSocket) => clients.connectAudio(clientId, webSocket));

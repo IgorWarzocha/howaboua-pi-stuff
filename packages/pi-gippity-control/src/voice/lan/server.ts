@@ -27,7 +27,11 @@ import { resolveLanRemoteCustomApp } from "./custom-app.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { createLanRemoteDiscovery } from "./discovery.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
-import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
+import {
+	boundedString,
+	handleLanVoiceHttpRequest,
+	isLanVoiceOriginAllowed,
+} from "./http-handler.ts";
 import type { GippityRemoteApps } from "./remote-app.ts";
 import { remoteJsonValue } from "./remote-json.ts";
 import {
@@ -300,6 +304,12 @@ export async function startCodexLanVoiceServer(options: {
 			) {
 				socket.write("HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n");
 				socket.destroy();
+				return;
+			}
+			if (!isLanVoiceOriginAllowed(request)) {
+				socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n", () =>
+					socket.destroy(),
+				);
 				return;
 			}
 			webSockets.handleUpgrade(request, socket, head, (webSocket) =>
