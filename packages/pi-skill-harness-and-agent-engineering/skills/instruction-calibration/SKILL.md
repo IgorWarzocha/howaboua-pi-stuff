@@ -33,4 +33,4 @@ For an interactive comparison, let each meaningful run finish and pause for the 
 - Change one coherent boundary. Prefer the smallest condition and action. Keep inaccessible facts and local decisions. Do not teach a specialist its own discipline. Add examples only to resolve demonstrated ambiguity.
 - Rerun the same probes after compression, especially the closest collision. Reject new ceremony, eager routing, or regressions on non-use. For each retained line, identify the concrete failure its removal restores. Otherwise cull it.
 
-Finish with the baseline, observed delta, active API verification, token change, final instruction change, and unresolved variance. Do not turn model-compliance probes into permanent programmatic tests.
+Finish with the baseline, observed delta, active API verification, token change, final instruction change, and unresolved variance. For efficiency comparisons, use existing whole-task usage when available, including retries and workers. Text-token reductions alone do not establish task-cost savings. Do not turn model-compliance probes into permanent programmatic tests.
