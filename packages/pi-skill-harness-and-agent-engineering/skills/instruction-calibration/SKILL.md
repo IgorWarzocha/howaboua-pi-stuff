@@ -1,61 +1,36 @@
 ---
 name: instruction-calibration
 description: "Read before empirically tuning a reusable skill or agent prompt."
-last-changed: "2026-08-23"
+last-changed: "2026-09-24"
 ---
 
-For reusable skill structure, also load an applicable skill-authoring skill. This skill owns behavioural calibration, not package shape.
+For reusable skill structure, also load an applicable skill-authoring skill.
 
-## Define the delta
+## Define the comparison
 
-1. Start from a real request, observed failure, or explicit correction.
-2. State the behaviour that should change and what must remain unchanged.
-3. Prepare a small probe set:
-   - the natural request that exposed the failure
-   - the nearest request that should produce a different choice
-   - an unrelated request where the instruction should stay out of the way
-4. Give test agents only the task and context they cannot access. Do not hide the desired method inside the probe.
+- Start with a real request, observed failure, or durable correction. Name the consequential choice to change and what must stay unchanged.
+- Use the natural request, its closest decision boundary, and an unrelated non-use case. Do not put the desired solution into the task.
+- Separate remembered knowledge from productive performance. A closed-book probe can expose stale assumptions, but the working baseline should have the docs and source normally available. Verify generated work against the active API and execute relevant checks. Plausible output is not correctness.
 
-## Keep the user in the comparison
+## Control the layers
 
-- The easiest setup is tmux or Herdr, with each tested agent in a visible sibling pane beside the current session. Preserve the current workspace, working directory, and user focus unless the comparison requires another environment. In Herdr, consult `herdr --skill`.
-- Do not hide calibration in a background subagent or detached process.
-- Inspect the tested coding agent's current help for controls over context files, reusable instructions, skills, plugins, and extensions. Start with the fewest local instruction layers, state anything that cannot be disabled, then restore layers progressively.
-- For Pi, `pi -nc -ns -ne` is the local raw starting point. Use current help to add only the candidate skill or prompt before restoring the natural environment.
-- After each meaningful run, identify the pane, prompt, and loaded instruction layers, give only an initial observation or suggested next probe, then stop for the user to read both sessions.
-- Do not revise the candidate, decide the disposition, or close test runs before the user responds. Leave every pane open until the user permits cleanup.
-- Allow natural follow-up prompts in the same test session, including asking the model to diagnose or improve its answer. Treat them as exploration, not fresh baseline evidence.
-- After changing a loaded skill, prompt, context file, or environment layer, use the harness reload path only for a WIP check. Relaunch a fresh session for comparison evidence. Keep superseded runs visible but exclude them from clean comparisons.
+- Inspect current harness help. Start with few local instruction layers, record what remains, then restore docs access, repository context, and skills deliberately. These discovery runs are not isolated instruction comparisons when several variables change.
+- For Pi, `pi -nc -ns -ne` disables discovery, not an agent's ability to read instruction files. Inspect actual reads and loaded prompt layers. Exclude contaminated baselines or restrict instruction-file access equally in both arms.
+- Compare fresh sessions with identical model, reasoning, tools, cwd, task, and available files. Change only the candidate instruction. Keep follow-ups and reloads for exploration, not clean baseline evidence.
+- Test the one-shot output before coaching. Do not credit corrections from a follow-up to the original instruction.
+- Finish with the normal worker environment to check skill selection and conflicting layers. Treat that as integration evidence, not an isolated comparison.
 
-## Isolate the instruction
+## Run with the agreed supervision
 
-1. Keep the model, thinking level, tools, working directory, task, and available context fixed.
-2. Run a clean baseline without the candidate instruction.
-3. Run the same probe in a fresh session with the candidate skill or prompt.
-4. Change no tool schema, runtime policy, profile, or task framing during the comparison. Test session reuse separately only when reuse is the behaviour under study.
+Use visible sibling sessions when available, preserving cwd and user focus. Consult current harness controls rather than embedding launch recipes. Keep only active comparisons open.
 
-## Read behaviour, not prose
+For an interactive comparison, let each meaningful run finish and pause for the user to inspect it before changing the candidate. When the user delegates evaluation, run, judge, refine, and clean up autonomously. Report evidence at completion instead of requiring approval between probes. Human UX preference still needs the user's judgment.
 
-- Compare choices, actions, omissions, and useful output. A polished answer is not proof of better behaviour.
-- Expect variance. Ignore wording, structure, and harmless judgment drift that does not change correctness, a consequential choice, or usefulness. Do not tune toward identical outputs.
-- Separate model defaults, task ambiguity, missing context, local policy, and instruction effects.
-- Treat one unusually good or bad run as weak evidence. Cull Captain Obvious guidance only when the native baseline reliably supplies the same behaviour across realistic probes.
-- Preserve local policy and unavailable context even when the model could guess them.
-- If both runs fail because the task is underspecified, repair the task prompt rather than bloating a reusable skill.
-- Treat new ceremony, eager routing, overgeneralisation, or regressions on the negative probe as instruction failures.
+## Tune and verify
 
-## Tune the boundary
+- Judge choices, actions, omissions, and useful output, not polish or identical wording. Separate instruction effects from model defaults, missing context, ambiguity, and local policy.
+- One unusually good or bad run is weak evidence. Repeat when disposition depends on stability, not to eliminate harmless variance. Repair underspecified tasks instead of enlarging reusable guidance.
+- Change one coherent boundary. Prefer the smallest condition and action. Keep inaccessible facts and local decisions. Do not teach a specialist its own discipline. Add examples only to resolve demonstrated ambiguity.
+- Rerun the same probes after compression, especially the closest collision. Reject new ceremony, eager routing, or regressions on non-use. For each retained line, identify the concrete failure its removal restores. Otherwise cull it.
 
-- Change one coherent instruction at a time.
-- Write the smallest direct condition, action, or boundary that addresses the observed failure.
-- Prefer familiar words and natural task framing. Add an example only when the wording remains ambiguous.
-- Do not teach a specialist its own discipline. Supply the concrete task, inaccessible context, and local decisions.
-- Remove rationale once the operative instruction stands on its own.
-
-## Verify and cull
-
-Rerun the same probes in fresh sessions. Repeat only when the disposition depends on whether a consequential choice is stable. Do not chase ordinary generative drift.
-
-After behaviour converges, compress the candidate and rerun the closest collision. For every retained line, name the plausible regression its removal restores. Delete the line when no concrete answer survives.
-
-Finish with the baseline behaviour, observed delta, final instruction change, and any unresolved variance.
+Finish with the baseline, observed delta, active API verification, token change, final instruction change, and unresolved variance. Do not turn model-compliance probes into permanent programmatic tests.
