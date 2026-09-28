@@ -13,6 +13,7 @@ import { CodexContextWindowManager } from "../src/context-management/window-mana
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+import { buildContextSettings } from "../src/ui/settings/config-items-context.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
@@ -214,10 +215,38 @@ test("execution mode and Responses Lite transport resolve independently", () => 
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {
 	const config = createAdapterState({
 		scope: { allProviders: "on", additionalProviders: ["my-provider"] },
-		compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true },
+		compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, method: "v2" },
 	}).config;
 
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never, config).nativeCompaction, false);
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
+	for (const route of [
+		{ provider: "openai", api: "openai-responses", native: false },
+		{ provider: "openai-codex", api: "openai-codex-responses", native: true },
+		{ provider: "my-provider", api: "openai-responses", native: true },
+		{ provider: "my-provider", api: "openai-completions", native: false },
+	]) {
+		const ctx = createContext({ ...route, id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never;
+		for (const continuity of ["compaction", "notes", "notes-and-compaction"] as const) {
+			for (const historyStorage of ["local", "tree", "remote"] as const) {
+				for (const method of ["pi", "v2", "both"] as const) {
+					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method } };
+					const plan = resolveCodexRuntimePlan(ctx, configured);
+					const notes = continuity !== "compaction" && route.api !== "openai-completions"
+						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
+					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
+					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
+					assert.equal(plan.nativeCompaction, route.native && continuity !== "notes" && method !== "pi");
+					assert.equal(plan.nativeReplay, route.native && continuity !== "notes", "changing the next compaction method must not disable checkpoint replay");
+				}
+			}
+		}
+	}
+	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never;
+	const original = { ...config, compaction: { ...config.compaction, continuity: "notes-and-compaction" as const, method: "both" as const } };
+	const storage = buildContextSettings(original, ctx).find(({ item }) => item.id === "historyStorage")!;
+	const remote = storage.update!("Remote", original);
+	assert.deepEqual(remote.compaction, { ...original.compaction, historyStorage: "remote" }, "storage selection must not switch off compaction or portability");
+	const strategy = buildContextSettings(remote, ctx).find(({ item }) => item.id === "continuity")!;
+	const notes = strategy.update!("Notes and history", remote);
+	const restored = strategy.update!("Notes + compaction", notes);
+	assert.deepEqual(restored.compaction, remote.compaction, "inapplicable method and retention settings are remembered, not cleared");
 });

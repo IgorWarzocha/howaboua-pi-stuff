@@ -40,8 +40,8 @@ export function createContextWindowTools(
 			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
-				const started = plan.contextManagementHybrid
-					? state.contextWindows.scheduleHybridCompaction()
+				const started = plan.compactOnRollover
+					? state.contextWindows.scheduleRolloverCompaction()
 					: plan.contextManagementMode === "tree"
 					? state.contextTree.schedule(ctx)
 					: await state.contextKickoff.startWindow(pi, ctx, {
@@ -51,14 +51,14 @@ export function createContextWindowTools(
 						trimPreviousWindow: true,
 					});
 				// Pi's terminate flag only stops a batch when every result terminates.
-				if (started && !plan.contextManagementHybrid) ctx.abort();
+				if (started && !plan.compactOnRollover) ctx.abort();
 				return {
 					...(started ? { terminate: true } : {}),
 					content: [
 						{
 							type: "text",
 							text: started
-								? plan.contextManagementHybrid
+								? plan.compactOnRollover
 									? "A new context window will continue from a compaction checkpoint."
 									: "A new context window will start without summarizing conversation history."
 								: "A new context window is already scheduled.",
@@ -117,7 +117,7 @@ function assertContextManagementActive(
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (!plan.contextManagement)
 		throw new Error(
-			"Codex context management requires an active Responses adapter with Context management enabled",
+			"Context tools require an active Responses adapter with a notes-based continuity strategy",
 		);
 	return plan;
 }

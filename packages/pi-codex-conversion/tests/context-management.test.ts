@@ -80,6 +80,7 @@ test("context windows preserve rollover and native request semantics", async () 
 
 	for (const mode of ["local", "tree", "remote"] as const) {
 		const sessionManager = SessionManager.inMemory("/repo");
+		const beforeMarker = sessionManager.appendMessage({ role: "user", content: "Selected destination context", timestamp: 0 });
 		const noteCtx = { ...ctx, sessionManager };
 		const window = createContextWindowMessage("Window", "window", {
 			firstWindowId: "saved-window", currentWindowId: "saved-window", windowNumber: 0,
@@ -145,6 +146,20 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.branch(user);
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");
+
+		sessionManager.branchWithSummary(beforeMarker, "Read notes at the exact handoff path before resuming");
+		const navigationWindow = new CodexContextWindowManager(async () => undefined);
+		const persistedPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) => {
+			sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
+		} } as never;
+		navigationWindow.ensureInitialized(persistedPi, noteCtx, true);
+		const projected = () => JSON.stringify(navigationWindow.project(
+			sessionManager.buildSessionContext().messages, mode, sessionManager.getBranch(), sessionManager.getEntries(),
+		));
+		assert.match(projected(), /exact handoff path/, "initializing a window after navigation must not hide the handoff");
+		assert.match(projected(), /Selected destination context/);
+		await navigationWindow.startNewWindow(persistedPi, noteCtx, { mode, trimPreviousWindow: true });
+		assert.doesNotMatch(projected(), /exact handoff path|Selected destination context/, "only explicit rollover cuts the previous conversation");
 	}
 
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), { cancel: true });
@@ -197,7 +212,8 @@ test("context windows preserve rollover and native request semantics", async () 
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			compaction: {
 				...DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
-				contextManagement: "remote",
+				continuity: "notes",
+				historyStorage: "remote",
 			},
 		},
 	};

@@ -52,7 +52,7 @@ export class CodexContextWindowManager {
 	private identity: ContextWindowIdentity | undefined;
 	private readonly budget = new ContextWindowBudget();
 	private rolloverPending: object | undefined;
-	private hybridCompaction: { phase: "scheduled" | "running" } | undefined;
+	private rolloverCompaction: { phase: "scheduled" | "running" } | undefined;
 	private manualCheckpoint: {
 		identity: ContextWindowIdentity;
 		mode: ContextManagementMode;
@@ -75,7 +75,7 @@ export class CodexContextWindowManager {
 		this.identity = undefined;
 		this.budget.reset();
 		this.rolloverPending = undefined;
-		this.hybridCompaction = undefined;
+		this.rolloverCompaction = undefined;
 		this.manualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
 	}
@@ -133,15 +133,9 @@ export class CodexContextWindowManager {
 		mode: ContextManagementMode,
 		activeEntries: readonly SessionEntry[] = [],
 		allEntries: readonly SessionEntry[] = activeEntries,
-		hybridCompaction = false,
 	): AgentMessage[] {
-		if (mode === "off")
-			return messages.filter(
-				(message) =>
-					message.role !== "custom" ||
-					message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-			);
 		let boundaryIndex = -1;
+		let trimPreviousWindow = false;
 		for (let index = 0; index < messages.length; index += 1) {
 			const message = messages[index]!;
 			if (
@@ -152,71 +146,62 @@ export class CodexContextWindowManager {
 				throw new Error("Malformed persisted Codex context-window message");
 			if (!isContextWindowBoundary(message)) continue;
 			boundaryIndex = index;
+			trimPreviousWindow = message.details.contextManagement.trimPreviousWindow === true;
 			this.identity = identityFromDetails(
 				message.details as CodexContextManagementMessageDetails,
 			);
 		}
-		if (mode === "tree") {
-			const index = buildTreeArchiveIndex(allEntries, activeEntries);
-			const projected = !hybridCompaction &&
-				(index.archives.length === 0 || index.invalidManifest) &&
-				boundaryIndex >= 0 &&
-				!hasRealCompactionAfterWindowBoundary(activeEntries)
-				? checkpointWindow(messages, boundaryIndex)
-				: messages;
-			this.rolloverPending = undefined;
-			return filterTreeArchiveSummaries(projected, index);
-		}
-		if (boundaryIndex < 0) return [...messages];
-		this.rolloverPending = undefined;
-		return hybridCompaction || hasRealCompactionAfterWindowBoundary(activeEntries)
-			? [...messages]
-			: checkpointWindow(messages, boundaryIndex);
+		if (boundaryIndex >= 0) this.rolloverPending = undefined;
+		const projected = trimPreviousWindow && boundaryIndex >= 0 && !hasRealCompactionAfterWindowBoundary(activeEntries)
+			? checkpointWindow(messages, boundaryIndex) : [...messages];
+		if (mode === "tree") return filterTreeArchiveSummaries(projected, buildTreeArchiveIndex(allEntries, activeEntries));
+		return mode === "off" ? projected.filter((message) =>
+			message.role !== "custom" || message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE) : projected;
 	}
 
-	scheduleHybridCompaction(): boolean {
-		if (this.hybridCompaction || this.rolloverPending) return false;
-		this.hybridCompaction = { phase: "scheduled" };
+	scheduleRolloverCompaction(): boolean {
+		if (this.rolloverCompaction || this.rolloverPending) return false;
+		this.rolloverCompaction = { phase: "scheduled" };
 		return true;
 	}
 
 	cancelScheduledCompaction(): void {
-		if (this.hybridCompaction?.phase === "scheduled") this.hybridCompaction = undefined;
+		if (this.rolloverCompaction?.phase === "scheduled") this.rolloverCompaction = undefined;
 	}
 
 	finishTurn(ctx: ExtensionContext, continueWindow: () => Promise<unknown>): boolean {
-		if (!this.hybridCompaction) return false;
-		if (this.hybridCompaction.phase === "running") return true;
-		const pending = this.hybridCompaction;
+		if (!this.rolloverCompaction) return false;
+		if (this.rolloverCompaction.phase === "running") return true;
+		const pending = this.rolloverCompaction;
 		pending.phase = "running";
 		// Pi compaction aborts and waits for the loop; the turn hook must return first.
 		ctx.compact({
 			onComplete: () => {
-				if (this.hybridCompaction !== pending) return;
-				this.hybridCompaction = undefined;
+				if (this.rolloverCompaction !== pending) return;
+				this.rolloverCompaction = undefined;
 				void continueWindow().catch((error: unknown) => {
 					ctx.ui.notify(`Compaction completed, but context rollover failed: ${error instanceof Error ? error.message : String(error)}`, "error");
 				});
 			},
 			onError: (error) => {
-				if (this.hybridCompaction !== pending) return;
-				this.hybridCompaction = undefined;
+				if (this.rolloverCompaction !== pending) return;
+				this.rolloverCompaction = undefined;
 				ctx.ui.notify(`Context rollover failed: ${error.message}`, "error");
 			},
 		});
 		return true;
 	}
 
-	async completeHybridCompaction(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode): Promise<void> {
-		if (this.isHybridCompactionRunning()) return;
+	async completeRolloverCompaction(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode): Promise<void> {
+		if (this.isRolloverCompactionRunning()) return;
 		this.cancelScheduledCompaction();
 		await this.startNewWindow(pi, ctx, {
 			mode, trimPreviousWindow: false,
 		});
 	}
 
-	isHybridCompactionRunning(): boolean {
-		return this.hybridCompaction?.phase === "running";
+	isRolloverCompactionRunning(): boolean {
+		return this.rolloverCompaction?.phase === "running";
 	}
 
 	async startNewWindow(
@@ -280,12 +265,12 @@ export class CodexContextWindowManager {
 	prepareCompaction(
 		event: SessionBeforeCompactEvent,
 		mode: ContextManagementMode,
-		hybridCompaction = false,
+		compactOnRollover = false,
 	):
 		| { cancel: true }
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
-		if (hybridCompaction) return event.reason === "threshold" ? { cancel: true } : undefined;
+		if (compactOnRollover) return event.reason === "threshold" ? { cancel: true } : undefined;
 		if (event.reason === "overflow") return undefined;
 		if (event.reason === "manual") {
 			if (!this.identity) return { cancel: true };
@@ -383,6 +368,13 @@ export class CodexContextWindowManager {
 		), { triggerTurn: false });
 	}
 
+}
+
+/** Apply the same explicit retirement boundary to compaction and native replay. */
+export function projectContextWindowBranch(entries: SessionEntry[]): SessionEntry[] {
+	const boundary = findLatestWindowBoundaryEntry(entries);
+	return boundary?.details.contextManagement.trimPreviousWindow && !hasRealCompactionAfterWindowBoundary(entries)
+		? entries.slice(entries.indexOf(boundary)) : entries;
 }
 
 function hasRealCompactionAfterWindowBoundary(entries: readonly SessionEntry[]): boolean {

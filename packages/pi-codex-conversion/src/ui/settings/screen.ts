@@ -136,6 +136,7 @@ export async function openCodexSettingsScreen(
 					draft,
 					theme,
 					availableContextModels,
+					ctx,
 				),
 			];
 			list = new SettingsList(
@@ -243,7 +244,7 @@ export async function openCodexSettingsScreen(
 					);
 				if (activeTab === "context")
 					settingsLines = withContextWindowsWarning(settingsLines, theme);
-				if (activeTab === "context" && draft.compaction.contextManagement !== "off" && !draft.compaction.hybridCompaction)
+				if (activeTab === "context" && draft.compaction.continuity === "notes")
 					settingsLines = withSettingsDetails(settingsLines, [
 						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
 					]);
@@ -429,7 +430,7 @@ function withConfigScopeDetails(
 function withContextWindowsWarning(lines: string[], theme: Theme): string[] {
 	const next = [...lines];
 	const settingIndex = next.findIndex((line) =>
-		line.includes("Context management (experimental)")
+		line.includes("Continuity strategy")
 	);
 	if (settingIndex < 0) return next;
 	next.splice(
@@ -437,7 +438,7 @@ function withContextWindowsWarning(lines: string[], theme: Theme): string[] {
 		0,
 		theme.fg(
 			"warning",
-			"  ⚠ Keep Context management enabled when resuming sessions that used it.",
+			"  ⚠ Resume notes-based sessions with the same history and notes storage.",
 		),
 	);
 	return next;

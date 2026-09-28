@@ -10,7 +10,7 @@ export const NATIVE_COMPACTION_DISPLAY_TEXT = [
 	"",
 	"The compaction result is encrypted by OpenAI and is not human-readable in Pi.",
 	"",
-	"Warning: do not turn Responses compaction off or switch providers mid-session; old context may be much less reliable.",
+	"Switching providers requires a readable Pi summary. Choose Both before creating the checkpoint, or Pi summary to convert it on the compatible route.",
 ].join("\n");
 export const NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT = [
 	"Codex native compaction was used for this checkpoint.",

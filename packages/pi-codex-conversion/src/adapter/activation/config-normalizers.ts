@@ -2,10 +2,13 @@ import {
 	type AllProvidersMode,
 	type CacheDiagnosticsMode,
 	type CodexVerbosity,
+	type CompactionMethod,
 	type CompactToolsMode,
+	type ContinuityStrategy,
 	type ContextManagementMode,
 	DEFAULT_VOICE_CONTEXT_REASONING,
 	type DictationShortcutMode,
+	type HistoryStorage,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	type LunaCacheKeepaliveMinutes,
 	REALTIME_V3_VOICES,
@@ -47,6 +50,18 @@ export function normalizeContextManagementMode(
 		value === "remote"
 		? value
 		: undefined;
+}
+
+export function normalizeContinuityStrategy(value: unknown): ContinuityStrategy | undefined {
+	return value === "compaction" || value === "notes" || value === "notes-and-compaction" ? value : undefined;
+}
+
+export function normalizeHistoryStorage(value: unknown): HistoryStorage | undefined {
+	return value === "local" || value === "tree" || value === "remote" ? value : undefined;
+}
+
+export function normalizeCompactionMethod(value: unknown): CompactionMethod | undefined {
+	return value === "pi" || value === "v2" || value === "both" ? value : undefined;
 }
 
 export function normalizeCodexVerbosity(

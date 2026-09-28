@@ -9,10 +9,12 @@ import {
 	normalizeAllProvidersMode,
 	normalizeCacheDiagnosticsMode,
 	normalizeCodexVerbosity,
+	normalizeCompactionMethod,
 	normalizeCompactToolsMode,
-	normalizeContextManagementMode,
+	normalizeContinuityStrategy,
 	normalizeCustomRustBinariesDir,
 	normalizeDictationShortcutMode,
+	normalizeHistoryStorage,
 	normalizeLunaCacheKeepaliveMinutes,
 	normalizeProviderList,
 	normalizeRealtimeV3Voice,
@@ -48,17 +50,6 @@ export function normalizeCodexConversionConfig(
 	const executionMode =
 		normalizeExecutionMode(value["executionMode"]) ??
 		DEFAULT_CODEX_CONVERSION_CONFIG.executionMode;
-	const contextManagement =
-		normalizeContextManagementMode(compaction["contextManagement"]) ??
-		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement;
-	const hybridCompaction = contextManagement !== "off" && normalizeBoolean(
-		compaction["hybridCompaction"],
-		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.hybridCompaction,
-	);
-	const responsesCompaction = normalizeBoolean(
-		compaction["responsesCompaction"],
-		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.responsesCompaction,
-	) && contextManagement === "off";
 	return {
 		executionMode,
 		voiceFeaturesOnly: normalizeBoolean(
@@ -137,14 +128,12 @@ export function normalizeCodexConversionConfig(
 			),
 		},
 		compaction: {
-			contextManagement,
-			hybridCompaction,
-			responsesCompaction,
-			portableSummary:
-				normalizeBoolean(
-					compaction["portableSummary"],
-					DEFAULT_CODEX_CONVERSION_CONFIG.compaction["portableSummary"],
-				) && responsesCompaction && contextManagement === "off",
+			continuity: normalizeContinuityStrategy(compaction["continuity"])
+				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.continuity,
+			historyStorage: normalizeHistoryStorage(compaction["historyStorage"])
+				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.historyStorage,
+			method: normalizeCompactionMethod(compaction["method"])
+				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.method,
 			v2UserMessageRetention:
 				normalizeV2UserMessageRetention(compaction["v2UserMessageRetention"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,

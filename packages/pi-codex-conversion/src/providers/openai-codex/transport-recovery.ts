@@ -11,6 +11,7 @@ import {
 	type Transport,
 } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import { nativeCompactionConfigured } from "../../adapter/activation/runtime-plan.ts";
 import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
 import { codexRetryAfterDeadline, createErrorMessage, isRetryableRequestStatus, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
@@ -28,7 +29,7 @@ import { finalizeUsage } from "./usage.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
-import { withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
+import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
 import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
 
 export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "executionMode"> & Partial<Pick<CodexConversionConfig, "compaction">>;
@@ -188,7 +189,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			...options,
 			transport: effectiveTransport,
 			grammarToolInputProperties,
-			...(runtimeConfig?.compaction?.responsesCompaction ? { headers: withRemoteCompactionV2Feature(options.headers) } : {}),
+			...(nativeCompactionConfigured(runtimeConfig?.compaction) ? { headers: withRemoteCompactionV2Feature(options.headers) } : {}),
 		}
 		: { transport: effectiveTransport, grammarToolInputProperties };
 	const stream = createAssistantMessageEventStream();
@@ -213,6 +214,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			const canonicalSessionToken = captureCanonicalSessionToken(effectiveOptions?.sessionId);
 			const reconstructedBody = await deps.prepareRequestBody(model, resolvedContext, effectiveOptions, responsesLite);
 			const body = reconstructedBody;
+			if (hasRemoteCompactionV2Input(body.input)) effectiveOptions.headers = withRemoteCompactionV2Feature(effectiveOptions.headers);
 			await deps.beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, responsesLite);
 			const canonicalHistory: CanonicalHistoryDecision | undefined = effectiveOptions?.canonicalCompaction
 				? "compaction"

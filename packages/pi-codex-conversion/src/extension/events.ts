@@ -24,6 +24,7 @@ import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
 import { CODEX_DEVELOPER_MESSAGE_TYPE, registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
+import { hasTreeArchives } from "../context-management/tree-archive.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
@@ -363,8 +364,8 @@ export function registerCodexEvents(
 		runtime.finishTurn();
 		updateCodexPreparedIdleKickoff(pi, "agent_settled");
 		flushCodexReasoningUpdates(pi, ctx);
-		// Hybrid's asynchronous compact() aborts this run before its successor exists.
-		const continuingWork = state.contextWindows.isHybridCompactionRunning()
+		// Rollover compaction aborts this run before its successor exists.
+		const continuingWork = state.contextWindows.isRolloverCompactionRunning()
 			|| state.contextTree.rolloverPending || state.contextKickoff.pending;
 		if (!continuingWork) runtime.autoReasoning.settle(ctx);
 		// Reserve must capture the user's restored level, never a temporary auto-reasoning override.
@@ -385,9 +386,9 @@ export function registerCodexEvents(
 			state.contextTree.handoff.settled(ctx);
 			continued = state.contextKickoff.continue(pi, ctx);
 		} finally {
-			if (continuingWork && !continued && !state.contextWindows.isHybridCompactionRunning()) runtime.autoReasoning.settle(ctx);
+			if (continuingWork && !continued && !state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
 		}
-		if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isHybridCompactionRunning()) runtime.armCacheKeepalive(ctx);
+		if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isRolloverCompactionRunning()) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("cache_warming_decision", (_event, ctx) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
@@ -415,7 +416,7 @@ export function registerCodexEvents(
 			? state.contextWindows.prepareCompaction(
 				event,
 				plan.contextManagementMode,
-				plan.contextManagementHybrid,
+				plan.compactOnRollover,
 			)
 			: undefined;
 		if (contextManagementResult && "cancel" in contextManagementResult)
@@ -430,7 +431,7 @@ export function registerCodexEvents(
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
 		if (contextManagementResult) return contextManagementResult;
-		if (!nativeCompaction) return undefined;
+		if (!nativeCompaction && !plan.nativeReplay && !hasTreeArchives(event.branchEntries)) return undefined;
 		try {
 			const result = await handleCodexSessionBeforeCompact(
 				event,
@@ -446,12 +447,12 @@ export function registerCodexEvents(
 		}
 	});
 	pi.on("session_compact_failed", async (event, ctx) => {
-		if (state.contextWindows.isHybridCompactionRunning()) runtime.autoReasoning.settle(ctx);
+		if (state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
 		state.pendingPiCompactionNativeWindow = undefined;
 		runtime.voice.compactionFinished();
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const reuseNotes = state.contextWindows.finishManualCheckpointRequest(
-			pi, ctx, event, plan.contextManagement && !plan.contextManagementHybrid,
+			pi, ctx, event, plan.contextManagement && !plan.compactOnRollover,
 		);
 		if (!reuseNotes) return;
 		try {
@@ -498,9 +499,9 @@ export function registerCodexEvents(
 				}
 			}
 			// Overflow compaction keeps the current window and resumes from its checkpoint.
-			if (plan.contextManagementHybrid && event.reason !== "overflow") {
+			if (plan.compactOnRollover && event.reason !== "overflow") {
 				if (plan.contextManagementMode === "tree" && compactionEntry) {
-					const requested = state.contextWindows.isHybridCompactionRunning();
+					const requested = state.contextWindows.isRolloverCompactionRunning();
 					treeRolloverScheduled = state.contextTree.schedule(ctx, {
 						compactionEntryId: compactionEntry.id,
 						triggerTurn: requested,
@@ -509,16 +510,16 @@ export function registerCodexEvents(
 						await state.contextTree.settle(pi, ctx);
 						treeRolloverScheduled = false;
 					}
-				} else await state.contextWindows.completeHybridCompaction(pi, ctx, plan.contextManagementMode);
+				} else await state.contextWindows.completeRolloverCompaction(pi, ctx, plan.contextManagementMode);
 			}
 			if (!treeRolloverScheduled) {
 				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 				// Tool-requested rollover appends its marker in onComplete; do not prewarm the old window.
-				if (!state.contextWindows.isHybridCompactionRunning() && !state.contextKickoff.pending)
+				if (!state.contextWindows.isRolloverCompactionRunning() && !state.contextKickoff.pending)
 					await runtime.startCompactionPrewarm(ctx);
 			}
-			// Explicit Hybrid rollover refreshes at its window boundary; overflow stays here.
-			if (!contextCompaction && (!plan.contextManagementHybrid || event.reason === "overflow"))
+			// Explicit rollover refreshes at its window boundary; overflow stays here.
+			if (!contextCompaction && (!plan.compactOnRollover || event.reason === "overflow"))
 				await runtime.voice.refreshRealtimeContext(ctx, state.config);
 		} finally {
 			runtime.voice.compactionFinished();

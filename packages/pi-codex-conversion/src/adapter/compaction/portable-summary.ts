@@ -1,8 +1,10 @@
 import {
+	buildSessionProjection,
 	compact,
 	type CompactionResult,
 	type ExtensionContext,
 	type SessionBeforeCompactEvent,
+	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import {
 	uuidv7,
@@ -13,7 +15,7 @@ import {
 	type SimpleStreamOptions,
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
-import { openAICodexResponsesApi, openAIResponsesApi } from "@earendil-works/pi-ai/compat";
+import { openAICodexResponsesApi, openAIResponsesApi, streamSimple } from "@earendil-works/pi-ai/compat";
 
 type PortableSummaryStream = (
 	model: Model<Api>,
@@ -28,8 +30,36 @@ const streamPortableSummary: PortableSummaryStream = (model, context, options) =
 	if (model.api === "openai-responses") {
 		return openAIResponsesApi().streamSimple(model, context, options);
 	}
-	throw new Error(`Portable compaction does not support API: ${model.api}`);
+	return streamSimple(model, context, options);
 };
+
+/** Summarize reconstructed history, but persist only a cut on Pi's physical branch. */
+export function projectPiCompactionEvent(
+	event: SessionBeforeCompactEvent,
+	branch: SessionEntry[],
+): SessionBeforeCompactEvent {
+	const physicalCut = event.branchEntries.findIndex((entry) => entry.id === event.preparation.firstKeptEntryId);
+	if (physicalCut < 0) throw new Error("Pi compaction kept boundary is missing");
+	const keptIds = new Set(event.branchEntries.slice(physicalCut).map((entry) => entry.id));
+	const projection = buildSessionProjection(branch);
+	const cut = projection.entries.findIndex((entry) => entry.sourceEntry.type !== "compaction" && keptIds.has(entry.sourceEntry.id));
+	if (cut < 0) throw new Error("Projected Pi compaction kept boundary is missing");
+	const summary = projection.messages.find((message) => message.role === "compactionSummary");
+	const { previousSummary: _physicalSummary, ...preparation } = event.preparation;
+	return {
+		...event,
+		preparation: {
+			...preparation,
+			firstKeptEntryId: projection.entries[cut]!.sourceEntry.id,
+			...(summary ? { previousSummary: summary.summary } : {}),
+			messagesToSummarize: projection.entries.slice(0, cut).flatMap((entry) => entry.messages)
+				.filter((message) => message.role !== "system" && message.role !== "compactionSummary"),
+			// The restored prefix is one cumulative summary, including any partial turn.
+			turnPrefixMessages: [],
+			isSplitTurn: false,
+		},
+	};
+}
 
 export async function runPortablePiCompaction(
 	event: SessionBeforeCompactEvent,

@@ -132,37 +132,7 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		.slice(boundaryIndex + 1)
 		.some((entry) => entry.type === "compaction");
 	if (newerCompactionEntry) {
-		const compactionSummaryInput = serializeMessagesToResponsesInput(args.model, [createCompactionSummaryAgentMessage(args.compactionEntry)], serializationOptions);
-		const lenientReplay = buildLenientNativeReplayPayload({ payload: args.payload, freshPreamble, compactedWindow, compactionSummaryInput });
-		const originalPiReplayInput = cloneResponsesInputSlice(args.payload.input);
-		if (!lenientReplay || !originalPiReplayInput) {
-			return {
-				ok: false,
-				reason: "unexpected-compaction-after-boundary",
-			};
-		}
-
-		return {
-			ok: true,
-			segments: {
-				boundaryIndex,
-				firstKeptEntryIndex,
-				instructions: freshPreamble.instructions,
-				freshPreamble: freshPreamble.leadingInput,
-				trailingPreamble: freshPreamble.trailingInput,
-				compactionSummary: [],
-				preCompactionKeptWindow: createReplaySlice([], [], []),
-				compactedWindow,
-				postCompactionTail: createReplaySlice(args.branchEntries.slice(boundaryIndex + 1), [], lenientReplay.conversationInput),
-				originalPiReplayInput,
-				replayInput: lenientReplay.input,
-			},
-			rewrittenPayload: {
-				...args.payload,
-				...(freshPreamble.instructions !== undefined ? { instructions: freshPreamble.instructions } : {}),
-				input: lenientReplay.input,
-			},
-		};
+		return { ok: false, reason: "unexpected-compaction-after-boundary" };
 	}
 
 	const contextPostCompactionTailMessages = collectReplayMessages(postCompactionEntries);

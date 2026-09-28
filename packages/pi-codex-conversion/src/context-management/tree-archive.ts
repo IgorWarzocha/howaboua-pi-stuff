@@ -32,6 +32,10 @@ export interface TreeArchiveIndex {
 	invalidManifest: boolean;
 }
 
+export function hasTreeArchives(entries: readonly SessionEntry[]): boolean {
+	return entries.some((entry) => entry.type === "custom" && entry.customType === TREE_ARCHIVE_ENTRY_TYPE);
+}
+
 export function createTreeArchiveManifest(
 	windowId: string,
 	boundaryEntryId: string,
@@ -98,7 +102,7 @@ export function buildTreeArchiveIndex(
 		seenSummaries.add(summary.id);
 		seenWindows.add(manifest.windowId);
 		archives.push({ manifest, summary, entries: archivedEntries });
-		// A hybrid archive is not model-authoritative until its successor window commits.
+		// An archived checkpoint is not model-authoritative until its successor window commits.
 		if (!manifest.compactionEntryId || hasTreeArchiveSuccessor(activeBranch, manifest.windowId))
 			hiddenSummarySignatures.add(branchSummarySignature(summary));
 	}

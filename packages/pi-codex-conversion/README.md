@@ -70,7 +70,7 @@ The settings tabs cover:
 | Tab | Covers |
 | --- | --- |
 | General | Settings scope, execution mode, extension mode, providers, heavy prompt overwrite and current time reminders |
-| Context | Notes, history, Hybrid compaction, Responses V2 and preserved user messages |
+| Context | Continuity strategy, history and notes storage, compaction method and V2 user-message retention |
 | Tools | Auto reasoning (GPT-6), image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
@@ -96,32 +96,50 @@ The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known
 
 On GPT-6 Astra, Sol and Luna over Codex transport, Pi's usual **Shift+Tab** reasoning selector appends a native configuration update instead of changing the request's original effort. This preserves prompt-cache and WebSocket continuation eligibility; cache hits still depend on the server. Updates persist across session resume and native compaction. Other models keep Pi's usual behaviour. Server-side automatic truncation and compaction are incompatible with these updates; the extension's explicit Responses compaction V2 is supported.
 
-Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Parallel Pi-native compaction** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
-
 ## Context management
 
-**Context management (experimental)** gives the model history, notes and explicit context-window rollover. A session starts with a persisted purple window marker. `new_context` continues in a new window while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact.
+Choose how conversation state carries forward under `/codex` → **Context**:
 
-Keep Context management enabled when resuming sessions that used it. Disabling it removes its recovery tools and may rejoin previously separated windows into ordinary Pi context. Notes-only `/compact` is a checkpoint request, not an exit from context management.
+| Setting | Options | Applies when |
+| --- | --- | --- |
+| **Continuity strategy** | Compaction · Notes and history · Notes + compaction | Always |
+| **History and notes storage** | Local · Tree · Remote | The strategy includes notes |
+| **Compaction method** | Pi summary · Codex V2 · Both | The strategy includes compaction |
+| **Preserved user messages (V2 only)** | 16k · 32k · 64k | The method is Codex V2 or Both |
 
-Choose its backend under `/codex` → **Context**:
+Defaults are **Compaction**, **Pi summary** and **64k** retention, with Local remembered as the notes storage choice. Inapplicable controls are hidden without clearing their saved values. Changing storage does not switch off compaction or start a new window. It does not copy existing notes between backends.
 
-- **Off** disables context management.
+- **Compaction** uses Pi's ordinary manual and automatic compaction flow, without notes or window-rollover tools.
+- **Notes and history** starts each explicit new window without a conversation summary. The model saves notes and retrieves older information when needed.
+- **Notes + compaction** carries a compaction checkpoint into each new window alongside notes.
+
+Notes-based strategies are experimental. A persisted purple marker identifies each window. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Selecting **Notes and history** mid-session starts a fresh model window on the next input. Selecting **Notes + compaction** retains the current conversation until compaction. Resume notes-based sessions with the same storage. Switching to **Compaction** removes recovery tools and does not turn saved notes into a summary.
+
+### Storage and compaction
+
 - **Local** keeps the current latest-boundary projection, reads prior windows from Pi's JSONL and persists note updates there as model-invisible entries.
 - **Tree** archives completed windows as Pi side branches. Pi's branch summary stays visible in the transcript but out of model context; history search prioritizes it and can still return every archived raw entry.
 - **Remote** uses Codex's history and notes service on `openai-codex-responses`. It uses the native encrypted contract and fails without changing storage modes. Other transports ignore this setting.
 
-**Hybrid compaction** is a separate toggle for Local, Tree and Remote. Off by default, explicit rollover starts without a conversation summary. Turn it on to preserve a compaction checkpoint alongside notes: Responses V2 where supported, Pi's readable summary elsewhere. Tree archives completed windows and preserves the original checkpoint by reference. Overflow always compacts in the current window, even with Hybrid off. Native checkpoints remain encrypted and require a compatible transport.
+**Pi summary** produces a readable summary. **Codex V2** produces an encrypted checkpoint. **Both** adds a readable Pi summary on an isolated request lane, at extra summarization cost. Codex continues using the encrypted checkpoint while other providers can use the readable summary. Both works with **Compaction** and **Notes + compaction**, on every supported storage backend. V2 retention is a budget for recent user messages kept verbatim, not a total-context limit.
 
-With context management active, choosing a summary in Pi's tree navigator asks the current agent to summarize what happened since the selected conversation boundary, following any summary instructions you provide. The prompt identifies that boundary by a previous summary, context window, note or quoted message, not an internal branch ID. Local and Tree carry the note into the destination without replacing its existing notes. Remote uses its normal notes service. Completing the requested note write ends the agent turn without another reply. The destination receives a branch summary directing the agent to read the note's exact path before resuming. Remote results remain encrypted, so the extension cannot independently verify the saved contents. An interrupted or errored handoff cancels the jump. Choosing **No summary** remains a plain jump. This works with or without Hybrid.
+V2 and Both are offered on Codex and explicitly configured compatible passthroughs. Other routes use Pi summary without erasing the saved method. Choosing Pi summary does not discard an existing V2 checkpoint: the compatible route keeps replaying it until the next successful compaction converts it. Choose Both before the checkpoint you need to carry across providers, or convert it to Pi summary before switching. Tree checkpoints remain usable by reference after changing storage.
+
+Local and Tree require an active Responses adapter. Remote requires Codex transport, without a model-name gate. Other provider APIs do not expose notes-based context management.
+
+Existing configurations migrate on read without being rewritten. The old Hybrid choice becomes **Notes + compaction** with **Codex V2**. Standalone V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving settings writes the new fields and removes the old switches.
+
+### Rollover and recovery
+
+With a notes-based strategy, choosing a summary in Pi's tree navigator asks the current agent to summarize the departing conversation into a note. The destination receives the exact note path, including when navigating before the first window marker. Local and Tree carry that note into the destination without replacing its existing notes. Remote results remain encrypted, so the extension cannot independently verify the saved contents. An interrupted or errored handoff cancels the jump. Choosing **No summary** remains a plain jump. This is independent of the compaction method.
 
 The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
 
 After each completed assistant or tool turn, a developer message requests a notes checkpoint at **85% used**, with an urgent reminder at **90%**. Reminders are skipped when the current run has saved notes, including when other tools completed afterward. Otherwise they can request a checkpoint turn after a final reply. Percentages use the active model's full configured context window. `get_context_remaining` reports the remaining percentage and token count. Warnings do not force rollover, interrupt tools or validate notes.
 
-If context overflows, Pi compaction preserves a summary and recent conversation instead of cutting to a fresh window. With Hybrid on, the configured V2 or Pi checkpoint is used. Without Hybrid, manual `/compact` checks the selected conversation branch for notes saved during the last completed run. It opens the new window without another checkpoint turn, even when other tools ran between the save and final reply. This works after resume, reload or tree navigation. New input or a later run makes the checkpoint stale. If no fresh note is available or you supply checkpoint instructions, it asks the agent to save its state in notes, then call `new_context`.
+With **Notes and history**, manual `/compact` reuses notes saved during the last completed run and opens a new window. New input or a later run makes that checkpoint stale. Without fresh notes, or when given checkpoint instructions, `/compact` asks the agent to save its state and call `new_context`. With **Notes + compaction**, both `/compact` and `new_context` compact before opening the next window.
 
-Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport, without a model-name gate. Other provider APIs ignore context management. Without Hybrid, enabling a backend mid-session starts a fresh model window on the next input. Hybrid retains the current conversation until compaction. Standalone V2 and Parallel Pi-native compaction remain available when Context management is Off.
+Automatic overflow recovery compacts in the current window instead of rolling over. **Notes and history** uses Pi summary for this emergency recovery. The other strategies use the selected compaction method. Recovery still requires Pi's automatic compaction to be enabled.
 
 ## Cache diagnostics
 

@@ -9,7 +9,7 @@ import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { hasCodexTransportConfigChanged, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
@@ -36,23 +36,20 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (executionModeChanged || config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
 				config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB || config.notebook.profile !== previousConfig.notebook.profile)
 				runtime.state.notebookStatusMessageId = undefined;
-			const contextManagementChanged =
-				config.compaction.contextManagement !==
-				previousConfig.compaction.contextManagement;
+			const continuityChanged = config.compaction.continuity !== previousConfig.compaction.continuity;
 			tools.applyConfig(config);
 			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 			if (
-				previousConfig.compaction.contextManagement === "off" &&
-				config.compaction.contextManagement !== "off" &&
+				continuityChanged &&
+				(previousConfig.compaction.continuity === "compaction" || config.compaction.continuity === "notes") &&
 				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement
 			) {
 				runtime.state.contextWindows.restore(
 					ctx.sessionManager.getBranch(),
 				);
 				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
-					mode: config.compaction.contextManagement,
-					trimPreviousWindow:
-						!config.compaction.hybridCompaction && config.compaction.contextManagement !== "tree",
+					mode: config.compaction.historyStorage,
+					trimPreviousWindow: config.compaction.continuity === "notes",
 				}).catch((error: unknown) => {
 					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
@@ -69,16 +66,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (hasCodexCacheKeepalivePlanChanged(ctx.model?.id, previousConfig.openai, config.openai)) {
 				runtime.cancelCacheKeepalive();
 			}
-			if (
-				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
-				|| executionModeChanged
-				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
-				|| config.openai.fast !== previousConfig.openai.fast
-				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
-				|| contextManagementChanged
-				|| config.compaction.hybridCompaction !== previousConfig.compaction.hybridCompaction
-				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
-			) {
+			if (hasCodexTransportConfigChanged(previousConfig, config)) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}
 			if (config.voiceFeaturesOnly && !previousConfig.voiceFeaturesOnly) {

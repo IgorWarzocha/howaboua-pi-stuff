@@ -13,6 +13,7 @@ import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
 import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
+import { nativeCompactionConfigured } from "../adapter/activation/runtime-plan.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
 import { CODEX_RESERVE_MODEL } from "../codex-usage/reserve-policy.ts";
 import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
@@ -24,7 +25,7 @@ import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "
 import { codexCacheKeepaliveSocketSessionId, prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { type CodexTurnState, withCodexTurnState } from "./openai-codex/turn-state.ts";
-import { withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
+import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
 import {
 	createCodexTransportStream,
@@ -97,7 +98,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		getDeclaredTools(transcript.messages),
 		responsesLite || modelSupportsGrammarTools,
 	);
-	const effectiveOptions = runtimeConfig?.compaction?.responsesCompaction
+	const effectiveOptions = nativeCompactionConfigured(runtimeConfig?.compaction)
 		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }
 		: { ...options, grammarToolInputProperties };
 	const body = await prepareCodexRequestBody(model, resolvedContext, effectiveOptions, responsesLite);
@@ -124,7 +125,8 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 	if (!options.apiKey || !options.sessionId) return;
 	const accountId = extractAccountId(options.apiKey);
 	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi";
-	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId, originator);
+	const requestHeaders = hasRemoteCompactionV2Input(body.input) ? withRemoteCompactionV2Feature(options.headers) : options.headers;
+	const headers = buildWebSocketHeaders(model.headers, requestHeaders, accountId, options.apiKey, options.sessionId, originator);
 	const turnState = deps.preserveContinuation ? undefined : deps.turnState;
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());

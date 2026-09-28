@@ -117,7 +117,7 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	assert.equal(done.type, "done");
 	assert.deepEqual(done.message.content, [{ type: "text", text: "fallback", textSignature: "{\"v\":1,\"id\":\"msg_1\"}" }]);
 
-	config.compaction.contextManagement = "local";
+	config.compaction.continuity = "notes";
 	registration.applyConfig(config, {
 		getAll: () => [
 			{ provider: "proxy", api: "openai-responses" },

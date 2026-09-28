@@ -74,7 +74,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		if (plan.contextManagementRemote && remoteHistoryNotes)
 			rewrittenPayload = state.contextWindows.rewritePayload(rewrittenPayload, ctx);
 	}
-	if (plan.nativeCompaction || state.pendingPiCompactionNativeWindow) {
+	if (plan.nativeReplay || state.pendingPiCompactionNativeWindow) {
 		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(rewrittenPayload, ctx, state);
 		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(rewrittenPayload, ctx, state)) ?? rewrittenPayload;
 	}

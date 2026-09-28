@@ -2,6 +2,11 @@ import type { ProviderHeaders } from "@earendil-works/pi-ai";
 
 export const REMOTE_COMPACTION_V2_FEATURE = "remote_compaction_v2";
 
+export function hasRemoteCompactionV2Input(input: readonly unknown[]): boolean {
+	return input.some((item) => item !== null && typeof item === "object" && "type" in item
+		&& (item.type === "compaction" || item.type === "compaction_summary" || item.type === "compaction_trigger"));
+}
+
 export function withRemoteCompactionV2Feature(headers: ProviderHeaders | undefined): ProviderHeaders {
 	const merged: ProviderHeaders = { ...headers };
 	for (const name of Object.keys(merged)) {

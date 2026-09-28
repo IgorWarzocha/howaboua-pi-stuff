@@ -65,6 +65,35 @@ test("trusted folder config overrides globals without crossing folder or process
 			globalConfigPath: globalPath,
 			env: { PI_CODEX_FAST: "0" },
 		}).openai.fast, false);
+
+		const legacyGlobal = JSON.stringify({ compaction: { responsesCompaction: true, portableSummary: true, v2UserMessageRetention: 16 } });
+		const legacyProject = JSON.stringify({ compaction: { contextManagement: "tree", hybridCompaction: true, futureOption: "preserve" } });
+		const projectPath = getProjectCodexConversionConfigPath(project);
+		writeFileSync(globalPath, legacyGlobal);
+		writeFileSync(projectPath, legacyProject);
+		const migrated = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
+		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", method: "v2", v2UserMessageRetention: 16 });
+		assert.equal(readFileSync(globalPath, "utf8"), legacyGlobal);
+		assert.equal(readFileSync(projectPath, "utf8"), legacyProject, "startup normalization never writes configuration");
+		assert.equal(writeCodexConversionConfig(migrated, projectPath, true).ok, true);
+		assert.deepEqual(JSON.parse(readFileSync(projectPath, "utf8")).compaction, {
+			...migrated.compaction, futureOption: "preserve",
+		}, "explicit writes remove obsolete controls but preserve unknown fields");
+
+		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", method: "both", v2UserMessageRetention: 32 };
+		writeFileSync(globalPath, JSON.stringify({ compaction: inherited }));
+		for (const override of [
+			{ contextManagement: "tree" },
+			{ contextManagement: "tree", method: "pi" },
+			{ contextManagement: "tree", continuity: "compaction", historyStorage: "remote" },
+		]) {
+			writeFileSync(projectPath, JSON.stringify({ compaction: override }));
+			const effective = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
+			assert.deepEqual(effective.compaction, {
+				...inherited, historyStorage: "tree",
+				...Object.fromEntries(Object.entries(override).filter(([key]) => key !== "contextManagement")),
+			}, "a storage-only legacy override cannot replace the inherited method; new fields win");
+		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
