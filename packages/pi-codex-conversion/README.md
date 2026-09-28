@@ -12,25 +12,11 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 0.87.0 or newer and Node.js 22.19 or newer.
+Requires Pi 0.87.0 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
-Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
+Open `/codex` after installation. Codex-like GPT models use the structured adapter by default.
 
-Open `/codex` after installation. The defaults give Codex-like GPT models the structured adapter and leave Code Mode, heavy prompt overwrite and native compaction opt-in. All of them are highly recommended, though. That's what I'm daily-driving and fine-tuning towards.
-
-## Contents
-
-- [What you get](#what-you-get)
-- [Modes](#modes)
-- [Settings](#settings)
-- [Context management](#context-management)
-- [Cache diagnostics](#cache-diagnostics)
-- [Code Mode and custom tools](#code-mode-and-custom-tools)
-- [Voice, dictation and GipPity](#voice-dictation-and-gippity)
-- [Models and providers](#models-and-providers)
-- [Migrating from Lite](#migrating-from-lite)
-- [Develop against upstream Pi](#develop-against-upstream-pi)
-- [Troubleshooting](#troubleshooting)
+**My recommended setup:** select **Notebook** under **General**, enable **Heavy system prompt overwrite**, and choose **Codex V2** compaction under **Context**. These are opt-in, but they're what I'm daily-driving and fine-tuning towards.
 
 ## What you get
 
@@ -39,198 +25,327 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
-- OpenAI verbosity, fast mode, cached transport, usage, reset credits, context management and Responses compaction
+- OpenAI verbosity, fast mode, cached transport, usage, reset credits and context management
 - compact Pi-native rendering, status and background-shell controls
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
 
-Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) when you want Codex web search or image generation. They remain ordinary Pi extensions and automatically compose into Code and Notebook Mode.
+Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) for web search or image generation. Both compose into Code and Notebook Mode.
 
-## Modes
+**GipPity has no authentication. Keep its remote server on a trusted network.**
+
+## Reference
+
+<a name="modes"></a>
+
+<details>
+<summary><strong>Modes</strong></summary>
 
 | Mode | Behaviour |
 | --- | --- |
-| **Structured adapter** | Replaces Pi's default file and shell tools with the Codex-shaped set. This is the default for Codex-like GPT models and configured providers. |
-| **Code Mode** | Exposes `exec` and `wait`; shell, patch, image and extension tools compose locally inside `exec`. |
-| **Extra tools only** | Adds individually selected `apply_patch` or `view_image` without replacing the active model's normal setup. |
-| **Voice only** | Leaves the active model's prompt, tools, requests, compaction and adapter widgets untouched while retaining voice and dictation. |
+| **Structured adapter** | Replaces Pi's file and shell tools with the Codex-shaped set. Default for Codex-like GPT models and configured providers. |
+| **Code Mode** | Exposes `exec` and `wait`. Shell, patch, image and extension tools compose inside `exec`. |
+| **Extra tools only** | Adds selected `apply_patch` or `view_image` tools without replacing the model's normal setup. |
+| **Voice only** | Retains voice and dictation without changing the model's prompt, tools, requests, compaction or adapter widgets. |
 
-Structured mode has no separate text `read`, `edit` or `write` tool. The model inspects files through the shell and edits with `apply_patch`.
+Structured mode reads files through the shell and edits with `apply_patch`. There are no separate text `read`, `edit` or `write` tools.
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Change tool loadouts between runs. If another extension changes active tools during a tool loop, Pi updates the native tool schemas but retains this extension's prepared prompt sections until the next prepared turn. Code and Notebook instructions can therefore describe tools that are no longer active.
+Change tool loadouts between runs. Mid-run changes update Pi's native schemas but leave prepared Code and Notebook instructions unchanged until the next prepared turn.
 
-## Settings
+</details>
 
-`/codex` opens immediately and saves changes as you make them. During a run, changes take effect only after it settles, including retries and queued continuations. Voice stop, mute and server controls remain immediate.
+<a name="settings"></a>
 
-The settings tabs cover:
+<details>
+<summary><strong>Settings</strong></summary>
+
+`/codex` saves changes immediately. During a run, they take effect after it settles, including retries and queued continuations. Voice stop, mute and server controls remain immediate.
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, extension mode, providers, heavy prompt overwrite and current time reminders |
-| Context | Continuity strategy, history and notes storage, subagent sharing, compaction method and V2 user-message retention |
-| Tools | Auto reasoning (GPT-6), image description fallback and standalone tools |
-| OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
-| Display | Statusline, tool rendering, Code Mode detail and background shells |
-| Voice | LAN server, realtime behaviour, context summarisation, dictation, shortcuts and prompt paths |
-| Usage | Codex limits, reset times and banked reset credits |
-| About | GitHub, changelog, Discord and issue links |
+| General | Settings scope, execution and extension modes, providers, heavy prompt overwrite, time reminders |
+| Context | Continuity, notes storage, subagent sharing, compaction, V2 retention |
+| Tools | Auto reasoning (GPT-6), image descriptions, standalone tools |
+| OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite |
+| Display | Statusline, tool rendering, Code Mode detail, background shells |
+| Voice | LAN server, realtime behaviour, summarisation, dictation, shortcuts, prompt paths |
+| Usage | Codex limits, reset times, banked reset credits |
+| About | GitHub, changelog, Discord, issues |
 
-Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/codex voice`, `/codex usage` or `/codex about`.
+Open tabs directly with `/codex tools`, `/codex openai`, `/codex display`, `/codex voice`, `/codex usage` or `/codex about`.
 
-**Luna Reserve** (`gpt-reserve` in backend usage) is a separate, limited allowance that OpenAI offers to eligible accounts after ordinary Codex quota runs out. After a quota failure, the extension switches only when the backend authorizes Reserve for your account and model, then asks you to send `continue` if you want to use Luna. It never retries on your behalf or redeems a reset credit. Your original model and reasoning level return on the next input after the backend confirms ordinary usage has recovered. Reserve stays out of the ordinary model picker; choosing another model ends automatic return for that branch.
+### Configuration scope
 
-**Auto reasoning (GPT-6)** in `/codex tools` lets Astra, Sol and Luna adjust effort by work phase with `change_reasoning`: a JSON tool in Structured mode, or `tools.change_reasoning` in Code and Notebook modes. Disabled by default (`tools.autoReasoning`). It offers low, medium and high, never below your starting level, and restores that level after the run settles, including retries and compaction. Native configuration updates preserve the existing request prefix; the tool is absent on other models and transports.
+The first setting chooses **Global** or **This project**:
 
-The first `/codex` setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **This project** creates a project snapshot at `.pi/pi-codex-conversion.json`. Every tab and **Edit config** then targets that file. GPT-5.6 Luna cache keepalive remains global, while GPT-5.6 Sol and Terra keepalive follows the project. Switching back to Global removes the project overrides. Project settings are read only for trusted folders.
+- **Global:** `~/.pi/agent/pi-codex-conversion.json`.
+- **This project:** creates a snapshot at `.pi/pi-codex-conversion.json`. Every tab and **Edit config** targets it. Only trusted folders are read.
+- Switching back to Global removes project overrides. Without a project file, all settings inherit globally.
+- GPT-5.6 Luna cache keepalive remains global. GPT-5.6 Sol and Terra keepalive follows the project.
 
-Without folder settings, the project inherits the complete global configuration. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` can override Fast Mode for one Pi process, which is useful for independently launched workers. Run `/reload` after changing files by hand.
+`PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` overrides Fast Mode for one Pi process. Run `/reload` after editing config files by hand.
 
-`tools.customRustBinariesDir` can override any bundled native helper by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build helpers on the target machine, collect the needed binaries in one directory, set that directory in the config, then run `/reload`.
+`tools.customRustBinariesDir` overrides bundled helpers by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build on the target machine, collect the binaries in one directory, set its path, then `/reload`.
 
-The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
+### Optional controls
 
-**Current time reminders** under `/codex` → **General** are off by default. Choose 30 or 60 minutes to include the UTC time on the first inference in each context and when the interval has elapsed before a later inference. Reminders are persisted developer messages on active Responses adapters. They do not change the system prompt, start turns, or run on a timer.
+- **Heavy system prompt overwrite:** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. Off by default.
+- **Current time reminders:** choose 30 or 60 minutes under **General**. Active Responses adapters receive a persisted UTC developer message on the first inference in each context and when the interval has elapsed. No timer, extra turn or system-prompt change. Off by default.
+- **Auto reasoning (GPT-6):** lets Astra, Sol and Luna adjust effort through `change_reasoning` on Codex transport. Offers low, medium and high, never below your starting level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
 
-On GPT-6 Astra, Sol and Luna over Codex transport, Pi's usual **Shift+Tab** reasoning selector appends a native configuration update instead of changing the request's original effort. This preserves prompt-cache and WebSocket continuation eligibility; cache hits still depend on the server. Updates persist across session resume and native compaction. Other models keep Pi's usual behaviour. Server-side automatic truncation and compaction are incompatible with these updates; the extension's explicit Responses compaction V2 is supported.
+On these GPT-6 models, auto reasoning and **Shift+Tab** use native configuration updates that preserve the request prefix and continuation eligibility. Cache hits still depend on the server. Updates survive resume and native compaction. Server-side automatic truncation and compaction are incompatible, but explicit Responses compaction V2 is supported. Other models retain Pi's usual reasoning selector.
 
-## Context management
+### Luna Reserve
 
-Choose how conversation state carries forward under `/codex` → **Context**:
+After ordinary Codex quota runs out, eligible accounts may receive a limited **Luna Reserve** allowance, shown as `gpt-reserve` in backend usage. The extension switches only with backend authorization, then asks you to send `continue`. It never retries for you or redeems a reset credit.
+
+Your original model and reasoning return on the next input after the backend confirms ordinary quota has recovered. Choosing another model cancels that automatic return for the branch. Reserve is not in the ordinary model picker.
+
+</details>
+
+<a name="context-management"></a>
+
+<details>
+<summary><strong>Context management</strong></summary>
+
+Choose under `/codex context`:
 
 | Setting | Options | Applies when |
 | --- | --- | --- |
 | **Continuity strategy** | Compaction · Notes and history · Notes + compaction | Always |
-| **History and notes storage** | Local · Tree · Remote | The strategy includes notes |
-| **Share subagent context** | Off (default) · On | The strategy includes notes |
-| **Compaction method** | Pi summary · Codex V2 · Both | The strategy includes compaction |
-| **Preserved user messages (V2 only)** | 16k · 32k · 64k | The method is Codex V2 or Both |
+| **History and notes storage** | Local · Tree · Remote | Using notes |
+| **Share subagent context** | Off (default) · On | Using notes |
+| **Compaction method** | Pi summary · Codex V2 · Both | Using compaction |
+| **Preserved user messages (V2 only)** | 16k · 32k · 64k | Using Codex V2 or Both |
 
-Defaults are **Compaction**, **Pi summary** and **64k** retention, with Local remembered as the notes storage choice. Inapplicable controls are hidden without clearing their saved values. Changing storage does not switch off compaction or start a new window. It does not copy existing notes between backends.
+Defaults are **Compaction**, **Pi summary** and **64k** retention, with **Local** remembered for notes storage. Hidden controls retain their saved values.
 
-- **Compaction** uses Pi's ordinary manual and automatic compaction flow, without notes or window-rollover tools.
-- **Notes and history** starts each explicit new window without a conversation summary. The model saves notes and retrieves older information when needed.
-- **Notes + compaction** carries a compaction checkpoint into each new window alongside notes.
+- **Compaction:** Pi's manual and automatic compaction, without notes or rollover tools.
+- **Notes and history:** the model saves notes and retrieves history. Explicit new windows start without a conversation summary.
+- **Notes + compaction:** new windows carry a compaction checkpoint alongside notes.
 
-Notes-based strategies are experimental. A persisted purple marker identifies each window. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and any usable checkpoint, including V2 when selecting **Notes and history**. Only an explicit notes-only rollover cuts the previous conversation. Resume notes-based sessions with the same storage. Switching to **Compaction** removes recovery tools and does not turn saved notes into a summary.
+**Notes-based strategies are experimental.** Purple markers identify windows. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and usable checkpoints. Only an explicit notes-only rollover cuts the previous conversation.
+
+Resume notes-based sessions with the same storage. Changing storage neither copies notes nor starts a window or disables compaction. Switching to **Compaction** removes recovery tools without turning notes into a summary.
 
 ### Storage and compaction
 
-- **Local** keeps the current latest-boundary projection, reads prior windows from Pi's JSONL and persists note updates there as model-invisible entries.
-- **Tree** archives completed windows as Pi side branches. Pi's branch summary stays visible in the transcript but out of model context; history search prioritizes it and can still return every archived raw entry.
-- **Remote** uses Codex's history and notes service on `openai-codex-responses`. It uses the native encrypted contract and fails without changing storage modes. Other transports ignore this setting.
+- **Local:** reads prior windows and stores model-invisible note updates in Pi's JSONL.
+- **Tree:** archives windows as Pi side branches. Branch summaries stay visible in the transcript, outside model context. History search prioritizes summaries but can retrieve every raw entry.
+- **Remote:** uses Codex's encrypted history and notes service. Requires `openai-codex-responses` and fails without switching storage. Other transports ignore it.
 
-**Pi summary** produces a readable summary. **Codex V2** produces an encrypted checkpoint. **Both** adds a readable Pi summary on an isolated request lane, at extra summarization cost. Codex continues using the encrypted checkpoint while other providers can use the readable summary. Both works with **Compaction** and **Notes + compaction**, on every supported storage backend. V2 retention is a budget for recent user messages kept verbatim, not a total-context limit.
+Local and Tree require an active Responses adapter. Other provider APIs do not expose notes-based context management.
 
-V2 and Both are offered on Codex and explicitly configured compatible passthroughs. Other routes use Pi summary without erasing the saved method. Choosing Pi summary does not discard an existing V2 checkpoint: the compatible route keeps replaying it until the next successful compaction converts it. Choose Both before the checkpoint you need to carry across providers, or convert it to Pi summary before switching. Tree checkpoints remain usable by reference after changing storage.
+**Pi summary** is readable. **Codex V2** is an encrypted checkpoint. **Both** adds a readable summary on a separate request lane, at extra summarization cost. Codex uses the checkpoint while other providers can use the summary. Both supports every storage backend and either compaction-based strategy. V2 retention budgets recent user messages kept verbatim, not total context.
 
-Local and Tree require an active Responses adapter. Remote requires Codex transport, without a model-name gate. Other provider APIs do not expose notes-based context management.
+V2 and Both require Codex or an explicitly configured compatible passthrough. Other routes use Pi summary without erasing the saved method. Selecting Pi summary preserves an existing V2 checkpoint until the next successful compaction converts it. **Choose Both before the checkpoint you need across providers, or convert to Pi summary before switching.** Tree checkpoints remain usable by reference after changing storage.
 
-Existing configurations migrate on read without being rewritten. The old Hybrid choice becomes **Notes + compaction** with **Codex V2**. Standalone V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving settings writes the new fields and removes the old switches.
+Old configurations migrate on read without rewriting the file. Hybrid becomes **Notes + compaction** with **Codex V2**. V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving removes the old switches.
 
 ### Rollover and recovery
 
-With a notes-based strategy, choosing a summary in Pi's tree navigator asks the current agent to summarize the departing conversation into a note. The destination receives the exact note path, including when navigating before the first window marker. Local and Tree carry that note into the destination without replacing its existing notes. Remote results remain encrypted, so the extension cannot independently verify the saved contents. An interrupted or errored handoff cancels the jump. Choosing **No summary** remains a plain jump. This is independent of the compaction method.
+With notes enabled, choosing a summary in Pi's tree navigator saves a handoff note for the destination, even before the first window marker. Local and Tree preserve existing destination notes. Remote note contents remain encrypted and cannot be independently verified. Interrupted or failed handoffs cancel the jump. **No summary** remains a plain jump.
 
-The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
+The model receives history, notes, rollover and remaining-context tools. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
 
-After each completed assistant or tool turn, a developer message requests a notes checkpoint at **85% used**, with an urgent reminder at **90%**. Reminders are skipped when the current run has saved notes, including when other tools completed afterward. Otherwise they can request a checkpoint turn after a final reply. Percentages use the active model's full configured context window. `get_context_remaining` reports the remaining percentage and token count. Warnings do not force rollover, interrupt tools or validate notes.
+With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state and call `new_context`. With **Notes + compaction**, both commands compact before rollover.
 
-With **Notes and history**, manual `/compact` reuses notes saved during the last completed run and opens a new window. New input or a later run makes that checkpoint stale. Without fresh notes, or when given checkpoint instructions, `/compact` asks the agent to save its state and call `new_context`. With **Notes + compaction**, both `/compact` and `new_context` compact before opening the next window.
-
-Automatic overflow recovery compacts in the current window instead of rolling over. **Notes and history** uses Pi summary for this emergency recovery. The other strategies use the selected compaction method. Recovery still requires Pi's automatic compaction to be enabled.
+Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
 
 ### Shared agent context
 
-Enable **Share subagent context** under `/codex context` to share notes and history with newly spawned agents through a compatible subagent extension. It is off by default. Each shared child has a unique agent path and native Pi thread ID under its parent's session identity, without sharing a transcript. Identity survives rollover and resume; a fork starts an independent family. Turning sharing off affects future spawns, not existing family members. Existing sessions are never rebound.
+**Share subagent context** shares notes and history with newly spawned agents through a compatible subagent extension. It is off by default. Children get unique agent paths and native Pi thread IDs under the parent's session identity, not a shared transcript.
 
-Remote sharing requires the same Codex account and Remote storage in every participant. Local and Tree keep notes in their owning Pi sessions; the integrating extension supplies transport between those sessions. Remote failures never switch storage.
+Identity survives rollover and resume. Forks start independent families. Turning sharing off affects future spawns, not existing children. Existing sessions are never rebound.
 
-The optional `@howaboua/pi-codex-conversion/context-sharing` API is independent of Shepherdr:
+Remote sharing requires the same Codex account and Remote storage throughout. Local and Tree retain notes in their owning sessions and rely on the integrating extension for transport. Remote failures never switch storage. See [Extension APIs](#extension-apis) below for integration.
 
-```ts
-import { connectCodexContextSharing } from "@howaboua/pi-codex-conversion/context-sharing";
+</details>
 
-const connection = connectCodexContextSharing(pi);
-// In a prepared parent session:
-const service = connection.service;
-if (!service?.canCreateChild(ctx)) return; // Otherwise launch an independent child.
-const binding = await service.createChild(ctx, { name: "worker" });
-// Launch Pi normally and deliver binding through your integration.
-// In the fresh, idle child, before sending its first task:
-await childService.bind(childCtx, binding);
-```
+<a name="cache-diagnostics"></a>
 
-Pi owns session creation and persistence. `createChild` requires the parent's opt-in. `bind` adopts that explicit binding independently of the child's setting for its own future spawns; it validates storage and account and rejects used sessions or different existing bindings. `describe(ctx)` reports identity and storage; `verify(ctx)` checks Remote account compatibility.
+<details>
+<summary><strong>Cache diagnostics</strong></summary>
 
-For Local/Tree, register a router with `registerRouter` in each participant, pass its opaque `routing` descriptor to `createChild`, and execute incoming requests through the target's `service.execute(ctx, request, signal)`. Routes must validate family membership, preserve errors and never write directly into another session file. Dispose the connection on shutdown. Neither package requires the other for ordinary standalone use.
+Set **Cache diagnostics** to **Status** or **Status + log** under `/codex openai`. Off by default.
 
-## Cache diagnostics
-
-Open `/codex openai` and set **Cache diagnostics** to **Status** or **Status + log**. Diagnostics are off by default.
-
-Pi's generic cache warmer is disabled on Codex and Responses Lite routes: they cannot honor its one-token output cap, and warming would disturb the live response chain. Native Codex uses this extension's separately configured, isolated cache keepalive instead. Ordinary Responses and other providers retain Pi's cache warmer.
-
-Pi has one extension-status row, so the existing adapter and optional cache state appear together:
+Pi's footer shows cache percentage. The extension-status row explains transport and continuation:
 
 ```text
 Codex adapter V: low • notebook mode Codex Cache • HIT • WS delta
 ```
 
-Pi's built-in footer already shows the latest cache percentage. `Codex Cache` instead explains the transport and continuation decision:
-
-| Status | Meaning |
+| Status after `Codex Cache` | Meaning |
 | --- | --- |
-| `Codex Cache • waiting` | Enabled; no Codex request observed yet. |
-| `Codex Cache • prewarm ready • WS new` | A new WebSocket was prepared successfully. `WS reused` means an existing socket was prepared. |
-| `Codex Cache • HIT • WS delta` | OpenAI reported cached input and only continuation input was sent. |
-| `Codex Cache • HIT • WS full (body mismatch)` | Delta continuation was unsafe, so the full request was sent, but OpenAI's prompt cache still hit. |
-| `Codex Cache • MISS • WS full (input prefix mismatch)` | The history diverged from the continuation baseline and OpenAI reported no cached input. |
-| `Codex Cache • WS retry 2` | The first WebSocket attempt failed and the adapter is retrying. |
-| `Codex Cache • WS → SSE` | WebSocket recovery ended and the request moved to SSE. |
-| `Codex Cache • compaction • HIT • WS delta` | Native compaction reused the active continuation. |
-| `Codex Cache • WS failed: authentication • invalid_token • 401` | The request failed; diagnostics expose only safe error metadata. |
+| `waiting` | No Codex request observed yet |
+| `prewarm ready • WS new` | New socket prepared. `WS reused` means an existing socket |
+| `HIT • WS delta` | Cached input reported, only continuation input sent |
+| `HIT • WS full (body mismatch)` | Full request required, but prompt cache still hit |
+| `MISS • WS full (input prefix mismatch)` | History diverged and no cached input was reported |
+| `WS retry 2` | Retrying after the first WebSocket failure |
+| `WS → SSE` | WebSocket recovery ended, switched to SSE |
+| `compaction • HIT • WS delta` | Native compaction reused continuation |
+| `WS failed: authentication • invalid_token • 401` | Safe error metadata only |
 
-A cache miss stays visible for three seconds. Events arriving during that hold are not queued; the row then moves directly to the newest state. WebSocket continuation and OpenAI prompt caching are separate, so `WS full` can still produce a cache hit.
+A miss stays visible for three seconds before the row jumps to the latest state. **WebSocket continuation and prompt caching are separate.** A full request can still hit the cache.
 
-With logging enabled the status gains `• log`. Readable per-session logs go to:
+**Status + log** adds `• log` and writes to `~/.pi/agent/pi-codex-logs/<session-derived-name>.log`. Logs include transport, continuation, token counts, retries and allowlisted errors. They exclude prompts, messages, tool arguments, images, credentials, provider payloads and response IDs.
 
-```text
-~/.pi/agent/pi-codex-logs/<session-derived-name>.log
-```
+Pi's generic cache warmer is disabled on Codex and Responses Lite because they cannot honor its one-token output cap and warming would disturb continuation. Native Codex uses separately configured, isolated keepalive. Other routes retain Pi's warmer.
 
-Logs contain request lane, transport, socket reuse, continuation decision, item counts, cache token counts, retry/fallback state and allowlisted errors. They omit prompts, messages, tool arguments, images, credentials, provider payloads and response IDs.
+</details>
 
-## Code Mode and custom tools
+<a name="code-mode-and-custom-tools"></a>
 
-Select **Code** or **Notebook (recommended)** under `/codex` → **General**. The selected execution mode applies everywhere the adapter is active, including **all providers** scope. Each provider keeps its normal transport. Compatible Codex models use Responses Lite automatically, while configured OpenAI Responses proxies can opt into it separately with **Proxy Responses Lite**.
+<details>
+<summary><strong>Code Mode and custom tools</strong></summary>
 
-The model can compose tools in one freeform JavaScript cell:
+Select **Code** or **Notebook** under `/codex` → **General**. This applies wherever the adapter is active, including **all providers** scope. Providers retain their normal transport. Compatible Codex models use Responses Lite automatically. Configured OpenAI Responses proxies can opt in through **Proxy Responses Lite**.
+
+The model composes tools in a JavaScript cell:
 
 ```js
 const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-Notebook Mode keeps `exec` and `wait`, adds a top-level `notebook` lifecycle tool, and preserves JavaScript or TypeScript bindings in one persistent Deno runtime. The `notebook` tool owns status, checkpoints, restarts, resets and stored profiles.
+**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool manages status, checkpoints, restarts, resets and profiles. The first turn receives status and retained bindings automatically.
 
-The first Notebook turn receives its current status and retained bindings automatically, without an opening status tool call. Use `notebook` for fresh or more targeted inspection later.
+### Notebook hooks
 
-Pinned functions can react to Notebook events without another model call. Attach one with `notebook({ action: "pin", names: ["onToolResult"], hook: "tool_result" })`. It becomes active for subsequent `tools.*` calls and is restored on each fresh kernel.
+Pinned functions can react without another model call. Use the top-level `notebook` tool with `{ action: "pin", names: ["onToolResult"], hook: "tool_result" }`, not a call inside `exec`.
 
-The function receives `{ type: "tool_result", toolName, input, status, result?, error? }`. Filter by the callable `toolName` inside the function. Input is captured before the call; `status` is `"success"` when the call returns its result or `"error"` when it throws. Each handler gets its own snapshot, is awaited before the caller continues, and cannot replace the tool's result or error. Handlers run in name order; independent calls may overlap. Tools called from a handler do not trigger more handlers. Hook failures are reported without changing the original tool outcome.
+The handler receives `{ type: "tool_result", toolName, input, status, result?, error? }` for subsequent `tools.*` calls. Filter by `toolName`. Input is captured before execution. Status is `"success"` for a returned result or `"error"` for a throw.
 
-Use `hook: "startup"` for initialization after project, session and configured-profile restoration, once per fresh kernel including restarts. It receives `{ type: "startup" }`; pinning does not run it immediately. Import dependencies inside the function and recreate helpers or handles through `globalThis`. Pi tools require an active cell and cannot run during startup. Startup failures block execution; unpin remains available for recovery.
+Handlers get independent snapshots and run in name order, awaited before the caller continues. Independent calls may overlap. Handlers cannot replace outcomes, and their own tool calls do not trigger more handlers. Failures are reported without changing the original result.
 
-Ordinary pins stay passive. Omit `hook` to preserve its setting, set `hook: false` to remove it, or unpin. Hook registrations belong to the running Notebook; another session's edits take effect only on restoration. These hooks observe Notebook tool calls, not arbitrary JavaScript calls or tools outside Notebook. External side effects are not rolled back.
+Use `hook: "startup"` for initialization after project, session and profile restoration, once per fresh kernel. It receives `{ type: "startup" }`. Pinning does not invoke it. Import dependencies inside the function and recreate handles through `globalThis`. Pi tools cannot run during startup. Startup failures block execution, but unpin remains available.
+
+Ordinary pins are passive. Omit `hook` to preserve its setting, use `hook: false` to remove it, or unpin. Hooks restore with the kernel. Other sessions' changes apply only on restoration. Hooks observe Notebook tool calls only. External side effects are not rolled back.
+
+### TOML custom tools
+
+Custom tools pair a top-level TOML definition with a command accepting one string. Put them in:
+
+```text
+~/.pi/agent/codex-conversion-custom-tools/
+<project>/.pi/codex-conversion-custom-tools/
+```
+
+Promoted tools add one usage line. Deferred tools add no startup text and are discoverable through `ALL_TOOLS`. Neither adds a provider schema. Tell your Clanka when you want a deferred tool used, or it might never realise it's there.
+
+See the disabled [working examples](./examples/custom-tools/) and [definition contract](./src/tools/code-mode/CUSTOM-TOOLS.md). For progressive skills, prefer [`pi-better-skills-tool`](../pi-better-skills-tool). The legacy `skills` example requires `--no-skills`.
+
+</details>
+
+<a name="voice-dictation-and-gippity"></a>
+
+<details>
+<summary><strong>Voice, dictation and GipPity</strong></summary>
+
+Voice uses your Pi OpenAI Codex login independently of the active model. The spoken model handles conversation and routes work. Pi keeps the tools, files and actual job.
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Alt+Space` | Toggle realtime voice |
+| `Ctrl+Alt+M` | Mute or unmute without ending the call |
+| `Ctrl+Alt+D` | Push-to-dictate. Toggle behaviour is available in the Voice tab |
+| `Ctrl+Alt+G` | Toggle the GipPity LAN server |
+
+Audio follows system defaults. Use `voice.inputDevice` or `voice.outputDevice` to pin an endpoint. Dictation puts an editable transcript in Pi's input.
+
+Fresh installs use Cove for voice and Luna with high reasoning for context summarisation. Calls resume after transport drops. **Refresh voice context** summarizes and restarts voice at context rollovers or compaction, preserving mute and LAN ownership. If summarisation fails, the old call remains untouched.
+
+The voice prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. Trusted projects can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep project instructions in AGENTS.md. Outdated prompts trigger a pointer to the bundled changelog, never an automatic rewrite of your customizations. Template and changelog paths appear in the Voice tab.
+
+```text
+/codex voice realtime
+/codex voice mute
+/codex voice dictation
+/codex voice stop
+/codex voice server
+```
+
+`/codex voice server` starts GipPity over HTTPS and prints its addresses. Open one on your phone or another machine and accept the local certificate. Handy for a devbox without a mic, or talking to Pi remotely over Tailscale.
+
+GipPity offers voice, mute, editable dictation, typed prompts, Pi activity and settled replies. Moving devices does not restart the host's voice call. It follows Pi's theme and can be saved as a phone app.
+
+The server stops when its owning Pi session changes. It has no authentication. Use a trusted network.
+
+</details>
+
+<a name="models-and-providers"></a>
+
+<details>
+<summary><strong>Models and providers</strong></summary>
+
+GPT-6 Astra, Sol and Luna support Responses Lite and native reasoning updates. All default to 272K context in this provider. Cost estimates use [published Standard API rates](https://developers.openai.com/api/docs/pricing), including cache reads, writes and the long-context tier above 272K input tokens.
+
+Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
+
+Voice, usage and image descriptions can use the Codex login while another provider's model is active. Image descriptions use GPT-6 Luna. The separate web and image-generation extensions also use that login independently.
+
+Native compaction requires OpenAI Codex or an explicitly configured compatible passthrough. Unsupported states fail visibly or use Pi compaction. Enable **Both** before creating a checkpoint you need across providers, or convert it to Pi summary before switching.
+
+</details>
+
+<a name="migrating-from-lite"></a>
+
+<details>
+<summary><strong>Migrating from Lite</strong></summary>
+
+Lite has graduated into this package and receives no updates after its final release. Remove it first because both packages share commands and configuration:
+
+```bash
+pi remove npm:@howaboua/pi-codex-conversion-lite
+pi install npm:@howaboua/pi-codex-conversion
+```
+
+Your existing `~/.pi/agent/pi-codex-conversion.json` still loads. Web search and image generation are now separate:
+
+```bash
+pi install npm:@howaboua/pi-codex-web-run
+pi install npm:@howaboua/pi-codex-imagegen
+```
+
+The old canonical package's PATH mode and binaries are gone. Old settings normalize to the structured adapter. Use structured tools or Code Mode custom commands instead.
+
+</details>
+
+<a name="troubleshooting"></a>
+
+<details>
+<summary><strong>Troubleshooting</strong></summary>
+
+- **No voice device:** let the setup turn inspect endpoints, save the chosen IDs, then restart voice.
+- **GipPity microphone blocked:** use Pi's HTTPS URL and accept its certificate. Browsers block microphones on plain LAN HTTP.
+- **Code Mode cannot start:** its pinned host is prepared lazily and honors proxy environment variables. Pi reports setup failures.
+- **Bundled helper cannot run:** build it on the target machine, set `tools.customRustBinariesDir`, then `/reload`. Do not replace system glibc. Web search and image generation need no native helper.
+- **Configured provider fails:** it must implement its declared API. Proxy Responses Lite and native compaction require their respective backend contracts.
+
+For anything stranger, clone the repository and ask your Clanka:
+
+```bash
+git clone https://github.com/IgorWarzocha/howaboua-pi-stuff.git
+cd howaboua-pi-stuff
+bun install
+pi --no-extensions --no-skills -e ./packages/pi-codex-conversion
+```
+
+See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) and [GitHub issues](https://github.com/IgorWarzocha/howaboua-pi-stuff/issues).
+
+</details>
+
+<a name="extension-apis"></a>
+
+<details>
+<summary><strong>Extension APIs</strong></summary>
 
 ### Pi extension API
 
-Pi tools that genuinely need Pi's UI can also appear inside Code and Notebook Mode. Install [`pi-ask`](../pi-ask) and `await tools.ask(...)` opens the same interactive panel from a cell.
-
-Register the tool normally, then adapt the same definition for Code and Notebook Mode:
+Register a Pi tool normally, then adapt it for Code and Notebook Mode:
 
 ```ts
 import {
@@ -247,9 +362,25 @@ extensionRuntime.onActiveChange(() => registration.refresh());
 pi.on("session_shutdown", () => registration.unregister());
 ```
 
-The complete bundled example at [`examples/code-mode-extension/`](./examples/code-mode-extension) includes the tool, extension entry point and package manifest. Declare `@howaboua/pi-codex-conversion` 3.0.24 or newer as a peer dependency. Import the API lazily when the extension should still work without Pi Codex.
+See the [complete example](./examples/code-mode-extension). Declare `@howaboua/pi-codex-conversion` 3.0.24 or newer as a peer dependency. Import lazily if your extension must work without Pi Codex.
 
-Extensions can also inject a real Responses `developer` message:
+Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript receives model-usable content. Code Mode owns nested-call preflight and translates non-JavaScript tool names consistently in prompts and `ALL_TOOLS`.
+
+| Option | Purpose |
+| --- | --- |
+| `usage` | Callable contract. Include arguments or a help entry point. Only `promptGuidelines` accompany it, not native descriptions, snippets or schemas |
+| `toolName` | Non-default Responses namespace |
+| `resultValue` | Structured JavaScript result instead of ordinary model-visible content |
+| `blocking` | `true` or an input predicate to hold the turn. Otherwise long calls can yield to `wait` |
+| `deferLoading` | Omit startup usage. Full metadata remains discoverable through `ALL_TOOLS` |
+| `kind: "freeform"` | Use `prepareInput` to map a string into normal Pi parameters |
+| `isActive` | Gate a session-specific tool. Keep returning its definition and call `registration.refresh()` when activation changes |
+
+Activation is also sampled at normal session and input boundaries. Prompt, registry and outer-tool filtering then stay fixed through the run.
+
+Working integrations include [`pi-ask`](../pi-ask) for blocking UI, [`pi-better-skills-tool`](../pi-better-skills-tool) and [`pi-browser`](../pi-browser) for freeform input, [`pi-codex-web-run`](../pi-codex-web-run) and [`pi-codex-imagegen`](../pi-codex-imagegen) for namespaced structured results, and [`pi-shepherdr`](../pi-shepherdr) for activation and per-call blocking.
+
+### Developer messages
 
 ```ts
 import { sendCodexDeveloperMessage } from "@howaboua/pi-codex-conversion/developer-messages";
@@ -260,34 +391,19 @@ sendCodexDeveloperMessage(pi, "Re-evaluate the plan before editing.", {
 });
 ```
 
-The message persists in the session and appears in Pi's fixed purple message block, while the active Responses adapter sends its content to the model with role `developer`. The purple wrapper, label and persistence metadata stay model-invisible. `deliverAs` accepts Pi's native `steer`, `followUp` and `nextTurn` modes; `triggerTurn` independently starts an idle turn for the first two modes. The call fails when no compatible Pi Codex Responses adapter is active and never falls back to a user message.
+Messages persist in Pi's purple block and reach compatible Responses models as `developer`. Display metadata stays model-invisible. `deliverAs` accepts `steer`, `followUp` and `nextTurn`. `triggerTurn` can start an idle turn for the first two.
 
-Optional integrations can use `trySendCodexDeveloperMessage` instead. It returns `false` when the broker or a compatible adapter is unavailable, while actual delivery failures still throw.
+Sending without a compatible adapter throws, never falling back to a user message. Optional integrations can use `trySendCodexDeveloperMessage`, which returns `false` when the broker or adapter is unavailable. Delivery failures still throw.
 
-To retain an extension's own renderer and restoration fields, use `trySendCodexDeveloperCustomMessage(pi, { customType, content, display, details }, options)`. It preserves the custom type, display flag and caller detail fields, adding the reserved `@howaboua/pi-codex-conversion/developer-message` key to a copy of `details`. Content must be nonempty text; details must be a plain object (or omitted). It returns `false` without sending when a compatible broker is unavailable, including older brokers. Lazy integrations should check that this export exists before calling it, then send their ordinary custom message only on absence or `false`; delivery errors throw and must not trigger a second send.
+Use `trySendCodexDeveloperCustomMessage(pi, { customType, content, display, details }, options)` to retain your renderer and restoration fields. Content must be nonempty text. Details must be a plain object or omitted. A copied details object gains the reserved `@howaboua/pi-codex-conversion/developer-message` key.
 
-Persisted developer messages retain ordinary Pi conversion after switching to an incompatible model, and regain the developer role on compatible Responses models. Caller-owned custom messages keep their original renderer and restoration fields in either case.
+Lazy integrations should check that this export exists. Fall back to an ordinary custom message only on absence or `false`, never after a delivery error. Older brokers return `false`.
 
-Realtime voice start/end guidance uses this same developer-message path. Spoken delegations and transcript-tail context remain user-role content; lifecycle messages retain their display and never start a turn.
-
-The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
-Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
-Use `toolName` for a non-default Responses namespace and `resultValue` when JavaScript needs a structured value instead of the ordinary model-visible result.
-Set `blocking: true` when every call must hold the agent turn until it settles, or pass `blocking: input => boolean` when the choice depends on the invocation. The default allows long-running work to yield to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
-The `usage` line owns the callable contract in Code and Notebook Mode. Include the needed arguments or a help entry point. Only `promptGuidelines` are added beside it, not the native description, snippet or schema. Deferred tools retain full metadata in their discoverable help.
-For a compact routed string surface, set `kind: "freeform"` and provide `prepareInput` to map that string into the normal Pi tool parameters. Execution and rendering still use the same tool.
-Use the optional `isActive` gate when an extension exposes its tool only in a session mode. Keep returning the tool definition from the provider and call `registration.refresh()` when the mode changes. Code Mode also resamples gates at normal session and input boundaries, then keeps its prompt, nested registry and outer tool filtering fixed through that run.
-
-Shipped integrations provide larger examples:
-
-- [`pi-ask`](../pi-ask) uses a blocking Pi UI tool.
-- [`pi-better-skills-tool`](../pi-better-skills-tool) and [`pi-browser`](../pi-browser) map freeform strings into their normal tool parameters.
-- [`pi-codex-web-run`](../pi-codex-web-run) and [`pi-codex-imagegen`](../pi-codex-imagegen) use namespaced tool names and structured Code Mode results.
-- [`pi-shepherdr`](../pi-shepherdr) uses an activation gate, refreshes its registration when state changes and chooses blocking per call.
+Persisted messages use ordinary Pi conversion on incompatible models and regain the developer role on compatible Responses models. Custom messages retain their renderer and restoration fields.
 
 ### Nested tool hooks
 
-Pi's `tool_call` and `tool_result` events see the outer `exec` or `wait`, not its nested calls. Extensions can subscribe separately to preflight and completion through `@howaboua/pi-codex-conversion/code-mode-hooks`. The existing `code-mode-preflight` import remains supported.
+Pi's `tool_call` and `tool_result` events see outer `exec` and `wait`, not nested calls. Subscribe separately:
 
 ```ts
 import {
@@ -303,47 +419,36 @@ const observer = registerCodeModeToolCompletion(pi, async (call) => {
 });
 ```
 
-Both registrations expose `available` and `dispose()`, handle either extension load order, and dispose on session shutdown. Completion remains unavailable with older brokers that support only preflight.
+Registrations expose `available` and `dispose()`, handle either load order and dispose on shutdown. The older `code-mode-preflight` import remains supported. Older preflight-only brokers lack completion.
 
-Completion runs once when a recognized nested call settles in Code or Notebook Mode. `input` is the original argument before tool preparation. `result` is the full captured Pi tool result, including details and images, or the returned value for tools without a captured result. It is not the bounded trace or compact JavaScript return. Errors have `status: "error"`, an `error` string and `phase: "preflight" | "execution"`; `result` is `undefined` if no result was captured. A failed call can still have partial side effects. Cancellation is visible through `signal.aborted`.
+Completion runs once when a recognized nested call settles. `input` precedes preparation. `result` is the full captured Pi result, including details and images, or the returned value when no Pi result was captured. Errors include `status: "error"`, an `error` string and `phase: "preflight" | "execution"`. Without a captured result, `result` is undefined. Failed calls may have side effects. Cancellation is visible through `signal.aborted`.
 
-Each subscriber receives independent structured clones of the arguments and result. Callbacks are awaited in registration order, including after cancellation, so they must settle promptly. Subscriber failures and values that cannot be cloned are logged to stderr without changing the tool outcome. Hooks do not expand agent-visible output or replace either registration's purpose: preflight can block, completion only observes.
+Subscribers receive independent structured clones and run in registration order, awaited even after cancellation. Settle promptly. Subscriber failures and uncloneable values go to stderr without changing the outcome. Preflight can block. Completion only observes and does not expand agent-visible output.
 
-### TOML custom tools
+### Context sharing
 
-Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:
+The optional `context-sharing` API does not require Shepherdr:
 
-```text
-~/.pi/agent/codex-conversion-custom-tools/
-<project>/.pi/codex-conversion-custom-tools/
+```ts
+import { connectCodexContextSharing } from "@howaboua/pi-codex-conversion/context-sharing";
+
+const connection = connectCodexContextSharing(pi);
+// In a prepared parent session:
+const service = connection.service;
+if (!service?.canCreateChild(ctx)) return; // Otherwise launch an independent child.
+const binding = await service.createChild(ctx, { name: "worker" });
+// Launch Pi normally and deliver binding through your integration.
+// In the fresh, idle child, before sending its first task:
+await childService.bind(childCtx, binding);
 ```
 
-A promoted tool adds one compact usage line to the prompt. A deferred tool adds no tool-specific startup text and remains discoverable through `ALL_TOOLS`. Neither becomes another provider schema. Keep in mind if a tool is deferred, YOU need to remember that it exists and tell your Clanka to invoke it. Otherwise it might never realise it's there.
+Pi owns session creation and persistence. `createChild` requires parental opt-in. `bind` accepts that explicit binding regardless of the child's setting for future spawns. It validates storage and account, rejecting used sessions or different existing bindings. `describe(ctx)` reports identity and storage. `verify(ctx)` checks Remote account compatibility.
 
-Working, disabled examples live in [`examples/custom-tools/`](./examples/custom-tools/). They include legacy browser and agent runners, progressive skills, semantic search, port diagnostics, site management and workflow helpers. See [`CUSTOM-TOOLS.md`](./src/tools/code-mode/CUSTOM-TOOLS.md) for the definition contract.
+For Local and Tree, register a router in each participant with `registerRouter`, pass its opaque `routing` descriptor to `createChild`, and route incoming requests through the target's `service.execute(ctx, request, signal)`. Validate family membership, preserve errors and never write directly to another session file. Dispose the connection on shutdown.
 
-The legacy `skills` example assumes Pi starts with `--no-skills`. Prefer the maintained [`pi-better-skills-tool`](../pi-better-skills-tool) extension.
+### Realtime announcements
 
-## Voice, dictation and GipPity
-
-Voice uses your Pi OpenAI Codex login independently of the active model. The spoken model handles conversation and routes work; the active Pi session keeps the tools, files and actual job.
-
-Defaults:
-
-- `Ctrl+Alt+Space` toggles realtime voice
-- `Ctrl+Alt+M` mutes or unmutes the realtime microphone without ending the call
-- `Ctrl+Alt+D` is push-to-dictate; toggle behaviour is available in the Voice tab
-- `Ctrl+Alt+G` toggles the GipPity LAN server
-
-Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
-
-Fresh installs use Cove for realtime voice and Luna with high reasoning for context summarisation. Realtime calls resume after transport drops. **Refresh voice context** summarizes the outgoing context and starts a fresh voice call at each context rollover or compaction, including notes-only handoffs. It preserves microphone mute and LAN ownership without ending spoken mode. A summarization failure leaves the old call untouched.
-
-The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
-
-The package ships its current prompt template and cumulative schema changelog as raw Markdown. Realtime voice checks the global prompt marker when voice is engaged. If it is outdated, the extension points you and your agent to the changelog instead of rewriting personal customizations automatically. Both paths are shown in the Voice tab.
-
-Other Pi extensions can ask an active voice session to speak:
+Ask an active voice session to speak:
 
 ```ts
 import { reportRealtimeVoicePrompt } from "@howaboua/pi-codex-conversion/realtime-voice";
@@ -356,67 +461,24 @@ reportRealtimeVoicePrompt(pi, { ...announcement, active: true });
 reportRealtimeVoicePrompt(pi, { ...announcement, active: false });
 ```
 
-For an ongoing state, send `active: true` when it begins and `active: false` when it ends. For a one-off announcement, send both immediately as above.
+For ongoing states, send `active: true` at the start and `active: false` at the end. For one-off announcements, send both immediately.
 
-Voice commands:
+</details>
 
-```text
-/codex voice realtime
-/codex voice mute
-/codex voice dictation
-/codex voice stop
-/codex voice server
-```
+<a name="develop-against-upstream-pi"></a>
 
-`/codex voice server` lazily starts GipPity over HTTPS and prints its hostname and LAN addresses. Open one on a different machine (phone, cough, cough) and accept the local certificate on first visit. Amazing when using a devbox without a mic or when you want to Tailscale into Pi and talk to it remotely.
+<details>
+<summary><strong>Develop against upstream Pi</strong></summary>
 
-GipPity provides realtime voice with a microphone mute button, editable dictation drafts, typed prompting, Pi activity and settled assistant results. The host retains the Realtime WebRTC call and relays 24 kHz mono audio to the active browser, so moving between devices does not restart the voice session. It follows the Pi theme and can be saved as a PWA / phone app.
-
-The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
-
-## Models and providers
-
-GPT-6 Astra, Sol and Luna share Responses Lite, native reasoning updates and the same terse context-window guidance. All three default to 272K context in this provider. Cost estimates use [published Standard API rates](https://developers.openai.com/api/docs/pricing), including cache reads, cache writes and the long-context tier above 272K input tokens.
-
-The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
-
-Voice, usage and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. Image descriptions use GPT-6 Luna. The standalone web and image-generation extensions use the same login independently.
-
-Native Responses compaction is intentionally narrower: OpenAI Codex and explicitly configured OpenAI/Codex-compatible passthrough providers only. Unsupported states fail visibly or fall back to Pi compaction rather than silently discarding context. A portable summary must be enabled before the native checkpoint that you want to carry across providers.
-
-## Migrating from Lite
-
-`@howaboua/pi-codex-conversion-lite` has graduated into this package. Lite receives one final release and no further updates.
-
-Remove Lite before installing the canonical package; both use the same command and configuration surfaces.
-
-```bash
-pi remove npm:@howaboua/pi-codex-conversion-lite
-pi install npm:@howaboua/pi-codex-conversion
-```
-
-Your existing `~/.pi/agent/pi-codex-conversion.json` continues to load.
-
-Web search and image generation are now independently installed extensions:
-
-```bash
-pi install npm:@howaboua/pi-codex-web-run
-pi install npm:@howaboua/pi-codex-imagegen
-```
-
-This is also a major change for users of the old canonical package. Legacy PATH mode and its package binaries are gone. Old PATH-mode settings normalize to the structured adapter. Use structured tools or Code Mode custom commands instead.
-
-## Develop against upstream Pi
-
-Normal development uses the published Pi packages installed by `bun install`. To test newer upstream changes, build a Pi checkout and link it into this repository explicitly:
+Normal development uses published Pi packages from `bun install`. To test upstream changes, build a Pi checkout and link it explicitly:
 
 ```bash
 bun run pi:link-checkout -- /absolute/path/to/pi
 ```
 
-The command validates the built transcript exports and Pi CLI before replacing only this repository's Pi dependency links. Run `bun install` to restore the manifest-resolved packages.
+This validates the built transcript exports and CLI, then replaces only this repository's Pi dependency links. Run `bun install` to restore manifest-resolved packages.
 
-Build the extension, then launch that checkout's built CLI with an absolute extension path for live validation:
+Build the extension and launch the checkout's CLI:
 
 ```bash
 bun run --cwd packages/pi-codex-conversion build
@@ -426,24 +488,7 @@ node "$PI_CHECKOUT/packages/coding-agent/dist/cli.js" \
   --no-extensions --no-skills -e "$EXTENSION"
 ```
 
-## Troubleshooting
-
-- **Voice cannot find a device:** let the setup turn inspect the endpoints, save the selected device IDs, then start voice again.
-- **GipPity cannot open the microphone:** use one of Pi's HTTPS URLs and accept its local certificate. Browsers block microphone access on plain LAN HTTP.
-- **Code Mode cannot start:** its pinned host is prepared lazily and honours normal proxy environment variables. Pi reports setup failures instead of hanging the first execution.
-- **A bundled helper cannot run on this system:** build the core helper from a checkout on the target machine, put it in `tools.customRustBinariesDir`, then run `/reload`. Do not replace system glibc for this. Web search and image generation are TypeScript extensions and need no platform helper.
-- **A configured provider fails:** it must implement its declared provider API. Proxy Responses Lite and native compaction additionally need their respective backend contracts.
-
-For anything stranger, clone the repository and ask your Clanka:
-
-```bash
-git clone https://github.com/IgorWarzocha/howaboua-pi-stuff.git
-cd howaboua-pi-stuff
-bun install
-pi --no-extensions --no-skills -e ./packages/pi-codex-conversion
-```
-
-See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) and [GitHub issues](https://github.com/IgorWarzocha/howaboua-pi-stuff/issues).
+</details>
 
 ## License
 
