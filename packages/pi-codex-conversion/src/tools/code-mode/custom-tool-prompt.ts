@@ -20,16 +20,20 @@ export const WAIT_DESCRIPTION =
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
 const TOOL_GUIDANCE_HEADING = "Tool guidance:";
-const DEFERRED_TOOLS_GUIDANCE = "ALL_TOOLS lists deferred tools only; other callable tools are advertised above";
-const CUSTOM_TOOL_DOCUMENTATION_MARKER = "To create or edit a custom tool, read";
-const CUSTOM_TOOL_DOCUMENTATION_GUIDANCE = "Never read that file to discover or call tools";
+const DEFERRED_TOOLS_GUIDANCE = "For additional tools, run text(ALL_TOOLS) in exec";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
-export const CODE_MODE_TOOLS_SECTION = "codex_tools";
+export const CODE_MODE_TOOLS_SECTION = "exec_tools";
 
 export interface CodeModeSystemPromptOptions {
 	forceSystemPrompt?: string | undefined;
 	sections?: Record<string, string> | undefined;
+}
+
+const customizationGuidance = new WeakMap<CodeModeSystemPromptOptions, () => string>();
+
+export function codeModeCustomizationGuidance(options: CodeModeSystemPromptOptions): string {
+	return customizationGuidance.get(options)?.() ?? "";
 }
 
 function isConfiguredCustomTool(
@@ -86,17 +90,23 @@ function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
 function buildUsageSection(
 	heading: string,
 	tools: CodeModeToolMetadata[],
+	priority: readonly string[] = [],
 ): string {
 	if (tools.length === 0) return "";
 	return `${heading}\n${[...tools]
-		.sort((left, right) => left.name.localeCompare(right.name))
+		.sort((left, right) => {
+			const rank = (name: string) => {
+				const index = priority.indexOf(name);
+				return index === -1 ? priority.length : index;
+			};
+			return rank(left.name) - rank(right.name) || left.name.localeCompare(right.name);
+		})
 		.map((tool) => `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
 		.join("\n")}`;
 }
 
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
-	documentationPath?: string,
 	executionKind: CodeModeExecutionKind = "code",
 ): string {
 	const bundled = tools.filter(
@@ -108,13 +118,13 @@ export function buildCodeModeToolsPrompt(
 		executionKind === "notebook"
 			? "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
-		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
+		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
+			"exec_command", "write_stdin", "apply_patch", "view_image",
+			"change_reasoning", "get_context_remaining",
+		]),
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		buildGuidanceSection(tools),
 		tools.some(isDeferredDiscoverableTool) ? DEFERRED_TOOLS_GUIDANCE : undefined,
-		documentationPath
-			? `${CUSTOM_TOOL_DOCUMENTATION_MARKER} ${documentationPath}; do not read Pi docs\n${CUSTOM_TOOL_DOCUMENTATION_GUIDANCE}`
-			: undefined,
 		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");
@@ -158,7 +168,10 @@ export function prepareCodeModeToolsPrompt(
 	executionKind: CodeModeExecutionKind = "code",
 ): string {
 	const sections = options.sections ??= {};
-	const section = buildCodeModeToolsPrompt(tools, documentationPath, executionKind);
+	customizationGuidance.set(options, () => documentationPath && isEnabled()
+		? `Custom tools to run in exec: read ${documentationPath} instead of Pi docs`
+		: "");
+	const section = buildCodeModeToolsPrompt(tools, executionKind);
 	if (options.forceSystemPrompt !== undefined) {
 		options.forceSystemPrompt = upsertCodeModeToolsSection(options.forceSystemPrompt, isEnabled() ? section : "");
 	} else {

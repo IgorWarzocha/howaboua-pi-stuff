@@ -39,7 +39,7 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 		tool: {
 			name: "change_reasoning",
 			label: "Change Reasoning",
-			description: "Adjust effort by work phase, not per tool call; user starting level is the floor, restored when the run settles",
+			description: "Adjust effort by work phase, not per tool call",
 			parameters: PARAMETERS,
 			...auxiliaryToolRenderers("Reasoning adjustment failed", (_args, result) => {
 				const details = displayRecord(result?.details);
@@ -60,7 +60,7 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 				pi.setThinkingLevel(effective);
 				applied = pi.getThinkingLevel();
 				const details = { level: applied, floor: baseline.level };
-				return { content: [{ type: "text" as const, text: JSON.stringify(details) }], details };
+				return { content: [{ type: "text" as const, text: `${JSON.stringify(details)}\nResets to ${baseline.level} when the turn ends.` }], details };
 			},
 		},
 	};

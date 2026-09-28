@@ -1,4 +1,5 @@
 import { getPackageDir, type NormalizedBuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
+import { codeModeCustomizationGuidance } from "../tools/code-mode/custom-tool-prompt.js";
 
 export interface PromptSkill {
 	name: string;
@@ -37,17 +38,16 @@ const CODE_MODE_GUIDELINES = [
 	"Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source",
 	"Await long tools.exec_command calls inside exec",
 	"Use tty=true for input and persistent processes",
-	"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled, inspect every result, and resolve failures; reserve shell/Python for formatting and bulk rewrites",
+	"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
 	"Return concise exec output with text()",
 ];
 
 const NOTEBOOK_MODE_GUIDELINES = [
-	"Reuse matching retained globals; inspect description/usage before creating reusable ones",
+	"Reuse matching retained globals",
 	"Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning",
 	...CODE_MODE_GUIDELINES,
 	"Diagnose state or helper failures; repair or prune failed state and verify recovery",
-	"Filter retained data inside exec and return the needed findings",
 	"Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments",
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
 	"exec calls run sequentially",
@@ -107,7 +107,7 @@ function buildCodexGuidelines(
 	}
 	guidelines.unshift(FOLLOW_THROUGH_GUIDELINE);
 	if (piPackageRoot) {
-		guidelines.push(`When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README.md, docs/, or examples/ files under ${piPackageRoot} and follow their references before implementing`);
+		guidelines.push(`Pi customization or integration: list ${piPackageRoot} before implementing`);
 	}
 	return guidelines;
 }
@@ -216,9 +216,33 @@ function selectedToolGuidelines(options: PiSystemPromptOptions): string[] {
 	return (options.selectedTools ?? []).flatMap((name) => options.toolGuidelines?.[name] ?? []);
 }
 
-function formatGuidelines(guidelines: readonly string[], shell?: string): string {
-	const lines = shell ? [...guidelines, formatShellContext(shell)] : guidelines;
-	return `Guidelines:\n${lines.map((line) => `- ${line}`).join("\n")}`;
+function formatGuidelines(guidelines: readonly string[], shell?: string, customization?: string): string {
+	const editing = new Set([NORMAL_CODEX_GUIDELINES[2], CODE_MODE_GUIDELINES[4]]);
+	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES, "exec calls run sequentially"]);
+	const notebook = new Set<string>(NOTEBOOK_MODE_GUIDELINES);
+	const general: string[] = [];
+	const groups: Record<string, string[]> = {
+		Execution: [],
+		Editing: [],
+		"Notebook state": [],
+		"Harness customization": [],
+	};
+	for (const line of guidelines) {
+		const group = editing.has(line) ? "Editing"
+			: execution.has(line) ? "Execution"
+			: notebook.has(line) ? "Notebook state"
+			: line.startsWith("Pi customization or integration:") ? "Harness customization"
+			: undefined;
+		(group ? groups[group]! : general).push(line);
+	}
+	if (shell) groups["Execution"]!.push(formatShellContext(shell));
+	if (customization) groups["Harness customization"]!.push(customization);
+	const bullets = (lines: readonly string[]) => lines.map((line) => `- ${line}`).join("\n");
+	return [
+		bullets(general),
+		...Object.entries(groups).filter(([, lines]) => lines.length > 0)
+			.map(([heading, lines]) => `### ${heading}\n${bullets(lines)}`),
+	].filter(Boolean).join("\n\n");
 }
 
 function withoutCodexGuidelines(guidelines: readonly string[]): string[] {
@@ -294,19 +318,19 @@ export function prepareCodexSystemPrompt(
 	delete sections["codex_runtime"];
 
 	if (options.forceSystemPrompt !== undefined) {
-		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell);
-		let forced = upsertOpaqueSection(options.forceSystemPrompt, "codex_guidelines", guidelines);
+		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options));
+		let forced = upsertOpaqueSection(options.forceSystemPrompt, "runtime_guidelines", guidelines);
 		forced = upsertOpaqueSection(forced, "codex_skills", buildSkillsContent(skills));
 		forced = upsertOpaqueSection(forced, "codex_runtime", "");
 		options.forceSystemPrompt = forced;
 		return;
 	}
 
-	const heavyPreamble = formatGuidelines([FOLLOW_THROUGH_GUIDELINE]);
+	const heavyPreamble = `Guidelines:\n${formatGuidelines([FOLLOW_THROUGH_GUIDELINE])}`;
 	const customPrompt = options.customPrompt === heavyPreamble ? undefined : options.customPrompt;
 	if (config.heavySystemPromptOverwrite) {
 		if (!customPrompt) options.customPrompt = heavyPreamble;
-		defineOwnedSection(sections, "codex_guidelines", () => {
+		defineOwnedSection(sections, "runtime_guidelines", () => {
 			const contributed = customPrompt
 				? []
 				: [
@@ -321,12 +345,12 @@ export function prepareCodexSystemPrompt(
 			const sectionGuidelines = customPrompt
 				? guidelines
 				: guidelines.filter((guideline) => guideline !== FOLLOW_THROUGH_GUIDELINE);
-			return sectionGuidelines.length > 0 || shell ? formatGuidelines(sectionGuidelines, shell) : "";
+			return formatGuidelines(sectionGuidelines, shell, codeModeCustomizationGuidance(options));
 		});
 	} else {
 		options.promptGuidelines = withoutCodexGuidelines(options.promptGuidelines);
-		defineOwnedSection(sections, "codex_guidelines", () =>
-			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell));
+		defineOwnedSection(sections, "runtime_guidelines", () =>
+			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options)));
 	}
 
 	prepareStructuredSkills(options, skills, mode, Boolean(config.heavySystemPromptOverwrite));
