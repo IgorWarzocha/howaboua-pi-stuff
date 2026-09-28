@@ -55,25 +55,34 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 	}
 
 	const fresh = SessionManager.inMemory("/repo");
-	const freshModel = { ...model, id: "gpt-6-luna" };
+	const freshModel = { ...model, id: "gpt-6-luna", compat: { supportsMidConvoSystemMessages: true } };
 	recordCodexReasoningUpdate({
 		getThinkingLevel: () => "high",
 		appendEntry: (type: string, data: unknown) => fresh.appendCustomEntry(type, data),
 	} as never, { model: freshModel, sessionManager: fresh, isIdle: () => true } as never, [], "medium");
 	fresh.appendMessage({ role: "system", content: "Stable instructions", timestamp: 1 });
 	fresh.appendMessage(user("hi", 2) as never);
-	const initialContext = buildSessionContext(fresh.getBranch()).messages;
-	const firstPrompt = projectCodexDeveloperHistory(fresh.getBranch(), initialContext);
+	const freshEntries = fresh.getBranch();
+	const initialContext = buildSessionContext(freshEntries).messages;
+	const firstPrompt = projectCodexDeveloperHistory(freshEntries, initialContext);
 	assert.deepEqual(firstPrompt.map((message) => message.role), ["system", "custom", "user"]);
 	assert.deepEqual(firstPrompt[0], initialContext[0]);
 	assert.equal(codexReasoningUpdates(firstPrompt, freshModel)[0]?.effort, "high");
+	assert.deepEqual(projectCodexDeveloperHistory(freshEntries), firstPrompt);
 	const firstBridge = new CodexDeveloperMessageBridge();
 	const firstBody = firstBridge.rewritePayload(buildRequestBody(freshModel, normalizeContext({
-		systemPrompt: "Stable instructions",
 		messages: convertToLlm(firstBridge.prepare(firstPrompt, true, freshModel)),
 	}), { reasoning: "high", sessionId: fresh.getSessionId() })) as ResponsesBody;
+	assert.equal(firstBody.instructions, "Stable instructions");
 	assert.equal(firstBody.reasoning?.effort, "medium");
-	assert.deepEqual(firstBody.input.at(-2), { type: "configuration_update", reasoning: { effort: "high" } });
+	assert.deepEqual(firstBody.input, [
+		{ type: "configuration_update", reasoning: { effort: "high" } },
+		{ role: "user", content: [{ type: "input_text", text: "hi" }] },
+	]);
+	assert.deepEqual(buildNativeCompactionInput({
+		model: freshModel, branchEntries: freshEntries, allEntries: freshEntries,
+		latestNativeCompaction: resolveLatestNativeCompactionEntry(freshEntries),
+	})?.input, firstBody.input);
 	const registeredModels = openAICodexProviderModels();
 	for (const id of ["gpt-6-sol", "gpt-6-luna"]) {
 		const registeredModel = registeredModels.find((candidate) => candidate.id === id);

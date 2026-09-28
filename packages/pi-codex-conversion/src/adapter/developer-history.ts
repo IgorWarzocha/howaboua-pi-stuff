@@ -40,6 +40,11 @@ export function projectCodexDeveloperHistory(
 	});
 	if (messages && virtualIds.size === 0) return [...messages];
 	const reconstructed = buildSessionContext(projectedEntries, leafId).messages.filter(survives);
+	// Pi's initial prompt must lead the transcript; only virtual bookkeeping may precede it in storage.
+	const headSystemIndex = reconstructed.findIndex((message) => message.role === "system");
+	if (headSystemIndex > 0 && reconstructed.slice(0, headSystemIndex).every(isVirtualMessage)) {
+		reconstructed.unshift(...reconstructed.splice(headSystemIndex, 1));
+	}
 	if (!messages) return reconstructed;
 	// Preserve other extensions' message edits and additions. Insert metadata at its
 	// persisted position, before the next surviving message or after the final one.
