@@ -9,6 +9,7 @@ import {
 	matchesKey,
 	SettingsList,
 	truncateToWidth,
+	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig, LunaCacheKeepaliveMinutes } from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
@@ -243,7 +244,7 @@ export async function openCodexSettingsScreen(
 						options.configScope.current(),
 					);
 				if (activeTab === "context")
-					settingsLines = withContextWindowsWarning(settingsLines, theme);
+					settingsLines = withContextPortabilityWarning(settingsLines, theme, width);
 				if (activeTab === "context" && draft.compaction.continuity === "notes")
 					settingsLines = withSettingsDetails(settingsLines, [
 						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
@@ -427,21 +428,19 @@ function withConfigScopeDetails(
 	return next;
 }
 
-function withContextWindowsWarning(lines: string[], theme: Theme): string[] {
-	const next = [...lines];
-	const settingIndex = next.findIndex((line) =>
-		line.includes("Continuity strategy")
-	);
-	if (settingIndex < 0) return next;
-	next.splice(
-		settingIndex,
-		0,
-		theme.fg(
-			"warning",
-			"  ⚠ Resume notes-based sessions with the same history and notes storage.",
-		),
-	);
-	return next;
+function withContextPortabilityWarning(lines: string[], theme: Theme, width: number): string[] {
+	const wrap = (text: string) => wrapTextWithAnsi(text, Math.max(1, width - 2)).map((line) => "  " + line);
+	return [
+		...wrap("Switching providers?").map((line) => theme.fg("warning", theme.bold(line))),
+		...[
+			"Use Notes + compaction with Pi summary or Both, and Local or Tree—not Remote.",
+			"V2 checkpoints and Remote history/notes are encrypted for OpenAI; other providers cannot use them.",
+			"Convert existing V2-only history first: select Pi summary and run /compact on the original provider.",
+			"Changing storage does not move saved notes.",
+		].flatMap(wrap),
+		"",
+		...lines,
+	];
 }
 
 function formatToolsDetails(theme: Theme, configPath: string): string[] {
