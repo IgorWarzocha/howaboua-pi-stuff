@@ -235,7 +235,7 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
 					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
 					assert.equal(plan.nativeCompaction, route.native && continuity !== "notes" && method !== "pi");
-					assert.equal(plan.nativeReplay, route.native && continuity !== "notes", "changing the next compaction method must not disable checkpoint replay");
+					assert.equal(plan.nativeReplay, route.native, "continuity and method settings must not disable an existing checkpoint's replay");
 				}
 			}
 		}

@@ -113,7 +113,7 @@ Defaults are **Compaction**, **Pi summary** and **64k** retention, with Local re
 - **Notes and history** starts each explicit new window without a conversation summary. The model saves notes and retrieves older information when needed.
 - **Notes + compaction** carries a compaction checkpoint into each new window alongside notes.
 
-Notes-based strategies are experimental. A persisted purple marker identifies each window. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Selecting **Notes and history** mid-session starts a fresh model window on the next input. Selecting **Notes + compaction** retains the current conversation until compaction. Resume notes-based sessions with the same storage. Switching to **Compaction** removes recovery tools and does not turn saved notes into a summary.
+Notes-based strategies are experimental. A persisted purple marker identifies each window. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and any usable checkpoint, including V2 when selecting **Notes and history**. Only an explicit notes-only rollover cuts the previous conversation. Resume notes-based sessions with the same storage. Switching to **Compaction** removes recovery tools and does not turn saved notes into a summary.
 
 ### Storage and compaction
 

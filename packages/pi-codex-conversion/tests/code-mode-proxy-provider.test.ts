@@ -48,24 +48,36 @@ const proxyModel = {
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 } as const;
 
-test("the Code Mode proxy rejects unfinished terminal response statuses", async () => {
+test("the Code Mode proxy negotiates replay input and rejects unfinished terminal responses", async () => {
 	const originalFetch = globalThis.fetch;
 	try {
 		for (const status of [undefined, "queued", "in_progress"] as const) {
-			globalThis.fetch = (async () => sseResponse([{
-				type: "response.completed",
-				response: {
-					id: `resp_${status ?? "missing"}`,
-					...(status ? { status } : {}),
-					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-				},
-			}])) as typeof fetch;
+			let headers = new Headers();
+			globalThis.fetch = (async (_url, init) => {
+				headers = new Headers(init?.headers);
+				return sseResponse([{
+					type: "response.completed",
+					response: {
+						id: `resp_${status ?? "missing"}`,
+						...(status ? { status } : {}),
+						usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+					},
+				}]);
+			}) as typeof fetch;
 
 			const events = await collect(streamCodeModeResponsesProxy(
 				proxyModel as never,
 				normalizeContext({ systemPrompt: "Use Code Mode", messages: [], tools: [] }),
-				{ apiKey: "test-key" },
+				{
+					apiKey: "test-key",
+					headers: { "X-Codex-Beta-Features": "existing-feature" },
+					onPayload: (payload) => {
+						const body = payload as { input: unknown[] };
+						return status === undefined ? body : { ...body, input: [{ type: "compaction", encrypted_content: "sealed-checkpoint" }, ...body.input] };
+					},
+				},
 			));
+			assert.equal(headers.get("x-codex-beta-features"), status === undefined ? "existing-feature" : "existing-feature,remote_compaction_v2");
 			const terminal = events.at(-1) as { type: string; error: { stopReason: string } };
 			assert.equal(terminal.type, "error", status ?? "missing status");
 			assert.equal(terminal.error.stopReason, "error");

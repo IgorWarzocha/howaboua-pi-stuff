@@ -36,24 +36,13 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (executionModeChanged || config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
 				config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB || config.notebook.profile !== previousConfig.notebook.profile)
 				runtime.state.notebookStatusMessageId = undefined;
-			const continuityChanged = config.compaction.continuity !== previousConfig.compaction.continuity;
 			tools.applyConfig(config);
 			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
-			if (
-				continuityChanged &&
-				(previousConfig.compaction.continuity === "compaction" || config.compaction.continuity === "notes") &&
-				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement
-			) {
-				runtime.state.contextWindows.restore(
-					ctx.sessionManager.getBranch(),
-				);
-				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
-					mode: config.compaction.historyStorage,
-					trimPreviousWindow: config.compaction.continuity === "notes",
-				}).catch((error: unknown) => {
-					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
-				});
-			}
+			runtime.state.contextWindows.ensureInitialized(
+				pi,
+				ctx,
+				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement,
+			);
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			ui.applyConfig(config, ctx, previousConfig);
 			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {

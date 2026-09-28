@@ -181,7 +181,7 @@ export function resolveCodexRuntimePlan(
 		: "off";
 	const contextManagementRemote = contextManagementMode === "remote";
 	base.compactOnRollover = contextManagement && config.compaction.continuity === "notes-and-compaction";
-	base.nativeReplay = effectiveOpenAICodex && config.compaction.continuity !== "notes";
+	base.nativeReplay = effectiveOpenAICodex;
 	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildSessionContext, DEFAULT_COMPACTION_SETTINGS, SessionManager, type ExtensionAPI, type ExtensionContext, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
-import { createAssistantMessageEventStream, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, type Api, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
@@ -32,24 +32,24 @@ const assistant: AssistantMessage = {
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 };
 
-function fixture() {
+function fixture(currentModel: Model<Api> = model) {
 	const session = SessionManager.inMemory("/repo");
 	const contextWindows = new CodexContextWindowManager(async () => undefined);
 	const contextKickoff = new CodexContextWindowKickoff(contextWindows);
 	const state: AdapterState = {
 		enabled: true, cwd: "/repo", promptSkills: [], executionMode: "normal",
 		config: { ...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG), executionMode: "normal",
-			scope: { allProviders: "off", additionalProviders: [model.provider] } },
+			scope: { allProviders: "off", additionalProviders: [currentModel.provider] } },
 		codexTurnState: createCodexTurnState(), developerMessages: new CodexDeveloperMessageBridge(),
 		contextWindows, contextKickoff, contextTree: new CodexContextTreeCoordinator(contextWindows, contextKickoff),
 	};
 	const notices: string[] = [];
 	const ctx = {
-		model, sessionManager: session, getSystemPrompt: () => "Continue the work", thinkingLevel: "off",
+		model: currentModel, sessionManager: session, getSystemPrompt: () => "Continue the work", thinkingLevel: "off",
 		ui: { notify: (message: string) => notices.push(message) },
 		modelRegistry: {
 			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "test-key" }),
-			getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: (_model: unknown, _context: unknown, options: { onOutputItemDone: (item: unknown) => void }) => {
+			getRegisteredProviderConfig: () => ({ api: currentModel.api, streamSimple: (_model: unknown, _context: unknown, options: { onOutputItemDone: (item: unknown) => void }) => {
 				options.onOutputItemDone({ type: "compaction", encrypted_content: "next-sealed" });
 				const stream = createAssistantMessageEventStream();
 				stream.push({ type: "done", reason: "stop", message: assistant });
@@ -152,20 +152,36 @@ test("an explicit notes-only trim supersedes a valid Tree archive without changi
 	assert.equal(JSON.stringify(all), stored);
 });
 
-test("selecting V2 again cannot replay a native checkpoint retired by a newer Pi compaction", async () => {
-	const f = fixture();
+test("native replay follows checkpoint lifetime rather than continuity or method settings", async () => {
+	const replayModel = { ...model, provider: "openai-codex", api: "openai-codex-responses" as const };
+	const f = fixture(replayModel);
 	const kept = f.user("Native retained turn");
 	f.session.appendCompaction(NATIVE_COMPACTION_SHIM_SUMMARY, kept, 80_000, createNativeCompactionDetails({
-		provider: model.provider, api: model.api, model: model.id, baseUrl: model.baseUrl,
+		provider: replayModel.provider, api: replayModel.api, model: replayModel.id, baseUrl: replayModel.baseUrl,
 		compactedWindow: [{ type: "compaction", encrypted_content: "retired-sealed" }], createdAt: new Date(1).toISOString(),
 	}));
 	const tail = f.user("Tail to convert");
-	const payload = () => ({ model: model.id, instructions: "", input: serializeActiveSessionToResponsesInput({
-		model, entries: f.session.getEntries(), leafId: f.session.getLeafId(),
+	const payload = () => ({ model: replayModel.id, instructions: "", input: serializeActiveSessionToResponsesInput({
+		model: replayModel, entries: f.session.getEntries(), leafId: f.session.getLeafId(),
 	}) });
-	// Pi selection must still replay the opaque checkpoint before conversion.
 	f.state.config.compaction.method = "pi";
-	assert.match(JSON.stringify(await rewriteCodexCompactedProviderRequest(payload(), f.ctx, f.state)), /retired-sealed/);
+	for (const continuity of ["compaction", "notes", "notes-and-compaction"] as const) {
+		for (const historyStorage of ["local", "tree", "remote"] as const) {
+			f.state.config.compaction = { ...f.state.config.compaction, continuity, historyStorage };
+			f.state.contextWindows.ensureInitialized(f.pi, f.ctx, continuity !== "compaction");
+			const rewritten = JSON.stringify(await rewriteCodexCompactedProviderRequest(payload(), f.ctx, f.state));
+			assert.match(rewritten, /retired-sealed/, `${continuity}/${historyStorage}`);
+			assert.match(rewritten, /Tail to convert/);
+		}
+	}
+	const liveLeaf = f.session.getLeafId();
+	assert.ok(liveLeaf);
+	f.state.config.compaction.continuity = "notes";
+	await f.state.contextWindows.startNewWindow(f.pi, f.ctx, { mode: "remote", trimPreviousWindow: true });
+	assert.equal(await rewriteCodexCompactedProviderRequest(payload(), f.ctx, f.state), undefined, "an explicit notes-only rollover retires replay");
+	f.session.branch(liveLeaf);
+	f.state.contextWindows.restore(f.session.getBranch());
+	f.state.config.compaction.continuity = "compaction";
 	f.session.appendCompaction("READABLE-PI-CONVERSION", tail, 90_000);
 	f.user("Current work");
 	for (const method of ["pi", "v2", "both"] as const) {

@@ -32,7 +32,7 @@ export function buildContextSettings(
 			{
 				id: "continuity",
 				label: "Continuity strategy",
-				description: "Compaction carries a checkpoint. Notes and history starts fresh with saved notes. Notes + compaction carries both. Notes-based strategies are experimental.",
+				description: "Compaction carries a checkpoint. Notes and history rolls over with saved notes. Notes + compaction carries both. Changing strategy preserves the current context. Notes-based strategies are experimental.",
 				currentValue: CONTINUITY_LABELS[continuity],
 				values: Object.values(CONTINUITY_LABELS),
 			},

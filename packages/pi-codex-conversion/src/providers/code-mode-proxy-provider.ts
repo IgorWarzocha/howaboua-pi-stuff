@@ -16,6 +16,7 @@ import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
+import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { BeforeCodexRequestSend, OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 import {
@@ -106,6 +107,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				: applyResponsesLiteRequest(body);
 			body = await prepareResponsesLiteRequestImages(body);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
+			if (hasRemoteCompactionV2Input(body.input)) headers = withRemoteCompactionV2Feature(headers);
 			await beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, true);
 
 			const auth = clientAuth(model.provider, options?.apiKey, headers);

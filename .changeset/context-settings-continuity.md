@@ -8,4 +8,4 @@ Context settings now separate continuity, history storage and compaction method.
 - Legacy settings migrate without replacing independent inherited choices in project configuration.
 - Pi and Both summaries preserve authoritative Tree checkpoints instead of summarizing archive search text.
 - Explicit notes-only rollovers retire earlier context, including archived Tree history.
-- Method changes keep opaque checkpoints until conversion, never replay retired checkpoints, and refresh transport when the V2 feature requirement changes.
+- Changing continuity or compaction method preserves usable checkpoints and the current conversation; enabling notes never starts a fresh window. Retired checkpoints stay retired, and V2 transport negotiation follows the active request.
