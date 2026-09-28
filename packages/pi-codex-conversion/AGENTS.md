@@ -3,7 +3,7 @@
 - Own GPT harness integration, not universal compatibility, UI, enterprise, or a Pi fork; route uncommon needs to documented overrides, other extensions, or forks.
 - Responses transport recovery follows Codex: initial generation plus five fresh full-request WebSocket retries, then sticky SSE for the session; 426 and WebSocket close 1009 fall back immediately.
 - Pi intentionally retries `server_is_overloaded` and `slow_down` across WebSocket/SSE with a shared three-minute wait budget.
-- Streamed rate-limit delays are exact within a shared three-minute budget; longer delays fail instead of retrying early.
+- Server retry advice (HTTP `Retry-After` and streamed delays) uses monotonic deadlines within a shared three-minute wait budget; longer delays fail instead of retrying early, including across transport fallback.
 - Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
 - Structured mode uses flat TypeScript tools except native context namespaces. Code Mode uses `exec`/`wait`; Notebook Mode additionally exposes host-side `notebook` lifecycle control.
 - Keep prompt guidance short and argv-shaped.

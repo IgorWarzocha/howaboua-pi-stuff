@@ -5,11 +5,24 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 ## Reference baseline
 
 - Pi transcript API: published `0.86.0` (`ecac0a9c4`)
-- Codex checkout used for the provider comparison: `8ace915aced81ed841e34fa069b2e489c324731c`
+- Stock provider comparison: published Pi `0.87.0` (2026-09-28)
+- Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## September 28 transport sync
+
+Reviewed 642 Codex commits after `8ace915aced81ed841e34fa069b2e489c324731c`. The portable changes are:
+
+- HTTP `Retry-After` seconds and dates become monotonic deadlines before response hooks or body parsing. Advice survives request retries and stream recovery, with expired deadlines yielding zero delay. Pi retains its three-minute recovery limits and fails rather than retrying early (`9d8de196748b`).
+- `flex_unavailable` is terminal for both streamed error shapes, with a capacity message when the server supplies none (`dafb133c5b7f`).
+- Ordinary warmup reuses an already prepared, live socket without another `generate: false` request. Route/auth validation, the complete extension preparation chain, final-body capture and exact continuation checks still run. Compaction warmup and isolated keepalive are unchanged (`a98a07759a3f`, `d838c2346d05`).
+
+Stock Pi `0.87.0` was compared for request shape, headers, reasoning/service tier, retries and stream termination. This adapter intentionally keeps Codex's fresh-request WebSocket recovery and its existing three-minute throttling budgets rather than stock Pi's retry defaults. No request-schema or prompt changes accompany this transport sync.
+
+Responses Lite steering and history-aware main-lane idle prewarm remain separate integration work; neither is equivalent to Pi's current steering or isolated captured-prefix keepalive. Native executor, sandbox and rollout changes have no direct port in this sync. Vendored native source revisions remain independently pinned above.
 
 ## Implemented portable behavior
 

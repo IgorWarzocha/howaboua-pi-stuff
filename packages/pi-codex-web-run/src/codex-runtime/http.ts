@@ -27,8 +27,7 @@ export async function fetchCodexTool(
 		maxResponseBytes?: number;
 	},
 ): Promise<CodexToolHttpResponse> {
-	const proxy = getProxyForUrl(url);
-	const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
+	const dispatchers = new Map<string, ProxyAgent>();
 	let currentUrl = new URL(url);
 	let method = options.method;
 	let body = options.body;
@@ -36,6 +35,12 @@ export async function fetchCodexTool(
 	try {
 		for (let redirects = 0; ; redirects += 1) {
 			const chatGptRequest = isChatGptCookieUrl(currentUrl);
+			const proxy = getProxyForUrl(currentUrl.href);
+			let dispatcher = proxy ? dispatchers.get(proxy) : undefined;
+			if (proxy && !dispatcher) {
+				dispatcher = new ProxyAgent(proxy);
+				dispatchers.set(proxy, dispatcher);
+			}
 			const headers = new Headers(baseHeaders);
 			const cookieHeader = cloudflareCookies.requestHeader(currentUrl);
 			if (cookieHeader) headers.set("cookie", cookieHeader);
@@ -45,7 +50,7 @@ export async function fetchCodexTool(
 				...(body === undefined ? {} : { body }),
 				...(options.signal ? { signal: options.signal } : {}),
 				...(dispatcher ? { dispatcher } : {}),
-				redirect: chatGptRequest ? "manual" : "follow",
+				redirect: "manual",
 			});
 			if (chatGptRequest)
 				cloudflareCookies.storeResponse(
@@ -56,7 +61,7 @@ export async function fetchCodexTool(
 				response.status,
 				response.headers.get("location"),
 			);
-			if (!location || !chatGptRequest) {
+			if (!location) {
 				return {
 					status: response.status,
 					statusText: response.statusText,
@@ -74,7 +79,7 @@ export async function fetchCodexTool(
 				);
 			}
 			const nextUrl = new URL(location, currentUrl);
-			if (!isChatGptCookieUrl(nextUrl)) {
+			if (chatGptRequest && !isChatGptCookieUrl(nextUrl)) {
 				await response.body?.cancel();
 				throw new Error(
 					"Codex tool request refused redirect outside ChatGPT: " +
@@ -84,21 +89,30 @@ export async function fetchCodexTool(
 			if (nextUrl.origin !== currentUrl.origin) {
 				baseHeaders.delete("authorization");
 				baseHeaders.delete("chatgpt-account-id");
+				baseHeaders.delete("cookie");
+				baseHeaders.delete("proxy-authorization");
+				baseHeaders.delete("host");
 			}
 			if (
-				response.status === 303 ||
+				(response.status === 303 &&
+					method?.toUpperCase() !== "GET" &&
+					method?.toUpperCase() !== "HEAD") ||
 				((response.status === 301 || response.status === 302) &&
 					method?.toUpperCase() === "POST")
 			) {
 				method = "GET";
 				body = undefined;
+				baseHeaders.delete("content-encoding");
+				baseHeaders.delete("content-language");
+				baseHeaders.delete("content-location");
 				baseHeaders.delete("content-type");
+				baseHeaders.delete("content-length");
 			}
 			await response.body?.cancel();
 			currentUrl = nextUrl;
 		}
 	} finally {
-		await dispatcher?.close();
+		await Promise.all([...dispatchers.values()].map((agent) => agent.close()));
 	}
 }
 

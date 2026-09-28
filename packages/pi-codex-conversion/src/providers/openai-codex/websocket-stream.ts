@@ -175,6 +175,13 @@ export async function prewarmWebSocket(
 	let usage: CodexPrewarmResult["usage"];
 	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
 	try {
+		if (options.signal?.aborted) throw new Error("Request was aborted");
+		// Acquisition validates the route, credentials and live socket. Keep the
+		// existing baseline; the real request still validates its exact continuation.
+		if (prewarm.kind === "ordinary" && !preserveContinuation && !generate && reused && entry?.continuation) {
+			recordDiagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused, socketAgeMs, socketLane, prewarm });
+			return { socketReused: reused };
+		}
 		recordDiagnostics?.({
 			type: "request",
 			lane: "prewarm",

@@ -3,9 +3,23 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 export class NonRetryableProviderError extends Error {}
 
 export function codexErrorMessage(code: string | undefined, message: string | undefined): string | undefined {
-	return code === "bio_policy" && !message?.trim()
-		? "This content was flagged for possible biological risk."
-		: message;
+	if (message?.trim()) return message;
+	if (code === "bio_policy") return "This content was flagged for possible biological risk.";
+	if (code === "flex_unavailable") return "Flex capacity unavailable.";
+	return message;
+}
+
+/** Capture server advice before reading the body or notifying response hooks. */
+export function codexRetryAfterDeadline(headers: Headers): number | undefined {
+	const value = headers.get("retry-after")?.trim();
+	if (!value) return undefined;
+	// Restrict Date.parse to HTTP-date candidates, not its bare-number shortcuts.
+	const delayMs = /^\d+$/.test(value)
+		? Number(value) * 1000
+		: /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:[a-z]*,| )/i.test(value)
+			? Math.max(0, Date.parse(value) - Date.now())
+			: NaN;
+	return Number.isFinite(delayMs) ? performance.now() + delayMs : undefined;
 }
 
 const TERMINAL_RATE_LIMIT_PATTERN = /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage_limit_reached|usage_not_included|available balance|insufficient_quota|out of budget|quota exceeded/i;
