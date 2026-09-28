@@ -6,7 +6,7 @@ import {
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 } from "../../adapter/activation/config.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../../adapter/activation/runtime-plan.ts";
-import { type ConfigSetting, setting } from "./config-items-shared.ts";
+import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 
 export const CONTINUITY_LABELS = {
 	compaction: "Compaction",
@@ -54,6 +54,15 @@ export function buildContextSettings(
 				...current,
 				compaction: { ...current.compaction, historyStorage: normalizeHistoryStorage(value.toLowerCase()) ?? current.compaction.historyStorage },
 			}),
+		), toggle(
+			"shareSubagentContext",
+			"Share subagent context",
+			config.compaction.shareSubagentContext,
+			(enabled, current) => ({
+				...current,
+				compaction: { ...current.compaction, shareSubagentContext: enabled },
+			}),
+			"Share notes and history with new subagents through a compatible integration. Existing agents keep their identity.",
 		)]),
 		...(continuity === "notes" ? [] : [setting(
 			{

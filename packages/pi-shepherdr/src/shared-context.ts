@@ -140,8 +140,9 @@ export class SharedAgentContext {
 		args: readonly string[] = [],
 	) {
 		const service = this.getService();
-		const parent = service?.describe(ctx);
-		if (!service || !parent) return undefined;
+		if (!service?.canCreateChild(ctx)) return undefined;
+		const parent = service.describe(ctx);
+		if (!parent) return undefined;
 		if (
 			args.some((arg) =>
 				/^(?:--(?:session(?:-id|-dir)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(

@@ -143,14 +143,19 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		const parent = SessionManager.inMemory("/repo");
 		const worker = SessionManager.inMemory("/repo");
 		let liveSession = parent;
+		let shareSubagentContext = false;
 		const sharingPi = {
 			events: createEventBus(), on() {},
 			appendEntry: (type: string, data: unknown) => liveSession.appendCustomEntry(type, data),
 		} as never;
 		const connection = connectCodexContextSharing(sharingPi);
-		registerContextSharingService(sharingPi, () => "remote", async () => { throw new Error("Remote cannot use peer storage"); });
+		registerContextSharingService(sharingPi, () => ({ contextManagementMode: "remote", shareSubagentContext }), async () => { throw new Error("Remote cannot use peer storage"); });
 		const service = connection.service!;
+		await assert.rejects(() => service.createChild({ ...context, sessionManager: parent }, { name: "worker" }), /disabled/);
+		assert.equal(parent.getEntries().length, 0, "disabled sharing cannot enroll the parent");
+		shareSubagentContext = true;
 		const binding = await service.createChild({ ...context, sessionManager: parent }, { name: "worker" });
+		shareSubagentContext = false;
 		liveSession = worker;
 		const shared = { ...context, sessionManager: worker, isIdle: () => true };
 		await assert.rejects(() => service.bind(shared, { ...binding, accountScope: contextAccountScope("other-account") }), /parent's Codex account/);
@@ -163,6 +168,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		await service.bind(shared, binding);
 		assert.equal(worker.getEntries().length, 1, "the same binding is idempotent");
 		await assert.rejects(() => service.bind(shared, { ...binding, sessionId: "unrelated" }), /cannot be rebound/);
+		assert.equal(service.canCreateChild(shared), false, "adopting a parent's binding does not opt into sharing further children");
 		await remoteNotes.execute("shared", { action: "read_file", path: "/root/notes/proof" }, undefined, undefined, shared);
 		assert.deepEqual(JSON.parse(String(request!.init.body)).context, { session_id: parent.getSessionId(), current_agent_name: binding.agentName });
 		const wrongAccount = { ...shared, modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true,

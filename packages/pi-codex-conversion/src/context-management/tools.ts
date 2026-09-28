@@ -100,8 +100,9 @@ export function registerContextManagementTools(
 	state: AdapterState,
 ): void {
 	const [newContext, getContextRemaining] = createContextWindowTools(pi, state);
-	const mode = (ctx: ExtensionContext) => resolveCodexRuntimePlanForState(ctx, state).contextManagementMode;
-	const route = registerContextSharingService(pi, mode, async (ctx, request, signal) => {
+	const plan = (ctx: ExtensionContext) => resolveCodexRuntimePlanForState(ctx, state);
+	const mode = (ctx: ExtensionContext) => plan(ctx).contextManagementMode;
+	const route = registerContextSharingService(pi, plan, async (ctx, request, signal) => {
 		return request.namespace === "history"
 			? history.execute("shared-context", request.params as Parameters<typeof history.execute>[1], signal, undefined, ctx)
 			: notes.execute("shared-context", request.params as Parameters<typeof notes.execute>[1], signal, undefined, ctx);

@@ -33,6 +33,7 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 			assert.deepEqual(normalizeCodexConversionConfig(migration.config).compaction, {
 				continuity: contextManagement === "off" ? "compaction" : hybridCompaction ? "notes-and-compaction" : "notes",
 				historyStorage: contextManagement === "off" ? "local" : contextManagement,
+				shareSubagentContext: false,
 				method: contextManagement === "off" ? "both" : hybridCompaction ? "v2" : "pi",
 				v2UserMessageRetention: 32,
 			});

@@ -16,6 +16,7 @@ export type ContextRouter = (ctx: ExtensionContext, request: SharedContextReques
 
 export interface ContextSharingService {
 	protocol: 1;
+	canCreateChild(ctx: ExtensionContext): boolean;
 	describe(ctx: ExtensionContext): ContextAgentIdentity | undefined;
 	verify(ctx: ExtensionContext): Promise<void>;
 	createChild(ctx: ExtensionContext, options: { name: string; routing?: unknown }): Promise<ContextAgentBinding>;
@@ -32,7 +33,7 @@ export function connectCodexContextSharing(pi: ExtensionAPI): { readonly service
 	let service: ContextSharingService | undefined;
 	const off = pi.events.on(CONTEXT_SHARING_AVAILABLE, (value) => {
 		const candidate = value as Partial<ContextSharingService> | undefined;
-		if (candidate?.protocol === 1 && typeof candidate.describe === "function" && typeof candidate.verify === "function" &&
+		if (candidate?.protocol === 1 && typeof candidate.canCreateChild === "function" && typeof candidate.describe === "function" && typeof candidate.verify === "function" &&
 			typeof candidate.createChild === "function" && typeof candidate.bind === "function" && typeof candidate.execute === "function" &&
 			typeof candidate.registerRouter === "function") service = candidate as ContextSharingService;
 	});

@@ -228,11 +228,12 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 		for (const continuity of ["compaction", "notes", "notes-and-compaction"] as const) {
 			for (const historyStorage of ["local", "tree", "remote"] as const) {
 				for (const method of ["pi", "v2", "both"] as const) {
-					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method } };
+					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method, shareSubagentContext: true } };
 					const plan = resolveCodexRuntimePlan(ctx, configured);
 					const notes = continuity !== "compaction" && route.api !== "openai-completions"
 						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
 					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
+					assert.equal(plan.shareSubagentContext, notes, "sharing still requires an eligible notes-based runtime");
 					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
 					assert.equal(plan.nativeCompaction, route.native && continuity !== "notes" && method !== "pi");
 					assert.equal(plan.nativeReplay, route.native, "continuity and method settings must not disable an existing checkpoint's replay");
@@ -242,11 +243,17 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	}
 	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never;
 	const original = { ...config, compaction: { ...config.compaction, continuity: "notes-and-compaction" as const, method: "both" as const } };
+	assert.equal(resolveCodexRuntimePlan(ctx, original).shareSubagentContext, false, "notes-based continuity alone cannot opt into sharing");
+	const sharing = buildContextSettings(original, ctx).find(({ item }) => item.id === "shareSubagentContext")!;
+	const enabled = sharing.update!("on", original);
+	assert.deepEqual(enabled.compaction, { ...original.compaction, shareSubagentContext: true });
 	const storage = buildContextSettings(original, ctx).find(({ item }) => item.id === "historyStorage")!;
-	const remote = storage.update!("Remote", original);
-	assert.deepEqual(remote.compaction, { ...original.compaction, historyStorage: "remote" }, "storage selection must not switch off compaction or portability");
+	const remote = storage.update!("Remote", enabled);
+	assert.deepEqual(remote.compaction, { ...enabled.compaction, historyStorage: "remote" }, "storage selection must not switch off compaction or portability");
 	const strategy = buildContextSettings(remote, ctx).find(({ item }) => item.id === "continuity")!;
 	const notes = strategy.update!("Notes and history", remote);
-	const restored = strategy.update!("Notes + compaction", notes);
+	const compaction = strategy.update!("Compaction", notes);
+	assert.equal(resolveCodexRuntimePlan(ctx, compaction).shareSubagentContext, false);
+	const restored = strategy.update!("Notes + compaction", compaction);
 	assert.deepEqual(restored.compaction, remote.compaction, "inapplicable method and retention settings are remembered, not cleared");
 });

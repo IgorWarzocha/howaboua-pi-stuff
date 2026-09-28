@@ -70,7 +70,7 @@ The settings tabs cover:
 | Tab | Covers |
 | --- | --- |
 | General | Settings scope, execution mode, extension mode, providers, heavy prompt overwrite and current time reminders |
-| Context | Continuity strategy, history and notes storage, compaction method and V2 user-message retention |
+| Context | Continuity strategy, history and notes storage, subagent sharing, compaction method and V2 user-message retention |
 | Tools | Auto reasoning (GPT-6), image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
@@ -104,6 +104,7 @@ Choose how conversation state carries forward under `/codex` → **Context**:
 | --- | --- | --- |
 | **Continuity strategy** | Compaction · Notes and history · Notes + compaction | Always |
 | **History and notes storage** | Local · Tree · Remote | The strategy includes notes |
+| **Share subagent context** | Off (default) · On | The strategy includes notes |
 | **Compaction method** | Pi summary · Codex V2 · Both | The strategy includes compaction |
 | **Preserved user messages (V2 only)** | 16k · 32k · 64k | The method is Codex V2 or Both |
 
@@ -143,7 +144,7 @@ Automatic overflow recovery compacts in the current window instead of rolling ov
 
 ### Shared agent context
 
-Subagent extensions can share notes and history without sharing a Pi transcript. Each child has a unique agent path and thread ID under its parent's session identity. Identity survives rollover and resume; a fork starts an independent family. Existing sessions are never rebound.
+Enable **Share subagent context** under `/codex context` to share notes and history with newly spawned agents through a compatible subagent extension. It is off by default. Each shared child has a unique agent path and native Pi thread ID under its parent's session identity, without sharing a transcript. Identity survives rollover and resume; a fork starts an independent family. Turning sharing off affects future spawns, not existing family members. Existing sessions are never rebound.
 
 Remote sharing requires the same Codex account and Remote storage in every participant. Local and Tree keep notes in their owning Pi sessions; the integrating extension supplies transport between those sessions. Remote failures never switch storage.
 
@@ -155,14 +156,14 @@ import { connectCodexContextSharing } from "@howaboua/pi-codex-conversion/contex
 const connection = connectCodexContextSharing(pi);
 // In a prepared parent session:
 const service = connection.service;
-if (!service) return;
+if (!service?.canCreateChild(ctx)) return; // Otherwise launch an independent child.
 const binding = await service.createChild(ctx, { name: "worker" });
 // Launch Pi normally and deliver binding through your integration.
 // In the fresh, idle child, before sending its first task:
 await childService.bind(childCtx, binding);
 ```
 
-Pi owns session creation and persistence. `bind` validates storage and account before recording identity in the child's native session; it rejects used sessions and different existing bindings. `describe(ctx)` reports identity and storage; `verify(ctx)` checks Remote account compatibility.
+Pi owns session creation and persistence. `createChild` requires the parent's opt-in. `bind` adopts that explicit binding independently of the child's setting for its own future spawns; it validates storage and account and rejects used sessions or different existing bindings. `describe(ctx)` reports identity and storage; `verify(ctx)` checks Remote account compatibility.
 
 For Local/Tree, register a router with `registerRouter` in each participant, pass its opaque `routing` descriptor to `createChild`, and execute incoming requests through the target's `service.execute(ctx, request, signal)`. Routes must validate family membership, preserve errors and never write directly into another session file. Dispose the connection on shutdown. Neither package requires the other for ordinary standalone use.
 

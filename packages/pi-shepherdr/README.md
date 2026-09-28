@@ -87,7 +87,7 @@ For `answer` inside Code or Notebook Mode, update Pi Ask on workers together wit
 
 ## Shared notes and history
 
-With Pi Codex Conversion 3.0.40 or newer and notes-based continuity, `spawn` gives each child a unique context identity before its first turn. Nested children inherit the same family; `contextAgent` in the spawn result identifies their notes and history. Resume preserves identity. `assign` and independently started agents remain unchanged. Older compatible Conversion versions keep ordinary delegation without sharing.
+With Pi Codex Conversion 3.0.40 or newer and notes-based continuity, enable **Share subagent context** under `/codex context` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; `contextAgent` in the result identifies its notes and history. Shared nested spawns stay in the same family. Turning sharing off affects new spawns only; existing identity survives resume. `assign` and independently started agents remain unchanged. Older compatible Conversion versions keep ordinary delegation without sharing.
 
 Pi creates each worker session normally. The worker records its shared identity before Shepherdr delivers the first task; no pre-created session file or launch override is needed.
 

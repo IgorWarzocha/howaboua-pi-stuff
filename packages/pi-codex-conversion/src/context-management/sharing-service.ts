@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { ContextManagementMode } from "../adapter/activation/config.ts";
+import type { CodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import {
 	CONTEXT_SHARING_AVAILABLE, CONTEXT_SHARING_REQUEST,
@@ -19,12 +19,12 @@ async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string): Pr
 
 export function registerContextSharingService(
 	pi: ExtensionAPI,
-	mode: (ctx: ExtensionContext) => ContextManagementMode,
+	plan: (ctx: ExtensionContext) => Pick<CodexRuntimePlan, "contextManagementMode" | "shareSubagentContext">,
 	execute: (ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => Promise<SharedContextResult>,
 ): ContextRouter {
 	let router: ContextRouter | undefined;
 	const describe: ContextSharingService["describe"] = (ctx) => {
-		const storageMode = mode(ctx);
+		const storageMode = plan(ctx).contextManagementMode;
 		if (storageMode === "off") return undefined;
 		const identity = contextAgentIdentity(ctx);
 		const storage = storageMode === "remote" ? "remote" : "session";
@@ -34,6 +34,7 @@ export function registerContextSharingService(
 	};
 	const service: ContextSharingService = {
 		protocol: 1,
+		canCreateChild: (ctx) => plan(ctx).shareSubagentContext,
 		describe,
 		async verify(ctx) {
 			const identity = describe(ctx);
@@ -41,6 +42,7 @@ export function registerContextSharingService(
 			await verifyRemoteAccount(ctx, identity.accountScope);
 		},
 		async createChild(ctx, options) {
+			if (!service.canCreateChild(ctx)) throw new Error("Shared subagent context is disabled; enable it in /codex context");
 			const parent = describe(ctx);
 			if (!parent) throw new Error("Shared context requires notes-based continuity");
 			if (!/^[a-zA-Z0-9_-]+$/.test(options.name)) throw new Error("Invalid context agent name");

@@ -31,6 +31,7 @@ interface RuntimePlanBase {
 	contextManagement: boolean;
 	contextManagementMode: ContextManagementMode;
 	contextManagementRemote: boolean;
+	shareSubagentContext: boolean;
 	compactOnRollover: boolean;
 	autoReasoning: boolean;
 }
@@ -157,6 +158,7 @@ export function resolveCodexRuntimePlan(
 		contextManagement: false,
 		contextManagementMode: "off" as const,
 		contextManagementRemote: false,
+		shareSubagentContext: false,
 		compactOnRollover: false,
 		autoReasoning: false,
 	};
@@ -180,6 +182,7 @@ export function resolveCodexRuntimePlan(
 		? configuredContextManagementMode
 		: "off";
 	const contextManagementRemote = contextManagementMode === "remote";
+	base.shareSubagentContext = contextManagement && config.compaction.shareSubagentContext;
 	base.compactOnRollover = contextManagement && config.compaction.continuity === "notes-and-compaction";
 	base.nativeReplay = effectiveOpenAICodex;
 	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
@@ -259,6 +262,7 @@ export function resolveCodexRuntimePlanForState(
 		contextManagement: false,
 		contextManagementMode: "off",
 		contextManagementRemote: false,
+		shareSubagentContext: false,
 		compactOnRollover: false,
 		autoReasoning: false,
 	};

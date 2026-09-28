@@ -132,6 +132,10 @@ export function normalizeCodexConversionConfig(
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.continuity,
 			historyStorage: normalizeHistoryStorage(compaction["historyStorage"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.historyStorage,
+			shareSubagentContext: normalizeBoolean(
+				compaction["shareSubagentContext"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.shareSubagentContext,
+			),
 			method: normalizeCompactionMethod(compaction["method"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.method,
 			v2UserMessageRetention:
