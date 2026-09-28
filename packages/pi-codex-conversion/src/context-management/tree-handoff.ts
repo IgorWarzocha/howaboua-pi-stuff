@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { contextAgentIdentity } from "./agent-identity.ts";
 import { contentText } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, SessionBeforeTreeEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
@@ -97,7 +98,7 @@ export class CodexTreeHandoff {
 		}
 		const sessionId = ctx.sessionManager.getSessionId();
 		const sourceId = ctx.sessionManager.getLeafId();
-		const path = `/root/notes/tree-handoff-${randomUUID()}`;
+		const path = `${contextAgentIdentity(ctx).agentName}/notes/tree-handoff-${randomUUID()}`;
 		const entries = event.preparation.entriesToSummarize;
 		if (entries.length === 0) return;
 		const prompt = [

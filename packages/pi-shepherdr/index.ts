@@ -8,6 +8,7 @@ import { AgentFleet } from "./src/fleet.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
+import { registerSharedAgentContext } from "./src/shared-context.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
@@ -20,7 +21,8 @@ export default async function shepherdrExtension(
 	await registerDeveloperDelivery(pi);
 	registerPeerInbox(pi);
 	const fleet = new AgentFleet(pi);
-	const tool = createAgentsTool(fleet);
+	const sharedContext = await registerSharedAgentContext(pi, fleet);
+	const tool = createAgentsTool(fleet, sharedContext);
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);

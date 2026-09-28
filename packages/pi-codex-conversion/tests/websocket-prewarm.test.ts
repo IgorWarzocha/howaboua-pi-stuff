@@ -65,7 +65,7 @@ test("ordinary prewarm reuses a ready lane after final-body capture; keepalive r
 		const extensionContext = {
 			model: requestModel,
 			modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: refreshedKey, headers: { "x-extension": "auth", "x-deleted": "auth" } }) },
-			sessionManager: { getSessionId: () => sessionId },
+			sessionManager: { getSessionId: () => sessionId, getEntries: () => [] },
 			ui: { notify: () => undefined },
 		} as never;
 		const lateTool = {
@@ -220,6 +220,7 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 		},
 		sessionManager: {
 			getSessionId: () => "equivalent-prewarm",
+			getEntries: () => [],
 			getBranch: () => [{ type: "message", id: "system", parentId: null, message: {
 				role: "system", content: "Prompt", toolsAdded: codeModeTools, timestamp: 0,
 			} }],
@@ -287,6 +288,7 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 				getApiKeyAndHeaders: async () => ({ ok: true, apiKey }),
 			},
 			sessionManager: {
+				getEntries: () => [],
 				getBranch: () => [{ type: "message", id: "system", parentId: null, message: {
 					role: "system", content: "Stable prompt", toolsAdded: codeModeTools, timestamp: 0,
 				} }],

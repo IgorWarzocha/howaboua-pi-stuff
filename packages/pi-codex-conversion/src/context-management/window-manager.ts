@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { contextAgentIdentity } from "./agent-identity.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getCurrentSystemMessage, type ProviderHeaders } from "@earendil-works/pi-ai";
 import { ContextWindowBudget, type ContextRemaining } from "./window-budget.ts";
@@ -119,6 +120,7 @@ export class CodexContextWindowManager {
 		const windowId = randomUUID();
 		this.sendWindowMessage(
 			pi,
+			ctx,
 			{
 				firstWindowId: windowId,
 				currentWindowId: windowId,
@@ -239,7 +241,7 @@ export class CodexContextWindowManager {
 						currentWindowId,
 						windowNumber: 0,
 					};
-			this.sendWindowMessage(pi, next, options, threadHint);
+			this.sendWindowMessage(pi, ctx, next, options, threadHint);
 			return true;
 		} catch (error) {
 			if (this.rolloverPending === pending) this.rolloverPending = undefined;
@@ -352,6 +354,7 @@ export class CodexContextWindowManager {
 
 	private sendWindowMessage(
 		pi: ExtensionAPI,
+		ctx: ExtensionContext,
 		identity: ContextWindowIdentity,
 		options: StartContextWindowOptions,
 		threadHint?: string,
@@ -361,7 +364,7 @@ export class CodexContextWindowManager {
 			? identity.currentWindowId
 			: undefined;
 		pi.sendMessage(createContextWindowMessage(
-			renderContextWindowMessage(identity, threadHint),
+			renderContextWindowMessage(identity, threadHint, contextAgentIdentity(ctx).agentName),
 			"window",
 			identity,
 			options.trimPreviousWindow,

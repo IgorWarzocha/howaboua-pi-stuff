@@ -25,6 +25,7 @@ import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
+import { contextAccountScope, contextAgentIdentity } from "../context-management/agent-identity.ts";
 import { CodexContextWindowKickoff } from "../context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
@@ -410,6 +411,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				|| options.canonicalCompaction || options.cacheRetention === "none") return;
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			if (!isAdapterRuntime(plan)) return;
+			const identity = contextAgentIdentity(ctx);
+			if (identity.accountScope && (!options.apiKey || contextAccountScope(extractAccountId(options.apiKey)) !== identity.accountScope))
+				throw new Error("Shared Remote context requires the parent's Codex account");
 			const systemMessage = getCurrentSystemMessage(context.messages);
 			if (systemMessage) {
 				state.preparedPrompt = {

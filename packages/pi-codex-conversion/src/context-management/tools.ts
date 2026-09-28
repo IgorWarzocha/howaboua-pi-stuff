@@ -7,6 +7,7 @@ import { Type } from "typebox";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
+import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
@@ -99,10 +100,17 @@ export function registerContextManagementTools(
 	state: AdapterState,
 ): void {
 	const [newContext, getContextRemaining] = createContextWindowTools(pi, state);
+	const mode = (ctx: ExtensionContext) => resolveCodexRuntimePlanForState(ctx, state).contextManagementMode;
+	const route = registerContextSharingService(pi, mode, async (ctx, request, signal) => {
+		return request.namespace === "history"
+			? history.execute("shared-context", request.params as Parameters<typeof history.execute>[1], signal, undefined, ctx)
+			: notes.execute("shared-context", request.params as Parameters<typeof notes.execute>[1], signal, undefined, ctx);
+	});
 	const [history, notes] = createHistoryNotesTools(
 		pi,
-		(ctx) => resolveCodexRuntimePlanForState(ctx, state).contextManagementMode,
+		mode,
 		(action, path, ctx) => () => state.contextTree.handoff.finishNoteWrite(action, path, ctx),
+		route,
 	);
 	pi.registerTool(newContext);
 	pi.registerTool(getContextRemaining);

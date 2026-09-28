@@ -6,6 +6,7 @@ import {
 	loadHistoryNotesThreadHint,
 } from "../src/context-management/history-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
+import { CONTEXT_AGENT_ENTRY, contextAccountScope } from "../src/context-management/agent-identity.ts";
 import { createTreeArchiveManifest } from "../src/context-management/tree-archive.ts";
 import { projectTreeCheckpointBranch } from "../src/context-management/tree-checkpoint.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
@@ -137,6 +138,15 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				current_agent_name: "/root",
 			},
 		});
+		const sharedEntries = [{ type: "custom", customType: CONTEXT_AGENT_ENTRY, data: {
+			protocol: 1, sessionId: "parent-session", threadId: "session-context", agentName: "/root/worker",
+			storage: "remote", accountScope: contextAccountScope("account-1"),
+		} }];
+		const shared = createContext(sharedEntries);
+		await remoteNotes.execute("shared", { action: "read_file", path: "/root/notes/proof" }, undefined, undefined, shared);
+		assert.deepEqual(JSON.parse(String(request!.init.body)).context, { session_id: "parent-session", current_agent_name: "/root/worker" });
+		sharedEntries[0]!.data.accountScope = contextAccountScope("other-account");
+		await assert.rejects(() => remoteNotes.execute("wrong-account", { action: "read_file", path: "proof" }, undefined, undefined, shared), /parent's Codex account/);
 		let failedRequests = 0;
 		globalThis.fetch = (async () => {
 			failedRequests += 1;
@@ -268,6 +278,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		assert.deepEqual(buildSessionContext([...restored]).messages.map((message) => message.role), ["compactionSummary", "user", "custom"]);
 		assert.equal(JSON.stringify(all), stored);
 		assert.throws(() => projectTreeCheckpointBranch(active, all.filter((entry) => entry.id !== checkpoint.id)), /Invalid Tree archive/);
+
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

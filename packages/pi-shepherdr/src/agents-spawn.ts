@@ -1,4 +1,7 @@
-import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
+import type {
+	AgentToolUpdateCallback,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import {
 	type AgentsParams,
 	requiredAgentField as required,
@@ -24,6 +27,7 @@ import {
 	prepareProfileMessage,
 	profileAgentArgs,
 } from "./profiles.js";
+import type { SharedAgentContext } from "./shared-context.js";
 
 function agentLabel(value: string | undefined): string {
 	const label = required(value, "label");
@@ -40,6 +44,8 @@ export async function spawnAgent(
 	params: AgentsParams,
 	signal: AbortSignal,
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
+	sharedContext: SharedAgentContext,
+	ctx: ExtensionContext,
 ) {
 	const profiles = await loadAgentProfiles();
 	const profileName = required(params.agent_type, "agent_type");
@@ -98,22 +104,34 @@ export async function spawnAgent(
 		profile: profile.name,
 		status: "starting",
 	});
+	const agentArgs = profileAgentArgs(profile, { targetLocal: runtime.local });
+	const sharing = await sharedContext.prepare(
+		ctx,
+		runtime,
+		name,
+		cwd,
+		agentArgs,
+	);
 	const started = await startAgent(
 		runtime.client,
 		startParams,
 		runtime.fallbackCwd,
 		runtime.resolveDirectory,
 		{
-			agentArgs: profileAgentArgs(profile, {
-				targetLocal: runtime.local,
-			}),
+			agentArgs: [
+				...agentArgs,
+				...(sharing ? ["--session", sharing.sessionFile] : []),
+			],
 		},
 	);
 	let promptSubmissionStarted = false;
 	let promptAccepted = false;
 	let dispatch;
+	let shared: { agentName?: string; warning?: string } | undefined;
 	const blocking = shouldBlockAgentSpawn(profile.name, params.blocking);
 	try {
+		shared = await sharing?.accept();
+		if (shared?.agentName) sharing?.remember();
 		dispatch = await dispatchAgentWork(
 			runtime,
 			started.agent,
@@ -142,27 +160,30 @@ export async function spawnAgent(
 		throw error;
 	}
 	return toolResult(
-		dispatch.command
-			? {
-					spawned: true,
-					commandSubmitted: true,
-					machine: runtime.machine,
-					target: started.id,
-					name,
-				}
-			: dispatch.settlement
+		{
+			...(shared?.agentName ? { contextAgent: shared.agentName } : {}),
+			...(dispatch.command
 				? {
 						spawned: true,
-						...settlementResult(runtime.machine, dispatch.settlement),
-					}
-				: {
-						spawned: true,
+						commandSubmitted: true,
 						machine: runtime.machine,
 						target: started.id,
 						name,
-						status: "working",
-						next: "Completion or blockage will be delivered automatically; do not poll",
-					},
-		dispatch.warning,
+					}
+				: dispatch.settlement
+					? {
+							spawned: true,
+							...settlementResult(runtime.machine, dispatch.settlement),
+						}
+					: {
+							spawned: true,
+							machine: runtime.machine,
+							target: started.id,
+							name,
+							status: "working",
+							next: "Completion or blockage will be delivered automatically; do not poll",
+						}),
+		},
+		[dispatch.warning, shared?.warning].filter(Boolean).join("\n") || undefined,
 	);
 }

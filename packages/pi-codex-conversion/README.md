@@ -141,6 +141,27 @@ With **Notes and history**, manual `/compact` reuses notes saved during the last
 
 Automatic overflow recovery compacts in the current window instead of rolling over. **Notes and history** uses Pi summary for this emergency recovery. The other strategies use the selected compaction method. Recovery still requires Pi's automatic compaction to be enabled.
 
+### Shared agent context
+
+Subagent extensions can share notes and history without sharing a Pi transcript. Each child has a unique agent path and thread ID under its parent's session identity. Identity survives rollover and resume; a fork starts an independent family. Existing sessions are never rebound.
+
+Remote sharing requires the same Codex account and Remote storage in every participant. Local and Tree keep notes in their owning Pi sessions; the integrating extension supplies transport between those sessions. Remote failures never switch storage.
+
+The optional `@howaboua/pi-codex-conversion/context-sharing` API is independent of Shepherdr:
+
+```ts
+import { connectCodexContextSharing } from "@howaboua/pi-codex-conversion/context-sharing";
+
+const connection = connectCodexContextSharing(pi);
+// In a prepared parent session:
+const service = connection.service;
+if (!service) return;
+const child = await service.createChild(ctx, { name: "worker", cwd });
+// Save child.jsonl as a new file on the target host, then launch Pi with --session <file>.
+```
+
+`describe(ctx)` reports identity and storage; `verify(ctx)` checks Remote account compatibility. For Local/Tree, register a router with `registerRouter`, pass its opaque `routing` descriptor to `createChild`, and execute incoming requests through the target's `service.execute(ctx, request, signal)`. Routes must validate family membership, preserve errors and never write directly into another live session file. Dispose the connection on shutdown. Neither package requires the other for ordinary standalone use.
+
 ## Cache diagnostics
 
 Open `/codex openai` and set **Cache diagnostics** to **Status** or **Status + log**. Diagnostics are off by default.

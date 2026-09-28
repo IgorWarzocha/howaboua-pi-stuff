@@ -3,6 +3,7 @@ import type {
 	ExtensionContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { contextAgentIdentity } from "./agent-identity.ts";
 
 const CONTEXT_NOTE_ENTRY_TYPE = "codex-context-note";
 export const CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE = "codex-context-note-snapshot";
@@ -54,6 +55,13 @@ export function usePiSessionNotes(
 	params: Record<string, unknown>,
 	ctx: ExtensionContext,
 ): Record<string, unknown> {
+	const root = `${contextAgentIdentity(ctx).agentName}/notes`;
+	params = { ...params };
+	for (const field of ["path", "prefix", "path_prefix"]) {
+		const value = params[field];
+		if (typeof value === "string" && value && !value.startsWith("/")) params[field] = `${root}/${value}`;
+		else if (field !== "path" && (value === undefined || value === null || value === "")) params[field] = root;
+	}
 	const notes = collectNotes(ctx.sessionManager.getBranch());
 	if (action === "list_files_by_prefix") return listNotes(notes, params);
 	if (action === "read_file") return readNote(notes, params);

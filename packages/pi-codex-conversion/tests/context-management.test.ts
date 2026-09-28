@@ -29,6 +29,7 @@ function createContext(): ExtensionContext {
 			contextWindow: 272_000,
 		},
 		sessionManager: {
+			getEntries: () => [],
 			getBranch: () => [],
 			getSessionId: () => "session-context",
 		},

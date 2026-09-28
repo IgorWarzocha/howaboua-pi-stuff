@@ -24,6 +24,7 @@
 				"src/code-mode.ts",
 				"src/code-mode-preflight.ts",
 				"src/code-mode-hooks.ts",
+				"src/context-sharing.ts",
 				"src/realtime-voice.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",

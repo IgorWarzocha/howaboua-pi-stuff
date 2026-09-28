@@ -7,6 +7,8 @@ import type {
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type, type Static } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
+import type { ContextRouter } from "../context-sharing.ts";
+import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
 import { historyNotesRenderers } from "./rendering.ts";
 import {
 	codexToolProviderHeaders,
@@ -168,6 +170,7 @@ export function createHistoryNotesTools(
 	resolveMode: (ctx: ExtensionContext) => ContextManagementMode = () =>
 		"local",
 	prepareNoteWrite?: (action: NotesAction, path: unknown, ctx: ExtensionContext) => () => boolean,
+	route?: ContextRouter,
 ): [
 	ToolDefinition<typeof HISTORY_PARAMETERS, CodexHistoryNotesDetails>,
 	ToolDefinition<typeof NOTES_PARAMETERS, CodexHistoryNotesDetails>,
@@ -202,6 +205,7 @@ export function createHistoryNotesTools(
 					signal,
 					resolveMode(ctx),
 					pi,
+					route,
 				);
 			},
 		},
@@ -227,6 +231,7 @@ export function createHistoryNotesTools(
 					signal,
 					resolveMode(ctx),
 					pi,
+					route,
 				);
 				return finishNoteWrite?.()
 					? { ...result, terminate: true }
@@ -294,7 +299,11 @@ async function callHistoryNotesTool(
 	signal: AbortSignal | undefined,
 	mode: ContextManagementMode,
 	pi: Pick<ExtensionAPI, "appendEntry"> | undefined,
+	route?: ContextRouter,
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
+	const identity = contextAgentIdentity(ctx);
+	if (identity.storage && identity.storage !== (mode === "remote" ? "remote" : "session"))
+		throw new Error("Shared context storage changed; restore the family's Remote or Local/Tree storage setting");
 	let result: Record<string, unknown>;
 	if (mode === "remote") {
 		if (!usesRemoteHistoryNotes(ctx, mode))
@@ -306,7 +315,15 @@ async function callHistoryNotesTool(
 			signal,
 			{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT },
 		);
-	} else result = callLocalHistoryNotes(namespace, action, params, ctx, pi, mode);
+	} else {
+		const target = identity.storage ? contextTargetAgent(namespace, params, identity.agentName) : identity.agentName;
+		if (target !== identity.agentName) {
+			if (!route) throw new Error("Cross-agent context router is unavailable");
+			return route(ctx, { sessionId: identity.sessionId, agentName: target, namespace,
+				params: namespace === "history" ? { ...params, agent_name: target } : params }, signal);
+		}
+		result = callLocalHistoryNotes(namespace, action, params, ctx, pi, mode);
+	}
 	const modelResult = { ...result };
 	delete modelResult["images"];
 	const content: AgentToolResult<CodexHistoryNotesDetails>["content"] = [
@@ -333,8 +350,11 @@ async function callHistoryNotesBackend(
 	truncationPolicy: { mode: "bytes" | "tokens"; limit: number },
 ): Promise<Record<string, unknown>> {
 	const provider = await resolveCodexToolProvider(ctx);
+	const identity = contextAgentIdentity(ctx);
 	if (provider.route !== "openai-codex")
 		throw new Error("History and notes require the OpenAI Codex backend");
+	if (identity.accountScope && contextAccountScope(provider.accountId) !== identity.accountScope)
+		throw new Error("Shared Remote context requires the parent's Codex account");
 	const headers = codexToolProviderHeaders(provider);
 	headers.set(
 		"x-openai-tool-output-truncation-policy",
@@ -354,8 +374,8 @@ async function callHistoryNotesBackend(
 			body: JSON.stringify({
 				...arguments_,
 				context: {
-					session_id: ctx.sessionManager.getSessionId(),
-					current_agent_name: "/root",
+					session_id: identity.sessionId,
+					current_agent_name: identity.agentName,
 				},
 			}),
 		},

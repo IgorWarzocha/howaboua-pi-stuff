@@ -14,10 +14,11 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 7;
+const BRIDGE_VERSION = 8;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
+const REMOTE_CONTEXT_HELPER = "~/.pi/agent/shepherdr-context.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const DEPLOY_TIMEOUT_MS = 20_000;
@@ -160,6 +161,8 @@ async function deploy(
 }
 
 export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
+	private contextHandler: ((request: unknown) => Promise<unknown>) | undefined;
+	private relayPath: string | undefined;
 	private readonly child: ChildProcessWithoutNullStreams;
 	private closed = false;
 	private diagnostics = "";
@@ -194,21 +197,30 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		config: SshMachine,
 		onClose: (error: Error) => void,
 	): Promise<RemoteHerdrClient> {
-		const [source, peerSource, sessionSource] = await Promise.all([
-			readFile(
-				fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
-			),
-			readFile(
-				fileURLToPath(new URL("./remote/shepherdr-peer.mjs", import.meta.url)),
-			),
-			readFile(
-				fileURLToPath(
-					new URL("./remote/shepherdr-session.mjs", import.meta.url),
+		const [source, peerSource, sessionSource, contextSource] =
+			await Promise.all([
+				readFile(
+					fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
 				),
-			),
-		]);
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-peer.mjs", import.meta.url),
+					),
+				),
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-session.mjs", import.meta.url),
+					),
+				),
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-context.mjs", import.meta.url),
+					),
+				),
+			]);
 		await deploy(config, peerSource, REMOTE_PEER_HELPER);
 		await deploy(config, sessionSource, REMOTE_SESSION_HELPER);
+		await deploy(config, contextSource, REMOTE_CONTEXT_HELPER);
 		await deploy(config, source, REMOTE_HELPER);
 		const child = spawnConnector(config, remoteCommand(config));
 		const client = new RemoteHerdrClient(child, onClose);
@@ -230,6 +242,41 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			{ op: "request", method, params, timeoutMs },
 			timeoutMs + 1_000,
 		)) as T;
+	}
+
+	async requestContext(
+		path: string,
+		request: unknown,
+		signal?: AbortSignal,
+	): Promise<unknown> {
+		signal?.throwIfAborted();
+		return this.call({ op: "context", path, request }, 36_000);
+	}
+
+	async writeContextSession(jsonl: string): Promise<string> {
+		const path = await this.call({ op: "context_session", jsonl });
+		if (typeof path !== "string")
+			throw new Error("Invalid shared session path");
+		return path;
+	}
+
+	async startContextRelay(
+		threadId: string,
+		handler: (request: unknown) => Promise<unknown>,
+	): Promise<void> {
+		this.contextHandler = handler;
+		const path = await this.call({ op: "context_relay", threadId });
+		if (typeof path !== "string")
+			throw new Error("Invalid shared context relay path");
+		this.relayPath = path;
+	}
+
+	contextRelayPath(): string {
+		if (!this.relayPath)
+			throw new Error(
+				"Shared context relay is unavailable; reconnect the machine",
+			);
+		return this.relayPath;
 	}
 
 	async sendMessage(
@@ -407,6 +454,30 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			}
 			const id = value["id"];
 			if (typeof id !== "string") continue;
+			if (value["type"] === "context_request") {
+				const reply = (data: object) => {
+					if (this.closed) return;
+					let frame = `${JSON.stringify({ op: "context_reply", id, ...data })}\n`;
+					if (Buffer.byteLength(frame) > MAX_FRAME_BYTES)
+						frame = `${JSON.stringify({ op: "context_reply", id, ok: false, error: "Shared context response is too large" })}\n`;
+					this.child.stdin.write(frame);
+				};
+				void Promise.resolve()
+					.then(() => {
+						if (!this.contextHandler)
+							throw new Error("Shared context controller is unavailable");
+						return this.contextHandler(value["request"]);
+					})
+					.then(
+						(result) => reply({ ok: true, result }),
+						(error: unknown) =>
+							reply({
+								ok: false,
+								error: error instanceof Error ? error.message : String(error),
+							}),
+					);
+				continue;
+			}
 			if (value["ok"] === true) this.resolvePending(id, value["result"]);
 			else {
 				const detail = value["error"] as BridgeError | undefined;

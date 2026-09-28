@@ -3,6 +3,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
+import { contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	isCodexContextManagementMessageDetails,
@@ -92,7 +93,10 @@ export function readPiSessionHistory(
 			ctx.sessionManager.getBranch(),
 		)
 		: collectWindows(ctx.sessionManager.getBranch());
-	if (!isCurrentAgent(params["agent_name"]))
+	const agent = contextAgentIdentity(ctx);
+	const name = params["agent_name"];
+	if (agent.storage ? contextTargetAgent("history", params, agent.agentName) !== agent.agentName
+		: name !== undefined && name !== null && name !== "" && name !== agent.agentName)
 		return action === "list_windows" ? { windows: [] } : { items: [] };
 	if (action === "list_windows") {
 		const ordered = params["recent_first"] === true ? [...windows].reverse() : windows;
@@ -376,10 +380,6 @@ function nullableString(value: unknown): string | undefined {
 
 function string(value: unknown): string {
 	return typeof value === "string" ? value : "";
-}
-
-function isCurrentAgent(value: unknown): boolean {
-	return value === undefined || value === null || value === "" || value === "/root";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

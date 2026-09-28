@@ -3,12 +3,37 @@ import { readFile, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import {
+	listenContext,
+	relayContextPath,
+	requestContext,
+	writeContextSession,
+} from "./shepherdr-context.mjs";
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 
-const BRIDGE_VERSION = 7;
+const BRIDGE_VERSION = 8;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
+const contextRelays = new Map();
+const contextRequests = new Map();
+
+function requestController(request) {
+	const id = crypto.randomUUID();
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(() => {
+			contextRequests.delete(id);
+			reject(
+				new Error(
+					"Shared context controller did not reply; a write may have completed. Reread before retrying",
+				),
+			);
+		}, 35_000);
+		timer.unref();
+		contextRequests.set(id, { resolve, reject, timer });
+		send({ type: "context_request", id, request });
+	});
+}
 
 function argument(name) {
 	const index = process.argv.indexOf(`--${name}`);
@@ -276,6 +301,16 @@ async function handle(message) {
 	if (message.op === "message") {
 		return sendPeerMessage(request, message.agent, message.message);
 	}
+	if (message.op === "context")
+		return requestContext(message.path, message.request);
+	if (message.op === "context_session")
+		return writeContextSession(message.jsonl);
+	if (message.op === "context_relay") {
+		const path = relayContextPath(message.threadId);
+		if (!contextRelays.has(path))
+			contextRelays.set(path, await listenContext(path, requestController));
+		return path;
+	}
 	if (message.op === "subscribe") {
 		await subscribe(message.id, message.subscriptions ?? []);
 		return { subscribed: true };
@@ -313,6 +348,23 @@ process.stdin.on("data", (chunk) => {
 			send({ id: "invalid", ok: false, error: serializableError(error) });
 			continue;
 		}
+		if (message?.op === "context_reply") {
+			const pending = contextRequests.get(message.id);
+			if (pending) {
+				clearTimeout(pending.timer);
+				contextRequests.delete(message.id);
+				if (message.ok === true) pending.resolve(message.result);
+				else
+					pending.reject(
+						new Error(
+							typeof message.error === "string"
+								? message.error
+								: "Shared context controller failed",
+						),
+					);
+			}
+			continue;
+		}
 		void handle(message).then(
 			(result) => send({ id: message.id, ok: true, result }),
 			(error) =>
@@ -321,11 +373,17 @@ process.stdin.on("data", (chunk) => {
 	}
 });
 
-process.stdin.on("end", () => process.exit());
+async function shutdown() {
+	for (const close of subscriptions.values()) close();
+	await Promise.allSettled([...contextRelays.values()].map((close) => close()));
+	process.exit();
+}
+process.stdin.on("end", () => {
+	void shutdown();
+});
 for (const signal of ["SIGINT", "SIGTERM"]) {
 	process.on(signal, () => {
-		for (const close of subscriptions.values()) close();
-		process.exit();
+		void shutdown();
 	});
 }
 
