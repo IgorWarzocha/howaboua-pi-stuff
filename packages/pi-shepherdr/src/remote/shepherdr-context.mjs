@@ -29,30 +29,6 @@ export function sessionContextPath(sessionFile) {
 	return `${sessionFile}.shepherdr-context.json`;
 }
 
-/** Write only a fresh, native Pi seed; never append to another process's session.
- * @param {string} jsonl */
-export async function writeContextSession(jsonl) {
-	if (typeof jsonl !== "string" || Buffer.byteLength(jsonl) > 64_000)
-		throw new Error("Invalid shared session seed");
-	const entries = jsonl
-		.trim()
-		.split("\n")
-		.map((line) => JSON.parse(line));
-	const header = entries[0];
-	if (
-		entries.length !== 2 ||
-		header.type !== "session" ||
-		!/^[a-zA-Z0-9_-]+$/.test(header.id) ||
-		entries[1].type !== "custom" ||
-		entries[1].customType !== "codex-context-agent"
-	)
-		throw new Error("Invalid shared session seed");
-	const path = join(contextDirectory(), `${header.id}.jsonl`);
-	await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-	await writeFile(path, jsonl, { flag: "wx", mode: 0o600 });
-	return path;
-}
-
 /** @param {unknown} error @param {string} code */
 function hasCode(error, code) {
 	return error instanceof Error && "code" in error && error.code === code;

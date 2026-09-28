@@ -1,12 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { SessionManager, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { isDeepStrictEqual } from "node:util";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import {
 	CONTEXT_SHARING_AVAILABLE, CONTEXT_SHARING_REQUEST,
 	type ContextSharingService, type ContextRouter, type SharedContextRequest, type SharedContextResult,
 } from "../context-sharing.ts";
-import { CONTEXT_AGENT_ENTRY, contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
+import { CONTEXT_AGENT_ENTRY, contextAccountScope, contextAgentIdentity, contextTargetAgent, parseContextAgentBinding } from "./agent-identity.ts";
+
+async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string): Promise<string> {
+	const provider = await resolveCodexToolProvider(ctx);
+	if (provider.route !== "openai-codex") throw new Error("Shared Remote context requires Codex transport");
+	const scope = contextAccountScope(provider.accountId);
+	if (expected && scope !== expected) throw new Error("Shared Remote context requires the parent's Codex account");
+	return scope;
+}
 
 export function registerContextSharingService(
 	pi: ExtensionAPI,
@@ -29,9 +38,7 @@ export function registerContextSharingService(
 		async verify(ctx) {
 			const identity = describe(ctx);
 			if (identity?.storage !== "remote" || !identity.accountScope) return;
-			const provider = await resolveCodexToolProvider(ctx);
-			if (provider.route !== "openai-codex" || contextAccountScope(provider.accountId) !== identity.accountScope)
-				throw new Error("Shared Remote context requires the parent's Codex account");
+			await verifyRemoteAccount(ctx, identity.accountScope);
 		},
 		async createChild(ctx, options) {
 			const parent = describe(ctx);
@@ -39,21 +46,39 @@ export function registerContextSharingService(
 			if (!/^[a-zA-Z0-9_-]+$/.test(options.name)) throw new Error("Invalid context agent name");
 			if (parent.storage === "session" && (!router || options.routing === undefined))
 				throw new Error("Local and Tree sharing require a registered context router");
-			await service.verify(ctx);
-			if (parent.storage === "remote" && !parent.accountScope) {
-				const provider = await resolveCodexToolProvider(ctx);
-				if (provider.route !== "openai-codex") throw new Error("Shared Remote context requires Codex transport");
-				parent.accountScope = contextAccountScope(provider.accountId);
-			}
+			if (parent.storage === "remote") parent.accountScope = await verifyRemoteAccount(ctx, parent.accountScope);
 			if (ctx.sessionManager.getSessionId() !== parent.threadId) throw new Error("Controller session changed while preparing shared context");
 			if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, parent);
-			const session = SessionManager.inMemory(options.cwd);
-			const identity = { protocol: 1 as const, sessionId: parent.sessionId, threadId: session.getSessionId(),
+			return { protocol: 1, sessionId: parent.sessionId,
 				agentName: `${parent.agentName}/${options.name}-${randomUUID()}`, storage: parent.storage!,
 				...(parent.accountScope ? { accountScope: parent.accountScope } : {}),
 				...(options.routing === undefined ? {} : { routing: options.routing }) };
-			session.appendCustomEntry(CONTEXT_AGENT_ENTRY, identity);
-			return { identity, jsonl: [session.getHeader(), ...session.getEntries()].map((entry) => JSON.stringify(entry)).join("\n") + "\n" };
+		},
+		async bind(ctx, input) {
+			const binding = parseContextAgentBinding(input);
+			if (binding.agentName === "/root") throw new Error("Shared context binding requires a child agent path");
+			const identity = { ...binding, threadId: ctx.sessionManager.getSessionId() };
+			const check = () => {
+				if (ctx.sessionManager.getSessionId() !== identity.threadId) throw new Error("Worker session changed while binding shared context");
+				const current = describe(ctx);
+				if (!current || current.storage !== binding.storage)
+					throw new Error("Shared context binding requires matching history storage");
+				if (contextAgentIdentity(ctx).storage) {
+					if (!isDeepStrictEqual(current, identity)) throw new Error("An existing context identity cannot be rebound");
+					return true;
+				}
+				if (!ctx.isIdle() || ctx.sessionManager.getEntries().some((entry) =>
+					entry.type === "message" || entry.type === "custom_message" || entry.type === "compaction" || entry.type === "branch_summary" ||
+					(entry.type === "custom" && entry.customType.startsWith("codex-context-"))))
+					throw new Error("Shared context can bind only a fresh, idle Pi session before its first turn");
+				if (binding.storage === "session" && !router) throw new Error("Local and Tree sharing require a registered context router");
+				return false;
+			};
+			check();
+			if (binding.storage === "remote") await verifyRemoteAccount(ctx, binding.accountScope);
+			// Auth can yield to input or a session switch; the live owner commits only while still fresh.
+			if (!check()) pi.appendEntry(CONTEXT_AGENT_ENTRY, identity);
+			return identity;
 		},
 		async execute(ctx, request, signal) {
 			const identity = describe(ctx);

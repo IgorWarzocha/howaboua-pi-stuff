@@ -135,12 +135,9 @@ export function registerCodexEvents(
 		tracker.clear();
 		clearApplyPatchRenderState();
 		ui.renderBackgroundWidget();
-		const plan = syncAdapter(pi, ctx, state);
-		state.contextWindows.ensureInitialized(
-			pi,
-			ctx,
-			plan.contextManagement,
-		);
+		syncAdapter(pi, ctx, state);
+		// A fresh worker may adopt its family before its first prepared turn.
+		state.contextWindows.restore(ctx.sessionManager.getBranch());
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
@@ -309,6 +306,7 @@ export function registerCodexEvents(
 		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		if (!state.contextWindows.currentIdentity()) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
 		if (plan.kind !== "notebook") state.notebookStatusMessageId = undefined;
 		if (!isAdapterRuntime(plan)) {
 			state.preparedPrompt = undefined;

@@ -8,11 +8,13 @@ import type {
 	SharedContextResult,
 } from "@howaboua/pi-codex-conversion/context-sharing";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
+import { sessionPath } from "./herdr.js";
 import {
 	listenContext,
 	requestContext,
 	sessionContextPath,
 } from "./remote/shepherdr-context.mjs";
+import type { PaneInfo } from "./types.js";
 
 const MEMBER_ENTRY = "herdr-context-child";
 interface Member {
@@ -63,9 +65,9 @@ export class SharedAgentContext {
 			throw new Error("Invalid shared context request");
 		const service = this.getService();
 		const identity = service?.describe(ctx);
-		if ("operation" in value && value.operation === "describe") {
-			await service?.verify(ctx);
-			return identity ?? null;
+		if ("operation" in value && value.operation === "bind") {
+			if (!service || !identity) return null;
+			return service.bind(ctx, "binding" in value ? value.binding : undefined);
 		}
 		if (!identity || !service)
 			throw new Error("Context sharing is unavailable in this session");
@@ -135,7 +137,6 @@ export class SharedAgentContext {
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,
 		name: string,
-		cwd: string,
 		args: readonly string[] = [],
 	) {
 		const service = this.getService();
@@ -165,18 +166,18 @@ export class SharedAgentContext {
 							: runtime.client.contextRelayPath(),
 					}
 				: undefined;
-		const seed = await service.createChild(ctx, {
+		const binding = await service.createChild(ctx, {
 			name,
-			cwd,
 			...(routing ? { routing } : {}),
 		});
-		const sessionFile = await runtime.client.writeContextSession(seed.jsonl);
 		return {
-			sessionFile,
-			async accept() {
+			accept: async (agent: PaneInfo) => {
+				const sessionFile = sessionPath(agent);
+				if (!sessionFile)
+					throw new Error("Spawned agent has no native Pi session path");
 				const value = await runtime.client.requestContext(
 					sessionContextPath(sessionFile),
-					{ operation: "describe" },
+					{ operation: "bind", binding },
 				);
 				if (!value)
 					return {
@@ -186,27 +187,28 @@ export class SharedAgentContext {
 				if (
 					typeof value !== "object" ||
 					!("sessionId" in value) ||
-					value.sessionId !== seed.identity.sessionId ||
+					value.sessionId !== binding.sessionId ||
 					!("agentName" in value) ||
-					value.agentName !== seed.identity.agentName ||
+					value.agentName !== binding.agentName ||
 					!("storage" in value) ||
-					value.storage !== parent.storage
+					value.storage !== binding.storage ||
+					(binding.accountScope !== undefined &&
+						(!("accountScope" in value) ||
+							value.accountScope !== binding.accountScope))
 				)
 					throw new Error(
 						"Spawned agent did not adopt its shared context identity and storage mode",
 					);
-				return { agentName: seed.identity.agentName };
-			},
-			remember: () => {
 				if (ctx.sessionManager.getSessionId() !== parent.threadId)
 					throw new Error("Controller session changed during spawn");
 				this.pi.appendEntry<Member>(MEMBER_ENTRY, {
-					agentName: seed.identity.agentName,
+					agentName: binding.agentName,
 					sessionId: parent.sessionId,
 					threadId: parent.threadId,
 					machine: runtime.machine,
 					sessionFile,
 				});
+				return { agentName: binding.agentName };
 			},
 		};
 	}

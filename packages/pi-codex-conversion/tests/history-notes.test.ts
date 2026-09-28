@@ -1,12 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSessionContext, type ExtensionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, createEventBus, SessionManager, type ExtensionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
 	createHistoryNotesTools,
 	loadHistoryNotesThreadHint,
 } from "../src/context-management/history-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
-import { CONTEXT_AGENT_ENTRY, contextAccountScope } from "../src/context-management/agent-identity.ts";
+import { connectCodexContextSharing } from "../src/context-sharing.ts";
+import { contextAccountScope } from "../src/context-management/agent-identity.ts";
+import { registerContextSharingService } from "../src/context-management/sharing-service.ts";
 import { createTreeArchiveManifest } from "../src/context-management/tree-archive.ts";
 import { projectTreeCheckpointBranch } from "../src/context-management/tree-checkpoint.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
@@ -138,15 +140,37 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				current_agent_name: "/root",
 			},
 		});
-		const sharedEntries = [{ type: "custom", customType: CONTEXT_AGENT_ENTRY, data: {
-			protocol: 1, sessionId: "parent-session", threadId: "session-context", agentName: "/root/worker",
-			storage: "remote", accountScope: contextAccountScope("account-1"),
-		} }];
-		const shared = createContext(sharedEntries);
+		const parent = SessionManager.inMemory("/repo");
+		const worker = SessionManager.inMemory("/repo");
+		let liveSession = parent;
+		const sharingPi = {
+			events: createEventBus(), on() {},
+			appendEntry: (type: string, data: unknown) => liveSession.appendCustomEntry(type, data),
+		} as never;
+		const connection = connectCodexContextSharing(sharingPi);
+		registerContextSharingService(sharingPi, () => "remote", async () => { throw new Error("Remote cannot use peer storage"); });
+		const service = connection.service!;
+		const binding = await service.createChild({ ...context, sessionManager: parent }, { name: "worker" });
+		liveSession = worker;
+		const shared = { ...context, sessionManager: worker, isIdle: () => true };
+		await assert.rejects(() => service.bind(shared, { ...binding, accountScope: contextAccountScope("other-account") }), /parent's Codex account/);
+		assert.equal(worker.getEntries().length, 0, "failed validation cannot commit an identity");
+		await assert.rejects(() => service.bind({ ...context, isIdle: () => true }, binding), /fresh, idle/);
+		const identity = await service.bind(shared, binding);
+		assert.equal(identity.threadId, worker.getSessionId(), "Pi owns the worker thread ID");
+		assert.equal(identity.sessionId, parent.getSessionId());
+		assert.notEqual(identity.threadId, identity.sessionId);
+		await service.bind(shared, binding);
+		assert.equal(worker.getEntries().length, 1, "the same binding is idempotent");
+		await assert.rejects(() => service.bind(shared, { ...binding, sessionId: "unrelated" }), /cannot be rebound/);
 		await remoteNotes.execute("shared", { action: "read_file", path: "/root/notes/proof" }, undefined, undefined, shared);
-		assert.deepEqual(JSON.parse(String(request!.init.body)).context, { session_id: "parent-session", current_agent_name: "/root/worker" });
-		sharedEntries[0]!.data.accountScope = contextAccountScope("other-account");
-		await assert.rejects(() => remoteNotes.execute("wrong-account", { action: "read_file", path: "proof" }, undefined, undefined, shared), /parent's Codex account/);
+		assert.deepEqual(JSON.parse(String(request!.init.body)).context, { session_id: parent.getSessionId(), current_agent_name: binding.agentName });
+		const wrongAccount = { ...shared, modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true,
+			apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "other-account" } }),
+			baseUrl: "https://chatgpt.com/backend-api",
+		}) } } as unknown as ExtensionContext;
+		await assert.rejects(() => remoteNotes.execute("wrong-account", { action: "read_file", path: "proof" }, undefined, undefined, wrongAccount), /parent's Codex account/);
+		connection.dispose();
 		let failedRequests = 0;
 		globalThis.fetch = (async () => {
 			failedRequests += 1;

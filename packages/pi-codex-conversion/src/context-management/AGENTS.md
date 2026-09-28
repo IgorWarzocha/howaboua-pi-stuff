@@ -8,4 +8,4 @@
 - Other Responses transports may use native `history.*` and `notes.*` namespaces. Codex transport keeps flat routers for Local and Tree; Remote uses exact native namespaces with encrypted sensitive arguments.
 - Local note writes are model-invisible custom entries. Tree snapshots them across branch cuts. Remote failures remain failures.
 - Encrypted history/notes output must remain a top-level Responses tool result; never unwrap it inside Code or Notebook execution.
-- `agent-identity.ts` owns session-family identity independently of the active branch. Seed only fresh threads; a fork must not reuse its source agent path. External routers transport Local/Tree calls; conversion validates identity and executes storage operations.
+- `agent-identity.ts` owns session-family identity independently of the active branch. Bind only fresh, idle Pi-owned threads before their first window; recheck after async authentication. A fork must not reuse its source agent path. External routers transport Local/Tree calls; conversion validates identity and executes storage operations.

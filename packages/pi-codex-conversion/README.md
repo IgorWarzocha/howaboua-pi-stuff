@@ -156,11 +156,15 @@ const connection = connectCodexContextSharing(pi);
 // In a prepared parent session:
 const service = connection.service;
 if (!service) return;
-const child = await service.createChild(ctx, { name: "worker", cwd });
-// Save child.jsonl as a new file on the target host, then launch Pi with --session <file>.
+const binding = await service.createChild(ctx, { name: "worker" });
+// Launch Pi normally and deliver binding through your integration.
+// In the fresh, idle child, before sending its first task:
+await childService.bind(childCtx, binding);
 ```
 
-`describe(ctx)` reports identity and storage; `verify(ctx)` checks Remote account compatibility. For Local/Tree, register a router with `registerRouter`, pass its opaque `routing` descriptor to `createChild`, and execute incoming requests through the target's `service.execute(ctx, request, signal)`. Routes must validate family membership, preserve errors and never write directly into another live session file. Dispose the connection on shutdown. Neither package requires the other for ordinary standalone use.
+Pi owns session creation and persistence. `bind` validates storage and account before recording identity in the child's native session; it rejects used sessions and different existing bindings. `describe(ctx)` reports identity and storage; `verify(ctx)` checks Remote account compatibility.
+
+For Local/Tree, register a router with `registerRouter` in each participant, pass its opaque `routing` descriptor to `createChild`, and execute incoming requests through the target's `service.execute(ctx, request, signal)`. Routes must validate family membership, preserve errors and never write directly into another session file. Dispose the connection on shutdown. Neither package requires the other for ordinary standalone use.
 
 ## Cache diagnostics
 

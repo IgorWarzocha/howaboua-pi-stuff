@@ -7,12 +7,11 @@ import {
 	listenContext,
 	relayContextPath,
 	requestContext,
-	writeContextSession,
 } from "./shepherdr-context.mjs";
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 
-const BRIDGE_VERSION = 8;
+const BRIDGE_VERSION = 9;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
@@ -303,8 +302,6 @@ async function handle(message) {
 	}
 	if (message.op === "context")
 		return requestContext(message.path, message.request);
-	if (message.op === "context_session")
-		return writeContextSession(message.jsonl);
 	if (message.op === "context_relay") {
 		const path = relayContextPath(message.threadId);
 		if (!contextRelays.has(path))

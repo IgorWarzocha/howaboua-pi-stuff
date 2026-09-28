@@ -89,6 +89,8 @@ For `answer` inside Code or Notebook Mode, update Pi Ask on workers together wit
 
 With Pi Codex Conversion 3.0.40 or newer and notes-based continuity, `spawn` gives each child a unique context identity before its first turn. Nested children inherit the same family; `contextAgent` in the spawn result identifies their notes and history. Resume preserves identity. `assign` and independently started agents remain unchanged. Older compatible Conversion versions keep ordinary delegation without sharing.
 
+Pi creates each worker session normally. The worker records its shared identity before Shepherdr delivers the first task; no pre-created session file or launch override is needed.
+
 Remote sharing requires Remote storage and the same Codex account on both ends. Local and Tree route through the owning Pi sessions and existing SSH connections. Those owners and intermediate controllers must be running; unavailable routes fail explicitly. Resume the owner and use `/herdr connect` after a connection loss. No note store is copied or silently substituted.
 
 Both extensions work independently. A target without active context support still starts, with a warning that its context is not shared. A conflicting storage mode or account rejects the shared spawn before task delivery. Profiles that select or resume an existing session cannot participate in shared `spawn`; use `assign` instead.

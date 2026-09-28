@@ -13,6 +13,22 @@ export interface ContextAgentIdentity {
 	routing?: unknown;
 }
 
+export type ContextAgentBinding = Omit<ContextAgentIdentity, "threadId" | "storage"> & {
+	storage: "remote" | "session";
+};
+
+export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
+	const value = input as Partial<ContextAgentBinding> | undefined;
+	if (value?.protocol !== 1 || typeof value.sessionId !== "string" || !value.sessionId ||
+		typeof value.agentName !== "string" || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(value.agentName) ||
+		(value.storage !== "remote" && value.storage !== "session") ||
+		(value.storage === "remote" && (typeof value.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(value.accountScope))))
+		throw new Error("Invalid Codex context identity");
+	return { protocol: 1, sessionId: value.sessionId, agentName: value.agentName, storage: value.storage,
+		...(value.accountScope === undefined ? {} : { accountScope: value.accountScope }),
+		...(value.routing === undefined ? {} : { routing: value.routing }) };
+}
+
 export function contextAgentIdentity(ctx: Pick<ExtensionContext, "sessionManager">): ContextAgentIdentity {
 	const threadId = ctx.sessionManager.getSessionId();
 	let identity: ContextAgentIdentity | undefined;
@@ -21,13 +37,8 @@ export function contextAgentIdentity(ctx: Pick<ExtensionContext, "sessionManager
 		if (entry.type !== "custom" || entry.customType !== CONTEXT_AGENT_ENTRY) continue;
 		const value = entry.data as Partial<ContextAgentIdentity> | undefined;
 		if (value?.threadId !== threadId) continue;
-		if (value.protocol !== 1 || typeof value.sessionId !== "string" || !value.sessionId ||
-			typeof value.agentName !== "string" || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(value.agentName) ||
-			(value.storage !== "remote" && value.storage !== "session") ||
-			(value.storage === "remote" && (typeof value.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(value.accountScope))))
-			throw new Error("Invalid persisted Codex context identity");
 		if (identity) throw new Error("Conflicting persisted Codex context identities");
-		identity = value as ContextAgentIdentity;
+		identity = { ...parseContextAgentBinding(value), threadId };
 	}
 	return identity ?? { protocol: 1, sessionId: threadId, threadId, agentName: "/root" };
 }
