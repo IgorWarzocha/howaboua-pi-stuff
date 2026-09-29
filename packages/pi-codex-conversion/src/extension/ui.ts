@@ -1,9 +1,11 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { keyHint, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
+import { Box, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { CODEX_TOOLKIT_UPDATE_TYPE, projectToolkitUpdate } from "../adapter/code-mode/toolkit-updates.ts";
 import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
 import { fetchCodexUsageStatus } from "../codex-usage/client.ts";
+import { CODEX_DEVELOPER_MESSAGE_TYPE } from "../developer-messages.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	type CodexContextManagementMessageDetails,
@@ -56,6 +58,16 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 
 	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
+	pi.registerMessageRenderer<{ title?: string }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded }, theme) =>
+		typeof message.content === "string" ? renderDeveloperNotice(message.content, expanded, theme,
+			typeof message.details?.title === "string" ? message.details.title : undefined) : undefined);
+	// Toolkit entries already feed model context through projection. Render that
+	// same stored content without sending another message or queuing a turn.
+	pi.registerEntryRenderer(CODEX_TOOLKIT_UPDATE_TYPE, (entry, { expanded }, theme) => {
+		const message = projectToolkitUpdate(entry);
+		return message.type === "custom_message" && typeof message.content === "string"
+			? renderDeveloperNotice(message.content, expanded, theme) : undefined;
+	});
 	const renderNativeCompaction = (
 		content: string,
 		kind: NativeCompactionDisplayEntry["kind"],
@@ -149,5 +161,17 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();
 		},
+	};
+}
+
+function renderDeveloperNotice(content: string, expanded: boolean, theme: Theme, title = content.split(/\r?\n/, 1)[0] ?? "") {
+	return {
+		render(width: number) {
+			if (expanded) return new Text(theme.fg("customMessageText", content), 1, 0).render(width);
+			const hint = ` (${keyHint("app.tools.expand", "to expand")})`;
+			const summary = truncateToWidth(title, Math.max(1, width - 2 - visibleWidth(hint)));
+			return new Text(theme.fg("customMessageLabel", summary) + theme.fg("dim", hint), 1, 0).render(width);
+		},
+		invalidate() {},
 	};
 }

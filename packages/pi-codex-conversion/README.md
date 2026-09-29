@@ -231,6 +231,8 @@ On Pi 0.99.1 or newer, configure servers once in Pi's built-in MCP extension. It
 
 MCP and other deferred tools receive a short name-and-description inventory, followed by added, changed and removed-tool updates before the next model request. Compatible Responses models receive these as developer messages. Server instructions are preserved; full tool contracts stay in `ALL_TOOLS`, refreshed for each exec cell. Unchanged inventories are not repeated, and a lost inventory is restored after context rollover.
 
+Notebook status and tool notices appear collapsed in the transcript. Press **Ctrl+O** to unfold them.
+
 MCP server tools return their complete result object, including `content`, `structuredContent` and `isError`. Use `image(block)` for image content. Individual MCP calls finish or cancel before the enclosing `exec` or `wait` returns; cells can yield between calls.
 
 ### Notebook hooks

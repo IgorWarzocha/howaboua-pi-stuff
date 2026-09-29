@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { createMcpCodeModeBridge } from "../src/adapter/code-mode/mcp-tools.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, recordCodeModeToolkit } from "../src/adapter/code-mode/toolkit-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
@@ -98,13 +98,18 @@ test("deferred discovery and availability share the callable catalog without imp
 	const messages = () => projectCodexDeveloperHistory(manager.getBranch());
 	assert.equal(recordCodeModeToolkit(pi, ctx, messages(), catalog), true);
 	const initial = messages();
-	const inventory = initial.find((message) => message.role === "custom" && message.customType === CODEX_TOOLKIT_UPDATE_TYPE)!;
+	const inventory = initial.find((message) => message.role === "custom" && message.customType === CODEX_TOOLKIT_UPDATE_TYPE);
+	assert(inventory?.role === "custom");
 	assert.match(JSON.stringify(inventory), /Keep record IDs unchanged/);
 	assert(!JSON.stringify(inventory).includes("promoted_tool"));
 	assert(!JSON.stringify(inventory).includes("pretender"));
 	assert(!JSON.stringify(inventory).includes(hidden.name));
 	assert.equal(recordCodeModeToolkit(pi, ctx, initial, [...catalog].reverse()), false);
 	const bridge = new CodexDeveloperMessageBridge();
+	const system = { role: "system" as const, content: "Keep Pi's system instructions", timestamp: 0 };
+	assert.deepEqual(convertToLlm(bridge.prepare([system, inventory], false)), [system, {
+		role: "user", content: [{ type: "text", text: inventory.content }], timestamp: inventory.timestamp,
+	}]);
 	const carrier = bridge.prepare([inventory], true)[0]!;
 	assert.equal(carrier.role, "custom");
 	const payload = bridge.rewritePayload({ input: [{ role: "user", content: carrier.content }] }) as { input: Array<{ role: string; content: string }> };
