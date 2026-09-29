@@ -347,10 +347,18 @@ export function registerCodexEvents(
 			entry.type === "custom_message" && entry.customType === CODEX_DEVELOPER_MESSAGE_TYPE &&
 			(entry.details as { id?: unknown } | undefined)?.id === state.notebookStatusMessageId)) return;
 		let content: string;
+		let title: string;
 		try {
-			content = (await codeMode.notebookStatus(ctx)).message;
+			const status = await codeMode.notebookStatus(ctx);
+			content = status.message;
+			title = [
+				"Notebook",
+				typeof status.details["retainedBindings"] === "number" ? `${status.details["retainedBindings"]} retained` : undefined,
+				typeof status.details["pinnedBindings"] === "number" ? `${status.details["pinnedBindings"]} pinned` : undefined,
+			].filter(Boolean).join(" · ");
 		} catch (error) {
 			if (ctx.signal?.aborted) throw error;
+			title = "Notebook status unavailable";
 			content = `Notebook startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
 		}
 		state.notebookStatusMessageId = randomUUID();
@@ -358,7 +366,7 @@ export function registerCodexEvents(
 			customType: CODEX_DEVELOPER_MESSAGE_TYPE,
 			content,
 			display: true,
-			details: { protocol: 1, id: state.notebookStatusMessageId },
+			details: { protocol: 1, id: state.notebookStatusMessageId, title },
 		} };
 	});
 	pi.on("agent_start", async (_event, ctx) => {

@@ -24,7 +24,7 @@ interface ToolkitUpdate extends CodexDeveloperMessageDetails {
 	namespaces: Record<string, string>;
 }
 
-function readUpdate(value: unknown): ToolkitUpdate {
+export function readToolkitUpdate(value: unknown): ToolkitUpdate {
 	if (!isCodexDeveloperMessageDetails(value)
 		|| !("rootId" in value) || typeof value.rootId !== "string"
 		|| !("compactionId" in value) || (value.compactionId !== null && typeof value.compactionId !== "string")
@@ -40,7 +40,7 @@ function readUpdate(value: unknown): ToolkitUpdate {
 
 export function projectToolkitUpdate(entry: SessionEntry): SessionEntry {
 	if (entry.type !== "custom" || entry.customType !== CODEX_TOOLKIT_UPDATE_TYPE) return entry;
-	const update = readUpdate(entry.data);
+	const update = readToolkitUpdate(entry.data);
 	return { ...entry, type: "custom_message", content: update.content, display: false, details: update };
 }
 
@@ -53,7 +53,7 @@ export function recordCodeModeToolkit(
 ): boolean {
 	const visible = messages.slice(messages.findLastIndex(isContextWindowBoundary) + 1)
 		.flatMap((message) => message.role === "custom" && message.customType === CODEX_TOOLKIT_UPDATE_TYPE
-			? [readUpdate(message.details)] : []);
+			? [readToolkitUpdate(message.details)] : []);
 	const compactionId = ctx.sessionManager.getBranch().findLast((entry) => entry.type === "compaction")?.id ?? null;
 	const latest = visible.at(-1);
 	const previous = latest?.compactionId === compactionId && visible.some((update) => update.id === latest.rootId)
