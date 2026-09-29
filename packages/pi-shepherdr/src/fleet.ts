@@ -107,10 +107,18 @@ function groupSaved(values: unknown[]): Map<string, unknown[]> {
 
 export class AgentFleet {
 	private contextRelay:
-		| ((ctx: ExtensionContext, request: unknown) => Promise<unknown>)
+		| ((
+				ctx: ExtensionContext,
+				request: unknown,
+				signal: AbortSignal,
+		  ) => Promise<unknown>)
 		| undefined;
 	setContextRelay(
-		handler: (ctx: ExtensionContext, request: unknown) => Promise<unknown>,
+		handler: (
+			ctx: ExtensionContext,
+			request: unknown,
+			signal: AbortSignal,
+		) => Promise<unknown>,
 	): void {
 		this.contextRelay = handler;
 	}
@@ -537,7 +545,7 @@ export class AgentFleet {
 			if (this.contextRelay)
 				await client.startContextRelay(
 					ctx.sessionManager.getSessionId(),
-					(request) => this.contextRelay!(ctx, request),
+					(request, signal) => this.contextRelay!(ctx, request, signal),
 				);
 			if (
 				!this.isCurrent(generation, ctx) ||

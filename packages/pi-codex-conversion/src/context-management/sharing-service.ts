@@ -50,11 +50,19 @@ export function registerContextSharingService(
 				throw new Error("Local and Tree sharing require a registered context router");
 			if (parent.storage === "remote") parent.accountScope = await verifyRemoteAccount(ctx, parent.accountScope);
 			if (ctx.sessionManager.getSessionId() !== parent.threadId) throw new Error("Controller session changed while preparing shared context");
-			if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, parent);
-			return { protocol: 1, sessionId: parent.sessionId,
+			const binding = { protocol: 1 as const, sessionId: parent.sessionId,
 				agentName: `${parent.agentName}/${options.name}-${randomUUID()}`, storage: parent.storage!,
 				...(parent.accountScope ? { accountScope: parent.accountScope } : {}),
 				...(options.routing === undefined ? {} : { routing: options.routing }) };
+			return { binding, async adopt() {
+				if (parent.storage === "remote") await verifyRemoteAccount(ctx, parent.accountScope);
+				const current = describe(ctx);
+				if (!current || current.threadId !== parent.threadId || current.sessionId !== parent.sessionId ||
+					current.agentName !== parent.agentName || current.storage !== parent.storage ||
+					(current.accountScope !== undefined && current.accountScope !== parent.accountScope))
+					throw new Error("Controller context changed while binding shared context");
+				if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, parent);
+			} };
 		},
 		async bind(ctx, input) {
 			const binding = parseContextAgentBinding(input);
@@ -83,6 +91,7 @@ export function registerContextSharingService(
 			return identity;
 		},
 		async execute(ctx, request, signal) {
+			signal?.throwIfAborted();
 			const identity = describe(ctx);
 			if (!identity || identity.sessionId !== request.sessionId || identity.agentName !== request.agentName ||
 				(request.namespace !== "notes" && request.namespace !== "history") ||

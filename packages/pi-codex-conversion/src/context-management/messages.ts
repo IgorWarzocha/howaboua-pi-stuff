@@ -14,11 +14,13 @@ export const CONTEXT_WINDOW_URGENT_PERCENT = 90;
 
 export type ContextManagementMessageKind =
 	| "window"
+	| "identity"
 	| "reminder"
 	| "urgent"
 	| "fallback";
 
 export interface ContextWindowIdentity {
+	agentName?: string | undefined;
 	firstWindowId: string;
 	currentWindowId: string;
 	previousWindowId?: string | undefined;
@@ -30,6 +32,7 @@ export interface CodexContextManagementMessageDetails
 	contextManagement: {
 		protocol: 1;
 		kind: ContextManagementMessageKind;
+		agentName?: string | undefined;
 		firstWindowId: string;
 		currentWindowId: string;
 		previousWindowId?: string | undefined;
@@ -108,9 +111,11 @@ export function isCodexContextManagementMessageDetails(
 	return (
 		record["protocol"] === 1 &&
 		(record["kind"] === "window" ||
+			record["kind"] === "identity" ||
 			record["kind"] === "reminder" ||
 			record["kind"] === "urgent" ||
 			record["kind"] === "fallback") &&
+		(record["agentName"] === undefined || typeof record["agentName"] === "string") &&
 		typeof record["firstWindowId"] === "string" &&
 		record["firstWindowId"] !== "" &&
 		typeof record["currentWindowId"] === "string" &&

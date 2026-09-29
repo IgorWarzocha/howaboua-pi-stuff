@@ -167,7 +167,7 @@ export class SharedAgentContext {
 							: runtime.client.contextRelayPath(),
 					}
 				: undefined;
-		const binding = await service.createChild(ctx, {
+		const { binding, adopt } = await service.createChild(ctx, {
 			name,
 			...(routing ? { routing } : {}),
 		});
@@ -202,6 +202,7 @@ export class SharedAgentContext {
 					);
 				if (ctx.sessionManager.getSessionId() !== parent.threadId)
 					throw new Error("Controller session changed during spawn");
+				await adopt();
 				this.pi.appendEntry<Member>(MEMBER_ENTRY, {
 					agentName: binding.agentName,
 					sessionId: parent.sessionId,
@@ -275,6 +276,8 @@ export async function registerSharedAgentContext(
 		connection?.dispose();
 	});
 	if (connection)
-		fleet.setContextRelay((ctx, request) => shared.handle(ctx, request));
+		fleet.setContextRelay((ctx, request, signal) =>
+			shared.handle(ctx, request, signal),
+		);
 	return shared;
 }

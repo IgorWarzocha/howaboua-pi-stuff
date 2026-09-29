@@ -19,7 +19,10 @@ export interface ContextSharingService {
 	canCreateChild(ctx: ExtensionContext): boolean;
 	describe(ctx: ExtensionContext): ContextAgentIdentity | undefined;
 	verify(ctx: ExtensionContext): Promise<void>;
-	createChild(ctx: ExtensionContext, options: { name: string; routing?: unknown }): Promise<ContextAgentBinding>;
+	createChild(ctx: ExtensionContext, options: { name: string; routing?: unknown }): Promise<{
+		binding: ContextAgentBinding;
+		adopt(): Promise<void>;
+	}>;
 	bind(ctx: ExtensionContext, binding: unknown): Promise<ContextAgentIdentity>;
 	execute(ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal): Promise<SharedContextResult>;
 	registerRouter(router: ContextRouter): () => void;

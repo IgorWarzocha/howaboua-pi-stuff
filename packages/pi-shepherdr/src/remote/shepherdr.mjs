@@ -11,25 +11,46 @@ import {
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 
-const BRIDGE_VERSION = 9;
+const BRIDGE_VERSION = 10;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
 const contextRequests = new Map();
+const contextCalls = new Map();
 
-function requestController(request) {
+function requestController(request, signal) {
+	signal.throwIfAborted();
 	const id = crypto.randomUUID();
 	return new Promise((resolve, reject) => {
+		const finish = (error, result) => {
+			if (!contextRequests.delete(id)) return;
+			clearTimeout(timer);
+			signal.removeEventListener("abort", abort);
+			if (error) reject(error);
+			else resolve(result);
+		};
+		const abort = () => {
+			send({ type: "context_cancel", id });
+			finish(
+				new Error(
+					"Shared context request cancelled; a write may have completed. Reread before retrying",
+				),
+			);
+		};
 		const timer = setTimeout(() => {
-			contextRequests.delete(id);
-			reject(
+			send({ type: "context_cancel", id });
+			finish(
 				new Error(
 					"Shared context controller did not reply; a write may have completed. Reread before retrying",
 				),
 			);
 		}, 35_000);
 		timer.unref();
-		contextRequests.set(id, { resolve, reject, timer });
+		contextRequests.set(id, {
+			resolve: (result) => finish(undefined, result),
+			reject: (error) => finish(error),
+		});
+		signal.addEventListener("abort", abort, { once: true });
 		send({ type: "context_request", id, request });
 	});
 }
@@ -300,8 +321,19 @@ async function handle(message) {
 	if (message.op === "message") {
 		return sendPeerMessage(request, message.agent, message.message);
 	}
-	if (message.op === "context")
-		return requestContext(message.path, message.request);
+	if (message.op === "context") {
+		const controller = new AbortController();
+		contextCalls.set(message.id, controller);
+		try {
+			return await requestContext(
+				message.path,
+				message.request,
+				controller.signal,
+			);
+		} finally {
+			contextCalls.delete(message.id);
+		}
+	}
 	if (message.op === "context_relay") {
 		const path = relayContextPath(message.threadId);
 		if (!contextRelays.has(path))
@@ -345,11 +377,13 @@ process.stdin.on("data", (chunk) => {
 			send({ id: "invalid", ok: false, error: serializableError(error) });
 			continue;
 		}
+		if (message?.op === "context_cancel") {
+			contextCalls.get(message.id)?.abort();
+			continue;
+		}
 		if (message?.op === "context_reply") {
 			const pending = contextRequests.get(message.id);
 			if (pending) {
-				clearTimeout(pending.timer);
-				contextRequests.delete(message.id);
 				if (message.ok === true) pending.resolve(message.result);
 				else
 					pending.reject(
@@ -372,6 +406,7 @@ process.stdin.on("data", (chunk) => {
 
 async function shutdown() {
 	for (const close of subscriptions.values()) close();
+	for (const controller of contextCalls.values()) controller.abort();
 	await Promise.allSettled([...contextRelays.values()].map((close) => close()));
 	process.exit();
 }

@@ -107,8 +107,9 @@ export class CodexContextWindowManager {
 			)
 				continue;
 			const details = entry.details.contextManagement;
+			if (details.kind === "window" || details.kind === "identity")
+				this.identity = identityFromDetails(entry.details, entry.content);
 			if (details.kind === "window") {
-				this.identity = identityFromDetails(entry.details);
 				this.trimPendingWindowId = details.trimPreviousWindow
 					? details.currentWindowId
 					: undefined;
@@ -131,7 +132,17 @@ export class CodexContextWindowManager {
 				entry.type === "custom_message" && entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
 				isCodexContextManagementMessageDetails(entry.details) && entry.details.id === pending.reminderId))
 			this.promptedManualCheckpoint = pending;
-		if (this.identity) return;
+		if (this.identity) {
+			const agentName = contextAgentIdentity(ctx).agentName;
+			if (this.identity.agentName && this.identity.agentName !== agentName) {
+				this.identity = { ...this.identity, agentName };
+				// Correct a fork's name without moving its retirement boundary or resetting its budget.
+				pi.sendMessage(createContextWindowMessage(
+					renderContextWindowMessage(this.identity, undefined, agentName), "identity", this.identity,
+				), { triggerTurn: false });
+			}
+			return;
+		}
 		const windowId = randomUUID();
 		this.sendWindowMessage(
 			pi,
@@ -161,11 +172,15 @@ export class CodexContextWindowManager {
 				!isCodexContextManagementMessageDetails(message.details)
 			)
 				throw new Error("Malformed persisted Codex context-window message");
+			if (message.role === "custom" && message.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
+				isCodexContextManagementMessageDetails(message.details) && message.details.contextManagement.kind === "identity")
+				this.identity = identityFromDetails(message.details, message.content);
 			if (!isContextWindowBoundary(message)) continue;
 			boundaryIndex = index;
 			trimPreviousWindow = message.details.contextManagement.trimPreviousWindow === true;
 			this.identity = identityFromDetails(
 				message.details as CodexContextManagementMessageDetails,
+				message.content,
 			);
 		}
 		if (boundaryIndex >= 0) this.rolloverPending = undefined;
@@ -403,12 +418,13 @@ export class CodexContextWindowManager {
 		options: StartContextWindowOptions,
 		threadHint?: string,
 	): void {
+		identity = { ...identity, agentName: contextAgentIdentity(ctx).agentName };
 		this.identity = identity;
 		this.trimPendingWindowId = options.trimPreviousWindow
 			? identity.currentWindowId
 			: undefined;
 		pi.sendMessage(createContextWindowMessage(
-			renderContextWindowMessage(identity, threadHint, contextAgentIdentity(ctx).agentName),
+			renderContextWindowMessage(identity, threadHint, identity.agentName),
 			"window",
 			identity,
 			options.trimPreviousWindow,
@@ -450,9 +466,13 @@ function checkpointWindow(messages: readonly AgentMessage[], boundaryIndex: numb
 
 function identityFromDetails(
 	details: CodexContextManagementMessageDetails,
+	content?: unknown,
 ): ContextWindowIdentity {
 	const context = details.contextManagement;
+	const agentName = context.agentName ?? (typeof content === "string"
+		? /^Agent name: (\/root(?:\/[a-zA-Z0-9_-]+)*)$/m.exec(content)?.[1] : undefined);
 	return {
+		...(agentName ? { agentName } : {}),
 		firstWindowId: context.firstWindowId,
 		currentWindowId: context.currentWindowId,
 		...(context.previousWindowId
