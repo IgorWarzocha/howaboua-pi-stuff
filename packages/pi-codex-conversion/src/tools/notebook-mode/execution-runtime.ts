@@ -1,8 +1,7 @@
-import { formatCodeModeToolHelp } from "../code-mode/custom-tool-prompt.ts";
+import { formatCodeModeToolHelp, isDeferredDiscoverableTool } from "../code-mode/custom-tool-prompt.ts";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import {
 	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
-	isCustomToolDefinition,
 	parseExecSource,
 } from "../code-mode/host-protocol.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
@@ -100,10 +99,7 @@ export class NotebookExecutionRuntime {
 			}
 		}
 		const metadata = tools
-			.filter((tool) =>
-				tool.deferLoading &&
-					(isCustomToolDefinition(tool) || ("invoke" in tool && tool.discoverWhenDeferred)),
-			)
+			.filter(isDeferredDiscoverableTool)
 			.map((tool) => ({
 				name: codeModeGlobalName(tool.name),
 				description: formatCodeModeToolHelp(tool),

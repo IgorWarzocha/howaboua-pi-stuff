@@ -30,6 +30,7 @@ type SendMessage = (message: unknown) => void;
 export class CodeModeDelegateRuntime {
 	private readonly traceRuntimeGeneration = crypto.randomUUID();
 	private readonly cellContexts = new Map<string, ToolExecutionContext>();
+	private readonly contextChanges = new Map<string, Deferred>();
 	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
 	private readonly controllers = new Map<string, DelegateController>();
 	private readonly notifications = new Map<string, string[]>();
@@ -56,16 +57,20 @@ export class CodeModeDelegateRuntime {
 		context: ToolExecutionContext,
 		tools?: Map<string, CodeModeToolDefinition>,
 	): void {
-		this.cellContexts.set(cellId, context);
+		this.updateCellContext(cellId, context);
 		if (tools) this.cellTools.set(cellId, tools);
 	}
 
 	updateCellContext(cellId: string, context: ToolExecutionContext): void {
 		this.cellContexts.set(cellId, context);
+		this.contextChanges.get(cellId)?.resolve();
+		this.contextChanges.delete(cellId);
 	}
 
 	closeCell(cellId: string): void {
 		this.cellContexts.delete(cellId);
+		this.contextChanges.get(cellId)?.resolve();
+		this.contextChanges.delete(cellId);
 		this.cellTools.delete(cellId);
 		this.blockers.delete(cellId);
 		this.blockerChanges.get(cellId)?.resolve();
@@ -85,6 +90,8 @@ export class CodeModeDelegateRuntime {
 		for (const { controller } of this.controllers.values()) controller.abort();
 		this.controllers.clear();
 		this.cellContexts.clear();
+		for (const change of this.contextChanges.values()) change.resolve();
+		this.contextChanges.clear();
 		this.cellTools.clear();
 		this.traces.clear();
 		this.renderStore.clear();
@@ -254,6 +261,10 @@ export class CodeModeDelegateRuntime {
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			toolCallId: trace.id,
+			...(!isCustomToolDefinition(tool) && tool.executionPipeline === "pi"
+				? { preflight: undefined, completion: undefined }
+				: {}),
+			executeTool: (name, args, options) => this.executePiTool(cellId, name, args, { ...options, signal: options?.signal ?? controller.signal }),
 			onUpdate: (update) => {
 				if (captureRendererValues)
 					this.renderStore.captureResult(trace.id, update);
@@ -330,6 +341,22 @@ export class CodeModeDelegateRuntime {
 			throw error;
 		} finally {
 			if (blockerActive) this.setBlocked(cellId, trace.id, false);
+		}
+	}
+
+	private async executePiTool(
+		cellId: string,
+		...[name, args, options]: Parameters<NonNullable<ToolExecutionContext["executeTool"]>>
+	): ReturnType<NonNullable<ToolExecutionContext["executeTool"]>> {
+		while (true) {
+			options?.signal?.throwIfAborted();
+			const scope = this.cellContexts.get(cellId)?.piToolScope;
+			if (!scope) throw new Error("Pi nested tool call context is unavailable");
+			const pending = scope.run(name, args, options);
+			if (pending) return pending;
+			const change = this.contextChanges.get(cellId) ?? deferred();
+			this.contextChanges.set(cellId, change);
+			await waitForChange(change.promise, options?.signal);
 		}
 	}
 

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasPortableNativeCompactionSummary, isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
@@ -29,6 +29,7 @@ import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapt
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCodexProxyMessage } from "../codex-usage/ledger-store.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
+import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
@@ -539,6 +540,8 @@ export function registerCodexEvents(
 	});
 	pi.on("context_with_system", async (event, ctx) => {
 		let messages = runtime.projectContextMessages(ctx, event.messages);
+		if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx)))
+			messages = runtime.projectContextMessages(ctx, event.messages);
 		const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 		if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
 			messages = runtime.projectContextMessages(ctx, event.messages);

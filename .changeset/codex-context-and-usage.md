@@ -12,7 +12,8 @@ Added independent context controls, opt-in agent sharing and persistent Codex us
 - Added tracking for renamed Codex providers. Usage and reset requests follow configured endpoints and headers, with an accuracy warning for nonstandard configurations.
 - Added `/codex usage analyse` for read-only long-term trends and session-based reasoning reports.
 - Codex requests now honor server retry deadlines within the three-minute recovery limit, stop on unavailable Flex capacity and skip redundant warmups on ready WebSockets.
-- Code and Notebook modes now disable Pi 0.99.1's built-in `codemode` while active and restore its prior activation afterward.
+- Code and Notebook modes automatically expose Pi 0.99.1 MCP tools and resources through `tools` and `ALL_TOOLS`, preserving Pi permissions and full MCP results. Ordinary extensions still opt in separately; Pi's built-in `codemode` is disabled while these modes are active and restored afterward.
+- Deferred tools now announce their names and short descriptions at startup, with incremental availability updates when tools change and a fresh inventory after context rollover.
 - Fixed acceptance of incomplete or ambiguous Responses tool calls.
 - Fixed Fast Mode cost estimates when the backend reports the `fast` tier.
 - Failed browser login callbacks now stop promptly and show the provider error.

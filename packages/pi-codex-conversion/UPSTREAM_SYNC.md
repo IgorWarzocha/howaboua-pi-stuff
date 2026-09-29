@@ -17,7 +17,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 Compared the published SDK and stock Codex provider for request shape, headers, reasoning, service tiers, retries and stream termination. The adapter keeps its existing Codex transport and recovery policy.
 
 - Nested tools preserve Pi's real `ExtensionToolContext`. Startup contexts retain leaf execution but reject Pi-owned nested execution without a parent tool call.
-- Code and Notebook modes disable native `codemode` while active and restore its prior activation outside those modes. Their orchestrator tools are model-only. Native MCP translation remains separate work.
+- Code and Notebook modes disable native `codemode` while active and restore its prior activation outside those modes. Their orchestrator tools are model-only. Native MCP tools are admitted by `builtin:mcp` ownership through `prepareLoadout`, keep their Pi callability while their native declarations are hidden, and execute through `ctx.executeTool`. Ordinary extensions retain explicit opt-in integration.
 - Responses streams reject unfinished or ambiguous tool calls before execution. Raw provider events reach Pi's observer before normalization on HTTP, WebSocket and prewarm paths. Observer failures do not retry generation or trigger transport fallback.
 - Browser OAuth callback errors settle login immediately. The new OpenAI API OAuth provider has separate credentials and does not replace this adapter's Codex backend.
 - Backend-reported `fast` uses the existing priority cost multiplier. Stock Pi's Codex provider still recognizes only `priority`; this is an intentional pricing correction.

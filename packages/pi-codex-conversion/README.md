@@ -52,7 +52,7 @@ Structured mode reads files through the shell and edits with `apply_patch`. Ther
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Change tool loadouts between runs. Mid-run changes update Pi's native schemas but leave prepared Code and Notebook instructions unchanged until the next prepared turn.
+Change promoted tool loadouts between runs. MCP and deferred-tool changes are announced before the next model request without rebuilding the standing Code or Notebook instructions.
 
 </details>
 
@@ -225,6 +225,14 @@ text(status);
 
 **Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool manages status, checkpoints, restarts, resets and profiles. The first turn receives status and retained bindings automatically.
 
+### MCP tools
+
+On Pi 0.99.1 or newer, configure servers once in Pi's built-in MCP extension. Its callable tools and resource helpers automatically appear in `tools` and `ALL_TOOLS`; ordinary extensions still require the [opt-in integration](#extension-apis). Pi's extension switches, tool restrictions and disabled servers are respected. Pi retains connection management, authentication, permissions and tool hooks; its native `codemode` extension is not required.
+
+MCP and other deferred tools receive a short name-and-description inventory, followed by added, changed and removed-tool updates before the next model request. Compatible Responses models receive these as developer messages. Server instructions are preserved; full tool contracts stay in `ALL_TOOLS`, refreshed for each exec cell. Unchanged inventories are not repeated, and a lost inventory is restored after context rollover.
+
+MCP server tools return their complete result object, including `content`, `structuredContent` and `isError`. Use `image(block)` for image content. Individual MCP calls finish or cancel before the enclosing `exec` or `wait` returns; cells can yield between calls.
+
 ### Notebook hooks
 
 Pinned functions can react without another model call. Use the top-level `notebook` tool with `{ action: "pin", names: ["onToolResult"], hook: "tool_result" }`, not a call inside `exec`.
@@ -246,7 +254,7 @@ Custom tools pair a top-level TOML definition with a command accepting one strin
 <project>/.pi/codex-conversion-custom-tools/
 ```
 
-Promoted tools add one usage line. Deferred tools add no startup text and are discoverable through `ALL_TOOLS`. Neither adds a provider schema. Tell your Clanka when you want a deferred tool used, or it might never realise it's there.
+Promoted tools add one standing usage line. Deferred tools appear in the availability inventory, with full help in `ALL_TOOLS`. Neither adds a provider schema.
 
 See the disabled [working examples](./examples/custom-tools/) and [definition contract](./src/tools/code-mode/CUSTOM-TOOLS.md). For progressive skills, prefer [`pi-better-skills-tool`](../pi-better-skills-tool). The legacy `skills` example requires `--no-skills`.
 

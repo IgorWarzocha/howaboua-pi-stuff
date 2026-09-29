@@ -16,6 +16,8 @@ import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation
 import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "./activation/tool-set.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 import { createContextWindowTools } from "../context-management/tools.ts";
+import { createMcpCodeModeBridge } from "./code-mode/mcp-tools.ts";
+import { syncAdapter } from "./activation/activation.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
@@ -23,7 +25,12 @@ export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
+	let latestContext: ExtensionContext | undefined;
+	let stopped = false;
+	let pendingNativeProjection = false;
+	const mcp = createMcpCodeModeBridge(pi);
 	const isActive = (ctx: unknown) => {
+		if (ctx) latestContext = ctx as ExtensionContext;
 		const plan = resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state);
 		if (!isCodeModeRuntime(plan)) return false;
 		const requiredTools = plan.kind === "notebook"
@@ -36,6 +43,25 @@ export async function registerCodexCodeMode(
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
+		prepareLoadout: (loadout) => {
+			if (!latestContext) return undefined;
+			const plan = resolveCodexRuntimePlanForState(latestContext, runtime.state);
+			if (!isCodeModeRuntime(plan)) return undefined;
+			const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			if (!required.every((name) => loadout.declared.some((tool) => tool.name === name))) return undefined;
+			// MCP can activate native codemode after our preparation hook or during
+			// a run. Reconcile outside Pi's synchronous loadout callback.
+			if (!pendingNativeProjection && loadout.declared.some((tool) => tool.name === "codemode")) {
+				pendingNativeProjection = true;
+				queueMicrotask(() => {
+					pendingNativeProjection = false;
+					if (!stopped && latestContext && isActive(latestContext) && pi.getActiveTools().includes("codemode"))
+						syncAdapter(pi, latestContext, runtime.state);
+				});
+			}
+			const changes = mcp.prepareLoadout(loadout);
+			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode"] };
+		},
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
 			return [
@@ -45,6 +71,7 @@ export async function registerCodexCodeMode(
 					context,
 					runtime.state.previousToolNames ?? pi.getActiveTools(),
 				),
+				...mcp.getTools(),
 			];
 		},
 		isActive,
@@ -63,10 +90,13 @@ export async function registerCodexCodeMode(
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
+		getTools: (ctx) => programmaticRuntime.getTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
+			stopped = true;
+			latestContext = undefined;
 			await programmaticRuntime.shutdown();
 			await customToolsRuntime.shutdown();
 		},

@@ -1,4 +1,4 @@
-import { isCustomToolDefinition } from "./host-protocol.js";
+import { isDeferredDiscoverableTool } from "./custom-tool-prompt.js";
 import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 
@@ -7,10 +7,7 @@ export function scopeAllToolsToDeferredCustom(
 	tools: CodeModeToolDefinition[],
 ): string {
 	const names = tools
-		.filter((tool) =>
-			tool.deferLoading &&
-				(isCustomToolDefinition(tool) || ("invoke" in tool && tool.discoverWhenDeferred)),
-		)
+		.filter(isDeferredDiscoverableTool)
 		.map((tool) => codeModeGlobalName(tool.name));
 	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>${JSON.stringify(names)}.includes(name));${source}`;
 }

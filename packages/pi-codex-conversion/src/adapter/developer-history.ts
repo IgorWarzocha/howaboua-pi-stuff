@@ -3,8 +3,10 @@ import { buildSessionContext, type SessionEntry } from "@earendil-works/pi-codin
 import { CODEX_REASONING_UPDATE_TYPE, readCodexReasoningUpdate } from "./reasoning-updates.ts";
 import { CODEX_CURRENT_TIME_REMINDER_TYPE, projectCurrentTimeReminder } from "./current-time-reminder.ts";
 import { isCodexDeveloperMessageDetails } from "../developer-messages.ts";
+import { CODEX_TOOLKIT_UPDATE_TYPE, projectToolkitUpdate } from "./code-mode/toolkit-updates.ts";
 
 export function projectCodexDeveloperEntry(entry: SessionEntry): SessionEntry {
+	if (entry.type === "custom" && entry.customType === CODEX_TOOLKIT_UPDATE_TYPE) return projectToolkitUpdate(entry);
 	if (entry.type !== "custom" || entry.customType !== CODEX_REASONING_UPDATE_TYPE) return projectCurrentTimeReminder(entry);
 	const update = readCodexReasoningUpdate(entry.data);
 	return { ...entry, type: "custom_message", content: `Reasoning effort: ${update.effort}`, display: false, details: update };
@@ -88,5 +90,5 @@ function messageKey(message: AgentMessage): string {
 
 function isVirtualMessage(message: AgentMessage): message is Extract<AgentMessage, { role: "custom" }> {
 	return message.role === "custom" && (message.customType === CODEX_REASONING_UPDATE_TYPE
-		|| message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE);
+		|| message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE);
 }

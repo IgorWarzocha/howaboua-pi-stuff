@@ -42,7 +42,7 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
+export function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
 	return tool.deferLoading &&
 		(isConfiguredCustomTool(tool) || ("invoke" in tool && tool.discoverWhenDeferred === true));
 }
@@ -60,6 +60,7 @@ export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 			translateCodeModeGuideline(guideline, tool.name)),
 		"inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
 		tool.output ? `Output: ${tool.output}` : undefined,
+		tool.annotations ? `Annotations: ${JSON.stringify(tool.annotations)}` : undefined,
 	]
 		.filter(Boolean)
 		.join("\n");
