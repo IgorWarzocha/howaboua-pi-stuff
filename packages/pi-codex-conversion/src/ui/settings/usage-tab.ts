@@ -1,6 +1,6 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey } from "@earendil-works/pi-tui";
-import { CODEX_RESERVE_USAGE_NOTE, codexUsageLimitName } from "../../codex-usage/format.ts";
+import { CODEX_RESERVE_USAGE_NOTE, codexUsageLimitName, formatUsageTable } from "../../codex-usage/format.ts";
 import { captureSpendReport, readSpendReport } from "../../codex-usage/report.ts";
 import { recordCodexManualReset } from "../../codex-usage/ledger-store.ts";
 import {
@@ -113,23 +113,27 @@ function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error
 	if (!usageState) return [...spendLines.map((line) => `  ${line}`), theme.fg("dim", "  Loading Codex usage…")];
 	if ("error" in usageState) return [...spendLines.map((line) => `  ${line}`), theme.fg("error", `  ${usageState.error}`), theme.fg("dim", "  Press R to retry.")];
 
-	const rows = usageState.limits.map((limit) => {
-		const primary = usageColumns(limit.primary);
-		const secondary = usageColumns(limit.secondary);
-		return [codexUsageLimitName(limit), primary.bar, primary.percent, primary.reset, secondary.bar, secondary.percent, secondary.reset];
+	const rows = usageState.limits.flatMap((limit) => {
+		const name = codexUsageLimitName(limit);
+		const windows = [["5h", limit.primary], ["Weekly", limit.secondary]] as const;
+		const rows = windows.flatMap(([label, window]) => {
+			if (!window) return [];
+			const { bar, percent, reset } = usageColumns(window);
+			return [[limit.limitId === "codex" ? label : `${name} · ${label}`, `${bar} ${percent.padStart(4)}`, reset]];
+		});
+		return rows.length ? rows : [[name, "No data", ""]];
 	});
-	const headers = ["Limit", "5h left", "", "Reset", "Weekly left", "", "Reset"];
-	const widths = columnWidths([headers, ...rows]);
+	const [header, ...allowances] = formatUsageTable(["Limit", "Remaining", "Resets in"], rows);
 	return [
 		`  ${theme.bold(`Codex usage${usageState.planType ? ` · ${usageState.planType}` : ""}`)}${loading ? theme.fg("dim", "  refreshing…") : ""}`,
 		...spendLines.map((line) => `  ${line}`),
-		...(spendLines.length ? ["", theme.fg("dim", "  /codex usage analyse for history and reasoning breakdowns"), ""] : []),
-		...formatResetCreditLines(theme, usageState, resetLoading, resetLockedUntilRefresh, resetMessage),
 		"",
-		formatUsageRow(headers.map((header) => theme.fg("dim", header)), widths),
-		theme.fg("borderMuted", `  ${"─".repeat(widths.reduce((sum, width) => sum + width, 0) + (2 * (widths.length - 1)))}`),
-		...rows.map((row) => formatUsageRow(row, widths)),
+		theme.fg("dim", `  ${header}`),
+		...allowances.map((row) => `  ${row}`),
 		...(usageState.limits.some((limit) => codexUsageLimitName(limit) === "Luna Reserve") ? ["", theme.fg("dim", `  ${CODEX_RESERVE_USAGE_NOTE}`)] : []),
+		"",
+		...formatResetCreditLines(theme, usageState, resetLoading, resetLockedUntilRefresh, resetMessage),
+		"", theme.fg("dim", "  /codex usage analyse"),
 	];
 }
 
@@ -139,7 +143,7 @@ function canConsumeResetCredit(usageState: CodexUsageSnapshot | { error: string 
 
 function formatResetCreditLines(theme: Theme, usageState: CodexUsageSnapshot, resetLoading: boolean, resetLockedUntilRefresh: boolean, resetMessage: { kind: "info" | "error"; text: string } | undefined): string[] {
 	const count = usageState.resetCredits?.availableCount;
-	const hint = count && count > 0 ? theme.fg("dim", resetLockedUntilRefresh ? "  R to refresh before another reset" : "  Ctrl+R to use one") : "";
+	const hint = count && count > 0 && resetLockedUntilRefresh ? theme.fg("dim", "  R to refresh before another reset") : "";
 	const lines = [`  Banked resets: ${theme.bold(count === undefined ? "unknown" : String(count))}${hint}${resetLoading ? theme.fg("dim", "  resetting…") : ""}`];
 	if (count && count > 0) lines.push(theme.fg("dim", `  Expires: ${formatResetCreditExpiries(usageState.resetCredits?.credits ?? [])}`));
 	if (resetMessage) lines.push(resetMessage.kind === "error" ? theme.fg("error", `  ${resetMessage.text}`) : theme.fg("accent", `  ${resetMessage.text}`));
@@ -152,7 +156,7 @@ function formatResetCreditExpiries(credits: CodexRateLimitResetCredit[]): string
 		.filter((item) => Number.isFinite(item.expiresAtMs) && (!item.credit.status || item.credit.status === "available"))
 		.sort((left, right) => left.expiresAtMs - right.expiresAtMs);
 	if (expiringCredits.length === 0) return "unknown";
-	const shown = expiringCredits.slice(0, 3).map((item, index) => `#${index + 1} ${formatResetCreditExpiry(item.expiresAtMs)}`);
+	const shown = expiringCredits.slice(0, 3).map((item) => formatResetCreditExpiry(item.expiresAtMs));
 	const hiddenCount = expiringCredits.length - shown.length;
 	return `${shown.join(" · ")}${hiddenCount > 0 ? ` · +${hiddenCount} more` : ""}`;
 }
@@ -160,9 +164,9 @@ function formatResetCreditExpiries(credits: CodexRateLimitResetCredit[]): string
 function formatResetCreditExpiry(expiresAtMs: number): string {
 	const minutes = Math.round((expiresAtMs - Date.now()) / 60000);
 	if (minutes <= 0) return "expired";
-	if (minutes < 90) return `in ~${minutes}m`;
-	if (minutes < 60 * 48) return `in ~${Math.round(minutes / 60)}h`;
-	return `in ~${Math.round(minutes / 1440)}d`;
+	if (minutes < 90) return `${minutes}m`;
+	if (minutes < 60 * 48) return `${Math.round(minutes / 60)}h`;
+	return `${Math.round(minutes / 1440)}d`;
 }
 
 function formatResetConsumeResult(result: CodexRateLimitResetConsumeResult): string {
@@ -173,17 +177,7 @@ function formatResetConsumeResult(result: CodexRateLimitResetConsumeResult): str
 	return "Reset response was not recognized; refreshed usage.";
 }
 
-function columnWidths(rows: string[][]): number[] {
-	const columnCount = Math.max(...rows.map((row) => row.length));
-	return Array.from({ length: columnCount }, (_, index) => Math.max(...rows.map((row) => stripAnsi(row[index] ?? "").length)));
-}
-
-function stripAnsi(value: string): string { return value.replace(/\x1b\[[0-9;]*m/g, ""); }
-function padCell(value: string, width: number): string { return value + " ".repeat(Math.max(0, width - stripAnsi(value).length)); }
-function formatUsageRow(row: string[], widths: number[]): string { return `  ${row.map((cell, index) => padCell(cell, widths[index] ?? 0)).join("  ")}`; }
-
-function usageColumns(window: { usedPercent?: number | undefined; windowMinutes?: number | undefined; resetsAt?: number | undefined } | undefined): { bar: string; percent: string; reset: string } {
-	if (!window) return { bar: "", percent: "", reset: "" };
+function usageColumns(window: { usedPercent?: number | undefined; resetsAt?: number | undefined }): { bar: string; percent: string; reset: string } {
 	const percent = window.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
 	return { bar: usageBar(percent), percent: percent === undefined ? "?%" : `${Math.round(percent)}%`, reset: formatResetShort(window.resetsAt) };
 }
@@ -195,9 +189,9 @@ function usageBar(percent: number | undefined): string {
 }
 
 function formatResetShort(timestampSeconds: number | undefined): string {
-	if (!timestampSeconds) return "reset ?";
+	if (!timestampSeconds) return "?";
 	const minutes = Math.max(0, Math.round((timestampSeconds * 1000 - Date.now()) / 60000));
-	if (minutes < 90) return `~${minutes}m`;
-	if (minutes < 60 * 48) return `~${Math.round(minutes / 60)}h`;
-	return `~${Math.round(minutes / 1440)}d`;
+	if (minutes < 90) return `${minutes}m`;
+	if (minutes < 60 * 48) return `${Math.round(minutes / 60)}h`;
+	return `${Math.round(minutes / 1440)}d`;
 }

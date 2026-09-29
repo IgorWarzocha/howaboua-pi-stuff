@@ -395,7 +395,7 @@ function formatVoiceDetails(
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "usage")
-		return "  Tab/Shift+Tab to switch sections · R to refresh · Ctrl+R to use reset";
+		return "  Tab/Shift+Tab sections · R refresh · Ctrl+R use reset · Esc close";
 	if (activeTab === "about")
 		return "  Tab/Shift+Tab to switch sections · G/C/D/I to open links · Esc to close";
 	return "  Tab/Shift+Tab to switch sections · Esc to close";

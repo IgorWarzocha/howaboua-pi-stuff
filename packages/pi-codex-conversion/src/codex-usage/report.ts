@@ -1,4 +1,5 @@
 import { backfillUsage } from "./backfill.ts";
+import { formatUsageTable } from "./format.ts";
 import { estimatedQuota } from "./ledger.ts";
 import type { UsageAccount } from "./ledger-schema.ts";
 import { readUsageLedger, recordCodexQuota, usageRecordingError } from "./ledger-store.ts";
@@ -91,20 +92,18 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 	const tokens = (value: number) => value >= 1e6 ? `${(value / 1e6).toFixed(1)}M` : value >= 1e3 ? `${(value / 1e3).toFixed(1)}k` : String(value);
 	const lines = [report.current ? `This window: ${money(report.current.summary.total.usd)} API equivalent` : "No reset window yet"];
 	const comparisons: string[] = [];
-	if (report.vsPreviousWindowPercent !== undefined) comparisons.push(`${report.current?.approximate || report.previous?.approximate ? "~" : ""}${percent(report.vsPreviousWindowPercent)} vs last window`);
-	if (report.vsPreviousMonthPercent !== undefined) comparisons.push(`${report.current?.approximate || report.previousMonthApproximate ? "~" : ""}${percent(report.vsPreviousMonthPercent)} vs last month`);
+	if (report.vsPreviousWindowPercent !== undefined) comparisons.push(`${percent(report.vsPreviousWindowPercent)} vs last window`);
+	if (report.vsPreviousMonthPercent !== undefined) comparisons.push(`${percent(report.vsPreviousMonthPercent)} vs last month`);
 	if (comparisons.length) lines.push(`Spend/day: ${comparisons.join(" · ")}`);
 	if (report.models.length) {
 		const showQuota = report.models.some((model) => model.quotaPercentEstimate !== undefined);
-		lines.push("", `Model                     Spend       Tokens${showQuota ? "    Quota ~" : ""}`);
-		for (const model of report.models) {
+		const rows = report.models.map((model) => {
 			const count = model.input + model.output + model.cacheRead + model.cacheWrite;
-			const quota = showQuota ? `  ${model.quotaPercentEstimate === undefined ? "?" : `${model.quotaPercentEstimate.toFixed(1)}%`}` : "";
-			lines.push(`${model.model.padEnd(22)}${money(model.usd).padStart(9)} ${tokens(count).padStart(12)}${quota}`);
-		}
+			return [model.model, money(model.usd), tokens(count), ...(showQuota ? [model.quotaPercentEstimate === undefined ? "?" : `${model.quotaPercentEstimate.toFixed(1)}%`] : [])];
+		});
+		lines.push("", ...formatUsageTable(["Model", "Spend", "Tokens", ...(showQuota ? ["Quota"] : [])], rows));
 	}
 	const status: string[] = [];
-	if (report.current?.approximate || report.previous?.approximate) status.push("Local history ~");
 	if (report.current && report.coverage.partialWindow) status.push("Partial window");
 	if (report.coverage.quotaStale) status.push("Quota unavailable");
 	if (report.coverage.unassignedUsd >= 0.005) status.push(`${money(report.coverage.unassignedUsd)} unassigned`);
