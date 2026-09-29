@@ -121,7 +121,7 @@ export function observeWeeklyUsage(account: UsageAccount, snapshot: CodexUsageSn
 		delete period.quotaPerUsd;
 	} else if (previous && usd > previous.usd && used > previous.usedPercent) {
 		period.quotaPerUsd = (used - previous.usedPercent) / (usd - previous.usd);
-	} else if (!previous && !period.partial && usd > 0 && used > 0) {
+	} else if (!previous && usd > 0 && used > 0) {
 		period.quotaPerUsd = used / usd;
 	}
 	period.quota = { at, usedPercent: used, usd };

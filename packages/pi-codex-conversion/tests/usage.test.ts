@@ -7,6 +7,7 @@ import { importUsageHistory, scanUsageHistory } from "../src/codex-usage/backfil
 import { parseCodexReserveStatus } from "../src/codex-usage/reserve-policy.ts";
 import { observeWeeklyUsage, recordSpend, usageAccount, WEEK_MS } from "../src/codex-usage/ledger.ts";
 import { emptyStats, parseUsageLedger, type UsageLedger } from "../src/codex-usage/ledger-schema.ts";
+import { formatSpendReport, usageReport } from "../src/codex-usage/report.ts";
 import {
 	codexUsageStatus,
 	parseCodexRateLimitResetCreditsPayload,
@@ -125,5 +126,18 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 	assert.equal(account.months["2026-01"]?.total.usd, 49);
 	assert.equal(JSON.stringify(account.closed[String(start)]), frozen);
 	assert.equal(JSON.stringify(account.closed[String(start - WEEK_MS)]), frozenHistory);
+	const now = afterGap + 3 * hour;
+	const baseline = usageReport(account, now);
+	account.current!.partial = true;
+	account.current!.summary.total.unpriced = 1;
+	account.total.total.unpriced = 1;
+	account.recordingGaps = 1;
+	const estimate = usageReport(account, now);
+	assert.equal(estimate.spendPerDay, baseline.spendPerDay);
+	assert.equal(estimate.vsPreviousWindowPercent, baseline.vsPreviousWindowPercent);
+	assert.equal(estimate.vsPreviousMonthPercent, baseline.vsPreviousMonthPercent);
+	assert.deepEqual(estimate.models, baseline.models);
+	assert.equal(estimate.coverage.unpricedRequests, 1, "analysis retains coverage diagnostics");
+	assert.doesNotMatch(formatSpendReport(estimate).join("\n"), /Missing prices|Recording gaps/);
 	assert.deepEqual(parseUsageLedger(JSON.parse(JSON.stringify(ledger))), ledger);
 });

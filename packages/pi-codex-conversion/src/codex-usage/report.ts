@@ -50,14 +50,15 @@ export function usageReport(account: UsageAccount, now = Date.now()) {
 	const previousMonthStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 1, 1);
 	const previousMonthKey = new Date(previousMonthStart).toISOString().slice(0, 7);
 	const previousMonth = account.months[previousMonthKey];
-	const currentRate = current && !current.partial && !current.summary.total.unpriced && now < current.expectedReset && now > current.start
+	// Coverage diagnostics describe estimates; they do not gate usable recorded totals.
+	const currentRate = current && now < current.expectedReset && now > current.start
 		? current.summary.total.usd / ((now - current.start) / DAY_MS) : undefined;
-	const previousRate = previous && !previous.partial && !previous.summary.total.unpriced && previous.end > previous.start
+	const previousRate = previous && previous.end > previous.start
 		? previous.summary.total.usd / ((previous.end - previous.start) / DAY_MS) : undefined;
-	const monthRate = account.since <= previousMonthStart && !previousMonth?.total.unpriced
-		? (previousMonth?.total.usd ?? 0) / ((thisMonthStart - previousMonthStart) / DAY_MS) : undefined;
+	const monthRate = previousMonth
+		? previousMonth.total.usd / ((thisMonthStart - previousMonthStart) / DAY_MS) : undefined;
 	const quotaStale = (account.lastObservation ?? 0) > (current?.quota?.at ?? 0);
-	const quota = current && !current.partial && !quotaStale ? estimatedQuota(current) : undefined;
+	const quota = current && !quotaStale ? estimatedQuota(current) : undefined;
 	return {
 		since: account.since,
 		nonstandard: account.nonstandard === true,
@@ -113,8 +114,6 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 	if (report.current && report.coverage.partialWindow) status.push("Partial window");
 	if (report.coverage.quotaStale) status.push("Quota unavailable");
 	if (report.coverage.unassignedUsd >= 0.005) status.push(`${money(report.coverage.unassignedUsd)} unassigned`);
-	if (report.coverage.unpricedRequests) status.push("Missing prices");
-	if (report.coverage.recordingGaps) status.push("Recording gaps");
 	if (status.length) lines.push("", status.join(" · "));
 	if (report.nonstandard) lines.push("", NONSTANDARD_CODEX_USAGE_WARNING);
 	return lines;

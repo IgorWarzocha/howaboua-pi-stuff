@@ -68,7 +68,7 @@ export async function updateUsageLedger(key: string, at: number, update: (accoun
 	}
 }
 
-async function recordSafely(key: string, at: number, update: (account: UsageAccount) => void): Promise<void> {
+async function recordSafely(key: string, at: number, update: (account: UsageAccount) => void, recordsSpend = false): Promise<void> {
 	let recoveredGaps = 0;
 	try {
 		await updateUsageLedger(key, at, (account) => {
@@ -83,7 +83,7 @@ async function recordSafely(key: string, at: number, update: (account: UsageAcco
 		lastWriteError = undefined;
 	}
 	catch (error) {
-		pendingGaps.set(key, (pendingGaps.get(key) ?? 0) + 1);
+		if (recordsSpend) pendingGaps.set(key, (pendingGaps.get(key) ?? 0) + 1);
 		reportRecordingError(error);
 	}
 }
@@ -95,10 +95,10 @@ export async function recordCodexSpend(accountId: string, model: Model<Api>, usa
 			at, model: model.id,
 			stats: {
 				usd: usage.cost.total, input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite,
-				requests: 1, unpriced: usage.cost.total === 0 ? 1 : 0,
+				requests: 1, unpriced: usage.cost.total === 0 && usage.input + usage.output + usage.cacheRead + usage.cacheWrite > 0 ? 1 : 0,
 			},
 		});
-	});
+	}, true);
 }
 
 export async function recordCodexQuota(snapshot: CodexUsageSnapshot, at = Date.now()): Promise<void> {
