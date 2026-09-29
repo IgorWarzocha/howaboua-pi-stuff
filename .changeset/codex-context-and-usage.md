@@ -7,6 +7,7 @@ Added independent context controls, opt-in agent sharing and persistent Codex us
 - Added GPT-6.1 Sol with Responses Lite, native reasoning updates, published API pricing and a 272K default context window. Supported reasoning levels run from `low` through `max`, without `off` or `minimal`.
 - `/codex context` now separates continuity, Local, Tree or Remote storage, and Pi summary, Codex V2 or Both compaction. Existing settings migrate automatically, and strategy changes preserve the current conversation and usable checkpoints.
 - Added shared notes and history for newly spawned agents through Shepherdr or compatible extensions. Sharing is off by default.
+- Shepherdr wakeups of existing agents now say “Continue, unless awaiting for user approval.” Fresh-agent startup and context rollover are unchanged.
 - Notes-based continuity now instructs delegated agents to save findings and open work before reporting their results, with note paths in the reply.
 - Notes-only `/compact` now reuses fresh notes or requests a note-saving run, then opens a new window without starting another turn.
 - `/codex usage` now shows API-equivalent spend and tokens by model and reset window, estimated quota shares, and spend-rate comparisons with the previous window and month. A one-time local-history import seeds initial estimates, with incomplete coverage kept visible.

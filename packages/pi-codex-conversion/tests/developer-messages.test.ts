@@ -46,9 +46,15 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 	assert.equal(tryStartCodexPreparedIdleKickoff(pi, kickoffContext), true);
 	assert.equal(kickoffs.length, 1);
 	updateCodexPreparedIdleKickoff(pi, "agent_start");
+	const wakeup = "Continue, unless awaiting for user approval.";
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext, wakeup), true);
+	assert.equal(tryStartCodexPreparedIdleKickoff(pi, kickoffContext, wakeup), true);
+	assert.equal(kickoffs.length, 1);
 	updateCodexPreparedIdleKickoff(pi, "agent_settled");
-	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true);
 	assert.equal(kickoffs.length, 2);
+	assert.deepEqual(kickoffs.at(-1), { content: wakeup, options: { deliverAs: "steer" } });
+	updateCodexPreparedIdleKickoff(pi, "agent_start");
+	updateCodexPreparedIdleKickoff(pi, "agent_settled");
 
 	active = true;
 	assert.equal(trySendCodexDeveloperMessage(pi, "Developer guidance", {
