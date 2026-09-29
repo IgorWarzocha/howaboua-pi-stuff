@@ -92,7 +92,12 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 	const tokens = (value: number) => value >= 1e6 ? `${(value / 1e6).toFixed(1)}M` : value >= 1e3 ? `${(value / 1e3).toFixed(1)}k` : String(value);
 	const lines = [report.current ? `This window: ${money(report.current.summary.total.usd)} API equivalent` : "No reset window yet"];
 	const comparisons: string[] = [];
-	if (report.vsPreviousWindowPercent !== undefined) comparisons.push(`${percent(report.vsPreviousWindowPercent)} vs last window`);
+	if (report.vsPreviousWindowPercent !== undefined && report.previous) {
+		const days = (report.previous.end - report.previous.start) / DAY_MS;
+		const roundedDays = Number(days.toFixed(1));
+		const duration = days < 0.1 ? "<0.1 days" : `${roundedDays} ${roundedDays === 1 ? "day" : "days"}`;
+		comparisons.push(`${percent(report.vsPreviousWindowPercent)} vs last window (${duration})`);
+	}
 	if (report.vsPreviousMonthPercent !== undefined) comparisons.push(`${percent(report.vsPreviousMonthPercent)} vs last month`);
 	if (comparisons.length) lines.push(`Spend/day: ${comparisons.join(" · ")}`);
 	if (report.models.length) {
