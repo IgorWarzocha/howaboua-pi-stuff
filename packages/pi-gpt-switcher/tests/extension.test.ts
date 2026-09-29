@@ -21,7 +21,7 @@ test("reports model authentication failures without changing reasoning", async (
 			void options;
 		},
 		setModel: async () => {
-			throw new Error("No API key for openai-codex/gpt-6-sol");
+			throw new Error("No API key for openai-codex/gpt-6.1-sol");
 		},
 		setThinkingLevel() {
 			throw new Error("reasoning level should not change");
@@ -32,7 +32,7 @@ test("reports model authentication failures without changing reasoning", async (
 		modelRegistry: {
 			find: (provider: string, modelId: string) => {
 				modelQueries.push(`${provider}/${modelId}`);
-				return { id: "gpt-6-sol", name: "GPT-6 Sol" };
+				return { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" };
 			},
 		},
 		ui: { notify: (message: string) => notifications.push(message) },
@@ -50,8 +50,8 @@ test("reports model authentication failures without changing reasoning", async (
 	});
 	await commands.get("sol")?.handler("", ctx);
 
-	expect(modelQueries).toEqual(["openai-codex/gpt-6-sol"]);
+	expect(modelQueries).toEqual(["openai-codex/gpt-6.1-sol"]);
 	expect(notifications).toEqual([
-		"Could not switch to GPT-6 Sol: No API key for openai-codex/gpt-6-sol",
+		"Could not switch to GPT-6.1 Sol: No API key for openai-codex/gpt-6.1-sol",
 	]);
 });

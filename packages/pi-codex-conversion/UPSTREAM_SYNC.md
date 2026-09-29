@@ -12,6 +12,12 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## GPT-6.1 Sol
+
+Model registration follows the [published model specification](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [Codex catalogue at `b1e72963c3b7`](https://github.com/openai/codex/blob/b1e72963c3b71a9265a551e54beff078384efed9/codex-rs/models-manager/models.json). The Codex catalogue confirms Responses Lite, native reasoning updates and a 272K default context window. Keep that default distinct from the public API's 1.05M window. API-equivalent pricing includes the 5% cache-read rate and long-context tier.
+
+Pi exposes `low`, `medium`, `high`, `xhigh` and `max`, with neither `off` nor `minimal`. The catalogue's `ultra` automatic-delegation mode is not exposed through Pi's reasoning selector.
+
 ## September 28 transport sync
 
 Reviewed 642 Codex commits after `8ace915aced81ed841e34fa069b2e489c324731c`. The portable changes are:
@@ -29,7 +35,7 @@ Responses Lite steering and history-aware main-lane idle prewarm remain separate
 - Standard Responses request, retry, error, usage, and terminal-stream handling
 - Chronological system sections and tool declarations, collapsed for models without mid-conversation system messages
 - Prompt/tool checkpoints across Pi compaction and context-window cuts
-- GPT-6 Astra, Sol and Luna, plus GPT-5.6 Luna, Terra and Sol model support
+- GPT-6.1 Sol, GPT-6 Astra, Sol and Luna, plus GPT-5.6 Luna, Terra and Sol model support
 - Code and Notebook modes backed by Responses Lite on eligible models
 - Lite instructions and tools represented as input items
 - Lite all-turn reasoning context and standalone tools

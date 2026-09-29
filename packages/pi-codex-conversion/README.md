@@ -293,7 +293,7 @@ The server stops when its owning Pi session changes. It has no authentication. U
 <details>
 <summary><strong>Models and providers</strong></summary>
 
-GPT-6 Astra, Sol and Luna support Responses Lite and native reasoning updates. All default to 272K context in this provider. Cost estimates use [published Standard API rates](https://developers.openai.com/api/docs/pricing), including cache reads, writes and the long-context tier above 272K input tokens.
+GPT-6.1 Sol and GPT-6 Astra, Sol and Luna support Responses Lite and native reasoning updates. All default to 272K context in this provider. GPT-6.1 Sol supports reasoning from `low` through `max`, without `off` or `minimal`. Cost estimates use [published Standard API rates](https://developers.openai.com/api/docs/pricing), including cache reads, writes and the long-context tier above 272K input tokens.
 
 Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 

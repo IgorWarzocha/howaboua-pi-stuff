@@ -200,7 +200,7 @@ test("execution mode and Responses Lite transport resolve independently", () => 
 		openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: false },
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	}).config;
-	for (const id of ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-terra"]) {
+	for (const id of ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-terra"]) {
 		const codex = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id, baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
 		assert.deepEqual({ kind: codex.kind, transport: codex.transport }, { kind: "code", transport: "responses-lite" });
 		const proxy = createContext({ provider: "litellm", api: "openai-responses", id: `openai/${id}` });

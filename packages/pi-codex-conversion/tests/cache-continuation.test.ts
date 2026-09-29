@@ -55,7 +55,10 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 	}
 
 	const fresh = SessionManager.inMemory("/repo");
-	const freshModel = { ...model, id: "gpt-6-luna", compat: { supportsMidConvoSystemMessages: true } };
+	const freshModel = openAICodexProviderModels().find(({ id }) => id === "gpt-6.1-sol")!;
+	assert.deepEqual(getSupportedThinkingLevels(freshModel), ["low", "medium", "high", "xhigh", "max"]);
+	const minimalBody = buildRequestBody(freshModel, normalizeContext({ messages: [] }), { reasoning: "minimal" });
+	assert.equal(minimalBody.reasoning?.effort, "low", "unsupported minimal effort must not reach the provider");
 	recordCodexReasoningUpdate({
 		getThinkingLevel: () => "high",
 		appendEntry: (type: string, data: unknown) => fresh.appendCustomEntry(type, data),

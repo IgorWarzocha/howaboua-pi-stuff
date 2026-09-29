@@ -4,7 +4,7 @@ Pi extension adding quick model commands:
 
 | Command | Model |
 | --- | --- |
-| `/sol [reasoning]` | `openai-codex/gpt-6-sol` |
+| `/sol [reasoning]` | `openai-codex/gpt-6.1-sol` |
 | `/luna [reasoning]` | `openai-codex/gpt-6-luna` |
 | `/astra [reasoning]` | `openai-codex/gpt-6-astra` |
 
@@ -52,6 +52,8 @@ reports that instead of changing the current model.
 
 Pi clamps the requested reasoning level automatically if the selected model
 supports fewer levels.
+GPT-6.1 Sol supports `low`, `medium`, `high`, `xhigh`, and `max`.
+An `off` or `minimal` request is clamped to `low`.
 
 ## Local development
 
