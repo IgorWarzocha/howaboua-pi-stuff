@@ -1,6 +1,7 @@
 import type {
 	AgentToolResult,
 	ExtensionContext,
+	ExtensionToolContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
@@ -142,10 +143,28 @@ export function codeModeImageResult(
 
 function requireExtensionContext(
 	context: ToolExecutionContext,
-): ExtensionContext {
-	if (!context.extensionContext)
+): ExtensionToolContext {
+	const ctx = context.extensionContext;
+	if (!ctx)
 		throw new Error("Code-mode Pi context is unavailable");
-	return context.extensionContext;
+	if (isToolContext(ctx)) return ctx;
+	// Startup hooks and older hosts have no Pi-owned parent tool call. Leaf tools
+	// still work there, but must not pretend nested Pi execution is available.
+	const toolContext: ExtensionToolContext = {
+		...ctx,
+		get tools(): ExtensionToolContext["tools"] {
+			throw new Error("Pi nested tools are unavailable outside a tool call");
+		},
+		async executeTool() {
+			throw new Error("Pi nested tools are unavailable outside a tool call");
+		},
+	};
+	// Keep Pi's live getters and stale-context guards rather than their spread values.
+	return Object.defineProperties(toolContext, Object.getOwnPropertyDescriptors(ctx));
+}
+
+function isToolContext(ctx: ExtensionContext): ctx is ExtensionToolContext {
+	return "tools" in ctx && "executeTool" in ctx && typeof ctx.executeTool === "function";
 }
 
 function forwardUpdate(

@@ -35,6 +35,7 @@ test("fatal Codex API errors survive both event shapes without SSE fallback", as
 		(socket) => socket.emitJson({ type: "error", code: "flex_unavailable" }),
 		(socket) => socket.emitJson({ type: "response.failed", response: { error: { code: "flex_unavailable", message: "Flex is full." } } }),
 		websocketSuccess,
+		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
 	let fetchCalls = 0;
@@ -71,6 +72,17 @@ test("fatal Codex API errors survive both event shapes without SSE fallback", as
 		const flex = await collectStream(registered.provider.streamSimple(request.model, request.context, { ...request.options as object, transport: "sse" } as never));
 		assert.equal((flex.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage, "Flex capacity unavailable.");
 		assert.equal(fetchCalls, 1);
+		for (const transport of ["websocket", "sse"]) {
+			let observations = 0;
+			const failedObserver = await collectStream(registered.provider.streamSimple(request.model, request.context, {
+				...request.options as object, transport,
+				async onProviderStreamEvent() { observations++; throw new Error("observer rejected event: message too big"); },
+			} as never));
+			assert.match((failedObserver.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage ?? "", /observer rejected event/);
+			assert.equal(observations, 1);
+		}
+		assert.equal(ScriptedWebSocket.opened, 6, "observer failures must not retry the generation");
+		assert.equal(fetchCalls, 2, "observer failures must not fall back or retry SSE");
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();

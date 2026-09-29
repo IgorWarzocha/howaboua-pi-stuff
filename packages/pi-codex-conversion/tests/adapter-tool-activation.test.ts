@@ -192,6 +192,28 @@ test("adapter activation requires registered tools and follows scope independent
 		/Reserved Code Mode extension tool name: exec/,
 	);
 	conflict.unregister();
+
+	for (const mode of ["code", "notebook"] as const) {
+		for (const nativeActive of [false, true]) {
+			const original = ["read", ...(nativeActive ? ["codemode"] : [])];
+			const pi = createToolHarness(original, ["read", "codemode", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
+			const state = createAdapterState({ executionMode: mode });
+			const ctx = createContext(dynamicModel);
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("codemode"), false);
+			assert.ok(pi.activeTools().includes("exec"));
+			state.executionMode = "normal";
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("codemode"), nativeActive);
+			state.executionMode = mode;
+			syncAdapter(pi as never, ctx as never, state);
+			pi.setActiveTools([...pi.activeTools(), "codemode"]);
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("codemode"), false);
+			syncAdapter(pi as never, createContext({ provider: "meta", api: "openai-responses", id: "muse" }) as never, state);
+			assert.deepEqual(pi.activeTools(), ["read", "codemode"]);
+		}
+	}
 });
 
 test("execution mode and Responses Lite transport resolve independently", () => {

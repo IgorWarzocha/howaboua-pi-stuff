@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import { processResponsesStream } from "../src/providers/openai-responses/shared.ts";
+import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "../src/providers/openai-codex/stream-events.ts";
 
 const model = {
 	id: "gpt-test",
@@ -15,7 +17,7 @@ const model = {
 	maxTokens: 4096,
 };
 
-function createAssistantOutput() {
+function createAssistantOutput(): AssistantMessage {
 	return {
 		role: "assistant",
 		content: [],
@@ -30,7 +32,7 @@ function createAssistantOutput() {
 			totalTokens: 0,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
-		stopReason: "stop",
+		stopReason: "pending",
 		timestamp: Date.now(),
 	};
 }
@@ -113,7 +115,7 @@ test("processResponsesStream keeps interleaved message items separate by output 
 	);
 });
 
-test("processResponsesStream records cache writes and reasoning tokens", async () => {
+test("Responses terminal events preserve raw observations and price reported usage", async () => {
 	const output = { ...createAssistantOutput(), errorMessage: "stale incomplete response" };
 	await processResponsesStream(
 		asAsyncIterable([{
@@ -145,6 +147,29 @@ test("processResponsesStream records cache writes and reasoning tokens", async (
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 	});
 	assert.equal(output.errorMessage, undefined);
+	for (const [serviceTier, multiplier] of [["default", 1], ["priority", 2], ["fast", 2], ["flex", 0.5]] as const) {
+		const priced = createAssistantOutput();
+		const pricedModel = { ...model, cost: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 } };
+		const raw = { type: "response.done", response: { status: "completed", service_tier: serviceTier,
+			usage: { input_tokens: 20, output_tokens: 8, total_tokens: 28, input_tokens_details: { cached_tokens: 5, cache_write_tokens: 3 } } } };
+		const observed: unknown[] = [];
+		await processCodexResponsesStream(asAsyncIterable([raw]), priced, createAssistantMessageEventStream(), pricedModel, {
+			onProviderStreamEvent: async (event, observedModel) => {
+				assert.equal(observedModel, pricedModel);
+				observed.push(event);
+			},
+		});
+		assert.deepEqual(observed, [raw]);
+		assertSuccessfulCodexOutput(priced);
+		const expected = {
+			input: 24 / 1e6 * multiplier, output: 80 / 1e6 * multiplier,
+			cacheRead: 0.5 / 1e6 * multiplier, cacheWrite: 7.5 / 1e6 * multiplier,
+			total: (24 / 1e6 + 80 / 1e6 + 0.5 / 1e6 + 7.5 / 1e6) * multiplier,
+		};
+		for (const key of Object.keys(expected) as Array<keyof typeof expected>) {
+			assert.ok(Math.abs(priced.usage.cost[key] - expected[key]) < 1e-15, `${serviceTier} ${key}`);
+		}
+	}
 });
 
 test("processResponsesStream retains finalized freeform input for execution and continuation", async () => {
@@ -178,7 +203,7 @@ test("processResponsesStream retains finalized freeform input for execution and 
 	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", namespace: "security", input: "canonical();" }]);
 });
 
-test("processResponsesStream omits an interrupted partial tool call from the final message", async () => {
+test("Responses rejects ambiguous or unfinished tool calls and discards interrupted input", async () => {
 	const output = createAssistantOutput();
 	const pushedEvents: string[] = [];
 
@@ -198,4 +223,32 @@ test("processResponsesStream omits an interrupted partial tool call from the fin
 
 	assert.ok(pushedEvents.includes("toolcall_start"));
 	assert.deepEqual(output.content, []);
+	for (const type of ["function_call", "custom_tool_call"] as const) {
+		const item = { type, id: "item_1", call_id: "call_1", name: "example", arguments: "{}", input: "done" };
+		const added = { type: "response.output_item.added", output_index: 0, item };
+		const done = { type: "response.output_item.done", output_index: 0, item };
+		const terminal = { type: "response.completed", response: { status: "completed" } };
+		for (const events of [
+			[added, terminal],
+			[{ type: added.type, item }, { type: added.type, item: { ...item, id: "item_2", call_id: "call_2" } }, done, terminal],
+			[added, { ...added, item: { ...item, id: "item_2", call_id: "call_2" } }, done, terminal],
+			[added, { ...done, item: { ...item, call_id: "other" } }, terminal],
+			[done, done, terminal],
+		]) {
+			const rejected = createAssistantOutput();
+			await processCodexResponsesStream(asAsyncIterable(events), rejected, createAssistantMessageEventStream(), model, undefined);
+			assert.equal(rejected.stopReason, "error");
+			assert.throws(() => assertSuccessfulCodexOutput(rejected), /Invalid Responses tool stream/);
+		}
+		// A finalized item alone is a supported boundary, not an unfinished call.
+		for (const events of [
+			[done, terminal],
+			[{ ...added, item: { ...item, id: undefined } }, { ...done, item: { ...item, id: undefined } }, terminal],
+		]) {
+			const finalized = createAssistantOutput();
+			await processCodexResponsesStream(asAsyncIterable<typeof events[number]>(events), finalized, createAssistantMessageEventStream(), model, undefined);
+			assert.equal(finalized.stopReason, "toolUse");
+			assert.equal(finalized.content.length, 1);
+		}
+	}
 });

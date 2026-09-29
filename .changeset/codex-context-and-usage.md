@@ -12,4 +12,9 @@ Added independent context controls, opt-in agent sharing and persistent Codex us
 - Added tracking for renamed Codex providers. Usage and reset requests follow configured endpoints and headers, with an accuracy warning for nonstandard configurations.
 - Added `/codex usage analyse` for read-only long-term trends and session-based reasoning reports.
 - Codex requests now honor server retry deadlines within the three-minute recovery limit, stop on unavailable Flex capacity and skip redundant warmups on ready WebSockets.
+- Code and Notebook modes now disable Pi 0.99.1's built-in `codemode` while active and restore its prior activation afterward.
+- Fixed acceptance of incomplete or ambiguous Responses tool calls.
+- Fixed Fast Mode cost estimates when the backend reports the `fast` tier.
+- Failed browser login callbacks now stop promptly and show the provider error.
+- Codex stream events now reach Pi extensions on HTTP and WebSocket transports, without retrying generation when an observer fails.
 - Structured, Code and Notebook modes now use shorter instructions and tool schemas. Bundled reviewer prompts request findings without issue-count targets.

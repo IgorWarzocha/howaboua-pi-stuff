@@ -174,9 +174,15 @@ function extractCodexEventError(event: StreamEventShape): { code?: string | unde
 export async function* mapCodexEvents(
 	events: AsyncIterable<StreamEventShape>,
 	output?: AssistantMessage,
+	onProviderStreamEvent?: (event: StreamEventShape) => void | Promise<void>,
 ): AsyncIterable<StreamEventShape> {
 	let sawTerminalResponse = false;
 	for await (const event of events) {
+		try {
+			await onProviderStreamEvent?.(event);
+		} catch (error) {
+			throw new CodexProtocolError(`Provider stream observer failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+		}
 		const type = typeof event.type === "string" ? event.type : undefined;
 		if (!type) continue;
 
@@ -266,5 +272,8 @@ export async function processCodexResponsesStream<TApi extends Api>(
 	model: Model<TApi>,
 	options: OpenAICodexStreamOptions | undefined,
 ): Promise<void> {
-	await processMappedCodexResponsesStream(mapCodexEvents(events, output), output, stream, model, options);
+	await processMappedCodexResponsesStream(
+		mapCodexEvents(events, output, (event) => options?.onProviderStreamEvent?.(event, model)),
+		output, stream, model, options,
+	);
 }

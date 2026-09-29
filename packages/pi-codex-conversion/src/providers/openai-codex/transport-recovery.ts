@@ -323,7 +323,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						const retryPlan = planRetry(error, attempt + 1);
 						const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
 						const adviceBudgetExhausted = retryPlan.adviceBudgetExhausted;
-						const immediateFallback = upgradeRequired || messageTooBig || unauthorized;
+						const immediateFallback = !(error instanceof CodexProtocolError) && (upgradeRequired || messageTooBig || unauthorized);
 						const fallbackArmed = immediateFallback || (retryableWebSocketError && (attempt >= streamMaxRetries || overloadBudgetExhausted));
 						appendAssistantMessageDiagnostic(
 							output,

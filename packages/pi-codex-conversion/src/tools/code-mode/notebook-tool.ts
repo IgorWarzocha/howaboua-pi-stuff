@@ -55,6 +55,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	const constrainedSampling = getExperimentalToolSampling("notebook");
 	pi.registerTool({
 		name: "notebook",
+		exposure: "model-only",
 		label: "Notebook",
 		description: NOTEBOOK_DESCRIPTION,
 		promptSnippet: "Inspect, recover, or control notebook state",

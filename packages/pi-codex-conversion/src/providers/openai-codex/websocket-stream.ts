@@ -92,7 +92,11 @@ export async function processWebSocketStream<TApi extends Api>(
 		socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
-				mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)), output),
+				mapCodexEvents(
+					parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)),
+					output,
+					(event) => options?.onProviderStreamEvent?.(event, model),
+				),
 				() => {
 					if (!streamStarted) {
 						streamStarted = true;
@@ -148,7 +152,8 @@ export async function processWebSocketStream<TApi extends Api>(
 	}
 }
 
-export async function prewarmWebSocket(
+export async function prewarmWebSocket<TApi extends Api>(
+	model: Model<TApi>,
 	url: string,
 	body: ResponsesBody,
 	headers: Headers,
@@ -199,7 +204,7 @@ export async function prewarmWebSocket(
 		socket.send(JSON.stringify({ type: "response.create", ...body, ...(generate ? {} : { generate: false }) }));
 		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => {
 			if (!preserveContinuation) turnState?.capturePrewarm(value);
-		}))) {
+		}), undefined, (event) => options.onProviderStreamEvent?.(event, model))) {
 			if (event.type === "response.created" && event.response?.id) responseId = event.response.id;
 			if (event.type === "response.output_item.done" && event.item) responseItems.push(event.item);
 			if (event.type === "response.completed") {

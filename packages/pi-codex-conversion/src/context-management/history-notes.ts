@@ -1,11 +1,12 @@
 import type {
 	AgentToolResult,
+	AgentToolUpdateCallback,
 	ExtensionAPI,
 	ExtensionContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Type, type Static } from "typebox";
+import { Type, type Static, type TSchema } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import type { ContextRouter } from "../context-sharing.ts";
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
@@ -165,16 +166,23 @@ export interface CodexHistoryNotesDetails {
 	codexHistoryNotes: Record<string, unknown>;
 }
 
+type HistoryNotesTool<TParams extends TSchema> = Omit<ToolDefinition<TParams, CodexHistoryNotesDetails>, "execute"> & {
+	execute(
+		toolCallId: string,
+		params: Static<TParams>,
+		signal: AbortSignal | undefined,
+		onUpdate: AgentToolUpdateCallback<CodexHistoryNotesDetails> | undefined,
+		ctx: ExtensionContext,
+	): Promise<AgentToolResult<CodexHistoryNotesDetails>>;
+};
+
 export function createHistoryNotesTools(
 	pi?: Pick<ExtensionAPI, "appendEntry">,
 	resolveMode: (ctx: ExtensionContext) => ContextManagementMode = () =>
 		"local",
 	prepareNoteWrite?: (action: NotesAction, path: unknown, ctx: ExtensionContext) => () => boolean,
 	route?: ContextRouter,
-): [
-	ToolDefinition<typeof HISTORY_PARAMETERS, CodexHistoryNotesDetails>,
-	ToolDefinition<typeof NOTES_PARAMETERS, CodexHistoryNotesDetails>,
-] {
+): [HistoryNotesTool<typeof HISTORY_PARAMETERS>, HistoryNotesTool<typeof NOTES_PARAMETERS>] {
 	return [
 		{
 			name: "history",
@@ -193,7 +201,7 @@ export function createHistoryNotesTools(
 				// Pi validates the prepared value against parameters before execution.
 				return args as Static<typeof HISTORY_PARAMETERS>;
 			},
-			async execute(_id, params, signal, _update, ctx) {
+			async execute(_id, params, signal, _update, ctx: ExtensionContext) {
 				const action = historyAction(params.action);
 				validateHistoryArguments(action, params);
 				return callHistoryNotesTool(
@@ -216,7 +224,7 @@ export function createHistoryNotesTools(
 			parameters: NOTES_PARAMETERS,
 			...historyNotesRenderers("notes"),
 			executionMode: "sequential",
-			async execute(_id, params, signal, _update, ctx) {
+			async execute(_id, params, signal, _update, ctx: ExtensionContext) {
 				const action = notesAction(params.action);
 				validateNotesArguments(action, params);
 				const finishNoteWrite = action === "write_file" || action === "append_to_file"

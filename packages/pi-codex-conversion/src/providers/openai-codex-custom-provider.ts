@@ -24,6 +24,7 @@ import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from ".
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { codexCacheKeepaliveSocketSessionId, prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
+import { CodexProtocolError } from "./openai-codex/stream-events.ts";
 import { type CodexTurnState, withCodexTurnState } from "./openai-codex/turn-state.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
@@ -132,6 +133,7 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
 		return await prewarmWebSocket(
+			model,
 			resolveCodexWebSocketUrl(model.baseUrl),
 			websocketBody,
 			headers,
@@ -145,7 +147,7 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 			deps.retainSocket,
 		);
 	} catch (error) {
-		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
+		if (!options.signal?.aborted && !(error instanceof CodexProtocolError) && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);
 			return;
 		}

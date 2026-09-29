@@ -325,7 +325,7 @@ export function registerCodexEvents(
 		state.contextTree.handoff.preparing(event.prompt);
 		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const plan = syncAdapter(pi, ctx, state);
 		if (!state.contextWindows.currentIdentity()) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
 		if (plan.kind !== "notebook") state.notebookStatusMessageId = undefined;
 		if (!isAdapterRuntime(plan)) {

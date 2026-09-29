@@ -212,7 +212,11 @@ function applyRuntimeTools(
 	plan: CodexRuntimePlan,
 	toolNames: string[],
 ): void {
-	setActiveTools(pi, toolNames);
+	// Retain the native loadout in previousToolNames, but never run two code
+	// orchestrators or let native codemode hide our model-facing tool surface.
+	setActiveTools(pi, plan.kind === "code" || plan.kind === "notebook"
+		? toolNames.filter((name) => name !== "codemode")
+		: toolNames);
 	state.appliedRuntimeKind = plan.kind;
 	state.appliedRuntimeToolNames = [...plan.toolNames];
 	state.appliedActiveToolNames = [...pi.getActiveTools()];

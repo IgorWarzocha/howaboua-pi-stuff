@@ -79,6 +79,7 @@ function createExecTool(
 ): ToolDefinition<typeof EXEC_PARAMETERS> {
 	return {
 		name: "exec",
+		exposure: "model-only",
 		label: "Exec",
 		description: EXEC_DESCRIPTION,
 		promptSnippet: "Compose tools with JavaScript",
@@ -129,6 +130,7 @@ function createWaitTool(
 	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
 		name: "wait",
+		exposure: "model-only",
 		label: "Wait",
 		description: WAIT_DESCRIPTION,
 		promptSnippet: "Resume or terminate an exec cell",

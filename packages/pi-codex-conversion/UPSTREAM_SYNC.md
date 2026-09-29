@@ -4,13 +4,25 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi transcript API: published `0.86.0` (`ecac0a9c4`)
-- Stock provider comparison: published Pi `0.87.0` (2026-09-28)
+- Pi SDK baseline: published `0.99.1` (`d86654abb`)
+- Stock provider comparison: published Pi `0.99.1` (2026-09-29)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## Pi 0.99.1 compatibility
+
+Compared the published SDK and stock Codex provider for request shape, headers, reasoning, service tiers, retries and stream termination. The adapter keeps its existing Codex transport and recovery policy.
+
+- Nested tools preserve Pi's real `ExtensionToolContext`. Startup contexts retain leaf execution but reject Pi-owned nested execution without a parent tool call.
+- Code and Notebook modes disable native `codemode` while active and restore its prior activation outside those modes. Their orchestrator tools are model-only. Native MCP translation remains separate work.
+- Responses streams reject unfinished or ambiguous tool calls before execution. Raw provider events reach Pi's observer before normalization on HTTP, WebSocket and prewarm paths. Observer failures do not retry generation or trigger transport fallback.
+- Browser OAuth callback errors settle login immediately. The new OpenAI API OAuth provider has separate credentials and does not replace this adapter's Codex backend.
+- Backend-reported `fast` uses the existing priority cost multiplier. Stock Pi's Codex provider still recognizes only `priority`; this is an intentional pricing correction.
+
+Pi's built-in GPT-6.1 Sol row maps `minimal` to `low`. Keep the adapter's `minimal: null` override rather than dropping it during catalogue consolidation.
 
 ## GPT-6.1 Sol
 
@@ -52,7 +64,7 @@ Idle keepalive refreshes the last finalized provider-request prefix on an isolat
 
 Pi projects forced prompts onto requests without recording them in the transcript. Final-request capture retains that effective prompt for native compaction; transcript replay uses the persisted structured sections. `SystemMessage.replace` is no longer part of the upstream contract.
 
-Live cache/compaction validation used source commit `e4c75a732`; it has not been repeated against published Pi `0.86.0`.
+Live cache/compaction validation used source commit `e4c75a732`; it has not been repeated against published Pi `0.99.1`. Isolated SDK captures verify final prompts and tools, not provider cache hits.
 
 ## Monitor on each Codex sync
 
