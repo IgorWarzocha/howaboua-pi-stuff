@@ -72,7 +72,7 @@ test("trusted folder config overrides globals without crossing folder or process
 		writeFileSync(globalPath, legacyGlobal);
 		writeFileSync(projectPath, legacyProject);
 		const migrated = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
-		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", shareSubagentContext: false, method: "v2", v2UserMessageRetention: 16 });
+		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", shareSubagentContext: false, method: "both", v2UserMessageRetention: 16 });
 		assert.equal(readFileSync(globalPath, "utf8"), legacyGlobal);
 		assert.equal(readFileSync(projectPath, "utf8"), legacyProject, "startup normalization never writes configuration");
 		assert.equal(writeCodexConversionConfig(migrated, projectPath, true).ok, true);
@@ -82,17 +82,19 @@ test("trusted folder config overrides globals without crossing folder or process
 
 		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", shareSubagentContext: true, method: "both", v2UserMessageRetention: 32 };
 		writeFileSync(globalPath, JSON.stringify({ compaction: inherited }));
-		for (const override of [
-			{ contextManagement: "tree" },
-			{ contextManagement: "tree", method: "pi", shareSubagentContext: false },
-			{ contextManagement: "tree", continuity: "compaction", historyStorage: "remote" },
+		for (const { override, expected } of [
+			{ override: { contextManagement: "tree" }, expected: { historyStorage: "tree" } },
+			{ override: { portableSummary: false }, expected: { method: "v2" } },
+			{
+				override: { contextManagement: "tree", portableSummary: false, continuity: "compaction", historyStorage: "remote", method: "pi", shareSubagentContext: false },
+				expected: { continuity: "compaction", historyStorage: "remote", method: "pi", shareSubagentContext: false },
+			},
 		]) {
 			writeFileSync(projectPath, JSON.stringify({ compaction: override }));
 			const effective = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
 			assert.deepEqual(effective.compaction, {
-				...inherited, historyStorage: "tree",
-				...Object.fromEntries(Object.entries(override).filter(([key]) => key !== "contextManagement")),
-			}, "a storage-only legacy override cannot replace the inherited method; new fields win");
+				...inherited, ...expected,
+			}, "legacy overrides change only named axes; explicit current fields win");
 		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });

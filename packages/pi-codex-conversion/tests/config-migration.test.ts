@@ -34,7 +34,7 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 				continuity: contextManagement === "off" ? "compaction" : hybridCompaction ? "notes-and-compaction" : "notes",
 				historyStorage: contextManagement === "off" ? "local" : contextManagement,
 				shareSubagentContext: false,
-				method: contextManagement === "off" ? "both" : hybridCompaction ? "v2" : "pi",
+				method: contextManagement === "off" || hybridCompaction ? "both" : "pi",
 				v2UserMessageRetention: 32,
 			});
 			assert.equal(migrateCodexConversionConfigIfNeeded(migration.config).migrated, false);

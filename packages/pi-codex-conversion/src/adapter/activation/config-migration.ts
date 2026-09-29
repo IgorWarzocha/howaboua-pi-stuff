@@ -104,13 +104,14 @@ function migrateCompactionOptions(
 		? value["portableSummary"] : inherited.method === "both";
 	const { contextManagement: _mode, hybridCompaction: _hybrid, responsesCompaction: _native, portableSummary: _portable, ...rest } = value;
 	const overridesHybrid = typeof value["hybridCompaction"] === "boolean";
-	const overridesMethod = mode !== "off" ? overridesHybrid
-		: typeof value["responsesCompaction"] === "boolean" || typeof value["portableSummary"] === "boolean";
+	const overridesPortable = typeof value["portableSummary"] === "boolean";
+	const overridesMethod = mode !== "off" ? overridesHybrid || (hybrid && overridesPortable)
+		: typeof value["responsesCompaction"] === "boolean" || overridesPortable;
 	return {
 		...(modeOverride !== undefined || (mode !== "off" && overridesHybrid)
 			? { continuity: mode === "off" ? "compaction" : hybrid ? "notes-and-compaction" : "notes" } : {}),
 		...(modeOverride !== undefined && modeOverride !== "off" ? { historyStorage: modeOverride } : {}),
-		...(overridesMethod ? { method: mode !== "off" ? hybrid ? "v2" : "pi" : native ? portable ? "both" : "v2" : "pi" } : {}),
+		...(overridesMethod ? { method: (mode === "off" ? native : hybrid) ? portable ? "both" : "v2" : "pi" } : {}),
 		// Partial project documents override only named axes; explicit new fields win.
 		...rest,
 	};
