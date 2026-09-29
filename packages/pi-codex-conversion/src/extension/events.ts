@@ -72,6 +72,24 @@ export function registerCodexEvents(
 ): void {
 	const { state, tracker, sessions } = runtime;
 	const reserve = createCodexReserveController(pi);
+	const startManualNotesWindow = async (ctx: ExtensionContext): Promise<boolean> => {
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		try {
+			const rolled = plan.contextManagementMode === "tree"
+				? state.contextTree.schedule(ctx, { triggerTurn: false }) && await state.contextTree.settle(pi, ctx)
+				: await state.contextKickoff.startWindow(pi, ctx, {
+					triggerTurn: false,
+					mode: plan.contextManagementMode,
+					trimPreviousWindow: true,
+				});
+			if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+			else if (plan.contextManagementMode !== "tree") ctx.ui.notify("Context rollover did not start", "warning");
+			return rolled;
+		} catch (error) {
+			ctx.ui.notify(`Context rollover failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+			return false;
+		}
+	};
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
@@ -344,6 +362,7 @@ export function registerCodexEvents(
 	});
 	pi.on("agent_start", async (_event, ctx) => {
 		updateCodexPreparedIdleKickoff(pi, "agent_start");
+		state.contextWindows.beginPromptedManualCheckpointRun();
 		state.contextTree.handoff.started(ctx);
 		runtime.autoReasoning.begin(ctx);
 		runtime.cancelCacheKeepalive();
@@ -382,6 +401,12 @@ export function registerCodexEvents(
 			rolled = await state.contextTree.settle(pi, ctx);
 			if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 			state.contextTree.handoff.settled(ctx);
+			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const manualCheckpoint = state.contextWindows.finishPromptedManualCheckpoint(ctx,
+				plan.contextManagement && !plan.compactOnRollover);
+			if (manualCheckpoint === "ready") rolled = await startManualNotesWindow(ctx) || rolled;
+			else if (manualCheckpoint === "missing")
+				ctx.ui.notify("Context rollover did not start: no note was saved in the completed run", "warning");
 			continued = state.contextKickoff.continue(pi, ctx);
 		} finally {
 			if (continuingWork && !continued && !state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
@@ -453,20 +478,7 @@ export function registerCodexEvents(
 			pi, ctx, event, plan.contextManagement && !plan.compactOnRollover,
 		);
 		if (!reuseNotes) return;
-		try {
-			const rolled = plan.contextManagementMode === "tree"
-				? state.contextTree.schedule(ctx, { triggerTurn: false }) && await state.contextTree.settle(pi, ctx)
-				: await state.contextKickoff.startWindow(pi, ctx, {
-					triggerTurn: false,
-					mode: plan.contextManagementMode,
-					trimPreviousWindow: true,
-				});
-			if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-			else if (plan.contextManagementMode !== "tree")
-				ctx.ui.notify("Context rollover did not start", "warning");
-		} catch (error) {
-			ctx.ui.notify(`Context rollover failed: ${error instanceof Error ? error.message : String(error)}`, "error");
-		}
+		await startManualNotesWindow(ctx);
 	});
 	pi.on("session_compact", async (event, ctx) => {
 		try {

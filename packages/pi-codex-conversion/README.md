@@ -160,7 +160,7 @@ With notes enabled, choosing a summary in Pi's tree navigator saves a handoff no
 
 The model receives history, notes, rollover and remaining-context tools. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
 
-With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state and call `new_context`. With **Notes + compaction**, both commands compact before rollover.
+With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + compaction**, `/compact` and `new_context` compact before rollover.
 
 Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
 

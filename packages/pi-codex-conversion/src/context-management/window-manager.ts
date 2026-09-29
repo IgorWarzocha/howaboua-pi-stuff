@@ -60,6 +60,13 @@ export class CodexContextWindowManager {
 		customInstructions: string | undefined;
 		signal: AbortSignal;
 	} | undefined;
+	private promptedManualCheckpoint: {
+		sessionId: string;
+		windowId: string;
+		reminderId: string;
+		mode: ContextManagementMode;
+		phase: "awaiting" | "running";
+	} | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
@@ -78,6 +85,7 @@ export class CodexContextWindowManager {
 		this.rolloverPending = undefined;
 		this.rolloverCompaction = undefined;
 		this.manualCheckpoint = undefined;
+		this.promptedManualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
 	}
 
@@ -115,7 +123,14 @@ export class CodexContextWindowManager {
 		active: boolean,
 	): void {
 		if (!active) return;
-		this.restore(ctx.sessionManager.getBranch());
+		const pending = this.promptedManualCheckpoint;
+		const branch = ctx.sessionManager.getBranch();
+		this.restore(branch);
+		if (pending && pending.sessionId === ctx.sessionManager.getSessionId() &&
+			pending.windowId === this.identity?.currentWindowId && branch.some((entry) =>
+				entry.type === "custom_message" && entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
+				isCodexContextManagementMessageDetails(entry.details) && entry.details.id === pending.reminderId))
+			this.promptedManualCheckpoint = pending;
 		if (this.identity) return;
 		const windowId = randomUUID();
 		this.sendWindowMessage(
@@ -275,6 +290,7 @@ export class CodexContextWindowManager {
 		if (compactOnRollover) return event.reason === "threshold" ? { cancel: true } : undefined;
 		if (event.reason === "overflow") return undefined;
 		if (event.reason === "manual") {
+			this.promptedManualCheckpoint = undefined;
 			if (!this.identity) return { cancel: true };
 			this.manualCheckpoint = {
 				identity: { ...this.identity },
@@ -309,11 +325,39 @@ export class CodexContextWindowManager {
 		if (idle && !pending.customInstructions?.trim() && hasFreshContextNotes(
 			ctx.sessionManager.getBranch(), pending.identity.currentWindowId, pending.mode, true,
 		)) return true;
-		pi.sendMessage(createContextWindowMessage(renderManualContextCheckpoint(pending.customInstructions),
-			"reminder", pending.identity), idle ? { triggerTurn: false } : { deliverAs: "steer", triggerTurn: true });
-		if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
-			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+		const reminder = createContextWindowMessage(renderManualContextCheckpoint(pending.customInstructions),
+			"reminder", pending.identity);
+		const checkpoint = this.promptedManualCheckpoint = {
+			sessionId: ctx.sessionManager.getSessionId(),
+			windowId: pending.identity.currentWindowId,
+			reminderId: reminder.details.id,
+			mode: pending.mode,
+			phase: idle ? "awaiting" : "running",
+		};
+		try {
+			pi.sendMessage(reminder, idle ? { triggerTurn: false } : { deliverAs: "steer", triggerTurn: true });
+			if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
+				pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+		} catch (error) {
+			if (this.promptedManualCheckpoint === checkpoint) this.promptedManualCheckpoint = undefined;
+			throw error;
+		}
 		return false;
+	}
+
+	beginPromptedManualCheckpointRun(): void {
+		if (this.promptedManualCheckpoint?.phase === "awaiting")
+			this.promptedManualCheckpoint.phase = "running";
+	}
+
+	finishPromptedManualCheckpoint(ctx: Pick<ExtensionContext, "sessionManager">, active: boolean): "ready" | "missing" | undefined {
+		const pending = this.promptedManualCheckpoint;
+		if (!pending || pending.phase !== "running") return;
+		this.promptedManualCheckpoint = undefined;
+		if (!active || pending.sessionId !== ctx.sessionManager.getSessionId() ||
+			pending.windowId !== this.identity?.currentWindowId) return;
+		return hasFreshContextNotes(ctx.sessionManager.getBranch(), pending.windowId, pending.mode, true)
+			? "ready" : "missing";
 	}
 
 	recordCompaction(details: unknown): void {

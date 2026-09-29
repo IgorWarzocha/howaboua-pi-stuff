@@ -148,6 +148,47 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");
 
+		const prompted = restored();
+		const prompts: string[] = [];
+		const promptedPi = {
+			sendMessage(message: { customType: string; content: string; display: boolean; details: unknown }) {
+				sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
+			},
+			sendUserMessage(content: string) {
+				prompts.push(content);
+				sessionManager.appendMessage({ role: "user", content, timestamp: 4 });
+			},
+			events: { emit() {} },
+		} as never;
+		prompted.prepareCompaction({ reason: "manual", signal: new AbortController().signal } as never, mode);
+		assert.equal(prompted.finishManualCheckpointRequest(promptedPi, noteCtx,
+			{ type: "session_compact_failed", reason: "manual", aborted: true, willRetry: false, fromExtension: false }, true), false);
+		assert.deepEqual(prompts, ["Continue."], "only the note-saving run requires a prompt");
+		prompted.ensureInitialized(promptedPi, noteCtx, true); // Pi refreshes the window on input before the prompted run.
+		prompted.beginPromptedManualCheckpointRun();
+		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+			type: "toolCall", id: "checkpoint", name: "notes", arguments: { action: "write_file", path: "state", text: "now" },
+		}] });
+		sessionManager.appendMessage({ ...result, toolCallId: "checkpoint" });
+		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+			type: "toolCall", id: "later", name: "exec", arguments: { code: "cleanup()" },
+		}] });
+		sessionManager.appendMessage({ ...result, toolCallId: "later", toolName: "exec", details: {} });
+		sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Checkpoint saved" }] });
+		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), "ready");
+		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), undefined, "rollover request is consumed once");
+		const promptedKickoff = new CodexContextWindowKickoff(prompted);
+		assert.equal(await promptedKickoff.startWindow(promptedPi, noteCtx,
+			{ mode, trimPreviousWindow: mode !== "tree", triggerTurn: false }), true);
+		assert.deepEqual(prompts, ["Continue."], "no agent turn starts in the new window");
+		prompted.prepareCompaction({ reason: "manual", signal: new AbortController().signal } as never, mode);
+		assert.equal(prompted.finishManualCheckpointRequest(promptedPi, noteCtx,
+			{ type: "session_compact_failed", reason: "manual", aborted: true, willRetry: false, fromExtension: false }, true), false);
+		prompted.beginPromptedManualCheckpointRun();
+		sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Could not save a note" }] });
+		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), "missing", "failed checkpoint cannot roll over");
+		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), undefined, "a later run cannot satisfy the failed request");
+
 		sessionManager.branchWithSummary(beforeMarker, "Read notes at the exact handoff path before resuming");
 		const navigationWindow = new CodexContextWindowManager(async () => undefined);
 		const persistedPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) => {
