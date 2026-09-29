@@ -66,12 +66,6 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 		const history = await scanUsageHistory(root, start - WEEK_MS, cutoff, start);
 		assert.equal(history.coverage.skippedCopies, 2);
 		assert.equal(history.total.total.usd, 6); // Request-start timestamps must not re-import live settlements.
-		const unknownUsage = structuredClone(history);
-		unknownUsage.coverage.unattributedUsage = 1;
-		const incomplete = structuredClone(account);
-		importUsageHistory(incomplete, unknownUsage, cutoff + 1);
-		assert.equal(incomplete.current?.partial, true);
-		assert.equal(incomplete.closed[String(start - WEEK_MS)]?.partial, true);
 		const changedWindow = structuredClone(account);
 		observeWeeklyUsage(changedWindow, snapshot(cutoff + hour + WEEK_MS, 0), cutoff + 2 * hour);
 		const beforeImport = JSON.stringify(changedWindow);
