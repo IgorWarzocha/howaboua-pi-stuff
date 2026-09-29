@@ -24,6 +24,7 @@ function truncateUtf8(value: string, maxBytes: number): string {
 }
 
 function boundedElement(element: SnapshotElement): SnapshotElement {
+	const { href, ...rest } = element;
 	let value = element.value;
 	if (typeof value === "string") {
 		value = truncateUtf8(value, SNAPSHOT_ELEMENT_VALUE_BYTES);
@@ -37,7 +38,12 @@ function boundedElement(element: SnapshotElement): SnapshotElement {
 		}
 	}
 	return {
-		...element,
+		...rest,
+		...(href === undefined
+			? {}
+			: Buffer.byteLength(href) > SNAPSHOT_URL_BYTES
+				? { href_omitted: true as const }
+				: { href }),
 		role: truncateUtf8(element.role, 128),
 		...(element.name === undefined
 			? {}

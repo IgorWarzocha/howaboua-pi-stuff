@@ -275,10 +275,16 @@ export async function snapshotData(
 					addLine(text, undefined, "interactive");
 					renderedName = name;
 				} else {
+					const href =
+						role === "link"
+							? node.properties?.find((property) => property.name === "url")
+									?.value?.value
+							: undefined;
 					const element: SnapshotElement = {
 						id: nextElementId(),
 						role,
 						...(name ? { name } : {}),
+						...(typeof href === "string" && href ? { href } : {}),
 						...(value === "" || value == null ? {} : { value }),
 						...state,
 					};

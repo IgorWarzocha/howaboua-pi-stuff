@@ -117,6 +117,10 @@ export async function backendCenter(
 				{
 					objectId,
 					functionDeclaration: `function() {
+						const view = this.ownerDocument.defaultView;
+						if (view && (view.innerWidth <= 0 || view.innerHeight <= 0)) {
+							return { ok: false, error: 'Browser viewport is ' + view.innerWidth + 'x' + view.innerHeight + '; restore or resize its window, then retry' };
+						}
 						const rect = this.getBoundingClientRect();
 						const style = getComputedStyle(this);
 						const disabled = this.matches(':disabled') ||

@@ -14,7 +14,7 @@ test("snapshots emit compact lines and current interactive references", async ()
 						nodeId: "root",
 						role: { value: "RootWebArea" },
 						name: { value: "" },
-						childIds: ["button", "menu", "checkbox", "text"],
+						childIds: ["button", "menu", "checkbox", "link", "text"],
 					},
 					{
 						nodeId: "button",
@@ -48,6 +48,19 @@ test("snapshots emit compact lines and current interactive references", async ()
 							{
 								name: "checked",
 								value: { type: "tristate", value: "false" },
+							},
+						],
+					},
+					{
+						nodeId: "link",
+						parentId: "root",
+						backendDOMNodeId: 160 + snapshotNumber,
+						role: { value: "link" },
+						name: { value: "16 Sep" },
+						properties: [
+							{
+								name: "url",
+								value: { type: "string", value: "https://example.com/post" },
 							},
 						],
 					},
@@ -93,16 +106,21 @@ test("snapshots emit compact lines and current interactive references", async ()
 			text: "[3] checkbox Agree [checked=false]",
 			element_id: 3,
 		},
-		{ line: 4, text: "Hello world" },
+		{ line: 4, text: "[4] link 16 Sep", element_id: 4 },
+		{ line: 5, text: "Hello world" },
 	]);
 	assert.equal(refs.get(1), 41);
+	assert.equal(
+		result.elements.find((element) => element.id === 4)?.href,
+		"https://example.com/post",
+	);
 	const next = await snapshotData(cdp, "session", refs, {
 		responseLength: "short",
 	});
 	assert.deepEqual(
 		next.elements.map((element) => element.id),
-		[4, 5, 6],
+		[5, 6, 7, 8],
 	);
 	assert.equal(refs.has(1), false);
-	assert.equal(refs.get(4), 42);
+	assert.equal(refs.get(5), 42);
 });
