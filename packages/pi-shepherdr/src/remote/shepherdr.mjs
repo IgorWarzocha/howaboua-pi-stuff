@@ -11,7 +11,7 @@ import {
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 
-const BRIDGE_VERSION = 10;
+const BRIDGE_VERSION = 11;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
@@ -335,7 +335,7 @@ async function handle(message) {
 		}
 	}
 	if (message.op === "context_relay") {
-		const path = relayContextPath(message.threadId);
+		const path = relayContextPath(message.threadId, message.routeId);
 		if (!contextRelays.has(path))
 			contextRelays.set(path, await listenContext(path, requestController));
 		return path;

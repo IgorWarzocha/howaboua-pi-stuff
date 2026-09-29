@@ -14,7 +14,7 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 10;
+const BRIDGE_VERSION = 11;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
@@ -259,10 +259,11 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 
 	async startContextRelay(
 		threadId: string,
+		routeId: string,
 		handler: (request: unknown, signal: AbortSignal) => Promise<unknown>,
 	): Promise<void> {
 		this.contextHandler = handler;
-		const path = await this.call({ op: "context_relay", threadId });
+		const path = await this.call({ op: "context_relay", threadId, routeId });
 		if (typeof path !== "string")
 			throw new Error("Invalid shared context relay path");
 		this.relayPath = path;
@@ -271,7 +272,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	contextRelayPath(): string {
 		if (!this.relayPath)
 			throw new Error(
-				"Shared context relay is unavailable; reconnect the machine",
+				"Shared context relay is unavailable; run /herdr connect to retry",
 			);
 		return this.relayPath;
 	}
@@ -383,9 +384,11 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		const id = typeof message["id"] === "string" ? message["id"] : randomUUID();
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
-				this.disconnected(
-					new Error(`remote Shepherdr ${String(message["op"])} timed out`),
+				const error = new Error(
+					`remote Shepherdr ${String(message["op"])} timed out`,
 				);
+				if (message["op"] === "context_relay") this.rejectPending(id, error);
+				else this.disconnected(error);
 			}, timeoutMs);
 			timer.unref();
 			const abort = () => {

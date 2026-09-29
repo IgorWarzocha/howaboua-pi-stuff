@@ -17,11 +17,13 @@ function contextDirectory() {
 	);
 }
 
-/** @param {string} threadId */
-export function relayContextPath(threadId) {
+/** @param {string} threadId @param {string} routeId */
+export function relayContextPath(threadId, routeId) {
 	if (typeof threadId !== "string" || !/^[a-zA-Z0-9_-]+$/.test(threadId))
 		throw new Error("Invalid context thread ID");
-	return join(contextDirectory(), `relay-${threadId}.json`);
+	if (typeof routeId !== "string" || !/^[a-f0-9]{32}$/.test(routeId))
+		throw new Error("Invalid context route ID");
+	return join(contextDirectory(), `relay-${routeId}-${threadId}.json`);
 }
 
 /** @param {string} sessionFile */

@@ -145,7 +145,7 @@ export class SharedAgentContext {
 		if (!parent) return undefined;
 		if (
 			args.some((arg) =>
-				/^(?:--(?:session(?:-id|-dir)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(
+				/^(?:--(?:session(?:-id)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(
 					arg,
 				),
 			)
