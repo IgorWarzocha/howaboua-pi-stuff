@@ -22,14 +22,13 @@ const PI_DEFAULT_GUIDELINES = new Set([
 	"Show file paths clearly when working with files",
 ]);
 
-const EXEC_SESSION_GUIDELINE = "For unfinished exec_command sessions, use write_stdin with yield_time_ms near the command's expected remaining time and lengthen later waits";
+const RUNTIME_IDENTITY_GUIDELINE = "You are running in Pi with Codex-native tools";
 const FOLLOW_THROUGH_GUIDELINE = "Finish the requested work; ask only when missing information changes what you should do.";
 
 const NORMAL_CODEX_GUIDELINES = [
-	"Use exec_command for shell commands, file inspection, builds, and tests; use rg and rg --files for discovery; filter large output at the source",
+	"Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source",
 	"Reserve tty=true for input or persistent processes",
-	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
-	EXEC_SESSION_GUIDELINE,
+	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
 	"Run independent tool calls in parallel when practical",
 ];
 
@@ -55,7 +54,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
 	"Reserve tty=true for input or persistent processes",
-	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
+	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
 	"Run independent tool calls in parallel when practical",
 ]);
 
@@ -64,6 +63,7 @@ const REMOVED_GUIDELINES = new Set([
 ]);
 
 const ALL_STATIC_CODEX_GUIDELINES = [
+	RUNTIME_IDENTITY_GUIDELINE,
 	FOLLOW_THROUGH_GUIDELINE,
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
@@ -96,8 +96,7 @@ function buildCodexGuidelines(
 			active.has("exec_command") ? NORMAL_CODEX_GUIDELINES[0] : undefined,
 			active.has("exec_command") ? NORMAL_CODEX_GUIDELINES[1] : undefined,
 			active.has("apply_patch") ? NORMAL_CODEX_GUIDELINES[2] : undefined,
-			active.has("exec_command") && active.has("write_stdin") ? NORMAL_CODEX_GUIDELINES[3] : undefined,
-			NORMAL_CODEX_GUIDELINES[4],
+			NORMAL_CODEX_GUIDELINES[3],
 		].filter((guideline): guideline is string => guideline !== undefined);
 	} else {
 		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || active.has("notebook"));
@@ -105,7 +104,7 @@ function buildCodexGuidelines(
 			? [...(mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : CODE_MODE_GUIDELINES)]
 			: [];
 	}
-	guidelines.unshift(FOLLOW_THROUGH_GUIDELINE);
+	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE, FOLLOW_THROUGH_GUIDELINE);
 	if (piPackageRoot) {
 		guidelines.push(`Pi customization or integration: list ${piPackageRoot} before implementing`);
 	}

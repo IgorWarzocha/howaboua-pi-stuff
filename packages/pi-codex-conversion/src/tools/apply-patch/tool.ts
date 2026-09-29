@@ -25,7 +25,7 @@ import {
 
 const APPLY_PATCH_PARAMETERS = Type.Object({
 	input: Type.String({
-		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections. *** Move to: path must immediately follow its Update File header and still needs a nonempty @@ hunk; use one unchanged context line for a pure move. Order each file's hunks top-to-bottom; indentation is literal",
+		description: "*** Begin Patch / *** End Patch; Add/Update/Delete File sections. *** Move to: path immediately follows its Update File header; requires a nonempty @@ hunk (one unchanged context line for pure moves). Hunks follow file order; indentation is literal",
 	}),
 });
 

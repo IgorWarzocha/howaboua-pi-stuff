@@ -35,7 +35,7 @@ export function createContextWindowTools(
 			name: "new_context",
 			label: "new_context",
 			description:
-				"Start a new context window. Does not clear, reset, or otherwise affect environment state.",
+				"Start a new context window; environment state is unchanged",
 			parameters: EMPTY_PARAMETERS,
 			...newContextRenderers,
 			executionMode: "sequential",
@@ -72,7 +72,7 @@ export function createContextWindowTools(
 		{
 			name: "get_context_remaining",
 			label: "get_context_remaining",
-			description: "Get the remaining tokens in the current context window.",
+			description: "Remaining context tokens",
 			parameters: EMPTY_PARAMETERS,
 			...contextRemainingRenderers,
 			async execute(_id, _params, _signal, _update, ctx) {
