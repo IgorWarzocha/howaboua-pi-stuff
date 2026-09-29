@@ -1,5 +1,5 @@
-import { keyHint, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { Box, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { getMarkdownTheme, keyHint, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
+import { Box, Markdown, MouseRegion, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, projectToolkitUpdate } from "../adapter/code-mode/toolkit-updates.ts";
@@ -58,15 +58,15 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 
 	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
-	pi.registerMessageRenderer<{ title?: string }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded }, theme) =>
-		typeof message.content === "string" ? renderDeveloperNotice(message.content, expanded, theme,
-			typeof message.details?.title === "string" ? message.details.title : undefined) : undefined);
+	const renderNotice = createNoticeRenderer();
+	pi.registerMessageRenderer(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
+		typeof message.content === "string" ? renderNotice(message, message.content, expanded, theme, outputPad) : undefined);
 	// Toolkit entries already feed model context through projection. Render that
 	// same stored content without sending another message or queuing a turn.
 	pi.registerEntryRenderer(CODEX_TOOLKIT_UPDATE_TYPE, (entry, { expanded }, theme) => {
 		const message = projectToolkitUpdate(entry);
 		return message.type === "custom_message" && typeof message.content === "string"
-			? renderDeveloperNotice(message.content, expanded, theme) : undefined;
+			? renderNotice(entry, message.content, expanded, theme) : undefined;
 	});
 	const renderNativeCompaction = (
 		content: string,
@@ -164,14 +164,27 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 }
 
-function renderDeveloperNotice(content: string, expanded: boolean, theme: Theme, title = content.split(/\r?\n/, 1)[0] ?? "") {
-	return {
-		render(width: number) {
-			if (expanded) return new Text(theme.fg("customMessageText", content), 1, 0).render(width);
-			const hint = ` (${keyHint("app.tools.expand", "to expand")})`;
-			const summary = truncateToWidth(title, Math.max(1, width - 2 - visibleWidth(hint)));
-			return new Text(theme.fg("customMessageLabel", summary) + theme.fg("dim", hint), 1, 0).render(width);
-		},
-		invalidate() {},
+function createNoticeRenderer() {
+	// Pi recreates renderer output on invalidation. Preserve clicks until the next global toggle.
+	const expansion = new WeakMap<object, { globalExpanded: boolean; expanded: boolean }>();
+	return (key: object, content: string, expanded: boolean, theme: Theme, outputPad = 1) => {
+		const previous = expansion.get(key);
+		const state = previous && previous.globalExpanded === expanded ? previous : { globalExpanded: expanded, expanded };
+		expansion.set(key, state);
+		const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
+		const update = () => {
+			box.clear();
+			box.addChild(state.expanded
+				? new Markdown(content, 0, 0, getMarkdownTheme(), { color: (text) => theme.fg("customMessageText", text) })
+				: new Text(theme.fg("customMessageLabel", content.split(/\r?\n/, 1)[0] ?? "")
+					+ theme.fg("dim", ` (${keyHint("app.tools.expand", "to expand")})`), 0, 0));
+		};
+		update();
+		return new MouseRegion(box, (event) => {
+			if (event.type !== "click" || event.button !== "left") return undefined;
+			state.expanded = !state.expanded;
+			update();
+			return { handled: true };
+		});
 	};
 }
