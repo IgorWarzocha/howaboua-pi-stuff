@@ -9,7 +9,7 @@ const Stats = Type.Object({
 const Summary = Type.Object({ total: Stats, models: Type.Record(Type.String(), Stats) });
 const Spend = Type.Object({ at: number, model: Type.String(), stats: Stats });
 const Quota = Type.Object({ at: number, usedPercent: Type.Number({ minimum: 0, maximum: 100 }), usd: number });
-const HistoryCoverage = Type.Object({ sessions: number, skippedCopies: number, incompleteEntries: number, unattributedUsage: number, warnings: Type.Array(Type.String()) });
+const HistoryCoverage = Type.Object({ sessions: number, skippedCopies: number, incompleteEntries: number, unattributedUsage: number, unreadablePaths: Type.Optional(number), warnings: Type.Array(Type.String()) });
 const History = Type.Object({
 	from: number, to: number, windowStart: number, root: Type.String(), coverage: HistoryCoverage,
 });

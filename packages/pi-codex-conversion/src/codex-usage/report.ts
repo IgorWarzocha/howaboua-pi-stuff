@@ -111,6 +111,8 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 		lines.push("", ...formatUsageTable(["Model", "Spend", "Tokens", ...(showQuota ? ["Quota"] : [])], rows));
 	}
 	const status: string[] = [];
+	const unreadablePaths = report.history?.coverage.unreadablePaths ?? 0;
+	if (unreadablePaths) status.push(`${unreadablePaths} unreadable history ${unreadablePaths === 1 ? "path" : "paths"}`);
 	if (report.current && report.coverage.partialWindow) status.push("Partial window");
 	if (report.coverage.quotaStale) status.push("Quota unavailable");
 	if (report.coverage.unassignedUsd >= 0.005) status.push(`${money(report.coverage.unassignedUsd)} unassigned`);

@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { unlinkSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { importUsageHistory, scanUsageHistory } from "../src/codex-usage/backfill.ts";
+import { scanSessionUsage } from "../src/codex-usage/session-analysis.ts";
 import { parseCodexReserveStatus } from "../src/codex-usage/reserve-policy.ts";
 import { observeWeeklyUsage, recordSpend, usageAccount, WEEK_MS } from "../src/codex-usage/ledger.ts";
 import { emptyStats, parseUsageLedger, type UsageLedger } from "../src/codex-usage/ledger-schema.ts";
@@ -64,9 +66,29 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 		const rows = [entry("previous", start - hour, 4), entry("current", start + 1, 2, "renamed"), entry("live", start + hour, 10)].join("\n");
 		await writeFile(join(root, "original.jsonl"), rows);
 		await writeFile(join(root, "fork.jsonl"), rows);
+		let removed = "", scannedUsd = 0;
+		const coverage = await scanSessionUsage({ root, from: start - WEEK_MS, to: cutoff }, ({ path, stats }) => {
+			scannedUsd += stats.usd;
+			if (removed) return;
+			removed = path === join(root, "original.jsonl") ? join(root, "fork.jsonl") : join(root, "original.jsonl");
+			unlinkSync(removed);
+		});
+		assert.equal(scannedUsd, 6, "a disappearing copy does not discard healthy costs");
+		assert.equal(coverage.unreadablePaths, 1);
+		assert.match(coverage.warnings[0]!, /ENOENT/);
+		await writeFile(removed, rows);
 		const history = await scanUsageHistory(root, start - WEEK_MS, cutoff, start);
 		assert.equal(history.coverage.skippedCopies, 2);
 		assert.equal(history.total.total.usd, 6); // Request-start timestamps must not re-import live settlements.
+		const beforeFailedImport = JSON.stringify(account);
+		const emptyFailed = await scanUsageHistory(join(root, "missing"), start - WEEK_MS, cutoff, start);
+		assert.throws(() => importUsageHistory(account, emptyFailed, cutoff + 1), /refresh to retry/);
+		assert.equal(JSON.stringify(account), beforeFailedImport);
+		const partial = structuredClone(account);
+		importUsageHistory(partial, { ...history, coverage }, cutoff + 1);
+		assert.equal(partial.total.total.usd, 6);
+		assert.equal(partial.current?.partial, true);
+		assert.match(formatSpendReport(usageReport(partial, cutoff + 1)).join("\n"), /1 unreadable history path/);
 		const changedWindow = structuredClone(account);
 		observeWeeklyUsage(changedWindow, snapshot(cutoff + hour + WEEK_MS, 0), cutoff + 2 * hour);
 		const beforeImport = JSON.stringify(changedWindow);

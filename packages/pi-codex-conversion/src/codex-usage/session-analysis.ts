@@ -18,12 +18,21 @@ function statsFromUsage(value: unknown): SpendStats | undefined {
 	return { usd, input, output, cacheRead, cacheWrite, requests: 1, unpriced: usd === 0 && input + output + cacheRead + cacheWrite > 0 ? 1 : 0 };
 }
 
-async function* sessionFiles(root: string, from: number): AsyncGenerator<string> {
-	if ((await stat(root)).isFile()) { yield root; return; }
-	for (const entry of await readdir(root, { withFileTypes: true })) {
+async function* sessionFiles(root: string, from: number, unreadable: (path: string, error: unknown) => void): AsyncGenerator<string> {
+	let entries;
+	try {
+		if ((await stat(root)).isFile()) { yield root; return; }
+		entries = await readdir(root, { withFileTypes: true });
+	} catch (error) { unreadable(root, error); return; }
+	for (const entry of entries) {
 		const path = join(root, entry.name);
-		if (entry.isDirectory()) yield* sessionFiles(path, from);
-		else if (entry.isFile() && entry.name.endsWith(".jsonl") && (await stat(path)).mtimeMs >= from) yield path;
+		if (entry.isDirectory()) yield* sessionFiles(path, from, unreadable);
+		else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+			let modified;
+			try { modified = (await stat(path)).mtimeMs; }
+			catch (error) { unreadable(path, error); continue; }
+			if (modified >= from) yield path;
+		}
 	}
 }
 
@@ -33,12 +42,18 @@ interface SessionSpend extends CodexSpend { path: string; reasoning: string; rea
 export async function scanSessionUsage(options: SessionUsageOptions, visit: (spend: SessionSpend) => void) {
 	const seen = new Set<string>();
 	const sessions = new Set<string>();
-	let skippedCopies = 0, incompleteEntries = 0, unattributedUsage = 0;
+	let skippedCopies = 0, incompleteEntries = 0, unattributedUsage = 0, unreadablePaths = 0;
 	const warnings: string[] = [];
-	for await (const path of sessionFiles(options.root, options.from)) {
+	const unreadable = (path: string, error: unknown) => {
+		unreadablePaths++;
+		if (warnings.length < 10) warnings.push(`Cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`);
+	};
+	for await (const path of sessionFiles(options.root, options.from, unreadable)) {
 		const levels = new Map<string, string>();
 		const input = createReadStream(path, { encoding: "utf8" });
 		const lines = createInterface({ input, crlfDelay: Infinity });
+		let readError: Error | undefined;
+		input.on("error", (error) => { readError = error; lines.close(); });
 		let lineNumber = 0;
 		try {
 			for await (const line of lines) {
@@ -80,9 +95,12 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 				visit({ at, model, stats, path, reasoning, reasoningSource, nonstandard: source["provider"] !== "openai-codex" });
 				sessions.add(path);
 			}
+		} catch (error) {
+			if (!readError || error !== readError) throw error;
 		} finally { lines.close(); input.destroy(); }
+		if (readError) unreadable(path, readError);
 	}
-	return { sessions: sessions.size, skippedCopies, incompleteEntries, unattributedUsage, warnings };
+	return { sessions: sessions.size, skippedCopies, incompleteEntries, unattributedUsage, unreadablePaths, warnings };
 }
 
 export async function analyseSessions(options: SessionUsageOptions & { limit: number }) {
