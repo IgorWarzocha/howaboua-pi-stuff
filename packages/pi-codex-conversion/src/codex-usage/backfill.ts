@@ -40,7 +40,7 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 	if (!account.previous && !account.closed[previousKey]) {
 		account.closed[previousKey] = {
 			start: history.from, end: history.windowStart, expectedReset: history.windowStart, source: "session-history", reason: "backfill",
-			closedAt: at, partial: history.previous.total.requests === 0 || history.coverage.incompleteEntries > 0,
+			closedAt: at, partial: history.previous.total.requests === 0 || history.coverage.incompleteEntries > 0 || history.coverage.unattributedUsage > 0,
 			approximate: true, summary: history.previous,
 		};
 		account.previous = previousKey;
@@ -55,7 +55,7 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 	}
 	account.recent.sort((a, b) => a.at - b.at);
 	if (history.recent.length) current.approximate = true;
-	current.partial = history.coverage.incompleteEntries > 0 || account.recordingGaps > 0 || current.summary.total.requests === 0;
+	current.partial = history.coverage.incompleteEntries > 0 || history.coverage.unattributedUsage > 0 || account.recordingGaps > 0 || current.summary.total.requests === 0;
 	if (current.quota) {
 		current.quota.usd += currentUsd;
 		if (current.quota.usd > 0 && current.quota.usedPercent > 0) current.quotaPerUsd ??= current.quota.usedPercent / current.quota.usd;
