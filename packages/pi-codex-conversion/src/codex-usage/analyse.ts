@@ -26,6 +26,7 @@ history: bounded session aggregates for one-time bootstrap; prints JSON without 
 --account accepts an exact hashed key; omitted selects all accounts separately
 
 Ledger scope: local requests recorded by Pi-Codex, including native compaction and generated keepalive.
+Matches openai-codex-responses regardless of provider name. Nonstandard configurations may produce inaccurate values; aggregator billing is not reconciled.
 On first viewing Usage, local sessions bootstrap the current window and an approximate previous week.
 Only entries settled before tracking began are imported. Later views read persisted aggregates.
 Historical account identity is unverified; local history attaches once to the first viewed account.

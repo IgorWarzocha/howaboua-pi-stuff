@@ -27,6 +27,7 @@ import { isContextWindowCompactionDetails } from "../context-management/messages
 import { hasTreeArchives } from "../context-management/tree-archive.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
+import { recordCodexProxyMessage } from "../codex-usage/ledger-store.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
@@ -228,13 +229,14 @@ export function registerCodexEvents(
 			runtime.voice.piUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
-	pi.on("message_end", async (event) => {
+	pi.on("message_end", async (event, ctx) => {
 		if (event.message.role === "assistant") {
 			runtime.voice.finishAgentMessage(
 				event.message,
 				state.config.voice.forwardReasoningSummaries,
 			);
 			runtime.lanVoice.assistantMessage(event.message);
+			await recordCodexProxyMessage(event.message, ctx.modelRegistry);
 		}
 	});
 	pi.on("turn_end", (event, ctx) => {

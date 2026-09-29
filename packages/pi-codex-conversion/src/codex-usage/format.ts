@@ -2,6 +2,7 @@ import type { CodexUsageLimit, CodexUsageSnapshot, CodexUsageWindow } from "./pa
 import { CODEX_RESERVE_MODEL } from "./reserve-policy.ts";
 
 export const CODEX_RESERVE_USAGE_NOTE = "Luna Reserve: separate, limited allowance after ordinary quota runs out; availability is backend-controlled.";
+export const NONSTANDARD_CODEX_USAGE_WARNING = "Non-standard OpenAI Codex subscription configuration; usage values may be inaccurate.";
 
 export function codexUsageLimitName(limit: CodexUsageLimit): string {
 	const name = limit.limitName ?? limit.limitId;

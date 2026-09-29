@@ -28,7 +28,7 @@ async function* sessionFiles(root: string, from: number): AsyncGenerator<string>
 }
 
 interface SessionUsageOptions { root: string; from: number; to: number; model?: string | undefined }
-interface SessionSpend extends CodexSpend { path: string; reasoning: string; reasoningSource: string }
+interface SessionSpend extends CodexSpend { path: string; reasoning: string; reasoningSource: string; nonstandard: boolean }
 
 export async function scanSessionUsage(options: SessionUsageOptions, visit: (spend: SessionSpend) => void) {
 	const seen = new Set<string>();
@@ -64,7 +64,7 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 				if (!Number.isFinite(at) || at < options.from || at >= options.to) continue;
 				if (!source) { if (entry["usage"]) unattributedUsage++; continue; }
 				if (message && message["api"] !== "openai-codex-responses") continue;
-				if (!message && source["provider"] !== "openai-codex") { unattributedUsage++; continue; }
+				if (!message && source["api"] !== "openai-codex-responses" && source["provider"] !== "openai-codex") { unattributedUsage++; continue; }
 				const model = source["model"];
 				if (typeof model !== "string" || typeof id !== "string") { incompleteEntries++; continue; }
 				if (options.model && model !== options.model) continue;
@@ -77,7 +77,7 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 				const exactLevel = source["providerThinkingLevel"];
 				const reasoning = typeof exactLevel === "string" ? exactLevel : message && level ? level : "unknown";
 				const reasoningSource = typeof exactLevel === "string" ? "provider" : message && level ? "session-setting" : "unknown";
-				visit({ at, model, stats, path, reasoning, reasoningSource });
+				visit({ at, model, stats, path, reasoning, reasoningSource, nonstandard: source["provider"] !== "openai-codex" });
 				sessions.add(path);
 			}
 		} finally { lines.close(); input.destroy(); }
@@ -88,7 +88,9 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 export async function analyseSessions(options: SessionUsageOptions & { limit: number }) {
 	const groups = new Map<string, { model: string; reasoning: string; reasoningSource: string; stats: SpendStats }>();
 	const sessions = new Map<string, SpendStats>();
-	const coverage = await scanSessionUsage(options, ({ model, reasoning, reasoningSource, stats, path }) => {
+	let nonstandard = false;
+	const coverage = await scanSessionUsage(options, ({ model, reasoning, reasoningSource, stats, path, nonstandard: custom }) => {
+		nonstandard ||= custom;
 		const key = JSON.stringify([model, reasoning, reasoningSource]);
 		const group = groups.get(key) ?? { model, reasoning, reasoningSource, stats: emptyStats() };
 		const session = sessions.get(path) ?? emptyStats();
@@ -101,6 +103,7 @@ export async function analyseSessions(options: SessionUsageOptions & { limit: nu
 	});
 	return {
 		from: new Date(options.from).toISOString(), toExclusive: new Date(options.to).toISOString(),
+		nonstandard,
 		scope: "Local Codex session entries, not account-isolated. Independent of the ledger; do not add these totals to it.",
 		groups: [...groups.values()].sort((a, b) => b.stats.usd - a.stats.usd),
 		sessions: [...sessions].map(([path, stats]) => ({ path, stats })).sort((a, b) => b.stats.usd - a.stats.usd).slice(0, options.limit),

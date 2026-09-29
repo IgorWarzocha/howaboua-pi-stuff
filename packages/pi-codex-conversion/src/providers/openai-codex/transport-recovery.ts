@@ -310,7 +310,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						finalizeUsage(output);
 						assertSuccessfulCodexOutput(output);
 						recordUsage(diagnostics, lane, "websocket", output);
-						await deps.recordUsage?.(accountId, body.model, output.usage);
+						await deps.recordUsage?.(accountId, { ...model, id: body.model }, output.usage);
 						stream.push({ type: "done", reason: output.stopReason, message: output });
 						stream.end();
 						return;
@@ -423,7 +423,7 @@ export function createCodexTransportStream<TApi extends Api>(
 					if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
 					assertSuccessfulCodexOutput(output);
 					recordUsage(diagnostics, lane, "sse", output);
-					await deps.recordUsage?.(accountId, body.model, output.usage);
+					await deps.recordUsage?.(accountId, { ...model, id: body.model }, output.usage);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
 					if (!effectiveOptions?.canonicalCompaction) recordCanonicalSessionResponse({
 						sessionId: effectiveOptions?.sessionId,

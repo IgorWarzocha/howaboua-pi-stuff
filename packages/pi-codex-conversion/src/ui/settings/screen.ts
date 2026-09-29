@@ -265,7 +265,7 @@ export async function openCodexSettingsScreen(
 					rule(width, theme, "accent"),
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
-					...(activeTab === "usage" ? usageTab.render(theme) : []),
+					...(activeTab === "usage" ? usageTab.render(theme, width) : []),
 					...(activeTab === "about" ? renderAboutTab(theme) : []),
 					...(activeTab === "voice"
 						? formatVoiceStatus(theme, options.lanVoiceServer?.status())

@@ -15,6 +15,7 @@ const History = Type.Object({
 });
 const HistoryScan = Type.Object({
 	...History.properties, total: Summary, months: Type.Record(Type.String(), Summary), previous: Summary, recent: Type.Array(Spend),
+	nonstandard: Type.Optional(Type.Boolean()),
 });
 const Period = Type.Object({
 	start: number, expectedReset: number,
@@ -31,6 +32,7 @@ const ClosedPeriod = Type.Object({
 });
 const Account = Type.Object({
 	since: number, total: Summary, months: Type.Record(Type.String(), Summary),
+	nonstandard: Type.Optional(Type.Boolean()),
 	recent: Type.Array(Spend), current: Type.Optional(Period),
 	closed: Type.Record(Type.String(), ClosedPeriod), previous: Type.Optional(Type.String()),
 	unassignedUsd: number, missingWeeklyObservations: number, recordingGaps: number,

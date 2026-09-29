@@ -38,6 +38,10 @@ export function isCanonicalCodexSubscriptionModel(
 		&& isCanonicalCodexBaseUrl(model.baseUrl));
 }
 
+export function isStandardCodexSubscriptionModel(model: Partial<CodexLikeModelDescriptor> | null | undefined): boolean {
+	return model?.provider === "openai-codex" && isCanonicalCodexSubscriptionModel(model);
+}
+
 export function isCodexTransportModel(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {

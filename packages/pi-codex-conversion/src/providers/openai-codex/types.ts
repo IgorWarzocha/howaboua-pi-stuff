@@ -150,7 +150,7 @@ export type CodexDiagnosticsEvent =
 
 export type CodexDiagnosticsSink = (event: CodexDiagnosticsEvent) => void;
 
-export type CodexUsageRecorder = (accountId: string, model: string, usage: AssistantMessage["usage"]) => Promise<void>;
+export type CodexUsageRecorder = (accountId: string, model: Model<Api>, usage: AssistantMessage["usage"]) => Promise<void>;
 
 export interface CachedWebSocketRequestBodyResult {
 	body: ResponsesBody;

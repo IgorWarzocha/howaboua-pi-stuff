@@ -55,12 +55,12 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 	observeWeeklyUsage(account, snapshot(start + WEEK_MS, 0), cutoff);
 	const root = await mkdtemp(join(tmpdir(), "codex-usage-"));
 	try {
-		const entry = (id: string, at: number, usd: number) => JSON.stringify({
+		const entry = (id: string, at: number, usd: number, provider = "openai-codex") => JSON.stringify({
 			type: "message", id, timestamp: new Date(at).toISOString(),
-			message: { role: "assistant", api: "openai-codex-responses", provider: "openai-codex", model: "model-a", timestamp: start,
+			message: { role: "assistant", api: "openai-codex-responses", provider, model: "model-a", timestamp: start,
 				usage: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, cost: { total: usd } } },
 		});
-		const rows = [entry("previous", start - hour, 4), entry("current", start + 1, 2), entry("live", start + hour, 10)].join("\n");
+		const rows = [entry("previous", start - hour, 4), entry("current", start + 1, 2, "renamed"), entry("live", start + hour, 10)].join("\n");
 		await writeFile(join(root, "original.jsonl"), rows);
 		await writeFile(join(root, "fork.jsonl"), rows);
 		const history = await scanUsageHistory(root, start - WEEK_MS, cutoff, start);
@@ -83,6 +83,7 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 	assert.equal(historyWindow.summary.total.usd, 4);
 	assert.equal(historyWindow.approximate, true);
 	assert.equal(account.history?.accountIdentity, "unverified");
+	assert.equal(account.nonstandard, true);
 	const frozenHistory = JSON.stringify(historyWindow);
 	spend(start + hour, 10, "model-a");
 	observeWeeklyUsage(account, snapshot(start + WEEK_MS, 10), start + 2 * hour);

@@ -80,6 +80,8 @@ Open tabs directly with `/codex tools`, `/codex openai`, `/codex display`, `/cod
 
 `/codex usage` shows recorded API-equivalent spend, per-model tokens and estimated quota shares. Spend-rate comparisons use the previous reset window and previous calendar month. `/codex usage analyse` asks your agent to inspect longer-term trends and reasoning levels through a bundled read-only Node script.
 
+Tracking matches the `openai-codex-responses` API, including renamed providers. The standard setup is `openai-codex` on ChatGPT's subscription endpoint. Renamed providers and custom endpoints show an accuracy warning; the warning also remains on totals containing their recorded usage. Usage and reset requests follow the configured endpoint and headers. Proxies must expose the Codex subscription usage API and account-bearing authentication; unsupported endpoints report an error. Aggregator routing and billing are not reconciled.
+
 On first viewing Usage, a background scan imports recorded session costs for the current window and an approximate previous week. Earlier manual reset times cannot be recovered; analysis reports retain the window provenance. Session files lack reliable account identity: local history attaches once to the first viewed account. Missing or unsaved calls cannot be recovered.
 
 Totals persist in `codex-usage.json` in Pi's agent directory, with no conversation content. Later views read running aggregates without rescanning sessions. New tracking is account-separated and includes local Codex responses, native compaction and generated cache keepalive. Other apps, devices and separately implemented tool requests are not included.

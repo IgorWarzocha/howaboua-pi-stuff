@@ -1,6 +1,7 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { matchesKey } from "@earendil-works/pi-tui";
-import { CODEX_RESERVE_USAGE_NOTE, codexUsageLimitName, formatUsageTable } from "../../codex-usage/format.ts";
+import { matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { CODEX_RESERVE_USAGE_NOTE, codexUsageLimitName, formatUsageTable, NONSTANDARD_CODEX_USAGE_WARNING } from "../../codex-usage/format.ts";
+import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/codex-model.ts";
 import { captureSpendReport, readSpendReport } from "../../codex-usage/report.ts";
 import { recordCodexManualReset } from "../../codex-usage/ledger-store.ts";
 import {
@@ -23,13 +24,14 @@ export interface UsageTabOptions {
 export interface UsageTabController {
 	ensureLoaded(): void;
 	handleInput(data: string): boolean;
-	render(theme: Theme): string[];
+	render(theme: Theme, width: number): string[];
 }
 
 export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, render: () => void, signal: AbortSignal): UsageTabController {
 	const requestRender = () => { if (!signal.aborted) render(); };
 	let usageState = options.initialUsage;
 	let spendLines: string[] = [];
+	let nonstandard = ctx.model?.api === "openai-codex-responses" && !isStandardCodexSubscriptionModel(ctx.model);
 	let usageLoading = false;
 	let resetLoading = false;
 	let resetLockedUntilRefresh = false;
@@ -40,7 +42,8 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 		if (usageLoading || signal.aborted) return;
 		usageLoading = true;
 		requestRender();
-		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx, (key) => {
+		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx, (key, custom) => {
+			nonstandard = custom;
 			spendLines = readSpendReport(key);
 			requestRender();
 		})))()
@@ -103,8 +106,12 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 			}
 			return false;
 		},
-		render(theme) {
-			return formatUsageLines(theme, usageState, usageLoading, resetLoading, resetLockedUntilRefresh, resetMessage, spendLines);
+		render(theme, width) {
+			const warning = nonstandard || (usageState && !("error" in usageState) && usageState.nonstandard) || spendLines.includes(NONSTANDARD_CODEX_USAGE_WARNING);
+			return [
+				...(warning ? [...wrapTextWithAnsi(NONSTANDARD_CODEX_USAGE_WARNING, Math.max(1, width - 2)).map((line) => theme.fg("warning", `  ${line}`)), ""] : []),
+				...formatUsageLines(theme, usageState, usageLoading, resetLoading, resetLockedUntilRefresh, resetMessage, spendLines.filter((line) => line !== NONSTANDARD_CODEX_USAGE_WARNING)),
+			];
 		},
 	};
 }

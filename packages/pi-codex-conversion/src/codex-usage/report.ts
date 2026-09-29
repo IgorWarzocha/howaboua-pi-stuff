@@ -1,5 +1,5 @@
 import { backfillUsage } from "./backfill.ts";
-import { formatUsageTable } from "./format.ts";
+import { formatUsageTable, NONSTANDARD_CODEX_USAGE_WARNING } from "./format.ts";
 import { estimatedQuota } from "./ledger.ts";
 import type { UsageAccount } from "./ledger-schema.ts";
 import { readUsageLedger, recordCodexQuota, usageRecordingError } from "./ledger-store.ts";
@@ -60,6 +60,7 @@ export function usageReport(account: UsageAccount, now = Date.now()) {
 	const quota = current && !current.partial && !quotaStale ? estimatedQuota(current) : undefined;
 	return {
 		since: account.since,
+		nonstandard: account.nonstandard === true,
 		history: account.history,
 		lifetime: account.total.total,
 		current,
@@ -115,5 +116,6 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 	if (report.coverage.unpricedRequests) status.push("Missing prices");
 	if (report.coverage.recordingGaps) status.push("Recording gaps");
 	if (status.length) lines.push("", status.join(" · "));
+	if (report.nonstandard) lines.push("", NONSTANDARD_CODEX_USAGE_WARNING);
 	return lines;
 }

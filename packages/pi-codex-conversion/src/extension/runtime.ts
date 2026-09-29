@@ -250,7 +250,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				try {
 					const result = await transportSettlement;
 					if (generate && result?.usage) {
-						await recordUsage?.(extractAccountId(auth.apiKey), model.id, priceGeneratedPrewarm(model, result.usage, options.serviceTier));
+						await recordUsage?.(extractAccountId(auth.apiKey), requestModel, priceGeneratedPrewarm(model, result.usage, options.serviceTier));
 					}
 					if (controller.signal.aborted) return { status: "aborted" } as const;
 					if (!result) return { status: "skipped" } as const;

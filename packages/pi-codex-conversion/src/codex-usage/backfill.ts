@@ -13,7 +13,9 @@ export async function scanUsageHistory(root: string, from: number, to: number, w
 	const total = emptySummary(), previous = emptySummary();
 	const months: UsageHistoryScan["months"] = {};
 	const recent: UsageHistoryScan["recent"] = [];
-	const coverage = await scanSessionUsage({ root, from, to }, ({ at, model, stats }) => {
+	let nonstandard = false;
+	const coverage = await scanSessionUsage({ root, from, to }, ({ at, model, stats, nonstandard: custom }) => {
+		nonstandard ||= custom;
 		const spend = { at, model, stats };
 		addSpend(total, spend);
 		addSpend(months[new Date(at).toISOString().slice(0, 7)] ??= emptySummary(), spend);
@@ -21,7 +23,7 @@ export async function scanUsageHistory(root: string, from: number, to: number, w
 		else recent.push(spend);
 	});
 	recent.sort((a, b) => a.at - b.at);
-	return { from, to, windowStart, root, total, months, previous, recent, coverage };
+	return { from, to, windowStart, root, total, months, previous, recent, coverage, ...(nonstandard ? { nonstandard } : {}) };
 }
 
 export function importUsageHistory(account: UsageAccount, history: UsageHistoryScan, at: number): void {
@@ -30,6 +32,7 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 	const current = account.current;
 	if (!current) throw new Error("A weekly observation is required before importing history.");
 	if (current.start !== history.windowStart) throw new Error("Reset window changed during history import; refresh to retry.");
+	if (history.nonstandard) account.nonstandard = true;
 	addSummary(account.total, history.total);
 	for (const [month, summary] of Object.entries(history.months)) addSummary(account.months[month] ??= emptySummary(), summary);
 	let unassignedUsd = history.previous.total.usd;

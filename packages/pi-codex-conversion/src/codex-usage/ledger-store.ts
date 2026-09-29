@@ -2,8 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import type { Usage } from "@earendil-works/pi-ai";
+import { getAgentDir, type ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { Api, AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
+import { isStandardCodexSubscriptionModel } from "../adapter/prompt/codex-model.ts";
+import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import { observeWeeklyUsage, recordSpend, usageAccount } from "./ledger.ts";
 import { parseUsageLedger, type UsageAccount, type UsageLedger } from "./ledger-schema.ts";
 import type { CodexUsageSnapshot } from "./payload.ts";
@@ -23,6 +25,12 @@ export function readUsageLedger(path = usageLedgerPath()): UsageLedger {
 }
 
 export function usageRecordingError(): string | undefined { return lastWriteError; }
+
+function reportRecordingError(error: unknown): void {
+	const message = `Codex usage recording failed: ${error instanceof Error ? error.message : String(error)}`;
+	if (message !== lastWriteError) console.warn(message);
+	lastWriteError = message;
+}
 
 async function acquireLock(path: string): Promise<number> {
 	const deadline = Date.now() + 2_000;
@@ -76,24 +84,43 @@ async function recordSafely(key: string, at: number, update: (account: UsageAcco
 	}
 	catch (error) {
 		pendingGaps.set(key, (pendingGaps.get(key) ?? 0) + 1);
-		const message = `Codex usage recording failed: ${error instanceof Error ? error.message : String(error)}`;
-		if (message !== lastWriteError) console.warn(message);
-		lastWriteError = message;
+		reportRecordingError(error);
 	}
 }
 
-export async function recordCodexSpend(accountId: string, model: string, usage: Usage, at = Date.now()): Promise<void> {
-	await recordSafely(usageAccountKey(accountId), at, (account) => recordSpend(account, {
-		at, model,
-		stats: {
-			usd: usage.cost.total, input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite,
-			requests: 1, unpriced: usage.cost.total === 0 ? 1 : 0,
-		},
-	}));
+export async function recordCodexSpend(accountId: string, model: Model<Api>, usage: Usage, at = Date.now()): Promise<void> {
+	await recordSafely(usageAccountKey(accountId), at, (account) => {
+		if (!isStandardCodexSubscriptionModel(model)) account.nonstandard = true;
+		recordSpend(account, {
+			at, model: model.id,
+			stats: {
+				usd: usage.cost.total, input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite,
+				requests: 1, unpriced: usage.cost.total === 0 ? 1 : 0,
+			},
+		});
+	});
 }
 
 export async function recordCodexQuota(snapshot: CodexUsageSnapshot, at = Date.now()): Promise<void> {
-	if (snapshot.accountKey) await recordSafely(snapshot.accountKey, at, (account) => observeWeeklyUsage(account, snapshot, at));
+	if (snapshot.accountKey) await recordSafely(snapshot.accountKey, at, (account) => {
+		if (snapshot.nonstandard) account.nonstandard = true;
+		observeWeeklyUsage(account, snapshot, at);
+	});
+}
+
+export async function recordCodexProxyMessage(message: AssistantMessage, registry: ModelRegistry): Promise<void> {
+	// Native responses, compaction and keepalive already record inside the Codex transport.
+	if (message.api !== "openai-codex-responses" || message.provider === "openai-codex"
+		|| message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "pending") return;
+	const at = Date.now();
+	try {
+		const model = registry.find(message.provider, message.model);
+		if (!model) throw new Error(`Model unavailable: ${message.provider}/${message.model}`);
+		const auth = await registry.getApiKeyAndHeaders(model);
+		if (!auth.ok) throw new Error(auth.error);
+		const accountId = extractAccountId(auth.apiKey ?? "");
+		await recordCodexSpend(accountId, auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model, message.usage, at);
+	} catch (error) { reportRecordingError(error); }
 }
 
 export async function recordCodexManualReset(key: string): Promise<void> {

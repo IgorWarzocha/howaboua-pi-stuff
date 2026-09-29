@@ -24,6 +24,8 @@ import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS, CONTINUITY_LABELS } from "./config-items-context.ts";
 import { captureSpendReport } from "../../codex-usage/report.ts";
 import { startUsageAnalysis } from "../../codex-usage/analyse.ts";
+import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/codex-model.ts";
+import { NONSTANDARD_CODEX_USAGE_WARNING } from "../../codex-usage/format.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server", "voice setup"] as const;
 const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS, "usage analyse"];
@@ -116,13 +118,16 @@ export function registerCodexCommand(
 					import("../../codex-usage/client.ts"),
 					import("../../codex-usage/format.ts"),
 				]);
+				let nonstandard = ctx.model?.api === "openai-codex-responses" && !isStandardCodexSubscriptionModel(ctx.model);
 				try {
-					const usage = await fetchCodexUsage(ctx);
-					ctx.ui.notify([...(await captureSpendReport(usage, {
+					const usage = await fetchCodexUsage(ctx, (_key, custom) => { nonstandard = custom; });
+					const lines = await captureSpendReport(usage, {
 						sessionDir: ctx.sessionManager.getSessionDir(), signal: ctx.signal,
-					})), "", formatCodexUsage(usage)].join("\n"), "info");
+					});
+					if (nonstandard && !lines.includes(NONSTANDARD_CODEX_USAGE_WARNING)) lines.unshift(NONSTANDARD_CODEX_USAGE_WARNING, "");
+					ctx.ui.notify([...lines, "", formatCodexUsage(usage)].join("\n"), "info");
 				} catch (error) {
-					ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+					ctx.ui.notify([...(nonstandard ? [NONSTANDARD_CODEX_USAGE_WARNING] : []), error instanceof Error ? error.message : String(error)].join("\n"), "error");
 				}
 				return;
 			}
