@@ -23,7 +23,7 @@ import { applyResponsesLiteWebSocketMetadata } from "./responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, normalizeTimeoutMs, parseSSE, sleep } from "./sse.ts";
 import { assertSuccessfulCodexOutput, CodexProtocolError, codexOverloadRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./stream-events.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState, withCodexTurnState, withCodexTurnStateHeader } from "./turn-state.ts";
-import type { BeforeCodexRequestSend, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
+import type { BeforeCodexRequestSend, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, CodexUsageRecorder, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import { createInitialAssistantMessage } from "./types.ts";
 import { finalizeUsage } from "./usage.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./websocket.ts";
@@ -42,6 +42,7 @@ export interface CodexTransportRecoveryDependencies {
 	beforeRequestSend?: BeforeCodexRequestSend | undefined;
 	onStreamSettled?: () => void | undefined;
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+	recordUsage?: CodexUsageRecorder | undefined;
 	prepareRequestBody: <TApi extends Api>(
 		model: Model<TApi>,
 		context: TranscriptContext,
@@ -309,6 +310,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						finalizeUsage(output);
 						assertSuccessfulCodexOutput(output);
 						recordUsage(diagnostics, lane, "websocket", output);
+						await deps.recordUsage?.(accountId, body.model, output.usage);
 						stream.push({ type: "done", reason: output.stopReason, message: output });
 						stream.end();
 						return;
@@ -421,6 +423,7 @@ export function createCodexTransportStream<TApi extends Api>(
 					if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
 					assertSuccessfulCodexOutput(output);
 					recordUsage(diagnostics, lane, "sse", output);
+					await deps.recordUsage?.(accountId, body.model, output.usage);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
 					if (!effectiveOptions?.canonicalCompaction) recordCanonicalSessionResponse({
 						sessionId: effectiveOptions?.sessionId,

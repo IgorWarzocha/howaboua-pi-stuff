@@ -19,7 +19,7 @@ import { CODEX_RESERVE_MODEL } from "../codex-usage/reserve-policy.ts";
 import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
-import type { BeforeCodexRequestSend, CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
+import type { BeforeCodexRequestSend, CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, CodexProviderStreamOptions, CodexUsageRecorder, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { codexCacheKeepaliveSocketSessionId, prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
@@ -160,6 +160,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 	beforeRequestSend?: BeforeCodexRequestSend | undefined;
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+	recordUsage?: CodexUsageRecorder | undefined;
 }): void {
 	const streamSimple = (model: Model<Api>, context: TranscriptContext, streamOptions?: CodexProviderStreamOptions) => {
 		const stream = createCodexTransportStream(model, context, streamOptions, {
@@ -170,6 +171,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
 			...(options.beforeRequestSend ? { beforeRequestSend: options.beforeRequestSend } : {}),
 			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
+			...(options.recordUsage ? { recordUsage: options.recordUsage } : {}),
 		});
 		return hasContextNamespaceRouters(context)
 			? routeContextNamespaceToolStream(stream)

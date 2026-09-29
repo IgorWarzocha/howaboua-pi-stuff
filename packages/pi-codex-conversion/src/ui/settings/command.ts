@@ -22,10 +22,12 @@ import type { CodexLanVoiceServerController } from "../../voice/lan/controller.t
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS, CONTINUITY_LABELS } from "./config-items-context.ts";
+import { captureSpendReport } from "../../codex-usage/report.ts";
+import { startUsageAnalysis } from "../../codex-usage/analyse.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server", "voice setup"] as const;
-const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
-const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage|about]";
+const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS, "usage analyse"];
+const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage [analyse]|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -115,7 +117,8 @@ export function registerCodexCommand(
 					import("../../codex-usage/format.ts"),
 				]);
 				try {
-					ctx.ui.notify(formatCodexUsage(await fetchCodexUsage(ctx)), "info");
+					const usage = await fetchCodexUsage(ctx);
+					ctx.ui.notify([...(await captureSpendReport(usage)), "", formatCodexUsage(usage)].join("\n"), "info");
 				} catch (error) {
 					ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 				}
@@ -204,6 +207,10 @@ export function registerCodexCommand(
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
 			const arg = args.trim().toLowerCase();
+			if (arg === "usage analyse") {
+				await startUsageAnalysis(pi, ctx);
+				return;
+			}
 
 			if (arg === "voice setup") {
 				await ctx.waitForIdle();

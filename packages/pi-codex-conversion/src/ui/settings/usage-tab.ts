@@ -1,6 +1,8 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey } from "@earendil-works/pi-tui";
 import { CODEX_RESERVE_USAGE_NOTE, codexUsageLimitName } from "../../codex-usage/format.ts";
+import { captureSpendReport, readSpendReport } from "../../codex-usage/report.ts";
+import { recordCodexManualReset } from "../../codex-usage/ledger-store.ts";
 import {
 	consumeCodexRateLimitResetCredit,
 	createCodexRateLimitResetRedeemRequestId,
@@ -26,6 +28,7 @@ export interface UsageTabController {
 
 export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, requestRender: () => void): UsageTabController {
 	let usageState = options.initialUsage;
+	let spendLines: string[] = [];
 	let usageLoading = false;
 	let resetLoading = false;
 	let resetLockedUntilRefresh = false;
@@ -36,9 +39,13 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 		if (usageLoading) return;
 		usageLoading = true;
 		requestRender();
-		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx)))()
-			.then((usage) => {
+		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx, (key) => {
+			spendLines = readSpendReport(key);
+			requestRender();
+		})))()
+			.then(async (usage) => {
 				usageState = usage;
+				spendLines = await captureSpendReport(usage);
 				if (unlockReset) {
 					resetLockedUntilRefresh = false;
 					resetRedeemRequestId = undefined;
@@ -61,9 +68,11 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 		resetMessage = undefined;
 		resetRedeemRequestId ??= createCodexRateLimitResetRedeemRequestId();
 		const redeemRequestId = resetRedeemRequestId;
+		const accountKey = usageState && !("error" in usageState) ? usageState.accountKey : undefined;
 		requestRender();
 		(options.onConsumeResetCredit ?? ((id) => consumeCodexRateLimitResetCredit(ctx, id)))(redeemRequestId)
-			.then((result) => {
+			.then(async (result) => {
+				if (result.outcome === "reset" && accountKey) await recordCodexManualReset(accountKey);
 				resetMessage = { kind: result.outcome === "reset" || result.outcome === "already_redeemed" ? "info" : "error", text: formatResetConsumeResult(result) };
 				resetLockedUntilRefresh = true;
 				resetRedeemRequestId = undefined;
@@ -90,14 +99,14 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 			return false;
 		},
 		render(theme) {
-			return formatUsageLines(theme, usageState, usageLoading, resetLoading, resetLockedUntilRefresh, resetMessage);
+			return formatUsageLines(theme, usageState, usageLoading, resetLoading, resetLockedUntilRefresh, resetMessage, spendLines);
 		},
 	};
 }
 
-function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error: string } | undefined, loading: boolean, resetLoading: boolean, resetLockedUntilRefresh: boolean, resetMessage: { kind: "info" | "error"; text: string } | undefined): string[] {
-	if (!usageState) return [theme.fg("dim", "  Loading Codex usage…")];
-	if ("error" in usageState) return [theme.fg("error", `  ${usageState.error}`), theme.fg("dim", "  Press R to retry.")];
+function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error: string } | undefined, loading: boolean, resetLoading: boolean, resetLockedUntilRefresh: boolean, resetMessage: { kind: "info" | "error"; text: string } | undefined, spendLines: string[]): string[] {
+	if (!usageState) return [...spendLines.map((line) => `  ${line}`), theme.fg("dim", "  Loading Codex usage…")];
+	if ("error" in usageState) return [...spendLines.map((line) => `  ${line}`), theme.fg("error", `  ${usageState.error}`), theme.fg("dim", "  Press R to retry.")];
 
 	const rows = usageState.limits.map((limit) => {
 		const primary = usageColumns(limit.primary);
@@ -108,6 +117,8 @@ function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error
 	const widths = columnWidths([headers, ...rows]);
 	return [
 		`  ${theme.bold(`Codex usage${usageState.planType ? ` · ${usageState.planType}` : ""}`)}${loading ? theme.fg("dim", "  refreshing…") : ""}`,
+		...spendLines.map((line) => `  ${line}`),
+		...(spendLines.length ? ["", theme.fg("dim", "  /codex usage analyse for history and reasoning breakdowns"), ""] : []),
 		...formatResetCreditLines(theme, usageState, resetLoading, resetLockedUntilRefresh, resetMessage),
 		"",
 		formatUsageRow(headers.map((header) => theme.fg("dim", header)), widths),

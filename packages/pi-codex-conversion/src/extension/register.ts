@@ -11,11 +11,12 @@ import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { hasCodexTransportConfigChanged, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
+import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
-	const runtime = createCodexExtensionRuntime(pi);
+	const runtime = createCodexExtensionRuntime(pi, recordCodexSpend);
 	runtime.state.contextTree.register(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
@@ -26,6 +27,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
 			beforeRequestSend: runtime.beforeRequestSend,
+			recordUsage: recordCodexSpend,
 		});
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames, runtime.beforeRequestSend);
 		cleanupProxyProvider = proxyProvider;

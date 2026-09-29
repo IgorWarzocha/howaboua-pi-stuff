@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCodexReserveStatus } from "../src/codex-usage/reserve-policy.ts";
+import { observeWeeklyUsage, recordSpend, usageAccount, WEEK_MS } from "../src/codex-usage/ledger.ts";
+import { emptyStats, parseUsageLedger, type UsageLedger } from "../src/codex-usage/ledger-schema.ts";
 import {
 	codexUsageStatus,
 	parseCodexRateLimitResetCreditsPayload,
@@ -32,35 +34,56 @@ test("usage normalization separates canonical quota windows from account-bound r
 	const offered = { ...payload, rate_limit_upsell: { banner_type: "luna_reserve", blocked_model_slug: "gpt-6-astra" } };
 	assert.deepEqual(parseCodexReserveStatus(offered, identity, "gpt-6-astra"), { ...denied, entryAllowed: true });
 	assert.equal(parseCodexReserveStatus(offered, { ...identity, accountId: "account-b" }, "gpt-6-astra"), undefined);
+	assert.equal(parseCodexRateLimitResetCreditsPayload({ available_count: "1", credits: [] })?.availableCount, 1);
+	assert.equal(parseCodexRateLimitResetCreditsPayload({ available_count: "unknown" }), undefined);
 });
 
-test("reset-credit parser normalizes the standalone API payload", () => {
-	const credits = parseCodexRateLimitResetCreditsPayload({
-		available_count: "1",
-		credits: [{
-			id: "RateLimitResetCredit_1",
-			reset_type: "codex_rate_limits",
-			status: "available",
-			granted_at: "2026-06-12T01:31:33.351888Z",
-			expires_at: "2026-07-12T01:31:33.351888Z",
-			redeem_started_at: null,
-			redeemed_at: null,
-			title: "One free rate limit reset",
-			description: "Thanks for using Codex!",
-		}],
+test("weekly accounting splits a late-discovered reset without rewriting closed windows or fabricating gaps", () => {
+	const ledger: UsageLedger = { version: 1, accounts: {} };
+	const start = Date.UTC(2026, 0, 1);
+	const hour = 3_600_000;
+	const account = usageAccount(ledger, "account", start);
+	const snapshot = (reset: number, used: number) => parseCodexUsagePayload({
+		rate_limit: { secondary_window: { limit_window_seconds: 604_800, reset_at: reset / 1000, used_percent: used } },
 	});
+	const spend = (at: number, usd: number, model: string) => recordSpend(account, { at, model, stats: { ...emptyStats(), usd, requests: 1 } });
+	observeWeeklyUsage(account, snapshot(start + WEEK_MS, 0), start + 1);
+	spend(start + hour, 10, "model-a");
+	observeWeeklyUsage(account, snapshot(start + WEEK_MS, 10), start + 2 * hour);
+	spend(start + 3 * hour, 20, "model-b");
+	observeWeeklyUsage(account, snapshot(start + WEEK_MS, 30), start + 4 * hour);
+	const early = start + 5 * hour;
+	spend(early + hour, 7, "model-a");
+	observeWeeklyUsage(account, snapshot(early + WEEK_MS, 7), early + 2 * hour);
+	const closed = account.closed[String(start)]!;
+	assert.equal(closed.end, early);
+	assert.equal(closed.reason, "early");
+	assert.equal(closed.summary.total.usd, 30);
+	assert.equal(closed.summary.models["model:model-a"]?.usd, 10);
+	assert.equal(closed.quotaEstimate, 30);
+	assert.equal(account.current?.summary.total.usd, 7);
+	assert.equal(account.unassignedUsd, 0);
+	const frozen = JSON.stringify(closed);
+	spend(early + 3 * hour, 3, "model-b");
+	observeWeeklyUsage(account, snapshot(early + WEEK_MS, 10), early + 4 * hour);
+	// Old replies and contradictory reset predictions cannot move the boundary backwards.
+	observeWeeklyUsage(account, snapshot(start + WEEK_MS, 30), start + 4 * hour);
+	observeWeeklyUsage(account, snapshot(early + WEEK_MS - 2 * hour, 10), early + 5 * hour);
+	assert.equal(account.current?.start, early);
+	assert.equal(JSON.stringify(account.closed[String(start)]), frozen);
 
-	assert.ok(credits);
-	assert.equal(credits.availableCount, 1);
-	assert.deepEqual(credits.credits, [{
-		id: "RateLimitResetCredit_1",
-		resetType: "codex_rate_limits",
-		status: "available",
-		grantedAt: "2026-06-12T01:31:33.351888Z",
-		expiresAt: "2026-07-12T01:31:33.351888Z",
-		redeemStartedAt: undefined,
-		redeemedAt: undefined,
-		title: "One free rate limit reset",
-		description: "Thanks for using Codex!",
-	}]);
+	const next = early + WEEK_MS;
+	spend(next + hour, 5, "model-b");
+	observeWeeklyUsage(account, snapshot(next + WEEK_MS, 5), next + 2 * hour);
+	assert.equal(account.closed[String(early)]?.summary.total.usd, 10);
+	assert.equal(account.current?.summary.total.usd, 5);
+	const afterGap = next + 3 * WEEK_MS;
+	spend(afterGap + hour, 2, "model-a");
+	observeWeeklyUsage(account, snapshot(afterGap + WEEK_MS, 2), afterGap + 2 * hour);
+	assert.equal(account.closed[String(next)]?.reason, "gap");
+	assert.equal(account.closed[String(next)]?.partial, true);
+	assert.equal(Object.keys(account.closed).length, 3);
+	assert.equal(account.total.total.usd, 47);
+	assert.equal(JSON.stringify(account.closed[String(start)]), frozen);
+	assert.deepEqual(parseUsageLedger(JSON.parse(JSON.stringify(ledger))), ledger);
 });

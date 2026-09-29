@@ -121,6 +121,8 @@ async function fetchCodexUsageWithHeaders(
 	const text = await response.text();
 	if (!response.ok) throw new Error(`Usage request failed (${response.status}): ${text || response.statusText}`);
 	const snapshot = parseCodexUsagePayload(JSON.parse(text));
+	const accountId = headers.get("chatgpt-account-id");
+	if (accountId) snapshot.accountKey = createHash("sha256").update(accountId).digest("hex");
 	if (includeDetailedResetCredits && (!snapshot.resetCredits || snapshot.resetCredits.availableCount > 0)) {
 		try {
 			const detailedResetCredits = await fetchCodexRateLimitResetCreditsWithHeaders(headers, signal);
@@ -132,13 +134,15 @@ async function fetchCodexUsageWithHeaders(
 	return snapshot;
 }
 
-export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsageSnapshot> {
+export async function fetchCodexUsage(ctx: ExtensionContext, onAccount?: (key: string) => void): Promise<CodexUsageSnapshot> {
 	const model = ctx.model;
 	if (!model) throw new Error("No active model selected.");
 	if (!isCanonicalCodexSubscriptionModel(model)) {
 		throw new Error("Codex usage is only available for canonical OpenAI Codex subscription models.");
 	}
 	const headers = await buildCodexUsageHeaders(ctx, model);
+	const accountId = headers.get("chatgpt-account-id");
+	if (accountId) onAccount?.(createHash("sha256").update(accountId).digest("hex"));
 	return fetchCodexUsageWithHeaders(headers, ctx.signal);
 }
 
