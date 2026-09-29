@@ -107,7 +107,7 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 	if (report.current?.approximate || report.previous?.approximate) status.push("Local history ~");
 	if (report.current && report.coverage.partialWindow) status.push("Partial window");
 	if (report.coverage.quotaStale) status.push("Quota unavailable");
-	if (report.coverage.unassignedUsd > 0) status.push(`${money(report.coverage.unassignedUsd)} unassigned`);
+	if (report.coverage.unassignedUsd >= 0.005) status.push(`${money(report.coverage.unassignedUsd)} unassigned`);
 	if (report.coverage.unpricedRequests) status.push("Missing prices");
 	if (report.coverage.recordingGaps) status.push("Recording gaps");
 	if (status.length) lines.push("", status.join(" · "));

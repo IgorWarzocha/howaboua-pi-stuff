@@ -32,7 +32,7 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 	if (current.start !== history.windowStart) throw new Error("Reset window changed during history import; refresh to retry.");
 	addSummary(account.total, history.total);
 	for (const [month, summary] of Object.entries(history.months)) addSummary(account.months[month] ??= emptySummary(), summary);
-	let assignedUsd = 0;
+	let unassignedUsd = history.previous.total.usd;
 	const previousKey = String(history.from);
 	if (!account.previous && !account.closed[previousKey]) {
 		account.closed[previousKey] = {
@@ -41,11 +41,11 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 			approximate: true, summary: history.previous,
 		};
 		account.previous = previousKey;
-		assignedUsd += history.previous.total.usd;
+		unassignedUsd = 0;
 	}
 	let currentUsd = 0;
 	for (const spend of history.recent) {
-		if (spend.at < current.start || spend.at >= current.expectedReset) continue;
+		if (spend.at < current.start || spend.at >= current.expectedReset) { unassignedUsd += spend.stats.usd; continue; }
 		addSpend(current.summary, spend);
 		account.recent.push(spend);
 		currentUsd += spend.stats.usd;
@@ -57,7 +57,7 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 		current.quota.usd += currentUsd;
 		if (current.quota.usd > 0 && current.quota.usedPercent > 0) current.quotaPerUsd ??= current.quota.usedPercent / current.quota.usd;
 	}
-	account.unassignedUsd += Math.max(0, history.total.total.usd - assignedUsd - currentUsd);
+	account.unassignedUsd += unassignedUsd;
 	account.since = history.from;
 	account.history = {
 		from: history.from, to: history.to, windowStart: history.windowStart, root: history.root, coverage: history.coverage,
