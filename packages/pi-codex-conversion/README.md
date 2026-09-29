@@ -154,7 +154,7 @@ Local and Tree require an active Responses adapter. Other provider APIs do not e
 
 V2 and Both require Codex or an explicitly configured compatible passthrough. Other routes use Pi summary without erasing the saved method. Selecting Pi summary preserves an existing V2 checkpoint until the next successful compaction converts it. **Choose Both before the checkpoint you need across providers, or convert to Pi summary before switching.** Tree checkpoints remain usable by reference after changing storage.
 
-Old configurations migrate on read without rewriting the file. Hybrid becomes **Notes + compaction** with **Codex V2**. V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving removes the old switches.
+Old configurations migrate on read without rewriting the file. Hybrid becomes **Notes + compaction** with **Codex V2**, or **Both** when Parallel Pi summary was enabled. V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving removes the old switches.
 
 ### Rollover and recovery
 
