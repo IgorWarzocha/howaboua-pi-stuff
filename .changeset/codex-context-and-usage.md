@@ -19,4 +19,4 @@ Added independent context controls, opt-in agent sharing and persistent Codex us
 - Fixed Fast Mode cost estimates when the backend reports the `fast` tier.
 - Failed browser login callbacks now stop promptly and show the provider error.
 - Codex stream events now reach Pi extensions on HTTP and WebSocket transports, without retrying generation when an observer fails.
-- Structured, Code and Notebook modes now use shorter instructions and tool schemas. Bundled reviewer prompts request findings without issue-count targets.
+- Structured, Code and Notebook modes now use shorter instructions and tool schemas. Skill catalogs no longer use Codex-prefixed tags or redundant headings. Bundled reviewer prompts request findings without issue-count targets.

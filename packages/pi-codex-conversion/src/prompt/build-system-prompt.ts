@@ -161,19 +161,13 @@ export function resolvePromptSkills(
 function buildSkillsContent(skills: PromptSkill[]): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		"## Skills",
-		"### Available skills",
+		"Read skills named by the user or matching the task; resolve relative paths from the skill directory and load needed references",
 	];
 
 	for (const skill of skills) {
 		lines.push(`- ${skill.name}: ${skill.description} (file: ${skill.filePath})`);
 	}
 
-	lines.push("### How to use skills");
-	lines.push("- Use skill when user names it (`$SkillName` or plain text) or request clearly matches its description");
-	lines.push("- Use the minimal required set of skills. If multiple apply, use them together and state the order briefly");
-	lines.push("- Open each selected `SKILL.md`; resolve relative paths from its directory, load needed references, and reuse available scripts/assets/templates");
-	lines.push("- If a skill or path is unavailable, state it briefly and continue with the best fallback");
 	return lines.join("\n");
 }
 
@@ -289,8 +283,9 @@ function prepareStructuredSkills(
 ): void {
 	const sections = options.sections ??= {};
 	const content = buildSkillsContent(skills);
+	delete sections["codex_skills"];
 	if (!content) {
-		delete sections["codex_skills"];
+		delete sections["skill_catalog"];
 		return;
 	}
 	const piWillRenderSkills = () => options.selectedTools.includes("read") || options.selectedTools.includes("bash");
@@ -302,7 +297,7 @@ function prepareStructuredSkills(
 	if (heavy && sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () => piWillRenderSkills() ? content : "");
 	}
-	defineOwnedSection(sections, "codex_skills", () => !piWillRenderSkills() && codexCanReadSkills() ? content : "");
+	defineOwnedSection(sections, "skill_catalog", () => !piWillRenderSkills() && codexCanReadSkills() ? content : "");
 }
 
 /** Mutate Pi's current structured prompt options without forcing a full prompt replacement. */
@@ -319,7 +314,8 @@ export function prepareCodexSystemPrompt(
 	if (options.forceSystemPrompt !== undefined) {
 		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options));
 		let forced = upsertOpaqueSection(options.forceSystemPrompt, "runtime_guidelines", guidelines);
-		forced = upsertOpaqueSection(forced, "codex_skills", buildSkillsContent(skills));
+		forced = upsertOpaqueSection(forced, "codex_skills", "");
+		forced = upsertOpaqueSection(forced, "skill_catalog", buildSkillsContent(skills));
 		forced = upsertOpaqueSection(forced, "codex_runtime", "");
 		options.forceSystemPrompt = forced;
 		return;

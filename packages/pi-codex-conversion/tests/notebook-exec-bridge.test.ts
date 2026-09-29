@@ -56,7 +56,8 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 		skills: [{ name: "review", description: "Review code", filePath: "/skills/review/SKILL.md" }],
 	});
 	assert.match(promptOptions.sections!["exec_tools"]!, /persistent Deno\/TypeScript notebook/);
-	assert.match(promptOptions.sections!["codex_skills"]!, /review: Review code/);
+	assert.match(promptOptions.sections!["skill_catalog"]!, /review: Review code/);
+	assert.equal(promptOptions.sections!["codex_skills"], undefined);
 	assert.match(promptOptions.sections!["runtime_guidelines"]!, /Current shell: \/usr\/bin\/zsh; follow its syntax, quoting, and variable rules; capture \$\? as rc/);
 	assert.equal(promptOptions.sections!["extension_context"], "Keep extension section");
 	assert.equal(promptOptions.appendSystemPrompt, "Keep configured addendum");
@@ -65,7 +66,7 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	const notebookTools = promptOptions.selectedTools;
 	promptOptions.selectedTools = ["read"];
 	assert.equal(promptOptions.sections!["exec_tools"], "");
-	assert.equal(promptOptions.sections!["codex_skills"], "");
+	assert.equal(promptOptions.sections!["skill_catalog"], "");
 	assert.doesNotMatch(promptOptions.sections!["runtime_guidelines"]!, /tools\.exec_command/);
 	promptOptions.selectedTools = notebookTools;
 
