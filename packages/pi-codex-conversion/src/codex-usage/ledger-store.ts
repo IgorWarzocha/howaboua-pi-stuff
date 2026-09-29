@@ -42,14 +42,14 @@ async function acquireLock(path: string): Promise<number> {
 
 // Multiple Pi sessions write the same account. Lock the entire read/modify/rename,
 // not just the final write; atomic rename alone loses simultaneous completions.
-export async function updateUsageLedger(key: string, at: number, update: (account: UsageAccount) => void, path = usageLedgerPath()): Promise<void> {
+export async function updateUsageLedger(key: string, at: number, update: (account: UsageAccount, ledger: UsageLedger) => void, path = usageLedgerPath()): Promise<void> {
 	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 	const lock = `${path}.lock`;
 	const fd = await acquireLock(lock);
 	const temporary = `${path}.${randomUUID()}.tmp`;
 	try {
 		const ledger = readUsageLedger(path);
-		update(usageAccount(ledger, key, at));
+		update(usageAccount(ledger, key, at), ledger);
 		parseUsageLedger(ledger);
 		writeFileSync(temporary, JSON.stringify(ledger), { mode: 0o600, flag: "wx" });
 		renameSync(temporary, path);

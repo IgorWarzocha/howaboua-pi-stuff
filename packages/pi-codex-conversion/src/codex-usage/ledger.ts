@@ -15,10 +15,18 @@ function addStats(target: SpendStats, value: SpendStats, sign = 1): void {
 	for (const key of Object.keys(target) as (keyof SpendStats)[]) target[key] = Math.max(0, target[key] + sign * value[key]);
 }
 
-function addSpend(summary: SpendSummary, spend: CodexSpend, sign = 1): void {
+export function addSpend(summary: SpendSummary, spend: CodexSpend, sign = 1): void {
 	addStats(summary.total, spend.stats, sign);
 	const key = `model:${spend.model}`;
 	addStats(summary.models[key] ??= emptyStats(), spend.stats, sign);
+}
+
+export function addSummary(target: SpendSummary, value: SpendSummary): void {
+	addStats(target.total, value.total);
+	for (const [key, stats] of Object.entries(value.models)) {
+		if (!Object.hasOwn(target.models, key)) target.models[key] = emptyStats();
+		addStats(target.models[key]!, stats);
+	}
 }
 
 export function recordSpend(account: UsageAccount, spend: CodexSpend): void {

@@ -1,3 +1,4 @@
+import { backfillUsage } from "./backfill.ts";
 import { estimatedQuota } from "./ledger.ts";
 import type { UsageAccount } from "./ledger-schema.ts";
 import { readUsageLedger, recordCodexQuota, usageRecordingError } from "./ledger-store.ts";
@@ -5,16 +6,31 @@ import type { CodexUsageSnapshot } from "./payload.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export async function captureSpendReport(snapshot: CodexUsageSnapshot): Promise<string[]> {
+export async function captureSpendReport(snapshot: CodexUsageSnapshot, options: {
+	sessionDir: string;
+	signal?: AbortSignal | undefined;
+	onProgress?: (lines: string[]) => void;
+}): Promise<string[]> {
 	if (!snapshot.accountKey) return [];
 	await recordCodexQuota(snapshot);
+	try {
+		const pending = backfillUsage(snapshot.accountKey, options.sessionDir, options.signal);
+		if (pending) {
+			options.onProgress?.([...readSpendReport(snapshot.accountKey), "", "Loading history…"]);
+			await pending;
+		}
+	} catch (error) {
+		return [...readSpendReport(snapshot.accountKey), `History unavailable: ${error instanceof Error ? error.message : String(error)}`];
+	}
 	return readSpendReport(snapshot.accountKey);
 }
 
 export function readSpendReport(key: string): string[] {
 	try {
-		const account = readUsageLedger().accounts[key];
+		const ledger = readUsageLedger();
+		const account = ledger.accounts[key];
 		const lines = account ? formatSpendReport(usageReport(account)) : ["No tracked spend yet."];
+		if (!account?.history && ledger.historyOwner && ledger.historyOwner !== key) lines.push("History linked to another account");
 		const error = usageRecordingError();
 		return error ? [...lines, error] : lines;
 	} catch (error) { return [`Spend unavailable: ${error instanceof Error ? error.message : String(error)}`]; }
@@ -43,6 +59,7 @@ export function usageReport(account: UsageAccount, now = Date.now()) {
 	const quota = current && !current.partial && !quotaStale ? estimatedQuota(current) : undefined;
 	return {
 		since: account.since,
+		history: account.history,
 		lifetime: account.total.total,
 		current,
 		previous,
@@ -50,6 +67,7 @@ export function usageReport(account: UsageAccount, now = Date.now()) {
 		vsPreviousWindowPercent: difference(currentRate, previousRate),
 		vsPreviousMonthPercent: difference(currentRate, monthRate),
 		previousMonth: previousMonthKey,
+		previousMonthApproximate: Boolean(account.history && account.history.from < thisMonthStart && account.history.to > previousMonthStart),
 		models: Object.entries(current?.summary.models ?? {}).map(([key, stats]) => ({
 			model: key.slice("model:".length), ...stats,
 			quotaPercentEstimate: quota !== undefined && current && current.summary.total.usd > 0
@@ -73,8 +91,8 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 	const tokens = (value: number) => value >= 1e6 ? `${(value / 1e6).toFixed(1)}M` : value >= 1e3 ? `${(value / 1e3).toFixed(1)}k` : String(value);
 	const lines = [report.current ? `This window: ${money(report.current.summary.total.usd)} API equivalent` : "No reset window yet"];
 	const comparisons: string[] = [];
-	if (report.vsPreviousWindowPercent !== undefined) comparisons.push(`${percent(report.vsPreviousWindowPercent)} vs last window`);
-	if (report.vsPreviousMonthPercent !== undefined) comparisons.push(`${percent(report.vsPreviousMonthPercent)} vs last month`);
+	if (report.vsPreviousWindowPercent !== undefined) comparisons.push(`${report.current?.approximate || report.previous?.approximate ? "~" : ""}${percent(report.vsPreviousWindowPercent)} vs last window`);
+	if (report.vsPreviousMonthPercent !== undefined) comparisons.push(`${report.current?.approximate || report.previousMonthApproximate ? "~" : ""}${percent(report.vsPreviousMonthPercent)} vs last month`);
 	if (comparisons.length) lines.push(`Spend/day: ${comparisons.join(" · ")}`);
 	if (report.models.length) {
 		const showQuota = report.models.some((model) => model.quotaPercentEstimate !== undefined);
@@ -86,6 +104,7 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 		}
 	}
 	const status: string[] = [];
+	if (report.current?.approximate || report.previous?.approximate) status.push("Local history ~");
 	if (report.current && report.coverage.partialWindow) status.push("Partial window");
 	if (report.coverage.quotaStale) status.push("Quota unavailable");
 	if (report.coverage.unassignedUsd > 0) status.push(`${money(report.coverage.unassignedUsd)} unassigned`);

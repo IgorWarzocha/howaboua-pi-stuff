@@ -118,7 +118,9 @@ export function registerCodexCommand(
 				]);
 				try {
 					const usage = await fetchCodexUsage(ctx);
-					ctx.ui.notify([...(await captureSpendReport(usage)), "", formatCodexUsage(usage)].join("\n"), "info");
+					ctx.ui.notify([...(await captureSpendReport(usage, {
+						sessionDir: ctx.sessionManager.getSessionDir(), signal: ctx.signal,
+					})), "", formatCodexUsage(usage)].join("\n"), "info");
 				} catch (error) {
 					ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 				}

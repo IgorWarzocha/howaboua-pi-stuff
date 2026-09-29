@@ -26,7 +26,8 @@ export interface UsageTabController {
 	render(theme: Theme): string[];
 }
 
-export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, requestRender: () => void): UsageTabController {
+export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, render: () => void, signal: AbortSignal): UsageTabController {
+	const requestRender = () => { if (!signal.aborted) render(); };
 	let usageState = options.initialUsage;
 	let spendLines: string[] = [];
 	let usageLoading = false;
@@ -36,7 +37,7 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 	let resetMessage: { kind: "info" | "error"; text: string } | undefined;
 
 	const load = (unlockReset = false) => {
-		if (usageLoading) return;
+		if (usageLoading || signal.aborted) return;
 		usageLoading = true;
 		requestRender();
 		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx, (key) => {
@@ -44,8 +45,12 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 			requestRender();
 		})))()
 			.then(async (usage) => {
+				if (signal.aborted) return;
 				usageState = usage;
-				spendLines = await captureSpendReport(usage);
+				spendLines = await captureSpendReport(usage, {
+					sessionDir: ctx.sessionManager.getSessionDir(), signal,
+					onProgress: (lines) => { spendLines = lines; requestRender(); },
+				});
 				if (unlockReset) {
 					resetLockedUntilRefresh = false;
 					resetRedeemRequestId = undefined;

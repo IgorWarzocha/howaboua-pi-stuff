@@ -80,7 +80,9 @@ Open tabs directly with `/codex tools`, `/codex openai`, `/codex display`, `/cod
 
 `/codex usage` shows recorded API-equivalent spend, per-model tokens and estimated quota shares. Spend-rate comparisons use the previous reset window and previous calendar month. `/codex usage analyse` asks your agent to inspect longer-term trends and reasoning levels through a bundled read-only Node script.
 
-Tracking starts after installation. Account-separated totals persist in `codex-usage.json` in Pi's agent directory, with no conversation content. The tab reads running aggregates, not session archives. Local Codex responses, native compaction and generated cache keepalive are included. Other apps, devices and separately implemented tool requests are not.
+On first viewing Usage, a background scan imports recorded session costs for the current window and an approximate previous week. Earlier manual reset times cannot be recovered, so these windows are marked approximate. Session files lack reliable account identity: local history attaches once to the first viewed account. Missing or unsaved calls cannot be recovered.
+
+Totals persist in `codex-usage.json` in Pi's agent directory, with no conversation content. Later views read running aggregates without rescanning sessions. New tracking is account-separated and includes local Codex responses, native compaction and generated cache keepalive. Other apps, devices and separately implemented tool requests are not included.
 
 Opening or refreshing Usage records the weekly allowance and reset prediction. A changed prediction can split the provisional window; completed windows keep their recorded totals and quota estimates. Inferred reset times, partial windows, missing prices and gaps remain visible. Quota shares are cost-weighted estimates because the account allowance can include activity outside Pi. These dollar values are API equivalents, not subscription charges.
 

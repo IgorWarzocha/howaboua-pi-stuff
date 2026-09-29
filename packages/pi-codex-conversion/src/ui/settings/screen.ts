@@ -59,8 +59,10 @@ export async function openCodexSettingsScreen(
 		.filter((model) => model.input.includes("text"))
 		.map((model) => ({ provider: model.provider, modelId: model.id }));
 
+	const usageAbort = new AbortController();
+	const usageSignal = ctx.signal ? AbortSignal.any([ctx.signal, usageAbort.signal]) : usageAbort.signal;
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-		const usageTab = createUsageTab(ctx, options, () => tui.requestRender());
+		const usageTab = createUsageTab(ctx, options, () => tui.requestRender(), usageSignal);
 		let settingsList: SettingsList;
 
 		const runEditConfig = async () => {
@@ -304,7 +306,7 @@ export async function openCodexSettingsScreen(
 				tui.requestRender();
 			},
 		};
-	});
+	}).finally(() => usageAbort.abort());
 }
 
 function rule(

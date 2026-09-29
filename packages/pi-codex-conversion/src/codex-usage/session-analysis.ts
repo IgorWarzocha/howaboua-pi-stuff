@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { emptyStats, type SpendStats } from "./ledger-schema.ts";
+import { emptyStats, type CodexSpend, type SpendStats } from "./ledger-schema.ts";
 
 function object(value: unknown): Record<string, unknown> | undefined {
 	return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
@@ -27,15 +27,16 @@ async function* sessionFiles(root: string, from: number): AsyncGenerator<string>
 	}
 }
 
-export async function analyseSessions(options: { root: string; from: number; to: number; model?: string | undefined; limit: number }) {
-	const groups = new Map<string, { model: string; reasoning: string; reasoningSource: string; stats: SpendStats }>();
-	const sessions: { path: string; stats: SpendStats }[] = [];
+interface SessionUsageOptions { root: string; from: number; to: number; model?: string | undefined }
+interface SessionSpend extends CodexSpend { path: string; reasoning: string; reasoningSource: string }
+
+export async function scanSessionUsage(options: SessionUsageOptions, visit: (spend: SessionSpend) => void) {
 	const seen = new Set<string>();
+	const sessions = new Set<string>();
 	let skippedCopies = 0, incompleteEntries = 0, unattributedUsage = 0;
 	const warnings: string[] = [];
 	for await (const path of sessionFiles(options.root, options.from)) {
 		const levels = new Map<string, string>();
-		const sessionStats = emptyStats();
 		const input = createReadStream(path, { encoding: "utf8" });
 		const lines = createInterface({ input, crlfDelay: Infinity });
 		let lineNumber = 0;
@@ -57,7 +58,9 @@ export async function analyseSessions(options: { root: string; from: number; to:
 				if (typeof id === "string" && level) levels.set(id, level);
 				const message = entry["type"] === "message" ? object(entry["message"]) : undefined;
 				const source = message?.["role"] === "assistant" ? message : entry["type"] === "usage" ? entry : undefined;
-				const at = typeof message?.["timestamp"] === "number" ? message["timestamp"] : typeof entry["timestamp"] === "string" ? Date.parse(entry["timestamp"]) : NaN;
+				// The entry is persisted after settlement; message.timestamp can be request start.
+				// A settlement cutoff keeps live ledger requests out of a historical import.
+				const at = typeof entry["timestamp"] === "string" ? Date.parse(entry["timestamp"]) : typeof message?.["timestamp"] === "number" ? message["timestamp"] : NaN;
 				if (!Number.isFinite(at) || at < options.from || at >= options.to) continue;
 				if (!source) { if (entry["usage"]) unattributedUsage++; continue; }
 				if (message && message["api"] !== "openai-codex-responses") continue;
@@ -67,29 +70,41 @@ export async function analyseSessions(options: { root: string; from: number; to:
 				if (options.model && model !== options.model) continue;
 				const stats = statsFromUsage(source["usage"]);
 				if (!stats) { incompleteEntries++; continue; }
-				const identity = JSON.stringify([id, at, source["provider"], model]);
+				const identity = typeof source["responseId"] === "string" ? JSON.stringify([source["provider"], source["responseId"]])
+					: JSON.stringify([id, message?.["timestamp"] ?? at, source["provider"], model]);
 				if (seen.has(identity)) { skippedCopies++; continue; }
 				seen.add(identity);
 				const exactLevel = source["providerThinkingLevel"];
 				const reasoning = typeof exactLevel === "string" ? exactLevel : message && level ? level : "unknown";
 				const reasoningSource = typeof exactLevel === "string" ? "provider" : message && level ? "session-setting" : "unknown";
-				const key = JSON.stringify([model, reasoning, reasoningSource]);
-				const group = groups.get(key) ?? { model, reasoning, reasoningSource, stats: emptyStats() };
-				for (const name of Object.keys(stats) as (keyof SpendStats)[]) {
-					group.stats[name] += stats[name];
-					sessionStats[name] += stats[name];
-				}
-				groups.set(key, group);
+				visit({ at, model, stats, path, reasoning, reasoningSource });
+				sessions.add(path);
 			}
 		} finally { lines.close(); input.destroy(); }
-		if (sessionStats.requests) sessions.push({ path, stats: sessionStats });
 	}
+	return { sessions: sessions.size, skippedCopies, incompleteEntries, unattributedUsage, warnings };
+}
+
+export async function analyseSessions(options: SessionUsageOptions & { limit: number }) {
+	const groups = new Map<string, { model: string; reasoning: string; reasoningSource: string; stats: SpendStats }>();
+	const sessions = new Map<string, SpendStats>();
+	const coverage = await scanSessionUsage(options, ({ model, reasoning, reasoningSource, stats, path }) => {
+		const key = JSON.stringify([model, reasoning, reasoningSource]);
+		const group = groups.get(key) ?? { model, reasoning, reasoningSource, stats: emptyStats() };
+		const session = sessions.get(path) ?? emptyStats();
+		for (const name of Object.keys(stats) as (keyof SpendStats)[]) {
+			group.stats[name] += stats[name];
+			session[name] += stats[name];
+		}
+		groups.set(key, group);
+		sessions.set(path, session);
+	});
 	return {
 		from: new Date(options.from).toISOString(), toExclusive: new Date(options.to).toISOString(),
 		scope: "Local Codex session entries, not account-isolated. Independent of the ledger; do not add these totals to it.",
 		groups: [...groups.values()].sort((a, b) => b.stats.usd - a.stats.usd),
-		sessions: sessions.sort((a, b) => b.stats.usd - a.stats.usd).slice(0, options.limit),
-		sessionCount: sessions.length,
-		coverage: { skippedCopies, incompleteEntries, unattributedUsage, warnings, unsavedRequests: "not recoverable from sessions" },
+		sessions: [...sessions].map(([path, stats]) => ({ path, stats })).sort((a, b) => b.stats.usd - a.stats.usd).slice(0, options.limit),
+		sessionCount: sessions.size,
+		coverage: { ...coverage, unsavedRequests: "not recoverable from sessions" },
 	};
 }
