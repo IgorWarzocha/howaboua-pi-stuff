@@ -1,7 +1,7 @@
 ---
 name: extension-design
 description: "Read before creating or refining a coding-agent extension."
-last-changed: "2026-09-24"
+last-changed: "2026-09-29"
 ---
 
 ## Choose the missing surface
@@ -17,7 +17,9 @@ Load an applicable tool-design skill before changing an agent-facing tool. The R
 
 ## Validate the right surface
 
-- Test a local candidate before changing the live setup. Consult current harness controls for isolation. For agent-behaviour comparisons, load an applicable instruction-calibration skill rather than inventing another workflow.
-- Measure emitted schemas, prompt additions, startup messages, and results against an equivalent first turn without the extension. Keep model, task, context, and harness version fixed. Task success comes before token savings.
-- Test natural use and the nearest non-use case in fresh sessions. When evaluation is delegated, complete it autonomously and close finished test panes. Do not claim that automated checks establish the user's preference for a human interface.
-- After isolation, check the affected workflow in the complete extension setup: collisions, displaced capabilities, startup cost, cache behaviour, and removal. Leave live activation to the user's existing authorization. Human UX acceptance still belongs to the user.
+Choose checks for concrete risks in the change, not a per-edit checklist. Routine wording edits do not require a behavioral study or an integration harness.
+
+- Before changing the live setup, test runtime changes locally. Consult current harness controls for isolation.
+- For tool-surface or prompt-assembly changes, inspect the affected emitted contracts and measure their token cost with existing tooling. Do not turn copy edits into whole-task performance comparisons.
+- When agent behavior needs evaluation, load an applicable instruction-calibration skill. Test natural use and the nearest non-use case with model, task, context, and harness version held fixed. Close finished test panes.
+- For activation, lifecycle, or extension-interoperability changes, check the affected workflow in the complete extension setup. Leave live activation to the user's existing authorization. Human UX acceptance still belongs to the user.
