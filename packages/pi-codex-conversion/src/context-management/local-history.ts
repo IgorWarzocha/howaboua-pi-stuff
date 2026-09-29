@@ -35,6 +35,7 @@ interface LocalHistoryItem {
 interface LocalHistoryWindow {
 	window_id: string;
 	items: LocalHistoryItem[];
+	unavailable?: true;
 }
 
 export interface LocalHistoryRecoveryHint {
@@ -60,7 +61,7 @@ export function getPiSessionHistoryRecoveryHint(
 		if (!archive) return undefined;
 		window = {
 			windowId: archive.manifest.windowId,
-			entries: archive.entries,
+			entries: archive.entries ?? [],
 		};
 		summaryItemId = archive.summary.id;
 	}
@@ -98,17 +99,20 @@ export function readPiSessionHistory(
 	if (agent.storage ? contextTargetAgent("history", params, agent.agentName) !== agent.agentName
 		: name !== undefined && name !== null && name !== "" && name !== agent.agentName)
 		return action === "list_windows" ? { windows: [] } : { items: [] };
+	const unavailable = windows.filter((window) => window.unavailable).map((window) => window.window_id);
+	const coverage = unavailable.length ? { unavailable_windows: unavailable } : {};
 	if (action === "list_windows") {
 		const ordered = params["recent_first"] === true ? [...windows].reverse() : windows;
 		return {
 			source: "pi-session",
+			...coverage,
 			windows: ordered.slice(0, integer(params["limit"], 20, 100)).map((window) => ({
 				window_id: window.window_id,
 				item_count: window.items.length,
 			})),
 		};
 	}
-	if (action === "read_item") return readItem(windows, params);
+	if (action === "read_item") return { ...readItem(windows, params), ...coverage };
 	const query = action === "search_contents" ? string(params["query"]) : undefined;
 	let items = windows.flatMap((window) => window.items);
 	const windowId = nullableString(params["window_id"]);
@@ -141,6 +145,7 @@ export function readPiSessionHistory(
 	);
 	return {
 		source: "pi-session",
+		...coverage,
 		items: previews,
 	};
 }
@@ -182,6 +187,7 @@ function collectTreeWindows(
 	const index = buildTreeArchiveIndex(allEntries, activeBranch);
 	const archived = index.archives.map(({ manifest, summary, entries }) => ({
 		window_id: manifest.windowId,
+		...(entries ? {} : { unavailable: true as const }),
 		items: [
 			{
 				window_id: manifest.windowId,
@@ -190,7 +196,7 @@ function collectTreeWindows(
 				content: summary.summary,
 				summary: true as const,
 			},
-			...entries.flatMap((entry) => {
+			...(entries ?? []).flatMap((entry) => {
 				if (
 					entry.type === "custom_message" &&
 					entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE
@@ -310,12 +316,11 @@ function readItem(
 ): Record<string, unknown> {
 	const windowId = string(params["window_id"]);
 	const itemId = string(params["item_id"]);
-	const item = windows
-		.find((window) => window.window_id === windowId)
-		?.items.find(
-			(candidate) =>
-				candidate.item_id === itemId || candidate.item_id.endsWith(itemId),
-		);
+	const window = windows.find((window) => window.window_id === windowId);
+	const item = window?.items.find(
+		(candidate) => candidate.item_id === itemId || candidate.item_id.endsWith(itemId),
+	);
+	if (!item && window?.unavailable) throw new Error(`Archived window ${windowId} is unavailable in this session copy; open the source session to read it`);
 	if (!item) return { source: "pi-session", item: null };
 	const offset = integer(params["offset_chars"], 0, item.content.length);
 	const limit = integer(

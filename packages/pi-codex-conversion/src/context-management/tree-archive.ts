@@ -23,7 +23,8 @@ export interface TreeArchiveManifestData {
 export interface TreeArchive {
 	manifest: TreeArchiveManifestData;
 	summary: BranchSummaryEntry;
-	entries: SessionEntry[];
+	// Pi forks copy the active branch, not the archived paths it references.
+	entries: SessionEntry[] | undefined;
 }
 
 export interface TreeArchiveIndex {
@@ -94,8 +95,8 @@ export function buildTreeArchiveIndex(
 			continue;
 		}
 		const archivedEntries = archivedPath(manifest, byId);
-		if (!archivedEntries || (manifest.compactionEntryId !== undefined &&
-			!archivedEntries.some((entry) => entry.id === manifest.compactionEntryId && entry.type === "compaction"))) {
+		if (archivedEntries && manifest.compactionEntryId !== undefined &&
+			!archivedEntries.some((entry) => entry.id === manifest.compactionEntryId && entry.type === "compaction")) {
 			invalidManifest = true;
 			continue;
 		}

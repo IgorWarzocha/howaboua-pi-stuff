@@ -345,7 +345,29 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		marker.details = { ...windowMessage.details, contextManagement: { ...windowMessage.details.contextManagement, trimPreviousWindow: true } };
 		assert.equal(projectPiCompactionEvent(event, projectContextWindowBranch(trimmed)).preparation.previousSummary, undefined);
 		assert.equal(JSON.stringify(all), stored);
-		assert.throws(() => projectTreeCheckpointBranch(active, all.filter((entry) => entry.id !== checkpoint.id)), /Invalid Tree archive/);
+		assert.throws(() => projectTreeCheckpointBranch(active, all.filter((entry) => entry.id !== checkpoint.id)), /active Tree checkpoint is unavailable/);
+		const superseded = [...active, { ...checkpoint, id: "new-checkpoint", parentId: next.id, firstKeptEntryId: next.id }];
+		assert.doesNotThrow(() => projectTreeCheckpointBranch(superseded, superseded), "retired missing checkpoints do not block a newer one");
+		const damagedRetired = superseded.map((entry) => entry.id === hybridManifest.id ? { ...entry, data: {} } : entry);
+		assert.doesNotThrow(() => projectTreeCheckpointBranch(damagedRetired, damagedRetired));
+		const notesOnly = [hybridSummary, hybridManifest, { ...next, details: marker.details }] as SessionEntry[];
+		assert.doesNotThrow(() => projectTreeCheckpointBranch(notesOnly, notesOnly), "an explicit notes-only cut retires the missing checkpoint");
+
+		const header = SessionManager.inMemory("/repo").getHeader()!;
+		const copy = SessionManager.inMemory("/repo", undefined, [header, ...[boundary, user, ...treeBranch, next] as SessionEntry[]]);
+		const leaf = copy.appendMessage({ role: "user", content: "Keep the live conversation", timestamp: 4 });
+		assert.doesNotThrow(() => projectTreeCheckpointBranch(copy.getBranch(), copy.getEntries()));
+		copy.createBranchedSession(leaf);
+		const forkBranch = projectTreeCheckpointBranch(copy.getBranch(), copy.getEntries());
+		assert.match(JSON.stringify(buildSessionContext([...forkBranch]).messages), /Keep the live conversation/);
+		assert.doesNotMatch(JSON.stringify(buildSessionContext([...forkBranch]).messages), /Hidden recovery summary/);
+		const [treeHistory] = createHistoryNotesTools(undefined, () => "tree");
+		const forkContext = { ...context, sessionManager: copy };
+		const available = await treeHistory.execute("fork-history", { action: "list_windows" }, undefined, undefined, forkContext);
+		assert.deepEqual(available.details.codexHistoryNotes["unavailable_windows"], [windowId]);
+		await assert.rejects(() => treeHistory.execute("missing-history", { action: "read_item", window_id: windowId, item_id: "user-entry" }, undefined, undefined, forkContext), /open the source session/);
+		const live = await treeHistory.execute("live-history", { action: "read_item", window_id: "window-1", item_id: leaf }, undefined, undefined, forkContext);
+		assert.match(JSON.stringify(live.content), /Keep the live conversation/);
 
 	} finally {
 		globalThis.fetch = originalFetch;
