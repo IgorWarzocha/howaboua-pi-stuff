@@ -11,6 +11,7 @@ import {
 	type CodexConversationCallbacks,
 	CodexRealtimeConversation,
 } from "../src/voice/conversation/session.ts";
+import { completedVoiceReasoningSummary } from "../src/voice/reasoning-summary.ts";
 
 const AUTH: CodexVoiceAuth = {
 	headers: new Headers(),
@@ -18,7 +19,124 @@ const AUTH: CodexVoiceAuth = {
 	officialCodex: false,
 };
 
-test("realtime forwards final speech before reporting established drops", async () => {
+test("realtime limits reasoning to summaries and forwards final speech before established drops", async () => {
+	const raw = {
+		type: "thinking" as const,
+		thinking: "Raw reasoning must not be spoken",
+	};
+	const signature = JSON.stringify({
+		type: "reasoning",
+		id: "rs_voice",
+		summary: [
+			{ type: "summary_text", text: "First summary" },
+			{ type: "summary_text", text: "Second summary" },
+		],
+		content: [{ type: "reasoning_text", text: raw.thinking }],
+		encrypted_content: "opaque/never-spoken==",
+	});
+	const message = {
+		api: "openai-responses",
+		model: "renamed-model",
+		content: [{ ...raw, thinkingSignature: signature }],
+	};
+	for (const api of [
+		"openai-responses",
+		"openai-codex-responses",
+		"azure-openai-responses",
+	]) {
+		assert.equal(
+			completedVoiceReasoningSummary({ ...message, api }),
+			"First summary\n\nSecond summary",
+		);
+	}
+	for (const thinkingSignature of [
+		undefined,
+		"{broken",
+		"null",
+		"[]",
+		JSON.stringify({
+			type: "reasoning",
+			summary: [{ type: "summary_text", text: "Missing item identity" }],
+		}),
+		JSON.stringify({
+			type: "message",
+			id: "rs_voice",
+			summary: [{ type: "summary_text", text: "Wrong provenance" }],
+		}),
+		JSON.stringify({ type: "reasoning", id: "rs_voice", summary: [] }),
+		JSON.stringify({
+			type: "reasoning",
+			id: "rs_voice",
+			content: [{ type: "reasoning_text", text: raw.thinking }],
+		}),
+		JSON.stringify({
+			type: "reasoning",
+			id: "rs_voice",
+			summary: [{ type: "reasoning_text", text: raw.thinking }],
+		}),
+		JSON.stringify({
+			type: "reasoning",
+			id: "rs_voice",
+			summary: [{ type: "summary_text", text: 1 }],
+		}),
+	]) {
+		assert.equal(
+			completedVoiceReasoningSummary({
+				...message,
+				model: "gpt-6.1",
+				content: [
+					{
+						...raw,
+						...(thinkingSignature !== undefined ? { thinkingSignature } : {}),
+					},
+				],
+			}),
+			undefined,
+		);
+	}
+	for (const [api, model, expected] of [
+		["anthropic-messages", "claude-sonnet-4-6", "Native summary"],
+		["anthropic-messages", "claude-sonnet-3-7", undefined],
+		[
+			"bedrock-converse-stream",
+			"us.anthropic.claude-opus-4-6-v1",
+			"Native summary",
+		],
+		["bedrock-converse-stream", "deepseek-r1", undefined],
+		["google-generative-ai", "gemini-3.1-pro", "Native summary"],
+		["google-vertex", "gemini-3-flash", "Native summary"],
+		["google-vertex", "gpt-oss-120b", undefined],
+		["openai-completions", "claude-sonnet-4-6", undefined],
+		["unknown-api", "gpt-6.1", undefined],
+		["unknown-api", "grok-4.5", undefined],
+	] as const) {
+		const summary = { type: "thinking" as const, thinking: "Native summary" };
+		const message = {
+			api,
+			model,
+			content: [summary],
+		};
+		assert.equal(completedVoiceReasoningSummary(message), expected);
+		if (expected !== undefined) {
+			assert.equal(
+				completedVoiceReasoningSummary({
+					...message,
+					content: [{ ...summary, redacted: true }],
+				}),
+				undefined,
+			);
+		}
+	}
+	assert.equal(
+		completedVoiceReasoningSummary({
+			api: "anthropic-messages",
+			model: "claude-sonnet-4-6",
+			responseModel: "claude-sonnet-3-7",
+			content: [raw],
+		}),
+		undefined,
+		"the actual response model determines native summarized thinking",
+	);
 	const startup = createConversation("closed");
 	await startup.session.start(
 		AUTH,

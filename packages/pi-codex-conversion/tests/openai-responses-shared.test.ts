@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
-import { processResponsesStream } from "../src/providers/openai-responses/shared.ts";
+import { createAssistantMessageEventStream, normalizeContext, type AssistantMessage } from "@earendil-works/pi-ai";
+import { convertResponsesMessages, processResponsesStream } from "../src/providers/openai-responses/shared.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "../src/providers/openai-codex/stream-events.ts";
 
 const model = {
@@ -48,9 +48,16 @@ async function* interruptedAsyncIterable<T>(values: T[]): AsyncIterable<T> {
 	throw new Error("Request was aborted");
 }
 
-test("processResponsesStream keeps interleaved message items separate by output index", async () => {
+test("processResponsesStream keeps interleaved text and reasoning separate with authoritative final items", async () => {
 	const output = createAssistantOutput();
-	const pushedEvents: Array<{ type: string; contentIndex?: number }> = [];
+	const pushedEvents: Array<{ type: string; contentIndex?: number; delta?: string }> = [];
+	const reasoningItems = [
+		{ type: "reasoning", id: "rs_raw", summary: [], content: [{ type: "reasoning_text", text: "Final raw reasoning" }], encrypted_content: "opaque/raw==" },
+		{ type: "reasoning", id: "rs_stream_only", summary: [], encrypted_content: "opaque/stream==" },
+		{ type: "reasoning", id: "rs_summary", summary: [{ type: "summary_text", text: "Actual summary" }], content: [{ type: "reasoning_text", text: "Not the summary" }], encrypted_content: "opaque/summary==" },
+		{ type: "reasoning", id: "rs_encrypted", summary: [], encrypted_content: "opaque/only==" },
+		{ type: "reasoning", id: "rs_final_only", summary: [], content: [{ type: "reasoning_text", text: "First raw part" }, { type: "reasoning_text", text: "Second raw part" }] },
+	];
 
 	await processResponsesStream(
 		asAsyncIterable([
@@ -79,7 +86,12 @@ test("processResponsesStream keeps interleaved message items separate by output 
 				item_id: "msg_b",
 				part: { type: "output_text", text: "", annotations: [] },
 			},
+			{ type: "response.output_item.added", output_index: 2, item: { type: "reasoning", id: "rs_raw", summary: [] } },
+			{ type: "response.output_item.added", output_index: 3, item: { type: "reasoning", id: "rs_stream_only", summary: [] } },
+			{ type: "response.reasoning_text.delta", output_index: 2, content_index: 0, item_id: "rs_raw", delta: "Partial raw" },
 			{ type: "response.output_text.delta", output_index: 0, content_index: 0, item_id: "msg_a", delta: "Hello", logprobs: [] },
+			{ type: "response.reasoning_text.delta", output_index: 3, content_index: 0, item_id: "rs_stream_only", delta: "Streamed fallback" },
+			{ type: "response.reasoning_text.delta", output_index: 2, content_index: 0, item_id: "rs_raw", delta: " reasoning" },
 			{ type: "response.output_text.delta", output_index: 1, content_index: 0, item_id: "msg_b", delta: "World", logprobs: [] },
 			{
 				type: "response.output_item.done",
@@ -91,6 +103,7 @@ test("processResponsesStream keeps interleaved message items separate by output 
 				output_index: 1,
 				item: { type: "message", id: "msg_b", role: "assistant", status: "completed", content: [{ type: "output_text", text: "World", annotations: [] }] },
 			},
+			...reasoningItems.map((item, index) => ({ type: "response.output_item.done", output_index: index + 2, item })),
 			{
 				type: "response.completed",
 				response: {
@@ -101,17 +114,39 @@ test("processResponsesStream keeps interleaved message items separate by output 
 			},
 		]) as AsyncIterable<any>,
 		output as any,
-		{ push: (event: { type: string; contentIndex?: number }) => pushedEvents.push(event) } as any,
+		{ push: (event: { type: string; contentIndex?: number; delta?: string }) => pushedEvents.push(event) } as any,
 		model,
 	);
 
 	assert.deepEqual(
-		(output.content as Array<{ type: string; text?: string }>).map((block) => (block.type === "text" ? block.text : undefined)),
+		output.content.flatMap((block) => block.type === "text" ? [block.text] : []),
 		["Hello", "World"],
 	);
 	assert.deepEqual(
 		pushedEvents.filter((event) => event.type === "text_start").map((event) => event.contentIndex),
 		[0, 1],
+	);
+	assert.deepEqual(
+		pushedEvents.filter((event) => event.type === "thinking_delta").map(({ contentIndex, delta }) => [contentIndex, delta]),
+		[[2, "Partial raw"], [3, "Streamed fallback"], [2, " reasoning"]],
+	);
+	assert.deepEqual(
+		output.content.flatMap((block) => block.type === "thinking" ? [block.thinking] : []),
+		["Final raw reasoning", "Streamed fallback", "Actual summary", "", "First raw part\n\nSecond raw part"],
+	);
+	assert.deepEqual(
+		output.content.flatMap((block) => {
+			if (block.type !== "thinking") return [];
+			assert.ok(block.thinkingSignature);
+			return [JSON.parse(block.thinkingSignature)];
+		}),
+		reasoningItems,
+		"full provider items, including opaque encrypted payloads, survive for replay",
+	);
+	assert.deepEqual(
+		convertResponsesMessages(model, normalizeContext({ messages: [output] }), new Set([model.provider]))
+			.filter((item) => item.type === "reasoning"),
+		reasoningItems,
 	);
 });
 

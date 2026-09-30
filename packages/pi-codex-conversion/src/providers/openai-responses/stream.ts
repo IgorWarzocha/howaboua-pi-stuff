@@ -234,6 +234,12 @@ export async function processResponsesStream<TApi extends Api>(
 				state.summaryParts.set(event.summary_index, { text: event.part.text });
 				state.block.thinking = renderReasoningSummary(state.summaryParts);
 			}
+		} else if (event.type === "response.reasoning_text.delta") {
+			const state = outputStates.get(event.output_index);
+			if (state?.kind === "reasoning") {
+				state.block.thinking += event.delta;
+				stream.push({ type: "thinking_delta", contentIndex: state.blockIndex, delta: event.delta, partial: output });
+			}
 		} else if (event.type === "response.content_part.added") {
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "message" && (event.part.type === "output_text" || event.part.type === "refusal")) {
@@ -329,7 +335,9 @@ export async function processResponsesStream<TApi extends Api>(
 					outputStates.set(event.output_index, state);
 					stream.push({ type: "thinking_start", contentIndex: state.blockIndex, partial: output });
 				}
-				state.block.thinking = item.summary?.map((summary) => summary.text).join("\n\n") || "";
+				const summaryText = item.summary?.map((summary) => summary.text).join("\n\n") || "";
+				const contentText = item.content?.map((content) => content.text).join("\n\n") || "";
+				state.block.thinking = summaryText || contentText || state.block.thinking;
 				state.block.thinkingSignature = JSON.stringify(item);
 				stream.push({ type: "thinking_end", contentIndex: state.blockIndex, content: state.block.thinking, partial: output });
 				outputStates.delete(event.output_index);
