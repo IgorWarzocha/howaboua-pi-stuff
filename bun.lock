@@ -131,7 +131,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "3.0.41",
+      "version": "3.0.42",
       "dependencies": {
         "openai": "7.10.0",
         "proxy-from-env": "2.1.0",
@@ -243,7 +243,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.82",
+      "version": "0.0.83",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.9",
         "@howaboua/pi-auto-trees": "0.1.16",
@@ -373,7 +373,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.8",
+      "version": "0.2.9",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-ai": "0.99.2",
@@ -446,7 +446,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.90",
+      "version": "0.0.91",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.9",
         "@howaboua/pi-auto-trees": "0.1.16",

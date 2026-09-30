@@ -1,5 +1,11 @@
 # @howaboua/pi-stuff
 
+## 0.0.91
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Non-blocking agent guidance now explicitly permits continued conversation, other work or an immediate reply. Completion and blockage arrive even after a reply, without polling or sleep waits.
+
 ## 0.0.90
 
 - Include bundled package updates:

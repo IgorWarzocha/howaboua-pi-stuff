@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.90",
+	"version": "0.0.91",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -23,7 +23,7 @@
 		"@howaboua/pi-memories": "0.1.5",
 		"@howaboua/pi-pet": "0.1.4",
 		"@howaboua/pi-semantic-grep": "0.1.19",
-		"@howaboua/pi-shepherdr": "0.2.8",
+		"@howaboua/pi-shepherdr": "0.2.9",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.5",
 		"@howaboua/pi-skill-code": "0.0.3",
 		"@howaboua/pi-skill-foundations": "0.0.3",

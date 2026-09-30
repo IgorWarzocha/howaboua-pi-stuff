@@ -61,13 +61,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.41
+### @howaboua/pi-codex-conversion — 3.0.42
 
-- Notebook state guidance now follows the active context, and completion notes are reserved for substantial work.
+- MCP help and recovery now preserve server-specific guidance in Code and Notebook modes.
 
-  - Fixed missing Notebook state notices after compaction and notes-based rollover, including automatic continuations
-  - Brief clarifications, routine lookups and unchanged state no longer request completion notes; explicit checkpoints still apply
-  - Renamed the hybrid continuity setting to Notes + history + compaction; history lookup and saved settings are unchanged
+  - Fixed missing MCP server usage instructions in on-demand tool help on Pi 0.99.2.
+  - Missing MCP tools now identify known server namespaces and explain retrying in a new cell after connection. Repeated failures prompt a suggestion to disable the affected server, without automatic retries or disabling.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -97,11 +96,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.82
+### @howaboua/pi-extensions — 0.0.83
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Agent profiles now control delegation waiting and shared context. - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description. - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
+  - @howaboua/pi-shepherdr: Non-blocking agent guidance now explicitly permits continued conversation, other work or an immediate reply. Completion and blockage arrive even after a reply, without polling or sleep waits.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -141,12 +140,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.8
+### @howaboua/pi-shepherdr — 0.2.9
 
-- Agent profiles now control delegation waiting and shared context.
-
-  - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description.
-  - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
+- Non-blocking agent guidance now explicitly permits continued conversation, other work or an immediate reply. Completion and blockage arrive even after a reply, without polling or sleep waits.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -208,11 +204,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.90
+### @howaboua/pi-stuff — 0.0.91
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Agent profiles now control delegation waiting and shared context. - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description. - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
+  - @howaboua/pi-shepherdr: Non-blocking agent guidance now explicitly permits continued conversation, other work or an immediate reply. Completion and blockage arrive even after a reply, without polling or sleep waits.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
