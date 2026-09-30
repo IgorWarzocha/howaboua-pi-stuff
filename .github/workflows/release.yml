@@ -11,6 +11,7 @@ on:
       - 'package.json'
       - 'bun.lock'
       - 'bunfig.toml'
+      - '.node-version'
       - '.npmrc'
       - '.github/workflows/release.yml'
 
@@ -26,17 +27,19 @@ permissions:
 jobs:
   release:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: npm-release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
+          node-version-file: .node-version
           registry-url: https://registry.npmjs.org
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      # npm provides its bundled node-gyp before Bun starts native install hooks.
+      - run: npm run install:ci
       - name: Build pi-codex-conversion extension
         run: bun run --cwd packages/pi-codex-conversion build
       - name: Verify packed Pi extensions load in isolation

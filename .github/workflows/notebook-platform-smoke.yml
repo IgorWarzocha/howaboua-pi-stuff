@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-26.04
             platform_arch: linux-x64
           - os: ubuntu-24.04-arm
             platform_arch: linux-arm64
@@ -32,9 +32,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      # npm provides its bundled node-gyp before Bun starts native install hooks.
+      - run: npm run install:ci
       - run: bun x tsx packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts
       - name: Run through standalone Pi 0.86.0
         shell: bash

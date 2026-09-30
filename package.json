@@ -2,11 +2,12 @@
   "name": "@howaboua/pi-stuff-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.0",
+  "packageManager": "bun@1.4.2",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
+    "install:ci": "bun install --frozen-lockfile",
     "check": "bun run scripts/workspaces.mjs check && bun run knip",
     "typecheck": "bun run scripts/workspaces.mjs typecheck",
     "test": "bun run scripts/workspaces.mjs test",
