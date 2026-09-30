@@ -131,7 +131,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "3.0.40",
+      "version": "3.0.41",
       "dependencies": {
         "openai": "7.10.0",
         "proxy-from-env": "2.1.0",
