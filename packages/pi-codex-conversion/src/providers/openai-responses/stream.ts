@@ -29,6 +29,7 @@ export async function processResponsesStream<TApi extends Api>(
 		blockIndex: number;
 		block: ThinkingBlock;
 		summaryParts: Map<number, { text: string }>;
+		contentParts: Map<number, { text: string }>;
 	};
 	type MessageState = {
 		kind: "message";
@@ -73,8 +74,8 @@ export async function processResponsesStream<TApi extends Api>(
 		return delta;
 	};
 
-	const renderReasoningSummary = (summaryParts: Map<number, { text: string }>): string =>
-		Array.from(summaryParts.entries())
+	const renderReasoningParts = (parts: Map<number, { text: string }>): string =>
+		Array.from(parts.entries())
 			.sort(([a], [b]) => a - b)
 			.map(([, part]) => part.text)
 			.join("\n\n");
@@ -182,6 +183,7 @@ export async function processResponsesStream<TApi extends Api>(
 					blockIndex: blockIndex(),
 					block: currentBlock,
 					summaryParts: new Map(),
+					contentParts: new Map(),
 				});
 				stream.push({ type: "thinking_start", contentIndex: blockIndex(), partial: output });
 			} else if (item.type === "message") {
@@ -224,7 +226,7 @@ export async function processResponsesStream<TApi extends Api>(
 				summaryPart.text += event.delta;
 				state.summaryParts.set(event.summary_index, summaryPart);
 				const previousThinking = state.block.thinking;
-				const nextThinking = renderReasoningSummary(state.summaryParts);
+				const nextThinking = renderReasoningParts(state.summaryParts);
 				state.block.thinking = nextThinking;
 				emitAppendedDelta("thinking_delta", state.blockIndex, previousThinking, nextThinking);
 			}
@@ -232,13 +234,18 @@ export async function processResponsesStream<TApi extends Api>(
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "reasoning") {
 				state.summaryParts.set(event.summary_index, { text: event.part.text });
-				state.block.thinking = renderReasoningSummary(state.summaryParts);
+				state.block.thinking = renderReasoningParts(state.summaryParts);
 			}
 		} else if (event.type === "response.reasoning_text.delta") {
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "reasoning") {
-				state.block.thinking += event.delta;
-				stream.push({ type: "thinking_delta", contentIndex: state.blockIndex, delta: event.delta, partial: output });
+				const contentPart = state.contentParts.get(event.content_index) ?? { text: "" };
+				contentPart.text += event.delta;
+				state.contentParts.set(event.content_index, contentPart);
+				const previousThinking = state.block.thinking;
+				const nextThinking = renderReasoningParts(state.contentParts);
+				state.block.thinking = nextThinking;
+				emitAppendedDelta("thinking_delta", state.blockIndex, previousThinking, nextThinking);
 			}
 		} else if (event.type === "response.content_part.added") {
 			const state = outputStates.get(event.output_index);
@@ -331,7 +338,7 @@ export async function processResponsesStream<TApi extends Api>(
 				if (!state || state.kind !== "reasoning") {
 					const currentBlock: ThinkingBlock = { type: "thinking", thinking: "" };
 					output.content.push(currentBlock);
-					state = { kind: "reasoning", blockIndex: blockIndex(), block: currentBlock, summaryParts: new Map() };
+					state = { kind: "reasoning", blockIndex: blockIndex(), block: currentBlock, summaryParts: new Map(), contentParts: new Map() };
 					outputStates.set(event.output_index, state);
 					stream.push({ type: "thinking_start", contentIndex: state.blockIndex, partial: output });
 				}

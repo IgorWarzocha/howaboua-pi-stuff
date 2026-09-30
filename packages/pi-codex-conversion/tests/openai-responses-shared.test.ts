@@ -50,7 +50,7 @@ async function* interruptedAsyncIterable<T>(values: T[]): AsyncIterable<T> {
 
 test("processResponsesStream keeps interleaved text and reasoning separate with authoritative final items", async () => {
 	const output = createAssistantOutput();
-	const pushedEvents: Array<{ type: string; contentIndex?: number; delta?: string }> = [];
+	const pushedEvents: Array<{ type: string; contentIndex?: number; delta?: string; thinking?: string }> = [];
 	const reasoningItems = [
 		{ type: "reasoning", id: "rs_raw", summary: [], content: [{ type: "reasoning_text", text: "Final raw reasoning" }], encrypted_content: "opaque/raw==" },
 		{ type: "reasoning", id: "rs_stream_only", summary: [], encrypted_content: "opaque/stream==" },
@@ -90,8 +90,11 @@ test("processResponsesStream keeps interleaved text and reasoning separate with 
 			{ type: "response.output_item.added", output_index: 3, item: { type: "reasoning", id: "rs_stream_only", summary: [] } },
 			{ type: "response.reasoning_text.delta", output_index: 2, content_index: 0, item_id: "rs_raw", delta: "Partial raw" },
 			{ type: "response.output_text.delta", output_index: 0, content_index: 0, item_id: "msg_a", delta: "Hello", logprobs: [] },
-			{ type: "response.reasoning_text.delta", output_index: 3, content_index: 0, item_id: "rs_stream_only", delta: "Streamed fallback" },
+			{ type: "response.reasoning_text.delta", output_index: 3, content_index: 0, item_id: "rs_stream_only", delta: "First" },
+			{ type: "response.reasoning_text.delta", output_index: 3, content_index: 1, item_id: "rs_stream_only", delta: "Second" },
+			{ type: "response.reasoning_text.delta", output_index: 3, content_index: 0, item_id: "rs_stream_only", delta: " part" },
 			{ type: "response.reasoning_text.delta", output_index: 2, content_index: 0, item_id: "rs_raw", delta: " reasoning" },
+			{ type: "response.reasoning_text.delta", output_index: 3, content_index: 1, item_id: "rs_stream_only", delta: " part" },
 			{ type: "response.output_text.delta", output_index: 1, content_index: 0, item_id: "msg_b", delta: "World", logprobs: [] },
 			{
 				type: "response.output_item.done",
@@ -114,7 +117,10 @@ test("processResponsesStream keeps interleaved text and reasoning separate with 
 			},
 		]) as AsyncIterable<any>,
 		output as any,
-		{ push: (event: { type: string; contentIndex?: number; delta?: string }) => pushedEvents.push(event) } as any,
+		{ push: (event: { type: string; contentIndex?: number; delta?: string }) => {
+			const block = event.contentIndex === undefined ? undefined : output.content[event.contentIndex];
+			pushedEvents.push({ ...event, ...(block?.type === "thinking" ? { thinking: block.thinking } : {}) });
+		} } as any,
 		model,
 	);
 
@@ -127,12 +133,18 @@ test("processResponsesStream keeps interleaved text and reasoning separate with 
 		[0, 1],
 	);
 	assert.deepEqual(
-		pushedEvents.filter((event) => event.type === "thinking_delta").map(({ contentIndex, delta }) => [contentIndex, delta]),
-		[[2, "Partial raw"], [3, "Streamed fallback"], [2, " reasoning"]],
+		pushedEvents.filter((event) => event.type === "thinking_delta").map(({ contentIndex, delta, thinking }) => [contentIndex, delta, thinking]),
+		[
+			[2, "Partial raw", "Partial raw"],
+			[3, "First", "First"],
+			[3, "\n\nSecond", "First\n\nSecond"],
+			[2, " reasoning", "Partial raw reasoning"],
+			[3, " part", "First part\n\nSecond part"],
+		],
 	);
 	assert.deepEqual(
 		output.content.flatMap((block) => block.type === "thinking" ? [block.thinking] : []),
-		["Final raw reasoning", "Streamed fallback", "Actual summary", "", "First raw part\n\nSecond raw part"],
+		["Final raw reasoning", "First part\n\nSecond part", "Actual summary", "", "First raw part\n\nSecond raw part"],
 	);
 	assert.deepEqual(
 		output.content.flatMap((block) => {

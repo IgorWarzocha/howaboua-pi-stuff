@@ -48,17 +48,17 @@ export interface ContextWindowCompactionDetails {
 }
 
 const CONTEXT_WINDOW_BACKLOG_GUIDANCE = "Keep deferred ideas and tasks—including those unrelated to the current work—in notes for later resumption. Update them as decisions change; recording is not permission to implement.";
-const CONTEXT_WINDOW_HANDOFF_GUIDANCE = "Before reporting a task result to another agent, save findings and open work in notes and include the note paths";
+const CONTEXT_WINDOW_TASK_GUIDANCE = "Finish meaningful tasks with note writes as your last tool calls, then reply. Include note paths when reporting to another agent";
 
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
 Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context. After rollover, read hinted notes. Use history only for a missing detail.
-${CONTEXT_WINDOW_HANDOFF_GUIDANCE}
+${CONTEXT_WINDOW_TASK_GUIDANCE}
 ${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
 const CONTEXT_WINDOW_EXPLICIT_GUIDANCE = `<context_window_guidance>
 Notes persist across windows; history retrieves earlier conversation. Update existing notes with task state, decisions and next steps before new_context. After rollover, read hinted notes and resume; consult history only for missing details. Save enough in notes to resume the task without rereading the conversation.
-${CONTEXT_WINDOW_HANDOFF_GUIDANCE}
+${CONTEXT_WINDOW_TASK_GUIDANCE}
 ${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
