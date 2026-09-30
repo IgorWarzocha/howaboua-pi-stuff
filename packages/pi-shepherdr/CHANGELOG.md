@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.9
+
+- Non-blocking agent guidance now explicitly permits continued conversation, other work or an immediate reply. Completion and blockage arrive even after a reply, without polling or sleep waits.
+
 ## 0.2.8
 
 - Agent profiles now control delegation waiting and shared context.
