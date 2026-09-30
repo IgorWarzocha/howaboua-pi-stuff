@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { convertToLlm } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
+import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
+import { CODEX_NOTEBOOK_STATUS_TYPE, recordNotebookStatus } from "../src/adapter/notebook-status.ts";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
 	isCodexDeveloperMessageDetails,
@@ -13,7 +15,7 @@ import {
 	updateCodexPreparedIdleKickoff,
 } from "../src/developer-messages.ts";
 
-test("developer messages preserve delivery and provider-role semantics", () => {
+test("developer messages preserve delivery and provider-role semantics", async () => {
 	const handlers = new Map<string, Set<(value: unknown) => void>>();
 	const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
 	const kickoffs: Array<{ content: string; options: unknown }> = [];
@@ -134,4 +136,34 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 	);
 	unregister();
 	assert.equal(trySendCodexDeveloperMessage(pi, "Unavailable"), false);
+
+	// Admission metadata must be durable without a message queue or another kickoff.
+	const sessionManager = SessionManager.inMemory("/repo");
+	const notebookPi = { appendEntry: (type: string, data: unknown) => { sessionManager.appendCustomEntry(type, data); } };
+	const notebookContext: ExtensionContext = { sessionManager } as never;
+	const state: { notebookStatusMessageId?: string } = {};
+	let samples = 0;
+	const codeMode = { notebookStatus: async () => ({ message: `Retained state ${++samples}`, details: {} }) };
+	const projected = () => projectCodexDeveloperHistory(sessionManager.getBranch(), sessionManager.buildSessionContext().messages);
+	assert.equal(await recordNotebookStatus(notebookPi, notebookContext, state, projected(), codeMode), true);
+	assert.equal(sessionManager.getEntries().length, 1);
+	assert.equal(sessionManager.getBranch()[0]?.type, "custom");
+	assert.equal(projected()[0]?.role, "custom");
+	assert.equal(await recordNotebookStatus(notebookPi, notebookContext, state, projected(), codeMode), false);
+	assert.equal(samples, 1, "visible current status is reused without refreshing a live inventory every turn");
+	const kept = sessionManager.appendMessage({ role: "user", content: "Continue", timestamp: 1 });
+	sessionManager.appendCompaction("Checkpoint", kept, 100_000);
+	assert.equal(await recordNotebookStatus(notebookPi, notebookContext, state, projected(), codeMode), true);
+	assert.equal(samples, 2, "stored but compacted-out status cannot suppress renewal");
+	const notebookMessages = projected();
+	assert.equal(notebookMessages.filter((message) => message.role === "custom" && message.customType === CODEX_NOTEBOOK_STATUS_TYPE).length, 1);
+	const notebookBridge = new CodexDeveloperMessageBridge();
+	assert.deepEqual(notebookBridge.prepare(notebookMessages, false), notebookMessages);
+	const preparedNotebook = notebookBridge.prepare(notebookMessages, true);
+	assert.equal(convertToLlm(preparedNotebook).at(-1)?.role, "user");
+	const notebookCarrier = preparedNotebook.find((message) => message.role === "custom" && message.customType === CODEX_NOTEBOOK_STATUS_TYPE);
+	assert.ok(notebookCarrier && notebookCarrier.role === "custom");
+	assert.deepEqual(notebookBridge.rewritePayload({ input: [{ role: "user", content: notebookCarrier.content }] }), {
+		input: [{ role: "developer", content: "Retained state 2" }],
+	});
 });

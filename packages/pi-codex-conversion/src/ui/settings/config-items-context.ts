@@ -11,7 +11,6 @@ import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 export const CONTINUITY_LABELS = {
 	compaction: "Compaction",
 	notes: "Notes and history",
-	// TODO(#440): Include this rename in the next Conversion changeset, then remove this reminder.
 	"notes-and-compaction": "Notes + history + compaction",
 } as const;
 

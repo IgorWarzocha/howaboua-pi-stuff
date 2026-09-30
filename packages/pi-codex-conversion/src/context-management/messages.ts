@@ -47,8 +47,8 @@ export interface ContextWindowCompactionDetails {
 	windowId?: string | undefined;
 }
 
-const CONTEXT_WINDOW_BACKLOG_GUIDANCE = "Keep deferred ideas and tasks—including those unrelated to the current work—in notes for later resumption. Update them as decisions change; recording is not permission to implement.";
-const CONTEXT_WINDOW_TASK_GUIDANCE = "Finish meaningful tasks with note writes as your last tool calls, then reply. Include note paths when reporting to another agent";
+const CONTEXT_WINDOW_BACKLOG_GUIDANCE = "Include useful deferred ideas and tasks, even unrelated ones, when checkpointing. Recording is not permission to implement";
+const CONTEXT_WINDOW_TASK_GUIDANCE = "After substantial work, save useful new findings, decisions, progress or resumable state in notes as your last tool calls before replying. Skip completion notes for brief clarifications, routine lookups, acknowledgements and unchanged state. Explicit checkpoints and context reminders still apply. Include note paths in agent handoffs";
 
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
 Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context. After rollover, read hinted notes. Use history only for a missing detail.

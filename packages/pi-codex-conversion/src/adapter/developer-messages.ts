@@ -10,6 +10,7 @@ import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isContextWindowBoundary, rewriteCont
 import { CODEX_REASONING_UPDATE_TYPE, codexReasoningLane, normalizeCodexConfigurationUpdates, readCodexReasoningUpdate, supportsCodexReasoningUpdates, type CodexReasoningUpdate } from "./reasoning-updates.ts";
 import { CODEX_CURRENT_TIME_REMINDER_TYPE } from "./current-time-reminder.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE } from "./code-mode/toolkit-updates.ts";
+import { CODEX_NOTEBOOK_STATUS_TYPE } from "./notebook-status.ts";
 
 /** Authenticated carrier through Pi's custom-message-to-user conversion. */
 export class CodexDeveloperMessageBridge {
@@ -33,13 +34,14 @@ export class CodexDeveloperMessageBridge {
 					message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
 					message.customType !== CODEX_CURRENT_TIME_REMINDER_TYPE &&
 					message.customType !== CODEX_TOOLKIT_UPDATE_TYPE &&
+					message.customType !== CODEX_NOTEBOOK_STATUS_TYPE &&
 					message.customType !== CODEX_REASONING_UPDATE_TYPE && customMetadata === undefined)
 			) {
 				projected.push(message);
 				continue;
 			}
 			if (!active) {
-				if (message.customType === CODEX_DEVELOPER_MESSAGE_TYPE || message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE || customMetadata !== undefined)
+				if (message.customType === CODEX_DEVELOPER_MESSAGE_TYPE || message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE || message.customType === CODEX_NOTEBOOK_STATUS_TYPE || customMetadata !== undefined)
 					projected.push(message);
 				continue;
 			}
