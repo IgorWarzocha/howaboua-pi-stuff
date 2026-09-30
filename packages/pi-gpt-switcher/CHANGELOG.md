@@ -1,5 +1,9 @@
 # @howaboua/pi-gpt-switcher
 
+## 0.1.4
+
+- The `/sol` shortcut now selects GPT-6.1 Sol while preserving configured context and reasoning defaults.
+
 ## 0.1.3
 
 - GPT-6 Sol and Luna now share Astra's Codex support.

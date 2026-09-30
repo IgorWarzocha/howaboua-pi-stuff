@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.23
+
+- Fixed `voice.forwardReasoningSummaries` forwarding raw reasoning. Voice now uses only verified provider summaries and preserves visible-text progress.
+
 ## 0.0.22
 
 - Fixed LAN voice and controls accepting requests from unrelated websites while preserving direct phone access and unauthenticated trusted-LAN use.

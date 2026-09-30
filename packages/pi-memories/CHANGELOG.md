@@ -1,5 +1,9 @@
 # @howaboua/pi-memories
 
+## 0.1.5
+
+- Memory extraction now uses supplied context without assuming that global or project instruction files were loaded.
+
 ## 0.1.4
 
 ### Changes

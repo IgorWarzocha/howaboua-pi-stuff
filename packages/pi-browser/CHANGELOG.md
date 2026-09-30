@@ -1,5 +1,12 @@
 # @howaboua/pi-browser
 
+## 0.0.5
+
+- Browser snapshots now include link destinations.
+
+  - Browser help and schemas now describe single-action requests, shared batch fields and JSON results with less repetition.
+  - Click errors now identify zero-sized browser viewports.
+
 ## 0.0.4
 
 - Added session-owned background browser work and direct form controls.

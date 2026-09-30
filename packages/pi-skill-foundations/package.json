@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skill-foundations",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "Portable Pi foundation skills",
 	"type": "module",
 	"keywords": [

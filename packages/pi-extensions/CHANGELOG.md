@@ -1,5 +1,18 @@
 # @howaboua/pi-extensions
 
+## 0.0.81
+
+- Include bundled package updates:
+
+  - @howaboua/pi-better-skills-tool: Skills tool usage now advertises category-filtered listing in Code and Notebook modes.
+  - @howaboua/pi-explore-subagents: Explorer prompts now use concise evidence maps and explicit unknowns without fixed-length report templates or repeated discovery instructions.
+  - @howaboua/pi-gippity-control: Fixed `voice.forwardReasoningSummaries` forwarding raw reasoning. Voice now uses only verified provider summaries and preserves visible-text progress.
+  - @howaboua/pi-gpt-switcher: The `/sol` shortcut now selects GPT-6.1 Sol while preserving configured context and reasoning defaults.
+  - @howaboua/pi-memories: Memory extraction now uses supplied context without assuming that global or project instruction files were loaded.
+  - @howaboua/pi-shepherdr: Added opt-in shared notes and history for spawned agents with Pi Codex Conversion. - New and nested workers receive distinct, persistent context identities before their first task. - Local and Tree context stays in its owning sessions and routes through live controllers and existing SSH connections. Remote storage sharing requires the same Codex account. - Sharing follows **Share subagent context** under `/codex context` and affects new spawns only. Existing agents and ordinary delegation remain unchanged. - Wakeups of existing agents now say “Continue, unless awaiting for user approval.” Fresh-agent startup is unchanged. - Fixed spawned agents dispatching before their persistent Pi session is registered. Profiles using `--no-session` now fail before creating a tab or workspace. - Delegated tasks now guide workers to finish or report blockage with an assistant reply, reserving peer messages for useful mid-run updates rather than waiting or taking over orchestration. - Peer messages now reach the receiving agent's active voice as brief updates, alongside completion reports. Task dispatches and slash commands are not announced.
+  - @howaboua/pi-subagent-review: Reviewer prompts now request evidence-backed findings without issue-count targets.
+  - @howaboua/pi-vent: Vent now uses shorter tool guidance for recording repeated workflow friction after completing the task.
+
 ## 0.0.80
 
 - Include bundled package updates:

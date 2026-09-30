@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.9
+
+- Expanded AGENTS.md notices now use the same muted theme colour as their summaries.
+
 ## 0.0.8
 
 - Removed redundant developer-message wording while preserving review approval rules and nested AGENTS.md guidance.

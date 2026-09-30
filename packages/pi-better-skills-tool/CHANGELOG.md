@@ -1,5 +1,9 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.5
+
+- Skills tool usage now advertises category-filtered listing in Code and Notebook modes.
+
 ## 0.0.4
 
 - The skills tool now reads mixed skills and unique cross-skill references in one call. Ambiguous reference names report their qualified choices.

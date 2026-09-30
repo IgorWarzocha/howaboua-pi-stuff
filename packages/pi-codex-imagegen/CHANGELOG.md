@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.8
+
+- Added `transparent_background` for generated and edited images. Omitted or false requests an opaque background.
+
+  Image requests now re-evaluate proxy and `no_proxy` routing after redirects.
+
 ## 0.0.7
 
 - Adapt Codex, Imagegen, review, and GipPity to Pi 0.87.
