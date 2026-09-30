@@ -114,18 +114,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.81
+### @howaboua/pi-extensions — 0.0.82
 
 - Include bundled package updates:
 
-  - @howaboua/pi-better-skills-tool: Skills tool usage now advertises category-filtered listing in Code and Notebook modes.
-  - @howaboua/pi-explore-subagents: Explorer prompts now use concise evidence maps and explicit unknowns without fixed-length report templates or repeated discovery instructions.
-  - @howaboua/pi-gippity-control: Fixed `voice.forwardReasoningSummaries` forwarding raw reasoning. Voice now uses only verified provider summaries and preserves visible-text progress.
-  - @howaboua/pi-gpt-switcher: The `/sol` shortcut now selects GPT-6.1 Sol while preserving configured context and reasoning defaults.
-  - @howaboua/pi-memories: Memory extraction now uses supplied context without assuming that global or project instruction files were loaded.
-  - @howaboua/pi-shepherdr: Added opt-in shared notes and history for spawned agents with Pi Codex Conversion. - New and nested workers receive distinct, persistent context identities before their first task. - Local and Tree context stays in its owning sessions and routes through live controllers and existing SSH connections. Remote storage sharing requires the same Codex account. - Sharing follows **Share subagent context** under `/codex context` and affects new spawns only. Existing agents and ordinary delegation remain unchanged. - Wakeups of existing agents now say “Continue, unless awaiting for user approval.” Fresh-agent startup is unchanged. - Fixed spawned agents dispatching before their persistent Pi session is registered. Profiles using `--no-session` now fail before creating a tab or workspace. - Delegated tasks now guide workers to finish or report blockage with an assistant reply, reserving peer messages for useful mid-run updates rather than waiting or taking over orchestration. - Peer messages now reach the receiving agent's active voice as brief updates, alongside completion reports. Task dispatches and slash commands are not announced.
-  - @howaboua/pi-subagent-review: Reviewer prompts now request evidence-backed findings without issue-count targets.
-  - @howaboua/pi-vent: Vent now uses shorter tool guidance for recording repeated workflow friction after completing the task.
+  - @howaboua/pi-shepherdr: Agent profiles now control delegation waiting and shared context. - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description. - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -165,17 +158,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.7
+### @howaboua/pi-shepherdr — 0.2.8
 
-- Added opt-in shared notes and history for spawned agents with Pi Codex Conversion.
+- Agent profiles now control delegation waiting and shared context.
 
-  - New and nested workers receive distinct, persistent context identities before their first task.
-  - Local and Tree context stays in its owning sessions and routes through live controllers and existing SSH connections. Remote storage sharing requires the same Codex account.
-  - Sharing follows **Share subagent context** under `/codex context` and affects new spawns only. Existing agents and ordinary delegation remain unchanged.
-  - Wakeups of existing agents now say “Continue, unless awaiting for user approval.” Fresh-agent startup is unchanged.
-  - Fixed spawned agents dispatching before their persistent Pi session is registered. Profiles using `--no-session` now fail before creating a tab or workspace.
-  - Delegated tasks now guide workers to finish or report blockage with an assistant reply, reserving peer messages for useful mid-run updates rather than waiting or taking over orchestration.
-  - Peer messages now reach the receiving agent's active voice as brief updates, alongside completion reports. Task dispatches and slash commands are not announced.
+  - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description.
+  - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -237,20 +225,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.89
+### @howaboua/pi-stuff — 0.0.90
 
 - Include bundled package updates:
 
-  - @howaboua/pi-better-skills-tool: Skills tool usage now advertises category-filtered listing in Code and Notebook modes.
-  - @howaboua/pi-explore-subagents: Explorer prompts now use concise evidence maps and explicit unknowns without fixed-length report templates or repeated discovery instructions.
-  - @howaboua/pi-gippity-control: Fixed `voice.forwardReasoningSummaries` forwarding raw reasoning. Voice now uses only verified provider summaries and preserves visible-text progress.
-  - @howaboua/pi-gpt-switcher: The `/sol` shortcut now selects GPT-6.1 Sol while preserving configured context and reasoning defaults.
-  - @howaboua/pi-memories: Memory extraction now uses supplied context without assuming that global or project instruction files were loaded.
-  - @howaboua/pi-shepherdr: Added opt-in shared notes and history for spawned agents with Pi Codex Conversion. - New and nested workers receive distinct, persistent context identities before their first task. - Local and Tree context stays in its owning sessions and routes through live controllers and existing SSH connections. Remote storage sharing requires the same Codex account. - Sharing follows **Share subagent context** under `/codex context` and affects new spawns only. Existing agents and ordinary delegation remain unchanged. - Wakeups of existing agents now say “Continue, unless awaiting for user approval.” Fresh-agent startup is unchanged. - Fixed spawned agents dispatching before their persistent Pi session is registered. Profiles using `--no-session` now fail before creating a tab or workspace. - Delegated tasks now guide workers to finish or report blockage with an assistant reply, reserving peer messages for useful mid-run updates rather than waiting or taking over orchestration. - Peer messages now reach the receiving agent's active voice as brief updates, alongside completion reports. Task dispatches and slash commands are not announced.
-  - @howaboua/pi-subagent-review: Reviewer prompts now request evidence-backed findings without issue-count targets.
-  - @howaboua/pi-vent: Vent now uses shorter tool guidance for recording repeated workflow friction after completing the task.
-  - @howaboua/pi-skill-foundations: Communication guidance now uses a shorter baseline, rejects stock banter and checks apparent contradictions before conceding a mistake.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Harness skills now use shorter, evidence-led guidance. - Extension design now selects validation by the changed behavior and reuses existing measurement tools for wording edits. - Instruction calibration now checks one-shot outputs against current APIs, distinguishes instruction size from task-cost savings, and completes delegated evaluations without approval between probes. - Prompt-caching guidance now starts from the affected transition and provider-reported usage. - Tool-design guidance now requires a retrieval path for potentially needed truncated output.
+  - @howaboua/pi-shepherdr: Agent profiles now control delegation waiting and shared context. - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description. - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
