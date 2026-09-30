@@ -5,8 +5,9 @@ import { createMcpCodeModeBridge } from "../src/adapter/code-mode/mcp-tools.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, recordCodeModeToolkit } from "../src/adapter/code-mode/toolkit-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
-import { formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
+import { buildCodeModeToolsPrompt, formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { scopeAllToolsToDeferredCustom } from "../src/tools/code-mode/host-client.ts";
+import { toWireToolDefinition } from "../src/tools/code-mode/host-protocol.ts";
 import { codeModeGlobalName } from "../src/tools/code-mode/tool-identity.ts";
 import { notebookBootstrapSource } from "../src/tools/notebook-mode/kernel-runtime.ts";
 import type {
@@ -67,26 +68,34 @@ test("deferred discovery and availability share the callable catalog without imp
 	const loadout = {
 		declared: [native, extension], callable: [native, resource, extension], registered: [native, resource, extension, hidden],
 		getExposure: () => "codemode" as const,
-		getNamespace: () => ({ name: "mcp__records", description: "Keep record IDs unchanged" }),
+		getNamespace: () => ({
+			name: "mcp__records", description: "Record lookup",
+			instructions: "Keep record IDs unchanged\nReturn source citations",
+		}),
 	};
 	assert.deepEqual(mcp.prepareLoadout(loadout as never).hiddenDeclarations, [native.name, resource.name]);
 	const catalog = [bundled, promoted, deferred, deferredProgrammatic, ...mcp.getTools()];
 	assert.match(formatCodeModeToolHelp(mcp.getTools()[0]!), /Output: .*"content"/);
 	const state = {
-		ALL_TOOLS: catalog.map(({ name, description }) => ({
-			name: codeModeGlobalName(name),
-			description,
+		ALL_TOOLS: catalog.map((tool) => ({
+			name: codeModeGlobalName(tool.name),
+			description: toWireToolDefinition(tool).description,
 		})),
 	};
 	const source = scopeAllToolsToDeferredCustom("", catalog);
 	Function("globalThis", source)(state);
 
-	assert.deepEqual(state.ALL_TOOLS, [
-		{ name: "deferred_tool", description: "deferred_tool help" },
-		{ name: "deferred_programmatic_tool", description: "Run command" },
-		{ name: native.name, description: native.description },
-		{ name: resource.name, description: resource.description },
-	]);
+	assert.deepEqual(state.ALL_TOOLS, [deferred, deferredProgrammatic, ...mcp.getTools()].map((tool) => ({
+		name: codeModeGlobalName(tool.name), description: formatCodeModeToolHelp(tool),
+	})));
+	assert.match(state.ALL_TOOLS.find((tool) => tool.name === native.name)!.description,
+		/Instructions: Keep record IDs unchanged\nReturn source citations/);
+	assert(!state.ALL_TOOLS.find((tool) => tool.name === deferred.name)!.description.includes("Instructions:"));
+	for (const mode of ["code", "notebook"] as const) {
+		assert.equal(buildCodeModeToolsPrompt(catalog, mode), buildCodeModeToolsPrompt(catalog.map((tool) => ({
+			...tool, namespace: tool.namespace ? { ...tool.namespace, instructions: "" } : undefined,
+		})), mode));
+	}
 	assert.match(
 		formatCodeModeToolHelp(deferredProgrammatic),
 		/^Usage: await tools\.deferred_programmatic_tool\(\{ cmd \}\)/,
@@ -100,7 +109,8 @@ test("deferred discovery and availability share the callable catalog without imp
 	const initial = messages();
 	const inventory = initial.find((message) => message.role === "custom" && message.customType === CODEX_TOOLKIT_UPDATE_TYPE);
 	assert(inventory?.role === "custom");
-	assert.match(JSON.stringify(inventory), /Keep record IDs unchanged/);
+	assert.match(JSON.stringify(inventory), /Record lookup/);
+	assert(!JSON.stringify(inventory).includes("Keep record IDs unchanged"));
 	assert(!JSON.stringify(inventory).includes("promoted_tool"));
 	assert(!JSON.stringify(inventory).includes("pretender"));
 	assert(!JSON.stringify(inventory).includes(hidden.name));
@@ -115,6 +125,11 @@ test("deferred discovery and availability share the callable catalog without imp
 	const payload = bridge.rewritePayload({ input: [{ role: "user", content: carrier.content }] }) as { input: Array<{ role: string; content: string }> };
 	assert.equal(payload.input[0]!.role, "developer");
 	assert.match(payload.input[0]!.content, /Deferred tools — full help in ALL_TOOLS/);
+	const changedInstructions = catalog.map((tool) => tool.name === native.name
+		? { ...tool, namespace: { ...loadout.getNamespace(), instructions: "Preserve opaque IDs" } } : tool);
+	assert.equal(recordCodeModeToolkit(pi, ctx, initial, changedInstructions), true);
+	assert.match(JSON.stringify(messages().at(-1)), /Changed:.*mcp__records__lookup/s);
+	assert(!JSON.stringify(messages().at(-1)).includes("Preserve opaque IDs"));
 
 	const nextCatalog = catalog.filter((tool) => tool.name !== deferred.name).map((tool) => tool.name === native.name
 		? { ...tool, inputSchema: { type: "object", required: ["id"] } } : tool);
@@ -156,6 +171,8 @@ test("deferred discovery and availability share the callable catalog without imp
 		exec_command: { name: "exec_command" },
 		deferred_programmatic_tool: { name: "deferred-programmatic-tool" },
 	});
+	assert.deepEqual(kernel["ALL_TOOLS"], state.ALL_TOOLS);
+	assert.match(JSON.stringify(kernel["ALL_TOOLS"]), /Keep record IDs unchanged/);
 	const tools = kernel["tools"] as Record<string, (input: unknown) => Promise<unknown>>;
 	assert.deepEqual(Object.keys(tools), ["exec_command", "deferred_programmatic_tool"]);
 	assert.equal(await tools["deferred_programmatic_tool"]!({}), "delivered");

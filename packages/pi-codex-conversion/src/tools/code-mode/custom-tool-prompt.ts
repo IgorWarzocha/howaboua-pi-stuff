@@ -58,6 +58,7 @@ export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 			: undefined,
 		...(tool.promptGuidelines ?? []).map((guideline) =>
 			translateCodeModeGuideline(guideline, tool.name)),
+		tool.namespace?.instructions ? `Instructions: ${tool.namespace.instructions}` : undefined,
 		"inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
 		tool.output ? `Output: ${tool.output}` : undefined,
 		tool.annotations ? `Annotations: ${JSON.stringify(tool.annotations)}` : undefined,
