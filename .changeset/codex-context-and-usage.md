@@ -14,6 +14,7 @@ Added independent context controls, opt-in agent sharing and persistent Codex us
 - Added tracking for renamed Codex providers, including usage reported by failed requests. Usage and reset requests follow configured endpoints and headers, with an accuracy warning for nonstandard configurations.
 - Added `/codex usage analyse` for read-only long-term trends and session-based reasoning reports.
 - Codex requests now honor server retry deadlines within the three-minute recovery limit, stop on unavailable Flex capacity and skip redundant warmups on ready WebSockets.
+- Harness identifier header now offers Pi, Pi Codex Conversion and Codex identities. Pi remains the default.
 - Code and Notebook modes automatically expose Pi 0.99.1 MCP tools and resources through `tools` and `ALL_TOOLS`, preserving Pi permissions and full MCP results. Ordinary extensions still opt in separately; Pi's built-in `codemode` is disabled while these modes are active and restored afterward.
 - Deferred tools now announce their names and short descriptions at startup, with incremental availability updates when tools change and a fresh inventory after context rollover.
 - Notebook startup status and deferred-tool notices now show compact state and tool-count summaries in Pi's theme, expand with Ctrl+O and toggle individually when clicked in fullscreen mode.
