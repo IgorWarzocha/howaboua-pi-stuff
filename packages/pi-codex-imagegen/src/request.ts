@@ -43,6 +43,8 @@ export async function buildImageGenerationRequest(
 	body: Record<string, unknown>;
 }> {
 	const paths = args.referenced_image_paths ?? [];
+	const background =
+		args.transparent_background === true ? "transparent" : "opaque";
 	if (paths.length > MAX_EDIT_IMAGES)
 		throw new Error(
 			"referenced_image_paths must contain at most " +
@@ -59,7 +61,7 @@ export async function buildImageGenerationRequest(
 			body: {
 				prompt: args.prompt,
 				model,
-				background: "auto",
+				background,
 				quality: "auto",
 				size: "auto",
 			},
@@ -81,7 +83,7 @@ export async function buildImageGenerationRequest(
 			images,
 			prompt: args.prompt,
 			model,
-			background: "auto",
+			background,
 			quality: "auto",
 			size: "auto",
 		},

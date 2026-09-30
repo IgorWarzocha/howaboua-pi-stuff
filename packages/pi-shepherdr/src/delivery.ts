@@ -91,16 +91,27 @@ export async function registerDeveloperDelivery(
 
 export function startPreparedIdleTurn(
 	pi: ExtensionAPI,
-	ctx: Pick<ExtensionContext, "ui">,
+	ctx: Pick<ExtensionContext, "ui" | "sessionManager">,
 	start?: () => void,
 ): void {
+	// Session history survives tree cuts; a new active branch is not a fresh agent.
+	const prompt =
+		!start &&
+		ctx.sessionManager
+			.getEntries()
+			.some(
+				(entry) =>
+					entry.type === "message" && entry.message.role === "assistant",
+			)
+			? "Continue, unless awaiting for user approval."
+			: "Continue.";
 	if (start) {
 		if (preparedPrompts.get(pi)?.(pi, start)) return;
 		if (preparedKickoffs.has(pi) && !preparedPrompts.has(pi))
 			throw new Error(
 				"Update Pi Codex Conversion and reload before sending slash commands",
 			);
-	} else if (preparedKickoffs.get(pi)?.(pi, ctx)) return;
+	} else if (preparedKickoffs.get(pi)?.(pi, ctx, prompt)) return;
 	if (fallbackKickoffs.has(pi)) {
 		if (start)
 			throw new Error(
@@ -118,7 +129,7 @@ export function startPreparedIdleTurn(
 	fallbackKickoffs.set(pi, "preparing");
 	try {
 		if (start) start();
-		else pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+		else pi.sendUserMessage(prompt, { deliverAs: "steer" });
 	} catch (error) {
 		fallbackKickoffs.delete(pi);
 		throw error;

@@ -54,6 +54,7 @@ interface PreparedIdleKickoffRequest {
 	protocol: 1;
 	action: "claim" | "agent_start" | "agent_settled" | "session_reset";
 	start?: () => void;
+	prompt?: string;
 	outcome?: "started" | "pending" | { error: string } | undefined;
 }
 
@@ -93,8 +94,9 @@ export function trySendCodexDeveloperCustomMessage(
 export function tryStartCodexPreparedIdleKickoff(
 	pi: ExtensionAPI,
 	ctx: Pick<ExtensionContext, "ui">,
+	prompt?: string,
 ): boolean {
-	const outcome = tryStartCodexPreparedIdlePrompt(pi);
+	const outcome = tryStartCodexPreparedIdlePrompt(pi, undefined, prompt);
 	if (outcome === "pending") {
 		ctx.ui.notify(
 			"An automatic turn is pending. If no turn starts, send a user message or reload the session.",
@@ -108,8 +110,12 @@ export function tryStartCodexPreparedIdleKickoff(
 export function tryStartCodexPreparedIdlePrompt(
 	pi: ExtensionAPI,
 	start?: () => void,
+	prompt?: string,
 ): "started" | "pending" | false {
-	const request: PreparedIdleKickoffRequest = { protocol: 1, action: "claim", ...(start ? { start } : {}) };
+	const request: PreparedIdleKickoffRequest = {
+		protocol: 1, action: "claim", ...(start ? { start } : {}),
+		...(prompt !== undefined ? { prompt } : {}),
+	};
 	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
 	if (request.outcome && typeof request.outcome === "object")
 		throw new Error(request.outcome.error);
@@ -159,14 +165,14 @@ export function registerCodexDeveloperMessageBroker(
 	isActive: () => boolean,
 	isIdle: () => boolean = () => false,
 ): () => void {
-	let preparedIdleKickoff: "preparing" | "running" | "queued" | undefined;
-	const startKickoff = (start?: () => void): PreparedIdleKickoffRequest["outcome"] => {
+	let preparedIdleKickoff: "preparing" | "running" | { prompt: string | undefined } | undefined;
+	const startKickoff = (start?: () => void, prompt = "Continue."): PreparedIdleKickoffRequest["outcome"] => {
 		// Pi exposes no completion for async preflight. Lifecycle owners clear the
 		// claim; guessing here could launch a concurrent turn.
 		preparedIdleKickoff = "preparing";
 		try {
 			if (start) start();
-			else pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+			else pi.sendUserMessage(prompt, { deliverAs: "steer" });
 			return "started";
 		} catch (error) {
 			preparedIdleKickoff = undefined;
@@ -224,8 +230,8 @@ export function registerCodexDeveloperMessageBroker(
 			return;
 		}
 		if (value.action === "agent_settled") {
-			if (preparedIdleKickoff === "queued")
-				value.outcome = startKickoff();
+			if (typeof preparedIdleKickoff === "object")
+				value.outcome = startKickoff(undefined, preparedIdleKickoff.prompt);
 			else if (preparedIdleKickoff === "running")
 				preparedIdleKickoff = undefined;
 			return;
@@ -238,11 +244,11 @@ export function registerCodexDeveloperMessageBroker(
 			}
 			// Pi becomes idle before awaiting settlement handlers. A claim then
 			// belongs to the next turn, not the response that just finished.
-			if (preparedIdleKickoff === "running") preparedIdleKickoff = "queued";
+			if (preparedIdleKickoff === "running") preparedIdleKickoff = { prompt: value.prompt };
 			value.outcome = "pending";
 			return;
 		}
-		value.outcome = startKickoff(value.start);
+		value.outcome = startKickoff(value.start, value.prompt);
 	};
 	const clearPreparedIdleKickoff = () => {
 		preparedIdleKickoff = undefined;
@@ -350,6 +356,7 @@ function isPreparedIdleKickoffRequest(
 			value.protocol === 1 &&
 			"action" in value &&
 			(!("start" in value) || typeof value.start === "function") &&
+			(!("prompt" in value) || (typeof value.prompt === "string" && value.prompt.trim() !== "")) &&
 			(value.action === "claim" ||
 				value.action === "agent_start" ||
 				value.action === "agent_settled" ||

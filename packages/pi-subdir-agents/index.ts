@@ -21,7 +21,7 @@ export default async function (pi: ExtensionAPI): Promise<void> {
 							.map((item) => item.text)
 							.join("\n");
 			return new Text(
-				theme.fg("dim", summary) + (expanded ? `\n${content}` : ""),
+				theme.fg("dim", summary + (expanded ? `\n${content}` : "")),
 				outputPad,
 				0,
 			);

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { setImmediate } from "node:timers/promises";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { prewarmPreparedOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
@@ -31,6 +32,9 @@ test("fatal Codex API errors survive both event shapes without SSE fallback", as
 				message: "Request blocked.",
 			});
 		},
+		(socket) => socket.emitJson({ type: "error", code: "flex_unavailable" }),
+		(socket) => socket.emitJson({ type: "response.failed", response: { error: { code: "flex_unavailable", message: "Flex is full." } } }),
+		websocketSuccess,
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
@@ -52,10 +56,33 @@ test("fatal Codex API errors survive both event shapes without SSE fallback", as
 			(blocked.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage,
 			"OpenAI blocked this request (invalid_prompt - reason unknown).",
 		);
+		for (const expected of ["Codex error: Flex capacity unavailable.", "Flex is full."]) {
+			const flex = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+			assert.equal((flex.at(-1) as { type?: string }).type, "error");
+			assert.equal((flex.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage, expected);
+		}
 		await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 
-		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(ScriptedWebSocket.opened, 5);
 		assert.equal(fetchCalls, 0);
+		globalThis.fetch = (async () => {
+			fetchCalls++;
+			return sseResponse([{ type: "response.failed", response: { error: { code: "flex_unavailable" } } }]);
+		}) as typeof fetch;
+		const flex = await collectStream(registered.provider.streamSimple(request.model, request.context, { ...request.options as object, transport: "sse" } as never));
+		assert.equal((flex.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage, "Flex capacity unavailable.");
+		assert.equal(fetchCalls, 1);
+		for (const transport of ["websocket", "sse"]) {
+			let observations = 0;
+			const failedObserver = await collectStream(registered.provider.streamSimple(request.model, request.context, {
+				...request.options as object, transport,
+				async onProviderStreamEvent() { observations++; throw new Error("observer rejected event: message too big"); },
+			} as never));
+			assert.match((failedObserver.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage ?? "", /observer rejected event/);
+			assert.equal(observations, 1);
+		}
+		assert.equal(ScriptedWebSocket.opened, 6, "observer failures must not retry the generation");
+		assert.equal(fetchCalls, 2, "observer failures must not fall back or retry SSE");
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
@@ -65,6 +92,9 @@ test("fatal Codex API errors survive both event shapes without SSE fallback", as
 	}), { status: 400 }));
 	assert.equal(parsed.message, "This content was flagged for possible biological risk.");
 	assert.equal(isRetryableCodexStreamError(createCodexHttpError(parsed.message, parsed.code, 400)), false);
+	const flex = await parseErrorResponse(new Response('{"error":{"code":"flex_unavailable"}}', { status: 429 }));
+	assert.equal(flex.message, "Flex capacity unavailable.");
+	assert.equal(isRetryableCodexStreamError(createCodexHttpError(flex.message, flex.code, 429)), false);
 });
 
 test("WebSocket 401 fallback remains local to the failed turn", async () => {
@@ -135,7 +165,11 @@ test("WebSocket close 1009 continues through sticky SSE without futile WebSocket
 	}
 });
 
-test("SSE body recovery replays turn state and commits only the completed attempt", async () => {
+test("SSE recovery honors server deadlines, replays turn state and commits only the completed attempt", async (t) => {
+	t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.UTC(2026, 8, 28) });
+	let now = 0;
+	t.mock.method(performance, "now", () => now);
+	const advance = (ms: number) => { now += ms; t.mock.timers.tick(ms); };
 	const originalFetch = globalThis.fetch;
 	const encoder = new TextEncoder();
 	const capturedHeaders: Headers[] = [];
@@ -146,6 +180,11 @@ test("SSE body recovery replays turn state and commits only the completed attemp
 			fetchCalls++;
 			capturedHeaders.push(new Headers(init?.headers));
 			if (fetchCalls === 1) {
+				return new Response("Temporarily unavailable", {
+					status: 503, headers: { "Retry-After": new Date(Date.now() + 30_000).toUTCString() },
+				});
+			}
+			if (fetchCalls === 2) {
 				let pulled = false;
 				return new Response(new ReadableStream({
 					pull(controller) {
@@ -169,16 +208,30 @@ test("SSE body recovery replays turn state and commits only the completed attemp
 
 		const registered = createRegisteredCodexProvider();
 		const request = codexStreamRequest("sse-body-retry");
-		const events = await collectStream(registered.provider.streamSimple(
+		const pending = collectStream(registered.provider.streamSimple(
 			request.model,
 			request.context,
-			{ ...(request.options as object), transport: "sse", onOutputItemDone: (item: unknown) => completedItems.push(item) } as never,
+			{
+				...(request.options as object), transport: "sse", onOutputItemDone: (item: unknown) => completedItems.push(item),
+				onResponse: ({ status }: { status: number }) => { if (status === 503) advance(10_000); },
+			} as never,
 		));
+		await setImmediate();
+		assert.equal(fetchCalls, 1);
+		advance(19_999);
+		await setImmediate();
+		assert.equal(fetchCalls, 1);
+		advance(1);
+		await setImmediate();
+		assert.equal(fetchCalls, 2);
+		advance(1_000);
+		const events = await pending;
 
 		assert.equal((events.at(-1) as { type?: string }).type, "done");
-		assert.equal(fetchCalls, 2);
+		assert.equal(fetchCalls, 3);
 		assert.equal(capturedHeaders[0]?.get("x-codex-turn-state"), null);
-		assert.equal(capturedHeaders[1]?.get("x-codex-turn-state"), "retry-state");
+		assert.equal(capturedHeaders[1]?.get("x-codex-turn-state"), null);
+		assert.equal(capturedHeaders[2]?.get("x-codex-turn-state"), "retry-state");
 		assert.deepEqual(completedItems, [{ type: "message", id: "committed", role: "assistant", status: "completed", content: [] }]);
 	} finally {
 		globalThis.fetch = originalFetch;

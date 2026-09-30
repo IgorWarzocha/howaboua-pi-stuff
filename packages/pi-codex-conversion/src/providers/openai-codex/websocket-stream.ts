@@ -92,7 +92,11 @@ export async function processWebSocketStream<TApi extends Api>(
 		socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
-				mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)), output),
+				mapCodexEvents(
+					parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)),
+					output,
+					(event) => options?.onProviderStreamEvent?.(event, model),
+				),
 				() => {
 					if (!streamStarted) {
 						streamStarted = true;
@@ -148,7 +152,8 @@ export async function processWebSocketStream<TApi extends Api>(
 	}
 }
 
-export async function prewarmWebSocket(
+export async function prewarmWebSocket<TApi extends Api>(
+	model: Model<TApi>,
 	url: string,
 	body: ResponsesBody,
 	headers: Headers,
@@ -175,6 +180,13 @@ export async function prewarmWebSocket(
 	let usage: CodexPrewarmResult["usage"];
 	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
 	try {
+		if (options.signal?.aborted) throw new Error("Request was aborted");
+		// Acquisition validates the route, credentials and live socket. Keep the
+		// existing baseline; the real request still validates its exact continuation.
+		if (prewarm.kind === "ordinary" && !preserveContinuation && !generate && reused && entry?.continuation) {
+			recordDiagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused, socketAgeMs, socketLane, prewarm });
+			return { socketReused: reused };
+		}
 		recordDiagnostics?.({
 			type: "request",
 			lane: "prewarm",
@@ -192,7 +204,7 @@ export async function prewarmWebSocket(
 		socket.send(JSON.stringify({ type: "response.create", ...body, ...(generate ? {} : { generate: false }) }));
 		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => {
 			if (!preserveContinuation) turnState?.capturePrewarm(value);
-		}))) {
+		}), undefined, (event) => options.onProviderStreamEvent?.(event, model))) {
 			if (event.type === "response.created" && event.response?.id) responseId = event.response.id;
 			if (event.type === "response.output_item.done" && event.item) responseItems.push(event.item);
 			if (event.type === "response.completed") {

@@ -1,4 +1,5 @@
 import { createConnection } from "node:net";
+import { requestContext } from "./remote/shepherdr-context.mjs";
 import { sendPeerMessage } from "./remote/shepherdr-peer.mjs";
 import type {
 	HerdrEvent,
@@ -55,6 +56,12 @@ export function isHerdrErrorCode(error: unknown, code: string): boolean {
 }
 
 export interface HerdrConnection {
+	requestContext(
+		path: string,
+		request: unknown,
+		signal?: AbortSignal,
+	): Promise<unknown>;
+	contextRelayPath(): string;
 	request<T>(method: string, params?: object, timeoutMs?: number): Promise<T>;
 	sendMessage(agent: PaneInfo, message: PeerMessage): Promise<PeerDelivery>;
 	subscribe(
@@ -67,6 +74,16 @@ export interface HerdrConnection {
 
 export class HerdrClient implements HerdrConnection {
 	readonly socketPath: string;
+	requestContext(
+		path: string,
+		request: unknown,
+		signal?: AbortSignal,
+	): Promise<unknown> {
+		return requestContext(path, request, signal);
+	}
+	contextRelayPath(): string {
+		throw new Error("Local context routes use the controller session");
+	}
 
 	constructor(socketPath = process.env["HERDR_SOCKET_PATH"]) {
 		if (!socketPath) {

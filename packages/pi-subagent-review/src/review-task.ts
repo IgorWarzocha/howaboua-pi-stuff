@@ -70,9 +70,7 @@ export function buildReviewTask(
 			"Required inspection steps:",
 			`1. Run \`git diff --stat ${review.mergeBase}\``,
 			`2. Run \`git diff ${review.mergeBase}\``,
-			`3. Run \`git diff --stat ${review.baseBranch}...HEAD\``,
-			`4. Run \`git diff ${review.baseBranch}...HEAD\``,
-			"5. Use targeted file diffs or reads where needed.",
+			"3. Use targeted file diffs or reads where needed.",
 		);
 	} else {
 		sections.push(
@@ -86,26 +84,12 @@ export function buildReviewTask(
 		);
 	}
 
-	if (review.status) {
+	if (review.status && review.baseBranch && review.mergeBase) {
 		sections.push(
 			"",
-			"Because the worktree is not clean, also inspect:",
-			"- `git diff --cached`",
-			"- `git diff`",
-			"- any relevant untracked files reported by status",
+			"Inspect relevant untracked files reported by status. Use staged or unstaged diffs only to answer questions not covered by the checkout comparison.",
 		);
 	}
-
-	sections.push(
-		"",
-		"Return prioritized, actionable findings only.",
-		"Be slightly lenient: include lower-severity but still concrete, actionable issues when supported by evidence.",
-		"Do not stop after finding only one or two issues; keep looking for additional credible findings.",
-		"Aim for roughly 10-20 issues if the diff supports that many, but do not pad or invent findings.",
-		"Focus on correctness, regressions, security, data loss, performance, concurrency, and missing tests.",
-		"Reference specific files and line ranges when possible.",
-		"If there are no actionable issues worth flagging, say that clearly.",
-	);
 
 	if (extraFocus.trim()) {
 		sections.push("", `Additional user focus: ${extraFocus.trim()}`);

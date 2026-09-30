@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { convertToLlm } from "@earendil-works/pi-coding-agent";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
@@ -45,9 +46,15 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 	assert.equal(tryStartCodexPreparedIdleKickoff(pi, kickoffContext), true);
 	assert.equal(kickoffs.length, 1);
 	updateCodexPreparedIdleKickoff(pi, "agent_start");
+	const wakeup = "Continue, unless awaiting for user approval.";
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext, wakeup), true);
+	assert.equal(tryStartCodexPreparedIdleKickoff(pi, kickoffContext, wakeup), true);
+	assert.equal(kickoffs.length, 1);
 	updateCodexPreparedIdleKickoff(pi, "agent_settled");
-	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true);
 	assert.equal(kickoffs.length, 2);
+	assert.deepEqual(kickoffs.at(-1), { content: wakeup, options: { deliverAs: "steer" } });
+	updateCodexPreparedIdleKickoff(pi, "agent_start");
+	updateCodexPreparedIdleKickoff(pi, "agent_settled");
 
 	active = true;
 	assert.equal(trySendCodexDeveloperMessage(pi, "Developer guidance", {
@@ -69,6 +76,18 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 		timestamp: 1,
 	} as never;
 	assert.deepEqual(bridge.prepare([persisted], false), [persisted]);
+	const system = { role: "system" as const, content: "Base instructions", timestamp: 0 };
+	const systemUpdate = { role: "system" as const, content: "", sections: { policy: "Updated policy" }, timestamp: 2 };
+	const transcript = [system, persisted, systemUpdate];
+	const originalTranscript = structuredClone(transcript);
+	const promoted = bridge.prepare(transcript, true);
+	assert.equal(promoted[0], system);
+	assert.equal(promoted[2], systemUpdate);
+	// Switching away from Responses keeps Pi's system deltas and normal custom-message conversion.
+	assert.deepEqual(convertToLlm(bridge.prepare(transcript, false)), [system, {
+		role: "user", content: [{ type: "text", text: "Developer guidance" }], timestamp: 1,
+	}, systemUpdate]);
+	assert.deepEqual(transcript, originalTranscript);
 	const [carrier] = bridge.prepare([persisted], true) as Array<{ content: string }>;
 	assert.deepEqual(
 		bridge.rewritePayload({

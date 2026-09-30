@@ -27,7 +27,7 @@ import {
 	user,
 } from "./websocket-test-support.ts";
 
-test("ordinary and keepalive prewarm preserve the authoritative body without sidecar capture or duplicate payload hooks", async () => {
+test("ordinary prewarm reuses a ready lane after final-body capture; keepalive remains isolated", async () => {
 	const restoreWebSocket = installScriptedWebSocket([[
 		(socket) => {
 			socket.emitJson({ type: "response.created", response: { id: "resp_authoritative_prewarm" } });
@@ -37,7 +37,8 @@ test("ordinary and keepalive prewarm preserve the authoritative body without sid
 			});
 		},
 		websocketSuccess,
-	], websocketSuccess]);
+		websocketSuccess,
+	], [websocketSuccess, websocketSuccess]]);
 	try {
 		const openedHeaders: Record<string, string>[] = [];
 		globalThis.WebSocket = class extends ScriptedWebSocket {
@@ -64,7 +65,7 @@ test("ordinary and keepalive prewarm preserve the authoritative body without sid
 		const extensionContext = {
 			model: requestModel,
 			modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: refreshedKey, headers: { "x-extension": "auth", "x-deleted": "auth" } }) },
-			sessionManager: { getSessionId: () => sessionId },
+			sessionManager: { getSessionId: () => sessionId, getEntries: () => [] },
 			ui: { notify: () => undefined },
 		} as never;
 		const lateTool = {
@@ -161,6 +162,28 @@ test("ordinary and keepalive prewarm preserve the authoritative body without sid
 		assert.equal(onPayloadCalls, 1);
 		assert.equal(openedHeaders[1]?.["x-extension"], "final");
 		assert.equal(openedHeaders[1]?.["x-deleted"], undefined);
+
+		runtime.prepareTurn(extensionContext);
+		await collectStream(registered.provider.streamSimple(
+			requestModel as never,
+			normalizeContext({ messages: [...transcript.messages, { role: "user", content: "Next turn", timestamp: 3 }] }),
+			{
+				...options,
+				headers: { "x-extension": "final", "x-deleted": null },
+				onPayload: (body: unknown) => {
+					onPayloadCalls++;
+					return { ...(body as ResponsesBody), client_metadata: { final_hook: "once" } };
+				},
+			} as never,
+		));
+		runtime.finishTurn();
+		assert.equal(onPayloadCalls, 2);
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(sentFrames().length, 4, "the second main turn sends no warmup request");
+		assert.equal(sentFrames()[3]?.previous_response_id, "resp_ws", "ordinary prewarm preserves the completed response baseline");
+		assert.equal(sentFrames()[3]?.input?.length, 1);
+		assert.equal((await runtime.startKeepalivePrewarm(extensionContext))?.status, "ready");
+		assert.deepEqual(sentFrames()[4]?.input, JSON.parse(JSON.stringify(preparedBody.input)), "skipping warmup still captures the latest finalized body");
 		refreshedKey = fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "other_account" } });
 		assert.equal((await runtime.startKeepalivePrewarm(extensionContext))?.status, "skipped", "fresh auth must match the captured account");
 		refreshedKey = apiKey;
@@ -197,6 +220,7 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 		},
 		sessionManager: {
 			getSessionId: () => "equivalent-prewarm",
+			getEntries: () => [],
 			getBranch: () => [{ type: "message", id: "system", parentId: null, message: {
 				role: "system", content: "Prompt", toolsAdded: codeModeTools, timestamp: 0,
 			} }],
@@ -264,6 +288,7 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 				getApiKeyAndHeaders: async () => ({ ok: true, apiKey }),
 			},
 			sessionManager: {
+				getEntries: () => [],
 				getBranch: () => [{ type: "message", id: "system", parentId: null, message: {
 					role: "system", content: "Stable prompt", toolsAdded: codeModeTools, timestamp: 0,
 				} }],

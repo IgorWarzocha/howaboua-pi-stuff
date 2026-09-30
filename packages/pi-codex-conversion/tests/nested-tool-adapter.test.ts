@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { adaptToolForCodeMode } from "../src/code-mode.ts";
@@ -12,6 +12,34 @@ import {
 
 test("Code Mode nested tools preserve public and namespaced extension results", async () => {
 	const renderedInputLengths: number[] = [];
+	let signal = new AbortController().signal;
+	const nested = adaptToolForCodeMode({
+		...adaptedTool(),
+		async execute(_id, params, _signal, _update, ctx) {
+			if (params.value === "context") {
+				signal = new AbortController().signal;
+				return { content: [], details: ctx.signal };
+			}
+			if (params.value === "catalog") return { content: [], details: ctx.tools };
+			return (await ctx.executeTool("leaf", params)).result;
+		},
+	}, { usage: "await tools.external({value})", resultValue: (result) => result.details });
+	const startup = { cwd: process.cwd(), extensionContext: { get signal() { return signal; } } as ExtensionContext };
+	assert.equal(await nested.invoke({ value: "context" }, startup, new AbortController().signal), signal);
+	for (const value of ["catalog", "call"]) {
+		await assert.rejects(nested.invoke({ value }, startup, new AbortController().signal), /outside a tool call/);
+	}
+	const toolContext: ExtensionToolContext = {
+		...startup.extensionContext,
+		tools: [],
+		async executeTool(name, args) {
+			assert.equal(this, toolContext);
+			assert.equal(name, "leaf");
+			return { toolCall: { type: "toolCall", id: "parent/0", name, arguments: {} }, result: { content: [], details: args }, isError: false };
+		},
+	};
+	assert.equal(await nested.invoke({ value: "catalog" }, { ...startup, extensionContext: toolContext }, new AbortController().signal), toolContext.tools);
+	assert.deepEqual(await nested.invoke({ value: "call" }, { ...startup, extensionContext: toolContext }, new AbortController().signal), { value: "call" });
 	const adapted = adaptToolForCodeMode({
 		name: "structured",
 		label: "Structured",

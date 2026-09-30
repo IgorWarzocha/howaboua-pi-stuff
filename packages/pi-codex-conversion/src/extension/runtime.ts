@@ -14,7 +14,7 @@ import { closeOpenAICodexKeepaliveWebSocketSession, closeOpenAICodexWebSocketSes
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
-import type { CodexPrewarmUsage, OpenAICodexStreamOptions, ResponsesBody } from "../providers/openai-codex/types.ts";
+import type { CodexPrewarmUsage, CodexUsageRecorder, OpenAICodexStreamOptions, ResponsesBody } from "../providers/openai-codex/types.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
 import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
@@ -25,12 +25,15 @@ import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
+import { contextAccountScope, contextAgentIdentity } from "../context-management/agent-identity.ts";
 import { CodexContextWindowKickoff } from "../context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
+import { hasTreeArchives } from "../context-management/tree-archive.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
+import { priceGeneratedPrewarm } from "../providers/openai-codex/usage.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -79,7 +82,7 @@ function prewarmReasoningOption(level: ReturnType<ExtensionAPI["getThinkingLevel
 	return level === "off" ? {} : { reasoning: level };
 }
 
-export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRuntime {
+export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: CodexUsageRecorder): CodexExtensionRuntime {
 	const cacheEnvironment = readCodexCacheEnvironment();
 	for (const warning of cacheEnvironment.warnings) {
 		console.warn(`[pi-codex-conversion] ${warning}`);
@@ -246,6 +249,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				prewarmTransportSettlement = transportSettlement;
 				try {
 					const result = await transportSettlement;
+					if (generate && result?.usage) {
+						await recordUsage?.(extractAccountId(auth.apiKey), requestModel, priceGeneratedPrewarm(model, result.usage, options.serviceTier));
+					}
 					if (controller.signal.aborted) return { status: "aborted" } as const;
 					if (!result) return { status: "skipped" } as const;
 					if (kind !== "keepalive") prewarmedKey = prewarmKey;
@@ -278,15 +284,15 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[]) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const branch = ctx.sessionManager.getBranch();
-		const allEntries = plan.contextManagementMode === "tree" ? ctx.sessionManager.getEntries() : branch;
-		const checkpointBranch = plan.contextManagementMode === "tree" && plan.contextManagementHybrid
+		const archived = hasTreeArchives(branch);
+		const allEntries = archived ? ctx.sessionManager.getEntries() : branch;
+		const checkpointBranch = archived
 			? projectTreeCheckpointBranch(branch, allEntries) : branch;
 		const projected = state.contextWindows.project(
 			projectCodexDeveloperHistory(checkpointBranch, projectTreeCheckpointMessages(branch, checkpointBranch, messages)),
 			plan.contextManagementMode,
 			branch,
 			allEntries,
-			plan.contextManagementHybrid,
 		);
 		return projected.filter((message) => !isProviderContextExcludedMessage(message));
 	};
@@ -409,6 +415,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				|| options.canonicalCompaction || options.cacheRetention === "none") return;
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			if (!isAdapterRuntime(plan)) return;
+			const identity = contextAgentIdentity(ctx);
+			if (identity.accountScope && (!options.apiKey || contextAccountScope(extractAccountId(options.apiKey)) !== identity.accountScope))
+				throw new Error("Shared Remote context requires the parent's Codex account");
 			const systemMessage = getCurrentSystemMessage(context.messages);
 			if (systemMessage) {
 				state.preparedPrompt = {

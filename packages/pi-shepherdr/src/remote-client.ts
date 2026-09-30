@@ -14,10 +14,11 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 7;
+const BRIDGE_VERSION = 11;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
+const REMOTE_CONTEXT_HELPER = "~/.pi/agent/shepherdr-context.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const DEPLOY_TIMEOUT_MS = 20_000;
@@ -59,6 +60,7 @@ interface PendingCall {
 	reject: (error: Error) => void;
 	resolve: (value: unknown) => void;
 	timer: NodeJS.Timeout;
+	cleanup?: () => void;
 }
 
 interface SubscriptionCallbacks {
@@ -160,6 +162,11 @@ async function deploy(
 }
 
 export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
+	private contextHandler:
+		| ((request: unknown, signal: AbortSignal) => Promise<unknown>)
+		| undefined;
+	private readonly incomingContext = new Map<string, AbortController>();
+	private relayPath: string | undefined;
 	private readonly child: ChildProcessWithoutNullStreams;
 	private closed = false;
 	private diagnostics = "";
@@ -194,21 +201,30 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		config: SshMachine,
 		onClose: (error: Error) => void,
 	): Promise<RemoteHerdrClient> {
-		const [source, peerSource, sessionSource] = await Promise.all([
-			readFile(
-				fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
-			),
-			readFile(
-				fileURLToPath(new URL("./remote/shepherdr-peer.mjs", import.meta.url)),
-			),
-			readFile(
-				fileURLToPath(
-					new URL("./remote/shepherdr-session.mjs", import.meta.url),
+		const [source, peerSource, sessionSource, contextSource] =
+			await Promise.all([
+				readFile(
+					fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
 				),
-			),
-		]);
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-peer.mjs", import.meta.url),
+					),
+				),
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-session.mjs", import.meta.url),
+					),
+				),
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-context.mjs", import.meta.url),
+					),
+				),
+			]);
 		await deploy(config, peerSource, REMOTE_PEER_HELPER);
 		await deploy(config, sessionSource, REMOTE_SESSION_HELPER);
+		await deploy(config, contextSource, REMOTE_CONTEXT_HELPER);
 		await deploy(config, source, REMOTE_HELPER);
 		const child = spawnConnector(config, remoteCommand(config));
 		const client = new RemoteHerdrClient(child, onClose);
@@ -230,6 +246,35 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			{ op: "request", method, params, timeoutMs },
 			timeoutMs + 1_000,
 		)) as T;
+	}
+
+	async requestContext(
+		path: string,
+		request: unknown,
+		signal?: AbortSignal,
+	): Promise<unknown> {
+		signal?.throwIfAborted();
+		return this.call({ op: "context", path, request }, 36_000, signal);
+	}
+
+	async startContextRelay(
+		threadId: string,
+		routeId: string,
+		handler: (request: unknown, signal: AbortSignal) => Promise<unknown>,
+	): Promise<void> {
+		this.contextHandler = handler;
+		const path = await this.call({ op: "context_relay", threadId, routeId });
+		if (typeof path !== "string")
+			throw new Error("Invalid shared context relay path");
+		this.relayPath = path;
+	}
+
+	contextRelayPath(): string {
+		if (!this.relayPath)
+			throw new Error(
+				"Shared context relay is unavailable; run /herdr connect to retry",
+			);
+		return this.relayPath;
 	}
 
 	async sendMessage(
@@ -329,7 +374,9 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	private call(
 		message: Record<string, unknown>,
 		timeoutMs = 10_000,
+		signal?: AbortSignal,
 	): Promise<unknown> {
+		signal?.throwIfAborted();
 		if (this.closed)
 			return Promise.reject(
 				new Error("remote Shepherdr bridge is unavailable"),
@@ -337,21 +384,37 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		const id = typeof message["id"] === "string" ? message["id"] : randomUUID();
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
-				this.disconnected(
-					new Error(`remote Shepherdr ${String(message["op"])} timed out`),
+				const error = new Error(
+					`remote Shepherdr ${String(message["op"])} timed out`,
 				);
+				if (message["op"] === "context_relay") this.rejectPending(id, error);
+				else this.disconnected(error);
 			}, timeoutMs);
 			timer.unref();
-			this.pending.set(id, { resolve, reject, timer });
+			const abort = () => {
+				if (!this.pending.has(id)) return;
+				this.rejectPending(
+					id,
+					new Error(
+						"Shared context request cancelled; a write may have completed. Reread the note before retrying",
+					),
+				);
+				this.child.stdin.write(
+					`${JSON.stringify({ op: "context_cancel", id })}\n`,
+				);
+			};
+			this.pending.set(id, {
+				resolve,
+				reject,
+				timer,
+				cleanup: () => signal?.removeEventListener("abort", abort),
+			});
+			signal?.addEventListener("abort", abort, { once: true });
 			this.child.stdin.write(
 				`${JSON.stringify({ ...message, id })}\n`,
 				(error) => {
 					if (!error) return;
-					const pending = this.pending.get(id);
-					if (!pending) return;
-					this.pending.delete(id);
-					clearTimeout(pending.timer);
-					pending.reject(error);
+					this.rejectPending(id, error);
 				},
 			);
 		});
@@ -407,6 +470,40 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			}
 			const id = value["id"];
 			if (typeof id !== "string") continue;
+			if (value["type"] === "context_cancel") {
+				this.incomingContext.get(id)?.abort();
+				continue;
+			}
+			if (value["type"] === "context_request") {
+				const controller = new AbortController();
+				this.incomingContext.set(id, controller);
+				const reply = (data: object) => {
+					if (this.closed || controller.signal.aborted) return;
+					let frame = `${JSON.stringify({ op: "context_reply", id, ...data })}\n`;
+					if (Buffer.byteLength(frame) > MAX_FRAME_BYTES)
+						frame = `${JSON.stringify({ op: "context_reply", id, ok: false, error: "Shared context response is too large" })}\n`;
+					this.child.stdin.write(frame);
+				};
+				void Promise.resolve()
+					.then(() => {
+						if (!this.contextHandler)
+							throw new Error("Shared context controller is unavailable");
+						controller.signal.throwIfAborted();
+						return this.contextHandler(value["request"], controller.signal);
+					})
+					.then(
+						(result) => reply({ ok: true, result }),
+						(error: unknown) =>
+							reply({
+								ok: false,
+								error: error instanceof Error ? error.message : String(error),
+							}),
+					)
+					.finally(() => {
+						this.incomingContext.delete(id);
+					});
+				continue;
+			}
 			if (value["ok"] === true) this.resolvePending(id, value["result"]);
 			else {
 				const detail = value["error"] as BridgeError | undefined;
@@ -428,6 +525,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		if (!pending) return;
 		this.pending.delete(id);
 		clearTimeout(pending.timer);
+		pending.cleanup?.();
 		pending.resolve(value);
 	}
 
@@ -436,6 +534,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		if (!pending) return;
 		this.pending.delete(id);
 		clearTimeout(pending.timer);
+		pending.cleanup?.();
 		pending.reject(error);
 	}
 
@@ -447,8 +546,11 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	}
 
 	private failPending(error: Error, notify: boolean): void {
+		for (const controller of this.incomingContext.values()) controller.abort();
+		this.incomingContext.clear();
 		for (const pending of this.pending.values()) {
 			clearTimeout(pending.timer);
+			pending.cleanup?.();
 			pending.reject(error);
 		}
 		this.pending.clear();

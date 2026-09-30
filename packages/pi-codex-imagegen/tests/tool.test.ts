@@ -39,11 +39,21 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 			body: {
 				prompt: "draw a fox",
 				model: "company-image",
-				background: "auto",
+				background: "opaque",
 				quality: "auto",
 				size: "auto",
 			},
 		},
+	);
+	assert.equal(
+		(
+			await buildImageGenerationRequest(
+				{ prompt: "draw a fox", transparent_background: false },
+				undefined,
+				process.cwd(),
+			)
+		).body["background"],
+		"opaque",
 	);
 	const recent = "data:image/png;base64,aW1hZ2U=";
 	const session = SessionManager.inMemory();
@@ -73,6 +83,7 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 		await buildImageGenerationRequest(
 			{
 				prompt: "add snow",
+				transparent_background: true,
 				num_last_images_to_include: 1,
 			},
 			selected,
@@ -84,7 +95,7 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 				images: [{ image_url: recent }],
 				prompt: "add snow",
 				model: "gpt-image-2.5",
-				background: "auto",
+				background: "transparent",
 				quality: "auto",
 				size: "auto",
 			},

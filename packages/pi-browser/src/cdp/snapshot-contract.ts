@@ -16,6 +16,8 @@ export interface SnapshotElement {
 	id: number;
 	role: string;
 	name?: string | undefined;
+	href?: string | undefined;
+	href_omitted?: true | undefined;
 	value?: unknown;
 	checked?: boolean | "mixed" | undefined;
 	selected?: boolean | undefined;

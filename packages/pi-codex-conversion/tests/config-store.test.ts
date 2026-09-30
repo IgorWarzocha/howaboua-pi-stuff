@@ -65,6 +65,37 @@ test("trusted folder config overrides globals without crossing folder or process
 			globalConfigPath: globalPath,
 			env: { PI_CODEX_FAST: "0" },
 		}).openai.fast, false);
+
+		const legacyGlobal = JSON.stringify({ compaction: { responsesCompaction: true, portableSummary: true, v2UserMessageRetention: 16 } });
+		const legacyProject = JSON.stringify({ compaction: { contextManagement: "tree", hybridCompaction: true, futureOption: "preserve" } });
+		const projectPath = getProjectCodexConversionConfigPath(project);
+		writeFileSync(globalPath, legacyGlobal);
+		writeFileSync(projectPath, legacyProject);
+		const migrated = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
+		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", shareSubagentContext: false, method: "both", v2UserMessageRetention: 16 });
+		assert.equal(readFileSync(globalPath, "utf8"), legacyGlobal);
+		assert.equal(readFileSync(projectPath, "utf8"), legacyProject, "startup normalization never writes configuration");
+		assert.equal(writeCodexConversionConfig(migrated, projectPath, true).ok, true);
+		assert.deepEqual(JSON.parse(readFileSync(projectPath, "utf8")).compaction, {
+			...migrated.compaction, futureOption: "preserve",
+		}, "explicit writes remove obsolete controls but preserve unknown fields");
+
+		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", shareSubagentContext: true, method: "both", v2UserMessageRetention: 32 };
+		writeFileSync(globalPath, JSON.stringify({ compaction: inherited }));
+		for (const { override, expected } of [
+			{ override: { contextManagement: "tree" }, expected: { historyStorage: "tree" } },
+			{ override: { portableSummary: false }, expected: { method: "v2" } },
+			{
+				override: { contextManagement: "tree", portableSummary: false, continuity: "compaction", historyStorage: "remote", method: "pi", shareSubagentContext: false },
+				expected: { continuity: "compaction", historyStorage: "remote", method: "pi", shareSubagentContext: false },
+			},
+		]) {
+			writeFileSync(projectPath, JSON.stringify({ compaction: override }));
+			const effective = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
+			assert.deepEqual(effective.compaction, {
+				...inherited, ...expected,
+			}, "legacy overrides change only named axes; explicit current fields win");
+		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

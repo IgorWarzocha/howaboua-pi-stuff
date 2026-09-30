@@ -48,24 +48,26 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 		[promptTool],
 		undefined,
 		() => ["exec", "wait", "notebook"].every((name) => promptOptions.selectedTools.includes(name)),
+		"notebook",
 	);
 	prepareCodexSystemPrompt(promptOptions, {
 		mode: "notebook",
 		shell: "/usr/bin/zsh",
 		skills: [{ name: "review", description: "Review code", filePath: "/skills/review/SKILL.md" }],
 	});
-	assert.match(promptOptions.sections!["codex_tools"]!, /notebook/);
-	assert.match(promptOptions.sections!["codex_skills"]!, /review: Review code/);
-	assert.equal(promptOptions.sections!["codex_runtime"], "Current shell: /usr/bin/zsh; follow its syntax, quoting, and variable rules; capture $? as rc");
+	assert.match(promptOptions.sections!["exec_tools"]!, /persistent Deno\/TypeScript notebook/);
+	assert.match(promptOptions.sections!["skill_catalog"]!, /review: Review code/);
+	assert.equal(promptOptions.sections!["codex_skills"], undefined);
+	assert.match(promptOptions.sections!["runtime_guidelines"]!, /Current shell: \/usr\/bin\/zsh; follow its syntax, quoting, and variable rules; capture \$\? as rc/);
 	assert.equal(promptOptions.sections!["extension_context"], "Keep extension section");
 	assert.equal(promptOptions.appendSystemPrompt, "Keep configured addendum");
 	assert.deepEqual(promptOptions.contextFiles, [{ path: "/project/AGENTS.md", content: "Keep project context" }]);
 	assert.ok(promptOptions.promptGuidelines!.includes("Keep extension prompt guidance"));
 	const notebookTools = promptOptions.selectedTools;
 	promptOptions.selectedTools = ["read"];
-	assert.equal(promptOptions.sections!["codex_tools"], "");
-	assert.equal(promptOptions.sections!["codex_skills"], "");
-	assert.doesNotMatch(promptOptions.sections!["codex_guidelines"]!, /tools\.exec_command/);
+	assert.equal(promptOptions.sections!["exec_tools"], "");
+	assert.equal(promptOptions.sections!["skill_catalog"], "");
+	assert.doesNotMatch(promptOptions.sections!["runtime_guidelines"]!, /tools\.exec_command/);
 	promptOptions.selectedTools = notebookTools;
 
 	const forcedOptions: PiSystemPromptOptions = {
@@ -74,13 +76,14 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 		forceSystemPrompt: "Forced by an earlier extension",
 	};
 	for (let attempt = 0; attempt < 2; attempt += 1) {
-		prepareCodeModeToolsPrompt(forcedOptions, [promptTool]);
+		prepareCodeModeToolsPrompt(forcedOptions, [promptTool], undefined, () => true, "notebook");
 		prepareCodexSystemPrompt(forcedOptions, { mode: "notebook", shell: "/bin/bash" });
 	}
 	assert.match(forcedOptions.forceSystemPrompt!, /^Forced by an earlier extension/);
-	assert.match(forcedOptions.forceSystemPrompt!, /<codex_tools>/);
-	assert.match(forcedOptions.forceSystemPrompt!, /<codex_runtime>/);
-	assert.equal(forcedOptions.forceSystemPrompt!.match(/<codex_guidelines>/g)?.length, 1);
+	assert.match(forcedOptions.forceSystemPrompt!, /<exec_tools>/);
+	assert.match(forcedOptions.forceSystemPrompt!, /Current shell: \/bin\/bash/);
+	assert.doesNotMatch(forcedOptions.forceSystemPrompt!, /<codex_runtime>/);
+	assert.equal(forcedOptions.forceSystemPrompt!.match(/<runtime_guidelines>/g)?.length, 1);
 
 	const heavyOptions: PiSystemPromptOptions = {
 		...promptOptions,
@@ -97,8 +100,8 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 		});
 	}
 	assert.doesNotMatch(heavyOptions.customPrompt!, /Be concise in your responses/);
-	assert.match(heavyOptions.sections!["codex_guidelines"]!, /Keep extension tool guidance/);
-	assert.match(heavyOptions.sections!["codex_guidelines"]!, /Keep extension prompt guidance/);
+	assert.match(heavyOptions.sections!["runtime_guidelines"]!, /Keep extension tool guidance/);
+	assert.match(heavyOptions.sections!["runtime_guidelines"]!, /Keep extension prompt guidance/);
 	assert.match(heavyOptions.sections!["skills"]!, /review: Review code/);
 	assert.equal(heavyOptions.sections!["extension_context"], "Keep extension section");
 	assert.deepEqual(modes.collectTools("code"), []);

@@ -14,11 +14,13 @@ export const CONTEXT_WINDOW_URGENT_PERCENT = 90;
 
 export type ContextManagementMessageKind =
 	| "window"
+	| "identity"
 	| "reminder"
 	| "urgent"
 	| "fallback";
 
 export interface ContextWindowIdentity {
+	agentName?: string | undefined;
 	firstWindowId: string;
 	currentWindowId: string;
 	previousWindowId?: string | undefined;
@@ -30,6 +32,7 @@ export interface CodexContextManagementMessageDetails
 	contextManagement: {
 		protocol: 1;
 		kind: ContextManagementMessageKind;
+		agentName?: string | undefined;
 		firstWindowId: string;
 		currentWindowId: string;
 		previousWindowId?: string | undefined;
@@ -45,14 +48,17 @@ export interface ContextWindowCompactionDetails {
 }
 
 const CONTEXT_WINDOW_BACKLOG_GUIDANCE = "Keep deferred ideas and tasks—including those unrelated to the current work—in notes for later resumption. Update them as decisions change; recording is not permission to implement.";
+const CONTEXT_WINDOW_HANDOFF_GUIDANCE = "Before reporting a task result to another agent, save findings and open work in notes and include the note paths";
 
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
 Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context. After rollover, read hinted notes. Use history only for a missing detail.
+${CONTEXT_WINDOW_HANDOFF_GUIDANCE}
 ${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
 const CONTEXT_WINDOW_EXPLICIT_GUIDANCE = `<context_window_guidance>
 Notes persist across windows; history retrieves earlier conversation. Update existing notes with task state, decisions and next steps before new_context. After rollover, read hinted notes and resume; consult history only for missing details. Save enough in notes to resume the task without rereading the conversation.
+${CONTEXT_WINDOW_HANDOFF_GUIDANCE}
 ${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
@@ -64,10 +70,11 @@ export function rewriteContextWindowGuidance(content: string, concise: boolean):
 export function renderContextWindowMessage(
 	identity: ContextWindowIdentity,
 	threadHint?: string,
+	agentName = "/root",
 ): string {
 	const lines = [
 		"<context_window>",
-		"Agent name: /root",
+		`Agent name: ${agentName}`,
 		`First context window id: ${identity.firstWindowId}`,
 		`Current context window id: ${identity.currentWindowId}`,
 	];
@@ -86,7 +93,7 @@ ${urgent ? "Urgent: " : ""}${remainingPercent}% remaining. Checkpoint the active
 
 export function renderManualContextCheckpoint(customInstructions?: string): string {
 	return `<context_window_reminder>
-Manual context rollover requested. If you haven't just created or appended a note covering the current state, save it with notes. Then call new_context immediately, before other work. If saving fails, report the failure without rolling over.
+Manual context rollover requested. Save the current state with notes, then finish your response. The new window opens after this run settles. Do not call new_context. If saving fails, report the failure without rolling over.
 </context_window_reminder>${customInstructions?.trim() ? `\n\nCheckpoint guidance from /compact:\n${customInstructions}` : ""}`;
 }
 
@@ -107,9 +114,11 @@ export function isCodexContextManagementMessageDetails(
 	return (
 		record["protocol"] === 1 &&
 		(record["kind"] === "window" ||
+			record["kind"] === "identity" ||
 			record["kind"] === "reminder" ||
 			record["kind"] === "urgent" ||
 			record["kind"] === "fallback") &&
+		(record["agentName"] === undefined || typeof record["agentName"] === "string") &&
 		typeof record["firstWindowId"] === "string" &&
 		record["firstWindowId"] !== "" &&
 		typeof record["currentWindowId"] === "string" &&

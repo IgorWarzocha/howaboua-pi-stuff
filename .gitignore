@@ -4,6 +4,7 @@ node_modules
 .afreet/
 pulses/
 vault/
+/memory/
 .pi/*
 !.pi/skills/
 !.pi/skills/**

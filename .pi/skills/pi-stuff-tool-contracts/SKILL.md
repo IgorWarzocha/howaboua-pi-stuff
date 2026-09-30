@@ -5,6 +5,8 @@ description: "Read after general agent-tool design when reviewing or changing a 
 
 Discover and load applicable general agent tool design guidance before tool work. Load prompt caching guidance too when the active tool vector or system-prompt metadata changes.
 
+Inspect retained Notebook bindings before writing measurement tooling. Reuse `piStuffTokenCount` when available with existing package prompt and schema builders.
+
 Use `scripts/tool-token-lines.mjs` as this repo's preliminary migration and copy-cost probe. If its dependency is absent, install it once:
 
 ```bash
@@ -16,12 +18,15 @@ Add `--json` for machine-readable output. The helper rejects known obsolete Type
 
 The proxy is not the emitted schema or prompt payload. It can miss dynamic strings, imported schemas, conditional modes, and provider serialization. Use it only to locate likely duplication.
 
-## Acceptance gate
+## Validate the changed boundary
 
-- Capture the before-and-after emitted tool schemas and complete tool-related system-prompt additions for every affected active mode, including Structured, Code, and Notebook. Include relevant conditional tool sets and final provider rewrites.
-- Inspect the assembled output across extension boundaries. Apply the general tool-design rejection rules to both extension-authored contracts and integration-generated text; fixing one does not excuse the other.
-- Measure schema and prompt-addition tokens separately. Report counts and material findings.
-- Keep captures and probes temporary and delete them after validation; do not retain reports or scratchpads for routine checks.
-- Do not accept the change without this evidence. Source proxies, preserved metadata, and passing functional tests are not substitutes. If a mode cannot be captured, report that gap instead of certifying its prompt.
+For wording-only edits, compare before-and-after prompt text and serialized schemas for affected modes using existing builders and token tooling. Review the diff for preserved instructions and constraints, and run focused checks. A small Notebook cell is enough; do not build an SDK harness, launch comparison sessions, or add tests merely because the text is model-facing.
 
-Check model-visible results and run the owning package's direct check after changes.
+For changes to schema shape, registration, prompt assembly, routing, or provider serialization:
+
+- Capture before-and-after emitted schemas and prompt additions for the affected modes and conditional tool sets, including final provider rewrites. Reuse existing capture tooling first.
+- Inspect assembled output across extension boundaries. Source proxies and passing functional tests do not prove the emitted contract.
+- New probes need a concrete risk that existing checks cannot resolve. Missing captures limit the claims you can make; they do not automatically justify a new harness.
+- Check affected model-visible results and run the owning package's relevant checks.
+
+Measure schema and prompt text separately. Label source proxies as proxies, not emitted-payload or task-cost savings. Delete temporary captures and probes after validation.

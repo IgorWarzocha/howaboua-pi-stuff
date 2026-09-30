@@ -16,7 +16,7 @@ import {
 	type CodeModeToolProvider,
 } from "./shared-runtime.js";
 import { registerCodeModeEvents } from "./tool-events.js";
-import type { NotebookControlResult } from "./types.ts";
+import type { CodeModeToolDefinition, NotebookControlResult } from "./types.ts";
 
 // Providers in one extension instance share a process-lifetime host runtime.
 // Pi replaces ExtensionAPI registrations on reload, so each API binds its own surface.
@@ -31,6 +31,7 @@ export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
 export interface CodeModeRegistration {
 	prepare(ctx?: unknown): Promise<void> | undefined;
+	getTools(ctx?: unknown): CodeModeToolDefinition[];
 	notebookStatus(ctx: ExtensionContext): Promise<NotebookControlResult>;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
@@ -112,6 +113,7 @@ export async function registerCodeModeTools(
 	let active = true;
 	return {
 		prepare: (ctx) => runtime.prepare(ctx),
+		getTools: (ctx) => runtime.collectTools(ctx),
 		notebookStatus: (ctx) => runtime.controlNotebook({ action: "status", query: "*" }, { cwd: ctx.cwd, extensionContext: ctx }, ctx.signal),
 		checkpointNotebook: () => runtime.checkpointNotebook(),
 		shutdownHost: () => runtime.shutdownHost(),

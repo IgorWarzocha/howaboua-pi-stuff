@@ -51,6 +51,7 @@ test("tab and page results remain bounded with visible continuations", () => {
 				id: 1,
 				role: "link".repeat(10_000),
 				name: "name".repeat(20_000),
+				href: "https://example.com/" + "🤣".repeat(20_000),
 				value: "value".repeat(20_000),
 			},
 		],
@@ -59,6 +60,9 @@ test("tab and page results remain bounded with visible continuations", () => {
 	assert.ok(Buffer.byteLength(JSON.stringify(pathological)) <= 38_000);
 	assert.equal((pathological["content"] as unknown[]).length, 1);
 	assert.equal(pathological["next_lineno"], 2);
+	const [element] = pathological["elements"] as Record<string, unknown>[];
+	assert.equal(element?.["href"], undefined);
+	assert.equal(element?.["href_omitted"], true);
 });
 
 test("large escaped text is recoverable and removed after completion", async () => {

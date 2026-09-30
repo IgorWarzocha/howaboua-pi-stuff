@@ -7,6 +7,7 @@ import { Type } from "typebox";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
+import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
@@ -34,14 +35,14 @@ export function createContextWindowTools(
 			name: "new_context",
 			label: "new_context",
 			description:
-				"Start a new context window. Does not clear, reset, or otherwise affect environment state.",
+				"Start a new context window; environment state is unchanged",
 			parameters: EMPTY_PARAMETERS,
 			...newContextRenderers,
 			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
-				const started = plan.contextManagementHybrid
-					? state.contextWindows.scheduleHybridCompaction()
+				const started = plan.compactOnRollover
+					? state.contextWindows.scheduleRolloverCompaction()
 					: plan.contextManagementMode === "tree"
 					? state.contextTree.schedule(ctx)
 					: await state.contextKickoff.startWindow(pi, ctx, {
@@ -51,14 +52,14 @@ export function createContextWindowTools(
 						trimPreviousWindow: true,
 					});
 				// Pi's terminate flag only stops a batch when every result terminates.
-				if (started && !plan.contextManagementHybrid) ctx.abort();
+				if (started && !plan.compactOnRollover) ctx.abort();
 				return {
 					...(started ? { terminate: true } : {}),
 					content: [
 						{
 							type: "text",
 							text: started
-								? plan.contextManagementHybrid
+								? plan.compactOnRollover
 									? "A new context window will continue from a compaction checkpoint."
 									: "A new context window will start without summarizing conversation history."
 								: "A new context window is already scheduled.",
@@ -71,7 +72,7 @@ export function createContextWindowTools(
 		{
 			name: "get_context_remaining",
 			label: "get_context_remaining",
-			description: "Get the remaining tokens in the current context window.",
+			description: "Remaining context tokens",
 			parameters: EMPTY_PARAMETERS,
 			...contextRemainingRenderers,
 			async execute(_id, _params, _signal, _update, ctx) {
@@ -99,10 +100,18 @@ export function registerContextManagementTools(
 	state: AdapterState,
 ): void {
 	const [newContext, getContextRemaining] = createContextWindowTools(pi, state);
+	const plan = (ctx: ExtensionContext) => resolveCodexRuntimePlanForState(ctx, state);
+	const mode = (ctx: ExtensionContext) => plan(ctx).contextManagementMode;
+	const route = registerContextSharingService(pi, plan, async (ctx, request, signal) => {
+		return request.namespace === "history"
+			? history.execute("shared-context", request.params as Parameters<typeof history.execute>[1], signal, undefined, ctx)
+			: notes.execute("shared-context", request.params as Parameters<typeof notes.execute>[1], signal, undefined, ctx);
+	});
 	const [history, notes] = createHistoryNotesTools(
 		pi,
-		(ctx) => resolveCodexRuntimePlanForState(ctx, state).contextManagementMode,
+		mode,
 		(action, path, ctx) => () => state.contextTree.handoff.finishNoteWrite(action, path, ctx),
+		route,
 	);
 	pi.registerTool(newContext);
 	pi.registerTool(getContextRemaining);
@@ -117,7 +126,7 @@ function assertContextManagementActive(
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (!plan.contextManagement)
 		throw new Error(
-			"Codex context management requires an active Responses adapter with Context management enabled",
+			"Context tools require an active Responses adapter with a notes-based continuity strategy",
 		);
 	return plan;
 }

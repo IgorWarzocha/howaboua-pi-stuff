@@ -11,24 +11,25 @@ import {
 	type Transport,
 } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import { nativeCompactionConfigured } from "../../adapter/activation/runtime-plan.ts";
 import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
-import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
-import { createErrorMessage, isRetryableRequestStatus, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
+import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
+import { codexRetryAfterDeadline, createErrorMessage, isRetryableRequestStatus, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
 import { buildSSEHeaders, buildWebSocketHeaders, createCodexRequestId, extractAccountId, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./headers.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { supportsResponsesLiteModel } from "./responses-lite-model.ts";
 import { resolveCodexTranscript } from "./request-body.ts";
 import { applyResponsesLiteWebSocketMetadata } from "./responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, normalizeTimeoutMs, parseSSE, sleep } from "./sse.ts";
-import { assertSuccessfulCodexOutput, CodexProtocolError, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./stream-events.ts";
+import { assertSuccessfulCodexOutput, CodexProtocolError, codexOverloadRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./stream-events.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState, withCodexTurnState, withCodexTurnStateHeader } from "./turn-state.ts";
-import type { BeforeCodexRequestSend, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
+import type { BeforeCodexRequestSend, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, CodexUsageRecorder, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import { createInitialAssistantMessage } from "./types.ts";
 import { finalizeUsage } from "./usage.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
-import { withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
+import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
 import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
 
 export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "executionMode"> & Partial<Pick<CodexConversionConfig, "compaction">>;
@@ -41,6 +42,7 @@ export interface CodexTransportRecoveryDependencies {
 	beforeRequestSend?: BeforeCodexRequestSend | undefined;
 	onStreamSettled?: () => void | undefined;
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+	recordUsage?: CodexUsageRecorder | undefined;
 	prepareRequestBody: <TApi extends Api>(
 		model: Model<TApi>,
 		context: TranscriptContext,
@@ -86,10 +88,10 @@ function codexStreamMaxRetries(options: OpenAICodexStreamOptions | undefined): n
 	return Math.min(Math.floor(configured), MAX_STREAM_MAX_RETRIES);
 }
 
-function rateLimitRecoveryBudgetError(error: unknown): NonRetryableProviderError {
+function retryAdviceRecoveryBudgetError(error: unknown): NonRetryableProviderError {
 	const requestedDelayMs = codexStreamRetryDelay(error);
 	const detail = requestedDelayMs === undefined ? "" : ` Provider requested a wait of ${Math.ceil(requestedDelayMs / 1000)} seconds.`;
-	return new NonRetryableProviderError(`Codex throttling exceeded the three-minute automatic recovery window.${detail}`);
+	return new NonRetryableProviderError(`Codex retry delay exceeded the three-minute automatic recovery window.${detail}`);
 }
 
 export function getEffectiveCodexTransport(
@@ -110,6 +112,7 @@ async function openCodexSSE<TApi extends Api>(
 	baseHeaders: Headers,
 	options: OpenAICodexStreamOptions | undefined,
 	turnState: CodexTurnState | undefined,
+	waitBeforeRetry: (error: unknown, retryCount: number) => Promise<void>,
 ): Promise<Response> {
 	let lastError: Error | undefined;
 	for (let attempt = 0; attempt <= MAX_SSE_REQUEST_RETRIES; attempt++) {
@@ -138,29 +141,27 @@ async function openCodexSSE<TApi extends Api>(
 			}
 			lastError = error instanceof Error ? error : new Error(String(error));
 			if (attempt < MAX_SSE_REQUEST_RETRIES) {
-				await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
+				await waitBeforeRetry(lastError, attempt + 1);
 				continue;
 			}
 			throw lastError;
 		}
 
+		const retryAfter = codexRetryAfterDeadline(response.headers);
 		if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
 		await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
 		if (response.ok) return response;
 
-		const errorText = await response.text();
-		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
+		const info = await parseErrorResponse(response);
 		const message = info.friendlyMessage || info.message;
-		if (info.code === "server_is_overloaded" || info.code === "slow_down") {
-			throw createCodexHttpError(message, info.code, response.status);
-		}
-		const requestRetryable = isRetryableRequestStatus(response.status);
+		const error = createCodexHttpError(message, info.code, response.status, retryAfter);
+		if (isCodexOverloadError(error)) throw error;
+		const requestRetryable = isRetryableRequestStatus(response.status) && isRetryableCodexStreamError(error);
 		if (requestRetryable && attempt < MAX_SSE_REQUEST_RETRIES) {
-			await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
+			await waitBeforeRetry(error, attempt + 1);
 			continue;
 		}
-		if (info.code) throw createCodexHttpError(message, info.code, response.status);
-		throw isRetryableStreamStatus(response.status) ? new Error(message) : new NonRetryableProviderError(message);
+		throw error;
 	}
 	throw lastError ?? new Error("Failed after retries");
 }
@@ -189,7 +190,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			...options,
 			transport: effectiveTransport,
 			grammarToolInputProperties,
-			...(runtimeConfig?.compaction?.responsesCompaction ? { headers: withRemoteCompactionV2Feature(options.headers) } : {}),
+			...(nativeCompactionConfigured(runtimeConfig?.compaction) ? { headers: withRemoteCompactionV2Feature(options.headers) } : {}),
 		}
 		: { transport: effectiveTransport, grammarToolInputProperties };
 	const stream = createAssistantMessageEventStream();
@@ -214,6 +215,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			const canonicalSessionToken = captureCanonicalSessionToken(effectiveOptions?.sessionId);
 			const reconstructedBody = await deps.prepareRequestBody(model, resolvedContext, effectiveOptions, responsesLite);
 			const body = reconstructedBody;
+			if (hasRemoteCompactionV2Input(body.input)) effectiveOptions.headers = withRemoteCompactionV2Feature(effectiveOptions.headers);
 			await deps.beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, responsesLite);
 			const canonicalHistory: CanonicalHistoryDecision | undefined = effectiveOptions?.canonicalCompaction
 				? "compaction"
@@ -240,30 +242,35 @@ export function createCodexTransportStream<TApi extends Api>(
 			const streamMaxRetries = codexStreamMaxRetries(effectiveOptions);
 			let overloadRetryCount = 0;
 			let overloadWaitedMs = 0;
-			let rateLimitWaitedMs = 0;
+			let retryAdviceWaitedMs = 0;
 			const planRetry = (error: unknown, retryCount: number) => {
 				const overload = isCodexOverloadError(error);
-				const rateLimit = isCodexRateLimitError(error);
+				const requestedDelayMs = codexStreamRetryDelay(error);
+				const serverDirected = requestedDelayMs !== undefined || isCodexRateLimitError(error);
 				const fallbackDelayMs = codexStreamRetryDelayMs(retryCount);
+				const delayMs = overload
+					? codexOverloadRetryDelay(error, overloadRetryCount, overloadWaitedMs)
+					: requestedDelayMs ?? fallbackDelayMs;
+				const adviceBudgetExhausted = serverDirected && (delayMs === undefined
+					|| delayMs > Math.max(0, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS - retryAdviceWaitedMs));
 				return {
 					overload,
-					rateLimit,
-					delayMs: overload
-						? codexOverloadRetryDelay(error, overloadRetryCount, overloadWaitedMs)
-						: rateLimit
-							? codexRateLimitRetryDelay(error, fallbackDelayMs, rateLimitWaitedMs)
-							: codexStreamRetryDelay(error) ?? fallbackDelayMs,
+					serverDirected,
+					adviceBudgetExhausted,
+					delayMs: adviceBudgetExhausted ? undefined : delayMs,
 				};
 			};
-			const waitBeforeRetry = async (plan: { overload: boolean; rateLimit: boolean; delayMs: number | undefined }) => {
-				if (plan.delayMs === undefined) return false;
-				await sleep(plan.delayMs, effectiveOptions?.signal);
+			const waitBeforeRetry = async (error: unknown, retryCount: number, plan = planRetry(error, retryCount)) => {
+				if (plan.delayMs === undefined) throw retryAdviceRecoveryBudgetError(error);
+				// Hooks and diagnostics may take time. Expired advice means zero,
+				// not another full delay or a fresh local backoff.
+				const delayMs = codexStreamRetryDelay(error) ?? plan.delayMs;
+				await sleep(delayMs, effectiveOptions?.signal);
 				if (plan.overload) {
 					overloadRetryCount++;
-					overloadWaitedMs += plan.delayMs;
+					overloadWaitedMs += delayMs;
 				}
-				if (plan.rateLimit) rateLimitWaitedMs += plan.delayMs;
-				return true;
+				if (plan.serverDirected) retryAdviceWaitedMs += delayMs;
 			};
 
 			let streamStarted = false;
@@ -303,6 +310,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						finalizeUsage(output);
 						assertSuccessfulCodexOutput(output);
 						recordUsage(diagnostics, lane, "websocket", output);
+						await deps.recordUsage?.(accountId, { ...model, id: body.model }, output.usage);
 						stream.push({ type: "done", reason: output.stopReason, message: output });
 						stream.end();
 						return;
@@ -314,8 +322,8 @@ export function createCodexTransportStream<TApi extends Api>(
 						const retryableWebSocketError = (isCodexApiError(error) || !isPermanentWebSocketError(error)) && isRetryableCodexStreamError(error);
 						const retryPlan = planRetry(error, attempt + 1);
 						const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
-						const rateLimitBudgetExhausted = retryPlan.rateLimit && retryPlan.delayMs === undefined;
-						const immediateFallback = upgradeRequired || messageTooBig || unauthorized;
+						const adviceBudgetExhausted = retryPlan.adviceBudgetExhausted;
+						const immediateFallback = !(error instanceof CodexProtocolError) && (upgradeRequired || messageTooBig || unauthorized);
 						const fallbackArmed = immediateFallback || (retryableWebSocketError && (attempt >= streamMaxRetries || overloadBudgetExhausted));
 						appendAssistantMessageDiagnostic(
 							output,
@@ -327,7 +335,7 @@ export function createCodexTransportStream<TApi extends Api>(
 								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 							}),
 						);
-						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries && !overloadBudgetExhausted && !rateLimitBudgetExhausted) {
+						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries && !overloadBudgetExhausted && !adviceBudgetExhausted) {
 							diagnostics?.({
 								type: "retry",
 								lane,
@@ -336,11 +344,11 @@ export function createCodexTransportStream<TApi extends Api>(
 								...(retryPlan.delayMs !== undefined ? { delayMs: retryPlan.delayMs } : {}),
 								failure: codexDiagnosticsFailure(error),
 							});
-							await waitBeforeRetry(retryPlan);
+							await waitBeforeRetry(error, attempt + 1, retryPlan);
 							continue;
 						}
-						if (rateLimitBudgetExhausted) {
-							throw rateLimitRecoveryBudgetError(error);
+						if (adviceBudgetExhausted && retryableWebSocketError) {
+							throw retryAdviceRecoveryBudgetError(error);
 						}
 						if (!fallbackArmed) {
 							recordFailure("websocket", error);
@@ -349,6 +357,8 @@ export function createCodexTransportStream<TApi extends Api>(
 							}
 							throw error;
 						}
+						// A transport switch is still another request to the same backend.
+						if (!immediateFallback && retryPlan.serverDirected) await waitBeforeRetry(error, attempt + 1, retryPlan);
 						// Pi supplies resolved request auth, not a force-refresh handle. Keep 401
 						// fallback turn-local so refreshed auth can use WebSockets on the next turn.
 						if (!unauthorized) recordWebSocketSseFallback(effectiveOptions?.sessionId);
@@ -396,7 +406,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						...(canonicalHistory ? { canonicalHistory } : {}),
 						...(effectiveOptions?.compactionDiagnostics ? { compaction: structuredClone(effectiveOptions.compactionDiagnostics) } : {}),
 					});
-					const response = await openCodexSSE(model, sseBody, baseSseHeaders, effectiveOptions, deps.turnState);
+					const response = await openCodexSSE(model, sseBody, baseSseHeaders, effectiveOptions, deps.turnState, waitBeforeRetry);
 					if (!response.body) throw new Error("No response body");
 					if (!streamStarted) {
 						streamStarted = true;
@@ -413,6 +423,7 @@ export function createCodexTransportStream<TApi extends Api>(
 					if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
 					assertSuccessfulCodexOutput(output);
 					recordUsage(diagnostics, lane, "sse", output);
+					await deps.recordUsage?.(accountId, { ...model, id: body.model }, output.usage);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
 					if (!effectiveOptions?.canonicalCompaction) recordCanonicalSessionResponse({
 						sessionId: effectiveOptions?.sessionId,
@@ -431,7 +442,7 @@ export function createCodexTransportStream<TApi extends Api>(
 					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
 					const retryPlan = planRetry(error, attempt + 1);
 					const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
-					const rateLimitBudgetExhausted = retryPlan.rateLimit && retryPlan.delayMs === undefined;
+					const adviceBudgetExhausted = retryPlan.adviceBudgetExhausted;
 					appendAssistantMessageDiagnostic(
 						output,
 						createAssistantMessageDiagnostic(retryable ? "provider_transport_failure" : "provider_stream_failure", error, {
@@ -441,7 +452,7 @@ export function createCodexTransportStream<TApi extends Api>(
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted && !rateLimitBudgetExhausted) {
+					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted && !adviceBudgetExhausted) {
 						diagnostics?.({
 							type: "retry",
 							lane,
@@ -450,11 +461,11 @@ export function createCodexTransportStream<TApi extends Api>(
 							...(retryPlan.delayMs !== undefined ? { delayMs: retryPlan.delayMs } : {}),
 							failure: codexDiagnosticsFailure(error),
 						});
-						await waitBeforeRetry(retryPlan);
+						await waitBeforeRetry(error, attempt + 1, retryPlan);
 						continue;
 					}
-					if (rateLimitBudgetExhausted) {
-						throw rateLimitRecoveryBudgetError(error);
+					if (adviceBudgetExhausted && retryable) {
+						throw retryAdviceRecoveryBudgetError(error);
 					}
 					recordFailure("sse", error);
 					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");

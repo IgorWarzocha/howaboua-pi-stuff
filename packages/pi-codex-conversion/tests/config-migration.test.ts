@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { migrateCodexConversionConfigIfNeeded } from "../src/adapter/activation/config-migration.ts";
-import { normalizeCodexConversionConfig } from "../src/adapter/activation/config.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig } from "../src/adapter/activation/config.ts";
 
 test("legacy persisted config shapes migrate to the current groups", () => {
 	const flat = migrateCodexConversionConfigIfNeeded({
@@ -24,4 +24,29 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 		openai: { proxyResponsesLite: false },
 		compaction: { v2UserMessageRetention: 64 },
 	});
+
+	for (const contextManagement of ["off", "local", "tree", "remote"] as const) {
+		for (const hybridCompaction of [false, true]) {
+			const legacy = { compaction: { contextManagement, hybridCompaction, responsesCompaction: true, portableSummary: true, v2UserMessageRetention: 32 } };
+			const migration = migrateCodexConversionConfigIfNeeded(legacy);
+			assert.equal(migration.migrated, true);
+			assert.deepEqual(normalizeCodexConversionConfig(migration.config).compaction, {
+				continuity: contextManagement === "off" ? "compaction" : hybridCompaction ? "notes-and-compaction" : "notes",
+				historyStorage: contextManagement === "off" ? "local" : contextManagement,
+				shareSubagentContext: false,
+				method: contextManagement === "off" || hybridCompaction ? "both" : "pi",
+				v2UserMessageRetention: 32,
+			});
+			assert.equal(migrateCodexConversionConfigIfNeeded(migration.config).migrated, false);
+			assert.equal(legacy.compaction.contextManagement, contextManagement, "reading must not mutate the source document");
+		}
+	}
+	for (const responsesCompaction of [false, true]) {
+		assert.equal(normalizeCodexConversionConfig(migrateCodexConversionConfigIfNeeded({ responsesCompaction }).config).compaction.method,
+			responsesCompaction ? "v2" : "pi");
+	}
+	const current = { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes-and-compaction" as const, method: "both" as const };
+	assert.deepEqual(normalizeCodexConversionConfig(migrateCodexConversionConfigIfNeeded({ compaction: {
+		...current, contextManagement: "off", responsesCompaction: false,
+	} }).config).compaction, current, "explicit current fields win over stale legacy options");
 });

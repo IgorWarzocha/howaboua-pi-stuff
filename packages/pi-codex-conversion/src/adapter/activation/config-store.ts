@@ -127,12 +127,16 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 	return config;
 }
 
-export function readProjectCodexConversionDocument(cwd: string, projectTrusted: boolean): Record<string, unknown> | undefined {
+export function readProjectCodexConversionDocument(
+	cwd: string,
+	projectTrusted: boolean,
+	inheritedCompaction?: CodexConversionConfig["compaction"],
+): Record<string, unknown> | undefined {
 	if (!projectTrusted) return undefined;
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const parsed = readConfigDocument(path, "trusted project");
 	if (!isRecord(parsed)) return undefined;
-	const migration = migrateCodexConversionConfigIfNeeded(parsed);
+	const migration = migrateCodexConversionConfigIfNeeded(parsed, inheritedCompaction);
 	return isRecord(migration.config) ? withoutGlobalOnlyDocument(migration.config) : undefined;
 }
 
@@ -179,7 +183,7 @@ export function readLayeredCodexConversionConfig(
 	options: Omit<EffectiveCodexConversionConfigOptions, "env">,
 ): CodexConversionConfig {
 	const global = readCodexConversionConfig(options.globalConfigPath);
-	const project = readProjectCodexConversionDocument(options.cwd, options.projectTrusted);
+	const project = readProjectCodexConversionDocument(options.cwd, options.projectTrusted, global.compaction);
 	return project
 		? normalizeCodexConversionConfig(mergeConfigDocument(global as unknown as Record<string, unknown>, project))
 		: global;
@@ -286,6 +290,9 @@ export function writeCodexConversionConfig(
 			: withoutProjectOnlyDocument(document);
 		clearAbsentOwnedOptionals(document, normalized);
 		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
+		const compaction = document["compaction"];
+		if (isRecord(compaction))
+			for (const key of ["contextManagement", "hybridCompaction", "responsesCompaction", "portableSummary"]) delete compaction[key];
 		writeConfigDocumentAtomic(configPath, document);
 		return { ok: true };
 	} catch (error) {

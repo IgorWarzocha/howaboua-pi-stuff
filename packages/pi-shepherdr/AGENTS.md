@@ -6,3 +6,4 @@
 - `messages.ts` owns model payloads and rendering details. Preserve task attribution, full responses, actionable blocked CLI commands, and safe restoration of malformed historical details.
 - Idle task input must retain Pi's full user kickoff. Promote attributed coordination to developer steering only inside an already prepared run; session readers must recognize that custom message as task input.
 - `send` is message-only: no wait, watch or task mutation. `assign` delegates to an existing agent. Automatic watches are task-scoped and survive blockage, not completion; only explicit `watch` is persistent. Saved records require scope provenance; never revive legacy implicit subscriptions.
+- Conversion owns context identity; `shared-context.ts` owns family routing. Let Pi create workers normally; bind through the live owner before first task delivery. Never create or append another process's JSONL. Missing optional API exports disable sharing, not Shepherdr.

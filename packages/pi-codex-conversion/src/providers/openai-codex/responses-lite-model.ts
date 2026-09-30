@@ -1,7 +1,7 @@
 type ResponsesLiteModel = string | { id: string } | undefined;
 
 export function isGpt6ModelId(id: string | undefined): boolean {
-	return /^gpt-6-(?:astra|sol|luna)$/i.test(id?.split("/").at(-1) ?? "");
+	return /^(?:gpt-6-(?:astra|sol|luna)|gpt-6\.1-sol)$/i.test(id?.split("/").at(-1) ?? "");
 }
 
 export function supportsResponsesLiteModel(model: ResponsesLiteModel): boolean {

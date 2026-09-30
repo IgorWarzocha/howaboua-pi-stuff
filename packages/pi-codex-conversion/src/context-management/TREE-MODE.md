@@ -6,7 +6,7 @@ Status: implemented contract. Keep this file synchronized with the runtime.
 
 Add a provider-independent **Tree** context-management mode that uses Pi's append-only session tree to remove completed windows from the active branch. Pi-generated branch summaries remain in the session and UI but are filtered from model context. The existing Codex-shaped history and notes tools retrieve them and their archived raw entries on demand.
 
-With Hybrid compaction off, Tree preserves the no-summary window flow:
+With **Notes and history**, Tree preserves the no-summary window flow:
 
 - the next model window does not automatically receive a conversation summary
 - the model receives the current window marker, previous window ID, recent note paths and bounded history IDs
@@ -14,9 +14,9 @@ With Hybrid compaction off, Tree preserves the no-summary window flow:
 - prior summaries and raw work are available only through history and notes
 - Pi JSONL remains append-only and is never rewritten
 
-With Hybrid on, rollover first runs Responses V2 where supported or Pi compaction elsewhere. The archive manifest references the original `CompactionEntry` by `compactionEntryId`. `tree-checkpoint.ts` reconstructs its source path, retained entries and post-compaction tail for model context and native replay; it never duplicates the stored checkpoint. The reference becomes model-authoritative only after the successor window marker exists.
+With **Notes + compaction**, rollover first runs the selected compaction method: Pi summary, Codex V2 or Both. Unsupported V2 routes use Pi summary without changing the saved method. The archive manifest references the original `CompactionEntry` by `compactionEntryId`. `tree-checkpoint.ts` reconstructs its source path, retained entries and post-compaction tail for model context and native replay; it never duplicates the stored checkpoint. The reference becomes model-authoritative only after the successor window marker exists and remains authoritative after changing storage.
 
-With Hybrid, manual `/compact` archives inside `session_compact` without starting a turn. Input intercepted during that navigation is restored to the editor because Pi's manual compaction controller is still active. Tool-requested compaction archives from `ctx.compact().onComplete`, after Pi clears its manual compaction state, then starts the next window. Overflow records the checkpoint and archives at `agent_settled`, after the automatic retry tail. Without Hybrid, `/compact` requests a notes checkpoint and `new_context` through the ordinary notes-only lifecycle below.
+With **Notes + compaction**, manual `/compact` archives inside `session_compact` without starting a turn. Input intercepted during that navigation is restored to the editor because Pi's manual compaction controller is still active. Tool-requested compaction archives from `ctx.compact().onComplete`, after Pi clears its manual compaction state, then starts the next window. Overflow records the checkpoint and retries in the same window without archiving. With **Notes and history**, `/compact` requests a notes checkpoint and `new_context` through the ordinary notes-only lifecycle below.
 
 ```mermaid
 flowchart LR
@@ -35,7 +35,7 @@ flowchart LR
 
 ## Mode model
 
-Use four explicit choices:
+Continuity, storage and compaction method are independent configuration choices. The runtime resolves these effective storage modes:
 
 | Mode | Storage and recovery | Provider contract |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ At `session_start`, `session_tree` and before each context projection:
 
 Do not remove manual Pi branch summaries or summaries created by other extensions.
 
-Tree mode must not run the current “slice from latest boundary” projection. The active tree path already performs the cut. Its context handler should:
+After a completed archive, the active tree path already performs the cut. Before the first archive, only an explicit notes-only rollover marker trims prior history. Initialization after resume or user tree navigation must preserve the selected context and handoff. Its context handler should:
 
 - filter marked Tree summaries
 - omit model-invisible archive and note entries naturally
@@ -301,7 +301,7 @@ On resume with Tree mode enabled:
 - restore the latest active boundary identity
 - leave all archived side branches untouched
 
-With Tree mode disabled, tagged summaries remain ordinary persisted Pi summaries but our provider filter and retrieval tools disappear. Because the summaries were intentionally hidden from the managed model, sessions are not guaranteed to continue correctly without the feature.
+Changing storage preserves checkpoint references and keeps owned archive summaries out of model context. Choosing compaction-only continuity removes history and notes tools without turning saved notes into an automatic summary. Resume notes-based sessions with their selected storage.
 
 In notes-only mode, `/compact` cancels compaction and asks the agent to save the current state in notes unless it has just done so, then call `new_context` immediately. The request starts after Pi clears its manual compaction state. It does not generate a portable summary or make disabling Tree safe.
 
@@ -379,7 +379,7 @@ Then protect the independent contracts:
 - repeated rollovers
 - mode routing for Off, Local, Tree and Remote
 - Remote failure without fallback
-- manual notes checkpoint versus Hybrid compaction routing
+- manual notes checkpoint versus compaction-on-rollover routing
 
 Use focused checks while iterating and the package umbrella gate once after review. Do not turn the test suite back into a lifecycle tour.
 

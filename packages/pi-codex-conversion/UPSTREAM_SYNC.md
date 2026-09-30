@@ -4,19 +4,50 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi transcript API: published `0.86.0` (`ecac0a9c4`)
-- Codex checkout used for the provider comparison: `8ace915aced81ed841e34fa069b2e489c324731c`
+- Pi SDK baseline: published `0.99.1` (`d86654abb`)
+- Stock provider comparison: published Pi `0.99.1` (2026-09-29)
+- Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## Pi 0.99.1 compatibility
+
+Compared the published SDK and stock Codex provider for request shape, headers, reasoning, service tiers, retries and stream termination. The adapter keeps its existing Codex transport and recovery policy.
+
+- Nested tools preserve Pi's real `ExtensionToolContext`. Startup contexts retain leaf execution but reject Pi-owned nested execution without a parent tool call.
+- Code and Notebook modes disable native `codemode` while active and restore its prior activation outside those modes. Their orchestrator tools are model-only. Native MCP tools are admitted by `builtin:mcp` ownership through `prepareLoadout`, keep their Pi callability while their native declarations are hidden, and execute through `ctx.executeTool`. Ordinary extensions retain explicit opt-in integration.
+- Responses streams reject unfinished or ambiguous tool calls before execution. Raw provider events reach Pi's observer before normalization on HTTP, WebSocket and prewarm paths. Observer failures do not retry generation or trigger transport fallback.
+- Browser OAuth callback errors settle login immediately. The new OpenAI API OAuth provider has separate credentials and does not replace this adapter's Codex backend.
+- Backend-reported `fast` uses the existing priority cost multiplier. Stock Pi's Codex provider still recognizes only `priority`; this is an intentional pricing correction.
+
+Pi's built-in GPT-6.1 Sol row maps `minimal` to `low`. Keep the adapter's `minimal: null` override rather than dropping it during catalogue consolidation.
+
+## GPT-6.1 Sol
+
+Model registration follows the [published model specification](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [Codex catalogue at `b1e72963c3b7`](https://github.com/openai/codex/blob/b1e72963c3b71a9265a551e54beff078384efed9/codex-rs/models-manager/models.json). The Codex catalogue confirms Responses Lite, native reasoning updates and a 272K default context window. Keep that default distinct from the public API's 1.05M window. API-equivalent pricing includes the 5% cache-read rate and long-context tier.
+
+Pi exposes `low`, `medium`, `high`, `xhigh` and `max`, with neither `off` nor `minimal`. The catalogue's `ultra` automatic-delegation mode is not exposed through Pi's reasoning selector.
+
+## September 28 transport sync
+
+Reviewed 642 Codex commits after `8ace915aced81ed841e34fa069b2e489c324731c`. The portable changes are:
+
+- HTTP `Retry-After` seconds and dates become monotonic deadlines before response hooks or body parsing. Advice survives request retries and stream recovery, with expired deadlines yielding zero delay. Pi retains its three-minute recovery limits and fails rather than retrying early (`9d8de196748b`).
+- `flex_unavailable` is terminal for both streamed error shapes, with a capacity message when the server supplies none (`dafb133c5b7f`).
+- Ordinary warmup reuses an already prepared, live socket without another `generate: false` request. Route/auth validation, the complete extension preparation chain, final-body capture and exact continuation checks still run. Compaction warmup and isolated keepalive are unchanged (`a98a07759a3f`, `d838c2346d05`).
+
+Stock Pi `0.87.0` was compared for request shape, headers, reasoning/service tier, retries and stream termination. This adapter intentionally keeps Codex's fresh-request WebSocket recovery and its existing three-minute throttling budgets rather than stock Pi's retry defaults. No request-schema or prompt changes accompany this transport sync.
+
+Responses Lite steering and history-aware main-lane idle prewarm remain separate integration work; neither is equivalent to Pi's current steering or isolated captured-prefix keepalive. Native executor, sandbox and rollout changes have no direct port in this sync. Vendored native source revisions remain independently pinned above.
 
 ## Implemented portable behavior
 
 - Standard Responses request, retry, error, usage, and terminal-stream handling
 - Chronological system sections and tool declarations, collapsed for models without mid-conversation system messages
 - Prompt/tool checkpoints across Pi compaction and context-window cuts
-- GPT-6 Astra, Sol and Luna, plus GPT-5.6 Luna, Terra and Sol model support
+- GPT-6.1 Sol, GPT-6 Astra, Sol and Luna, plus GPT-5.6 Luna, Terra and Sol model support
 - Code and Notebook modes backed by Responses Lite on eligible models
 - Lite instructions and tools represented as input items
 - Lite all-turn reasoning context and standalone tools
@@ -33,7 +64,7 @@ Idle keepalive refreshes the last finalized provider-request prefix on an isolat
 
 Pi projects forced prompts onto requests without recording them in the transcript. Final-request capture retains that effective prompt for native compaction; transcript replay uses the persisted structured sections. `SystemMessage.replace` is no longer part of the upstream contract.
 
-Live cache/compaction validation used source commit `e4c75a732`; it has not been repeated against published Pi `0.86.0`.
+Live cache/compaction validation used source commit `e4c75a732`; it has not been repeated against published Pi `0.99.1`. Isolated SDK captures verify final prompts and tools, not provider cache hits.
 
 ## Monitor on each Codex sync
 

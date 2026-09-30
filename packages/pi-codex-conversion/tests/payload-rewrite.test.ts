@@ -205,7 +205,7 @@ test("native replay does not duplicate the retained window after a model switch"
 	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
 });
 
-test("native replay preserves the previous native blob across a newer Pi fallback compaction", () => {
+test("native replay rejects a checkpoint retired by a newer Pi compaction", () => {
 	const pre = messageEntry("pre", null, user("pre", 1));
 	const nativeCompaction = compactionEntry("pre");
 	const fallbackTail = messageEntry("fallback-tail", "compact", user("fallback tail", 6));
@@ -225,8 +225,5 @@ test("native replay preserves the previous native blob across a newer Pi fallbac
 		compactionEntry: nativeCompaction,
 	});
 
-	assert.equal(result.ok, true);
-	if (!result.ok) return;
-	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user", "user"]);
-	assert.deepEqual((result.rewrittenPayload.input[0]! as { encrypted_content?: string }).encrypted_content, "sealed");
+	assert.deepEqual(result, { ok: false, reason: "unexpected-compaction-after-boundary" });
 });

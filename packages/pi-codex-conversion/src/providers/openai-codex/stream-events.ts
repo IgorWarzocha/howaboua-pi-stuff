@@ -1,6 +1,6 @@
 import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
-import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS } from "./constants.ts";
+import { CODEX_RESPONSE_STATUSES, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS } from "./constants.ts";
 import { codexErrorMessage, isRetryableStreamStatus, isTerminalRateLimitError } from "./errors.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";
 import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./types.ts";
@@ -19,6 +19,7 @@ const FATAL_CODEX_ERROR_CODES = new Set([
 	"bio_policy",
 	"context_length_exceeded",
 	"cyber_policy",
+	"flex_unavailable",
 	"insufficient_quota",
 	"invalid_prompt",
 	"invalid_request",
@@ -31,16 +32,16 @@ class CodexApiError extends Error {
 	readonly code?: string | undefined;
 	readonly payload?: StreamEventShape | undefined;
 	readonly retryable: boolean;
-	readonly retryDelayMs?: number | undefined;
+	readonly retryAfter?: number | undefined;
 	readonly status?: number | undefined;
 
-	constructor(message: string, options?: { code?: string | undefined; payload?: StreamEventShape | undefined; retryable?: boolean | undefined; retryDelayMs?: number | undefined; status?: number | undefined }) {
+	constructor(message: string, options?: { code?: string | undefined; payload?: StreamEventShape | undefined; retryable?: boolean | undefined; retryDelayMs?: number | undefined; retryAfter?: number | undefined; status?: number | undefined }) {
 		super(message);
 		this.name = "CodexApiError";
 		this.code = options?.code;
 		this.payload = options?.payload;
 		this.retryable = options?.retryable ?? false;
-		this.retryDelayMs = options?.retryDelayMs;
+		this.retryAfter = options?.retryAfter ?? (options?.retryDelayMs !== undefined ? performance.now() + options.retryDelayMs : undefined);
 		this.status = options?.status;
 	}
 }
@@ -69,13 +70,15 @@ export function isCodexApiError(error: unknown): boolean {
 }
 
 export function codexStreamRetryDelay(error: unknown): number | undefined {
-	return error instanceof CodexApiError ? error.retryDelayMs : undefined;
+	return error instanceof CodexApiError && error.retryAfter !== undefined
+		? Math.max(0, error.retryAfter - performance.now()) : undefined;
 }
 
-export function createCodexHttpError(message: string, code: string | undefined, status: number): Error {
+export function createCodexHttpError(message: string, code: string | undefined, status: number, retryAfter?: number): Error {
 	return new CodexApiError(message, {
 		...(code ? { code } : {}),
 		status,
+		retryAfter,
 		retryable: !(code && FATAL_CODEX_ERROR_CODES.has(code)) && isRetryableStreamStatus(status),
 	});
 }
@@ -93,14 +96,7 @@ export function codexOverloadRetryDelay(error: unknown, retryCount: number, wait
 	const remainingMs = Math.max(0, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS - waitedMs);
 	if (remainingMs === 0) return undefined;
 	const defaultDelayMs = retryCount === 0 ? DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS : DEFAULT_OVERLOAD_RETRY_DELAY_MS;
-	const requestedDelayMs = Math.max(defaultDelayMs, codexStreamRetryDelay(error) ?? 0);
-	return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, remainingMs, requestedDelayMs);
-}
-
-export function codexRateLimitRetryDelay(error: unknown, fallbackDelayMs: number, waitedMs: number): number | undefined {
-	if (!isCodexRateLimitError(error)) return undefined;
-	const requestedDelayMs = codexStreamRetryDelay(error) ?? fallbackDelayMs;
-	const remainingMs = Math.max(0, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS - waitedMs);
+	const requestedDelayMs = codexStreamRetryDelay(error) ?? Math.min(defaultDelayMs, remainingMs);
 	return requestedDelayMs <= remainingMs ? requestedDelayMs : undefined;
 }
 
@@ -178,9 +174,15 @@ function extractCodexEventError(event: StreamEventShape): { code?: string | unde
 export async function* mapCodexEvents(
 	events: AsyncIterable<StreamEventShape>,
 	output?: AssistantMessage,
+	onProviderStreamEvent?: (event: StreamEventShape) => void | Promise<void>,
 ): AsyncIterable<StreamEventShape> {
 	let sawTerminalResponse = false;
 	for await (const event of events) {
+		try {
+			await onProviderStreamEvent?.(event);
+		} catch (error) {
+			throw new CodexProtocolError(`Provider stream observer failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+		}
 		const type = typeof event.type === "string" ? event.type : undefined;
 		if (!type) continue;
 
@@ -270,5 +272,8 @@ export async function processCodexResponsesStream<TApi extends Api>(
 	model: Model<TApi>,
 	options: OpenAICodexStreamOptions | undefined,
 ): Promise<void> {
-	await processMappedCodexResponsesStream(mapCodexEvents(events, output), output, stream, model, options);
+	await processMappedCodexResponsesStream(
+		mapCodexEvents(events, output, (event) => options?.onProviderStreamEvent?.(event, model)),
+		output, stream, model, options,
+	);
 }

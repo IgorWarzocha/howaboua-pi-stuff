@@ -13,6 +13,7 @@ import { CodexContextWindowManager } from "../src/context-management/window-mana
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+import { buildContextSettings } from "../src/ui/settings/config-items-context.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
@@ -191,6 +192,28 @@ test("adapter activation requires registered tools and follows scope independent
 		/Reserved Code Mode extension tool name: exec/,
 	);
 	conflict.unregister();
+
+	for (const mode of ["code", "notebook"] as const) {
+		for (const nativeActive of [false, true]) {
+			const original = ["read", ...(nativeActive ? ["codemode"] : [])];
+			const pi = createToolHarness(original, ["read", "codemode", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
+			const state = createAdapterState({ executionMode: mode });
+			const ctx = createContext(dynamicModel);
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("codemode"), false);
+			assert.ok(pi.activeTools().includes("exec"));
+			state.executionMode = "normal";
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("codemode"), nativeActive);
+			state.executionMode = mode;
+			syncAdapter(pi as never, ctx as never, state);
+			pi.setActiveTools([...pi.activeTools(), "codemode"]);
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("codemode"), false);
+			syncAdapter(pi as never, createContext({ provider: "meta", api: "openai-responses", id: "muse" }) as never, state);
+			assert.deepEqual(pi.activeTools(), ["read", "codemode"]);
+		}
+	}
 });
 
 test("execution mode and Responses Lite transport resolve independently", () => {
@@ -199,7 +222,7 @@ test("execution mode and Responses Lite transport resolve independently", () => 
 		openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: false },
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	}).config;
-	for (const id of ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-terra"]) {
+	for (const id of ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-terra"]) {
 		const codex = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id, baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
 		assert.deepEqual({ kind: codex.kind, transport: codex.transport }, { kind: "code", transport: "responses-lite" });
 		const proxy = createContext({ provider: "litellm", api: "openai-responses", id: `openai/${id}` });
@@ -214,10 +237,45 @@ test("execution mode and Responses Lite transport resolve independently", () => 
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {
 	const config = createAdapterState({
 		scope: { allProviders: "on", additionalProviders: ["my-provider"] },
-		compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true },
+		compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, method: "v2" },
 	}).config;
 
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never, config).nativeCompaction, false);
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
+	for (const route of [
+		{ provider: "openai", api: "openai-responses", native: false },
+		{ provider: "openai-codex", api: "openai-codex-responses", native: true },
+		{ provider: "my-provider", api: "openai-responses", native: true },
+		{ provider: "my-provider", api: "openai-completions", native: false },
+	]) {
+		const ctx = createContext({ ...route, id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never;
+		for (const continuity of ["compaction", "notes", "notes-and-compaction"] as const) {
+			for (const historyStorage of ["local", "tree", "remote"] as const) {
+				for (const method of ["pi", "v2", "both"] as const) {
+					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method, shareSubagentContext: true } };
+					const plan = resolveCodexRuntimePlan(ctx, configured);
+					const notes = continuity !== "compaction" && route.api !== "openai-completions"
+						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
+					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
+					assert.equal(plan.shareSubagentContext, notes, "sharing still requires an eligible notes-based runtime");
+					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
+					assert.equal(plan.nativeCompaction, route.native && continuity !== "notes" && method !== "pi");
+					assert.equal(plan.nativeReplay, route.native, "continuity and method settings must not disable an existing checkpoint's replay");
+				}
+			}
+		}
+	}
+	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never;
+	const original = { ...config, compaction: { ...config.compaction, continuity: "notes-and-compaction" as const, method: "both" as const } };
+	assert.equal(resolveCodexRuntimePlan(ctx, original).shareSubagentContext, false, "notes-based continuity alone cannot opt into sharing");
+	const sharing = buildContextSettings(original, ctx).find(({ item }) => item.id === "shareSubagentContext")!;
+	const enabled = sharing.update!("on", original);
+	assert.deepEqual(enabled.compaction, { ...original.compaction, shareSubagentContext: true });
+	const storage = buildContextSettings(original, ctx).find(({ item }) => item.id === "historyStorage")!;
+	const remote = storage.update!("Remote", enabled);
+	assert.deepEqual(remote.compaction, { ...enabled.compaction, historyStorage: "remote" }, "storage selection must not switch off compaction or portability");
+	const strategy = buildContextSettings(remote, ctx).find(({ item }) => item.id === "continuity")!;
+	const notes = strategy.update!("Notes and history", remote);
+	const compaction = strategy.update!("Compaction", notes);
+	assert.equal(resolveCodexRuntimePlan(ctx, compaction).shareSubagentContext, false);
+	const restored = strategy.update!("Notes + compaction", compaction);
+	assert.deepEqual(restored.compaction, remote.compaction, "inapplicable method and retention settings are remembered, not cleared");
 });

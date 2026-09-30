@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { buildTreeArchiveIndex, hasTreeArchiveSuccessor, TREE_ARCHIVE_ENTRY_TYPE } from "./tree-archive.ts";
+import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isCodexContextManagementMessageDetails } from "./messages.ts";
 
 /** Restore the archived checkpoint's source path only in model/replay context. */
 export function projectTreeCheckpointBranch(
@@ -8,18 +9,22 @@ export function projectTreeCheckpointBranch(
 	all: readonly SessionEntry[],
 ): readonly SessionEntry[] {
 	const index = buildTreeArchiveIndex(all, active);
-	if (index.invalidManifest) throw new Error("Invalid Tree archive checkpoint metadata");
 	const hiddenSummaries = new Set(index.archives.filter((item) =>
 		!item.manifest.compactionEntryId || hasTreeArchiveSuccessor(active, item.manifest.windowId))
 		.map((item) => item.summary.id));
-	const archive = index.archives.at(-1);
-	if (!archive?.manifest.compactionEntryId || !hasTreeArchiveSuccessor(active, archive.manifest.windowId))
-		return hideArchiveSummaries(active, hiddenSummaries);
-	const manifestIndex = active.findIndex((entry) => entry.type === "custom" &&
-		entry.customType === TREE_ARCHIVE_ENTRY_TYPE && entry.parentId === archive.summary.id);
+	const manifestIndex = active.findLastIndex((entry) => entry.type === "custom" && entry.customType === TREE_ARCHIVE_ENTRY_TYPE);
+	if (manifestIndex < 0) return hideArchiveSummaries(active, hiddenSummaries);
 	const tail = active.slice(manifestIndex + 1);
-	// A newer real compaction supersedes the archived checkpoint.
-	if (tail.some((entry) => entry.type === "compaction")) return hideArchiveSummaries(active, hiddenSummaries);
+	// Validate only the archive the live checkpoint still needs, not retired history.
+	if (tail.some((entry) => entry.type === "compaction" || (entry.type === "custom_message" &&
+		entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE && isCodexContextManagementMessageDetails(entry.details) &&
+		entry.details.contextManagement.kind === "window" && entry.details.contextManagement.trimPreviousWindow)))
+		return hideArchiveSummaries(active, hiddenSummaries);
+	const archive = index.archives.find((item) => item.summary.id === active[manifestIndex]!.parentId);
+	if (!archive) throw new Error("Invalid active Tree archive checkpoint metadata");
+	if (!archive.manifest.compactionEntryId || !hasTreeArchiveSuccessor(active, archive.manifest.windowId))
+		return hideArchiveSummaries(active, hiddenSummaries);
+	if (!archive.entries) throw new Error("The active Tree checkpoint is unavailable in this session copy; resume the source session");
 	const byId = new Map(all.map((entry) => [entry.id, entry]));
 	const source: SessionEntry[] = [];
 	const visited = new Set<string>();

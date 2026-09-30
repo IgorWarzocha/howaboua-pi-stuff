@@ -1,11 +1,13 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parseArgs } from "@earendil-works/pi-coding-agent";
 import {
 	getAgent,
 	getPane,
 	getSnapshot,
 	parsePaneInfo,
 	resolveWorkspace,
+	sessionPath,
 } from "./herdr.js";
 import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type { PaneInfo } from "./types.js";
@@ -208,6 +210,12 @@ export async function startAgent(
 		throw new Error("name must match [a-z][a-z0-9_-]{0,31}");
 	}
 	const label = params.label?.trim() || name;
+	const args = ["--name", label, ...(options.agentArgs ?? [])];
+	if (parseArgs(args).noSession) {
+		throw new Error(
+			"spawn requires a persistent Pi session; remove --no-session from profile pi_args",
+		);
+	}
 	if (params.placement === "pane" && params.cwd) {
 		throw new Error(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
@@ -225,7 +233,7 @@ export async function startAgent(
 			name,
 			kind: "pi",
 			pane_id: created.paneId,
-			args: ["--name", label, ...(options.agentArgs ?? [])],
+			args,
 			timeout_ms: 30_000,
 		});
 	} catch (error) {
@@ -303,6 +311,7 @@ async function startWhenShellReady(
 	);
 	const terminalId = started.agent.terminal_id;
 	const readyDeadline = Date.now() + 30_000;
+	let waitingForSession = false;
 	while (Date.now() < readyDeadline) {
 		let current: PaneInfo;
 		try {
@@ -321,14 +330,14 @@ async function startWhenShellReady(
 		if (current.agent_status === "blocked") {
 			throw new Error(`agent ${name} is blocked during startup`);
 		}
-		if (
+		waitingForSession =
 			(current.agent_status === "idle" || current.agent_status === "done") &&
 			current.interactive_ready === true &&
-			current.agent === "pi"
-		) {
-			return current;
-		}
-		if (
+			current.agent === "pi";
+		if (waitingForSession) {
+			if (sessionPath(current)) return current;
+			// Herdr can finish launch before Pi reports its persistent session.
+		} else if (
 			(current.agent_status === "idle" || current.agent_status === "done") &&
 			current.launch_pending === false
 		) {
@@ -336,7 +345,9 @@ async function startWhenShellReady(
 		}
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
-	throw new Error(`timed out waiting for agent ${name} to become interactive`);
+	throw new Error(
+		`timed out waiting for agent ${name} ${waitingForSession ? "to register its Pi session" : "to become interactive"}`,
+	);
 }
 
 async function resolveDuringStart(

@@ -7,8 +7,8 @@ import { formatUnifiedExecResult } from "./format.ts";
 import { renderTerminalOutput } from "./output.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
-	session_id: Type.Number({ description: "Session ID" }),
-	chars: Type.Optional(Type.String({ description: "Input; non-empty requires original exec_command tty=true. Empty polls" })),
+	session_id: Type.Number(),
+	chars: Type.Optional(Type.String({ description: "Input requires original exec_command tty=true; omit or empty to poll" })),
 	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
 	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
 });

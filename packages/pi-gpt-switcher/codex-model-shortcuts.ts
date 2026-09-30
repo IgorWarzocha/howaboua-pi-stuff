@@ -15,7 +15,7 @@ import {
 } from "./config.js";
 
 const MODELS = {
-	sol: { id: "gpt-6-sol", name: "GPT-6 Sol" },
+	sol: { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
 	luna: { id: "gpt-6-luna", name: "GPT-6 Luna" },
 	astra: { id: "gpt-6-astra", name: "GPT-6 Astra" },
 } as const;

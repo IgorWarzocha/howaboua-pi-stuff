@@ -13,6 +13,12 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 		prompt: Type.String({
 			description: "Include target aspect ratio and quality",
 		}),
+		transparent_background: Type.Optional(
+			Type.Boolean({
+				description:
+					"True for transparency or cutouts; for edits preserve existing transparency unless asked to change it",
+			}),
+		),
 		referenced_image_paths: Type.Optional(
 			Type.Union([
 				Type.Array(Type.String(), {
@@ -38,6 +44,7 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 
 export interface ImagegenArgs {
 	prompt: string;
+	transparent_background?: boolean;
 	referenced_image_paths?: string[] | null;
 	num_last_images_to_include?: number | null;
 }

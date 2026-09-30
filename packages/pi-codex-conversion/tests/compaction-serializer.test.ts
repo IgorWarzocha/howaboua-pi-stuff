@@ -240,7 +240,7 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 		contextWindows,
 		contextKickoff,
 		contextTree: new CodexContextTreeCoordinator(contextWindows, contextKickoff),
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, method: "both" } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],
 			provider: model.provider,

@@ -12,13 +12,13 @@ import type { ExecCommandInput, ExecSessionManager, UnifiedExecResult } from "./
 import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
-	cmd: Type.String({ description: "Raw command string interpreted by the current shell; do not quote the entire command" }),
+	cmd: Type.String({ description: "Shell command; do not quote the entire command" }),
 	workdir: Type.Optional(Type.String({ description: "Cwd" })),
 	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(Type.Boolean({ description: "Keep stdin open for input or interruption" })),
 	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
 	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
-	login: Type.Optional(Type.Boolean({ description: "Login shell" })),
+	login: Type.Optional(Type.Boolean()),
 });
 
 interface ExecCommandParams {

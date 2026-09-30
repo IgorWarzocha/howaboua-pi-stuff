@@ -15,6 +15,8 @@ export interface CodexUsageLimit {
 }
 
 export interface CodexUsageSnapshot {
+	accountKey?: string | undefined;
+	nonstandard?: boolean | undefined;
 	planType?: string | undefined;
 	limits: CodexUsageLimit[];
 	resetCredits?: CodexRateLimitResetCredits | undefined;

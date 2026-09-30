@@ -9,13 +9,14 @@ import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { hasCodexTransportConfigChanged, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
+import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
-	const runtime = createCodexExtensionRuntime(pi);
+	const runtime = createCodexExtensionRuntime(pi, recordCodexSpend);
 	runtime.state.contextTree.register(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
@@ -26,6 +27,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
 			beforeRequestSend: runtime.beforeRequestSend,
+			recordUsage: recordCodexSpend,
 		});
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames, runtime.beforeRequestSend);
 		cleanupProxyProvider = proxyProvider;
@@ -36,27 +38,13 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (executionModeChanged || config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
 				config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB || config.notebook.profile !== previousConfig.notebook.profile)
 				runtime.state.notebookStatusMessageId = undefined;
-			const contextManagementChanged =
-				config.compaction.contextManagement !==
-				previousConfig.compaction.contextManagement;
 			tools.applyConfig(config);
 			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
-			if (
-				previousConfig.compaction.contextManagement === "off" &&
-				config.compaction.contextManagement !== "off" &&
-				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement
-			) {
-				runtime.state.contextWindows.restore(
-					ctx.sessionManager.getBranch(),
-				);
-				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
-					mode: config.compaction.contextManagement,
-					trimPreviousWindow:
-						!config.compaction.hybridCompaction && config.compaction.contextManagement !== "tree",
-				}).catch((error: unknown) => {
-					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
-				});
-			}
+			runtime.state.contextWindows.ensureInitialized(
+				pi,
+				ctx,
+				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement,
+			);
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			ui.applyConfig(config, ctx, previousConfig);
 			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {
@@ -69,16 +57,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (hasCodexCacheKeepalivePlanChanged(ctx.model?.id, previousConfig.openai, config.openai)) {
 				runtime.cancelCacheKeepalive();
 			}
-			if (
-				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
-				|| executionModeChanged
-				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
-				|| config.openai.fast !== previousConfig.openai.fast
-				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
-				|| contextManagementChanged
-				|| config.compaction.hybridCompaction !== previousConfig.compaction.hybridCompaction
-				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
-			) {
+			if (hasCodexTransportConfigChanged(previousConfig, config)) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}
 			if (config.voiceFeaturesOnly && !previousConfig.voiceFeaturesOnly) {

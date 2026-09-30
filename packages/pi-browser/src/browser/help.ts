@@ -3,7 +3,8 @@ export function browserHelp(
 ): Record<string, unknown> {
 	const routed = hosts.length > 0;
 	return {
-		input: "Code=JSON.stringify(request); normal=request",
+		input:
+			"Request={action,...fields}; Code/Notebook: JSON.stringify(request), JSON.parse(result)",
 		...(routed
 			? {
 					host: `${hosts.join("|")} optional; keep a user-named host on every call and its refs/handles`,
@@ -13,13 +14,13 @@ export function browserHelp(
 		safety:
 			"Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
 		batch:
-			"top-level nonempty action arrays; items omit action/host/response_length; independent only",
+			"Code/Notebook: {action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
 		actions: {
 			tabs: "query? offset? owned_only? -> ref_id title url owned",
-			open: "ref_id lineno? response_length? | url; new tabs open in background",
+			open: "ref_id lineno? | url; new tabs open in background",
 			show: "ref_id; bring tab to foreground",
 			close: "ref_id",
-			find: "ref_id pattern lineno? response_length?",
+			find: "ref_id pattern lineno?",
 			click: "ref_id id|selector|x+y",
 			type: "ref_id text id?; id focuses",
 			fill: "ref_id id|selector value; replace/clear text, select option value/label, boolean checks/unchecks",

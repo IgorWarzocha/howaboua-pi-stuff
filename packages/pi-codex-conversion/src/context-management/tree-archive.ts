@@ -23,13 +23,18 @@ export interface TreeArchiveManifestData {
 export interface TreeArchive {
 	manifest: TreeArchiveManifestData;
 	summary: BranchSummaryEntry;
-	entries: SessionEntry[];
+	// Pi forks copy the active branch, not the archived paths it references.
+	entries: SessionEntry[] | undefined;
 }
 
 export interface TreeArchiveIndex {
 	archives: TreeArchive[];
 	hiddenSummarySignatures: ReadonlySet<string>;
 	invalidManifest: boolean;
+}
+
+export function hasTreeArchives(entries: readonly SessionEntry[]): boolean {
+	return entries.some((entry) => entry.type === "custom" && entry.customType === TREE_ARCHIVE_ENTRY_TYPE);
 }
 
 export function createTreeArchiveManifest(
@@ -90,15 +95,15 @@ export function buildTreeArchiveIndex(
 			continue;
 		}
 		const archivedEntries = archivedPath(manifest, byId);
-		if (!archivedEntries || (manifest.compactionEntryId !== undefined &&
-			!archivedEntries.some((entry) => entry.id === manifest.compactionEntryId && entry.type === "compaction"))) {
+		if (archivedEntries && manifest.compactionEntryId !== undefined &&
+			!archivedEntries.some((entry) => entry.id === manifest.compactionEntryId && entry.type === "compaction")) {
 			invalidManifest = true;
 			continue;
 		}
 		seenSummaries.add(summary.id);
 		seenWindows.add(manifest.windowId);
 		archives.push({ manifest, summary, entries: archivedEntries });
-		// A hybrid archive is not model-authoritative until its successor window commits.
+		// An archived checkpoint is not model-authoritative until its successor window commits.
 		if (!manifest.compactionEntryId || hasTreeArchiveSuccessor(activeBranch, manifest.windowId))
 			hiddenSummarySignatures.add(branchSummarySignature(summary));
 	}

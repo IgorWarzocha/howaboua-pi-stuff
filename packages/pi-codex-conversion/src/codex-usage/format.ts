@@ -2,17 +2,24 @@ import type { CodexUsageLimit, CodexUsageSnapshot, CodexUsageWindow } from "./pa
 import { CODEX_RESERVE_MODEL } from "./reserve-policy.ts";
 
 export const CODEX_RESERVE_USAGE_NOTE = "Luna Reserve: separate, limited allowance after ordinary quota runs out; availability is backend-controlled.";
+export const NONSTANDARD_CODEX_USAGE_WARNING = "Non-standard OpenAI Codex subscription configuration; usage values may be inaccurate.";
 
 export function codexUsageLimitName(limit: CodexUsageLimit): string {
 	const name = limit.limitName ?? limit.limitId;
 	return name.toLowerCase() === CODEX_RESERVE_MODEL ? "Luna Reserve" : name;
 }
 
+export function formatUsageTable(headers: string[], rows: string[][]): string[] {
+	const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => (row[index] ?? "").length)));
+	return [headers, ...rows].map((row) => row.map((cell, index) => index === 0
+		? cell.padEnd(widths[index] ?? 0) : cell.padStart(widths[index] ?? 0)).join("  ").trimEnd());
+}
+
 function formatReset(timestampSeconds: number | undefined): string {
 	if (!timestampSeconds) return "reset unknown";
 	const ms = timestampSeconds * 1000;
 	const minutes = Math.max(0, Math.round((ms - Date.now()) / 60000));
-	return minutes < 90 ? `resets in ~${minutes}m` : `resets ${new Date(ms).toLocaleString()}`;
+	return minutes < 90 ? `resets in ${minutes}m` : `resets ${new Date(ms).toLocaleString()}`;
 }
 
 function formatWindow(label: string, window: CodexUsageWindow | undefined): string | undefined {

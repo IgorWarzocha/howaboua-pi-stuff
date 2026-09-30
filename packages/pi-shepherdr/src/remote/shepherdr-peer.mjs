@@ -31,7 +31,7 @@ function isMissing(error) {
 }
 
 /** @param {string} path @returns {Promise<string>} */
-async function readReceiver(path) {
+export async function readReceiver(path) {
 	try {
 		return await readFile(path, "utf8");
 	} catch (error) {

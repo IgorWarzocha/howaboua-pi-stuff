@@ -3,4 +3,5 @@
 - Execution mode follows adapter scope independently of provider transport. Responses Lite is an eligible-route transport choice, not a mode gate.
 - Startup/resume may read and normalize config in memory; persistence belongs only to explicit settings actions.
 - Explicit writes preserve unknown fields while updating the adapter-owned config.
+- Continuity, history storage and compaction method are independent choices. Migrate legacy coupling only at the read boundary; hiding an inactive control never clears its saved choice.
 - `config.ts` is the compatibility facade; contracts/defaults, shared value readers, public normalizers, and aggregate normalization stay in their named `config-*` modules.

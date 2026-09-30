@@ -23,21 +23,19 @@ import {
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
 import { attributeAgentPrompt, modelAsk } from "./messages.js";
+import type { SharedAgentContext } from "./shared-context.js";
 
-export function createAgentsTool(fleet: AgentFleet) {
+export function createAgentsTool(
+	fleet: AgentFleet,
+	sharedContext: SharedAgentContext,
+) {
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
 		description: "Delegate to persistent agents; call help first, alone",
 		parameters: AgentsParameters,
 		executionMode: "sequential",
-		async execute(
-			_toolCallId,
-			input: AgentsToolParams,
-			signal,
-			onUpdate,
-			_ctx,
-		) {
+		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {
 			const params = parseAgentsRequest(input);
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
@@ -53,7 +51,15 @@ export function createAgentsTool(fleet: AgentFleet) {
 
 			const runtime = fleet.connected(params.machine);
 			if (params.action === "spawn") {
-				return spawnAgent(fleet, runtime, params, executionSignal, update);
+				return spawnAgent(
+					fleet,
+					runtime,
+					params,
+					executionSignal,
+					update,
+					sharedContext,
+					ctx,
+				);
 			}
 
 			const target = required(params.target, "target");

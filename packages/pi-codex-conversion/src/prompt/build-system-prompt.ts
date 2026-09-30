@@ -1,4 +1,5 @@
 import { getPackageDir, type NormalizedBuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
+import { codeModeCustomizationGuidance } from "../tools/code-mode/custom-tool-prompt.js";
 
 export interface PromptSkill {
 	name: string;
@@ -21,44 +22,39 @@ const PI_DEFAULT_GUIDELINES = new Set([
 	"Show file paths clearly when working with files",
 ]);
 
-const EXEC_SESSION_GUIDELINE = "For unfinished exec_command sessions, use write_stdin with yield_time_ms near the command's expected remaining time and lengthen later waits";
+const RUNTIME_IDENTITY_GUIDELINE = "You are running in Pi with Codex-native tools";
 const FOLLOW_THROUGH_GUIDELINE = "Finish the requested work; ask only when missing information changes what you should do.";
 
 const NORMAL_CODEX_GUIDELINES = [
-	"Use exec_command for shell commands, file inspection, builds, and tests; use rg and rg --files for discovery; filter large output at the source",
+	"Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source",
 	"Reserve tty=true for input or persistent processes",
-	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
-	EXEC_SESSION_GUIDELINE,
+	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
 	"Run independent tool calls in parallel when practical",
 ];
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source",
 	"Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source",
-	"Await long tools.exec_command calls inside exec; resume their yielded cell_id with wait near completion",
+	"Await long tools.exec_command calls inside exec",
 	"Use tty=true for input and persistent processes",
-	"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled, inspect every result, and resolve failures; reserve shell/Python for formatting and bulk rewrites",
+	"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
 	"Return concise exec output with text()",
 ];
 
 const NOTEBOOK_MODE_GUIDELINES = [
-	"exec is a persistent Deno/TypeScript Jupyter notebook; project globals may come from earlier agents and sessions",
-	"Reuse matching retained globals; inspect description/usage before creating reusable ones",
+	"Reuse matching retained globals",
 	"Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning",
 	...CODE_MODE_GUIDELINES,
 	"Diagnose state or helper failures; repair or prune failed state and verify recovery",
-	"Filter retained data inside exec and return the needed findings",
 	"Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments",
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
-	"Notebook reports memory warnings; release/prune before pressure becomes critical",
-	"exec calls run sequentially; use wait to observe or terminate the currently yielded call",
-	"Treat Notebook as a persistent Deno REPL: build small programs on retained state across cells",
+	"exec calls run sequentially",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
 	"Reserve tty=true for input or persistent processes",
-	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
+	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
 	"Run independent tool calls in parallel when practical",
 ]);
 
@@ -67,6 +63,7 @@ const REMOVED_GUIDELINES = new Set([
 ]);
 
 const ALL_STATIC_CODEX_GUIDELINES = [
+	RUNTIME_IDENTITY_GUIDELINE,
 	FOLLOW_THROUGH_GUIDELINE,
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
@@ -99,8 +96,7 @@ function buildCodexGuidelines(
 			active.has("exec_command") ? NORMAL_CODEX_GUIDELINES[0] : undefined,
 			active.has("exec_command") ? NORMAL_CODEX_GUIDELINES[1] : undefined,
 			active.has("apply_patch") ? NORMAL_CODEX_GUIDELINES[2] : undefined,
-			active.has("exec_command") && active.has("write_stdin") ? NORMAL_CODEX_GUIDELINES[3] : undefined,
-			NORMAL_CODEX_GUIDELINES[4],
+			NORMAL_CODEX_GUIDELINES[3],
 		].filter((guideline): guideline is string => guideline !== undefined);
 	} else {
 		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || active.has("notebook"));
@@ -108,9 +104,9 @@ function buildCodexGuidelines(
 			? [...(mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : CODE_MODE_GUIDELINES)]
 			: [];
 	}
-	guidelines.unshift(FOLLOW_THROUGH_GUIDELINE);
+	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE, FOLLOW_THROUGH_GUIDELINE);
 	if (piPackageRoot) {
-		guidelines.push(`When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README.md, docs/, or examples/ files under ${piPackageRoot} and follow their references before implementing`);
+		guidelines.push(`Pi customization or integration: list ${piPackageRoot} before implementing`);
 	}
 	return guidelines;
 }
@@ -165,19 +161,13 @@ export function resolvePromptSkills(
 function buildSkillsContent(skills: PromptSkill[]): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		"## Skills",
-		"### Available skills",
+		"Read skills named by the user or matching the task; resolve relative paths from the skill directory and load needed references",
 	];
 
 	for (const skill of skills) {
 		lines.push(`- ${skill.name}: ${skill.description} (file: ${skill.filePath})`);
 	}
 
-	lines.push("### How to use skills");
-	lines.push("- Use skill when user names it (`$SkillName` or plain text) or request clearly matches its description");
-	lines.push("- Use the minimal required set of skills. If multiple apply, use them together and state the order briefly");
-	lines.push("- Open each selected `SKILL.md`; resolve relative paths from its directory, load needed references, and reuse available scripts/assets/templates");
-	lines.push("- If a skill or path is unavailable, state it briefly and continue with the best fallback");
 	return lines.join("\n");
 }
 
@@ -219,8 +209,33 @@ function selectedToolGuidelines(options: PiSystemPromptOptions): string[] {
 	return (options.selectedTools ?? []).flatMap((name) => options.toolGuidelines?.[name] ?? []);
 }
 
-function formatGuidelines(guidelines: readonly string[]): string {
-	return `Guidelines:\n${guidelines.map((line) => `- ${line}`).join("\n")}`;
+function formatGuidelines(guidelines: readonly string[], shell?: string, customization?: string): string {
+	const editing = new Set([NORMAL_CODEX_GUIDELINES[2], CODE_MODE_GUIDELINES[4]]);
+	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES, "exec calls run sequentially"]);
+	const notebook = new Set<string>(NOTEBOOK_MODE_GUIDELINES);
+	const general: string[] = [];
+	const groups: Record<string, string[]> = {
+		Execution: [],
+		Editing: [],
+		"Notebook state": [],
+		"Harness customization": [],
+	};
+	for (const line of guidelines) {
+		const group = editing.has(line) ? "Editing"
+			: execution.has(line) ? "Execution"
+			: notebook.has(line) ? "Notebook state"
+			: line.startsWith("Pi customization or integration:") ? "Harness customization"
+			: undefined;
+		(group ? groups[group]! : general).push(line);
+	}
+	if (shell) groups["Execution"]!.push(formatShellContext(shell));
+	if (customization) groups["Harness customization"]!.push(customization);
+	const bullets = (lines: readonly string[]) => lines.map((line) => `- ${line}`).join("\n");
+	return [
+		bullets(general),
+		...Object.entries(groups).filter(([, lines]) => lines.length > 0)
+			.map(([heading, lines]) => `### ${heading}\n${bullets(lines)}`),
+	].filter(Boolean).join("\n\n");
 }
 
 function withoutCodexGuidelines(guidelines: readonly string[]): string[] {
@@ -268,8 +283,9 @@ function prepareStructuredSkills(
 ): void {
 	const sections = options.sections ??= {};
 	const content = buildSkillsContent(skills);
+	delete sections["codex_skills"];
 	if (!content) {
-		delete sections["codex_skills"];
+		delete sections["skill_catalog"];
 		return;
 	}
 	const piWillRenderSkills = () => options.selectedTools.includes("read") || options.selectedTools.includes("bash");
@@ -281,7 +297,7 @@ function prepareStructuredSkills(
 	if (heavy && sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () => piWillRenderSkills() ? content : "");
 	}
-	defineOwnedSection(sections, "codex_skills", () => !piWillRenderSkills() && codexCanReadSkills() ? content : "");
+	defineOwnedSection(sections, "skill_catalog", () => !piWillRenderSkills() && codexCanReadSkills() ? content : "");
 }
 
 /** Mutate Pi's current structured prompt options without forcing a full prompt replacement. */
@@ -293,21 +309,23 @@ export function prepareCodexSystemPrompt(
 	const skills = config.skills ?? [];
 	const shell = config.shell;
 	const sections = options.sections ??= {};
+	delete sections["codex_runtime"];
 
 	if (options.forceSystemPrompt !== undefined) {
-		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }));
-		let forced = upsertOpaqueSection(options.forceSystemPrompt, "codex_guidelines", guidelines);
-		forced = upsertOpaqueSection(forced, "codex_skills", buildSkillsContent(skills));
-		forced = upsertOpaqueSection(forced, "codex_runtime", shell ? formatShellContext(shell) : "");
+		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options));
+		let forced = upsertOpaqueSection(options.forceSystemPrompt, "runtime_guidelines", guidelines);
+		forced = upsertOpaqueSection(forced, "codex_skills", "");
+		forced = upsertOpaqueSection(forced, "skill_catalog", buildSkillsContent(skills));
+		forced = upsertOpaqueSection(forced, "codex_runtime", "");
 		options.forceSystemPrompt = forced;
 		return;
 	}
 
-	const heavyPreamble = formatGuidelines([FOLLOW_THROUGH_GUIDELINE]);
+	const heavyPreamble = `Guidelines:\n${formatGuidelines([FOLLOW_THROUGH_GUIDELINE])}`;
 	const customPrompt = options.customPrompt === heavyPreamble ? undefined : options.customPrompt;
 	if (config.heavySystemPromptOverwrite) {
 		if (!customPrompt) options.customPrompt = heavyPreamble;
-		defineOwnedSection(sections, "codex_guidelines", () => {
+		defineOwnedSection(sections, "runtime_guidelines", () => {
 			const contributed = customPrompt
 				? []
 				: [
@@ -322,17 +340,15 @@ export function prepareCodexSystemPrompt(
 			const sectionGuidelines = customPrompt
 				? guidelines
 				: guidelines.filter((guideline) => guideline !== FOLLOW_THROUGH_GUIDELINE);
-			return sectionGuidelines.length > 0 ? formatGuidelines(sectionGuidelines) : "";
+			return formatGuidelines(sectionGuidelines, shell, codeModeCustomizationGuidance(options));
 		});
 	} else {
 		options.promptGuidelines = withoutCodexGuidelines(options.promptGuidelines);
-		defineOwnedSection(sections, "codex_guidelines", () =>
-			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools })));
+		defineOwnedSection(sections, "runtime_guidelines", () =>
+			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options)));
 	}
 
 	prepareStructuredSkills(options, skills, mode, Boolean(config.heavySystemPromptOverwrite));
-	if (shell) sections["codex_runtime"] = formatShellContext(shell);
-	else delete sections["codex_runtime"];
 }
 
 function formatShellContext(shell: string): string {

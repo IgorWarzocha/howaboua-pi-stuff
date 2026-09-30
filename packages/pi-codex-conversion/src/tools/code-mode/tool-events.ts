@@ -15,7 +15,8 @@ export function registerCodeModeEvents(
 		runtime.resetPromptTools();
 	});
 	pi.on("before_agent_start", (event, ctx) => {
-		const requiredTools = runtime.executionKind(ctx) === "notebook"
+		const executionKind = runtime.executionKind(ctx);
+		const requiredTools = executionKind === "notebook"
 			? ["exec", "wait", "notebook"]
 			: ["exec", "wait"];
 		const activeProviders = runtime.activeProviders(ctx);
@@ -30,6 +31,7 @@ export function registerCodeModeEvents(
 			promptTools,
 			documentationPath,
 			() => requiredTools.every((name) => event.systemPromptOptions.selectedTools.includes(name)),
+			executionKind,
 		);
 		return undefined;
 	});

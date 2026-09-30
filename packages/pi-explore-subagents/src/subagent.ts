@@ -33,12 +33,6 @@ export async function runSubagent(
 		"--append-system-prompt",
 		spec.promptPath,
 	];
-	const promptText = [
-		`Run as the ${spec.label} Subagent in ${mode} mode inside an isolated no-session RPC subprocess.`,
-		spec.systemPreamble,
-		`Mode: ${mode}`,
-		`Task: ${task}`,
-	].join("\n\n");
 
 	let wasAborted = false;
 	let processClosed = false;
@@ -297,7 +291,7 @@ export async function runSubagent(
 		await sendCommand({ type: "get_state" }, RPC_READY_TIMEOUT_MS);
 		await sendCommand({ type: "set_auto_compaction", enabled: true });
 		await sendCommand({ type: "set_auto_retry", enabled: true });
-		await sendCommand({ type: "prompt", message: promptText });
+		await sendCommand({ type: "prompt", message: `Task: ${task}` });
 		await settledPromise;
 	} finally {
 		signal?.removeEventListener("abort", handleAbort);

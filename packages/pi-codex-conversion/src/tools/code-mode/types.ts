@@ -1,10 +1,14 @@
 import type {
 	AgentToolResult,
 	ExtensionContext,
+	ExtensionToolContext,
+	ToolAnnotations,
+	ToolNamespace,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { CodeModeToolPreflightRunner } from "./nested-tool-preflight.js";
 import type { CodeModeToolCompletion } from "./preflight-protocol.js";
+import type { PiToolCallScope } from "./pi-tool-call-scope.ts";
 
 export type CustomToolInputMode = "arg" | "stdin";
 
@@ -19,6 +23,8 @@ export interface CodeModeToolMetadata {
 	toolName?: CodeModeToolIdentity | undefined;
 	usage: string;
 	description?: string | undefined;
+	namespace?: ToolNamespace | undefined;
+	annotations?: ToolAnnotations | undefined;
 	promptSnippet?: string | undefined;
 	promptGuidelines?: string[] | undefined;
 	output?: string | undefined;
@@ -43,6 +49,8 @@ export interface ProgrammaticCodeModeToolDefinition
 	discoverWhenDeferred?: boolean | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
+	/** Pi owns validation, permissions and completion hooks for these calls. */
+	executionPipeline?: "pi" | undefined;
 	inputSchema?: unknown;
 	invoke(
 		input: unknown,
@@ -70,6 +78,8 @@ export interface ToolExecutionContext {
 	cwd: string;
 	toolCallId?: string | undefined;
 	extensionContext?: ExtensionContext | undefined;
+	piToolScope?: PiToolCallScope | undefined;
+	executeTool?: ExtensionToolContext["executeTool"] | undefined;
 	preflight?: CodeModeToolPreflightRunner | undefined;
 	completion?: CodeModeToolCompletion | undefined;
 	onUpdate?: ((result: AgentToolResult<unknown>) => void) | undefined;

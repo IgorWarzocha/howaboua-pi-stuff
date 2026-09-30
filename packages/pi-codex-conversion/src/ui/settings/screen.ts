@@ -9,6 +9,7 @@ import {
 	matchesKey,
 	SettingsList,
 	truncateToWidth,
+	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig, LunaCacheKeepaliveMinutes } from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
@@ -58,8 +59,10 @@ export async function openCodexSettingsScreen(
 		.filter((model) => model.input.includes("text"))
 		.map((model) => ({ provider: model.provider, modelId: model.id }));
 
+	const usageAbort = new AbortController();
+	const usageSignal = ctx.signal ? AbortSignal.any([ctx.signal, usageAbort.signal]) : usageAbort.signal;
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-		const usageTab = createUsageTab(ctx, options, () => tui.requestRender());
+		const usageTab = createUsageTab(ctx, options, () => tui.requestRender(), usageSignal);
 		let settingsList: SettingsList;
 
 		const runEditConfig = async () => {
@@ -136,6 +139,7 @@ export async function openCodexSettingsScreen(
 					draft,
 					theme,
 					availableContextModels,
+					ctx,
 				),
 			];
 			list = new SettingsList(
@@ -242,8 +246,8 @@ export async function openCodexSettingsScreen(
 						options.configScope.current(),
 					);
 				if (activeTab === "context")
-					settingsLines = withContextWindowsWarning(settingsLines, theme);
-				if (activeTab === "context" && draft.compaction.contextManagement !== "off" && !draft.compaction.hybridCompaction)
+					settingsLines = withContextPortabilityWarning(settingsLines, theme, width);
+				if (activeTab === "context" && draft.compaction.continuity === "notes")
 					settingsLines = withSettingsDetails(settingsLines, [
 						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
 					]);
@@ -261,7 +265,7 @@ export async function openCodexSettingsScreen(
 					rule(width, theme, "accent"),
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
-					...(activeTab === "usage" ? usageTab.render(theme) : []),
+					...(activeTab === "usage" ? usageTab.render(theme, width) : []),
 					...(activeTab === "about" ? renderAboutTab(theme) : []),
 					...(activeTab === "voice"
 						? formatVoiceStatus(theme, options.lanVoiceServer?.status())
@@ -302,7 +306,7 @@ export async function openCodexSettingsScreen(
 				tui.requestRender();
 			},
 		};
-	});
+	}).finally(() => usageAbort.abort());
 }
 
 function rule(
@@ -391,7 +395,7 @@ function formatVoiceDetails(
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "usage")
-		return "  Tab/Shift+Tab to switch sections · R to refresh · Ctrl+R to use reset";
+		return "  Tab/Shift+Tab sections · R refresh · Ctrl+R use reset · Esc close";
 	if (activeTab === "about")
 		return "  Tab/Shift+Tab to switch sections · G/C/D/I to open links · Esc to close";
 	return "  Tab/Shift+Tab to switch sections · Esc to close";
@@ -426,21 +430,19 @@ function withConfigScopeDetails(
 	return next;
 }
 
-function withContextWindowsWarning(lines: string[], theme: Theme): string[] {
-	const next = [...lines];
-	const settingIndex = next.findIndex((line) =>
-		line.includes("Context management (experimental)")
-	);
-	if (settingIndex < 0) return next;
-	next.splice(
-		settingIndex,
-		0,
-		theme.fg(
-			"warning",
-			"  ⚠ Keep Context management enabled when resuming sessions that used it.",
-		),
-	);
-	return next;
+function withContextPortabilityWarning(lines: string[], theme: Theme, width: number): string[] {
+	const wrap = (text: string) => wrapTextWithAnsi(text, Math.max(1, width - 2)).map((line) => "  " + line);
+	return [
+		...wrap("Switching providers?").map((line) => theme.fg("warning", theme.bold(line))),
+		...[
+			"Use Notes + compaction with Pi summary or Both, and Local or Tree—not Remote.",
+			"V2 checkpoints and Remote history/notes are encrypted for OpenAI; other providers cannot use them.",
+			"Convert existing V2-only history first: select Pi summary and run /compact on the original provider.",
+			"Changing storage does not move saved notes.",
+		].flatMap(wrap),
+		"",
+		...lines,
+	];
 }
 
 function formatToolsDetails(theme: Theme, configPath: string): string[] {

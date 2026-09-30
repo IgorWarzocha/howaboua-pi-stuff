@@ -52,6 +52,11 @@ export async function processResponsesStream<TApi extends Api>(
 	type OutputState = ReasoningState | MessageState | FunctionCallState | CustomToolCallState;
 
 	const outputStates = new Map<number, OutputState>();
+	const completedToolCallIds = new Set<string>();
+	const rejectToolCalls = (message: string) => {
+		output.stopReason = "error";
+		output.errorMessage = `Invalid Responses tool stream: ${message}`;
+	};
 	const appendCustomInput = (
 		state: CustomToolCallState,
 		nextInput: string,
@@ -107,6 +112,27 @@ export async function processResponsesStream<TApi extends Api>(
 	}();
 
 	for await (const event of cleanedStream) {
+		if (event.type === "response.output_item.added" || event.type === "response.output_item.done") {
+			const item = event.item;
+			const state = outputStates.get(event.output_index);
+			if (event.type === "response.output_item.added" ? state !== undefined : state && state.kind !== item.type) {
+				rejectToolCalls("conflicting output items");
+				return;
+			}
+			if (item.type === "function_call" || item.type === "custom_tool_call") {
+				if (!Number.isInteger(event.output_index) || event.output_index < 0) {
+					rejectToolCalls("missing or invalid output_index");
+					return;
+				}
+				if (completedToolCallIds.has(item.call_id) ||
+					((state?.kind === "function_call" || state?.kind === "custom_tool_call") &&
+						(state.block.id !== `${item.call_id}|${item.id ?? ""}` || state.block.name !== item.name))) {
+					rejectToolCalls("duplicate or mismatched tool call");
+					return;
+				}
+				if (event.type === "response.output_item.done") completedToolCallIds.add(item.call_id);
+			}
+		}
 		if (event.type === "response.custom_tool_call_input.delta") {
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "custom_tool_call") {
@@ -172,7 +198,7 @@ export async function processResponsesStream<TApi extends Api>(
 				const namespace = (item as unknown as { namespace?: string }).namespace;
 				const currentBlock: ToolCallBlock = {
 					type: "toolCall",
-					id: `${item.call_id}|${item.id}`,
+					id: `${item.call_id}|${item.id ?? ""}`,
 					name: item.name,
 					arguments: {},
 					...(namespace !== undefined ? { namespace } : {}),
@@ -335,7 +361,7 @@ export async function processResponsesStream<TApi extends Api>(
 				} else {
 					toolCall = {
 						type: "toolCall",
-						id: `${item.call_id}|${item.id}`,
+						id: `${item.call_id}|${item.id ?? ""}`,
 						name: item.name,
 						arguments: args,
 						...(namespace !== undefined ? { namespace } : {}),
@@ -399,6 +425,9 @@ export async function processResponsesStream<TApi extends Api>(
 			else output.errorMessage = mappedStop.errorMessage;
 			if (output.content.some((block) => block.type === "toolCall") && output.stopReason === "stop") {
 				output.stopReason = "toolUse";
+			}
+			if ([...outputStates.values()].some((state) => state.kind === "function_call" || state.kind === "custom_tool_call")) {
+				rejectToolCalls("response ended with an unfinished tool call");
 			}
 		} else if (event.type === "error") {
 			const details = [event.code, event.message].filter(Boolean).join(": ");

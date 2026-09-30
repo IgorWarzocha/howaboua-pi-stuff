@@ -48,20 +48,29 @@ function compactCodeState(code: string | null | undefined, state?: string | null
 	return { ...(code ? { code } : {}), ...(state ? { state } : {}) };
 }
 
-function parseAuthorizationInput(input: string): { code?: string; state?: string } {
+function parseCallbackParameters(params: URLSearchParams): { code?: string; state?: string; error?: Error } {
+	const error = params.get("error");
+	const description = params.get("error_description");
+	return {
+		...compactCodeState(params.get("code"), params.get("state")),
+		...(error ? { error: new Error(`OpenAI authentication failed: ${error}${description ? `: ${description}` : ""}`) } : {}),
+	};
+}
+
+function parseAuthorizationInput(input: string): ReturnType<typeof parseCallbackParameters> {
 	const value = input.trim();
 	if (!value) return {};
 	try {
 		const url = new URL(value);
-		return compactCodeState(url.searchParams.get("code"), url.searchParams.get("state"));
+		return parseCallbackParameters(url.searchParams);
 	} catch {}
 	if (value.includes("#")) {
 		const [code, state] = value.split("#", 2);
 		return compactCodeState(code, state);
 	}
-	if (value.includes("code=")) {
+	if (value.includes("code=") || value.includes("error=")) {
 		const params = new URLSearchParams(value);
-		return compactCodeState(params.get("code"), params.get("state"));
+		return parseCallbackParameters(params);
 	}
 	return { code: value };
 }
@@ -97,17 +106,24 @@ async function exchangeAuthorizationCode(code: string, verifier: string, redirec
 	return tokenRequest(new URLSearchParams({ grant_type: "authorization_code", client_id: CLIENT_ID, code, code_verifier: verifier, redirect_uri: redirectUri }), "exchange", signal);
 }
 
-function startLocalOAuthServer(state: string): Promise<{ close: () => void; cancelWait: () => void; waitForCode: () => Promise<{ code: string } | null> }> {
+type OAuthCallbackResult = { code: string } | { error: Error };
+
+function startLocalOAuthServer(state: string): Promise<{ close: () => void; cancelWait: () => void; waitForCode: () => Promise<OAuthCallbackResult | null> }> {
 	let server: Server;
-	let settleWait: ((value: { code: string } | null) => void) | undefined;
-	const waitForCodePromise = new Promise<{ code: string } | null>((resolve) => { settleWait = resolve; });
+	let settleWait: ((value: OAuthCallbackResult | null) => void) | undefined;
+	const waitForCodePromise = new Promise<OAuthCallbackResult | null>((resolve) => { settleWait = resolve; });
 	server = createServer((req, res) => {
 		try {
 			const url = new URL(req.url || "", "http://localhost");
 			if (url.pathname !== "/auth/callback") { res.statusCode = 404; res.end(oauthErrorHtml("Callback route not found.")); return; }
 			if (url.searchParams.get("state") !== state) { res.statusCode = 400; res.end(oauthErrorHtml("State mismatch.")); return; }
-			const code = url.searchParams.get("code");
-			if (!code) { res.statusCode = 400; res.end(oauthErrorHtml("Missing authorization code.")); return; }
+			const { code, error } = parseCallbackParameters(url.searchParams);
+			if (error || !code) {
+				res.statusCode = 400;
+				res.end(oauthErrorHtml("OpenAI authentication failed. Return to Pi for details."));
+				settleWait?.({ error: error ?? new Error("Missing authorization code") });
+				return;
+			}
 			res.statusCode = 200; res.setHeader("Content-Type", "text/html; charset=utf-8"); res.end(oauthSuccessHtml("OpenAI authentication completed. You can close this window.")); settleWait?.({ code });
 		} catch { res.statusCode = 500; res.end(oauthErrorHtml("Internal error while processing OAuth callback.")); }
 	});
@@ -124,8 +140,8 @@ async function loginBrowser(callbacks: OAuthCallbacks): Promise<OAuthCredentials
 	const onAbort = () => server.cancelWait();
 	signal.addEventListener("abort", onAbort, { once: true });
 	if (signal.aborted) onAbort();
-	callbacks.onAuth({ url, instructions: "A browser window should open. Complete login to finish." });
 	try {
+		callbacks.onAuth({ url, instructions: "A browser window should open. Complete login to finish." });
 		let manualInput: string | undefined;
 		let manualError: Error | undefined;
 		if (callbacks.onManualCodeInput) {
@@ -134,18 +150,22 @@ async function loginBrowser(callbacks: OAuthCallbacks): Promise<OAuthCredentials
 				server.cancelWait();
 			});
 		}
-		let code = (await server.waitForCode())?.code;
+		const callback = await server.waitForCode();
 		if (signal.aborted) throw signal.reason instanceof Error ? signal.reason : new Error("OpenAI authentication was cancelled");
+		if (callback && "error" in callback) throw callback.error;
+		let code = callback?.code;
 		if (manualError) throw manualError;
 		if (!code && manualInput) {
 			const parsed = parseAuthorizationInput(manualInput);
 			if (parsed.state && parsed.state !== state) throw new Error("State mismatch");
+			if (parsed.error) throw parsed.error;
 			code = parsed.code;
 		}
 		if (!code) {
 			const input = await callbacks.onPrompt({ message: "Paste the authorization code (or full redirect URL):" });
 			const parsed = parseAuthorizationInput(input);
 			if (parsed.state && parsed.state !== state) throw new Error("State mismatch");
+			if (parsed.error) throw parsed.error;
 			code = parsed.code;
 		}
 		if (!code) throw new Error("Missing authorization code");

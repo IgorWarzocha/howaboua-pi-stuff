@@ -27,6 +27,7 @@ interface Runtime {
 	attempting?: boolean;
 	client?: HerdrConnection;
 	config?: SshMachine;
+	contextRelayError?: string;
 	local: boolean;
 	monitor?: AgentMonitor;
 	monitoringIssue?: MonitoringIssue;
@@ -106,6 +107,22 @@ function groupSaved(values: unknown[]): Map<string, unknown[]> {
 }
 
 export class AgentFleet {
+	private contextRelay:
+		| ((
+				ctx: ExtensionContext,
+				request: unknown,
+				signal: AbortSignal,
+		  ) => Promise<unknown>)
+		| undefined;
+	setContextRelay(
+		handler: (
+			ctx: ExtensionContext,
+			request: unknown,
+			signal: AbortSignal,
+		) => Promise<unknown>,
+	): void {
+		this.contextRelay = handler;
+	}
 	private context: ExtensionContext | undefined;
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
@@ -342,11 +359,14 @@ export class AgentFleet {
 			const runtime = this.runtimes.get(target);
 			if (!runtime)
 				throw new Error(`unknown Herdr machine ${JSON.stringify(target)}`);
-			if (runtime.status === "connected" && runtime.monitoringIssue) {
+			if (
+				runtime.status === "connected" &&
+				(runtime.monitoringIssue || runtime.contextRelayError)
+			) {
 				if (runtime.attempting)
-					return `Already retrying monitoring on ${target}`;
-				void this.retryMonitoring(target, runtime);
-				return `Retrying monitoring on ${target}`;
+					return `Already retrying connection setup on ${target}`;
+				void this.retrySetup(target, runtime);
+				return `Retrying connection setup on ${target}`;
 			}
 			if (runtime.local) {
 				return `${target} is the local machine and is already connected`;
@@ -364,11 +384,10 @@ export class AgentFleet {
 		const retries = [...this.runtimes.entries()].filter(
 			([, runtime]) =>
 				runtime.status === "connected" &&
-				runtime.monitoringIssue &&
+				(runtime.monitoringIssue || runtime.contextRelayError) &&
 				!runtime.attempting,
 		);
-		for (const [name, runtime] of retries)
-			void this.retryMonitoring(name, runtime);
+		for (const [name, runtime] of retries) void this.retrySetup(name, runtime);
 		const names = [...this.runtimes.entries()]
 			.filter(
 				([, runtime]) =>
@@ -383,7 +402,7 @@ export class AgentFleet {
 		if (names.length > 0 || retries.length > 0) {
 			return [
 				retries.length > 0
-					? `Retrying monitoring on ${retries.map(([name]) => name).join(", ")}`
+					? `Retrying connection setup on ${retries.map(([name]) => name).join(", ")}`
 					: "",
 				names.length > 0 ? `Connecting to ${names.join(", ")}` : "",
 			]
@@ -473,14 +492,49 @@ export class AgentFleet {
 		});
 	}
 
-	private async retryMonitoring(name: string, runtime: Runtime): Promise<void> {
+	private async prepareContextRelay(
+		name: string,
+		runtime: Runtime,
+		client: RemoteHerdrClient,
+		ctx: ExtensionContext,
+	): Promise<void> {
+		if (!this.contextRelay) return;
+		try {
+			await client.startContextRelay(
+				ctx.sessionManager.getSessionId(),
+				name,
+				(request, signal) => this.contextRelay!(ctx, request, signal),
+			);
+			if (this.context !== ctx || this.runtimes.get(name) !== runtime) return;
+			delete runtime.contextRelayError;
+		} catch (error) {
+			if (this.context !== ctx || this.runtimes.get(name) !== runtime) return;
+			runtime.contextRelayError = errorMessage(error);
+			ctx.ui.notify(
+				`Context sharing unavailable on ${name}: ${runtime.contextRelayError}\nRun /herdr connect ${name} to retry sharing.`,
+				"warning",
+			);
+		}
+	}
+
+	private async retrySetup(name: string, runtime: Runtime): Promise<void> {
 		const monitor = runtime.monitor;
 		const ctx = this.context;
 		const generation = this.generation;
 		if (!monitor || !ctx || runtime.attempting) return;
 		runtime.attempting = true;
 		try {
-			await monitor.retryMonitoring();
+			if (
+				runtime.contextRelayError &&
+				runtime.client instanceof RemoteHerdrClient
+			)
+				await this.prepareContextRelay(name, runtime, runtime.client, ctx);
+			if (
+				this.isCurrent(generation, ctx) &&
+				this.runtimes.get(name) === runtime &&
+				runtime.monitoringIssue
+			)
+				await monitor.retryMonitoring();
 		} catch (error) {
 			if (
 				this.isCurrent(generation, ctx) &&
@@ -526,6 +580,7 @@ export class AgentFleet {
 				if (runtime.client === client)
 					this.disconnected(name, runtime, error.message);
 			});
+			await this.prepareContextRelay(name, runtime, client, ctx);
 			if (
 				!this.isCurrent(generation, ctx) ||
 				this.runtimes.get(name) !== runtime
@@ -596,6 +651,7 @@ export class AgentFleet {
 		runtime.monitor?.deactivate();
 		if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
 		delete runtime.client;
+		delete runtime.contextRelayError;
 		delete runtime.monitoringIssue;
 		runtime.status = "unavailable";
 		delete runtime.attempting;

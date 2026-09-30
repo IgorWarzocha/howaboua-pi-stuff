@@ -21,10 +21,15 @@ import { createCodexVoiceControls } from "../../voice/controls.ts";
 import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
+import { COMPACTION_METHOD_LABELS, CONTINUITY_LABELS } from "./config-items-context.ts";
+import { captureSpendReport } from "../../codex-usage/report.ts";
+import { startUsageAnalysis } from "../../codex-usage/analyse.ts";
+import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/codex-model.ts";
+import { NONSTANDARD_CODEX_USAGE_WARNING } from "../../codex-usage/format.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server", "voice setup"] as const;
-const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
-const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage|about]";
+const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS, "usage analyse"];
+const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage [analyse]|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -113,10 +118,16 @@ export function registerCodexCommand(
 					import("../../codex-usage/client.ts"),
 					import("../../codex-usage/format.ts"),
 				]);
+				let nonstandard = ctx.model?.api === "openai-codex-responses" && !isStandardCodexSubscriptionModel(ctx.model);
 				try {
-					ctx.ui.notify(formatCodexUsage(await fetchCodexUsage(ctx)), "info");
+					const usage = await fetchCodexUsage(ctx, (_key, custom) => { nonstandard = custom; });
+					const lines = await captureSpendReport(usage, {
+						sessionDir: ctx.sessionManager.getSessionDir(), signal: ctx.signal,
+					});
+					if (nonstandard && !lines.includes(NONSTANDARD_CODEX_USAGE_WARNING)) lines.unshift(NONSTANDARD_CODEX_USAGE_WARNING, "");
+					ctx.ui.notify([...lines, "", formatCodexUsage(usage)].join("\n"), "info");
 				} catch (error) {
-					ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+					ctx.ui.notify([...(nonstandard ? [NONSTANDARD_CODEX_USAGE_WARNING] : []), error instanceof Error ? error.message : String(error)].join("\n"), "error");
 				}
 				return;
 			}
@@ -203,6 +214,10 @@ export function registerCodexCommand(
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
 			const arg = args.trim().toLowerCase();
+			if (arg === "usage analyse") {
+				await startUsageAnalysis(pi, ctx);
+				return;
+			}
 
 			if (arg === "voice setup") {
 				await ctx.waitForIdle();
@@ -262,5 +277,5 @@ function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProvid
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, context management ${config.compaction.contextManagement}, compaction ${config.compaction.hybridCompaction ? "hybrid (V2 where supported, Pi elsewhere)" : config.compaction.contextManagement !== "off" ? "notes only" : config.compaction.responsesCompaction ? "V2" : "Pi"}, portable summary ${config.compaction.portableSummary ? "on" : "off"}, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins`}, Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? "25 mins" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, continuity ${CONTINUITY_LABELS[config.compaction.continuity]}, history and notes storage ${config.compaction.historyStorage}, share subagent context ${config.compaction.shareSubagentContext ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins`}, Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? "25 mins" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
 }

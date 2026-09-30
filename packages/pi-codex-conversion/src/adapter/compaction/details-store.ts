@@ -61,26 +61,6 @@ export function findLatestCompactionEntry(entries: readonly SessionEntry[]): Com
 	return index === undefined ? undefined : (entries[index]! as CompactionEntry);
 }
 
-export function findLatestNativeCompactionEntryIndex(
-	entries: readonly SessionEntry[],
-	match: NativeCompactionEntryMatch = {},
-): number | undefined {
-	for (let index = entries.length - 1; index >= 0; index--) {
-		const entry = entries[index]!;
-		if (!isPersistedNativeCompactionEntry(entry)) {
-			continue;
-		}
-
-		if (!entryMatches(entry, match)) {
-			continue;
-		}
-
-		return index;
-	}
-
-	return undefined;
-}
-
 export function resolveLatestNativeCompactionEntry(
 	entries: readonly SessionEntry[],
 	match: NativeCompactionEntryMatch = {},

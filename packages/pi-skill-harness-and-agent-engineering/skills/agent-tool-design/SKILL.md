@@ -1,7 +1,7 @@
 ---
 name: agent-tool-design
 description: "Read before creating, reviewing, or refining a tool exposed to an agent."
-last-changed: "2026-09-11"
+last-changed: "2026-09-24"
 ---
 
 For a Pi tool, also read `references/pi.md`.
@@ -53,7 +53,7 @@ For a Pi tool, also read `references/pi.md`.
 
 - On success, return the identity, path, state, output, or continuation handle needed next.
 - On failure, identify the failed condition and a valid retry when one exists.
-- Bound large output and make truncation visible.
+- Bound large output and make truncation visible. If omitted content may be needed, return a way to retrieve it.
 - Keep render-only detail out of the model-facing result.
 
 ## Validate
