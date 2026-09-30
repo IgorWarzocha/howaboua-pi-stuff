@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
@@ -22,7 +22,7 @@ import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnosti
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
-import { CODEX_DEVELOPER_MESSAGE_TYPE, registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
+import { registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
 import { hasTreeArchives } from "../context-management/tree-archive.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
@@ -30,6 +30,7 @@ import { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCodexProxyMessage } from "../codex-usage/ledger-store.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
 import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
+import { recordNotebookStatus } from "../adapter/notebook-status.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
@@ -94,6 +95,15 @@ export function registerCodexEvents(
 	};
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
+	const refreshNotebookStatus = (
+		ctx: ExtensionContext,
+		messages?: readonly AgentMessage[],
+		selectedTools = pi.getActiveTools(),
+	): Promise<boolean> => {
+		if (resolveCodexRuntimePlanForState(ctx, state).kind !== "notebook"
+			|| !["exec", "wait", "notebook"].every((name) => selectedTools.includes(name))) return Promise.resolve(false);
+		return recordNotebookStatus(pi, ctx, state, messages ?? runtime.projectContextMessages(ctx), codeMode);
+	};
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
 		pi,
 		() => Boolean(
@@ -341,33 +351,7 @@ export function registerCodexEvents(
 			mode: plan.prompt ?? "normal",
 			heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
 		});
-		if (plan.kind !== "notebook" || !["exec", "wait", "notebook"].every((name) => event.systemPromptOptions.selectedTools.includes(name))) return;
-		// Count only persisted delivery, including snapshots archived by internal Tree rollover.
-		if (state.notebookStatusMessageId && ctx.sessionManager.getEntries().some((entry) =>
-			entry.type === "custom_message" && entry.customType === CODEX_DEVELOPER_MESSAGE_TYPE &&
-			(entry.details as { id?: unknown } | undefined)?.id === state.notebookStatusMessageId)) return;
-		let content: string;
-		let title: string;
-		try {
-			const status = await codeMode.notebookStatus(ctx);
-			content = status.message;
-			title = [
-				"Notebook",
-				typeof status.details["retainedBindings"] === "number" ? `${status.details["retainedBindings"]} retained` : undefined,
-				typeof status.details["pinnedBindings"] === "number" ? `${status.details["pinnedBindings"]} pinned` : undefined,
-			].filter(Boolean).join(" · ");
-		} catch (error) {
-			if (ctx.signal?.aborted) throw error;
-			title = "Notebook status unavailable";
-			content = `Notebook startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
-		}
-		state.notebookStatusMessageId = randomUUID();
-		return { message: {
-			customType: CODEX_DEVELOPER_MESSAGE_TYPE,
-			content,
-			display: true,
-			details: { protocol: 1, id: state.notebookStatusMessageId, title },
-		} };
+		await refreshNotebookStatus(ctx, runtime.projectContextMessages(ctx), event.systemPromptOptions.selectedTools);
 	});
 	pi.on("agent_start", async (_event, ctx) => {
 		updateCodexPreparedIdleKickoff(pi, "agent_start");
@@ -536,8 +520,11 @@ export function registerCodexEvents(
 			if (!treeRolloverScheduled) {
 				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 				// Tool-requested rollover appends its marker in onComplete; do not prewarm the old window.
-				if (!state.contextWindows.isRolloverCompactionRunning() && !state.contextKickoff.pending)
+				if (!state.contextWindows.isRolloverCompactionRunning() && !state.contextKickoff.pending) {
+					// A normal compaction may resume without another kickoff. Prewarm the renewed context too.
+					await refreshNotebookStatus(ctx);
 					await runtime.startCompactionPrewarm(ctx);
+				}
 			}
 			// Explicit rollover refreshes at its window boundary; overflow stays here.
 			if (!contextCompaction && (!plan.compactOnRollover || event.reason === "overflow"))
@@ -548,6 +535,8 @@ export function registerCodexEvents(
 	});
 	pi.on("context_with_system", async (event, ctx) => {
 		let messages = runtime.projectContextMessages(ctx, event.messages);
+		if (await refreshNotebookStatus(ctx, messages))
+			messages = runtime.projectContextMessages(ctx, event.messages);
 		if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx)))
 			messages = runtime.projectContextMessages(ctx, event.messages);
 		const developerMessages = supportsCodexDeveloperMessages(ctx, state);

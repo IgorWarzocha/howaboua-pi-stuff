@@ -3,6 +3,7 @@ import { Box, Markdown, MouseRegion, Text, TruncatedText, truncateToWidth } from
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, readToolkitUpdate } from "../adapter/code-mode/toolkit-updates.ts";
+import { CODEX_NOTEBOOK_STATUS_TYPE, readNotebookStatus } from "../adapter/notebook-status.ts";
 import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
 import { fetchCodexUsageStatus } from "../codex-usage/client.ts";
 import { CODEX_DEVELOPER_MESSAGE_TYPE } from "../developer-messages.ts";
@@ -69,6 +70,10 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const update = readToolkitUpdate(entry.data);
 		const title = `${update.id === update.rootId ? "Tools" : "Tools updated"} · ${update.tools.length}`;
 		return renderNotice(entry, title, update.content, expanded, theme);
+	});
+	pi.registerEntryRenderer(CODEX_NOTEBOOK_STATUS_TYPE, (entry, { expanded }, theme) => {
+		const status = readNotebookStatus(entry.data);
+		return renderNotice(entry, status.title, status.content, expanded, theme);
 	});
 	const renderNativeCompaction = (
 		content: string,
