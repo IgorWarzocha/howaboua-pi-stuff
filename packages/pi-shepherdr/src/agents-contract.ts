@@ -2,6 +2,7 @@ import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import { START_PLACEMENTS } from "./launch.js";
+import { loadAgentProfileBlocking } from "./profiles.js";
 
 const ACTIONS = [
 	"help",
@@ -75,11 +76,11 @@ const AgentsRequest = Type.Object(
 		message: Type.Optional(
 			Type.String({ description: "Initial task or follow-up" }),
 		),
-		base: Type.Optional(Type.String({ description: "Reviewer base branch" })),
+		base: Type.Optional(Type.String({ description: "Review base branch" })),
 		blocking: Type.Optional(
 			Type.Boolean({
 				description:
-					"Delegation only; defaults true. False pushes task settlement later",
+					"Delegation only; profile policy overrides spawn; otherwise defaults true",
 			}),
 		),
 		query: Type.Optional(Type.String()),
@@ -158,7 +159,12 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 	try {
 		const value = parseAgentsRequest(input);
 		if (value.action === "spawn")
-			return shouldBlockAgentSpawn(value.agent_type, value.blocking);
+			return shouldBlockAgentSpawn(
+				loadAgentProfileBlocking(
+					requiredAgentField(value.agent_type, "agent_type"),
+				),
+				value.blocking,
+			);
 		return BLOCKING_ACTIONS.has(value.action) && value.blocking !== false;
 	} catch {
 		return false;
@@ -166,8 +172,8 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 }
 
 export function shouldBlockAgentSpawn(
-	agentType: string | undefined,
+	profileBlocking: boolean | undefined,
 	blocking: boolean | undefined,
 ): boolean {
-	return agentType?.trim() === "reviewer" || blocking !== false;
+	return profileBlocking ?? blocking ?? true;
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
 	cp,
 	mkdir,
@@ -25,6 +26,7 @@ const BUNDLED_PROFILES_DIRECTORY = fileURLToPath(
 
 export interface AgentProfile {
 	accepts: string[];
+	blocking?: boolean;
 	description: string;
 	model: string;
 	name: string;
@@ -32,6 +34,7 @@ export interface AgentProfile {
 	prepare?: string;
 	prompt?: string;
 	promptPath?: string;
+	shareContext?: boolean;
 	thinking: string;
 }
 
@@ -45,11 +48,13 @@ type ProfilePreparationContext = ProfilePreparationInput & { local: boolean };
 
 interface ProfileFile {
 	accepts?: unknown;
+	blocking?: unknown;
 	description?: unknown;
 	model?: unknown;
 	pi_args?: unknown;
 	prepare?: unknown;
 	prompt?: unknown;
+	share_context?: unknown;
 	thinking?: unknown;
 }
 
@@ -71,14 +76,17 @@ function optionalString(value: unknown, field: string): string | undefined {
 	return value.trim();
 }
 
-async function readProfile(
-	name: string,
-	directory: string,
-): Promise<AgentProfile> {
+function optionalBoolean(value: unknown, field: string): boolean | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value !== "boolean") throw new Error(`${field} must be a boolean`);
+	return value;
+}
+
+function readProfileFile(name: string, directory: string): ProfileFile {
 	const path = join(directory, "profile.json");
 	let parsed: ProfileFile;
 	try {
-		parsed = JSON.parse(await readFile(path, "utf8")) as ProfileFile;
+		parsed = JSON.parse(readFileSync(path, "utf8")) as ProfileFile;
 	} catch (error) {
 		throw new Error(
 			`invalid ${name} profile: ${error instanceof Error ? error.message : String(error)}`,
@@ -89,17 +97,40 @@ async function readProfile(
 	}
 	const allowed = new Set([
 		"accepts",
+		"blocking",
 		"description",
 		"model",
 		"pi_args",
 		"prepare",
 		"prompt",
+		"share_context",
 		"thinking",
 	]);
 	const unknown = Object.keys(parsed).filter((key) => !allowed.has(key));
 	if (unknown.length > 0) {
 		throw new Error(`unknown ${name} profile field(s): ${unknown.join(", ")}`);
 	}
+	return parsed;
+}
+
+// Code/Notebook wait classification is synchronous; read live policy, not a cache.
+export function loadAgentProfileBlocking(name: string): boolean | undefined {
+	if (!PROFILE_NAME.test(name))
+		throw new Error(`invalid agent profile: ${name}`);
+	const parsed = readProfileFile(name, join(PROFILES_DIRECTORY, name));
+	return optionalBoolean(parsed.blocking, `${name}.blocking`);
+}
+
+async function readProfile(
+	name: string,
+	directory: string,
+): Promise<AgentProfile> {
+	const parsed = readProfileFile(name, directory);
+	const blocking = optionalBoolean(parsed.blocking, `${name}.blocking`);
+	const shareContext = optionalBoolean(
+		parsed.share_context,
+		`${name}.share_context`,
+	);
 	const description = optionalString(parsed.description, `${name}.description`);
 	if (!description) throw new Error(`${name}.description is required`);
 	const model = optionalString(parsed.model, `${name}.model`);
@@ -123,6 +154,8 @@ async function readProfile(
 		description,
 		model,
 		thinking,
+		...(blocking === undefined ? {} : { blocking }),
+		...(shareContext === undefined ? {} : { shareContext }),
 		accepts: parsed.accepts
 			? stringArray(parsed.accepts, `${name}.accepts`)
 			: [],

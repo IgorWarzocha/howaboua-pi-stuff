@@ -107,7 +107,10 @@ export async function spawnAgent(
 		status: "starting",
 	});
 	const agentArgs = profileAgentArgs(profile, { targetLocal: runtime.local });
-	const sharing = await sharedContext.prepare(ctx, runtime, name, agentArgs);
+	const sharing =
+		profile.shareContext === false
+			? undefined
+			: await sharedContext.prepare(ctx, runtime, name, agentArgs);
 	const started = await startAgent(
 		runtime.client,
 		startParams,
@@ -119,7 +122,7 @@ export async function spawnAgent(
 	let promptAccepted = false;
 	let dispatch;
 	let shared: { agentName?: string; warning?: string } | undefined;
-	const blocking = shouldBlockAgentSpawn(profile.name, params.blocking);
+	const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 	try {
 		shared = await sharing?.accept(started.agent);
 		dispatch = await dispatchAgentWork(
