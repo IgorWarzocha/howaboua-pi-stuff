@@ -171,7 +171,7 @@ export function createAgentsTool(
 									machine: runtime.machine,
 									target: panel.pane_id,
 									status: "working",
-									next: "Completion or blockage will be delivered automatically; do not poll",
+									next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
 								},
 					dispatch.warning,
 				);

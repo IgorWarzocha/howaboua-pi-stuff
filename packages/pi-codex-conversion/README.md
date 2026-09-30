@@ -229,6 +229,8 @@ text(status);
 
 On Pi 0.99.1 or newer, configure servers once in Pi's built-in MCP extension. Its callable tools and resource helpers automatically appear in `tools` and `ALL_TOOLS`; ordinary extensions still require the [opt-in integration](#extension-apis). Pi's extension switches, tool restrictions and disabled servers are respected. Pi retains connection management, authentication, permissions and tool hooks; its native `codemode` extension is not required.
 
+On Pi 0.99.2, `exec` does not wait for pending MCP connections. In Code and Notebook modes, missing-tool errors identify the MCP namespace when known, otherwise flag ambiguous name prefixes. If that server connects, retry in a new exec cell. If failures repeat, the agent should suggest disabling that specific server to you. This recovery guidance does not retry calls or disable servers.
+
 MCP and other deferred tools receive a short name-and-description inventory, followed by added, changed and removed-tool updates before the next model request. Compatible Responses models receive these as developer messages. Server instructions are preserved; full tool contracts stay in `ALL_TOOLS`, refreshed for each exec cell. Unchanged inventories are not repeated, and a lost inventory is restored after context rollover.
 
 Notebook status and tool notices follow Pi's theme. Use **Ctrl+O** to expand or collapse them all, or click an individual notice in fullscreen mode.

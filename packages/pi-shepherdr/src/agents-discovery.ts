@@ -49,7 +49,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			send: "Peer questions, updates, replies; submission only, no wait or watch",
 			assign: "Delegate a task to an existing agent",
 			blocking:
-				"spawn/assign default true; profile blocking overrides spawn; false pushes task settlement; never poll",
+				"spawn/assign default true; profile blocking overrides spawn; false lets you converse, do other work or end your turn; completion/blockage arrives even after you reply; no polling or sleep waits",
 			share_context:
 				"Profile false isolates notes/history; otherwise follows controller sharing setting",
 			watch:

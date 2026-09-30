@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ToolLoadout, ToolLoadoutChanges } from "@earendil-works/pi-coding-agent";
+import { missingMcpToolMessage } from "../../tools/code-mode/mcp-tool-recovery.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "../../tools/code-mode/types.ts";
 
 /** Admission belongs to Pi's MCP owner, not a name prefix or a generic extension sweep. */
@@ -29,11 +30,19 @@ export function createMcpCodeModeBridge(pi: ExtensionAPI): {
 					if (!context.executeTool) throw new Error("Pi nested tool executor is unavailable");
 					const outcome = await context.executeTool(tool.name, input, { signal, ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}) });
 					const { result } = outcome;
+					const text = result.content.filter((block) => block.type === "text").map((block) => block.text).join("\n");
+					// Pi's missing-tool outcome has no MCP payload. Server errors retain their result contract.
+					if (outcome.isError && result.structuredContent === undefined && text === `Tool ${tool.name} not found`) {
+						const message = missingMcpToolMessage(tool.name, [], loadout.getNamespace(tool.name)?.name);
+						if (message) {
+							context.captureResult?.({ ...result, content: [{ type: "text", text: message }] });
+							throw new Error(message);
+						}
+					}
 					context.captureResult?.(result);
 					// Pi keeps the complete MCP CallToolResult here, including images,
 					// structured payloads and server-reported isError results.
 					if (result.structuredContent !== undefined) return result.structuredContent;
-					const text = result.content.filter((block) => block.type === "text").map((block) => block.text).join("\n");
 					if (outcome.isError) throw new Error(text || `MCP tool ${tool.name} failed`);
 					return result.content.some((block) => block.type !== "text") ? { content: result.content } : text;
 				},

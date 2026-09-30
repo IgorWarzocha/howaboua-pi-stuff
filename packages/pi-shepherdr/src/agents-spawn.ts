@@ -174,7 +174,7 @@ export async function spawnAgent(
 							target: started.id,
 							name,
 							status: "working",
-							next: "Completion or blockage will be delivered automatically; do not poll",
+							next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
 						}),
 		},
 		[dispatch.warning, shared?.warning].filter(Boolean).join("\n") || undefined,
