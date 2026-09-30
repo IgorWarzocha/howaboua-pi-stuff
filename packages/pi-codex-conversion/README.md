@@ -126,7 +126,7 @@ Choose under `/codex context`:
 
 | Setting | Options | Applies when |
 | --- | --- | --- |
-| **Continuity strategy** | Compaction · Notes and history · Notes + compaction | Always |
+| **Continuity strategy** | Compaction · Notes and history · Notes + history + compaction | Always |
 | **History and notes storage** | Local · Tree · Remote | Using notes |
 | **Share subagent context** | Off (default) · On | Using notes |
 | **Compaction method** | Pi summary · Codex V2 · Both | Using compaction |
@@ -136,7 +136,7 @@ Defaults are **Compaction**, **Pi summary** and **64k** retention, with **Local*
 
 - **Compaction:** Pi's manual and automatic compaction, without notes or rollover tools.
 - **Notes and history:** the model saves notes and retrieves history. Explicit new windows start without a conversation summary.
-- **Notes + compaction:** new windows carry a compaction checkpoint alongside notes.
+- **Notes + history + compaction:** the model saves notes and retrieves history. New windows also carry a compaction checkpoint. Compaction reduces active context without disabling history lookup or deleting the stored conversation.
 
 **Notes-based strategies are experimental.** Purple markers identify windows. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and usable checkpoints. Only an explicit notes-only rollover cuts the previous conversation.
 
@@ -154,7 +154,7 @@ Local and Tree require an active Responses adapter. Other provider APIs do not e
 
 V2 and Both require Codex or an explicitly configured compatible passthrough. Other routes use Pi summary without erasing the saved method. Selecting Pi summary preserves an existing V2 checkpoint until the next successful compaction converts it. **Choose Both before the checkpoint you need across providers, or convert to Pi summary before switching.** Tree checkpoints remain usable by reference after changing storage.
 
-Old configurations migrate on read without rewriting the file. Hybrid becomes **Notes + compaction** with **Codex V2**, or **Both** when Parallel Pi summary was enabled. V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving removes the old switches.
+Old configurations migrate on read without rewriting the file. Hybrid becomes **Notes + history + compaction** with **Codex V2**, or **Both** when Parallel Pi summary was enabled. V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving removes the old switches.
 
 ### Rollover and recovery
 
@@ -162,7 +162,7 @@ With notes enabled, choosing a summary in Pi's tree navigator saves a handoff no
 
 The model receives history, notes, rollover and remaining-context tools. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
 
-With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + compaction**, `/compact` and `new_context` compact before rollover.
+With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, `/compact` and `new_context` compact before rollover.
 
 Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
 

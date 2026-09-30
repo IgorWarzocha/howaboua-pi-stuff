@@ -1,10 +1,27 @@
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
-import { loadAgentProfiles } from "./profiles.js";
+import { type AgentProfile, loadAgentProfiles } from "./profiles.js";
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
 
 const MAX_LIST_ITEMS = 30;
 const MAX_TERMINAL_READ_CHARS = 36_000;
+
+function describeProfiles(profiles: Map<string, AgentProfile>) {
+	return Object.fromEntries(
+		[...profiles].map(([name, profile]) => [
+			name,
+			{
+				description: profile.description,
+				...(profile.blocking === undefined
+					? {}
+					: { blocking: profile.blocking }),
+				...(profile.shareContext === undefined
+					? {}
+					: { share_context: profile.shareContext }),
+			},
+		]),
+	);
+}
 
 export async function agentsHelp(): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
@@ -32,7 +49,9 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			send: "Peer questions, updates, replies; submission only, no wait or watch",
 			assign: "Delegate a task to an existing agent",
 			blocking:
-				"spawn/assign default true; false pushes task settlement; never poll. Reviewer spawns always block; await review before working its scope",
+				"spawn/assign default true; profile blocking overrides spawn; false pushes task settlement; never poll",
+			share_context:
+				"Profile false isolates notes/history; otherwise follows controller sharing setting",
 			watch:
 				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
 			prompt:
@@ -47,9 +66,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 					}
 				: {}),
 		},
-		profiles: Object.fromEntries(
-			[...profiles].map(([name, profile]) => [name, profile.description]),
-		),
+		profiles: describeProfiles(profiles),
 		advanced: "herdr --skill: workspace/tab/pane/process/focus/layout/terminal",
 	};
 }
@@ -137,9 +154,7 @@ export async function listFleetAgents(
 		})),
 	);
 	return {
-		profiles: Object.fromEntries(
-			[...profiles].map(([name, profile]) => [name, profile.description]),
-		),
+		profiles: describeProfiles(profiles),
 		machines: machines.map(
 			({
 				snapshot: _snapshot,

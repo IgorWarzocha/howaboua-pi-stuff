@@ -11,7 +11,8 @@ import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 export const CONTINUITY_LABELS = {
 	compaction: "Compaction",
 	notes: "Notes and history",
-	"notes-and-compaction": "Notes + compaction",
+	// TODO(#440): Include this rename in the next Conversion changeset, then remove this reminder.
+	"notes-and-compaction": "Notes + history + compaction",
 } as const;
 
 export const COMPACTION_METHOD_LABELS = {
@@ -32,14 +33,14 @@ export function buildContextSettings(
 			{
 				id: "continuity",
 				label: "Continuity strategy",
-				description: "Compaction carries a checkpoint. Notes and history rolls over with saved notes. Notes + compaction carries both. Changing strategy preserves the current context. Notes-based strategies are experimental.",
+				description: "Compaction carries a checkpoint. Notes and history rolls over with saved notes. Notes + history + compaction adds a checkpoint while keeping history lookup. Changing strategy preserves the current context. Notes-based strategies are experimental.",
 				currentValue: CONTINUITY_LABELS[continuity],
 				values: Object.values(CONTINUITY_LABELS),
 			},
 			(value, current) => ({
 				...current,
 				compaction: { ...current.compaction,
-					continuity: value === "Notes and history" ? "notes" : value === "Notes + compaction" ? "notes-and-compaction" : "compaction" },
+					continuity: value === CONTINUITY_LABELS.notes ? "notes" : value === CONTINUITY_LABELS["notes-and-compaction"] ? "notes-and-compaction" : "compaction" },
 			}),
 		),
 		...(continuity === "compaction" ? [] : [setting(
