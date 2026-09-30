@@ -22,6 +22,8 @@ const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
+const DELEGATED_WORKER_GUIDANCE =
+	"When finished or blocked from progressing, end with an assistant reply. Use send only for useful mid-run updates while work can continue. Do not watch your parent or use messaging to wait for a reply.";
 
 function xml(value: string): string {
 	return value
@@ -85,6 +87,7 @@ export async function attributeAgentPrompt(
 	return {
 		sender: `<herdr_sender ${sourceAttributes(source)} />`,
 		text: message,
+		...(kind === "task" ? { context: DELEGATED_WORKER_GUIDANCE } : {}),
 	};
 }
 
@@ -213,16 +216,35 @@ function agentVoicePrompt(details: AgentEventDetails): string {
 
 function announceAgentEvent(
 	pi: ExtensionAPI,
-	details: AgentEventDetails,
+	candidateId: string,
+	prompt: string,
 ): void {
-	const candidateId = `pi-shepherdr:${details.machine}:${details.paneId}`;
 	const id =
 		new TextEncoder().encode(candidateId).byteLength <= 160
 			? candidateId
 			: "pi-shepherdr:worker";
-	const prompt = agentVoicePrompt(details);
 	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: true, prompt });
 	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: false, prompt });
+}
+
+export function announcePeerMessage(
+	pi: ExtensionAPI,
+	message: PeerMessage,
+): void {
+	const source = Object.fromEntries(
+		Array.from(
+			message.sender.matchAll(/ ([a-z_]+)="([^"]*)"/g),
+			([, key, value]) => [key, value],
+		),
+	);
+	if (source["kind"] !== "message" || message.text.startsWith("/")) return;
+	announceAgentEvent(
+		pi,
+		`pi-shepherdr:${source["host"] ?? "local"}:${source["pane"] ?? "peer"}`,
+		boundedVoicePrompt(
+			`Briefly tell the user the useful update from this peer.\n\nPeer: ${source["host"] ?? "local"} / ${source["name"] || source["pane"] || "unnamed"}\n\nUpdate:\n${message.text.trim()}`,
+		),
+	);
 }
 
 function operatorCommand(operatorPrefix: string, command: string): string {
@@ -376,7 +398,11 @@ export function injectAgentEvent(
 		delivery,
 	);
 	if (idle) startPreparedIdleTurn(pi, ctx);
-	announceAgentEvent(pi, message.details);
+	announceAgentEvent(
+		pi,
+		`pi-shepherdr:${message.details.machine}:${message.details.paneId}`,
+		agentVoicePrompt(message.details),
+	);
 }
 
 export function registerAgentEventRenderer(pi: ExtensionAPI): void {

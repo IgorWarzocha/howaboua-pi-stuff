@@ -97,7 +97,9 @@ export async function spawnAgent(
 		"task",
 	);
 	if (input.startsWith("/") && message !== input)
-		attributedMessage.context = message;
+		attributedMessage.context = [attributedMessage.context, message]
+			.filter(Boolean)
+			.join("\n\n");
 	reportProgress(onUpdate, `Spawning ${label}`, {
 		machine: runtime.machine,
 		name,
