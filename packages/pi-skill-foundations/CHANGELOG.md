@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-foundations
 
+## 0.0.3
+
+- Communication guidance now uses a shorter baseline, rejects stock banter and checks apparent contradictions before conceding a mistake.
+
 ## 0.0.2
 
 - Updated communication guidance for concise conversation, writing, teaching, and non-code review.

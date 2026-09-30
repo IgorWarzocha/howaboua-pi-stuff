@@ -1,5 +1,9 @@
 # @howaboua/pi-vent
 
+## 0.2.11
+
+- Vent now uses shorter tool guidance for recording repeated workflow friction after completing the task.
+
 ## 0.2.10
 
 ### Changes

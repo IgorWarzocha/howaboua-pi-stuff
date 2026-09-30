@@ -1,5 +1,9 @@
 # @howaboua/pi-subagent-review
 
+## 0.2.25
+
+- Reviewer prompts now request evidence-backed findings without issue-count targets.
+
 ## 0.2.24
 
 - GPT-6 Sol and Luna now share Astra's Codex support.

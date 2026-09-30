@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.5
+
+- Web requests now re-evaluate proxy and `no_proxy` routing after redirects.
+
 ## 0.0.4
 
 - GPT-6 Sol and Luna now share Astra's Codex support.

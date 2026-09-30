@@ -1,5 +1,9 @@
 # @howaboua/pi-explore-subagents
 
+## 0.1.15
+
+- Explorer prompts now use concise evidence maps and explicit unknowns without fixed-length report templates or repeated discovery instructions.
+
 ## 0.1.14
 
 - GPT-6 Sol and Luna now share Astra's Codex support.

@@ -1,5 +1,9 @@
 # @howaboua/pi-dynamic-tools
 
+## 0.0.9
+
+- Reviewer prompts now request evidence-backed findings without issue-count targets.
+
 ## 0.0.8
 
 ### Changes
