@@ -62,7 +62,7 @@ export function importUsageHistory(account: UsageAccount, history: UsageHistoryS
 	current.partial = incomplete || account.recordingGaps > 0 || current.summary.total.requests === 0;
 	if (current.quota) {
 		current.quota.usd += currentUsd;
-		if (current.quota.usd > 0 && current.quota.usedPercent > 0) current.quotaPerUsd ??= current.quota.usedPercent / current.quota.usd;
+		if (current.quota.usd > 0 && current.quota.usedPercent > 0) current.quotaPerUsd = current.quota.usedPercent / current.quota.usd;
 	}
 	account.unassignedUsd += unassignedUsd;
 	account.since = history.from;

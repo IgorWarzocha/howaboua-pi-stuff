@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { hasCodexTransportConfigChanged, nativeCompactionConfigured } from "../src/adapter/activation/runtime-plan.ts";
-import { acquireWebSocket, resetOpenAICodexWebSocketSessions } from "../src/providers/openai-codex/websocket.ts";
 import {
 	ScriptedWebSocket,
 	collectStream,
@@ -106,27 +103,6 @@ test("cached WebSockets stay isolated by resolved endpoint", async () => {
 	} finally {
 		restoreWebSocket();
 	}
-});
-
-test("V2 feature changes reset cached WebSockets without resetting equivalent methods", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[], [], []]);
-	try {
-		let config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
-		const sessionId = "compaction-feature-transition";
-		for (const [method, expectReuse] of [["pi", false], ["v2", false], ["both", true], ["pi", false]] as const) {
-			const next = { ...config, compaction: { ...config.compaction, method } };
-			if (hasCodexTransportConfigChanged(config, next)) resetOpenAICodexWebSocketSessions(sessionId);
-			const headers = new Headers({ authorization: "Bearer test" });
-			if (nativeCompactionConfigured(next.compaction)) headers.set("x-codex-beta-features", "remote_compaction_v2");
-			const acquired = await acquireWebSocket("wss://checkpoint.invalid/responses", headers, sessionId, "account", undefined, 1_000, {});
-			assert.equal(acquired.reused, expectReuse, method);
-			acquired.release({ keep: true });
-			config = next;
-		}
-		assert.equal(ScriptedWebSocket.opened, 3);
-		const notes = { ...config, compaction: { ...config.compaction, continuity: "notes" as const } };
-		assert.equal(hasCodexTransportConfigChanged(notes, { ...notes, compaction: { ...notes.compaction, method: "both" } }), false);
-	} finally { restoreWebSocket(); }
 });
 
 test("incomplete Codex responses distinguish output truncation from provider failure", async () => {

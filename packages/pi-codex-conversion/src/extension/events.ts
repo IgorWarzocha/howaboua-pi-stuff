@@ -444,6 +444,8 @@ export function registerCodexEvents(
 			ctx,
 			state,
 		);
+		if (event.reason === "manual" && !state.contextWindows.currentIdentity())
+			state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
 		const contextManagementResult = plan.contextManagement
 			? state.contextWindows.prepareCompaction(
 				event,

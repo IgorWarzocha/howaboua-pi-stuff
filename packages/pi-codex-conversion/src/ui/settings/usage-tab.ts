@@ -80,7 +80,7 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 		requestRender();
 		(options.onConsumeResetCredit ?? ((id) => consumeCodexRateLimitResetCredit(ctx, id)))(redeemRequestId)
 			.then(async (result) => {
-				if (result.outcome === "reset" && accountKey) await recordCodexManualReset(accountKey);
+				if ((result.outcome === "reset" || result.outcome === "already_redeemed") && accountKey) await recordCodexManualReset(accountKey);
 				resetMessage = { kind: result.outcome === "reset" || result.outcome === "already_redeemed" ? "info" : "error", text: formatResetConsumeResult(result) };
 				resetLockedUntilRefresh = true;
 				resetRedeemRequestId = undefined;

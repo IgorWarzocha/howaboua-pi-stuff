@@ -6,6 +6,7 @@ import { scanUsageHistory } from "./backfill.ts";
 import { readUsageLedger, usageLedgerPath } from "./ledger-store.ts";
 import { usageReport } from "./report.ts";
 import { analyseSessions } from "./session-analysis.ts";
+import { shellQuote } from "../shell/tokenize.ts";
 
 const HELP = `Read-only Codex usage analysis. Outputs JSON; never modifies the ledger or sessions.
 
@@ -47,11 +48,11 @@ export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommand
 	const session = ctx.sessionManager.getSessionId();
 	do { await ctx.waitForIdle(); } while (!ctx.isIdle());
 	if (ctx.sessionManager.getSessionId() !== session) return;
-	const script = fileURLToPath(import.meta.url);
+	const script = shellQuote(fileURLToPath(import.meta.url));
 	pi.sendUserMessage([
 		"Analyse my Codex spending. Use the bundled read-only report script, starting with its help and summary:",
-		`node ${JSON.stringify(script)} --help`,
-		`node ${JSON.stringify(script)} summary`,
+		`node ${script} --help`,
+		`node ${script} summary`,
 		`Current session directory: ${JSON.stringify(ctx.sessionManager.getSessionDir())}`,
 		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest useful savings without assuming cheaper settings produce equivalent results.",
 	].join("\n"));

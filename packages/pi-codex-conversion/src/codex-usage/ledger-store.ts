@@ -111,7 +111,10 @@ export async function recordCodexQuota(snapshot: CodexUsageSnapshot, at = Date.n
 export async function recordCodexProxyMessage(message: AssistantMessage, registry: ModelRegistry): Promise<void> {
 	// Native responses, compaction and keepalive already record inside the Codex transport.
 	if (message.api !== "openai-codex-responses" || message.provider === "openai-codex"
-		|| message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "pending") return;
+		|| message.stopReason === "pending") return;
+	const { usage } = message;
+	if ((message.stopReason === "error" || message.stopReason === "aborted") && usage.cost.total === 0
+		&& usage.input + usage.output + usage.cacheRead + usage.cacheWrite === 0) return;
 	const at = Date.now();
 	try {
 		const model = registry.find(message.provider, message.model);
@@ -119,7 +122,7 @@ export async function recordCodexProxyMessage(message: AssistantMessage, registr
 		const auth = await registry.getApiKeyAndHeaders(model);
 		if (!auth.ok) throw new Error(auth.error);
 		const accountId = extractAccountId(auth.apiKey ?? "");
-		await recordCodexSpend(accountId, auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model, message.usage, at);
+		await recordCodexSpend(accountId, auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model, usage, at);
 	} catch (error) { reportRecordingError(error); }
 }
 
