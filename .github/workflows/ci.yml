@@ -20,10 +20,8 @@ jobs:
         with:
           node-version-file: .node-version
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-        env:
-          # Isolated lifecycle scripts otherwise fall back to unpinned bunx node-gyp.
-          npm_config_node_gyp: ${{ github.workspace }}/node_modules/node-gyp/bin/node-gyp.js
+      # npm provides its bundled node-gyp before Bun starts native install hooks.
+      - run: npm run install:ci
       - name: Resolve changed base
         id: changed-base
         env:

@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "install:ci": "bun install --frozen-lockfile",
     "check": "bun run scripts/workspaces.mjs check && bun run knip",
     "typecheck": "bun run scripts/workspaces.mjs typecheck",
     "test": "bun run scripts/workspaces.mjs test",
@@ -43,7 +44,6 @@
     "better-sqlite3": "^13.0.3",
     "c8": "^12.0.0",
     "knip": "^6.32.2",
-    "node-gyp": "13.0.2",
     "node-pty": "^1.1.0",
     "openai": "^7.10.0",
     "oxfmt": "^0.64.0",

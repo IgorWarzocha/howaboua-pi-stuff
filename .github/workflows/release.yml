@@ -38,10 +38,8 @@ jobs:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-        env:
-          # Isolated lifecycle scripts otherwise fall back to unpinned bunx node-gyp.
-          npm_config_node_gyp: ${{ github.workspace }}/node_modules/node-gyp/bin/node-gyp.js
+      # npm provides its bundled node-gyp before Bun starts native install hooks.
+      - run: npm run install:ci
       - name: Build pi-codex-conversion extension
         run: bun run --cwd packages/pi-codex-conversion build
       - name: Verify packed Pi extensions load in isolation
