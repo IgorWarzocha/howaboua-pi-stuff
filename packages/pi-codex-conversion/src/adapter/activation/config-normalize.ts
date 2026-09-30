@@ -232,9 +232,9 @@ export function normalizeCodexConversionConfig(
 			cacheDiagnostics:
 				normalizeCacheDiagnosticsMode(openai["cacheDiagnostics"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
-			harnessIdentifierHeader: normalizeBoolean(
+			harnessIdentifierHeader: openai["harnessIdentifierHeader"] === "codex" ? "codex" : normalizeBoolean(
 				openai["harnessIdentifierHeader"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.openai.harnessIdentifierHeader === true,
 			),
 		},
 	};

@@ -105,7 +105,7 @@ export interface CodexConversionConfig {
 		proxyResponsesLite: boolean;
 		forceCachedWebSockets: boolean;
 		cacheDiagnostics: CacheDiagnosticsMode;
-		harnessIdentifierHeader: boolean;
+		harnessIdentifierHeader: boolean | "codex";
 	};
 }
 

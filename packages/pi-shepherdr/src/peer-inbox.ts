@@ -8,6 +8,7 @@ import type {
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
+import { announcePeerMessage } from "./messages.js";
 import {
 	MAX_PEER_FRAME_BYTES,
 	peerInboxPath,
@@ -168,6 +169,15 @@ async function openInbox(
 				// Appending then claiming the shared kickoff also coalesces arrivals
 				// during async preparation, when Pi still reports itself idle.
 				if (idle) startPreparedIdleTurn(pi, ctx);
+				// Voice failure must not turn accepted delivery into a retry.
+				try {
+					announcePeerMessage(pi, { sender: request["sender"], text });
+				} catch (error) {
+					ctx.ui.notify(
+						`Peer voice update failed: ${String(error)}`,
+						"warning",
+					);
+				}
 				reply({ ok: true, command: false });
 			} catch (error) {
 				reply({

@@ -72,18 +72,20 @@ export function buildOpenAISettings(
 		setting(
 			{
 				id: "harnessIdentifierHeader",
-				description: "Identify this extension in the request originator header instead of the default Pi identifier.",
+				description: "Choose Pi, Pi Codex Conversion or Codex as the request originator.",
 				label: "Harness identifier header",
-				currentValue: config.openai.harnessIdentifierHeader
-					? "pi-codex-conversion <3"
-					: "off",
-				values: ["off", "pi-codex-conversion <3"],
+				currentValue: config.openai.harnessIdentifierHeader === "codex"
+					? "Codex"
+					: config.openai.harnessIdentifierHeader
+						? "pi-codex-conversion <3"
+						: "off",
+				values: ["off", "pi-codex-conversion <3", "Codex"],
 			},
 			(value, current) => ({
 				...current,
 				openai: {
 					...current.openai,
-					harnessIdentifierHeader: value !== "off",
+					harnessIdentifierHeader: value === "Codex" ? "codex" : value !== "off",
 				},
 			}),
 		),
