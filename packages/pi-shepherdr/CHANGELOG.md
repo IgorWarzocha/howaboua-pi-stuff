@@ -1,5 +1,12 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.8
+
+- Agent profiles now control delegation waiting and shared context.
+
+  - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description.
+  - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
+
 ## 0.2.7
 
 - Added opt-in shared notes and history for spawned agents with Pi Codex Conversion.

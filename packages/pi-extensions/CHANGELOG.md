@@ -1,5 +1,11 @@
 # @howaboua/pi-extensions
 
+## 0.0.82
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Agent profiles now control delegation waiting and shared context. - Removed reviewer-name blocking rules. Optional profile `blocking` forces blocking or asynchronous spawns, and help and list report the configured policy with the profile description. - Added `share_context: false` for independent subagent notes and history. Existing installed profiles remain unchanged.
+
 ## 0.0.81
 
 - Include bundled package updates:
