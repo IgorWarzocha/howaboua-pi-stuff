@@ -435,7 +435,7 @@ function withContextPortabilityWarning(lines: string[], theme: Theme, width: num
 	return [
 		...wrap("Switching providers?").map((line) => theme.fg("warning", theme.bold(line))),
 		...[
-			"Use Notes + compaction with Pi summary or Both, and Local or Tree—not Remote.",
+			"Use Notes + history + compaction with Pi summary or Both, and Local or Tree—not Remote.",
 			"V2 checkpoints and Remote history/notes are encrypted for OpenAI; other providers cannot use them.",
 			"Convert existing V2-only history first: select Pi summary and run /compact on the original provider.",
 			"Changing storage does not move saved notes.",

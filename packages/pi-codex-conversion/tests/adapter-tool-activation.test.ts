@@ -276,6 +276,6 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	const notes = strategy.update!("Notes and history", remote);
 	const compaction = strategy.update!("Compaction", notes);
 	assert.equal(resolveCodexRuntimePlan(ctx, compaction).shareSubagentContext, false);
-	const restored = strategy.update!("Notes + compaction", compaction);
+	const restored = strategy.update!("Notes + history + compaction", compaction);
 	assert.deepEqual(restored.compaction, remote.compaction, "inapplicable method and retention settings are remembered, not cleared");
 });
