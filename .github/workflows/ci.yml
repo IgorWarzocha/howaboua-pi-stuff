@@ -11,13 +11,19 @@ concurrency:
 
 jobs:
   changed-packages:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+        env:
+          # Isolated lifecycle scripts otherwise fall back to unpinned bunx node-gyp.
+          npm_config_node_gyp: ${{ github.workspace }}/node_modules/node-gyp/bin/node-gyp.js
       - name: Resolve changed base
         id: changed-base
         env:

@@ -28,13 +28,16 @@ permissions:
 jobs:
   plan:
     name: Resolve native targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
       - name: Select targets before starting platform runners
         id: targets
         working-directory: packages/pi-codex-conversion
@@ -53,7 +56,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Preserve the glibc baseline of the shipped Linux binaries.
+          - os: ubuntu-24.04
             platform_arch: linux-x64
           - os: ubuntu-24.04-arm
             platform_arch: linux-arm64
@@ -67,10 +71,13 @@ jobs:
             platform_arch: win32-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
       - uses: oven-sh/setup-bun@v2
       - name: Install Linux audio headers
         if: runner.os == 'Linux' && contains(fromJSON(needs.plan.outputs.targets), 'voice')
@@ -96,13 +103,16 @@ jobs:
   bundle:
     name: Commit bundled binaries
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v8
         with:
           pattern: codex-tool-binaries-*
           merge-multiple: true

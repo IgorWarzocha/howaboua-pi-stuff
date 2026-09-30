@@ -8,7 +8,7 @@ permissions: {}
 
 jobs:
   notify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: POST issue payload to Grok Bot
         env:
