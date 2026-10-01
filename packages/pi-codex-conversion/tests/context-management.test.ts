@@ -158,6 +158,23 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "a later run cannot reuse notes from before the previous final reply");
 		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
+		for (const name of ["exec", "wait"] as const) {
+			for (const saved of [true, false]) {
+				sessionManager.branch(user);
+				sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+					type: "toolCall", id: "nested-save", name, arguments: {},
+				}] });
+				sessionManager.appendMessage({ ...result, toolCallId: "nested-save", toolName: name,
+					details: { codeMode: true, contextNotesSaved: saved } });
+				sessionManager.appendMessage(assistant);
+				const eligible = saved && mode !== "remote";
+				assert.equal(reuse(), eligible, "only successful Local/Tree nested checkpoints count");
+				const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
+				restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
+					noteCtx, mode, settledAt);
+				assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, settledAt + 26 * 60_000), eligible);
+			}
+		}
 		sessionManager.branch(user);
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");

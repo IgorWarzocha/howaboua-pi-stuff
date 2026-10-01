@@ -5,6 +5,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { adaptToolForCodeMode } from "../src/code-mode.ts";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
+import { toCodeModeToolResult } from "../src/tools/code-mode/tool-result.ts";
 import {
 	CodeModeNestedRenderStore,
 	renderTraceAndOutput,
@@ -145,6 +146,22 @@ test("Code Mode nested tools preserve public and namespaced extension results", 
 		cellId: "cell-a",
 		contentItems: [],
 	});
+	assert.equal(toCodeModeToolResult(attached).terminate, undefined, "ordinary adapted tools retain their existing continuation behavior");
+	runtime.bindCell("handoff", { cwd: process.cwd(), extensionContext: {} as ExtensionContext },
+		new Map([[adapted.name, { ...adapted, propagateTermination: true }]]));
+	await runtime.invokeDirect("handoff", 1, adapted.name, { value: "checkpoint" });
+	assert.equal(toCodeModeToolResult(runtime.attach({ kind: "yielded", cellId: "handoff", contentItems: [] })).terminate, undefined);
+	assert.equal(toCodeModeToolResult(runtime.attach({ kind: "result", cellId: "handoff", contentItems: [] })).terminate, true);
+	assert.equal(toCodeModeToolResult(runtime.attach({ kind: "result", cellId: "handoff", contentItems: [] })).terminate, undefined);
+	for (const kind of ["error", "cancel"] as const) {
+		runtime.bindCell(kind, { cwd: process.cwd(), extensionContext: {} as ExtensionContext },
+			new Map([[adapted.name, { ...adapted, propagateTermination: true }]]));
+		await runtime.invokeDirect(kind, 1, adapted.name, { value: "checkpoint" });
+		const response = kind === "error"
+			? { kind: "result" as const, cellId: kind, contentItems: [], errorText: "failed after write" }
+			: { kind: "terminated" as const, cellId: kind, contentItems: [] };
+		assert.equal(toCodeModeToolResult(runtime.attach(response)).terminate, undefined);
+	}
 	const trace = attached.traces?.[0];
 	assert.ok(trace);
 	assert.notEqual((trace.input as { value: string }).value.length, longValue.length);

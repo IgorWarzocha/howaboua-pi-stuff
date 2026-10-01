@@ -5,7 +5,7 @@
 - Notes-only rollover never invents a summary. Tree filters only owned archive summaries and projects original compaction references through `tree-checkpoint.ts` even after storage changes; never copy checkpoints into active storage. Remote storage never falls back.
 - Notes-only overflow uses Pi compaction; other strategies use the selected method. Overflow checkpoints and retries in the same window instead of rolling over. Token thresholds request notes after completed tools. Never restrict tools or validate notes to enforce the handoff.
 - Context UUIDs appear in window prompts and turn metadata. Request window IDs use Pi session ID plus zero-based window generation, matching Codex headers.
-- In Code/Notebook, `new_context`, history and notes remain direct; only `get_context_remaining` joins the nested execution surface.
+- In Code/Notebook, Local/Tree history and notes reuse the registered routers inside exec; Remote encrypted results and `new_context` stay native. Never roll over under exec.
 - Other Responses transports may use native `history.*` and `notes.*` namespaces. Codex transport keeps flat routers for Local and Tree; Remote uses exact native namespaces with encrypted sensitive arguments.
 - Local note writes are model-invisible custom entries. Tree snapshots them across branch cuts. Remote failures remain failures.
 - Encrypted history/notes output must remain a top-level Responses tool result; never unwrap it inside Code or Notebook execution.

@@ -25,6 +25,8 @@ interface NestedToolContract {
 	deferLoading?: boolean;
 	discoverWhenDeferred?: boolean;
 	modelVisibleResult?: boolean;
+	propagateTermination?: boolean;
+	isContextNoteWrite?(input: unknown): boolean;
 	translatePromptMetadata?: boolean;
 	toolName?: CodeModeToolIdentity;
 	yieldTimeMs?: number;
@@ -101,6 +103,8 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		...(contract.discoverWhenDeferred ? { discoverWhenDeferred: true } : {}),
 		...(contract.translatePromptMetadata ? { translatePromptMetadata: true } : {}),
 		...(tool.executionMode ? { executionMode: tool.executionMode } : {}),
+		...(contract.propagateTermination ? { propagateTermination: true } : {}),
+		...(contract.isContextNoteWrite ? { isContextNoteWrite: contract.isContextNoteWrite } : {}),
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),

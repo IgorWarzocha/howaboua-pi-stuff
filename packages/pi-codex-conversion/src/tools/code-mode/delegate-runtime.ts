@@ -37,6 +37,8 @@ export class CodeModeDelegateRuntime {
 	private readonly notifications = new Map<string, string[]>();
 	// Continuation routing must survive bounded display traces.
 	private readonly execSessions = new Map<string, Set<number>>();
+	private readonly terminatingCells = new Set<string>();
+	private readonly contextNoteWrites = new Map<string, boolean>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
@@ -83,6 +85,8 @@ export class CodeModeDelegateRuntime {
 			this.cleanupTimers.delete(cellId);
 			this.notifications.delete(cellId);
 			this.execSessions.delete(cellId);
+			this.terminatingCells.delete(cellId);
+			this.contextNoteWrites.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -98,6 +102,8 @@ export class CodeModeDelegateRuntime {
 		this.renderStore.clear();
 		this.notifications.clear();
 		this.execSessions.clear();
+		this.terminatingCells.clear();
+		this.contextNoteWrites.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
 		this.blockerChanges.clear();
@@ -186,9 +192,17 @@ export class CodeModeDelegateRuntime {
 		this.notifications.delete(response.cellId);
 		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
 		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
+		const noteWrites = this.contextNoteWrites.get(response.cellId);
+		const terminate = response.kind === "result" && !response.errorText && noteWrites !== false && this.terminatingCells.has(response.cellId);
+		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
+		if (response.kind !== "yielded") this.contextNoteWrites.delete(response.cellId);
 		const withTraces = this.traces.attach(response);
 		return {
 			...withTraces,
+			...(terminate ? { terminate: true as const } : {}),
+			...(noteWrites !== undefined && response.kind !== "yielded"
+				? { contextNotesSaved: response.kind === "result" && !response.errorText && noteWrites }
+				: {}),
 			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
@@ -260,6 +274,7 @@ export class CodeModeDelegateRuntime {
 			Boolean(tool.renderCall || tool.renderResult);
 		let finalResultCaptured = false;
 		let resultSessionId: number | undefined;
+		const contextNoteWrite = !isCustomToolDefinition(tool) && tool.isContextNoteWrite?.(input) === true;
 		if (captureRendererValues)
 			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
@@ -277,6 +292,8 @@ export class CodeModeDelegateRuntime {
 			},
 			captureResult: (result) => {
 				finalResultCaptured = true;
+				if (!isCustomToolDefinition(tool) && tool.propagateTermination && result.terminate)
+					this.terminatingCells.add(cellId);
 				resultSessionId = numericSessionId(result.details);
 				if (captureRendererValues)
 					this.renderStore.captureResult(trace.id, result);
@@ -315,6 +332,7 @@ export class CodeModeDelegateRuntime {
 						: await run();
 				},
 			);
+			if (contextNoteWrite) this.contextNoteWrites.set(cellId, this.contextNoteWrites.get(cellId) !== false);
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
@@ -322,6 +340,7 @@ export class CodeModeDelegateRuntime {
 			emitTrace();
 			return result;
 		} catch (error) {
+			if (contextNoteWrite) this.contextNoteWrites.set(cellId, false);
 			const errorText =
 				error instanceof Error ? error.message : String(error);
 			if (captureRendererValues && !finalResultCaptured) {

@@ -64,12 +64,14 @@ export function toCodeModeToolResult(
 	const empty = !content.some((item) => item.type !== "text" || item.text.length > 0);
 	if (empty) content.unshift({ type: "text", text: "OK" });
 	return {
+		...(response.terminate && response.kind === "result" && !scriptError ? { terminate: true } : {}),
 		content,
 		details: {
 			codeMode: true,
 			cellId: response.cellId,
 			status: response.kind,
 			statusPrefix: Boolean(status) || empty,
+			...(response.contextNotesSaved === undefined ? {} : { contextNotesSaved: response.contextNotesSaved }),
 			...(response.traces ? { traces: response.traces } : {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }

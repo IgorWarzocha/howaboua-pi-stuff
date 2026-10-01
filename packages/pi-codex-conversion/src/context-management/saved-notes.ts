@@ -37,11 +37,13 @@ export function hasFreshContextNotes(
 			// A previous final reply ends the run. Within it, completed tool batches do not stale notes.
 			if (calls.length === 0 || calls.length !== results.size ||
 				calls.some((call) => results.get(call.id)?.toolName !== call.name)) return false;
-			const writes = calls.filter((call) => call.name === "notes" &&
-				(call.arguments["action"] === "write_file" || call.arguments["action"] === "append_to_file"));
+			const writes = calls.filter((call) => call.name === "notes"
+				? call.arguments["action"] === "write_file" || call.arguments["action"] === "append_to_file"
+				: (call.name === "exec" || call.name === "wait") && nestedNoteWrite(results.get(call.id)!) !== undefined);
 			if (writes.length > 0) return writes.every((call) => {
 				const result = results.get(call.id)!;
 				if (result.isError) return false;
+				if (call.name !== "notes") return mode !== "remote" && nestedNoteWrite(result) === true;
 				const details = result.details;
 				if (!details || typeof details !== "object" || !("codexHistoryNotes" in details)) return false;
 				const note = details["codexHistoryNotes"];
@@ -57,4 +59,11 @@ export function hasFreshContextNotes(
 		results.set(message.toolCallId, message);
 	}
 	return false;
+}
+
+function nestedNoteWrite(result: Extract<AgentMessage, { role: "toolResult" }>): boolean | undefined {
+	const details = result.details;
+	return details && typeof details === "object" && "codeMode" in details && details["codeMode"] === true &&
+		"contextNotesSaved" in details && typeof details["contextNotesSaved"] === "boolean"
+		? details["contextNotesSaved"] : undefined;
 }

@@ -51,6 +51,9 @@ export interface ProgrammaticCodeModeToolDefinition
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi owns validation, permissions and completion hooks for these calls. */
 	executionPipeline?: "pi" | undefined;
+	/** Forward owned handoff completion to the outer exec/wait result. */
+	propagateTermination?: boolean | undefined;
+	isContextNoteWrite?(input: unknown): boolean;
 	inputSchema?: unknown;
 	invoke(
 		input: unknown,
@@ -115,6 +118,7 @@ export interface CodeModeRenderContext extends CodeModeNestedRenderContext {
 }
 
 export interface RuntimeToolResult {
+	terminate?: boolean | undefined;
 	content: Array<
 		| { type: "text"; text: string }
 		| { type: "image"; data: string; mimeType: string }
@@ -177,6 +181,8 @@ export type RuntimeResponse = (
 			errorText?: string | undefined;
 	  }
 ) & {
+	terminate?: true | undefined;
+	contextNotesSaved?: boolean | undefined;
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
 	execSessionIds?: number[] | undefined;

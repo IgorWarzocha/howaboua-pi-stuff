@@ -7,6 +7,8 @@ import { Type } from "typebox";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
+import { registerCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
+import { toNestedTool } from "../adapter/code-mode/nested-tool-adapter.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 
@@ -117,6 +119,27 @@ export function registerContextManagementTools(
 	pi.registerTool(getContextRemaining);
 	pi.registerTool(history);
 	pi.registerTool(notes);
+	// Reuse the registered routers, including family routing and Tree write completion.
+	const contract = { deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true };
+	const nested = [
+		toNestedTool(history, "await tools.history({ action, ...args })", {}, contract),
+		toNestedTool(notes, "await tools.notes({ action, ...args })", {}, {
+			...contract,
+			propagateTermination: true,
+			isContextNoteWrite: (input) => Boolean(input && typeof input === "object" && "action" in input &&
+				(input.action === "write_file" || input.action === "append_to_file")),
+		}),
+	].map((tool) => ({
+		...tool,
+		invoke: async (...[input, context, signal]: Parameters<typeof tool.invoke>) => {
+			if (!context.extensionContext || !plan(context.extensionContext).contextManagementNested)
+				throw new Error("Nested history and notes require Local or Tree context in Code/Notebook; when available, call the native tools outside exec");
+			return tool.invoke(input, context, signal);
+		},
+	}));
+	registerCodeModeExtensionTools(pi, (ctx) => ctx && plan(ctx).contextManagementNested
+		? nested
+		: []);
 }
 
 function assertContextManagementActive(
