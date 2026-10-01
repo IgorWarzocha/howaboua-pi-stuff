@@ -45,7 +45,7 @@ function readEnabled(path: string, scope: "folder" | "global") {
 	return value;
 }
 
-export function boardConfigPaths(folder: string) {
+function boardConfigPaths(folder: string) {
 	return {
 		global: resolve(getAgentDir(), CONFIG_FILE),
 		folder: resolve(folder, ".pi", CONFIG_FILE),
