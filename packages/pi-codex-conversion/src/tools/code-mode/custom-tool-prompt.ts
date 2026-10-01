@@ -42,9 +42,13 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-export function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
-	return tool.deferLoading &&
-		(isConfiguredCustomTool(tool) || ("invoke" in tool && tool.discoverWhenDeferred === true));
+function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
+	return tool.deferLoading && isCodeModeToolDiscoverable(tool);
+}
+
+export function isCodeModeToolDiscoverable(tool: CodeModeToolDefinition): boolean {
+	return isConfiguredCustomTool(tool) ||
+		(tool.deferLoading && "invoke" in tool && tool.discoverWhenDeferred === true);
 }
 
 export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {

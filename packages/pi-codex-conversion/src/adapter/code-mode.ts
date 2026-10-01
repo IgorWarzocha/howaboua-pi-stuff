@@ -91,6 +91,7 @@ export async function registerCodexCodeMode(
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
+		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),

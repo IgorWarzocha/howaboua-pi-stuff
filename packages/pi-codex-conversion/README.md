@@ -52,7 +52,7 @@ Structured mode reads files through the shell and edits with `apply_patch`. Ther
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Change promoted tool loadouts between runs. MCP and deferred-tool changes are announced before the next model request without rebuilding the standing Code or Notebook instructions.
+Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. Current help is in `ALL_TOOLS`. MCP and deferred-tool changes use the same appended updates.
 
 </details>
 
