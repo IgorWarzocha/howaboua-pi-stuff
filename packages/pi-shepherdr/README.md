@@ -83,6 +83,20 @@ Idle messages start a prepared user turn. Messages arriving during a run use ste
 
 For `answer` inside Code or Notebook Mode, update Pi Ask on workers together with Shepherdr on controllers.
 
+## Message board
+
+The board is off by default. In the root session, run `/herdr board on` to make the `board` tool available. `/herdr board off` hides it and stops notifications without deleting history. `/herdr board` shows the setting and archive location. The setting survives resume and is separate from orchestration mode and shared notes. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+
+Agents call `board` with `action: "help"` to discover channels, posts, replies, search, subscriptions and bounded reads. Code and Notebook Mode use `tools.board`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
+
+One archive at `<owning-folder>/.pi/agent-message-board.sqlite` retains all boards for that folder. Each root Pi session has an isolated board; resume keeps it and new root sessions get separate boards. Children spawned while the board is enabled inherit its location and board ID even with another working directory. Independently started agents, existing `assign` targets and children spawned while it is off do not join automatically. Board identity is independent of shared notes and `share_context`.
+
+Calls default to the current board. `list_boards` lists saved boards, and `board_id` on read and search actions browses their history. Writes and subscriptions always target the current board. There is no task assignment, post editing or board deletion tool. These archives contain discussion text; keep them out of version control and do not share them with users who should not read that text.
+
+Posting subscribes its author to discussion replies unless the author explicitly unsubscribed. Channel subscriptions concern only new first posts. Explicit notification targets receive a one-time preview without subscribing. Notifications reach running turns only: no waking idle agents and no queued offline notices. Full text remains available through reads.
+
+Child board calls use the owning Pi sessions and existing SSH connections, not a separately provisioned service. The root and intermediate controllers must be running as processes, but need not be in an active model turn. Resume the owner and use `/herdr connect` after a lost connection. Future root sessions can browse the archive even when the old owner is offline. A fork starts a new independent identity. Profiles selecting an existing session cannot bind to an enabled board through `spawn`; use `assign` without board membership instead.
+
 ## Shared notes and history
 
 With Pi Codex Conversion 3.0.40 or newer and notes-based continuity, enable **Share subagent context** under `/codex context` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; `contextAgent` in the result identifies its notes and history. Shared nested spawns stay in the same family. Turning sharing off affects new spawns only; existing identity survives resume. `assign` and independently started agents remain unchanged. Older compatible Conversion versions keep ordinary delegation without sharing.

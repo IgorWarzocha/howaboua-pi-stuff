@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentBoard } from "./board/host.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
 import { loadAgentProfiles } from "./profiles.js";
@@ -16,12 +17,13 @@ const NORMAL_MESSAGE = "Work normally. Delegate only when useful or requested.";
 export function registerAgentController(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
+	board: AgentBoard,
 ): void {
 	let orchestrationEnabled = false;
 	pi.registerCommand("herdr", {
-		description: "Toggle agent orchestration or reconnect machines",
+		description: "Toggle orchestration, message board, or reconnect machines",
 		getArgumentCompletions: (prefix) =>
-			["connect"]
+			["connect", "board on", "board off"]
 				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
 				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
@@ -66,7 +68,25 @@ export function registerAgentController(
 				}
 				return;
 			}
-			ctx.ui.notify("Usage: /herdr [connect [machine]]", "warning");
+			if (action === "board") {
+				try {
+					if (rest.length === 0) ctx.ui.notify(board.status(ctx), "info");
+					else if (
+						rest.length === 1 &&
+						(rest[0] === "on" || rest[0] === "off")
+					) {
+						await board.toggle(ctx, rest[0] === "on");
+						ctx.ui.notify(board.status(ctx), "info");
+					} else ctx.ui.notify("Usage: /herdr board [on|off]", "warning");
+				} catch (error) {
+					ctx.ui.notify(String(error), "error");
+				}
+				return;
+			}
+			ctx.ui.notify(
+				"Usage: /herdr [connect [machine] | board [on|off]]",
+				"warning",
+			);
 		},
 	});
 

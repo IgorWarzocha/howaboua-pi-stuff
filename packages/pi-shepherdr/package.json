@@ -54,6 +54,9 @@
 			"optional": true
 		}
 	},
+	"dependencies": {
+		"unicode-case-folding": "1.1.2"
+	},
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "3.0.42",
 		"@biomejs/biome": "^2.5.10",

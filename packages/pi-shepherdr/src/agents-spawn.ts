@@ -14,6 +14,7 @@ import {
 	settlementResult,
 	toolResult,
 } from "./agents-work.js";
+import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { isDispatchRejected } from "./herdr-client.js";
 import {
@@ -46,6 +47,7 @@ export async function spawnAgent(
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
 	sharedContext: SharedAgentContext,
 	ctx: ExtensionContext,
+	board: AgentBoard,
 ) {
 	const profiles = await loadAgentProfiles();
 	const profileName = required(params.agent_type, "agent_type");
@@ -111,6 +113,7 @@ export async function spawnAgent(
 		profile.shareContext === false
 			? undefined
 			: await sharedContext.prepare(ctx, runtime, name, agentArgs);
+	const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
 	const started = await startAgent(
 		runtime.client,
 		startParams,
@@ -124,6 +127,7 @@ export async function spawnAgent(
 	let shared: { agentName?: string; warning?: string } | undefined;
 	const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 	try {
+		await boardBinding?.accept(started.agent);
 		shared = await sharing?.accept(started.agent);
 		dispatch = await dispatchAgentWork(
 			runtime,
