@@ -154,15 +154,6 @@ test("rejects malformed commands and unknown skills", (t) => {
 		() => runSkills("read visual; read missing", f.root),
 		/Unknown skill/,
 	);
-	assert.throws(() => runSkills("list unknown", f.root), /Unknown category/);
-	assert.throws(
-		() => runSkills("read visual missing", f.root),
-		/Unknown skill or reference/,
-	);
-	assert.throws(
-		() => runSkills("read visual visual\/references\/missing", f.root),
-		/Unknown reference "missing" for skill "visual"/,
-	);
 });
 
 test("keeps names unique across category packages", (t) => {

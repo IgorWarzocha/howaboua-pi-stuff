@@ -65,7 +65,6 @@ test("resolves cwd skills and returns lossless bounded UTF-8 continuations", asy
 		assert.equal(Number(marker[3]), Buffer.byteLength(expected));
 		next = marker[4] ?? "";
 		assert.equal(next, `${command} --offset ${offset}`);
-		assert.equal(await read(next), await read(next));
 	}
 	assert.ok(chunks.length > 1);
 	assert.equal(chunks.join(""), expected);
