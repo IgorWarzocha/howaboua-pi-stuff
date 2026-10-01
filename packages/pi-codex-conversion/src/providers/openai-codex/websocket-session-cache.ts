@@ -4,6 +4,7 @@ import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable, resolveW
 import { clearCanonicalSessions } from "./session-continuity.ts";
 
 const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
+const websocketPreparations = new Map<string, Set<AbortController>>();
 const websocketSseFallbackSessions = new Set<string>();
 const CONTINUATION_HEADERS = new Set([
 	"openai-beta",
@@ -38,6 +39,12 @@ export function recordWebSocketSseFallback(sessionId: string | undefined): void 
 }
 
 function closeWebSocketSessions(sessionId: string | undefined): void {
+	// A connecting preparation is not yet in the socket cache, but belongs to
+	// the same session teardown boundary as a connected lease.
+	const preparations = sessionId ? [websocketPreparations.get(sessionId)] : [...websocketPreparations.values()];
+	for (const controllers of preparations) {
+		for (const controller of controllers ?? []) controller.abort();
+	}
 	const closeEntry = (entry: SessionWebSocketCacheEntry) => {
 		closeWebSocketSilently(entry.socket, 1000, "session_shutdown");
 	};
@@ -82,21 +89,30 @@ export function preconnectWebSocket(
 	onFailure: (error: unknown) => void,
 ) {
 	const controller = new AbortController();
+	let preparations = websocketPreparations.get(sessionId);
+	if (!preparations) {
+		preparations = new Set();
+		websocketPreparations.set(sessionId, preparations);
+	}
+	preparations.add(controller);
 	const combinedSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
 	let lease: AcquiredWebSocket | undefined;
 	let attemptedRoute: string | undefined;
 	let failure: { error: unknown } | undefined;
 	const release = (keep: boolean) => {
 		combinedSignal.removeEventListener("abort", onAbort);
+		preparations.delete(controller);
+		if (preparations.size === 0 && websocketPreparations.get(sessionId) === preparations) websocketPreparations.delete(sessionId);
 		lease?.release({ keep });
 		lease = undefined;
 	};
 	const onAbort = () => release(false);
+	combinedSignal.addEventListener("abort", onAbort, { once: true });
+	if (combinedSignal.aborted) release(false);
 	const operation = (async () => {
 		attemptedRoute = await websocketRouteKey(url, headers, accountId, env);
 		lease = await acquireWebSocket(url, headers, sessionId, accountId, combinedSignal, connectTimeoutMs, env);
 		if (combinedSignal.aborted) release(false);
-		else combinedSignal.addEventListener("abort", onAbort, { once: true });
 	})().catch((error: unknown) => {
 		// Only a failure on the finalized route may influence transport fallback.
 		failure = { error };

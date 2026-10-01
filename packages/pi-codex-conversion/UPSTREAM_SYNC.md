@@ -49,6 +49,7 @@ Compared Codex's handshake overlap, cached-session repair, readiness and history
 
 - With the existing cached-WebSocket policy, handshake acquisition overlaps final asynchronous payload rewrites and Responses Lite image preparation. Pi has already completed the full `before_agent_start` chain and context conversion. This is not Codex's parallel tool discovery. Only the handshake overlaps preparation. Warmup still awaits the authoritative final request in `beforeRequestSend`.
 - Handoff revalidates endpoint, account, credentials, proxy and handshake headers. Negotiated beta features participate in socket identity. Cancelled or mismatched preparation closes its lease without advancing continuation or canonical history.
+- Transport reset and session shutdown also cancel preparation handshakes that have not yet entered the socket cache. Handoff retires the preparation's lifecycle registration.
 - Handshake `426` and close `1009` retain immediate sticky SSE fallback only when the finalized route still matches the failed attempt. Other speculative failures leave normal request recovery in charge.
 - Repeated compaction warmup checks the live cached session instead of trusting a past request key. Matching ready history sends no warmup. Extended history can use a validated `previous_response_id` delta, while changed request settings or disconnected sockets require a full request.
 
