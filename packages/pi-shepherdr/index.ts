@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import { isBlockingAgentsCall } from "./src/agents-contract.js";
 import { createAgentsTool } from "./src/agents-tool.js";
+import { ensureBoardConfig } from "./src/board/config.js";
 import { AgentBoard } from "./src/board/host.js";
 import { createBoardTool } from "./src/board/tool.js";
 import { registerAgentController } from "./src/controller.js";
@@ -19,6 +20,7 @@ export default async function shepherdrExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
 	registerPackageChangelog(pi);
+	ensureBoardConfig();
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
 	registerPeerInbox(pi);

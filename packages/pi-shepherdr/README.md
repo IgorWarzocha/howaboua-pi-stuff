@@ -85,7 +85,25 @@ For `answer` inside Code or Notebook Mode, update Pi Ask on workers together wit
 
 ## Message board
 
-The board is off by default. In the root session, run `/herdr board on` to make the `board` tool available. `/herdr board off` hides it and stops notifications without deleting history. `/herdr board` shows the setting and archive location. The setting survives resume and is separate from orchestration mode and shared notes. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+The board is off by default. In the root session, run `/herdr board` to open its settings menu. Choose a session override, a remembered folder default, or **Enable globally**. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+
+Session overrides survive resume but do not carry into new root sessions or forks. Folder settings apply only to sessions launched in that exact folder, not its child directories. Global enablement is a separate setting. Precedence is session, folder, then global. Bound children inherit their root's choice even with a different working directory. Orchestration mode and shared notes remain independent.
+
+The menu saves folder settings in `<launch-folder>/.pi/pi-shepherdr.json`:
+
+```json
+{ "board": { "enabled": true } }
+```
+
+The extension creates `pi-shepherdr.json` in Pi's global agent directory with this default:
+
+```json
+{ "board": { "enabledGlobally": false } }
+```
+
+The agent directory defaults to `~/.pi/agent` and respects `PI_CODING_AGENT_DIR`. Enabling a board in the home folder writes `~/.pi/pi-shepherdr.json`, not the global setting. It does not enable boards in other folders. Storage location never implies activation scope. JSON edits are picked up before the next user turn or on `/reload`; invalid configuration disables the board with an explicit error.
+
+Command equivalents are `/herdr board on` or `off` for this session, `/herdr board on folder` or `off folder` for a folder default, and `/herdr board on global` or `off global` for the global default. `/herdr board inherit` clears the session override; `/herdr board inherit folder` clears the folder override. A session override can mask changes to either default. Outside the TUI, `/herdr board` reports status and archive location.
 
 Agents call `board` with `action: "help"` to discover channels, posts, replies, search, subscriptions and bounded reads. Code and Notebook Mode use `tools.board`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
 

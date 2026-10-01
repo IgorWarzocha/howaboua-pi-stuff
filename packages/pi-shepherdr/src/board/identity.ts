@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
+import { readBoardConfig } from "./config.js";
 
 const uuid = Type.String({ pattern: "^[a-f0-9-]{36}$" });
 export const BindingSchema = Type.Object(
@@ -33,6 +34,59 @@ export type BoardChild = Static<typeof ChildSchema>;
 const BINDING = "shepherdr-board-binding";
 const MEMBER = "shepherdr-board-member";
 const CHILD = "shepherdr-board-child";
+const SETTING = "shepherdr-board-setting";
+const SettingSchema = Type.Object({
+	sessionId: uuid,
+	enabled: Type.Union([Type.Boolean(), Type.Null()]),
+});
+
+export function sessionBoardSetting(
+	ctx: ExtensionContext,
+): boolean | undefined {
+	let enabled: boolean | undefined;
+	for (const entry of ctx.sessionManager.getEntries()) {
+		if (entry.type !== "custom" || entry.customType !== SETTING) continue;
+		if (!Check(SettingSchema, entry.data))
+			throw new Error("Invalid saved board setting");
+		const value = entry.data as Static<typeof SettingSchema>;
+		if (value.sessionId === ctx.sessionManager.getSessionId())
+			enabled = value.enabled ?? undefined;
+	}
+	return enabled;
+}
+
+export function saveBoardSetting(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	enabled: boolean | undefined,
+) {
+	pi.appendEntry(SETTING, {
+		sessionId: ctx.sessionManager.getSessionId(),
+		enabled: enabled ?? null,
+	});
+}
+
+export function rootBoardSetting(ctx: ExtensionContext) {
+	try {
+		const config = readBoardConfig(resolve(ctx.sessionManager.getCwd()));
+		const session = sessionBoardSetting(ctx);
+		return {
+			enabled: session ?? config.folder ?? config.global,
+			source:
+				session !== undefined
+					? "session"
+					: config.folder !== undefined
+						? "folder"
+						: "global default",
+		};
+	} catch (error) {
+		return {
+			enabled: false,
+			source: "invalid configuration",
+			error: String(error),
+		};
+	}
+}
 
 export function parseBinding(value: unknown): BoardBinding {
 	if (!Check(BindingSchema, value))
@@ -48,8 +102,9 @@ export function binding(ctx: ExtensionContext): BoardBinding {
 		if (candidate.sessionId === sessionId) saved = candidate;
 	}
 	const ownerFolder = resolve(ctx.sessionManager.getCwd());
-	return (
-		saved ?? {
+	if (saved?.upstream) return saved;
+	return {
+		...(saved ?? {
 			protocol: 1,
 			sessionId,
 			rootSessionId: sessionId,
@@ -58,8 +113,9 @@ export function binding(ctx: ExtensionContext): BoardBinding {
 			ownerFolder,
 			databasePath: resolve(ownerFolder, ".pi", "agent-message-board.sqlite"),
 			enabled: false,
-		}
-	);
+		}),
+		enabled: rootBoardSetting(ctx).enabled,
+	};
 }
 export function saveBinding(pi: ExtensionAPI, value: BoardBinding) {
 	pi.appendEntry(BINDING, value);

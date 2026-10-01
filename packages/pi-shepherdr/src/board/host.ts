@@ -11,6 +11,11 @@ import {
 } from "../remote/shepherdr-context.mjs";
 import { executeArchive } from "./archive.js";
 import {
+	type BoardScope,
+	readBoardConfig,
+	writeBoardConfig,
+} from "./config.js";
+import {
 	agentPath,
 	type BoardParams,
 	boardHelp,
@@ -21,9 +26,12 @@ import {
 	children,
 	members,
 	parseBinding,
+	rootBoardSetting,
 	saveBinding,
+	saveBoardSetting,
 	saveChild,
 	saveMember,
+	sessionBoardSetting,
 } from "./identity.js";
 import { type BoardEnvelope, parseEnvelope } from "./protocol.js";
 import { BoardTurns } from "./turns.js";
@@ -33,6 +41,8 @@ export class AgentBoard {
 	private readonly fleet: AgentFleet;
 	private readonly turns: BoardTurns;
 	private refreshTools: (() => void) | undefined;
+	private lastSetting: { sessionId: string; enabled: boolean } | undefined;
+	private configError: string | undefined;
 	constructor(pi: ExtensionAPI, fleet: AgentFleet) {
 		this.pi = pi;
 		this.fleet = fleet;
@@ -67,7 +77,7 @@ export class AgentBoard {
 						);
 				}
 			}
-			this.refresh(ctx);
+			await this.refresh(ctx);
 		});
 	}
 	setToolRefresh(refresh: () => void) {
@@ -76,30 +86,58 @@ export class AgentBoard {
 	enabled(ctx: ExtensionContext | undefined) {
 		return ctx ? binding(ctx).enabled : false;
 	}
-	private refresh(ctx: ExtensionContext) {
+	private async refresh(ctx: ExtensionContext) {
+		const own = binding(ctx);
+		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
+		if (setting?.error && setting.error !== this.configError)
+			ctx.ui.notify(`Board disabled: ${setting.error}`, "error");
+		this.configError = setting?.error;
 		const active = this.pi.getActiveTools().filter((name) => name !== "board");
-		if (this.enabled(ctx)) active.push("board");
+		if (own.enabled) active.push("board");
 		this.pi.setActiveTools(active);
 		this.refreshTools?.();
+		if (!own.enabled) this.turns.active.clear();
+		const changed =
+			this.lastSetting?.sessionId !== own.sessionId ||
+			this.lastSetting.enabled !== own.enabled;
+		this.lastSetting = { sessionId: own.sessionId, enabled: own.enabled };
+		if (changed && !own.upstream) await this.propagateEnabled(ctx, own.enabled);
 	}
-	async toggle(ctx: ExtensionContext, enabled: boolean) {
+	settings(ctx: ExtensionContext) {
+		const own = binding(ctx);
+		if (own.upstream)
+			throw new Error("Change the board setting in the owning root session");
+		return {
+			...readBoardConfig(own.ownerFolder),
+			session: sessionBoardSetting(ctx),
+		};
+	}
+	async setSetting(
+		ctx: ExtensionContext,
+		scope: BoardScope,
+		enabled: boolean | undefined,
+	) {
 		if (!ctx.isIdle())
 			throw new Error("Change the board setting after this session settles");
 		const own = binding(ctx);
 		if (own.upstream)
 			throw new Error("Change the board setting in the owning root session");
-		saveBinding(this.pi, { ...own, enabled });
-		if (!enabled) this.turns.active.clear();
-		this.refresh(ctx);
-		await this.propagateEnabled(ctx, enabled);
+		if (scope === "session") saveBoardSetting(this.pi, ctx, enabled);
+		else writeBoardConfig(own.ownerFolder, scope, enabled);
+		await this.refresh(ctx);
 	}
 	status(ctx: ExtensionContext) {
 		const own = binding(ctx);
-		return `Board ${own.enabled ? "on" : "off"}. ${own.boardId}\nArchive: ${own.databasePath}`;
+		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
+		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"}). ${own.boardId}\nArchive: ${own.databasePath}${setting?.error ? `\n${setting.error}` : ""}`;
 	}
 	async execute(ctx: ExtensionContext, input: unknown, requestId: string) {
 		const params = parseBoardRequest(input);
 		const caller = binding(ctx);
+		if (!caller.upstream) {
+			const setting = rootBoardSetting(ctx);
+			if (setting.error) throw new Error(setting.error);
+		}
 		if (!caller.enabled)
 			throw new Error(
 				"Board is off; the user can enable it with /herdr board on",
@@ -204,14 +242,14 @@ export class AgentBoard {
 				);
 			const adopted = { ...request.binding, sessionId: own.sessionId };
 			saveBinding(this.pi, adopted);
-			this.refresh(ctx);
+			await this.refresh(ctx);
 			return adopted;
 		}
 		if (request.operation === "board-enabled") {
 			if (!own.upstream || request.boardId !== own.boardId)
 				throw new Error("Invalid board setting route");
 			saveBinding(this.pi, { ...own, enabled: request.enabled });
-			this.refresh(ctx);
+			await this.refresh(ctx);
 			await this.propagateEnabled(ctx, request.enabled);
 			return true;
 		}
