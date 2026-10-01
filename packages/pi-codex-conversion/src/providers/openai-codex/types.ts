@@ -24,6 +24,7 @@ export interface SessionWebSocketCacheEntry {
 
 export interface AcquiredWebSocket {
 	socket: WebSocketLike;
+	routeKey?: string | undefined;
 	entry?: SessionWebSocketCacheEntry | undefined;
 	reused: boolean;
 	socketAgeMs: number;

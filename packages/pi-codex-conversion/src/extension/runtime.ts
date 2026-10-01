@@ -121,7 +121,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
 	let prewarmTransportSettlement: Promise<unknown> | undefined;
 	let pendingPrewarmKey: string | undefined;
-	let prewarmedKey: string | undefined;
 	let activePrewarmKind: "ordinary" | "compaction" | "keepalive" | undefined;
 	let cacheKeepaliveTimer: ReturnType<typeof setTimeout> | undefined;
 	let cacheKeepaliveEpoch = 0;
@@ -177,7 +176,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	const startPrewarm = (
 		ctx: CodexContext,
 		messages: Context["messages"],
-		force = false,
 		kind: "ordinary" | "compaction" | "keepalive" = "ordinary",
 		preserveContinuation = false,
 		keepaliveStrategy?: CodexCacheKeepaliveStrategy,
@@ -190,9 +188,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		const { model, config, executionMode, reasoning, key: requestKey } = plan;
 		const prewarmKey = JSON.stringify({ requestKey, preserveContinuation, generate, body: preparedRequest?.body });
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
-		if (!force && !pendingPrewarmKey && prewarmedKey === prewarmKey) return undefined;
 		const previousTransportSettlement = prewarmTransportSettlement;
-		prewarmedKey = undefined;
 		prewarmController?.abort();
 		const controller = new AbortController();
 		prewarmController = controller;
@@ -254,7 +250,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					}
 					if (controller.signal.aborted) return { status: "aborted" } as const;
 					if (!result) return { status: "skipped" } as const;
-					if (kind !== "keepalive") prewarmedKey = prewarmKey;
 					return { status: "ready", ...(result.usage ? { usage: result.usage } : {}), socketReused: result.socketReused } as const;
 				} finally {
 					if (prewarmTransportSettlement === transportSettlement) prewarmTransportSettlement = undefined;
@@ -317,7 +312,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		return startPrewarm(
 			ctx,
 			captured ? [] : currentMessages(ctx),
-			kind === "keepalive",
 			kind,
 			preserveContinuation,
 			keepalivePlan?.strategy,
@@ -494,7 +488,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			prewarmController?.abort();
 			prewarmController = undefined;
 			pendingPrewarmKey = undefined;
-			prewarmedKey = undefined;
 			state.codexTurnState.reset();
 			if (sessionId) {
 				resetOpenAICodexWebSocketSessions(sessionId);
