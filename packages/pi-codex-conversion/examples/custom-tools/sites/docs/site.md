@@ -1,31 +1,11 @@
 # Site operations
 
-## `site.list`
+- `site.list`: owned Sites by default, limit 20. `role: "editor"` selects shared editable Sites. Reuse returned cursors with unchanged `role`/`include_editable` filters.
+- `site.get`: metadata, access and linked automations. Set `include_mcp_connection: true` for the published MCP connection and provisioned plugin ID. Reading it does not install or connect anything. See `mcp`.
+- `site.create`: only without a local `project_id`. Supply `title`, `slug`, optional `description` and `creation_intent` (`user_requested`, `proactive`, `unknown`) reflecting the original request. The facade atomically preserves other manifest fields and saves the returned ID. A missing repository credential is not a reason to create again.
+- `site.update`: display `title`, not URL.
+- `site.slug`: change public URL label. For a pending result, observe with `site.get`, never repeat the mutation to poll.
 
-List accessible Sites. `limit` defaults to 20; use the returned cursor for another page.
+Slugs start with a lowercase ASCII letter, then lowercase letters, digits or single hyphens. No trailing/consecutive hyphens, reserved labels or collisions. Backend validation determines availability.
 
-## `site.get`
-
-Get metadata, current URLs, version state, and access configuration for one opaque `project_id`.
-
-## `site.create`
-
-Create only when the local `.openai/hosting.json` has no `project_id`.
-
-Required facade parameters: `title`, `slug`. Optional: `description`, `project_dir`.
-
-The slug must start with a lowercase ASCII letter, be at least five characters, and contain only lowercase letters, digits, and single hyphens. The facade persists the new project ID atomically. It removes the short-lived source credential from model-visible output.
-
-## `site.update`
-
-Update user-facing metadata. The current backend supports `title`; inspect `sites_documentation("site.update")` before calling.
-
-Examples:
-
-```js
-await tools.sites(JSON.stringify({
-  resource: "site",
-  action: "get",
-  params: { project_dir: "/absolute/project/path" }
-}))
-```
+`enable_plugins: true` on creation requests workspace connector access, subject to workspace eligibility. It is not an MCP-publication toggle. Omit it for ordinary Sites and MCP-only Sites. `publish_on_push` is rejected, including null.

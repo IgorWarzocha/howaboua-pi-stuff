@@ -4,11 +4,13 @@ export const OPERATIONS = Object.freeze({
     get: operation("get_site", "site"),
     create: operation("create_site", "site", { local: "create" }),
     update: operation("update_site_metadata", "site"),
+    slug: operation("change_site_slug", "site"),
   }),
   version: Object.freeze({
     list: operation("list_site_versions", "version"),
     get: operation("get_site_version", "version"),
     save: operation("save_site_version", "version", { local: "save" }),
+    publish_private: operation("save_version_and_deploy_private", "version", { local: "save" }),
   }),
   deployment: Object.freeze({
     deploy: operation("deploy_site_version", "deployment", { local: "deploy" }),
@@ -33,6 +35,17 @@ export const OPERATIONS = Object.freeze({
     events: operation("list_site_analytics_events", "analytics"),
     query: operation("query_site_analytics_event", "analytics"),
   }),
+  diagnostics: Object.freeze({
+    logs: operation("get_site_worker_logs", "diagnostics"),
+  }),
+  database: Object.freeze({
+    overview: operation("read_database_overview", "database"),
+    rows: operation("read_database_table_rows", "database"),
+  }),
+  schedule: Object.freeze({
+    create: operation("create_schedule", "schedules"),
+    validate: operation("validate_suggested_schedule", "schedules"),
+  }),
 });
 
 function operation(tool, topic, options = {}) {
@@ -43,10 +56,12 @@ export function resolveOperation(resource, action) {
   if (typeof resource !== "string" || typeof action !== "string") {
     throw facadeError("invalid_operation", "resource and action must both be strings", "index");
   }
-  const resourceOperations = OPERATIONS[resource];
-  const resolved = resourceOperations?.[action];
+  const resourceOperations = Object.hasOwn(OPERATIONS, resource) ? OPERATIONS[resource] : undefined;
+  const resolved = resourceOperations && Object.hasOwn(resourceOperations, action)
+    ? resourceOperations[action] : undefined;
   if (!resolved) {
-    const topic = resource === "domain" ? "domains" : resource in OPERATIONS ? resource : "index";
+    const topic = resource === "domain" ? "domains" : resource === "schedule" ? "schedules"
+      : resourceOperations ? resource : "index";
     throw facadeError(
       "unknown_operation",
       `Unknown Sites operation ${resource}.${action}; read sites_documentation(\"${topic}\")`,
