@@ -1,10 +1,10 @@
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { scanUsageHistory } from "./backfill.ts";
-import { readUsageLedger, usageLedgerPath } from "./ledger-store.ts";
-import { usageReport } from "./report.ts";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { scanUsageHistory } from "./history-scan.ts";
+import { readUsageLedgerFile } from "./ledger-read.ts";
+import { usageReport } from "./spend-report.ts";
 import { analyseSessions } from "./session-analysis.ts";
 import { shellQuote } from "../shell/tokenize.ts";
 
@@ -25,6 +25,7 @@ history: bounded session aggregates for one-time bootstrap; prints JSON without 
 --file defaults to codex-usage.json in Pi's agent directory
 --root defaults to Pi's standard sessions directory; pass the configured session directory if different
 --account accepts an exact hashed key; omitted selects all accounts separately
+For standalone reports, pass --file for ledger reports or --root for session scans.
 
 Ledger scope: local requests recorded by Pi-Codex, including native compaction and generated keepalive.
 Matches openai-codex-responses regardless of provider name. Nonstandard configurations may produce inaccurate values; aggregator billing is not reconciled.
@@ -46,13 +47,16 @@ Use top session paths for targeted rg or inspection. Do not dump conversation co
 
 export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
 	const session = ctx.sessionManager.getSessionId();
+	// Resolve host defaults here, not in the standalone Node import graph.
+	const { usageLedgerPath } = await import("./ledger-store.ts");
 	do { await ctx.waitForIdle(); } while (!ctx.isIdle());
 	if (ctx.sessionManager.getSessionId() !== session) return;
 	const script = shellQuote(fileURLToPath(import.meta.url));
+	const ledger = shellQuote(usageLedgerPath());
 	pi.sendUserMessage([
 		"Analyse my Codex spending. Use the bundled read-only report script, starting with its help and summary:",
 		`node ${script} --help`,
-		`node ${script} summary`,
+		`node ${script} summary --file ${ledger}`,
 		`Current session directory: ${JSON.stringify(ctx.sessionManager.getSessionDir())}`,
 		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest useful savings without assuming cheaper settings produce equivalent results.",
 	].join("\n"));
@@ -78,7 +82,7 @@ async function main(): Promise<void> {
 	if (action === "history" || action === "sessions") {
 		if (!values.from || !values.to) throw new Error(`${action} requires --from and --to to bound the scan.`);
 		if (values.account || values.file) throw new Error("Session files cannot be reliably filtered by ledger account.");
-		const root = values.root ?? join(getAgentDir(), "sessions");
+		const root = values.root ?? join((await import("@earendil-works/pi-coding-agent")).getAgentDir(), "sessions");
 		if (action === "history") {
 			const windowStart = Date.parse(values["window-start"] ?? "");
 			if (!Number.isFinite(windowStart) || windowStart <= from) throw new Error("history requires --window-start after --from.");
@@ -91,8 +95,8 @@ async function main(): Promise<void> {
 		}
 	} else {
 		if (values.root || values.model || values.limit) throw new Error("--root applies only to session scans; --model and --limit apply only to sessions.");
-		const path = values.file ?? usageLedgerPath();
-		const ledger = readUsageLedger(path);
+		const path = values.file ?? join((await import("@earendil-works/pi-coding-agent")).getAgentDir(), "codex-usage.json");
+		const ledger = readUsageLedgerFile(path);
 		if (values.account && !Object.hasOwn(ledger.accounts, values.account)) throw new Error("Account not found in the ledger.");
 		result = {
 			file: path,
