@@ -1,7 +1,25 @@
+import { fileURLToPath } from "node:url";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { shellQuote } from "../shell/tokenize.ts";
 import { backfillUsage } from "./backfill.ts";
-import { readUsageLedger, recordCodexQuota, usageRecordingError } from "./ledger-store.ts";
+import { readUsageLedger, recordCodexQuota, usageLedgerPath, usageRecordingError } from "./ledger-store.ts";
 import type { CodexUsageSnapshot } from "./payload.ts";
 import { formatSpendReport, usageReport } from "./spend-report.ts";
+
+export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
+	const session = ctx.sessionManager.getSessionId();
+	do { await ctx.waitForIdle(); } while (!ctx.isIdle());
+	if (ctx.sessionManager.getSessionId() !== session) return;
+	const script = shellQuote(fileURLToPath(new URL(`./analyse.${import.meta.url.endsWith(".ts") ? "ts" : "js"}`, import.meta.url)));
+	const ledger = shellQuote(usageLedgerPath());
+	pi.sendUserMessage([
+		"Analyse my Codex spending. Use the bundled read-only report script, starting with its help and summary:",
+		`node ${script} --help`,
+		`node ${script} summary --file ${ledger}`,
+		`Current session directory: ${JSON.stringify(ctx.sessionManager.getSessionDir())}`,
+		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest useful savings without assuming cheaper settings produce equivalent results.",
+	].join("\n"));
+}
 
 export async function captureSpendReport(snapshot: CodexUsageSnapshot, options: {
 	sessionDir: string;

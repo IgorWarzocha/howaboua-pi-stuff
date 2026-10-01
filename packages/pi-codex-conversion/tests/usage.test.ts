@@ -84,9 +84,8 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 		assert.equal(history.total.total.usd, 6); // Request-start timestamps must not re-import live settlements.
 		// Ordinary Node must resolve reports without Pi or TypeBox host peers.
 		const standalone = join(root, "standalone");
-		await mkdir(join(standalone, "shell"), { recursive: true });
+		await mkdir(standalone, { recursive: true });
 		await cp(new URL("../src/codex-usage/", import.meta.url), join(standalone, "codex-usage"), { recursive: true });
-		await cp(new URL("../src/shell/tokenize.ts", import.meta.url), join(standalone, "shell/tokenize.ts"));
 		await writeFile(join(standalone, "package.json"), '{"type":"module"}');
 		const run = (...args: string[]) => {
 			const child = spawnSync(process.execPath, [join(standalone, "codex-usage/analyse.ts"), ...args], { encoding: "utf8" });
@@ -94,6 +93,9 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 			return child.stdout;
 		};
 		assert.match(run("--help"), /Read-only Codex usage analysis/);
+		const missingPath = spawnSync(process.execPath, [join(standalone, "codex-usage/analyse.ts"), "summary"], { encoding: "utf8" });
+		assert.equal(missingPath.status, 1);
+		assert.match(missingPath.stderr, /summary requires --file/);
 		assert.deepEqual(JSON.parse(run("history", "--root", root, "--from", new Date(start - WEEK_MS).toISOString(), "--to", new Date(cutoff).toISOString(), "--window-start", new Date(start).toISOString())), history);
 		const ledgerFile = join(standalone, "ledger.json");
 		const saved = JSON.stringify(ledger);
