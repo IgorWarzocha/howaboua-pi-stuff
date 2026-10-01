@@ -1,4 +1,4 @@
-import { StringEnum, Type } from "@earendil-works/pi-ai";
+import { type Static, StringEnum, Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./activation/state.ts";
 import { resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
@@ -7,7 +7,7 @@ import { auxiliaryToolRenderers, displayRecord } from "../ui/tool-rendering/auxi
 
 type Level = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 const levels: readonly Level[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const PARAMETERS = Type.Object({ level: StringEnum(["low", "medium", "high"] as const) });
+const PARAMETERS = Type.Object({ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) });
 
 interface AutoReasoning {
 	begin(ctx: ExtensionContext): void;
@@ -49,7 +49,7 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 					...(result ? { summary: `${details["level"]} effort · user floor ${details["floor"]}`, body: "" } : {}),
 				};
 			}),
-			async execute(_id: string, params: { level: "low" | "medium" | "high" }, _signal: AbortSignal | undefined, _update: unknown, ctx: ExtensionContext) {
+			async execute(_id: string, params: Static<typeof PARAMETERS>, _signal: AbortSignal | undefined, _update: unknown, ctx: ExtensionContext) {
 				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning) throw new Error("change_reasoning requires Auto reasoning enabled on GPT-6 Codex transport");
 				begin(ctx);
 				if (!baseline) throw new Error("No GPT-6 reasoning baseline");
