@@ -226,7 +226,7 @@ const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool manages status, checkpoints, restarts, resets and profiles. The first turn receives status and retained bindings automatically.
+**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool accepts `{ input: "help" }` for state-management guidance, then JSON action objects in `input`. The first turn receives status and retained bindings automatically.
 
 ### MCP tools
 
@@ -242,7 +242,7 @@ MCP server tools return their complete result object, including `content`, `stru
 
 ### Notebook hooks
 
-Pinned functions can react without another model call. Use the top-level `notebook` tool with `{ action: "pin", names: ["onToolResult"], hook: "tool_result" }`, not a call inside `exec`.
+Pinned functions can react without another model call. Use the top-level `notebook` tool with `{ input: '{"action":"pin","names":["onToolResult"],"hook":"tool_result"}' }`, not a call inside `exec`.
 
 The handler receives `{ type: "tool_result", toolName, input, status, result?, error? }` for subsequent `tools.*` calls. Filter by `toolName`. Input is captured before execution. Status is `"success"` for a returned result or `"error"` for a throw.
 
