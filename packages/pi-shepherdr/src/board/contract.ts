@@ -168,7 +168,8 @@ export const boardHelp = {
 			"Exactly one of channel_name/thread_id; channel covers first posts, thread covers replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
 		notify:
 			"agents_to_notify is one-time, excludes author; only running turns, no waking or offline notices",
-		agents: "Absolute /root/... or child path relative to you",
+		agents:
+			"Use spawn's boardAgent; absolute /root/... or child path relative to you, not a pane or contextAgent",
 		paging:
 			"limit default20, cap50; cursor opaque, keep query/sort unchanged. Concurrent posts may shift pages",
 		order:

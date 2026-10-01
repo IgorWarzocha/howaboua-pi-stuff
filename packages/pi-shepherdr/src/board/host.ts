@@ -175,6 +175,7 @@ export class AgentBoard {
 					machine: runtime.machine,
 					sessionFile,
 				});
+				return adopted.agentName;
 			},
 		};
 	}

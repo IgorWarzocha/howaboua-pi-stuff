@@ -125,9 +125,10 @@ export async function spawnAgent(
 	let promptAccepted = false;
 	let dispatch;
 	let shared: { agentName?: string; warning?: string } | undefined;
+	let boardAgent: string | undefined;
 	const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 	try {
-		await boardBinding?.accept(started.agent);
+		boardAgent = await boardBinding?.accept(started.agent);
 		shared = await sharing?.accept(started.agent);
 		dispatch = await dispatchAgentWork(
 			runtime,
@@ -158,6 +159,7 @@ export async function spawnAgent(
 	}
 	return toolResult(
 		{
+			...(boardAgent ? { boardAgent } : {}),
 			...(shared?.agentName ? { contextAgent: shared.agentName } : {}),
 			...(dispatch.command
 				? {
