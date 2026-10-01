@@ -11,6 +11,7 @@ import {
 } from "./contract.js";
 import { metadata, POST_COLUMNS, type PostRecord, preview } from "./paging.js";
 import { queryBoard } from "./queries.js";
+import { serializeBoardResult } from "./response.js";
 
 export interface BoardScope {
 	boardId: string;
@@ -110,6 +111,7 @@ export class BoardStore {
 			const result = write
 				? this.mutate(scope, params, requestId)
 				: { value: queryBoard(this, scope.boardId, params), recipients: [] };
+			if (write) serializeBoardResult(result.value);
 			this.db.exec("COMMIT");
 			return result;
 		} catch (error) {

@@ -176,6 +176,6 @@ export const boardHelp = {
 			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread pages newest replies with root on every page",
 		text: "Case-insensitive substring search; max_chars_per_post default1000. read_post offsets count Unicode characters, limit_chars default20000. Continue at next_offset_chars<n_chars",
 		budget:
-			"Post cap64KiB, channel1-128 UTF-8 bytes without edge whitespace/control characters; previews share20000-character output budget",
+			"Post cap64KiB, channel1-128 UTF-8 bytes without edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes; reads may reduce limits, continue with returned cursor/offset",
 	},
 };
