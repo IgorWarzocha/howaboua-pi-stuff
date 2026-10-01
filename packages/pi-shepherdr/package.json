@@ -44,9 +44,9 @@
 	},
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=3.0.42",
-		"@earendil-works/pi-ai": ">=0.84.3",
-		"@earendil-works/pi-coding-agent": ">=0.84.4",
-		"@earendil-works/pi-tui": ">=0.84.3",
+		"@earendil-works/pi-ai": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*"
 	},
 	"peerDependenciesMeta": {

@@ -47,8 +47,8 @@
 		"undici": "8.10.2"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=0.87.0",
-		"@earendil-works/pi-tui": ">=0.84.4",
+		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*"
 	},
 	"devDependencies": {

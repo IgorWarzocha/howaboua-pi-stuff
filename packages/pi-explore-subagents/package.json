@@ -38,9 +38,9 @@
 		"@biomejs/biome": "^2.5.10"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.84.3",
-		"@earendil-works/pi-coding-agent": ">=0.84.3",
-		"@earendil-works/pi-tui": ">=0.84.3",
+		"@earendil-works/pi-ai": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*"
 	},
 	"pi": {

@@ -4,7 +4,7 @@ Adds `/review`, which sends the current repository state to an isolated review s
 
 ## Install
 
-Requires Pi 0.87.0 or newer.
+Requires Pi 1.0.0 or newer.
 
 ```bash
 pi install npm:@howaboua/pi-subagent-review
