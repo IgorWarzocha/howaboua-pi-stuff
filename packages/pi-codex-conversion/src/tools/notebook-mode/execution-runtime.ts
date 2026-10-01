@@ -21,7 +21,7 @@ import type {
 import { NotebookBridgeServer } from "./bridge-server.ts";
 import { NotebookCell } from "./cell.ts";
 import { beginNotebookJournalCell, finishNotebookJournalCell } from "./journal.ts";
-import { NOTEBOOK_INTERRUPTED_NOTICE } from "./runtime-health.ts";
+import { NOTEBOOK_INTERRUPTED_NOTICE, withNotebookRecoveryGuidance } from "./runtime-health.ts";
 import type { NotebookSessionRuntime } from "./session-runtime.ts";
 
 const CANCEL_GRACE_MS = 250;
@@ -296,7 +296,7 @@ export class NotebookExecutionRuntime {
 			const restoreNotice = await this.session().restart(extension);
 			return `Notebook kernel restarted from the last completed checkpoint; external side effects were not rolled back${restoreNotice ? `. ${restoreNotice}` : ""}`;
 		} catch (error) {
-			return `Notebook kernel restart failed: ${error instanceof Error ? error.message : String(error)}`;
+			return withNotebookRecoveryGuidance(`Notebook kernel restart failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
