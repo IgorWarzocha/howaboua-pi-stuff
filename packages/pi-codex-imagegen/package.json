@@ -44,7 +44,7 @@
 	},
 	"dependencies": {
 		"proxy-from-env": "2.1.0",
-		"undici": "8.10.0"
+		"undici": "8.10.2"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=0.87.0",
