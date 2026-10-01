@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { buildSessionContext, convertToLlm, SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, normalizeContext } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
+import type { OpenAICodexStreamOptions } from "../src/providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { codexReasoningUpdates, flushCodexReasoningUpdates, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
@@ -97,7 +98,7 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 
 	const gpt6 = { ...model, id: "gpt-6-luna" };
 	const session = SessionManager.inMemory("/repo");
-	let level: ReturnType<ExtensionAPI["getThinkingLevel"]> = "low";
+	let level: NonNullable<OpenAICodexStreamOptions["reasoning"]> = "low";
 	let idle = true;
 	const pi = {
 		getThinkingLevel: () => level,
