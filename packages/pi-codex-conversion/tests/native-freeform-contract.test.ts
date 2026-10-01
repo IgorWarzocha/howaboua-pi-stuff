@@ -165,11 +165,11 @@ test("native grammar metadata controls custom replay and function fallback", () 
 	);
 });
 
-test("cross-provider replay keeps deterministic type-correct item IDs", () => {
-	const messages = (provider: string, api: string) => [
+test("Responses replay keeps cross-provider IDs and clears model-bound IDs", () => {
+	const messages = (provider: string, api: string, itemId = "ctc_source") => [
 		{
 			role: "assistant",
-			content: [{ type: "toolCall", id: "call_switch|ctc_source", name: "exec", arguments: { code: "text(42);" } }],
+			content: [{ type: "toolCall", id: `call_switch|${itemId}`, name: "exec", arguments: { code: "text(42);" } }],
 			provider,
 			api,
 			model: "gpt-5.6",
@@ -178,7 +178,7 @@ test("cross-provider replay keeps deterministic type-correct item IDs", () => {
 		},
 		{
 			role: "toolResult",
-			toolCallId: "call_switch|ctc_source",
+			toolCallId: `call_switch|${itemId}`,
 			toolName: "exec",
 			content: [{ type: "text", text: "42" }],
 			isError: false,
@@ -211,10 +211,31 @@ test("cross-provider replay keeps deterministic type-correct item IDs", () => {
 		assert.equal(first.input.some((item) => (item as { type?: string }).type === "custom_tool_call_output"), true);
 	}
 
-	const functionBody = buildRequestBody(cases[0]!.target as never, normalizeContext({
+	const [firstCase] = cases;
+	assert.ok(firstCase);
+	const functionBody = buildRequestBody(firstCase.target as never, normalizeContext({
 		messages: messages("litellm", "openai-responses"),
 		tools: [exec],
 	} as never));
 	const functionCall = functionBody.input.find((item) => (item as { type?: string }).type === "function_call") as { id: string };
 	assert.match(functionCall.id, /^fc_/);
+
+	for (const grammar of [grammarToolInputProperties, undefined]) {
+		const switched: ReturnType<typeof buildRequestBody> = buildRequestBody({ ...firstCase.target, id: "gpt-5.6-luna" } as never, normalizeContext({
+			messages: messages("openai-codex", "openai-codex-responses"),
+			tools: [exec],
+		} as never), { grammarToolInputProperties: grammar });
+		const call = switched.input.find((item) => item !== null && typeof item === "object" && "type" in item
+			&& (item.type === "custom_tool_call" || item.type === "function_call"));
+		assert.ok(call && typeof call === "object");
+		assert.equal("id" in call, false, "model switches must not replay reasoning-bound tool item IDs");
+	}
+	const wrongPrefix = buildRequestBody(firstCase.target as never, normalizeContext({
+		messages: messages("openai-codex", "openai-codex-responses", "wrong_source"),
+		tools: [exec],
+	} as never), { grammarToolInputProperties });
+	const customCall = wrongPrefix.input.find((item) => item !== null && typeof item === "object" && "type" in item
+		&& item.type === "custom_tool_call");
+	assert.ok(customCall && typeof customCall === "object");
+	assert.equal("id" in customCall, false, "custom replay must not send an item ID with another type's prefix");
 });

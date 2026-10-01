@@ -118,7 +118,7 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": ">=0.86.0",
-    "@earendil-works/pi-coding-agent": ">=0.87.0",
+    "@earendil-works/pi-coding-agent": ">=0.99.0",
     "@earendil-works/pi-tui": ">=0.84.3",
     "typebox": "*"
   },
