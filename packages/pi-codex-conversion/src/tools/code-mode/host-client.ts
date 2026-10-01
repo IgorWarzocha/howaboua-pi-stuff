@@ -63,6 +63,10 @@ export class CodeModeHostClient {
 		return this.session.start();
 	}
 
+	clearOpaqueResults(): void {
+		this.delegation.clearOpaqueResults();
+	}
+
 	async execute(
 		source: string,
 		context: ToolExecutionContext,

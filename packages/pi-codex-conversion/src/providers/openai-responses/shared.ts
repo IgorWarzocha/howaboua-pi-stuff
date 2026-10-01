@@ -27,7 +27,7 @@ import {
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
-import { encryptedToolOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
@@ -236,7 +236,22 @@ export function convertResponsesMessages<TApi extends Api>(
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
 			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
-			const output = encryptedToolOutput
+			const opaqueOutputs = opaqueToolOutputsFromDetails(msg.details);
+			if (opaqueOutputs.length && options?.grammarToolInputProperties?.has(msg.toolName))
+				throw new Error("Protected Code Mode results require native wait output");
+			const output = opaqueOutputs.length
+				? [
+						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
+						...opaqueOutputs.flatMap(item => [
+							{ type: "input_text" as const, text: `Result ${item.resultId} (${item.name})` },
+							{ type: "encrypted_content" as const, encrypted_content: item.encryptedOutput },
+						]),
+						...(model.input.includes("image") ? msg.content
+							.filter((block): block is ImageContentWithDetail => block.type === "image")
+							.map(block => ({ type: "input_image" as const, detail: imageDetailForResponses(block),
+								image_url: `data:${block.mimeType};base64,${block.data}` })) : []),
+					]
+				: encryptedToolOutput
 				? [
 						{ type: "encrypted_content" as const, encrypted_content: encryptedToolOutput },
 						...(hasImages && model.input.includes("image")

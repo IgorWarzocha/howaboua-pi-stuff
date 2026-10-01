@@ -26,6 +26,7 @@ import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 import { contextAccountScope, contextAgentIdentity } from "../context-management/agent-identity.ts";
+import { validateRemoteOutputReplay } from "../context-management/remote-scope.ts";
 import { CodexContextWindowKickoff } from "../context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
@@ -404,6 +405,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		},
 		async beforeRequestSend(model, context, body, options, responsesLite) {
 			const ctx = requestContext;
+			validateRemoteOutputReplay(context.messages, () => options?.apiKey ? extractAccountId(options.apiKey) : undefined, ctx);
 			if (!ctx || options?.sessionId !== ctx.sessionManager.getSessionId()
 				|| model.provider !== ctx.model?.provider || model.api !== ctx.model.api || model.id !== ctx.model.id
 				|| options.canonicalCompaction || options.cacheRetention === "none") return;

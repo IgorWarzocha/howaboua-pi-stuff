@@ -319,7 +319,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			assert.equal((raw as { terminate: boolean }).terminate, true, "Tree handoff completion is retained before model-result conversion");
 			assert.equal(notes.propagateTermination, true);
 			bridgeState.config.compaction.historyStorage = "remote";
-			await assert.rejects(notes.invoke({ action: "read_file", path: "checkpoint.md" }, invocation, signal), /native tools outside exec/);
+			await assert.rejects(notes.invoke({ action: "read_file", path: "checkpoint.md" }, invocation, signal), /Context storage changed/);
 		}
 		const summary = {
 			type: "branch_summary",

@@ -13,7 +13,9 @@ export function toCodeModeToolResult(
 ) {
 	const scriptError =
 		response.kind === "result" ? withScriptErrorRecovery(response.errorText) : undefined;
-	const status = scriptError
+	const status = response.deliveryPending
+		? `Execution complete; results pending delivery. Call wait with cell_id "${response.cellId}"`
+		: scriptError
 		? `Script error: ${scriptError}`
 		: response.kind === "yielded"
 			? `Still running (exec cell "${response.cellId}"). Use wait once near expected completion; avoid short polling`
@@ -69,9 +71,12 @@ export function toCodeModeToolResult(
 		details: {
 			codeMode: true,
 			cellId: response.cellId,
-			status: response.kind,
+			...(response.opaqueOutputs?.length ? { opaqueOutputs: response.opaqueOutputs, opaqueScope: response.opaqueScope } : {}),
+			status: response.deliveryPending ? "result" : response.kind,
+			...(response.deliveryPending ? { deliveryPending: true } : {}),
 			statusPrefix: Boolean(status) || empty,
 			...(response.contextNotesSaved === undefined ? {} : { contextNotesSaved: response.contextNotesSaved }),
+			...(response.contextNotesSource ? { contextNotesSource: response.contextNotesSource } : {}),
 			...(response.traces ? { traces: response.traces } : {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }

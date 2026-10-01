@@ -43,7 +43,9 @@ export function hasFreshContextNotes(
 			if (writes.length > 0) return writes.every((call) => {
 				const result = results.get(call.id)!;
 				if (result.isError) return false;
-				if (call.name !== "notes") return mode !== "remote" && nestedNoteWrite(result) === true;
+				if (call.name !== "notes") return nestedNoteWrite(result) === true &&
+					(mode !== "remote" || call.name === "wait" && result.details && typeof result.details === "object" &&
+						"contextNotesSource" in result.details && result.details["contextNotesSource"] === "remote");
 				const details = result.details;
 				if (!details || typeof details !== "object" || !("codexHistoryNotes" in details)) return false;
 				const note = details["codexHistoryNotes"];
@@ -67,3 +69,4 @@ function nestedNoteWrite(result: Extract<AgentMessage, { role: "toolResult" }>):
 		"contextNotesSaved" in details && typeof details["contextNotesSaved"] === "boolean"
 		? details["contextNotesSaved"] : undefined;
 }
+

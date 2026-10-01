@@ -28,6 +28,7 @@ interface CodeModeResultDetails {
 	cellId?: string | undefined;
 	status?: "running" | "yielded" | "terminated" | "result" | undefined;
 	statusPrefix?: boolean | undefined;
+	deliveryPending?: boolean | undefined;
 	notification?: boolean | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
@@ -148,6 +149,7 @@ function asDetails(value: unknown): CodeModeResultDetails {
 }
 
 function statusText(details: CodeModeResultDetails): string {
+	if (details.deliveryPending) return `Cell #${details.cellId} complete; results pending delivery`;
 	if (details.scriptError) return `Script error: ${details.scriptError}`;
 	if (details.status === "yielded" && details.cellId) return `Cell #${details.cellId} still running`;
 	if (details.status === "terminated") return details.cellId ? `Cell #${details.cellId} terminated` : "Cell terminated";

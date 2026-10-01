@@ -154,6 +154,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		await this.session.shutdown();
 	}
 
+	clearOpaqueResults(): void {
+		this.execution.clearOpaqueResults();
+	}
+
 	private async prepareSession(context: ToolExecutionContext, signal?: AbortSignal): Promise<void> {
 		const extension = context.extensionContext;
 		if (!extension) throw new Error("Notebook Code Mode requires an extension session context");

@@ -48,11 +48,6 @@ export const CONTEXT_WINDOW_TOOL_NAMES = [
 	"new_context",
 	"get_context_remaining",
 ];
-export const CONTEXT_DIRECT_TOOL_NAMES = [
-	"new_context",
-	"history",
-	"notes",
-];
 export const CONTEXT_MANAGEMENT_TOOL_NAMES = [
 	...CONTEXT_WINDOW_TOOL_NAMES,
 	"history",

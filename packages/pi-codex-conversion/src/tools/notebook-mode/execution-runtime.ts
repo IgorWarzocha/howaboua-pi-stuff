@@ -54,6 +54,8 @@ export class NotebookExecutionRuntime {
 		});
 	}
 
+	clearOpaqueResults(): void { this.delegate.clearOpaqueResults(); }
+
 	activeCellId(): string | undefined { return this.activeCell?.id; }
 	runningCellId(): string | undefined {
 		return this.activeCell && !this.activeCell.result ? this.activeCell.id : undefined;

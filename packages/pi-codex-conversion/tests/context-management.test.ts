@@ -165,10 +165,11 @@ test("context windows preserve rollover and native request semantics", async () 
 					type: "toolCall", id: "nested-save", name, arguments: {},
 				}] });
 				sessionManager.appendMessage({ ...result, toolCallId: "nested-save", toolName: name,
-					details: { codeMode: true, contextNotesSaved: saved } });
+					details: { codeMode: true, contextNotesSaved: saved,
+						...(mode === "remote" ? { contextNotesSource: "remote" } : {}) } });
 				sessionManager.appendMessage(assistant);
-				const eligible = saved && mode !== "remote";
-				assert.equal(reuse(), eligible, "only successful Local/Tree nested checkpoints count");
+				const eligible = saved && (mode !== "remote" || name === "wait");
+				assert.equal(reuse(), eligible, "Remote nested checkpoints require successful native wait delivery");
 				const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
 				restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
 					noteCtx, mode, settledAt);

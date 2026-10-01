@@ -224,7 +224,7 @@ test("adapter activation requires registered tools and follows scope independent
 			registerContextManagementTools(pi as never, state);
 			const ctx = createContext(dynamicModel);
 			const plan = syncAdapter(pi as never, ctx as never, state);
-			const nested = mode !== "normal" && historyStorage !== "remote";
+			const nested = mode !== "normal";
 			assert.equal(plan.contextManagementNested, nested);
 			assert.equal(pi.activeTools().includes("new_context"), true);
 			assert.equal(pi.activeTools().includes("history"), !nested);
