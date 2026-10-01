@@ -82,12 +82,11 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 		const history = await scanUsageHistory(root, start - WEEK_MS, cutoff, start);
 		assert.equal(history.coverage.skippedCopies, 2);
 		assert.equal(history.total.total.usd, 6); // Request-start timestamps must not re-import live settlements.
-		// Ordinary Node must resolve the scanner without Pi's host-only peer package.
+		// Ordinary Node must resolve reports without Pi or TypeBox host peers.
 		const standalone = join(root, "standalone");
 		await mkdir(join(standalone, "shell"), { recursive: true });
 		await cp(new URL("../src/codex-usage/", import.meta.url), join(standalone, "codex-usage"), { recursive: true });
 		await cp(new URL("../src/shell/tokenize.ts", import.meta.url), join(standalone, "shell/tokenize.ts"));
-		await cp(new URL("../../../node_modules/typebox/", import.meta.url), join(standalone, "node_modules/typebox"), { recursive: true, dereference: true });
 		await writeFile(join(standalone, "package.json"), '{"type":"module"}');
 		const run = (...args: string[]) => {
 			const child = spawnSync(process.execPath, [join(standalone, "codex-usage/analyse.ts"), ...args], { encoding: "utf8" });

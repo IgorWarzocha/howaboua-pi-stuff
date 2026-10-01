@@ -2,4 +2,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Fixed Codex usage history backfill and analysis when Pi is installed separately from the extension.
+Codex usage history backfill and explicit-path analysis now run without Pi or TypeBox host dependencies.
