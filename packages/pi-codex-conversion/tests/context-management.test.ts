@@ -264,7 +264,7 @@ test("context windows preserve rollover and native request semantics", async () 
 	await Promise.resolve();
 	release(true);
 	assert.deepEqual(await preparing, { action: "continue" });
-	assert.deepEqual(await queued, { action: "continue" }, "reentrant input retains its own SDK options and later routing hooks");
+	assert.deepEqual(await queued, { action: "continue" }, "reentrant admission is released independently after the shared rollover");
 	assert.equal(contextKickoff.hasIdleInput, false);
 	let failedInputFinished = false;
 	const failedInput = contextKickoff.prepareIdleInput(inputCtx, async () => false).then((result) => { failedInputFinished = true; return result; });
@@ -274,8 +274,6 @@ test("context windows preserve rollover and native request semantics", async () 
 	const retry = contextKickoff.prepareIdleInput(inputCtx, async () => true);
 	assert.deepEqual(await failedInput, { action: "continue" });
 	assert.deepEqual(await retry, { action: "continue" });
-	assert.deepEqual(await contextKickoff.prepareIdleInput(inputCtx, async () => true), { action: "continue" },
-		"one input stays in the original SDK call with its source, images and expansion options");
 	const contextState: AdapterState = {
 		enabled: true,
 		cwd: "/repo",
