@@ -31,6 +31,13 @@ export class RealtimeDelegationHandoff {
 		this.callbacks = callbacks;
 	}
 
+	// Activation can join work whose input preceded this call. Never replace
+	// a typed-input or delegation route, or reset its unsent speech.
+	agentStarted(): void {
+		if (this.callbacks.isActive() && !this.target)
+			this.target = { type: "session" };
+	}
+
 	activate(id: string): void {
 		if (
 			!this.callbacks.isActive() ||

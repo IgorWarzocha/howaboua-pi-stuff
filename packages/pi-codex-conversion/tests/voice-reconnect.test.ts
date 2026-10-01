@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { createEventBus, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { completedVoiceReasoningSummary } from "../src/voice/reasoning-summary.ts";
+import { CodexVoiceController } from "../src/voice/controller.ts";
+import type { VoiceControllerRuntime } from "../src/voice/controller-start.ts";
+import { apiKey } from "./websocket-test-support.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../src/voice/auth.ts";
 import type { RealtimeCallSetup } from "../src/voice/conversation/call-setup.ts";
@@ -19,7 +24,7 @@ const AUTH: CodexVoiceAuth = {
 	officialCodex: false,
 };
 
-test("realtime limits reasoning to summaries and forwards final speech before established drops", async () => {
+test("realtime joins Pi work, limits reasoning to summaries, and forwards speech before drops", async () => {
 	const raw = { type: "thinking" as const, thinking: "Raw reasoning must not be spoken" };
 	const signature = JSON.stringify({
 		type: "reasoning",
@@ -70,6 +75,66 @@ test("realtime limits reasoning to summaries and forwards final speech before es
 		api: "anthropic-messages", model: "claude-sonnet-4-6", responseModel: "claude-sonnet-3-7",
 		content: [raw],
 	}), undefined, "the actual response model determines native summarized thinking");
+	// Readiness, not the startup snapshot, determines whether this call joins
+	// an existing Pi turn. Exercise the controller without live auth or audio.
+	for (const [initialIdle, readyIdle] of [[false, false], [false, true], [true, false], [true, true]]) {
+		let idle = initialIdle;
+		const controller = new CodexVoiceController({ events: createEventBus(), appendEntry() {}, sendMessage() {} } as unknown as ExtensionAPI);
+		controller.prepareRealtimePrompt = () => "instructions";
+		const peer = new FakeRealtimePeer("ready");
+		peer.start = async () => {
+			const { state } = (controller as unknown as { runtime: VoiceControllerRuntime }).runtime;
+			assert.ok(state.type === "connecting" && state.mode === "realtime" && state.phase === "starting");
+			(state.session as unknown as { callSetup: RealtimeCallSetup }).callSetup = async () => {
+				idle = readyIdle;
+				if (!idle) controller.agentStarted();
+				return { status: 201, answer: "answer" };
+			};
+			return "offer";
+		};
+		const config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+		config.voice.contextModel = undefined;
+		const session = await controller.startRealtimeWithPeerPlan({
+			isIdle: () => idle,
+			modelRegistry: { getProviderAuth: async () => ({ auth: { apiKey, baseUrl: AUTH.baseUrl } }) },
+			sessionManager: { getSessionId: () => "voice-routing" },
+			ui: { setStatus() {}, notify() {}, theme: { fg: (_color: string, value: string) => value } },
+		} as unknown as ExtensionContext, config, { createPeer: () => peer });
+		assert.ok(session);
+		const completed = (text: string, stopReason: AssistantMessage["stopReason"]): AssistantMessage => ({
+			role: "assistant", api: "openai-responses", provider: "openai", model: "test",
+			content: [{ type: "text", text }], stopReason, timestamp: 0,
+			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+		});
+		controller.finishAgentMessage(completed("Ongoing progress", "toolUse"), false);
+		controller.finishAgentMessage(completed("Ongoing result", "stop"), false);
+		assert.deepEqual(peer.sentText(), readyIdle ? [] : [
+			["session.context.append", "speakable", "Ongoing progress"],
+			["session.context.append", "speakable", "Ongoing result"],
+		]);
+		controller.settleTurn();
+		const beforeNext = peer.sentText().length;
+		for (const stopReason of ["aborted", "error"] as const) {
+			controller.agentStarted();
+			session.streamAgentDelta("Progress before termination.");
+			session.resumeAgentWork();
+			controller.finishAgentMessage(completed("Progress before termination.", "toolUse"), false);
+			controller.finishAgentMessage(completed(stopReason, stopReason), false);
+			controller.settleTurn();
+			controller.finishAgentMessage(completed("Late final", "stop"), false);
+		}
+		assert.deepEqual(peer.sentText().slice(beforeNext), [
+			["session.context.append", "speakable", "Progress before termination."],
+			["session.context.append", "speakable", "aborted"],
+			["session.context.append", "speakable", "Progress before termination."],
+			["session.context.append", "speakable", "error"],
+		]);
+		await controller.stop();
+		controller.agentStarted();
+		controller.finishAgentMessage(completed("After stop", "stop"), false);
+		assert.equal(peer.sentText().length, beforeNext + 4);
+	}
 	const startup = createConversation("closed");
 	await startup.session.start(
 		AUTH,
