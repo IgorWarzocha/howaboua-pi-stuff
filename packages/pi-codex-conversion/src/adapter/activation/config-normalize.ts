@@ -136,6 +136,10 @@ export function normalizeCodexConversionConfig(
 				compaction["shareSubagentContext"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.shareSubagentContext,
 			),
+			idleNotesRollover: normalizeBoolean(
+				compaction["idleNotesRollover"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.idleNotesRollover,
+			),
 			method: normalizeCompactionMethod(compaction["method"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.method,
 			v2UserMessageRetention:

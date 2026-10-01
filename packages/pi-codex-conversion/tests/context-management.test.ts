@@ -115,6 +115,7 @@ test("context windows preserve rollover and native request semantics", async () 
 		};
 		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "persisted writes suppress reminders");
 		assert.equal(reuse(), false, "an unfinished run cannot silently roll over");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, Number.MAX_SAFE_INTEGER), false);
 		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
 			type: "toolCall", id: "cleanup", name: "exec", arguments: { code: "cleanup()" },
 		}] });
@@ -122,20 +123,32 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.appendMessage({ ...result, toolCallId: "cleanup", toolName: "exec", details: {} });
 		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "later tools in the same run do not stale notes");
 		const final = sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Saved" }] });
+		const finishedAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp) + 60_000;
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 60 * 60_000), false, "a final reply alone does not prove settlement");
+		restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
+			noteCtx, mode, finishedAt);
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 25 * 60_000 - 1), false);
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 25 * 60_000), true, "idle age survives a fresh manager on the persisted branch");
+		assert.equal(restored().hasIdleNotesCheckpoint({ ...noteCtx, isIdle: () => false }, mode, finishedAt + 26 * 60_000), false);
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, "off", finishedAt + 26 * 60_000), false);
 		assert.equal(reuse(), true, "fresh runtime recovers notes saved before cleanup in the completed run");
 		assert.equal(reuse("Preserve extra detail"), false);
 		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
 		assert.equal(reuse(), false, "visible peer input invalidates the checkpoint");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		sessionManager.branch(final);
 		sessionManager.appendCustomEntry("metadata", {});
 		assert.equal(reuse(), true, "tree return to the saved response ignores bookkeeping");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), true);
 		sessionManager.appendContextEdit(write, null);
 		assert.equal(reuse(), false, "omitted evidence cannot grant checkpoint credit");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		for (const invalid of [{ ...result, isError: true }, { ...result, toolCallId: "wrong-call" }]) {
 			sessionManager.branch(call);
 			sessionManager.appendMessage(invalid);
 			sessionManager.appendMessage(assistant);
 			assert.equal(reuse(), false, "only a successful matched write counts");
+			assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		}
 		sessionManager.branch(final);
 		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
@@ -144,6 +157,7 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.appendMessage({ ...result, toolCallId: "work", toolName: "exec" });
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "a later run cannot reuse notes from before the previous final reply");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		sessionManager.branch(user);
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");
@@ -240,6 +254,28 @@ test("context windows preserve rollover and native request semantics", async () 
 
 	const contextBridge = new CodexDeveloperMessageBridge();
 	const contextKickoff = new CodexContextWindowKickoff(manager);
+	const notifications: string[] = [];
+	const inputCtx = { ...ctx, ui: { ...ctx.ui, notify: (message: string) => { notifications.push(message); } } };
+	let release!: (started: boolean) => void;
+	const preparing = contextKickoff.prepareIdleInput(inputCtx, () => new Promise<boolean>((resolve) => { release = resolve; }));
+	assert.equal(contextKickoff.hasIdleInput, true);
+	const queued = contextKickoff.prepareIdleInput(inputCtx,
+		async () => { throw new Error("queued input must not start another rollover"); });
+	await Promise.resolve();
+	release(true);
+	assert.deepEqual(await preparing, { action: "continue" });
+	assert.deepEqual(await queued, { action: "continue" }, "reentrant input retains its own SDK options and later routing hooks");
+	assert.equal(contextKickoff.hasIdleInput, false);
+	let failedInputFinished = false;
+	const failedInput = contextKickoff.prepareIdleInput(inputCtx, async () => false).then((result) => { failedInputFinished = true; return result; });
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(failedInputFinished, false, "failure cannot admit or discard the original input");
+	assert.match(notifications[0]!, /pending/);
+	const retry = contextKickoff.prepareIdleInput(inputCtx, async () => true);
+	assert.deepEqual(await failedInput, { action: "continue" });
+	assert.deepEqual(await retry, { action: "continue" });
+	assert.deepEqual(await contextKickoff.prepareIdleInput(inputCtx, async () => true), { action: "continue" },
+		"one input stays in the original SDK call with its source, images and expansion options");
 	const contextState: AdapterState = {
 		enabled: true,
 		cwd: "/repo",

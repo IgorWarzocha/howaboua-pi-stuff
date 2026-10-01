@@ -250,13 +250,14 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 		for (const continuity of ["compaction", "notes", "notes-and-compaction"] as const) {
 			for (const historyStorage of ["local", "tree", "remote"] as const) {
 				for (const method of ["pi", "v2", "both"] as const) {
-					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method, shareSubagentContext: true } };
+					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method, shareSubagentContext: true, idleNotesRollover: true } };
 					const plan = resolveCodexRuntimePlan(ctx, configured);
 					const notes = continuity !== "compaction" && route.api !== "openai-completions"
 						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
 					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
 					assert.equal(plan.shareSubagentContext, notes, "sharing still requires an eligible notes-based runtime");
 					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
+					assert.equal(plan.idleNotesRollover, notes && continuity === "notes");
 					assert.equal(plan.nativeCompaction, route.native && continuity !== "notes" && method !== "pi");
 					assert.equal(plan.nativeReplay, route.native, "continuity and method settings must not disable an existing checkpoint's replay");
 				}
