@@ -1,5 +1,12 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.6
+
+- Requires Pi 1.0.0 or later.
+
+  - Skill reads now resolve shorthand references within the selected skill and accept semicolon-separated read/list groups.
+  - Large results now return bounded pages with explicit continuation commands instead of failing.
+
 ## 0.0.5
 
 - Skills tool usage now advertises category-filtered listing in Code and Notebook modes.

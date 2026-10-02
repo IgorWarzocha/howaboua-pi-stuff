@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.83",
+	"version": "0.0.84",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -13,16 +13,16 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@howaboua/pi-ask": "0.0.9",
+		"@howaboua/pi-ask": "0.0.10",
 		"@howaboua/pi-auto-trees": "0.1.16",
-		"@howaboua/pi-better-skills-tool": "0.0.5",
+		"@howaboua/pi-better-skills-tool": "0.0.6",
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
-		"@howaboua/pi-gippity-control": "0.0.23",
+		"@howaboua/pi-gippity-control": "0.0.24",
 		"@howaboua/pi-gpt-switcher": "0.1.4",
 		"@howaboua/pi-memories": "0.1.5",
 		"@howaboua/pi-pet": "0.1.4",
 		"@howaboua/pi-semantic-grep": "0.1.19",
-		"@howaboua/pi-shepherdr": "0.2.9",
+		"@howaboua/pi-shepherdr": "0.2.10",
 		"@howaboua/pi-smart-btw": "0.2.8",
 		"@howaboua/pi-subagent-review": "0.2.25",
 		"@howaboua/pi-unicode-charts": "0.1.0",

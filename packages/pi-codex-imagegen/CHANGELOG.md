@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.9
+
+- Requires Pi 1.0.0 or later.
+
+  Updated Undici to 8.10.2 with security fixes.
+
 ## 0.0.8
 
 - Added `transparent_background` for generated and edited images. Omitted or false requests an opaque background.

@@ -1,5 +1,11 @@
 # @howaboua/pi-ask
 
+## 0.0.10
+
+- Requires Pi 1.0.0 or later.
+
+  Fixed Ask text cursor and input-method candidate window placement in Pi's fullscreen interface.
+
 ## 0.0.9
 
 - Removed redundant tool guidance from Ask, Shepherdr, Skills and Browser. Code and Notebook Mode now show one callable contract per tool, with detailed Browser and agent rules in help.
