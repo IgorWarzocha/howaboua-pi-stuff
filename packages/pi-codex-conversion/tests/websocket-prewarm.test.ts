@@ -271,6 +271,7 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			getActiveTools: () => ["exec", "wait"],
 			getAllTools: () => codeModeTools,
 			getThinkingLevel: () => "low",
+			getSettings: () => ({}),
 			sendUserMessage: () => undefined,
 		} as never);
 		recordWebSocketSseFallback(sessionId);

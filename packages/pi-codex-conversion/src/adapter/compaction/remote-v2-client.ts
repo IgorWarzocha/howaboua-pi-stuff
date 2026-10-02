@@ -1,5 +1,5 @@
 import { type Api, type AssistantMessage, type Model, type SimpleStreamOptions, type TranscriptContext, type Transport } from "@earendil-works/pi-ai";
-import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { NativeCompactionRuntime } from "./compaction-runtime.ts";
 import type { NativeCompactionRequestOptions, ResponsesInputItem } from "./serializer.ts";
 import { resolveNativeCompactionRequestBudget, shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
@@ -30,6 +30,7 @@ export type RemoteCompactionV2Usage = {
 export type ExecuteRemoteCompactionV2Options = {
 	runtime: NativeCompactionRuntime;
 	modelRegistry: ModelRegistry;
+	remoteDeliveryContext?: ExtensionContext | undefined;
 	context: TranscriptContext;
 	promptInput: readonly ResponsesInputItem[];
 	requestOptions: NativeCompactionRequestOptions;
@@ -135,6 +136,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		...(options.runtime.apiKey ? { apiKey: options.runtime.apiKey } : {}),
 		headers: withRemoteCompactionV2Feature(options.runtime.headers),
 		sessionId: options.sessionId,
+		...(options.remoteDeliveryContext ? { remoteDeliveryContext: options.remoteDeliveryContext } : {}),
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.transport ? { transport: options.transport } : {}),
 		...(options.runtime.codexTransport ? { canonicalCompaction: true } : {}),

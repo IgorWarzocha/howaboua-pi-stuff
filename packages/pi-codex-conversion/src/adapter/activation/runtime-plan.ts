@@ -13,7 +13,6 @@ import {
 	NOTEBOOK_MODE_TOOL_NAMES,
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
-	CONTEXT_DIRECT_TOOL_NAMES,
 	CONTEXT_MANAGEMENT_TOOL_NAMES,
 } from "./tool-set.ts";
 
@@ -31,6 +30,7 @@ interface RuntimePlanBase {
 	contextManagement: boolean;
 	contextManagementMode: ContextManagementMode;
 	contextManagementRemote: boolean;
+	contextManagementNested: boolean;
 	shareSubagentContext: boolean;
 	compactOnRollover: boolean;
 	idleNotesRollover: boolean;
@@ -73,6 +73,7 @@ export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalR
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
+	"context_input",
 	...CORE_ADAPTER_TOOL_NAMES,
 	...NOTEBOOK_MODE_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
@@ -143,6 +144,7 @@ export function resolveCodexRuntimePlan(
 	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
 		"change_reasoning",
+		"context_input",
 		...SHELL_ADAPTER_TOOL_NAMES,
 		...NOTEBOOK_MODE_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
@@ -159,6 +161,7 @@ export function resolveCodexRuntimePlan(
 		contextManagement: false,
 		contextManagementMode: "off" as const,
 		contextManagementRemote: false,
+		contextManagementNested: false,
 		shareSubagentContext: false,
 		compactOnRollover: false,
 		idleNotesRollover: false,
@@ -197,6 +200,9 @@ export function resolveCodexRuntimePlan(
 			? undefined
 			: undefined;
 	if (requestedCodeMode) {
+		const contextManagementNested = contextManagement;
+		const contextTools = !contextManagement ? []
+			: ["new_context", ...(contextManagementRemote ? ["context_input"] : [])];
 		const transport = usesResponsesLite(ctx, config)
 			? "responses-lite"
 			: "responses";
@@ -206,7 +212,7 @@ export function resolveCodexRuntimePlan(
 				kind: "notebook",
 				toolNames: [
 					...NOTEBOOK_MODE_TOOL_NAMES,
-					...(contextManagement ? CONTEXT_DIRECT_TOOL_NAMES : []),
+					...contextTools,
 				],
 				prompt: "notebook",
 				transport,
@@ -214,6 +220,7 @@ export function resolveCodexRuntimePlan(
 				contextManagement,
 				contextManagementMode,
 				contextManagementRemote,
+				contextManagementNested,
 			};
 		}
 		return {
@@ -221,7 +228,7 @@ export function resolveCodexRuntimePlan(
 			kind: "code",
 			toolNames: [
 				...CODE_MODE_TOOL_NAMES,
-				...(contextManagement ? CONTEXT_DIRECT_TOOL_NAMES : []),
+				...contextTools,
 			],
 			prompt: "code",
 			transport,
@@ -229,6 +236,7 @@ export function resolveCodexRuntimePlan(
 			contextManagement,
 			contextManagementMode,
 			contextManagementRemote,
+			contextManagementNested,
 		};
 	}
 	return {
@@ -251,7 +259,8 @@ export function resolveCodexRuntimePlanForState(
 	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
 	const missingToolNames = state.availableToolNames === undefined
 		? []
-		: plan.toolNames.filter((name) => !state.availableToolNames?.includes(name));
+		: [...plan.toolNames, ...(plan.contextManagementNested ? ["history", "notes"] : [])]
+			.filter((name) => !state.availableToolNames?.includes(name));
 	if (!missingToolNames.length) return plan;
 	return {
 		...plan,
@@ -265,6 +274,7 @@ export function resolveCodexRuntimePlanForState(
 		contextManagement: false,
 		contextManagementMode: "off",
 		contextManagementRemote: false,
+		contextManagementNested: false,
 		shareSubagentContext: false,
 		compactOnRollover: false,
 		idleNotesRollover: false,

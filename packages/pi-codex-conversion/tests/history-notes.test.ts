@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSessionContext, createEventBus, DEFAULT_COMPACTION_SETTINGS, SessionManager, type ExtensionContext, type SessionEntry, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, createEventBus, DEFAULT_COMPACTION_SETTINGS, SessionManager, type ExtensionContext, type SessionEntry, type SessionBeforeCompactEvent, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
 	createHistoryNotesTools,
 	loadHistoryNotesThreadHint,
@@ -14,6 +14,9 @@ import { projectPiCompactionEvent } from "../src/adapter/compaction/portable-sum
 import { createTreeArchiveManifest } from "../src/context-management/tree-archive.ts";
 import { projectTreeCheckpointBranch } from "../src/context-management/tree-checkpoint.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
+import { registerContextManagementTools } from "../src/context-management/tools.ts";
+import { getCodeModeExtensionTools } from "../src/code-mode-extension-tools.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 
 const { prepareCompaction } = await import(new URL("./core/compaction/compaction.js", import.meta.resolve("@earendil-works/pi-coding-agent")).href);
 
@@ -282,6 +285,42 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		);
 
 		const [boundary, user] = context.sessionManager.getBranch();
+		for (const mode of ["local", "tree"] as const) {
+			const bridgeEntries: Record<string, unknown>[] = [];
+			const bridgeContext = createContext(bridgeEntries);
+			const registered = new Map<string, ToolDefinition>();
+			const bridgePi = { events: createEventBus(), on() {},
+				appendEntry: (customType: string, data: unknown) => bridgeEntries.push({
+					type: "custom", id: "bridge-note", parentId: null, timestamp: new Date(0).toISOString(), customType, data,
+				}),
+				registerTool: (tool: ToolDefinition) => registered.set(tool.name, tool),
+				getAllTools: () => [...registered.values()],
+			};
+			const bridgeState = {
+				config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: {
+					...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: mode as typeof DEFAULT_CODEX_CONVERSION_CONFIG.compaction.historyStorage,
+				} }, executionMode: "code" as const,
+				contextTree: { handoff: { finishNoteWrite: () => true } },
+			};
+			registerContextManagementTools(bridgePi as never, bridgeState as never);
+			const [history, notes] = getCodeModeExtensionTools(bridgePi as never, bridgeContext);
+			assert(history && notes);
+			const invocation = { cwd: bridgeContext.cwd, extensionContext: bridgeContext };
+			const signal = new AbortController().signal;
+			const params = { action: "read_item" as const, window_id: windowId, item_id: "user-entry", offset_chars: 2, limit_chars: 3 };
+			const direct = await registered.get("history")!.execute("native", params, signal, undefined, bridgeContext as never);
+			assert.equal(await history.invoke(params, invocation, signal), direct.content.map((item) => item.type === "text" ? item.text : "").join("\n"));
+			await assert.rejects(history.invoke({ action: "read_item", item_id: "user-entry" }, invocation, signal), /requires window_id/);
+			const cancelled = AbortSignal.abort();
+			await assert.rejects(history.invoke(params, invocation, cancelled), /aborted/);
+			let raw: unknown;
+			await notes.invoke({ action: "append_to_file", path: "checkpoint.md", text: "\nresumable" },
+				{ ...invocation, captureResult: (result) => { raw = result; } }, signal);
+			assert.equal((raw as { terminate: boolean }).terminate, true, "Tree handoff completion is retained before model-result conversion");
+			assert.equal(notes.propagateTermination, true);
+			bridgeState.config.compaction.historyStorage = "remote";
+			await assert.rejects(notes.invoke({ action: "read_file", path: "checkpoint.md" }, invocation, signal), /Context storage changed/);
+		}
 		const summary = {
 			type: "branch_summary",
 			id: "tree-summary",

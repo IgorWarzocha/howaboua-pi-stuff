@@ -26,6 +26,7 @@ import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 import { contextAccountScope, contextAgentIdentity } from "../context-management/agent-identity.ts";
+import { validateRemoteOutputReplay } from "../context-management/remote-scope.ts";
 import { CodexContextWindowKickoff } from "../context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
@@ -129,6 +130,14 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	let preparedKeepaliveRequest: PreparedKeepaliveRequest | undefined;
 	const diagnostics = createLazyCodexDiagnostics();
 	let cacheEnvironmentWarningsReported = false;
+	const validateRemoteRequest = async (
+		ctx: CodexContext | undefined, model: Model<Api>, context: Pick<TranscriptContext, "messages">,
+		body: ResponsesBody, options: OpenAICodexStreamOptions | undefined, responsesLite: boolean,
+	): Promise<void> => {
+		const account = () => options?.apiKey ? extractAccountId(options.apiKey) : undefined;
+		validateRemoteOutputReplay(context.messages, account, ctx, model.baseUrl);
+		await state.developerMessages.validateRemotePayload(body, account, ctx, responsesLite, model.baseUrl);
+	};
 	const requestIdentity = (ctx: CodexContext) => JSON.stringify({
 		sessionId: ctx.sessionManager.getSessionId(),
 		model: ctx.model,
@@ -223,6 +232,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					...(config.openai.fast ? { serviceTier: "priority" as const } : {}),
 				};
 				const deps = {
+					validateRequest: (body: ResponsesBody, responsesLite: boolean) =>
+						validateRemoteRequest(ctx, requestModel, { messages }, body, options, responsesLite),
 					getConfig: () => ({ executionMode, openai: config.openai, compaction: config.compaction }),
 					useResponsesLite: (currentModel: Model<Api>) => resolveCodexRuntimePlanForState({ model: currentModel }, { ...state, config, executionMode }).transport === "responses-lite",
 					turnState: state.codexTurnState,
@@ -240,7 +251,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					? prewarmPreparedOpenAICodexWebSocket(requestModel, structuredClone(preparedRequest.body), options, preparedRequest.responsesLite, deps)
 					: prewarmOpenAICodexWebSocket(requestModel, { messages }, {
 						...options,
-						onPayload: (body) => rewriteCodexProviderRequest(body, ctx, { ...state, config, executionMode }),
+						onPayload: (body) => rewriteCodexProviderRequest(body, ctx, { ...state, config, executionMode }, pi.getSettings().images?.blockImages),
 					}, deps);
 				prewarmTransportSettlement = transportSettlement;
 				try {
@@ -403,7 +414,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			ordinaryPrewarmPending = false;
 		},
 		async beforeRequestSend(model, context, body, options, responsesLite) {
-			const ctx = requestContext;
+			const ctx = options?.remoteDeliveryContext ?? requestContext;
+			await validateRemoteRequest(ctx, model, context, body, options, responsesLite);
 			if (!ctx || options?.sessionId !== ctx.sessionManager.getSessionId()
 				|| model.provider !== ctx.model?.provider || model.api !== ctx.model.api || model.id !== ctx.model.id
 				|| options.canonicalCompaction || options.cacheRetention === "none") return;
@@ -449,6 +461,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					...options,
 					signal: options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal,
 				}, responsesLite, {
+					validateRequest: (prepared, lite) => validateRemoteRequest(ctx, model, context, prepared, options, lite),
 					getConfig: () => ({ executionMode: state.executionMode, openai: state.config.openai, compaction: state.config.compaction }),
 					turnState: state.codexTurnState,
 					getDiagnostics: () => diagnostics.sink(),

@@ -10,10 +10,13 @@ export function registerCodeModeEvents(
 ): void {
 	pi.on("session_start", () => {
 		runtime.resetPromptTools();
+		runtime.clearOpaqueResults();
 	});
 	pi.on("model_select", () => {
 		runtime.resetPromptTools();
+		runtime.clearOpaqueResults();
 	});
+	pi.on("session_shutdown", () => runtime.clearOpaqueResults());
 	pi.on("before_agent_start", (event, ctx) => {
 		const executionKind = runtime.executionKind(ctx);
 		const requiredTools = executionKind === "notebook"

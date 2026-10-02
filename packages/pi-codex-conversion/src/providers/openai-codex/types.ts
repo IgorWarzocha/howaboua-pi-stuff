@@ -2,6 +2,7 @@ import type { Api, AssistantMessage, Model, SimpleStreamOptions, TranscriptConte
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexCompactionDiagnostic } from "../../adapter/compaction/diagnostics.ts";
 import type { CodexCacheKeepaliveStrategy } from "../../adapter/activation/cache-keepalive.ts";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export interface WebSocketLike {
 	readyState?: number | undefined;
@@ -175,6 +176,8 @@ export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;
 	canonicalCompaction?: boolean | undefined;
+	/** Host-only operation context. Never serialized into a provider request. */
+	remoteDeliveryContext?: ExtensionContext | undefined;
 	compactionDiagnostics?: CodexCompactionDiagnostic | undefined;
 };
 

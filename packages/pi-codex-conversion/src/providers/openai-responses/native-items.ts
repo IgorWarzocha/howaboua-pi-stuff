@@ -45,6 +45,20 @@ export function encryptedToolOutputFromDetails(details: unknown): string | undef
 		?? encryptedOutputFromWebRunLike(record["codexHistoryNotes"]);
 }
 
+export function opaqueToolOutputsFromDetails(details: unknown): Array<{ resultId: string; name: string; encryptedOutput: string }> {
+	if (!details || typeof details !== "object") return [];
+	const record = details as Record<string, unknown>;
+	if (record["codeMode"] !== true || !Array.isArray(record["opaqueOutputs"])) return [];
+	return record["opaqueOutputs"].map((item: unknown) => {
+		if (!item || typeof item !== "object") throw new Error("Invalid protected tool output");
+		const value = item as Record<string, unknown>;
+		if (typeof value["resultId"] !== "string" || typeof value["name"] !== "string" ||
+			typeof value["encryptedOutput"] !== "string" || !value["encryptedOutput"].trim())
+			throw new Error("Invalid protected tool output");
+		return { resultId: value["resultId"], name: value["name"], encryptedOutput: value["encryptedOutput"] };
+	});
+}
+
 export function isImageGenerationCallBlock(block: { type: string; item?: unknown }): block is ImageGenerationCallBlock {
 	return block.type === "image_generation_call" && typeof block.item === "object" && block.item !== null && (block.item as Record<string, unknown>)["type"] === "image_generation_call";
 }

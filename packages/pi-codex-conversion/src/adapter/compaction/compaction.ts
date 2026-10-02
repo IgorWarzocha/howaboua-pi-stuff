@@ -415,6 +415,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const compactResult = await executeRemoteCompactionV2({
 		runtime,
 		modelRegistry: ctx.modelRegistry,
+		remoteDeliveryContext: ctx,
 		context,
 		promptInput: input,
 		promptInputSource: compactionDiagnostic.inputSource,

@@ -1,4 +1,5 @@
 import { shortHash } from "./signatures.ts";
+import { assertRemoteDeliveryPairs } from "../../context-management/remote-delivery-protocol.ts";
 
 type ToolFamily = "function" | "custom" | "search";
 
@@ -88,6 +89,7 @@ function syntheticOutput(
 export function normalizeResponsesToolHistory(
 	input: readonly unknown[],
 ): unknown[] {
+	assertRemoteDeliveryPairs(input);
 	const calls = new Map<string, PairedCall>();
 	const validCalls = new Set<number>();
 	const droppedCalls = new Set<number>();

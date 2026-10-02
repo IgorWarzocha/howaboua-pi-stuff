@@ -13,6 +13,12 @@ export const NOTEBOOK_BOOTSTRAP_NOTICE =
 export const NOTEBOOK_KERNEL_FAILURE_NOTICE =
 	"Notebook runtime became unavailable during a host operation. The next operation will recreate it from the last completed checkpoint; durable project bindings were preserved. External side effects were not rolled back";
 
+const NOTEBOOK_RECOVERY_GUIDANCE = 'Call notebook with {"input":"help"} for recovery actions';
+
+export function withNotebookRecoveryGuidance(message: string): string {
+	return message.includes(NOTEBOOK_RECOVERY_GUIDANCE) ? message : `${message}\n${NOTEBOOK_RECOVERY_GUIDANCE}`;
+}
+
 export function isNotebookBootstrapFailure(value: unknown): boolean {
 	const text = errorText(value);
 	return text.includes("Notebook runtime bootstrap unavailable: __piNotebook.");

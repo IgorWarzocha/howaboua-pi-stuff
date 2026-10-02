@@ -161,7 +161,9 @@ Old configurations migrate on read without rewriting the file. Hybrid becomes **
 
 With notes enabled, choosing a summary in Pi's tree navigator saves a handoff note for the destination, even before the first window marker. Local and Tree preserve existing destination notes. Remote note contents remain encrypted and cannot be independently verified. Interrupted or failed handoffs cancel the jump. **No summary** remains a plain jump.
 
-The model receives history, notes, rollover and remaining-context tools. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
+The model receives history, notes, rollover and remaining-context tools. Code and Notebook modes use `tools.history({ action, ...args })` and `tools.notes({ action, ...args })` inside `exec`, with argument help in `ALL_TOOLS`. With Remote storage, native `context_input` prepares query or note-text handles. JavaScript receives receipts, and protected contents reach the model automatically before it continues. Remote contents cannot be inspected inside JavaScript. Input acquisition adds a tool roundtrip, but completed results need no extra delivery call. `wait` resumes or terminates unfinished cells. `new_context` stays native. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
+
+Remote results remain tied to their original context family and Codex account. Re-reading a completed result does not count as a new note checkpoint.
 
 With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, `/compact` and `new_context` compact before rollover.
 
@@ -226,7 +228,7 @@ const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool manages status, checkpoints, restarts, resets and profiles. The first turn receives status and retained bindings automatically.
+**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool accepts `{ input: "help" }` for state-management guidance, then JSON action objects in `input`. The first turn receives status and retained bindings automatically.
 
 ### MCP tools
 
@@ -242,7 +244,7 @@ MCP server tools return their complete result object, including `content`, `stru
 
 ### Notebook hooks
 
-Pinned functions can react without another model call. Use the top-level `notebook` tool with `{ action: "pin", names: ["onToolResult"], hook: "tool_result" }`, not a call inside `exec`.
+Pinned functions can react without another model call. Use the top-level `notebook` tool with `{ input: '{"action":"pin","names":["onToolResult"],"hook":"tool_result"}' }`, not a call inside `exec`.
 
 The handler receives `{ type: "tool_result", toolName, input, status, result?, error? }` for subsequent `tools.*` calls. Filter by `toolName`. Input is captured before execution. Status is `"success"` for a returned result or `"error"` for a throw.
 

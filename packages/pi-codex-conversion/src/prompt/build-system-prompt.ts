@@ -46,7 +46,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 	"Reuse matching retained globals",
 	"Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning",
 	...CODE_MODE_GUIDELINES,
-	"Diagnose state or helper failures; repair or prune failed state and verify recovery",
+	'Notebook state management: notebook({input:"help"})',
 	"Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments",
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
 	"exec calls run sequentially",

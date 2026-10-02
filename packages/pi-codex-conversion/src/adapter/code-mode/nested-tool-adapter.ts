@@ -25,6 +25,10 @@ interface NestedToolContract {
 	deferLoading?: boolean;
 	discoverWhenDeferred?: boolean;
 	modelVisibleResult?: boolean;
+	propagateTermination?: boolean;
+	opaqueResult?: boolean;
+	opaqueResultScope?(result: AgentToolResult<unknown>): string | undefined;
+	isContextNoteWrite?(input: unknown): boolean;
 	translatePromptMetadata?: boolean;
 	toolName?: CodeModeToolIdentity;
 	yieldTimeMs?: number;
@@ -48,6 +52,8 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		signal: AbortSignal,
 	): Promise<unknown> => {
 		if (signal.aborted) throw new Error(`${tool.name} aborted`);
+		if (contract.opaqueResult && !context.captureOpaqueResult)
+			throw new Error("Remote result delivery is unavailable; do not execute this operation");
 		const extensionContext = requireExtensionContext(context);
 		const toolInput = prepareInput(input);
 		const prepared = tool.prepareArguments
@@ -61,6 +67,9 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		context.refreshTrace?.();
 		let acceptingUpdates = true;
 		try {
+			if (contract.opaqueResult && (!context.opaqueScope ||
+				!context.opaqueContextValid || !await context.opaqueContextValid()))
+				throw new Error("Remote context changed before dispatch; start a new exec cell");
 			const result = await tool.execute(
 				toolCallId,
 				prepared as never,
@@ -71,9 +80,28 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				extensionContext,
 			);
 			acceptingUpdates = false;
-			context.captureResult?.(result);
+			if (contract.opaqueResult) {
+				if (!context.opaqueScope || contract.opaqueResultScope?.(result) !== context.opaqueScope ||
+					!context.opaqueContextValid || !await context.opaqueContextValid())
+					throw new Error("Remote operation executed in a different context; verify note state before repeating a write");
+				const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown } } | undefined;
+				const encrypted = details?.codexHistoryNotes?.encrypted_output;
+				if (typeof encrypted !== "string" || !encrypted.trim())
+					throw new Error("Remote operation executed but returned no protected output; verify its state before repeating a write");
+				const action = prepared && typeof prepared === "object" && "action" in prepared && typeof prepared.action === "string"
+					? `.${prepared.action}` : "";
+				context.captureOpaqueResult!({ resultId: toolCallId, name: tool.name + action, encryptedOutput: encrypted },
+					result.content.filter(item => item.type === "image").map(item => ({
+						type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
+						detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
+							? item.detail : "high",
+					})));
+				context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId}` }], details: {} });
+			} else context.captureResult?.(result);
 			const resultError = contract.resultError?.(result);
 			if (resultError) throw new Error(resultError);
+			if (contract.opaqueResult)
+				return { result_id: toolCallId };
 			return contract.resultValue?.(result) ??
 				(contract.modelVisibleResult
 					? modelVisibleNestedResult(result)
@@ -101,6 +129,9 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		...(contract.discoverWhenDeferred ? { discoverWhenDeferred: true } : {}),
 		...(contract.translatePromptMetadata ? { translatePromptMetadata: true } : {}),
 		...(tool.executionMode ? { executionMode: tool.executionMode } : {}),
+		...(contract.propagateTermination ? { propagateTermination: true } : {}),
+		...(contract.opaqueResult ? { opaqueResult: true } : {}),
+		...(contract.isContextNoteWrite ? { isContextNoteWrite: contract.isContextNoteWrite } : {}),
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),

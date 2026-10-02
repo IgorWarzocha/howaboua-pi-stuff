@@ -121,7 +121,7 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	assert.deepEqual(
 		await proxy.invoke({ ...retry, names: ["alpha", "alpha"] }, context, controller.signal),
 		{
-			message: `Notebook pin was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify(retry)}.`,
+			message: `Notebook pin was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(retry) })}.`,
 			details: { notRun: true, action: "pin", retry },
 		},
 	);

@@ -27,7 +27,7 @@ import {
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
-import { encryptedToolOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
@@ -62,6 +62,12 @@ interface ConvertResponsesToolsOptions {
 
 export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 
+export function normalizeResponsesId(part: string): string {
+	const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
+	const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
+	return normalized.replace(/_+$/, "");
+}
+
 function sanitizeSurrogates(text: string): string {
 	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 }
@@ -82,23 +88,18 @@ export function convertResponsesMessages<TApi extends Api>(
 ): ResponseInput {
 	const normalizedContext = resolveTranscript(context, options?.supportsMidConvoSystemMessages);
 	const messages: ResponseInput = [];
-	const normalizeIdPart = (part: string) => {
-		const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
-		const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
-		return normalized.replace(/_+$/, "");
-	};
 	const buildForeignResponsesItemId = (itemId: string) => {
 		const normalized = `fc_${shortHash(itemId)}`;
 		return normalized.length > 64 ? normalized.slice(0, 64) : normalized;
 	};
 	const normalizeToolCallId = (id: string, _targetModel: Model<TApi>, source: Extract<Message, { role: "assistant" }>) => {
-		if (!allowedToolCallProviders.has(model.provider)) return normalizeIdPart(id);
-		if (!id.includes("|")) return normalizeIdPart(id);
+		if (!allowedToolCallProviders.has(model.provider)) return normalizeResponsesId(id);
+		if (!id.includes("|")) return normalizeResponsesId(id);
 		const [callId, itemId] = id.split("|") as [string, string | undefined];
-		const normalizedCallId = normalizeIdPart(callId);
+		const normalizedCallId = normalizeResponsesId(callId);
 		const isForeignToolCall = source.provider !== model.provider || source.api !== model.api;
-		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "") : normalizeIdPart(itemId ?? "");
-		if (!normalizedItemId.startsWith("fc_")) normalizedItemId = normalizeIdPart(`fc_${normalizedItemId}`);
+		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "") : normalizeResponsesId(itemId ?? "");
+		if (!normalizedItemId.startsWith("fc_")) normalizedItemId = normalizeResponsesId(`fc_${normalizedItemId}`);
 		return `${normalizedCallId}|${normalizedItemId}`;
 	};
 
@@ -236,7 +237,22 @@ export function convertResponsesMessages<TApi extends Api>(
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
 			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
-			const output = encryptedToolOutput
+			const opaqueOutputs = opaqueToolOutputsFromDetails(msg.details);
+			if (opaqueOutputs.length && options?.grammarToolInputProperties?.has(msg.toolName))
+				throw new Error("Protected Code Mode results require native wait output");
+			const output = opaqueOutputs.length
+				? [
+						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
+						...opaqueOutputs.flatMap(item => [
+							{ type: "input_text" as const, text: `Result ${item.resultId} (${item.name})` },
+							{ type: "encrypted_content" as const, encrypted_content: item.encryptedOutput },
+						]),
+						...(model.input.includes("image") ? msg.content
+							.filter((block): block is ImageContentWithDetail => block.type === "image")
+							.map(block => ({ type: "input_image" as const, detail: imageDetailForResponses(block),
+								image_url: `data:${block.mimeType};base64,${block.data}` })) : []),
+					]
+				: encryptedToolOutput
 				? [
 						{ type: "encrypted_content" as const, encrypted_content: encryptedToolOutput },
 						...(hasImages && model.input.includes("image")

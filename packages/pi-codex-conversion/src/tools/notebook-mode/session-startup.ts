@@ -21,6 +21,7 @@ import {
 import { resolveNotebookProject } from "./project-identity.ts";
 import { loadNotebookProfile, NotebookProfileRestoreError } from "./profile-state.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
+import { withNotebookRecoveryGuidance } from "./runtime-health.ts";
 
 export interface StartedNotebookSession {
 	kernel: DenoJupyterKernel;
@@ -54,7 +55,8 @@ export async function startNotebookSession(options: {
 		startupAbort.abort();
 		await Promise.allSettled([denoPending, bridgePending]);
 		await bridge.shutdown().catch(() => undefined);
-		throw error;
+		if (signal?.aborted) throw error;
+		throw notebookStartupError(error);
 	}
 
 	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB, onFailure: options.onKernelFailure });
@@ -107,7 +109,7 @@ export async function startNotebookSession(options: {
 				const result = await kernel.execute(`await (0, globalThis[${JSON.stringify(name)}])({type:"startup"}); undefined;`, { signal });
 				if (result.status !== "ok") throw new Error(result.errorText ?? result.status);
 			} catch (error) {
-				throw new Error(`Notebook startup hook ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. Unpin it with notebook to recover; external side effects were not rolled back`, { cause: error });
+				throw new Error(`Notebook startup hook ${JSON.stringify(name)} failed: ${error instanceof Error ? error.message : String(error)}. To unpin it, call notebook with ${JSON.stringify({ input: JSON.stringify({ action: "unpin", names: [name] }) })}; external side effects were not rolled back`, { cause: error });
 			}
 		}
 		const toolHooks = projectState.restored.filter((entry) => entry.hook === "tool_result").map(({ name }) => name);
@@ -133,8 +135,16 @@ export async function startNotebookSession(options: {
 	} catch (error) {
 		await kernel.shutdown().catch(() => undefined);
 		await bridge.shutdown().catch(() => undefined);
-		throw error;
+		if (signal?.aborted) throw error;
+		throw notebookStartupError(error);
 	}
+}
+
+function notebookStartupError(error: unknown): Error {
+	const message = withNotebookRecoveryGuidance(error instanceof Error ? error.message : String(error));
+	return error instanceof NotebookProfileRestoreError
+		? new NotebookProfileRestoreError(message, { cause: error })
+		: new Error(message, { cause: error });
 }
 
 async function installNotebookExamples(kernel: DenoJupyterKernel, signal?: AbortSignal): Promise<string[]> {

@@ -137,7 +137,7 @@ export class CodexTreeHandoff {
 			}
 			if (event.signal.aborted) return { cancel: true };
 			return { summary: {
-				summary: `The user continued the conversation beyond this point. That discussion is summarized in a note. Before resuming, read it with notes.read_file using the exact path ${JSON.stringify(path)}.`,
+				summary: `The user continued the conversation beyond this point. That discussion is summarized in a note. Before resuming, read the note at the exact path ${JSON.stringify(path)}.`,
 				details,
 			} };
 		} catch (error) {
