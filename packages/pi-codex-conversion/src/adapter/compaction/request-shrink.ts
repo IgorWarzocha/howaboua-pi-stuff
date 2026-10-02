@@ -1,5 +1,6 @@
 import type { NativeCompactionRequestBody, ResponsesInputItem } from "./serializer.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
+import { isEncryptedFunctionOutput } from "../../context-management/remote-delivery-protocol.ts";
 
 export const COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE = "Output exceeded the available model context and was truncated";
 export const OPENAI_CODEX_COMPACTION_ENDPOINT_BUDGET_TOKENS = 872_000;
@@ -49,6 +50,7 @@ function rewriteToolOutputItem(item: ResponsesInputItem): { recognized: boolean;
 	if (!isRecord(item)) return { recognized: false, item };
 	const record: Record<string, unknown> = item;
 	if (record["type"] === "function_call_output" || record["type"] === "custom_tool_call_output") {
+		if (isEncryptedFunctionOutput(record)) return { recognized: true, item };
 		if (record["output"] === COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE) return { recognized: true, item };
 		return { recognized: true, item: { ...record, output: COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE } as ResponsesInputItem };
 	}

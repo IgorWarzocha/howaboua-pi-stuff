@@ -13,7 +13,7 @@ import { CODEX_CURRENT_TIME_REMINDER_TYPE } from "./current-time-reminder.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE } from "./code-mode/toolkit-updates.ts";
 import { CODEX_NOTEBOOK_STATUS_TYPE } from "./notebook-status.ts";
 import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER, readRemoteDelivery, remoteDeliveryItems, remoteDeliverySource, validateRemoteDelivery, type RemoteDelivery } from "../context-management/remote-delivery.ts";
-import { assertRemoteDeliveryPairs } from "../context-management/remote-delivery-protocol.ts";
+import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../context-management/remote-delivery-protocol.ts";
 import { normalizeResponsesId } from "../providers/openai-responses/shared.ts";
 import { prepareResponsesLiteConversationInput } from "../providers/openai-codex/responses-lite.ts";
 
@@ -28,6 +28,9 @@ export class CodexDeveloperMessageBridge {
 		active: boolean,
 		model?: Model<Api>,
 	): AgentMessage[] {
+		const execCalls = new Set(messages.flatMap(message => message.role === "assistant"
+			? message.content.flatMap(part => part.type === "toolCall" && part.name === "exec" ? [part.id] : []) : []));
+		const resultIds = new Set(messages.flatMap(message => message.role === "toolResult" ? [message.toolCallId] : []));
 		const seen = new Set<string>();
 		const projected: AgentMessage[] = [];
 		for (const message of messages) {
@@ -56,6 +59,10 @@ export class CodexDeveloperMessageBridge {
 			let id: string;
 			if (message.customType === REMOTE_DELIVERY_MESSAGE) {
 				value = readRemoteDelivery(message.details);
+				// Pi's selected compaction/window slice owns the cut. Never reconstruct a removed call.
+				if (value.protocol === 2 && !execCalls.has(value.originalExecCallId)) continue;
+				if (value.protocol === 2 && (!resultIds.has(value.originalExecCallId) || !resultIds.has(value.sourceCallId)))
+					throw new Error("Remote output is missing its original receipt in the selected history");
 				id = value.id;
 			} else if (reasoningUpdate) {
 				if (!model || !supportsCodexReasoningUpdates(model)) continue;
@@ -127,6 +134,7 @@ export class CodexDeveloperMessageBridge {
 	async validateRemotePayload(payload: unknown, account: () => string | undefined, ctx?: ExtensionContext, responsesLite = false, baseUrl?: string): Promise<void> {
 		if (!isRecord(payload) || !Array.isArray(payload["input"])) return;
 		assertRemoteDeliveryPairs(payload["input"]);
+		await this.validateOriginalExecOutputs(payload["input"], account, ctx, responsesLite, baseUrl);
 		const deliveries = new Map<string, RemoteDelivery>();
 		for (const value of this.carriers.values())
 			if (typeof value !== "string" && "origin" in value)
@@ -170,6 +178,66 @@ export class CodexDeveloperMessageBridge {
 			validateRemoteDelivery(delivery, account, ctx, baseUrl);
 			index++;
 		}
+	}
+
+	private async validateOriginalExecOutputs(input: unknown[], account: () => string | undefined,
+		ctx: ExtensionContext | undefined, responsesLite: boolean, baseUrl: string | undefined): Promise<void> {
+		const originalIds = new Set(input.flatMap(call => isOriginalExecCall(call) ? [call["call_id"]] : []));
+		if (!originalIds.size) return;
+		const candidates = new Map<string, RemoteDelivery>();
+		const required = new Set<string>();
+		for (const value of this.carriers.values())
+			if (typeof value !== "string" && "origin" in value && value.protocol === 2) candidates.set(value.id, value);
+		for (const entry of ctx?.sessionManager.getBranch() ?? []) {
+			if (entry.type !== "custom_message" || entry.customType !== REMOTE_DELIVERY_MESSAGE || !isRecord(entry.details) ||
+				entry.details["protocol"] !== 2 || typeof entry.details["originalExecCallId"] !== "string") continue;
+			const originalId = normalizeResponsesId(entry.details["originalExecCallId"].split("|")[0] ?? "");
+			if (!originalIds.has(originalId)) continue;
+			const value = readRemoteDelivery(entry.details);
+			candidates.set(value.id, value);
+			if (value.outputs.length) required.add(value.id);
+		}
+		const consumed = new Set<string>();
+		for (const [index, item] of input.entries()) {
+			if (!isEncryptedFunctionOutput(item)) continue;
+			const call = input.find(candidate => isOriginalExecCall(candidate) && candidate["call_id"] === item["call_id"]);
+			if (!call) continue; // Direct native encrypted function outputs retain their own route.
+			if (!ctx) throw new Error("Remote delivery is missing its session context");
+			let matched: RemoteDelivery | undefined;
+			for (const delivery of candidates.values()) {
+				if (delivery.protocol !== 2 || consumed.has(delivery.id) ||
+					normalizeResponsesId(delivery.originalExecCallId.split("|")[0] ?? "") !== item["call_id"]) continue;
+				let expected = remoteDeliveryItems(delivery);
+				if (responsesLite && delivery.images.length) expected = await prepareResponsesLiteConversationInput(expected);
+				if (sameRemoteOutput(item["output"], (expected[0] as { output?: unknown } | undefined)?.output,
+					(remoteDeliveryItems({ ...delivery, images: [] })[0] as { output?: unknown } | undefined)?.output,
+					(remoteDeliveryItems(delivery, true)[0] as { output?: unknown } | undefined)?.output)) {
+					matched = delivery;
+					break;
+				}
+			}
+			if (!matched) throw new Error("Remote output changed content or is missing its persisted provenance");
+			const sourceName = remoteDeliverySource(matched, ctx);
+			const originalId = item["call_id"];
+			const sourceId = normalizeResponsesId(matched.sourceCallId.split("|")[0] ?? "");
+			const original = input.flatMap((candidate, at) => isRecord(candidate) && candidate["call_id"] === originalId &&
+				(candidate["type"] === "custom_tool_call" || candidate["type"] === "custom_tool_call_output") ? [{ item: candidate, at }] : []);
+			const [exec, receipt] = original;
+			if (original.length !== 2 || !exec || !receipt || !isOriginalExecCall(exec.item) ||
+				receipt.item["type"] !== "custom_tool_call_output" || exec.at >= receipt.at || receipt.at >= index)
+				throw new Error("Remote output precedes or mismatches its original exec receipt");
+			if (sourceName === "wait") {
+				const witness = input.flatMap((candidate, at) => isRecord(candidate) && candidate["call_id"] === sourceId ? [{ item: candidate, at }] : []);
+				const [wait, result] = witness;
+				if (witness.length !== 2 || !wait || !result || wait.item["name"] !== "wait" || wait.item["type"] !== "function_call" ||
+					result.item["type"] !== "function_call_output" || receipt.at >= wait.at || wait.at >= result.at || result.at >= index)
+					throw new Error("Remote output precedes or mismatches its genuine wait receipt");
+			}
+			validateRemoteDelivery(matched, account, ctx, baseUrl);
+			consumed.add(matched.id);
+		}
+		if ([...required].some(id => !consumed.has(id)))
+			throw new Error("Remote exec output group was partially removed; trim the original call and all its outputs together");
 	}
 
 	private marker(id: string): string {

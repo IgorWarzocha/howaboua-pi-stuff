@@ -83,7 +83,7 @@ export async function registerCodexCodeMode(
 		},
 		isActive,
 		opaqueResultScope: (ctx) => resolveRemoteContextScope(ctx, runtime.state),
-		deliverOpaqueResponse: (response, callId, scope) => appendRemoteDelivery(pi, response, callId, scope),
+		deliverOpaqueResponse: (response, callId, scope, ctx) => appendRemoteDelivery(pi, response, callId, scope, ctx),
 		executionKind: (ctx) =>
 			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
 				? "notebook"

@@ -10,7 +10,7 @@ import { Type, type Static, type TSchema } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import type { ContextRouter } from "../context-sharing.ts";
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
-import { assertRemoteBackendScope, bindRemoteBackendScope, remoteBackendScope, remoteContextScope } from "./remote-scope.ts";
+import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope } from "./remote-scope.ts";
 import { historyNotesRenderers } from "./rendering.ts";
 import {
 	codexToolProviderHeaders,
@@ -373,7 +373,7 @@ async function callHistoryNotesBackend(
 		"x-openai-tool-output-truncation-policy",
 		JSON.stringify(truncationPolicy),
 	);
-	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint))
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx))
 		headers.set("x-openai-encrypted-tool-arguments", "true");
 	const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
 	const response = await fetch(

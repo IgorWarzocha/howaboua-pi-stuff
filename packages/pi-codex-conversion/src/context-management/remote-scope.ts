@@ -19,6 +19,11 @@ export function withRemoteContextScope(ctx: ExtensionContext, scope: string | un
 	return scoped;
 }
 
+/** Only the trusted host nested route carries this symbol, never model arguments. */
+export function isRemoteNestedContext(ctx: ExtensionContext): boolean {
+	return EXPECTED_SCOPE in ctx;
+}
+
 export function assertRemoteBackendScope(ctx: ExtensionContext, scope: string): void {
 	if (EXPECTED_SCOPE in ctx && ctx[EXPECTED_SCOPE] !== scope)
 		throw new Error("Remote context changed before dispatch; start a new exec cell");

@@ -239,7 +239,7 @@ export function convertResponsesMessages<TApi extends Api>(
 			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
 			const opaqueOutputs = opaqueToolOutputsFromDetails(msg.details);
 			if (opaqueOutputs.length && options?.grammarToolInputProperties?.has(msg.toolName))
-				throw new Error("Protected Code Mode results require native wait output");
+				throw new Error("Protected results require a native tool output");
 			const output = opaqueOutputs.length
 				? [
 						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),

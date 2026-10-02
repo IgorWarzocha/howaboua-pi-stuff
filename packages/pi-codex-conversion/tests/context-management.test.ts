@@ -189,6 +189,39 @@ test("context windows preserve rollover and native request semantics", async () 
 			}
 		}
 		sessionManager.branch(user);
+		if (mode === "remote") {
+			const original = "v2-exec";
+			const deliveryId = "00000000-0000-4000-8000-000000000002";
+			const completedId = "00000000-0000-4000-8000-000000000003";
+			sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{ type: "toolCall", id: original,
+				name: "exec", arguments: {} }] });
+			const yielded = sessionManager.appendMessage({ ...result, toolCallId: original, toolName: "exec", details: {
+				codeMode: true, cellId: "v2-cell", status: "yielded", opaqueDeliveryId: deliveryId,
+			} });
+			sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
+				protocol: 2, origin: "host", id: deliveryId, sourceCallId: original, originalExecCallId: original,
+				cellId: "v2-cell", scope: "fixture", status: "yielded", images: [],
+				outputs: [{ resultId: "write-result", name: "notes.write_file", encryptedOutput: "opaque" }],
+			});
+			sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{ type: "toolCall", id: "v2-wait",
+				name: "wait", arguments: {} }] });
+			const completed = sessionManager.appendMessage({ ...result, toolCallId: "v2-wait", toolName: "wait", details: {
+				codeMode: true, cellId: "v2-cell", status: "result", opaqueDeliveryId: completedId,
+				contextNotesSaved: true, contextNotesSource: "remote",
+			} });
+			sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
+				protocol: 2, origin: "host", id: completedId, sourceCallId: "v2-wait", originalExecCallId: original,
+				cellId: "v2-cell", scope: "fixture", status: "result", contextNotesSaved: true, images: [], outputs: [],
+			});
+			sessionManager.appendMessage(assistant);
+			assert.equal(reuse(), true, "genuine wait completion retains current-run protected write evidence");
+			sessionManager.appendContextEdit(yielded, null);
+			assert.equal(reuse(), false, "a projected-away protected source receipt cannot grant fresh notes");
+			sessionManager.branch(completed);
+			sessionManager.appendMessage(assistant);
+			assert.equal(reuse(), false, "completion receipts cannot replace their persisted host event");
+			sessionManager.branch(user);
+		}
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");
 
