@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.6
+
+- Requires Pi 1.0.0 or later.
+
+  Updated Undici to 8.10.2 with security fixes.
+
 ## 0.0.5
 
 - Web requests now re-evaluate proxy and `no_proxy` routing after redirects.

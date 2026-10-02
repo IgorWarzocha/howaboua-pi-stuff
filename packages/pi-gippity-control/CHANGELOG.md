@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.24
+
+- Requires Pi 1.0.0 or later.
+
+  Updated Undici to 8.10.2 with security fixes.
+
 ## 0.0.23
 
 - Fixed `voice.forwardReasoningSummaries` forwarding raw reasoning. Voice now uses only verified provider summaries and preserves visible-text progress.
