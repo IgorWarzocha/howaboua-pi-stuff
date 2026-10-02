@@ -225,7 +225,9 @@ function applyRuntimeTools(
 		if (indirectMcp && registered.some((tool) =>
 			tool.name === "tool_search" && tool.sourceInfo?.path === "builtin:tool-search")) {
 			projected = mergeToolNames(projected, ["tool_search"]);
-			state.adapterOwnedToolNames = mergeToolNames(state.adapterOwnedToolNames ?? [], ["tool_search"]);
+			// Own only injected activation; native/user activation must survive restoration.
+			if (!state.previousToolNames?.includes("tool_search"))
+				state.adapterOwnedToolNames = mergeToolNames(state.adapterOwnedToolNames ?? [], ["tool_search"]);
 		}
 	}
 	setActiveTools(pi, projected);

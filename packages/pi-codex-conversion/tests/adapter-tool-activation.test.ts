@@ -195,8 +195,10 @@ test("adapter activation requires registered tools and follows scope independent
 	conflict.unregister();
 
 	for (const mode of ["code", "notebook"] as const) {
-		for (const nativeActive of [false, true]) {
-			const original = ["read", ...(nativeActive ? ["codemode"] : [])];
+		for (const discovery of [[], ["codemode"], ["codemode", "tool_search"]]) {
+			const nativeActive = discovery.includes("codemode");
+			const searchWasActive = discovery.includes("tool_search");
+			const original = ["read", ...discovery];
 			const pi = createToolHarness(original, ["read", "codemode", "tool_search", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
 			const getAllTools = pi.getAllTools;
 			Object.assign(pi, { getAllTools: () => getAllTools().map((tool) => tool.name === "tool_search"
@@ -209,17 +211,18 @@ test("adapter activation requires registered tools and follows scope independent
 			assert.ok(pi.activeTools().includes("exec"));
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("tool_search"), nativeActive);
+			assert.equal(state.adapterOwnedToolNames?.includes("tool_search") ?? false, nativeActive && !searchWasActive);
 			state.executionMode = "normal";
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), nativeActive);
-			assert.equal(pi.activeTools().includes("tool_search"), false);
+			assert.equal(pi.activeTools().includes("tool_search"), searchWasActive);
 			state.executionMode = mode;
 			syncAdapter(pi as never, ctx as never, state);
 			pi.setActiveTools([...pi.activeTools(), "codemode"]);
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), false);
 			syncAdapter(pi as never, createContext({ provider: "meta", api: "openai-responses", id: "muse" }) as never, state);
-			assert.deepEqual(pi.activeTools(), ["read", "codemode"]);
+			assert.deepEqual(pi.activeTools(), ["read", "codemode", ...(searchWasActive ? ["tool_search"] : [])]);
 		}
 	}
 	for (const mode of ["normal", "code", "notebook"] as const) {
