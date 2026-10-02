@@ -11,7 +11,8 @@ import {
 const SkillsParameters = Type.Object(
 	{
 		command: Type.String({
-			description: "list [category...] | read <skill> [skill-or-reference...]",
+			description:
+				"list [category...] | read <skill> [skill-or-reference...]; separate commands with ;",
 		}),
 	},
 	{ additionalProperties: false },
