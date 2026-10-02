@@ -4,6 +4,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, normalizeContext } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
+import type { OpenAICodexStreamOptions } from "../src/providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { codexReasoningUpdates, flushCodexReasoningUpdates, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
@@ -11,6 +12,7 @@ import { applyResponsesLiteRequest } from "../src/providers/openai-codex/respons
 import { openAICodexProviderModels } from "../src/providers/openai-codex/model-catalog.ts";
 import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { createAutoReasoning } from "../src/adapter/auto-reasoning.ts";
+import { toNestedTool } from "../src/adapter/code-mode/nested-tool-adapter.ts";
 import { rewriteResponsesPayloadWithNativeReplay } from "../src/adapter/replay/native-replay-segments.ts";
 import { createNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY } from "../src/adapter/compaction/types.ts";
 import { buildNativeCompactionInput } from "../src/adapter/compaction/compaction.ts";
@@ -96,7 +98,7 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 
 	const gpt6 = { ...model, id: "gpt-6-luna" };
 	const session = SessionManager.inMemory("/repo");
-	let level: "low" | "medium" | "high" = "low";
+	let level: NonNullable<OpenAICodexStreamOptions["reasoning"]> = "low";
 	let idle = true;
 	const pi = {
 		getThinkingLevel: () => level,
@@ -112,6 +114,7 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 	const config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	config.tools.autoReasoning = true;
 	const auto = createAutoReasoning(pi, { config, executionMode: "normal" } as never);
+	const nestedAuto = toNestedTool(auto.tool, "await tools.change_reasoning({ level })");
 	const build = (bridge = new CodexDeveloperMessageBridge(), lite = true) => {
 		const body = buildRequestBody(gpt6, normalizeContext({
 			systemPrompt: "Stable instructions",
@@ -127,6 +130,10 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 	auto.begin(ctx);
 	idle = false;
 	await auto.tool.execute("raise", { level: "high" }, undefined, undefined, ctx);
+	for (const effort of ["xhigh", "max"] as const) {
+		await nestedAuto.invoke({ level: effort }, { cwd: "/repo", extensionContext: ctx }, new AbortController().signal);
+		assert.equal(level, effort);
+	}
 	auto.begin(ctx); // Retry/compaction does not replace the user floor.
 	await auto.tool.execute("lower", { level: "medium" }, undefined, undefined, ctx);
 	assert.equal(codexReasoningUpdates(messages(), gpt6).length, 0, "in-flight changes wait for the completed turn");
@@ -167,11 +174,15 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 	assert.equal(level, "low");
 	assert.equal(codexReasoningUpdates(messages(), gpt6).at(-1)?.effort, "low");
 	assert.equal(codexReasoningUpdates(messages(), gpt6).at(-1)?.initialEffort, "medium");
-	level = "high";
+	level = "xhigh";
 	auto.begin(ctx);
 	const floored = await auto.tool.execute("floor", { level: "low" }, undefined, undefined, ctx);
-	assert.deepEqual(floored.details, { level: "high", floor: "high" });
+	assert.deepEqual(floored.details, { level: "xhigh", floor: "xhigh" });
+	level = "max";
+	await nestedAuto.invoke({ level: "high" }, { cwd: "/repo", extensionContext: ctx }, new AbortController().signal);
+	assert.equal(level, "max", "a manual selector change supersedes the tool's last selection");
 	auto.settle(ctx);
+	assert.equal(level, "max");
 	config.tools.autoReasoning = false;
 	await assert.rejects(auto.tool.execute("disabled", { level: "low" }, undefined, undefined, ctx), /requires Auto reasoning/);
 	assert.throws(() => normalizeCodexConfigurationUpdates({ ...updated, truncation: "auto" }), /automatic truncation/);
