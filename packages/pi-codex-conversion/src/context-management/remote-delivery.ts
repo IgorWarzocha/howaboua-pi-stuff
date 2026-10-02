@@ -63,7 +63,7 @@ export function remoteDeliveryItems(delivery: RemoteDelivery, blockImages = fals
 	if (delivery.protocol === 2) {
 		// Completion-only events prove the note ledger without fabricating a second receipt.
 		if (!delivery.outputs.length) return [];
-		const legacyOutput = remoteDeliveryItems({ ...delivery, protocol: 1 })[1] as { output: unknown };
+		const legacyOutput = remoteDeliveryItems({ ...delivery, protocol: 1 }, blockImages)[1] as { output: unknown };
 		return [{ type: "function_call_output", call_id: normalizeResponsesId(delivery.originalExecCallId.split("|")[0] ?? ""),
 			output: legacyOutput.output }];
 	}

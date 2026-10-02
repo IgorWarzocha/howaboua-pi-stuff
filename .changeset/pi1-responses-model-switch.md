@@ -8,6 +8,7 @@ Codex Conversion and its SDK example now require Pi 1.0.0 or later.
 - Notebook state management now has compact help-first guidance, including recovery from startup failures.
 - History and notes now compose inside Code and Notebook with Local, Tree or Remote storage. Remote calls accept query and note text directly in JavaScript. Direct native tools retain encrypted inputs.
 - Protected Remote results now reach the model through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Results remain bound to their original context family and Codex account. Replay does not count as a new note checkpoint.
+- Image blocking now also covers images returned with protected Remote results.
 - Tree navigation now loads its handoff note before resuming, without an extra model turn to read it. Failed reads cancel the jump, and Remote results stay encrypted through replay and compaction.
 - Idle developer-message turns now apply saved-Notes rollover before adding incoming work to context. Pending messages survive failed startup and session reopening without duplicate delivery.
 - History and notes now show callable actions and required arguments upfront. Complete deferred contracts use the synchronous `ALL_TOOLS` catalogue without a second discovery tool.

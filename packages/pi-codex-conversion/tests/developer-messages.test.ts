@@ -279,5 +279,11 @@ test("developer messages preserve delivery and provider-role semantics", async (
 			{ type: "encrypted_content", encrypted_content: "cipher-a" }, { type: "input_text", text: "Result nested-b (history.read_item)" },
 			{ type: "encrypted_content", encrypted_content: "cipher-b" },
 		] }], "legacy persisted protocol projects byte-identical stable pairs");
+		const image = { type: "image" as const, mimeType: "image/png", data: "AQ==" };
+		const [textOnly] = remoteDeliveryItems(initial) as Array<{ output: unknown[] }>;
+		assert.deepEqual(remoteDeliveryItems({ ...initial, images: [image] }), [{ ...textOnly,
+			output: [...textOnly!.output, { type: "input_image", detail: "high", image_url: "data:image/png;base64,AQ==" }] }]);
+		assert.deepEqual(remoteDeliveryItems({ ...initial, images: [image] }, true), [{ ...textOnly,
+			output: [...textOnly!.output, { type: "input_text", text: "Image reading is disabled." }] }]);
 	}
 });
