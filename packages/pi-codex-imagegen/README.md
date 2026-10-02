@@ -6,7 +6,7 @@ Codex image generation and editing for ordinary Pi, Code Mode, and Notebook Mode
 
     pi install npm:@howaboua/pi-codex-imagegen
 
-Requires Pi 0.84.4 or newer and Node.js 22.19 or newer.
+Requires Pi 1.0.0 or newer and Node.js 22.19 or newer.
 
 Run `/login openai-codex` for the normal Codex route, including when chatting with another provider. Compatible active Codex transports keep their own credentials. Pi Codex's resolver is preferred when present, but its conversation-provider scope does not select tool endpoints. Neither Pi Codex nor an install script is required.
 

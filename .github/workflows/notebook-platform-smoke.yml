@@ -40,7 +40,7 @@ jobs:
       # npm provides its bundled node-gyp before Bun starts native install hooks.
       - run: npm run install:ci
       - run: bun x tsx packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts
-      - name: Run through standalone Pi 0.86.0
+      - name: Run through standalone Pi 1.0.0
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -52,7 +52,7 @@ jobs:
           suffix=tar.gz
           if [[ "$RUNNER_OS" == Windows ]]; then suffix=zip; fi
           archive="pi-$target.$suffix"
-          gh release download v0.86.0 --repo earendil-works/pi --pattern "$archive" --pattern SHA256SUMS --dir "$dir"
+          gh release download v1.0.0 --repo earendil-works/pi --pattern "$archive" --pattern SHA256SUMS --dir "$dir"
           if [[ "$RUNNER_OS" == macOS ]]; then
             (cd "$dir" && grep " $archive$" SHA256SUMS | shasum -a 256 --check --status)
           else

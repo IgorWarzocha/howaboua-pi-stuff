@@ -2,6 +2,7 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
+import { PI_PEER_RANGE, pi1PeerDependencies } from "./pi-sdk-policy.mjs";
 
 const root = process.cwd();
 const packagesDir = join(root, "packages");
@@ -30,10 +31,8 @@ for (const dir of listActivePackageDirs(root)) {
 		? extensionEntries
 		: ["./changelog.ts", ...extensionEntries];
 	pkg.peerDependencies = {
-		...(pkg.peerDependencies ?? {}),
-		...(!pkg.peerDependencies?.["@earendil-works/pi-tui"]
-			? { "@earendil-works/pi-tui": "*" }
-			: {}),
+		...pi1PeerDependencies(pkg.peerDependencies),
+		"@earendil-works/pi-tui": PI_PEER_RANGE,
 	};
 	const indent = packageText.match(/\n([\t ]+)"/)?.[1] ?? "\t";
 	writeFileSync(packagePath, `${JSON.stringify(pkg, null, indent)}\n`);

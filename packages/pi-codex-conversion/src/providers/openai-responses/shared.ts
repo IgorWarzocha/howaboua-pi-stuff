@@ -207,10 +207,8 @@ export function convertResponsesMessages<TApi extends Api>(
 					if (customInputProperty !== undefined && itemId?.startsWith("fc_")) {
 						itemId = `ctc_${itemId.slice(3)}`;
 					}
-					if (
-						(isDifferentModel && itemId?.startsWith("fc_"))
-						|| (customInputProperty === undefined && !itemId?.startsWith("fc_"))
-					) itemId = undefined;
+					const itemIdPrefix = customInputProperty === undefined ? "fc_" : "ctc_";
+					if (isDifferentModel || !itemId?.startsWith(itemIdPrefix)) itemId = undefined;
 					const canReplayNamespace = isSameModel || anchoredToolNames.has(block.name);
 					output.push(customInputProperty === undefined
 						? {
