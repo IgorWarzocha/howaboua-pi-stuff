@@ -214,9 +214,21 @@ function applyRuntimeTools(
 ): void {
 	// Retain the native loadout in previousToolNames, but never run two code
 	// orchestrators or let native codemode hide our model-facing tool surface.
-	setActiveTools(pi, plan.kind === "code" || plan.kind === "notebook"
-		? toolNames.filter((name) => name !== "codemode")
-		: toolNames);
+	let projected = toolNames;
+	if (plan.kind === "code" || plan.kind === "notebook") {
+		projected = toolNames.filter((name) => name !== "codemode");
+		const registered = pi.getAllTools();
+		// Pi owns MCP server summaries, connection waits and metadata search.
+		// Its codemode discovery tool is replaced by exec, so enable public search.
+		const indirectMcp = toolNames.includes("codemode") || state.previousToolNames?.includes("codemode") || registered.some((tool) =>
+			tool.sourceInfo?.path === "builtin:mcp" && (tool.exposure === "codemode" || tool.exposure === "deferred"));
+		if (indirectMcp && registered.some((tool) =>
+			tool.name === "tool_search" && tool.sourceInfo?.path === "builtin:tool-search")) {
+			projected = mergeToolNames(projected, ["tool_search"]);
+			state.adapterOwnedToolNames = mergeToolNames(state.adapterOwnedToolNames ?? [], ["tool_search"]);
+		}
+	}
+	setActiveTools(pi, projected);
 	state.appliedRuntimeKind = plan.kind;
 	state.appliedRuntimeToolNames = [...plan.toolNames];
 	state.appliedActiveToolNames = [...pi.getActiveTools()];

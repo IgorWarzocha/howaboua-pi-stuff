@@ -197,15 +197,22 @@ test("adapter activation requires registered tools and follows scope independent
 	for (const mode of ["code", "notebook"] as const) {
 		for (const nativeActive of [false, true]) {
 			const original = ["read", ...(nativeActive ? ["codemode"] : [])];
-			const pi = createToolHarness(original, ["read", "codemode", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
+			const pi = createToolHarness(original, ["read", "codemode", "tool_search", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
+			const getAllTools = pi.getAllTools;
+			Object.assign(pi, { getAllTools: () => getAllTools().map((tool) => tool.name === "tool_search"
+				? { ...tool, exposure: "model-only", sourceInfo: { path: "builtin:tool-search" } } : tool) });
 			const state = createAdapterState({ executionMode: mode });
 			const ctx = createContext(dynamicModel);
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), false);
+			assert.equal(pi.activeTools().includes("tool_search"), nativeActive);
 			assert.ok(pi.activeTools().includes("exec"));
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("tool_search"), nativeActive);
 			state.executionMode = "normal";
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), nativeActive);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
 			state.executionMode = mode;
 			syncAdapter(pi as never, ctx as never, state);
 			pi.setActiveTools([...pi.activeTools(), "codemode"]);

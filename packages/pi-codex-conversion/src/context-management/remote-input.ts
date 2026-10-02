@@ -1,10 +1,10 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Text } from "@earendil-works/pi-tui";
 import { resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { contextAccountScope, contextAgentIdentity } from "./agent-identity.ts";
+import { contextInputRenderers } from "./rendering.ts";
 
 const PARAMETERS = Type.Object({
 	query: Type.Optional(Type.String({ encrypted: true })),
@@ -63,10 +63,7 @@ export function registerRemoteContextInput(pi: ExtensionAPI, state: AdapterState
 		label: "context_input",
 		description: "Prepare query or note text for tools.history/tools.notes in exec; pass returned handles unchanged",
 		parameters: PARAMETERS,
-		renderCall(args, theme) {
-			const fields = (["query", "text"] as const).filter(field => args[field] !== undefined);
-			return new Text(`${theme.fg("toolTitle", "context_input")} ${theme.fg("muted", fields.map(field => `${field}: protected`).join(", "))}`, 0, 0);
-		},
+		...contextInputRenderers,
 		async execute(_id, params, signal, _update, ctx) {
 			const owner = await scope(ctx);
 			signal?.throwIfAborted();

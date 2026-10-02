@@ -63,6 +63,13 @@ export const newContextRenderers = auxiliaryToolRenderers("Context rollover fail
 	} : {}),
 }));
 
+export const contextInputRenderers = auxiliaryToolRenderers("Context input failed", (args, result) => ({
+	active: "Preparing context input",
+	complete: "Prepared context input",
+	target: ["query", "text"].filter(field => args[field] !== undefined).map(field => `${field}: protected`).join(", "),
+	...(result ? { summary: "Protected input ready", body: "" } : {}),
+}));
+
 export const contextRemainingRenderers = auxiliaryToolRenderers("Context check failed", (_args, result) => {
 	const details = displayRecord(result?.details);
 	const remaining = details["remainingTokens"];

@@ -14,6 +14,7 @@ import { remoteBackendScope, withRemoteContextScope } from "./remote-scope.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 import { registerRemoteContextInput } from "./remote-input.ts";
+import { HISTORY_NESTED_USAGE, NOTES_NESTED_USAGE } from "./tool-contract.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
 
@@ -141,6 +142,7 @@ export function registerContextManagementTools(
 		}),
 	].map((tool) => ({
 		...tool,
+		discoveryUsage: tool.name === "history" ? HISTORY_NESTED_USAGE : NOTES_NESTED_USAGE,
 		...(remote ? {
 			output: "Receipts only; contents reach the model automatically, not JavaScript",
 			inputSchema: {

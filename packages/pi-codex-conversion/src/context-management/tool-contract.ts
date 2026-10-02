@@ -21,3 +21,9 @@ export const HISTORY_DESCRIPTION =
 
 export const NOTES_DESCRIPTION =
 	"Cross-window checkpoints on virtual paths. Relative uses current agent; cross-agent uses <agent>/notes[/path].";
+
+export const HISTORY_NESTED_USAGE =
+	"await tools.history({ action, ...args }) // actions(required args): list_windows(); list_items(); read_item(item_id,window_id); search_contents(query)";
+
+export const NOTES_NESTED_USAGE =
+	"await tools.notes({ action, ...args }) // actions(required args): list_files_by_prefix(); read_file(path); search_contents(query); append_to_file(path,text); write_file(path,text)";
