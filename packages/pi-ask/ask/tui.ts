@@ -217,6 +217,13 @@ export async function askInTui(
 			return lines;
 		};
 		return {
+			get focused() {
+				return editor.focused;
+			},
+			set focused(value: boolean) {
+				editor.focused = value;
+				cached = undefined;
+			},
 			render,
 			handleInput,
 			dispose: () => signal?.removeEventListener("abort", abort),
