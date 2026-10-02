@@ -10,6 +10,7 @@ import { Type, type Static, type TSchema } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import type { ContextRouter } from "../context-sharing.ts";
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
+import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope } from "./remote-scope.ts";
 import { historyNotesRenderers } from "./rendering.ts";
 import {
 	codexToolProviderHeaders,
@@ -333,6 +334,8 @@ async function callHistoryNotesTool(
 		result = callLocalHistoryNotes(namespace, action, params, ctx, pi, mode);
 	}
 	const modelResult = { ...result };
+	const backendScope = remoteBackendScope(result);
+	if (backendScope) bindRemoteBackendScope(modelResult, backendScope);
 	delete modelResult["images"];
 	const content: AgentToolResult<CodexHistoryNotesDetails>["content"] = [
 		{
@@ -363,12 +366,14 @@ async function callHistoryNotesBackend(
 		throw new Error("History and notes require the OpenAI Codex backend");
 	if (identity.accountScope && contextAccountScope(provider.accountId) !== identity.accountScope)
 		throw new Error("Shared Remote context requires the parent's Codex account");
+	const scope = remoteContextScope(identity, provider.accountId, provider.baseUrl);
+	assertRemoteBackendScope(ctx, scope);
 	const headers = codexToolProviderHeaders(provider);
 	headers.set(
 		"x-openai-tool-output-truncation-policy",
 		JSON.stringify(truncationPolicy),
 	);
-	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint))
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx))
 		headers.set("x-openai-encrypted-tool-arguments", "true");
 	const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
 	const response = await fetch(
@@ -393,6 +398,7 @@ async function callHistoryNotesBackend(
 	const result: unknown = JSON.parse(await response.text());
 	if (!result || typeof result !== "object" || Array.isArray(result))
 		throw new Error("History and notes backend returned invalid data");
+	bindRemoteBackendScope(result, scope);
 	return result as Record<string, unknown>;
 }
 

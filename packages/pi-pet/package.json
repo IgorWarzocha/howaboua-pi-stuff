@@ -77,8 +77,8 @@
   "packageManager": "bun@1.4.2",
   "peerDependencies": {
     "@howaboua/pi-gippity-control": ">=0.0.20",
-    "@earendil-works/pi-coding-agent": ">=0.84.3",
-    "@earendil-works/pi-tui": ">=0.84.3",
+    "@earendil-works/pi-coding-agent": ">=1.0.0",
+    "@earendil-works/pi-tui": ">=1.0.0",
     "typebox": "*"
   },
   "peerDependenciesMeta": {
@@ -88,8 +88,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
-    "@earendil-works/pi-coding-agent": "0.99.2",
-    "@earendil-works/pi-tui": "0.99.2",
+    "@earendil-works/pi-coding-agent": "1.0.0",
+    "@earendil-works/pi-tui": "1.0.0",
     "@types/node": "^26.2.0",
     "electron": "43.4.1",
     "knip": "^6.32.2",

@@ -32,7 +32,7 @@ import {
 	type NotebookReleaseResult,
 } from "./lifecycle-runtime.ts";
 import { NotebookProfileController } from "./profile-lifecycle.ts";
-import type { NotebookRuntimeHealth } from "./runtime-health.ts";
+import { withNotebookRecoveryGuidance, type NotebookRuntimeHealth } from "./runtime-health.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const STATUS_TIMEOUT_MS = 8_000;
@@ -233,7 +233,7 @@ export class NotebookLifecycleController {
 			}
 			if (recoveryFailures.length > 0) {
 				const reason = error instanceof Error ? error.message : String(error);
-				throw new Error(`${reason}. Durable pin and hook metadata was not changed, but notebook runtime recovery failed (${recoveryFailures.join("; ")}); restart the notebook before retrying`, { cause: error });
+				throw new Error(withNotebookRecoveryGuidance(`${reason}. Durable pin and hook metadata was not changed, but notebook runtime recovery failed (${recoveryFailures.join("; ")}); call notebook with ${JSON.stringify({ input: JSON.stringify({ action: "restart" }) })} before retrying`), { cause: error });
 			}
 			const reason = error instanceof Error ? error.message : String(error);
 			throw new Error(`${reason}. Durable pin and hook metadata was not changed${hooksConfigured || rollbackPromotion ? "; transient notebook state was restored" : ""}`, { cause: error });

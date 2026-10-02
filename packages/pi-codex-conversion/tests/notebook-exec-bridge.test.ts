@@ -6,6 +6,7 @@ import {
 	type PiSystemPromptOptions,
 } from "../src/prompt/build-system-prompt.ts";
 import { prepareCodeModeToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
+import { projectCodeModeMcpSections } from "../src/prompt/mcp-server-section.ts";
 import { NotebookCell } from "../src/tools/notebook-mode/cell.ts";
 import { createNotebookControlProxy } from "../src/tools/code-mode/notebook-tool.ts";
 import { SharedCodeModeRuntime } from "../src/tools/code-mode/shared-runtime.ts";
@@ -70,6 +71,37 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	assert.doesNotMatch(promptOptions.sections!["runtime_guidelines"]!, /tools\.exec_command/);
 	promptOptions.selectedTools = notebookTools;
 
+	const intro = "MCP servers whose tools are not declared to you.";
+	const native = {
+		role: "system" as const, content: "Keep system content", timestamp: 1,
+		sections: {
+			extension_context: "Keep tool_search and searchTools() here",
+			mcp_servers: "<mcp_servers>\n" + intro + " Call the tools of `codemode` servers from codemode scripts."
+				+ " Load the tools of `tool_search` servers with `tool_search`.\n"
+				+ "- mcp__tool_search (codemode): Keep tool_search, searchTools() and (tool_search) in this description\n"
+				+ "- mcp__records (tool_search): Server instructions use tool_search verbatim\n"
+				+ "- … 2 more servers; find their tools with searchTools()\n</mcp_servers>",
+		},
+	};
+	const user = { role: "user" as const, content: "Keep tool_search user text", timestamp: 2 };
+	const transcript = [native, user];
+	const original = JSON.stringify(transcript);
+	assert.equal(projectCodeModeMcpSections(transcript, false), transcript);
+	const projected = projectCodeModeMcpSections(transcript, true);
+	assert.equal(JSON.stringify(transcript), original);
+	assert.deepEqual(projected, [{
+		...native,
+		sections: { ...native.sections, mcp_servers: "<mcp_servers>\n" + intro + "\n"
+			+ "- mcp__tool_search: Keep tool_search, searchTools() and (tool_search) in this description\n"
+			+ "- mcp__records: Server instructions use tool_search verbatim\n"
+			+ "- … 2 more servers\n</mcp_servers>" },
+	}, user]);
+	assert.equal(projected[1], user);
+	assert.deepEqual(projectCodeModeMcpSections(projected, true), projected);
+	assert.throws(() => projectCodeModeMcpSections([{
+		...native, sections: { mcp_servers: "<mcp_servers>\n" + intro + "\n- unexpected format\n</mcp_servers>" },
+	}], true), /Unsupported Pi MCP server summary format/);
+
 	const forcedOptions: PiSystemPromptOptions = {
 		...promptOptions,
 		sections: {},
@@ -121,7 +153,7 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	assert.deepEqual(
 		await proxy.invoke({ ...retry, names: ["alpha", "alpha"] }, context, controller.signal),
 		{
-			message: `Notebook pin was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify(retry)}.`,
+			message: `Notebook pin was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(retry) })}.`,
 			details: { notRun: true, action: "pin", retry },
 		},
 	);

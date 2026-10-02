@@ -4,7 +4,8 @@ import { registerOpenAICodexCustomProvider } from "../providers/openai-codex-cus
 import { registerApplyPatchDisplayBroker } from "../tools/apply-patch/display-broker.ts";
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
-import { prepareCodeModeHost, registerCodexEvents } from "./events.ts";
+import { registerCodexEvents } from "./events.ts";
+import { prepareCodeModeHost } from "./session-lifecycle.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";

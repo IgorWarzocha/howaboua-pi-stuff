@@ -6,7 +6,7 @@ import {
 	type GrammarToolInputJsonBuffer,
 } from "../constrained-sampling.js";
 import { encodeTextSignatureV1 } from "./signatures.ts";
-import { sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageGenerationCallBlock, type WebSearchCallBlock, type ResponsesToolCall } from "./native-items.ts";
 import type { OpenAIResponsesStreamOptions } from "./shared.ts";
 
 type InternalAssistantContent = AssistantMessage["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
@@ -22,7 +22,7 @@ export async function processResponsesStream<TApi extends Api>(
 	const blockIndex = () => blocks.length - 1;
 	type ThinkingBlock = Extract<AssistantMessage["content"][number], { type: "thinking" }>;
 	type TextBlock = Extract<AssistantMessage["content"][number], { type: "text" }>;
-	type ToolCallBlock = Extract<AssistantMessage["content"][number], { type: "toolCall" }> & { partialJson?: string | undefined };
+	type ToolCallBlock = ResponsesToolCall & { partialJson?: string | undefined };
 
 	type ReasoningState = {
 		kind: "reasoning";
@@ -163,6 +163,7 @@ export async function processResponsesStream<TApi extends Api>(
 					id: `${customItem.call_id}|${customItem.id ?? ""}`,
 					name: customItem.name,
 					arguments: { [property]: input },
+					responsesCustomInputProperty: property,
 					...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}),
 				};
 				output.content.push(currentBlock);
@@ -325,7 +326,8 @@ export async function processResponsesStream<TApi extends Api>(
 					: options?.grammarToolInputProperties?.get(customItem.name) ?? "input";
 				const toolCall: ToolCallBlock = state?.kind === "custom_tool_call"
 					? { ...state.block, arguments: { [property]: customInput }, ...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}) }
-					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { [property]: customInput }, ...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}) };
+					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { [property]: customInput },
+						responsesCustomInputProperty: property, ...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}) };
 				if (state?.kind !== "custom_tool_call") {
 					output.content.push(toolCall);
 					stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });

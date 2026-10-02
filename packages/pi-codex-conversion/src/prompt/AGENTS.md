@@ -1,5 +1,5 @@
-- Core construction has one owner: `build-system-prompt.ts`. Prompt wording, section order, guidelines, skills, shell context, and heavy-overwrite behavior belong there.
-- Call path: `extension/events.ts` `before_agent_start` → `prepareCodexSystemPrompt()`. Mutate Pi's structured options; return no full prompt unless preserving an earlier opaque `forceSystemPrompt` chain.
+- Core construction belongs to `build-system-prompt.ts`; `mcp-server-section.ts` owns request-only native discovery guidance adaptation after full preparation. Preserve namespace names and opaque summary suffixes.
+- Call path: `extension/events.ts` `before_agent_start` → `extension/turn-lifecycle.ts` → `prepareCodexSystemPrompt()`. Mutate Pi's structured options; return no full prompt unless preserving an earlier opaque `forceSystemPrompt` chain.
 - Code Mode owns its dynamic tool and active-runtime section under `tools/code-mode/`; it runs before this builder.
 - Section getters observe later `before_agent_start` edits only. Live deferred-tool availability belongs in appended toolkit updates, not reconstructed prompts or provider patches.
 - Provider code may serialize or capture final instructions but must not author prompt text. Later Pi extensions may still mutate the prompt; inspect the final provider payload when exact sent instructions matter.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSessionContext, createEventBus, DEFAULT_COMPACTION_SETTINGS, SessionManager, type ExtensionContext, type SessionEntry, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, createEventBus, DEFAULT_COMPACTION_SETTINGS, SessionManager, type ExtensionContext, type SessionEntry, type SessionBeforeCompactEvent, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
 	createHistoryNotesTools,
 	loadHistoryNotesThreadHint,
@@ -14,6 +14,11 @@ import { projectPiCompactionEvent } from "../src/adapter/compaction/portable-sum
 import { createTreeArchiveManifest } from "../src/context-management/tree-archive.ts";
 import { projectTreeCheckpointBranch } from "../src/context-management/tree-checkpoint.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
+import { registerContextManagementTools } from "../src/context-management/tools.ts";
+import { getCodeModeExtensionTools } from "../src/code-mode-extension-tools.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { contextAgentIdentity } from "../src/context-management/agent-identity.ts";
+import { remoteContextScope } from "../src/context-management/remote-scope.ts";
 
 const { prepareCompaction } = await import(new URL("./core/compaction/compaction.js", import.meta.resolve("@earendil-works/pi-coding-agent")).href);
 
@@ -282,6 +287,80 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		);
 
 		const [boundary, user] = context.sessionManager.getBranch();
+		{
+			globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+				request = { url: String(input), init: init ?? {} };
+				return new Response(JSON.stringify({ encrypted_output: "encrypted-note" }), { status: 200 });
+			}) as typeof fetch;
+			const registered = new Map<string, ToolDefinition>();
+			const nestedPi = { events: createEventBus(), on() {},
+				registerTool: (tool: ToolDefinition) => registered.set(tool.name, tool),
+				getAllTools: () => [...registered.values()],
+			};
+			const state = { config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: {
+				...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: "remote",
+			} }, executionMode: "code", contextTree: { handoff: { finishNoteWrite: () => false } } };
+			registerContextManagementTools(nestedPi as never, state as never);
+			const tools = getCodeModeExtensionTools(nestedPi as never, context);
+			const scope = remoteContextScope(contextAgentIdentity(context), "account-1", "https://chatgpt.com/backend-api/codex");
+			for (const [name, params] of [
+				["history", { action: "search_contents", query: "ordinary query" }],
+				["notes", { action: "search_contents", query: "ordinary query" }],
+				["notes", { action: "write_file", path: "state", text: "ordinary text" }],
+				["notes", { action: "append_to_file", path: "state", text: "ordinary text" }],
+			] as const) {
+				const nested = tools.find(tool => tool.name === name)!;
+				const receipt = await nested.invoke(params, { cwd: context.cwd, extensionContext: context, opaqueScope: scope,
+					opaqueContextValid: async () => true, captureOpaqueResult() {} }, new AbortController().signal);
+				assert.equal(new Headers(request?.init.headers).has("x-openai-encrypted-tool-arguments"), false,
+					"only the authenticated host nested route sends ordinary arguments");
+				assert(!JSON.stringify(receipt).includes("encrypted-note"));
+				assert.equal(JSON.parse(String(request?.init.body))["query" in params ? "query" : "text"],
+					"query" in params ? params.query : params.text);
+				await registered.get(name)!.execute("direct-encrypted", params, undefined, undefined, context as never);
+				assert.equal(new Headers(request?.init.headers).get("x-openai-encrypted-tool-arguments"), "true");
+			}
+			const nested = tools.find(tool => tool.name === "notes")!;
+			await assert.rejects(nested.invoke({ action: "read_file", path: "state" }, { cwd: context.cwd,
+				extensionContext: context, opaqueScope: "wrong", opaqueContextValid: async () => true,
+				captureOpaqueResult() {} }, new AbortController().signal), /changed before dispatch/);
+		}
+		for (const mode of ["local", "tree"] as const) {
+			const bridgeEntries: Record<string, unknown>[] = [];
+			const bridgeContext = createContext(bridgeEntries);
+			const registered = new Map<string, ToolDefinition>();
+			const bridgePi = { events: createEventBus(), on() {},
+				appendEntry: (customType: string, data: unknown) => bridgeEntries.push({
+					type: "custom", id: "bridge-note", parentId: null, timestamp: new Date(0).toISOString(), customType, data,
+				}),
+				registerTool: (tool: ToolDefinition) => registered.set(tool.name, tool),
+				getAllTools: () => [...registered.values()],
+			};
+			const bridgeState = {
+				config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: {
+					...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: mode as typeof DEFAULT_CODEX_CONVERSION_CONFIG.compaction.historyStorage,
+				} }, executionMode: "code" as const,
+				contextTree: { handoff: { finishNoteWrite: () => true } },
+			};
+			registerContextManagementTools(bridgePi as never, bridgeState as never);
+			const [history, notes] = getCodeModeExtensionTools(bridgePi as never, bridgeContext);
+			assert(history && notes);
+			const invocation = { cwd: bridgeContext.cwd, extensionContext: bridgeContext };
+			const signal = new AbortController().signal;
+			const params = { action: "read_item" as const, window_id: windowId, item_id: "user-entry", offset_chars: 2, limit_chars: 3 };
+			const direct = await registered.get("history")!.execute("native", params, signal, undefined, bridgeContext as never);
+			assert.equal(await history.invoke(params, invocation, signal), direct.content.map((item) => item.type === "text" ? item.text : "").join("\n"));
+			await assert.rejects(history.invoke({ action: "read_item", item_id: "user-entry" }, invocation, signal), /requires window_id/);
+			const cancelled = AbortSignal.abort();
+			await assert.rejects(history.invoke(params, invocation, cancelled), /aborted/);
+			let raw: unknown;
+			await notes.invoke({ action: "append_to_file", path: "checkpoint.md", text: "\nresumable" },
+				{ ...invocation, captureResult: (result) => { raw = result; } }, signal);
+			assert.equal((raw as { terminate: boolean }).terminate, true, "Tree handoff completion is retained before model-result conversion");
+			assert.equal(notes.propagateTermination, true);
+			bridgeState.config.compaction.historyStorage = "remote";
+			await assert.rejects(notes.invoke({ action: "read_file", path: "checkpoint.md" }, invocation, signal), /Context storage changed/);
+		}
 		const summary = {
 			type: "branch_summary",
 			id: "tree-summary",

@@ -54,6 +54,7 @@ async function call(input) {
   if (!params || typeof params !== "object" || Array.isArray(params)) {
     throw facadeError("invalid_params", "params must be an object", operation.topic);
   }
+  rejectKeys(params, ["publish_on_push"], "publish_on_push is not supported; use explicit save/deploy");
 
   const client = new SitesClient();
   const prepared = await prepare(operation, { ...params }, client);
@@ -112,22 +113,28 @@ async function prepare(operation, params, client) {
       return value;
     };
   } else if (operation.local === "save") {
-    rejectKeys(params, ["commit_sha", "archive"], "version.save derives commit_sha and does not accept archives");
+    rejectKeys(params, ["commit_sha", "archive"], "Source save derives commit_sha and does not accept archives");
     const manifest = await readHosting(project);
     if (typeof manifest.project_id !== "string" || !manifest.project_id) {
       throw facadeError(
         "unbound_repository",
-        "version.save requires project_id in the repository's .openai/hosting.json",
+        "Source save requires project_id in the repository's .openai/hosting.json",
         "version",
       );
     }
     params.project_id = await resolveProjectId(params, project);
     const { root, commitSha } = await inspectCleanCommit(project);
+    params.commit_sha = commitSha;
+    // Reject invalid inputs before a source push. Both save routes share this owner.
+    validateAgainstSchema(params, await client.schema(tool));
     const credentialResponse = await client.call("create_source_repository_write_credential", {
       project_id: params.project_id,
     });
-    await pushCommit({ root, commitSha, credential: unwrapResult(credentialResponse) });
-    params.commit_sha = commitSha;
+    const credential = unwrapResult(credentialResponse);
+    if (credential?.publish_on_push_accepted === true) {
+      throw facadeError("automatic_publication_unsupported", "Sites returned an auto-publishing credential; source was not pushed", "version");
+    }
+    await pushCommit({ root, commitSha, credential });
   } else {
     const schema = await client.schema(tool);
     if (schema?.properties?.project_id && !params.project_id) {
@@ -160,7 +167,7 @@ function rejectKeys(params, keys, message) {
 function validateAgainstSchema(params, schema, allowedExtra = []) {
   const properties = schema?.properties ?? {};
   const unknown = Object.keys(params).filter(
-    (key) => !(key in properties) && !allowedExtra.includes(key),
+    (key) => !Object.hasOwn(properties, key) && !allowedExtra.includes(key),
   );
   if (unknown.length > 0) {
     throw new Error(`Unknown parameter${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}`);
@@ -199,12 +206,12 @@ async function documentation(input) {
     const client = new SitesClient();
     const schemas = operation.local === "deploy"
       ? {
-          private: await client.schema("deploy_private_site_version"),
-          shared: await client.schema("deploy_site_version"),
+          private: documentationSchema(await client.schema("deploy_private_site_version"), operation),
+          shared: documentationSchema(await client.schema("deploy_site_version"), operation),
         }
-      : await client.schema(operation.tool);
+      : documentationSchema(await client.schema(operation.tool), operation);
     return boundedDocumentation(
-      `${guide}\n\n## Current backend schema for ${operation.key}\n\n` +
+      `${guide}\n\n## Current params schema for ${operation.key}\n\n` +
         `${operationSchemaNote(operation)}\n\n\`\`\`json\n${JSON.stringify(schemas, null, 2)}\n\`\`\`\n`,
     );
   }
@@ -218,18 +225,32 @@ async function documentation(input) {
     "environment",
     "domains",
     "analytics",
+    "mcp",
+    "building",
+    "diagnostics",
+    "database",
+    "schedules",
   ]);
   return readTopic(known.has(topic) ? topic : "index");
 }
 
 function operationSchemaNote(operation) {
   if (operation.local === "save") {
-    return "The facade requires a committed Site binding, derives `commit_sha`, obtains Git credentials, pushes internally, and rejects caller-supplied `commit_sha` or `archive`.";
+    return "The facade derives and pushes `commit_sha`; archives are unsupported. `project_dir` selects the clean bound repository.";
   }
   if (operation.local === "deploy") {
     return 'The facade additionally requires `visibility: "private" | "shared"`; this facade field is stripped before the backend call.';
   }
   return "Pass the backend fields inside `params`. `project_id` may be omitted when `.openai/hosting.json` supplies it.";
+}
+
+function documentationSchema(schema, operation) {
+  const projected = JSON.parse(JSON.stringify(schema, (key, value) =>
+    (key === "description" || key === "title") && typeof value === "string" ? undefined : value));
+  const blocked = ["publish_on_push", ...(operation.local === "save" ? ["commit_sha", "archive"] : [])];
+  for (const key of blocked) delete projected.properties?.[key];
+  projected.required = projected.required?.filter((key) => !blocked.includes(key));
+  return projected;
 }
 
 async function readTopic(topic) {

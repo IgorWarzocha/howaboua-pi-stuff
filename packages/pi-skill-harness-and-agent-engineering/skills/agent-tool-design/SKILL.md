@@ -1,7 +1,7 @@
 ---
 name: agent-tool-design
 description: "Read before creating, reviewing, or refining a tool exposed to an agent."
-last-changed: "2026-09-24"
+last-changed: "2026-10-01"
 ---
 
 For a Pi tool, also read `references/pi.md`.
@@ -22,6 +22,8 @@ For a Pi tool, also read `references/pi.md`.
 - Test paired natural requests that differ only at the decision boundary. Confirm the model chooses correctly before changing implementation.
 
 ## Keep the decision surface small
+
+Prefer a stable help-backed or deferred contract for unfamiliar multi-action tools or tools whose accepted arguments vary with state. Keep capability discovery visible. Disclose current arguments and tool-specific guidance on demand. Where supported, use a string input with a help operation. Preserve familiar native contracts and simple self-explanatory schemas instead of wrapping them for uniformity. If harness or API constraints require an upfront schema, keep it minimal. For prompt or tool-vector changes, load an applicable prompt-caching skill.
 
 - Give one tool one coherent job.
 - Expose only decisions the caller must make. Keep providers, models, prompts, commands, internal modes, formatting, and policy inside the implementation unless the agent genuinely chooses them.

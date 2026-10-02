@@ -5,6 +5,7 @@ import type { ExtensionAPI, ExtensionContext, SessionBeforeTreeEvent, SessionEnt
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { createPiSessionNotesSnapshot } from "./local-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "./messages.ts";
+import { readTreeHandoffNote } from "./tree-handoff-read.ts";
 
 /** Anchor the selected range in conversation content, not private Pi entry IDs. */
 function summaryScope(branch: readonly SessionEntry[], firstSelectedId: string): string {
@@ -130,14 +131,14 @@ export class CodexTreeHandoff {
 			if (!pending.noteWritten || last?.type !== "message" || last.message.role !== "assistant" ||
 				(last.message.stopReason !== "toolUse" && last.message.stopReason !== "stop"))
 				throw new Error("Handoff agent did not finish successfully. The jump was cancelled");
-			let details: Record<string, unknown> = {};
+			const details = await readTreeHandoffNote(pi, ctx, mode, path, event.signal);
 			if (mode !== "remote") {
 				const snapshot = createPiSessionNotesSnapshot(branch, path);
-				details = { codexContextNoteHandoff: snapshot };
+				details["codexContextNoteHandoff"] = snapshot;
 			}
 			if (event.signal.aborted) return { cancel: true };
 			return { summary: {
-				summary: `The user continued the conversation beyond this point. That discussion is summarized in a note. Before resuming, read it with notes.read_file using the exact path ${JSON.stringify(path)}.`,
+				summary: `The user continued the conversation beyond this point. The handoff note is already loaded from ${JSON.stringify(path)}.`,
 				details,
 			} };
 		} catch (error) {

@@ -10,19 +10,19 @@ The extension is the TypeScript counterpart of Pi Codex's browser custom tool. I
 pi install npm:@howaboua/pi-browser
 ```
 
-Requires Pi 0.84.3 or newer, Node.js 22.19 or newer, and a Chrome-family browser with remote debugging enabled at `chrome://inspect/#remote-debugging`.
+Requires Pi 1.0.0 or newer, Node.js 22.19 or newer, and a Chrome-family browser with remote debugging enabled at `chrome://inspect/#remote-debugging`.
 
 Pi Codex 3.0.25 or newer is optional. Without it, Browser remains a normal top-level Pi tool. Do not load Pi Codex's example `browser.toml` custom tool alongside this extension.
 
 ## Use
 
-In normal Pi, call `browser` with `action: "help"` before first use. In Code or Notebook Mode, start with:
+In normal Pi, call `browser` with `command: "help"` before first use, then send JSON request strings in `command`. Existing object requests remain accepted. In Code or Notebook Mode, start with:
 
 ```js
 await tools.browser("help")
 ```
 
-Normal Pi exposes the single-action contract. Code and Notebook Mode also accept batched freeform requests. A common route is `tabs`, then `open`, then `click` or `type` with the returned `ref_id` and element ID.
+All modes accept single-action and batched requests described by help. A common route is `tabs`, then `open`, then `click` or `type` with the returned `ref_id` and element ID.
 
 Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancellation stops pending CDP work, though an already dispatched browser mutation may still take effect.
 
@@ -32,7 +32,7 @@ Ownership survives extension reloads and managed-worker restarts while the brows
 
 ## Host routing
 
-In Pi's interactive TUI, run `/browser`, add the SSH host names, identify the current machine, then save. Pi reloads the extension with the corresponding `host` choices. Advanced settings expose the remote Node command, which defaults to `node`.
+In Pi's interactive TUI, run `/browser`, add the SSH host names, identify the current machine, then save. Browser help lists the configured `host` choices. Advanced settings expose the remote Node command, which defaults to `node`.
 
 Each name must be an existing SSH alias. On first use, the extension atomically installs or updates its managed worker at `~/.pi/agent/pi-browser-worker.mjs` on that host, then invokes it against the host's local CDP browser. No package installation is required on routed machines. Screenshots return through SCP and the remote artifact is removed. Keep `host` on follow-up calls that use a returned ref, screenshot, or continuation handle. Settings are stored in `pi-browser.json` under Pi's agent directory; `PI_BROWSER_CONFIG` overrides that storage path.
 

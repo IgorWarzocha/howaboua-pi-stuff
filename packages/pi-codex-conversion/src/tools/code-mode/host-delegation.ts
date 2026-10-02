@@ -46,6 +46,10 @@ export class CodeModeHostDelegation {
 		this.runtime.clear();
 	}
 
+	clearOpaqueResults(): void {
+		this.runtime.clearOpaqueResults();
+	}
+
 	handleMessage(message: HostMessage): void {
 		if (message.type === "delegate/request") {
 			this.runtime.handleRequest(message);

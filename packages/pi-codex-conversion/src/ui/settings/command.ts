@@ -23,7 +23,7 @@ import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./ta
 import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS, CONTINUITY_LABELS } from "./config-items-context.ts";
 import { captureSpendReport } from "../../codex-usage/report.ts";
-import { startUsageAnalysis } from "../../codex-usage/analyse.ts";
+import { startUsageAnalysis } from "../../codex-usage/report.ts";
 import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/codex-model.ts";
 import { NONSTANDARD_CODEX_USAGE_WARNING } from "../../codex-usage/format.ts";
 

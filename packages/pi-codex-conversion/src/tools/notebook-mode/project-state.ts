@@ -104,15 +104,16 @@ async function restoreProjectStateLocked(
 		return { ...emptyProjectStateSummary(), message: "Project notebook identity was incompatible and was not restored" };
 	}
 	const payloadPath = join(paths.directory, manifest.payload);
+	const hookNames = manifest.entries.filter((entry) => entry.hook).map((entry) => entry.name);
 	if (!readProjectStatePayload(manifest, payloadPath, identity.maxBytes)) {
-		if (manifest.entries.some((entry) => entry.hook)) throw new Error("Project notebook payload was missing or invalid; hooks could not be restored");
+		if (hookNames.length > 0) throw new Error(`Project notebook payload was missing or invalid; hooks could not be restored. To unpin them, call notebook with ${JSON.stringify({ input: JSON.stringify({ action: "unpin", names: hookNames }) })}`);
 		return { ...emptyProjectStateSummary(), message: "Project notebook payload was missing or invalid and was not restored" };
 	}
 	identity.signal?.throwIfAborted();
 	const result = await kernel.execute(projectStateRestoreSource(manifest, payloadPath), { signal: identity.signal });
 	if (result.status !== "ok") {
-		if (manifest.entries.some((entry) => entry.hook)) {
-			throw new Error(`Project notebook hooks could not be restored: ${result.errorText ?? "unknown error"}. Unpin their functions with notebook to recover`);
+		if (hookNames.length > 0) {
+			throw new Error(`Project notebook hooks could not be restored: ${result.errorText ?? "unknown error"}. To unpin them, call notebook with ${JSON.stringify({ input: JSON.stringify({ action: "unpin", names: hookNames }) })}`);
 		}
 		return {
 			...emptyProjectStateSummary(),

@@ -181,9 +181,14 @@ export async function prewarmWebSocket<TApi extends Api>(
 	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
 	try {
 		if (options.signal?.aborted) throw new Error("Request was aborted");
+		const cachedRequest = prewarm.kind === "compaction" && !preserveContinuation && !generate && entry
+			? buildCachedWebSocketRequestBody(entry.continuation, body)
+			: { body, decision: "disabled" } satisfies CachedWebSocketRequestBodyResult;
+		const requestBody = cachedRequest.body;
 		// Acquisition validates the route, credentials and live socket. Keep the
 		// existing baseline; the real request still validates its exact continuation.
-		if (prewarm.kind === "ordinary" && !preserveContinuation && !generate && reused && entry?.continuation) {
+		if (!preserveContinuation && !generate && reused && entry?.continuation
+			&& (prewarm.kind === "ordinary" || (cachedRequest.decision === "delta" && requestBody.input.length === 0))) {
 			recordDiagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused, socketAgeMs, socketLane, prewarm });
 			return { socketReused: reused };
 		}
@@ -193,15 +198,16 @@ export async function prewarmWebSocket<TApi extends Api>(
 			transport: "websocket",
 			attempt: 1,
 			fullInputItems: body.input.length,
-			sentInputItems: body.input.length,
+			sentInputItems: requestBody.input.length,
 			model: body.model,
 			socketReused: reused,
 			socketAgeMs,
 			socketLane,
 			prewarm,
-			previousResponseId: Boolean(body.previous_response_id),
+			continuation: cachedRequest.decision,
+			previousResponseId: Boolean(requestBody.previous_response_id),
 		});
-		socket.send(JSON.stringify({ type: "response.create", ...body, ...(generate ? {} : { generate: false }) }));
+		socket.send(JSON.stringify({ type: "response.create", ...requestBody, ...(generate ? {} : { generate: false }) }));
 		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => {
 			if (!preserveContinuation) turnState?.capturePrewarm(value);
 		}), undefined, (event) => options.onProviderStreamEvent?.(event, model))) {

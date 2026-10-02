@@ -5,6 +5,7 @@ import {
 } from "../../ui/tool-rendering/auxiliary-tool.ts";
 
 const TITLES: Record<string, { active: string; complete: string }> = {
+	help: { active: "Reading notebook help", complete: "Read notebook help" },
 	status: { active: "Checking notebook", complete: "Checked notebook" },
 	list: { active: "Listing notebook profiles", complete: "Listed notebook profiles" },
 	checkpoint: { active: "Checkpointing notebook", complete: "Checkpointed notebook" },
@@ -20,6 +21,12 @@ const TITLES: Record<string, { active: string; complete: string }> = {
 };
 
 export const notebookRenderers = auxiliaryToolRenderers("Notebook operation failed", (args, result) => {
+	if (typeof args["input"] === "string") {
+		if (args["input"] === "help") args = { action: "help" };
+		else {
+			try { args = displayRecord(JSON.parse(args["input"])); } catch {}
+		}
+	}
 	const action = String(args["action"] ?? "");
 	const titles = TITLES[action] ?? { active: "Controlling notebook", complete: "Controlled notebook" };
 	const target = inlineToolText(args["name"] ?? (Array.isArray(args["names"]) ? args["names"].join(", ") : args["query"]));

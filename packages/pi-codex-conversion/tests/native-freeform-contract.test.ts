@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeContext } from "@earendil-works/pi-ai";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
-import { registerPublicCodeModeTools } from "../src/tools/code-mode/public-tools.ts";
 import {
 	convertResponsesMessages,
-	convertResponsesTools,
 } from "../src/providers/openai-responses/shared.ts";
 import { buildRequestBody } from "../src/providers/openai-codex/request-body.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
@@ -24,24 +22,7 @@ const exec = {
 	},
 } as const;
 
-test("Code Mode factory wires exec as a native grammar tool", () => {
-	const registered: unknown[] = [];
-	registerPublicCodeModeTools({
-		events: { emit() {}, on() { return () => {}; } },
-		on() {},
-		registerTool(tool: { name: string }) {
-			if (tool.name === "exec") registered.push(tool);
-		},
-	} as never, {} as never);
-
-	const [native] = convertResponsesTools(registered as never, {
-		supportsOpenAIGrammarTools: true,
-	});
-	assert.equal(native?.type, "custom");
-	assert.equal((native as { format?: { syntax?: string } }).format?.syntax, "lark");
-});
-
-test("native grammar metadata controls custom replay and function fallback", () => {
+test("recorded custom origin survives removed or changed declarations while legacy function replay stays compatible", () => {
 	const model = {
 		id: "gpt-5.6",
 		provider: "openai-codex",
@@ -113,10 +94,21 @@ test("native grammar metadata controls custom replay and function fallback", () 
 	assert.deepEqual(
 		convertResponsesMessages(model, context, new Set(["openai-codex"])),
 		[
-			{ type: "function_call", call_id: "call_1", name: "exec", arguments: JSON.stringify({ code: "text(42);" }), namespace: "security" },
-			{ type: "function_call_output", call_id: "call_1", output: "42" },
+			{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(42);", namespace: "security" },
+			{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
 		],
 	);
+	assert.deepEqual(convertResponsesMessages(model, context, new Set(["openai-codex"]), {
+		grammarToolInputProperties: new Map([["exec", "replacement"]]),
+	}), convertResponsesMessages(model, context, new Set(["openai-codex"])), "active schemas cannot reinterpret recorded input or receipt bytes");
+	const explicitOrigin = JSON.parse(JSON.stringify(context));
+	explicitOrigin.messages[0].content[0].id = "call_1|";
+	explicitOrigin.messages[0].content[0].responsesCustomInputProperty = "code";
+	explicitOrigin.messages[1].toolCallId = "call_1|";
+	assert.deepEqual(convertResponsesMessages(model, explicitOrigin, new Set(["openai-codex"])), [
+		{ type: "custom_tool_call", call_id: "call_1", name: "exec", input: "text(42);", namespace: "security" },
+		{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
+	], "recorded native provenance survives JSON restoration even without a provider item ID");
 	const encryptedHistory = {
 		messages: [
 			{
@@ -165,11 +157,11 @@ test("native grammar metadata controls custom replay and function fallback", () 
 	);
 });
 
-test("cross-provider replay keeps deterministic type-correct item IDs", () => {
-	const messages = (provider: string, api: string) => [
+test("Responses replay keeps cross-provider IDs and clears model-bound IDs", () => {
+	const messages = (provider: string, api: string, itemId = "ctc_source") => [
 		{
 			role: "assistant",
-			content: [{ type: "toolCall", id: "call_switch|ctc_source", name: "exec", arguments: { code: "text(42);" } }],
+			content: [{ type: "toolCall", id: `call_switch|${itemId}`, name: "exec", arguments: { code: "text(42);" } }],
 			provider,
 			api,
 			model: "gpt-5.6",
@@ -178,7 +170,7 @@ test("cross-provider replay keeps deterministic type-correct item IDs", () => {
 		},
 		{
 			role: "toolResult",
-			toolCallId: "call_switch|ctc_source",
+			toolCallId: `call_switch|${itemId}`,
 			toolName: "exec",
 			content: [{ type: "text", text: "42" }],
 			isError: false,
@@ -211,10 +203,31 @@ test("cross-provider replay keeps deterministic type-correct item IDs", () => {
 		assert.equal(first.input.some((item) => (item as { type?: string }).type === "custom_tool_call_output"), true);
 	}
 
-	const functionBody = buildRequestBody(cases[0]!.target as never, normalizeContext({
-		messages: messages("litellm", "openai-responses"),
+	const [firstCase] = cases;
+	assert.ok(firstCase);
+	const functionBody = buildRequestBody(firstCase.target as never, normalizeContext({
+		messages: messages("litellm", "openai-responses", "fc_source"),
 		tools: [exec],
 	} as never));
 	const functionCall = functionBody.input.find((item) => (item as { type?: string }).type === "function_call") as { id: string };
 	assert.match(functionCall.id, /^fc_/);
+
+	for (const grammar of [grammarToolInputProperties, undefined]) {
+		const switched: ReturnType<typeof buildRequestBody> = buildRequestBody({ ...firstCase.target, id: "gpt-5.6-luna" } as never, normalizeContext({
+			messages: messages("openai-codex", "openai-codex-responses"),
+			tools: [exec],
+		} as never), { grammarToolInputProperties: grammar });
+		const call = switched.input.find((item) => item !== null && typeof item === "object" && "type" in item
+			&& (item.type === "custom_tool_call" || item.type === "function_call"));
+		assert.ok(call && typeof call === "object");
+		assert.equal("id" in call, false, "model switches must not replay reasoning-bound tool item IDs");
+	}
+	const wrongPrefix = buildRequestBody(firstCase.target as never, normalizeContext({
+		messages: messages("openai-codex", "openai-codex-responses", "wrong_source"),
+		tools: [exec],
+	} as never), { grammarToolInputProperties });
+	const customCall = wrongPrefix.input.find((item) => item !== null && typeof item === "object" && "type" in item
+		&& item.type === "custom_tool_call");
+	assert.ok(customCall && typeof customCall === "object");
+	assert.equal("id" in customCall, false, "custom replay must not send an item ID with another type's prefix");
 });

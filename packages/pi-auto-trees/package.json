@@ -44,12 +44,12 @@
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=0.84.3",
-		"@earendil-works/pi-tui": ">=0.84.3"
+		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"devDependencies": {
 		"typescript": "^7.0.2",
-		"@earendil-works/pi-coding-agent": "0.99.2",
+		"@earendil-works/pi-coding-agent": "1.0.0",
 		"@biomejs/biome": "^2.5.10"
 	},
 	"scripts": {

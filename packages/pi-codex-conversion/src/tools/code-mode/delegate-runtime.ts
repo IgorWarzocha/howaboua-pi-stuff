@@ -9,12 +9,17 @@ import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
 	CodeModeToolDefinition,
 	RuntimeResponse,
+	OpaqueToolOutput,
+	RuntimeContentItem,
 	ToolExecutionContext,
 } from "./types.js";
 
 const MAX_TRACE_ERROR_CHARS = 16_384;
 const MAX_NOTIFICATION_CHARS = 16_384;
 const MAX_NOTIFICATIONS_PER_CELL = 100;
+const MAX_OPAQUE_CALLS_PER_CELL = 32;
+const MAX_OPAQUE_BYTES = 32 * 1024 * 1024;
+const OPAQUE_TTL_MS = 15 * 60_000;
 
 interface DelegateController {
 	cellId?: string | undefined;
@@ -26,6 +31,15 @@ interface Deferred {
 	resolve(): void;
 }
 
+interface PendingOpaqueResults {
+	outputs: OpaqueToolOutput[];
+	images: RuntimeContentItem[];
+	calls: number;
+	bytes: number;
+	expires: number;
+	timer?: ReturnType<typeof setTimeout>;
+}
+
 type SendMessage = (message: unknown) => void;
 
 export class CodeModeDelegateRuntime {
@@ -35,8 +49,12 @@ export class CodeModeDelegateRuntime {
 	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
 	private readonly controllers = new Map<string, DelegateController>();
 	private readonly notifications = new Map<string, string[]>();
+	private readonly opaqueResults = new Map<string, PendingOpaqueResults>();
+	private readonly originalExecCalls = new Map<string, string>();
 	// Continuation routing must survive bounded display traces.
 	private readonly execSessions = new Map<string, Set<number>>();
+	private readonly terminatingCells = new Set<string>();
+	private readonly contextNoteWrites = new Map<string, boolean>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
@@ -59,10 +77,16 @@ export class CodeModeDelegateRuntime {
 		tools?: Map<string, CodeModeToolDefinition>,
 	): void {
 		this.updateCellContext(cellId, context);
+		if (context.originalExecCallId && !this.originalExecCalls.has(cellId))
+			this.originalExecCalls.set(cellId, context.originalExecCallId);
 		if (tools) this.cellTools.set(cellId, tools);
 	}
 
 	updateCellContext(cellId: string, context: ToolExecutionContext): void {
+		const previous = this.cellContexts.get(cellId);
+		if (previous?.opaqueScope && (previous.opaqueScope !== context.opaqueScope ||
+			previous.opaqueContextGeneration !== context.opaqueContextGeneration))
+			throw new Error("Remote cell belongs to a different context; verify note state before repeating a write");
 		this.cellContexts.set(cellId, context);
 		this.contextChanges.get(cellId)?.resolve();
 		this.contextChanges.delete(cellId);
@@ -82,7 +106,13 @@ export class CodeModeDelegateRuntime {
 		this.cleanupTimers.set(cellId, setTimeout(() => {
 			this.cleanupTimers.delete(cellId);
 			this.notifications.delete(cellId);
+			const opaque = this.opaqueResults.get(cellId);
+			if (opaque?.timer) clearTimeout(opaque.timer);
+			this.opaqueResults.delete(cellId);
+			this.originalExecCalls.delete(cellId);
 			this.execSessions.delete(cellId);
+			this.terminatingCells.delete(cellId);
+			this.contextNoteWrites.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -91,19 +121,31 @@ export class CodeModeDelegateRuntime {
 		for (const { controller } of this.controllers.values()) controller.abort();
 		this.controllers.clear();
 		this.cellContexts.clear();
+		this.originalExecCalls.clear();
 		for (const change of this.contextChanges.values()) change.resolve();
 		this.contextChanges.clear();
 		this.cellTools.clear();
 		this.traces.clear();
 		this.renderStore.clear();
 		this.notifications.clear();
+		this.clearOpaqueResults();
 		this.execSessions.clear();
+		this.terminatingCells.clear();
+		this.contextNoteWrites.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
 		this.blockerChanges.clear();
 		this.sequentialTails.clear();
 		for (const timer of this.cleanupTimers.values()) clearTimeout(timer);
 		this.cleanupTimers.clear();
+	}
+
+	clearOpaqueResults(): void {
+		for (const [cellId, entry] of this.opaqueResults) {
+			this.cancelCell(cellId);
+			if (entry.timer) clearTimeout(entry.timer);
+		}
+		this.opaqueResults.clear();
 	}
 
 	isBlocked(cellId: string): boolean {
@@ -179,20 +221,49 @@ export class CodeModeDelegateRuntime {
 	}
 
 	attach(response: RuntimeResponse): RuntimeResponse {
+		const originalExecCallId = this.originalExecCalls.get(response.cellId);
+		if (response.kind !== "yielded") this.originalExecCalls.delete(response.cellId);
 		const cleanupTimer = this.cleanupTimers.get(response.cellId);
 		if (cleanupTimer) clearTimeout(cleanupTimer);
 		this.cleanupTimers.delete(response.cellId);
 		const notifications = this.notifications.get(response.cellId) ?? [];
 		this.notifications.delete(response.cellId);
+		const opaque = this.opaqueResults.get(response.cellId);
+		const opaqueOutputs = opaque?.outputs;
+		const opaqueImages = opaque?.images;
+		if (opaque) {
+			if (opaque.expires <= Date.now())
+				throw new Error("Remote results expired after execution; verify note state before repeating a write");
+			if (response.kind === "yielded") {
+				opaque.outputs = [];
+				opaque.images = [];
+				opaque.bytes = 0;
+			} else {
+				if (opaque.timer) clearTimeout(opaque.timer);
+				this.opaqueResults.delete(response.cellId);
+			}
+		}
 		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
 		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
+		const noteWrites = this.contextNoteWrites.get(response.cellId);
+		const terminate = response.kind === "result" && !response.errorText && noteWrites !== false && this.terminatingCells.has(response.cellId);
+		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
+		if (response.kind !== "yielded") this.contextNoteWrites.delete(response.cellId);
 		const withTraces = this.traces.attach(response);
 		return {
 			...withTraces,
+			...(originalExecCallId ? { originalExecCallId } : {}),
+			...(opaqueOutputs?.length ? { opaqueOutputs } : {}),
+			...(terminate ? { terminate: true as const } : {}),
+			...(noteWrites !== undefined && response.kind !== "yielded"
+				? { contextNotesSaved: response.kind === "result" && !response.errorText && noteWrites }
+				: {}),
+			...(noteWrites !== undefined && opaque && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
 			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
 				...response.contentItems,
+				...(opaqueImages ?? []),
 			],
 		};
 	}
@@ -247,6 +318,7 @@ export class CodeModeDelegateRuntime {
 				?? `Unknown custom tool: ${toolName}`,
 		);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
+		const opaqueResult = !isCustomToolDefinition(tool) && tool.opaqueResult === true;
 		const currentContext = () => this.cellContexts.get(cellId) ?? context;
 		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());
 		const trace = this.traces.start(
@@ -260,11 +332,26 @@ export class CodeModeDelegateRuntime {
 			Boolean(tool.renderCall || tool.renderResult);
 		let finalResultCaptured = false;
 		let resultSessionId: number | undefined;
+		const contextNoteWrite = !isCustomToolDefinition(tool) && tool.isContextNoteWrite?.(input) === true;
 		if (captureRendererValues)
 			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			toolCallId: trace.id,
+			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
+				const pending = this.opaqueResults.get(cellId);
+				if (!pending || pending.expires <= Date.now() || controller.signal.aborted ||
+					this.cellContexts.get(cellId)?.opaqueScope !== context.opaqueScope ||
+					this.cellContexts.get(cellId)?.opaqueContextGeneration !== context.opaqueContextGeneration)
+					throw new Error("Remote operation executed but result delivery was cancelled or expired; verify note state before repeating a write");
+				const bytes = Buffer.byteLength(output.encryptedOutput, "utf8") + images.reduce((sum, image) => sum + (image.image_url?.length ?? 0), 0);
+				const total = [...this.opaqueResults.values()].reduce((sum, entry) => sum + entry.bytes, 0);
+				if (total + bytes > MAX_OPAQUE_BYTES)
+					throw new Error("Remote operation executed but result capacity was exceeded; verify note state before repeating a write");
+				pending.bytes += bytes;
+				pending.outputs.push(output);
+				pending.images.push(...images);
+			} } : {}),
 			...(!isCustomToolDefinition(tool) && tool.executionPipeline === "pi"
 				? { preflight: undefined, completion: undefined }
 				: {}),
@@ -277,6 +364,8 @@ export class CodeModeDelegateRuntime {
 			},
 			captureResult: (result) => {
 				finalResultCaptured = true;
+				if (!isCustomToolDefinition(tool) && tool.propagateTermination && result.terminate)
+					this.terminatingCells.add(cellId);
 				resultSessionId = numericSessionId(result.details);
 				if (captureRendererValues)
 					this.renderStore.captureResult(trace.id, result);
@@ -288,6 +377,11 @@ export class CodeModeDelegateRuntime {
 		let blocking = false;
 		let blockerActive = false;
 		try {
+			if (opaqueResult) {
+				if (!context.opaqueContextValid || !await context.opaqueContextValid())
+					throw new Error("Remote context changed; start a new exec cell");
+				this.reserveOpaqueCall(cellId);
+			}
 			blocking =
 				!isCustomToolDefinition(tool) &&
 				(tool.blocking === true || tool.isBlocking?.(input) === true);
@@ -315,6 +409,7 @@ export class CodeModeDelegateRuntime {
 						: await run();
 				},
 			);
+			if (contextNoteWrite) this.contextNoteWrites.set(cellId, this.contextNoteWrites.get(cellId) !== false);
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
@@ -322,6 +417,7 @@ export class CodeModeDelegateRuntime {
 			emitTrace();
 			return result;
 		} catch (error) {
+			if (contextNoteWrite) this.contextNoteWrites.set(cellId, false);
 			const errorText =
 				error instanceof Error ? error.message : String(error);
 			if (captureRendererValues && !finalResultCaptured) {
@@ -372,6 +468,27 @@ export class CodeModeDelegateRuntime {
 		if (resultSessionId !== undefined) sessions.add(resultSessionId);
 		if (sessions.size > 0) this.execSessions.set(cellId, sessions);
 		else this.execSessions.delete(cellId);
+	}
+
+	private reserveOpaqueCall(cellId: string): void {
+		for (const [id, entry] of this.opaqueResults) {
+			if (entry.expires > Date.now()) continue;
+			this.cancelCell(id);
+			if (entry.timer) clearTimeout(entry.timer);
+			this.opaqueResults.delete(id);
+		}
+		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? { outputs: [], images: [], calls: 0, bytes: 0, expires: Date.now() + OPAQUE_TTL_MS };
+		if (pending.calls >= MAX_OPAQUE_CALLS_PER_CELL || (!this.opaqueResults.has(cellId) && this.opaqueResults.size >= 32))
+			throw new Error("Remote batch capacity reached; finish pending cells, then start a new exec cell");
+		pending.calls++;
+		if (!pending.timer) {
+			pending.timer = setTimeout(() => {
+				this.cancelCell(cellId);
+				this.opaqueResults.delete(cellId);
+			}, Math.max(1, pending.expires - Date.now()));
+			pending.timer.unref();
+		}
+		this.opaqueResults.set(cellId, pending);
 	}
 
 	private async invokeSequential(

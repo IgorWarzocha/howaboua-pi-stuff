@@ -22,9 +22,9 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	} as never);
 	const native = { name: "mcp__records__read", description: "Read a record", parameters: { type: "object" } };
 	const mcp = createMcpCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
-	mcp.prepareLoadout({ callable: [native], getNamespace: () => undefined } as never);
+	mcp.prepareLoadout({ callable: [native], getExposure: () => "codemode" as const, getNamespace: () => undefined } as never);
 	runtime.bindCell("cell-a", {
-		cwd: process.cwd(), piToolScope: firstScope,
+		cwd: process.cwd(), piToolScope: firstScope, toolCallId: "outer-exec", originalExecCallId: "outer-exec",
 		preflight: async () => assert.fail("MCP permissions belong to Pi's executor"),
 		completion: async () => assert.fail("MCP completion belongs to Pi's executor"),
 	}, new Map(mcp.getTools().map((tool) => [tool.name, tool])));
@@ -37,6 +37,7 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	runtime.cancelCell("cell-a");
 	await assert.rejects(pending, /nested tool cancelled/);
 	await closing;
+	assert.equal(runtime.attach({ kind: "yielded", cellId: "cell-a", contentItems: [] }).originalExecCallId, "outer-exec");
 	const resumed = runtime.invokeDirect("cell-a", 2, native.name, {});
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	assert.deepEqual(calls, ["exec"], "a yielded cell cannot reuse retired parent IDs");
@@ -53,7 +54,7 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 			return { result, isError: true };
 		},
 	} as never);
-	runtime.updateCellContext("cell-a", { cwd: process.cwd(), piToolScope: secondScope });
+	runtime.updateCellContext("cell-a", { cwd: process.cwd(), piToolScope: secondScope, toolCallId: "genuine-wait" });
 	assert.deepEqual(await resumed, structuredContent);
 	assert.deepEqual(calls, ["exec", "wait"]);
 	result = { content: [{ type: "text", text: "Permission denied" }], details: {} };
@@ -63,6 +64,10 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	runtime.cancelCell("cell-a");
 	await assert.rejects(suspended, /abort/i);
+	runtime.closeCell("cell-a");
+	assert.equal(runtime.attach({ kind: "terminated", cellId: "cell-a", contentItems: [] }).originalExecCallId,
+		"outer-exec", "closing a resumed cell retains its original output ancestry until the response drains");
+	runtime.clear();
 
 	let releaseFirst!: () => void;
 	let firstStarted!: () => void;

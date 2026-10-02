@@ -91,17 +91,24 @@ function createExecTool(
 			tracker.start(id);
 			const piToolScope = new PiToolCallScope(ctx, signal);
 			try {
+				const tools = runtime.collectTools(ctx);
+				const guard = tools.some(tool => "invoke" in tool && tool.opaqueResult)
+					? await runtime.opaqueContextGuard(ctx) : undefined;
 				const response = await (await runtime.getClient(ctx)).execute(
 					params.code,
-					{ cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate },
+					{ cwd: ctx.cwd, toolCallId: id, originalExecCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate,
+						opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid },
 					signal,
-					runtime.collectTools(ctx),
+					tools,
 				);
+				if (guard && !await guard.valid())
+					throw new Error("Remote context changed after execution; verify note state before repeating a write");
+				const visible = runtime.deliverOpaqueResponse(response, id, guard);
 				tracker.finish(
 					id,
-					response.kind === "yielded" ? "yielded" : "done",
+					visible.kind === "yielded" ? "yielded" : "done",
 				);
-				return toCodeModeToolResult(response);
+				return toCodeModeToolResult(visible);
 			} catch (error) {
 				tracker.finish(id);
 				throw error;
@@ -145,10 +152,20 @@ function createWaitTool(
 			tracker.start(id);
 			const piToolScope = new PiToolCallScope(ctx, signal);
 			try {
+				signal?.throwIfAborted();
+				const completed = await runtime.completedCell(params.cell_id, ctx);
+				if (completed) {
+					waitAttempts.delete(params.cell_id);
+					tracker.finish(id, "done");
+					return toCodeModeToolResult(completed, params.max_tokens);
+				}
 				const client = await runtime.getClient(ctx);
-				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate };
+				const guard = runtime.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)
+					? await runtime.opaqueContextGuard(ctx) : undefined;
+				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate,
+					opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid };
 				const attempt = waitAttempts.get(params.cell_id) ?? 0;
-				const response = params.terminate
+				const resumed = params.terminate
 					? await client.terminate(params.cell_id, context, signal)
 					: await client.wait(
 							params.cell_id,
@@ -156,6 +173,11 @@ function createWaitTool(
 							context,
 							signal,
 						);
+				if (guard && !await guard.valid())
+					throw new Error("Remote context changed after execution; verify note state before repeating a write");
+				if (resumed.missingCell && guard)
+					throw new Error("Remote cell unavailable; operations may already have executed, so verify note state before repeating a write");
+				const response = runtime.deliverOpaqueResponse(resumed, id, guard);
 				const recovered =
 					!params.terminate &&
 					response.missingCell === true

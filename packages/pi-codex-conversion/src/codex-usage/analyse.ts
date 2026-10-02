@@ -1,20 +1,18 @@
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { scanUsageHistory } from "./backfill.ts";
-import { readUsageLedger, usageLedgerPath } from "./ledger-store.ts";
-import { usageReport } from "./report.ts";
+import { scanUsageHistory } from "./history-scan.ts";
+import { readUsageLedgerFile } from "./ledger-read.ts";
+import { usageReport } from "./spend-report.ts";
 import { analyseSessions } from "./session-analysis.ts";
-import { shellQuote } from "../shell/tokenize.ts";
 
 const HELP = `Read-only Codex usage analysis. Outputs JSON; never modifies the ledger or sessions.
 
-node <this-file> summary [--account KEY] [--file LEDGER]
-node <this-file> windows [--account KEY] [--from ISO] [--to ISO] [--file LEDGER]
-node <this-file> months [--account KEY] [--file LEDGER]
-node <this-file> sessions --from ISO --to ISO [--root DIR_OR_JSONL] [--model ID] [--limit 20]
-node <this-file> history --from ISO --to ISO --window-start ISO [--root DIR_OR_JSONL]
+node <this-file> summary --file LEDGER [--account KEY]
+node <this-file> windows --file LEDGER [--account KEY] [--from ISO] [--to ISO]
+node <this-file> months --file LEDGER [--account KEY]
+node <this-file> sessions --root DIR_OR_JSONL --from ISO --to ISO [--model ID] [--limit 20]
+node <this-file> history --root DIR_OR_JSONL --from ISO --to ISO --window-start ISO
 
 summary: current/previous window, recorded API-equivalent dollars, tokens, spend/day comparisons, coverage
 windows: frozen closed windows with reset provenance, last measured quota and optional final quota estimate
@@ -22,8 +20,8 @@ months: UTC calendar-month totals; a month starting before "since" is partial
 sessions: model/reasoning groups and top session paths for focused inspection; dates are [from,to)
 history: bounded session aggregates for one-time bootstrap; prints JSON without importing it
 
---file defaults to codex-usage.json in Pi's agent directory
---root defaults to Pi's standard sessions directory; pass the configured session directory if different
+--file is required for ledger reports; Pi's Usage analysis action supplies its ledger path
+--root is required for session scans; pass the session directory or one JSONL file
 --account accepts an exact hashed key; omitted selects all accounts separately
 
 Ledger scope: local requests recorded by Pi-Codex, including native compaction and generated keepalive.
@@ -43,20 +41,6 @@ otherwise the branch's saved thinking setting is labelled session-setting, never
 Session files lack reliable account identity. Analysis totals can overlap imported ledger history; do not add them.
 Unattributed compaction and unsaved/tool-internal calls may be absent; coverage reports known omissions.
 Use top session paths for targeted rg or inspection. Do not dump conversation contents into the report.`;
-
-export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
-	const session = ctx.sessionManager.getSessionId();
-	do { await ctx.waitForIdle(); } while (!ctx.isIdle());
-	if (ctx.sessionManager.getSessionId() !== session) return;
-	const script = shellQuote(fileURLToPath(import.meta.url));
-	pi.sendUserMessage([
-		"Analyse my Codex spending. Use the bundled read-only report script, starting with its help and summary:",
-		`node ${script} --help`,
-		`node ${script} summary`,
-		`Current session directory: ${JSON.stringify(ctx.sessionManager.getSessionDir())}`,
-		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest useful savings without assuming cheaper settings produce equivalent results.",
-	].join("\n"));
-}
 
 async function main(): Promise<void> {
 	const { values, positionals } = parseArgs({
@@ -78,7 +62,8 @@ async function main(): Promise<void> {
 	if (action === "history" || action === "sessions") {
 		if (!values.from || !values.to) throw new Error(`${action} requires --from and --to to bound the scan.`);
 		if (values.account || values.file) throw new Error("Session files cannot be reliably filtered by ledger account.");
-		const root = values.root ?? join(getAgentDir(), "sessions");
+		if (!values.root) throw new Error(`${action} requires --root. Use --help.`);
+		const root = values.root;
 		if (action === "history") {
 			const windowStart = Date.parse(values["window-start"] ?? "");
 			if (!Number.isFinite(windowStart) || windowStart <= from) throw new Error("history requires --window-start after --from.");
@@ -91,8 +76,9 @@ async function main(): Promise<void> {
 		}
 	} else {
 		if (values.root || values.model || values.limit) throw new Error("--root applies only to session scans; --model and --limit apply only to sessions.");
-		const path = values.file ?? usageLedgerPath();
-		const ledger = readUsageLedger(path);
+		if (!values.file) throw new Error(`${action} requires --file. Use --help.`);
+		const path = values.file;
+		const ledger = readUsageLedgerFile(path);
 		if (values.account && !Object.hasOwn(ledger.accounts, values.account)) throw new Error("Account not found in the ledger.");
 		result = {
 			file: path,

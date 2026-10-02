@@ -1,33 +1,11 @@
-# Version operations
+# Versions
 
-A saved version is a reviewable deployment candidate. Saving is not deployment.
+`version.list` paginates saved candidates. `version.get` inspects an opaque `version_id`; use the user-facing version number in prose.
 
-## `version.list`
+`version.save` saves source without deployment. `version.publish_private` saves and deploys that source atomically through `save_version_and_deploy_private`. Use the latter only for intended production publication already known owner-private for the selected account, never to probe access. No shared fallback is attempted.
 
-List saved versions for a Site. Use `limit` and `cursor` for pagination.
+Both routes require committed `.openai/hosting.json` and a clean Git worktree, including untracked files. The facade derives HEAD, obtains a temporary credential, pushes that exact commit without repository hooks, then calls the chosen backend tool. Caller-supplied `commit_sha`, `archive` and `publish_on_push` are rejected. An auto-publishing credential is refused before push.
 
-## `version.get`
+Archive support is deliberately absent: native `openai/fileParams` upload metadata does not give Pi an uploader. Never pass a local tar path as a remote archive, construct fake `file_id`/`download_url` values, or invent an upload endpoint. These source-only calls depend on remote build fallback. If fallback cannot build the project, report the missing upload capability. Static-only Sites remain valid builds.
 
-Inspect one opaque `version_id` within its `project_id`.
-
-## `version.save`
-
-Run only after local validation and review. The facade:
-
-1. finds the Git project from `project_dir` or the current directory;
-2. requires a committed `.openai/hosting.json` bound to the Site;
-3. requires a clean worktree, including no untracked files;
-4. derives the exact HEAD commit SHA;
-5. obtains a short-lived Sites repository credential;
-6. pushes HEAD to the backend-selected source branch without exposing the token or running repository hooks;
-7. saves that exact commit and returns the opaque `version_id` and user-facing version number.
-
-Do not pass `commit_sha` or `archive`; the facade rejects both. It currently supports repository-backed saves, not uploaded build archives.
-
-```js
-await tools.sites(JSON.stringify({
-  resource: "version",
-  action: "save",
-  params: { project_dir: "/absolute/project/path" }
-}))
-```
+For an existing saved version, use `deployment.deploy`, not another save. An atomic failure may return `error.details.saved_version_id`; retain it and retry only deployment after resolving the cause. After `site_not_owner_only`, reread access without changing audience or silently falling back.

@@ -1,4 +1,5 @@
 import type {
+	AgentToolResult,
 	ExtensionAPI,
 	ExtensionContext,
 	ToolDefinition,
@@ -7,8 +8,12 @@ import { Type } from "typebox";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
+import { registerCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
+import { toNestedTool } from "../adapter/code-mode/nested-tool-adapter.ts";
+import { remoteBackendScope, withRemoteContextScope } from "./remote-scope.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
+import { HISTORY_NESTED_USAGE, NOTES_NESTED_USAGE } from "./tool-contract.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
 
@@ -117,6 +122,42 @@ export function registerContextManagementTools(
 	pi.registerTool(getContextRemaining);
 	pi.registerTool(history);
 	pi.registerTool(notes);
+	// Reuse the registered routers, including family routing and Tree write completion.
+	const contract = { deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
+		opaqueResultScope: (result: AgentToolResult<unknown>) => {
+			const details = result.details;
+			return remoteBackendScope(details && typeof details === "object" && "codexHistoryNotes" in details
+				? details.codexHistoryNotes : undefined);
+		} };
+	const nestedTools = (remote: boolean) => [
+		toNestedTool(history, "await tools.history({ action, ...args })", {}, { ...contract, opaqueResult: remote }),
+		toNestedTool(notes, "await tools.notes({ action, ...args })", {}, {
+			...contract,
+			opaqueResult: remote,
+			propagateTermination: true,
+			isContextNoteWrite: (input) => Boolean(input && typeof input === "object" && "action" in input &&
+				(input.action === "write_file" || input.action === "append_to_file")),
+		}),
+	].map((tool) => ({
+		...tool,
+		discoveryUsage: tool.name === "history" ? HISTORY_NESTED_USAGE : NOTES_NESTED_USAGE,
+		...(remote ? {
+			output: "Receipts only; contents reach the model automatically, not JavaScript",
+		} : {}),
+		invoke: async (...[input, context, signal]: Parameters<typeof tool.invoke>) => {
+			if (!context.extensionContext || !plan(context.extensionContext).contextManagementNested)
+				throw new Error("Nested history and notes require active context in Code or Notebook");
+			if (plan(context.extensionContext).contextManagementRemote !== remote)
+				throw new Error("Context storage changed; start a new exec cell");
+			return tool.invoke(input, remote ? { ...context,
+				extensionContext: withRemoteContextScope(context.extensionContext, context.opaqueScope) } : context, signal);
+		},
+	}));
+	const nested = nestedTools(false);
+	const remoteNested = nestedTools(true);
+	registerCodeModeExtensionTools(pi, (ctx) => ctx && plan(ctx).contextManagementNested
+		? plan(ctx).contextManagementRemote ? remoteNested : nested
+		: []);
 }
 
 function assertContextManagementActive(

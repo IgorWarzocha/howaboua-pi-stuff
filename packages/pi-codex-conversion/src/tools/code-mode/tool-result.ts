@@ -20,31 +20,8 @@ export function toCodeModeToolResult(
 			: response.kind === "terminated"
 				? "Script terminated"
 				: undefined;
-	let imageChars = 0;
-	let imageCount = 0;
-	let omittedImages = 0;
-	const output = response.contentItems
-		.map((item) => {
-			const content = toPiContent(item);
-			if (content?.type !== "image") return content;
-			if (
-				imageCount >= MAX_OUTPUT_IMAGE_COUNT ||
-				imageChars + content.data.length > MAX_OUTPUT_IMAGE_CHARS
-			) {
-				omittedImages += 1;
-				return undefined;
-			}
-			imageCount += 1;
-			imageChars += content.data.length;
-			return content;
-		})
-		.filter((item): item is NonNullable<typeof item> => Boolean(item));
+	const output = boundedCodeModeContent(response.contentItems);
 	const memoryWarning = response.notebookMemory && formatNotebookMemoryWarning(response.notebookMemory);
-	if (omittedImages > 0)
-		output.push({
-			type: "text",
-			text: `[${omittedImages} code-mode image${omittedImages === 1 ? "" : "s"} omitted]`,
-		});
 	const outputTokens = Math.min(
 		MAX_CODE_MODE_OUTPUT_TOKENS,
 		Math.max(
@@ -64,12 +41,17 @@ export function toCodeModeToolResult(
 	const empty = !content.some((item) => item.type !== "text" || item.text.length > 0);
 	if (empty) content.unshift({ type: "text", text: "OK" });
 	return {
+		...(response.terminate && response.kind === "result" && !scriptError ? { terminate: true } : {}),
 		content,
 		details: {
 			codeMode: true,
 			cellId: response.cellId,
+			...(response.opaqueOutputs?.length ? { opaqueOutputs: response.opaqueOutputs, opaqueScope: response.opaqueScope } : {}),
 			status: response.kind,
+			...(response.opaqueDeliveryId ? { opaqueDeliveryId: response.opaqueDeliveryId } : {}),
 			statusPrefix: Boolean(status) || empty,
+			...(response.contextNotesSaved === undefined ? {} : { contextNotesSaved: response.contextNotesSaved }),
+			...(response.contextNotesSource ? { contextNotesSource: response.contextNotesSource } : {}),
 			...(response.traces ? { traces: response.traces } : {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
@@ -78,6 +60,26 @@ export function toCodeModeToolResult(
 			...(scriptError ? { scriptError } : {}),
 		},
 	};
+}
+
+export function boundedCodeModeContent(items: RuntimeContentItem[]) {
+	let imageChars = 0;
+	let imageCount = 0;
+	let omittedImages = 0;
+	const output = items.map(item => {
+		const content = toPiContent(item);
+		if (content?.type !== "image") return content;
+		if (imageCount >= MAX_OUTPUT_IMAGE_COUNT || imageChars + content.data.length > MAX_OUTPUT_IMAGE_CHARS) {
+			omittedImages++;
+			return undefined;
+		}
+		imageCount++;
+		imageChars += content.data.length;
+		return content;
+	}).filter((item): item is NonNullable<typeof item> => Boolean(item));
+	if (omittedImages > 0) output.push({ type: "text",
+		text: `[${omittedImages} code-mode image${omittedImages === 1 ? "" : "s"} omitted]` });
+	return output;
 }
 
 function withScriptErrorRecovery(errorText: string | undefined): string | undefined {
@@ -111,13 +113,14 @@ function toPiContent(
 	item: RuntimeContentItem,
 ):
 	| { type: "text"; text: string }
-	| { type: "image"; data: string; mimeType: string }
+	| { type: "image"; data: string; mimeType: string; detail?: "auto" | "high" | "original" }
 	| undefined {
 	if (item.type === "input_text" && typeof item.text === "string")
 		return { type: "text", text: item.text };
 	if (item.type === "input_image" && typeof item.image_url === "string") {
 		const match = item.image_url.match(/^data:([^;,]+);base64,(.+)$/s);
-		if (match) return { type: "image", mimeType: match[1]!, data: match[2]! };
+		if (match) return { type: "image", mimeType: match[1]!, data: match[2]!,
+			...(item.detail && item.detail !== "low" ? { detail: item.detail } : {}) };
 	}
 	return undefined;
 }

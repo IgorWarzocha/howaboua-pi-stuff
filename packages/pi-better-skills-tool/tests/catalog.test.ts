@@ -44,6 +44,9 @@ test("routes mixed skill and reference reads without expanding reference-only ou
 	);
 	f.file("writing/references/shared.md", "Writing shared\n");
 	f.file("writing/references/style.md", "Style reference\n");
+	f.add("visual", "---\nname: visual\ndescription: Visual.\n---\nVisual\n");
+	f.file("writing/references/outside.md", "Writing outside\n");
+	f.file("visual/references/outside.md", "Visual outside\n");
 
 	const output = runSkills("read tooling", f.root);
 	assert.match(output, /^# Tooling\n\n---\nSkill paths \(5\):/);
@@ -72,14 +75,15 @@ test("routes mixed skill and reference reads without expanding reference-only ou
 		`Style reference\n\n---\nSources:\n- ${resolve(f.root, "writing/references/style.md")}`,
 	);
 	assert.throws(
-		() => runSkills("read tooling shared", f.root),
-		/Ambiguous reference "shared".*(?:tooling\/references\/shared.*writing\/references\/shared|writing\/references\/shared.*tooling\/references\/shared)/,
+		() => runSkills("read tooling outside", f.root),
+		/Ambiguous reference "outside".*(?:visual\/references\/outside.*writing\/references\/outside|writing\/references\/outside.*visual\/references\/outside)/,
 	);
 	const toolingShared = resolve(
 		f.root,
 		"engineering/tooling/references/shared.md",
 	);
 	const toolingSharedOutput = `Tooling shared\n\n---\nSources:\n- ${toolingShared}`;
+	assert.equal(runSkills("read tooling shared", f.root), toolingSharedOutput);
 	assert.equal(
 		runSkills("read tooling tooling/references/shared", f.root),
 		toolingSharedOutput,
@@ -88,6 +92,24 @@ test("routes mixed skill and reference reads without expanding reference-only ou
 	assert.match(mixed, /^--- tooling ---\n# Tooling/);
 	assert.match(mixed, /--- writing ---\n# Writing/);
 	assert.match(mixed, /--- writing\/references\/style ---\nStyle reference/);
+	assert.match(
+		runSkills("read writing tooling shared", f.root),
+		/--- tooling\/references\/shared ---\nTooling shared/,
+	);
+	const scoped = runSkills("read tooling shared writing shared", f.root);
+	assert.match(scoped, /--- tooling\/references\/shared ---\nTooling shared/);
+	assert.match(scoped, /--- writing\/references\/shared ---\nWriting shared/);
+	assert.equal(
+		runSkills(
+			"read tooling shared; read writing shared; list engineering",
+			f.root,
+		),
+		[
+			toolingSharedOutput,
+			runSkills("read writing shared", f.root),
+			runSkills("list engineering", f.root),
+		].join("\n\n"),
+	);
 });
 
 test("rejects malformed commands and unknown skills", (t) => {
@@ -100,6 +122,38 @@ test("rejects malformed commands and unknown skills", (t) => {
 	assert.throws(() => parseRequest("search visual"), /Expected/);
 	assert.throws(() => parseRequest("read"), /one skill name/);
 	assert.throws(() => runSkills("read missing", f.root), /Unknown skill/);
+	assert.deepEqual(parseRequest("read visual; list design --offset 12"), {
+		commands: [
+			{ action: "read", name: "visual", selectors: [] },
+			{ action: "list", categories: ["design"] },
+		],
+		offset: 12,
+	});
+	for (const command of ["; list", "list;", "list;; read visual"]) {
+		assert.throws(() => parseRequest(command), /Empty command group/);
+	}
+	for (const command of [
+		"list --offset -1",
+		"list --offset nope",
+		"list --offset 1; list",
+		"list --offset 0 --offset 1",
+	]) {
+		assert.throws(() => parseRequest(command), /Use --offset/);
+	}
+	assert.throws(
+		() => parseRequest("list --offset 9007199254740992"),
+		/non-negative safe integer/,
+	);
+	assert.throws(() => parseRequest(123), /string command/);
+	assert.throws(
+		() => parseRequest(`read ${"x".repeat(4092)}`),
+		/exceeds 4096 bytes/,
+	);
+	assert.equal(parseRequest(`read ${"x".repeat(4091)} --offset 1`).offset, 1);
+	assert.throws(
+		() => runSkills("read visual; read missing", f.root),
+		/Unknown skill/,
+	);
 });
 
 test("keeps names unique across category packages", (t) => {

@@ -17,6 +17,7 @@ import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../provi
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 import { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import { projectCodexDeveloperHistory } from "../developer-history.ts";
+import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
 
 /**
  * Responses compaction reuses the provider's serializer.
@@ -160,7 +161,7 @@ export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	leafId?: string | null | undefined;
 	options?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
-	const messages = projectCodexDeveloperHistory(args.entries, undefined, args.leafId)
+	const messages = projectTreeHandoffReads(projectCodexDeveloperHistory(args.entries, undefined, args.leafId), args.entries)
 		.filter((message) => !isProviderContextExcludedMessage(message));
 	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }
@@ -212,7 +213,7 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			},
 		},
 	) as ResponsesInputItem[];
-	return (developerMessages.rewritePayload({ input }, model) as { input: ResponsesInputItem[] }).input;
+	return (developerMessages.rewritePayload({ input }, model, options.blockImages ?? readBlockImagesSetting()) as { input: ResponsesInputItem[] }).input;
 }
 
 export function createResponsesInputParitySignature(input: readonly unknown[]): string[] {

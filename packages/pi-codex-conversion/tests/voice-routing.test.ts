@@ -24,6 +24,7 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	const userKickoffs: Array<{ content: unknown; options: unknown }> = [];
 	const pi = {
 		events: createEventBus(),
+		on() {},
 		appendEntry() {},
 		sendMessage(message: ExtensionMessage, options: unknown) {
 			modelMessages.push({ message, options });
@@ -52,8 +53,22 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 			contexts.push({ target, channel, content }),
 		onSettled: (id) => settled.push(id),
 	});
+	handoff.agentStarted();
+	handoff.stream("Already running before voice joined.");
+	handoff.agentStarted();
+	handoff.flushProgress();
+	handoff.progress("Already running before voice joined.");
+	handoff.result("Existing work completed.");
+	handoff.settle();
+	handoff.progress("Late update after settlement");
+	handoff.result("Late result after settlement");
+	assert.deepEqual(contexts.splice(0), [
+		{ target: { type: "session" }, channel: "speakable", content: "Already running before voice joined." },
+		{ target: { type: "session" }, channel: "speakable", content: "Existing work completed." },
+	]);
 	handoff.activate("delegation-1");
 	handoff.stream("One short update.");
+	handoff.agentStarted();
 	handoff.flushProgress();
 	assert.deepEqual(contexts.splice(0), [{
 		target: { type: "session" },
@@ -73,9 +88,11 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	handoff.progress("Completed reasoning summary");
 	const final = "Finished result. Everything checked. Ready to continue.";
 	handoff.stream(final);
+	handoff.agentStarted();
 	handoff.result(final);
 	handoff.settle();
 	handoff.piInput("Typed request");
+	handoff.agentStarted();
 	handoff.piInput("Queued request", "followUp");
 	assert.equal(contexts.length, 5);
 	handoff.piUserMessage({

@@ -13,8 +13,17 @@ const aggregatePackageDirs = new Set([
 const diff = spawnSync("git", ["diff", "--name-only", `${base}...HEAD`], {
 	cwd: root,
 	encoding: "utf8",
+	...(process.env.CHANGED_GIT_DIR ? {
+		env: { ...process.env, GIT_DIR: process.env.CHANGED_GIT_DIR, GIT_WORK_TREE: root },
+	} : {}),
 });
-if (diff.status !== 0) process.exit(0);
+if (diff.status !== 0) {
+	if (process.env.CHANGED_GIT_DIR) {
+		process.stderr.write(diff.stderr || "Could not compare candidate Git metadata.\n");
+		process.exit(diff.status ?? 1);
+	}
+	process.exit(0);
+}
 
 const files = diff.stdout.split("\n").filter(Boolean);
 const packageChanged = files.some((file) => {

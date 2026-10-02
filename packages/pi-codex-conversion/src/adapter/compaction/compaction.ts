@@ -28,6 +28,7 @@ import { projectCodexDeveloperHistory } from "../developer-history.ts";
 import { rewriteContextNamespaceTools } from "../../context-management/namespace-tools.ts";
 import { projectTreeCheckpointBranch } from "../../context-management/tree-checkpoint.ts";
 import { hasTreeArchives } from "../../context-management/tree-archive.ts";
+import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
 import { projectContextWindowBranch } from "../../context-management/window-manager.ts";
 import { withRemoteCompactionV2Feature } from "../../providers/openai-responses/compaction-v2-feature.ts";
 
@@ -260,7 +261,7 @@ async function compactWithPiSummary(
 	if ("ok" in auth && !auth.ok) throw new Error(auth.error);
 	const stashed = runtime ? stashLatestNativeWindowForPiCompactionFallback(ctx, branchEntries, runtime, state) : false;
 	try {
-		const result = await runPortablePiCompaction(event, {
+		const result = await runPortablePiCompaction({ ...event, branchEntries }, {
 			model: auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model,
 			thinkingLevel: ctx.thinkingLevel,
 			apiKey: auth.apiKey,
@@ -285,8 +286,10 @@ export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompac
 		const latest = resolveLatestNativeCompactionEntry(branchEntries);
 		const opaque = latest.ok && !hasPortableNativeCompactionSummary(latest.entry);
 		const projectedEvent = archived ? projectPiCompactionEvent(event, branchEntries) : event;
+		const summarized = [...projectedEvent.preparation.messagesToSummarize, ...projectedEvent.preparation.turnPrefixMessages];
+		const handoff = projectTreeHandoffReads(summarized, branchEntries).length !== summarized.length;
 		if (!plan.nativeCompaction && !(plan.nativeReplay && opaque)) {
-			if (!archived) return undefined;
+			if (!archived && !handoff) return undefined;
 			if (opaque) throw new Error("The archived encrypted checkpoint needs its matching Responses provider before Pi conversion");
 			return { compaction: await compactWithPiSummary(projectedEvent, ctx, state, branchEntries) };
 		}
@@ -415,6 +418,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const compactResult = await executeRemoteCompactionV2({
 		runtime,
 		modelRegistry: ctx.modelRegistry,
+		remoteDeliveryContext: ctx,
 		context,
 		promptInput: input,
 		promptInputSource: compactionDiagnostic.inputSource,

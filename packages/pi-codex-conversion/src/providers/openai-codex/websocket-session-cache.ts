@@ -4,13 +4,13 @@ import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable, resolveW
 import { clearCanonicalSessions } from "./session-continuity.ts";
 
 const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
+const websocketPreparations = new Map<string, Set<AbortController>>();
 const websocketSseFallbackSessions = new Set<string>();
 const CONTINUATION_HEADERS = new Set([
 	"openai-beta",
 	"session-id",
 	"thread-id",
 	"x-client-request-id",
-	"x-codex-beta-features",
 ]);
 
 function routeIdentityHeaders(headers: Headers): [string, string][] {
@@ -39,6 +39,12 @@ export function recordWebSocketSseFallback(sessionId: string | undefined): void 
 }
 
 function closeWebSocketSessions(sessionId: string | undefined): void {
+	// A connecting preparation is not yet in the socket cache, but belongs to
+	// the same session teardown boundary as a connected lease.
+	const preparations = sessionId ? [websocketPreparations.get(sessionId)] : [...websocketPreparations.values()];
+	for (const controllers of preparations) {
+		for (const controller of controllers ?? []) controller.abort();
+	}
 	const closeEntry = (entry: SessionWebSocketCacheEntry) => {
 		closeWebSocketSilently(entry.socket, 1000, "session_shutdown");
 	};
@@ -70,6 +76,65 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 	websocketSseFallbackSessions.clear();
 }
 
+// A preparation lease owns only the handshake. No response or history state
+// advances until handoff validates the final route and releases the lane.
+export function preconnectWebSocket(
+	url: string,
+	headers: Headers,
+	sessionId: string,
+	accountId: string,
+	signal: AbortSignal | undefined,
+	connectTimeoutMs: number | undefined,
+	env: ProviderEnv | undefined,
+	onFailure: (error: unknown) => void,
+) {
+	const controller = new AbortController();
+	let preparations = websocketPreparations.get(sessionId);
+	if (!preparations) {
+		preparations = new Set();
+		websocketPreparations.set(sessionId, preparations);
+	}
+	preparations.add(controller);
+	const combinedSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+	let lease: AcquiredWebSocket | undefined;
+	let attemptedRoute: string | undefined;
+	let failure: { error: unknown } | undefined;
+	const release = (keep: boolean) => {
+		combinedSignal.removeEventListener("abort", onAbort);
+		preparations.delete(controller);
+		if (preparations.size === 0 && websocketPreparations.get(sessionId) === preparations) websocketPreparations.delete(sessionId);
+		lease?.release({ keep });
+		lease = undefined;
+	};
+	const onAbort = () => release(false);
+	combinedSignal.addEventListener("abort", onAbort, { once: true });
+	if (combinedSignal.aborted) release(false);
+	const operation = (async () => {
+		attemptedRoute = await websocketRouteKey(url, headers, accountId, env);
+		lease = await acquireWebSocket(url, headers, sessionId, accountId, combinedSignal, connectTimeoutMs, env);
+		if (combinedSignal.aborted) release(false);
+	})().catch((error: unknown) => {
+		// Only a failure on the finalized route may influence transport fallback.
+		failure = { error };
+		if (!combinedSignal.aborted) onFailure(error);
+	});
+	return {
+		async handoff(finalUrl: string, finalHeaders: Headers, finalAccountId: string, finalEnv: ProviderEnv | undefined, keep: boolean) {
+			await operation;
+			if (!lease && !failure) return;
+			const finalRoute = await websocketRouteKey(finalUrl, finalHeaders, finalAccountId, finalEnv);
+			const matched = keep && !combinedSignal.aborted && (lease?.routeKey ?? attemptedRoute) === finalRoute;
+			release(matched);
+			return matched ? failure : undefined;
+		},
+		async close() {
+			controller.abort();
+			await operation;
+			release(false);
+		},
+	};
+}
+
 export async function acquireWebSocket(
 	url: string,
 	headers: Headers,
@@ -96,6 +161,7 @@ export async function acquireWebSocket(
 	}
 
 	const routeKey = await websocketRouteKey(url, headers, accountId, env);
+	if (signal?.aborted) throw new Error("Request was aborted");
 	let routeEntries = websocketSessionCache.get(sessionId);
 	const cached = routeEntries?.get(routeKey);
 	if (cached) {
@@ -103,6 +169,7 @@ export async function acquireWebSocket(
 			cached.busy = true;
 			return {
 				socket: cached.socket,
+				routeKey,
 				entry: cached,
 				reused: true,
 				socketAgeMs: Math.max(0, Date.now() - cached.createdAtMs),
@@ -123,6 +190,7 @@ export async function acquireWebSocket(
 			const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
 			return {
 				socket,
+				routeKey,
 				reused: false,
 				socketAgeMs: 0,
 				release: () => {
@@ -139,6 +207,10 @@ export async function acquireWebSocket(
 	}
 
 	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
+	if (signal?.aborted) {
+		closeWebSocketSilently(socket);
+		throw new Error("Request was aborted");
+	}
 	const entry: SessionWebSocketCacheEntry = { socket, busy: true, createdAtMs: Date.now() };
 	routeEntries = websocketSessionCache.get(sessionId);
 	if (!routeEntries) {
@@ -148,6 +220,7 @@ export async function acquireWebSocket(
 	routeEntries.set(routeKey, entry);
 	return {
 		socket,
+		routeKey,
 		entry,
 		reused: false,
 		socketAgeMs: 0,

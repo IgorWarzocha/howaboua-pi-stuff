@@ -16,9 +16,14 @@ import { CodexContextWindowKickoff } from "../src/context-management/window-kick
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
-import { codexModel } from "./openai-codex-test-support.ts";
+import { codexModel, fakeJwt } from "./openai-codex-test-support.ts";
+import { REMOTE_DELIVERY_MESSAGE } from "../src/context-management/remote-delivery.ts";
+import { projectTreeHandoffReads, readTreeHandoffNote } from "../src/context-management/tree-handoff-read.ts";
+import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { collectReplayMessages } from "../src/adapter/replay/native-replay-matching.ts";
+import { createCodexTurnLifecycle } from "../src/extension/turn-lifecycle.ts";
 
-function createContext(): ExtensionContext {
+function createContext(apiKey?: string): ExtensionContext {
 	return {
 		cwd: "/repo",
 		model: {
@@ -40,6 +45,7 @@ function createContext(): ExtensionContext {
 		}),
 		isIdle: () => true,
 		isProjectTrusted: () => false,
+		modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey, baseUrl: "https://chatgpt.com/backend-api" }) },
 	} as never;
 }
 
@@ -115,6 +121,7 @@ test("context windows preserve rollover and native request semantics", async () 
 		};
 		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "persisted writes suppress reminders");
 		assert.equal(reuse(), false, "an unfinished run cannot silently roll over");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, Number.MAX_SAFE_INTEGER), false);
 		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
 			type: "toolCall", id: "cleanup", name: "exec", arguments: { code: "cleanup()" },
 		}] });
@@ -122,20 +129,32 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.appendMessage({ ...result, toolCallId: "cleanup", toolName: "exec", details: {} });
 		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "later tools in the same run do not stale notes");
 		const final = sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Saved" }] });
+		const finishedAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp) + 60_000;
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 60 * 60_000), false, "a final reply alone does not prove settlement");
+		restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
+			noteCtx, mode, finishedAt);
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 25 * 60_000 - 1), false);
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 25 * 60_000), true, "idle age survives a fresh manager on the persisted branch");
+		assert.equal(restored().hasIdleNotesCheckpoint({ ...noteCtx, isIdle: () => false }, mode, finishedAt + 26 * 60_000), false);
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, "off", finishedAt + 26 * 60_000), false);
 		assert.equal(reuse(), true, "fresh runtime recovers notes saved before cleanup in the completed run");
 		assert.equal(reuse("Preserve extra detail"), false);
 		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
 		assert.equal(reuse(), false, "visible peer input invalidates the checkpoint");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		sessionManager.branch(final);
 		sessionManager.appendCustomEntry("metadata", {});
 		assert.equal(reuse(), true, "tree return to the saved response ignores bookkeeping");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), true);
 		sessionManager.appendContextEdit(write, null);
 		assert.equal(reuse(), false, "omitted evidence cannot grant checkpoint credit");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		for (const invalid of [{ ...result, isError: true }, { ...result, toolCallId: "wrong-call" }]) {
 			sessionManager.branch(call);
 			sessionManager.appendMessage(invalid);
 			sessionManager.appendMessage(assistant);
 			assert.equal(reuse(), false, "only a successful matched write counts");
+			assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
 		}
 		sessionManager.branch(final);
 		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
@@ -144,7 +163,70 @@ test("context windows preserve rollover and native request semantics", async () 
 		sessionManager.appendMessage({ ...result, toolCallId: "work", toolName: "exec" });
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "a later run cannot reuse notes from before the previous final reply");
+		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
+		for (const name of ["exec", "wait"] as const) {
+			for (const saved of [true, false]) {
+				sessionManager.branch(user);
+				sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
+					type: "toolCall", id: "nested-save", name, arguments: {},
+				}] });
+				const deliveryId = "00000000-0000-4000-8000-000000000001";
+				const nestedResult = sessionManager.appendMessage({ ...result, toolCallId: "nested-save", toolName: name,
+					details: { codeMode: true, contextNotesSaved: saved,
+						...(mode === "remote" ? { contextNotesSource: "remote", opaqueDeliveryId: deliveryId,
+							cellId: "nested-cell", status: "result" } : {}) } });
+				if (mode === "remote") sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
+					protocol: 1, origin: "host", id: deliveryId, sourceCallId: "nested-save", cellId: "nested-cell", scope: "fixture",
+					status: "result", contextNotesSaved: saved, outputs: [], images: [],
+				});
+				sessionManager.appendMessage(assistant);
+				const eligible = saved;
+				assert.equal(reuse(), eligible, "Remote nested checkpoints require a matched persisted delivery");
+				const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
+				restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
+					noteCtx, mode, settledAt);
+				assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, settledAt + 26 * 60_000), eligible);
+				if (mode === "remote") {
+					sessionManager.branch(nestedResult);
+					sessionManager.appendMessage(assistant);
+					assert.equal(reuse(), false, "a receipt without its host delivery cannot grant fresh notes");
+				}
+			}
+		}
 		sessionManager.branch(user);
+		if (mode === "remote") {
+			const original = "v2-exec";
+			const deliveryId = "00000000-0000-4000-8000-000000000002";
+			const completedId = "00000000-0000-4000-8000-000000000003";
+			sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{ type: "toolCall", id: original,
+				name: "exec", arguments: {} }] });
+			const yielded = sessionManager.appendMessage({ ...result, toolCallId: original, toolName: "exec", details: {
+				codeMode: true, cellId: "v2-cell", status: "yielded", opaqueDeliveryId: deliveryId,
+			} });
+			sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
+				protocol: 2, origin: "host", id: deliveryId, sourceCallId: original, originalExecCallId: original,
+				cellId: "v2-cell", scope: "fixture", status: "yielded", images: [],
+				outputs: [{ resultId: "write-result", name: "notes.write_file", encryptedOutput: "opaque" }],
+			});
+			sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{ type: "toolCall", id: "v2-wait",
+				name: "wait", arguments: {} }] });
+			const completed = sessionManager.appendMessage({ ...result, toolCallId: "v2-wait", toolName: "wait", details: {
+				codeMode: true, cellId: "v2-cell", status: "result", opaqueDeliveryId: completedId,
+				contextNotesSaved: true, contextNotesSource: "remote",
+			} });
+			sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
+				protocol: 2, origin: "host", id: completedId, sourceCallId: "v2-wait", originalExecCallId: original,
+				cellId: "v2-cell", scope: "fixture", status: "result", contextNotesSaved: true, images: [], outputs: [],
+			});
+			sessionManager.appendMessage(assistant);
+			assert.equal(reuse(), true, "genuine wait completion retains current-run protected write evidence");
+			sessionManager.appendContextEdit(yielded, null);
+			assert.equal(reuse(), false, "a projected-away protected source receipt cannot grant fresh notes");
+			sessionManager.branch(completed);
+			sessionManager.appendMessage(assistant);
+			assert.equal(reuse(), false, "completion receipts cannot replace their persisted host event");
+			sessionManager.branch(user);
+		}
 		sessionManager.appendMessage(assistant);
 		assert.equal(reuse(), false, "abandoned branch saves do not count");
 
@@ -189,19 +271,53 @@ test("context windows preserve rollover and native request semantics", async () 
 		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), "missing", "failed checkpoint cannot roll over");
 		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), undefined, "a later run cannot satisfy the failed request");
 
-		sessionManager.branchWithSummary(beforeMarker, "Read notes at the exact handoff path before resuming");
+		const path = "/root/notes/tree-handoff-contract";
+		const notesPi = { appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never;
+		const [, notes] = createHistoryNotesTools(notesPi, () => mode);
+		const handoffCtx = { ...createContext(fakeJwt({
+				"https://api.openai.com/auth": { chatgpt_account_id: "account-1" },
+			})), sessionManager };
+		const originalFetch = globalThis.fetch;
+		let details: Record<string, unknown>;
+		try {
+			if (mode === "remote") globalThis.fetch = async () => new Response(JSON.stringify({ encrypted_output: "encrypted-handoff" }));
+			else {
+				await assert.rejects(readTreeHandoffNote(notesPi, handoffCtx, mode, path, new AbortController().signal), /could not be read/);
+				await notes.execute("save-handoff", { action: "write_file", path, text: "Departing branch decisions" }, undefined, undefined, handoffCtx);
+			}
+			details = await readTreeHandoffNote(notesPi, handoffCtx, mode, path, new AbortController().signal);
+		} finally { globalThis.fetch = originalFetch; }
+		// The native summary is the atomic persistence boundary, including after JSONL replay.
+		sessionManager.branchWithSummary(beforeMarker, `Handoff note already loaded from ${path}`, JSON.parse(JSON.stringify(details)));
 		const navigationWindow = new CodexContextWindowManager(async () => undefined);
 		const persistedPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) => {
 			sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
 		} } as never;
 		navigationWindow.ensureInitialized(persistedPi, noteCtx, true);
-		const projected = () => JSON.stringify(navigationWindow.project(
+		const projected = () => projectTreeHandoffReads(navigationWindow.project(
 			sessionManager.buildSessionContext().messages, mode, sessionManager.getBranch(), sessionManager.getEntries(),
-		));
-		assert.match(projected(), /exact handoff path/, "initializing a window after navigation must not hide the handoff");
-		assert.match(projected(), /Selected destination context/);
+		), sessionManager.getBranch());
+		const messages = projected();
+		const summaryIndex = messages.findIndex(message => message.role === "branchSummary");
+		assert.equal(messages[summaryIndex + 1]?.role, "assistant");
+		assert.equal(messages[summaryIndex + 2]?.role, "toolResult", "the completed read follows its surviving summary");
+		assert.deepEqual(projectTreeHandoffReads(messages, sessionManager.getBranch()), messages, "projection never repeats the read");
+		assert.match(JSON.stringify(messages), /Selected destination context/);
+		assert.match(JSON.stringify(messages), mode === "remote" ? /encrypted-handoff/ : /Departing branch decisions/);
+		const wire = serializeMessagesToResponsesInput(codexModel, messages);
+		assert.deepEqual(serializeActiveSessionToResponsesInput({ model: codexModel, entries: sessionManager.getBranch() }), wire);
+		assert.deepEqual(serializeMessagesToResponsesInput(codexModel, collectReplayMessages(sessionManager.getBranch())), wire);
+		const output = wire.find(item => "type" in item && item.type === "function_call_output");
+		assert.ok(output && "call_id" in output && "output" in output);
+		assert.ok(wire.some(item => "type" in item && item.type === "function_call" && "call_id" in item && item.call_id === output.call_id));
+		if (mode === "remote") {
+			assert.deepEqual(output.output, [{ type: "encrypted_content", encrypted_content: "encrypted-handoff" }]);
+			const call = wire.find(item => "type" in item && item.type === "function_call");
+			assert.ok(call && "namespace" in call && call["namespace"] === "notes", "gpt-5.6 host read retains its namespace on gpt-5.4 replay");
+		}
 		await navigationWindow.startNewWindow(persistedPi, noteCtx, { mode, trimPreviousWindow: true });
-		assert.doesNotMatch(projected(), /exact handoff path|Selected destination context/, "only explicit rollover cuts the previous conversation");
+		assert.doesNotMatch(JSON.stringify(projected()), /tree-handoff-contract|Departing branch decisions|encrypted-handoff|Selected destination context/,
+			"retiring the summary also retires the read");
 	}
 
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), { cancel: true });
@@ -240,6 +356,26 @@ test("context windows preserve rollover and native request semantics", async () 
 
 	const contextBridge = new CodexDeveloperMessageBridge();
 	const contextKickoff = new CodexContextWindowKickoff(manager);
+	const notifications: string[] = [];
+	const inputCtx = { ...ctx, ui: { ...ctx.ui, notify: (message: string) => { notifications.push(message); } } };
+	let release!: (started: boolean) => void;
+	const preparing = contextKickoff.prepareIdleInput(inputCtx, () => new Promise<boolean>((resolve) => { release = resolve; }));
+	assert.equal(contextKickoff.hasIdleInput, true);
+	const queued = contextKickoff.prepareIdleInput(inputCtx,
+		async () => { throw new Error("queued input must not start another rollover"); });
+	await Promise.resolve();
+	release(true);
+	assert.deepEqual(await preparing, { action: "continue" });
+	assert.deepEqual(await queued, { action: "continue" }, "reentrant admission is released independently after the shared rollover");
+	assert.equal(contextKickoff.hasIdleInput, false);
+	let failedInputFinished = false;
+	const failedInput = contextKickoff.prepareIdleInput(inputCtx, async () => false).then((result) => { failedInputFinished = true; return result; });
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(failedInputFinished, false, "failure cannot admit or discard the original input");
+	assert.match(notifications[0]!, /pending/);
+	const retry = contextKickoff.prepareIdleInput(inputCtx, async () => true);
+	assert.deepEqual(await failedInput, { action: "continue" });
+	assert.deepEqual(await retry, { action: "continue" });
 	const contextState: AdapterState = {
 		enabled: true,
 		cwd: "/repo",
@@ -259,6 +395,26 @@ test("context windows preserve rollover and native request semantics", async () 
 			},
 		},
 	};
+	for (const mode of ["local", "tree", "remote"] as const) {
+		for (const tokens of [232_000, 250_000]) {
+			const windows = new CodexContextWindowManager();
+			const boundaryPi = { sendMessage() {} } as never;
+			windows.ensureInitialized(boundaryPi, ctx, true);
+			const state = { ...contextState, contextWindows: windows,
+				config: { ...contextState.config, compaction: { ...contextState.config.compaction, historyStorage: mode } } };
+			const { turnEnded } = createCodexTurnLifecycle(boundaryPi, { state } as never,
+				{} as never, {} as never, {} as never, {} as never);
+			const budgetCtx = { ...ctx, getContextUsage: () => ({ tokens, contextWindow: 272_000, percent: tokens / 2720 }) };
+			const boundary = { entries: [], message: { role: "assistant", stopReason: "stop" }, toolResults: [] };
+			assert.equal(await turnEnded(boundary as never, budgetCtx), undefined,
+				"neither threshold may revive a finished reply");
+			const continuing = await turnEnded({ ...boundary, message: { role: "assistant", stopReason: "toolUse" },
+				toolResults: [{ role: "toolResult", toolCallId: "read", toolName: "read", content: [], isError: false, timestamp: 1 }],
+			} as never, budgetCtx);
+			assert.equal(continuing?.continue, true, "the next completed tool step still receives its reminder");
+			assert.equal(continuing?.entries?.length, 1);
+		}
+	}
 	const routerTools = buildRequestBody(codexModel, normalizeContext({
 		messages: [],
 		tools: createHistoryNotesTools(),

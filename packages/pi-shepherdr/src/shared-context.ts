@@ -7,6 +7,8 @@ import type {
 	SharedContextRequest,
 	SharedContextResult,
 } from "@howaboua/pi-codex-conversion/context-sharing";
+import type { AgentBoard } from "./board/host.js";
+import { isBoardEnvelope } from "./board/protocol.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { sessionPath } from "./herdr.js";
 import {
@@ -38,16 +40,19 @@ export class SharedAgentContext {
 	private readonly pi: ExtensionAPI;
 	private readonly fleet: AgentFleet;
 	private readonly getService: () => ContextSharingService | undefined;
+	private readonly board: AgentBoard;
 	private running = false;
 
 	constructor(
 		pi: ExtensionAPI,
 		fleet: AgentFleet,
 		getService: () => ContextSharingService | undefined,
+		board: AgentBoard,
 	) {
 		this.pi = pi;
 		this.fleet = fleet;
 		this.getService = getService;
+		this.board = board;
 		pi.on("agent_start", () => {
 			this.running = true;
 		});
@@ -61,6 +66,7 @@ export class SharedAgentContext {
 		value: unknown,
 		signal?: AbortSignal,
 	): Promise<unknown> {
+		if (isBoardEnvelope(value)) return this.board.handle(ctx, value, signal);
 		if (!value || typeof value !== "object")
 			throw new Error("Invalid shared context request");
 		const service = this.getService();
@@ -219,6 +225,7 @@ export class SharedAgentContext {
 export async function registerSharedAgentContext(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
+	board: AgentBoard,
 ): Promise<SharedAgentContext> {
 	let api:
 		| typeof import("@howaboua/pi-codex-conversion/context-sharing")
@@ -247,7 +254,12 @@ export async function registerSharedAgentContext(
 			);
 	}
 	const connection = api?.connectCodexContextSharing(pi);
-	const shared = new SharedAgentContext(pi, fleet, () => connection?.service);
+	const shared = new SharedAgentContext(
+		pi,
+		fleet,
+		() => connection?.service,
+		board,
+	);
 	let close: (() => Promise<void>) | undefined;
 	let unregister: (() => void) | undefined;
 	pi.on("session_start", async (_event, ctx) => {
@@ -275,9 +287,8 @@ export async function registerSharedAgentContext(
 		await close?.();
 		connection?.dispose();
 	});
-	if (connection)
-		fleet.setContextRelay((ctx, request, signal) =>
-			shared.handle(ctx, request, signal),
-		);
+	fleet.setContextRelay((ctx, request, signal) =>
+		shared.handle(ctx, request, signal),
+	);
 	return shared;
 }

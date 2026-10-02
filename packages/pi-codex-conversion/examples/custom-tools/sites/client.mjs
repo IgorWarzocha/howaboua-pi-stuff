@@ -155,14 +155,41 @@ function decodeToolResult(result) {
 function backendError(status, payload) {
   const serialized = safeStringify(payload);
   const terms = serialized.match(/sites_publication_terms_required:\s*(https?:\/\/[^\s"}]+)/i);
+  const recovery = errorRecovery(payload);
   const message = terms
     ? "ChatGPT Sites publication terms must be accepted before this operation can continue"
-    : `Sites backend request failed${status ? ` (HTTP ${status})` : ""}`;
+    : recovery.saved_version_id
+      ? "Sites saved a version but deployment failed; reuse saved_version_id with deployment.deploy after resolving the cause"
+      : recovery.code === "site_not_owner_only"
+        ? "Site is not verified owner-private; reread access before deployment"
+        : `Sites backend request failed${status ? ` (HTTP ${status})` : ""}`;
   return Object.assign(new Error(message), {
-    code: terms ? "terms_required" : "backend_error",
+    code: terms ? "terms_required" : recovery.code || "backend_error",
     status,
     termsUrl: terms?.[1],
+    details: recovery.saved_version_id ? { saved_version_id: recovery.saved_version_id } : undefined,
+    topic: recovery.saved_version_id ? "deployment" : recovery.code ? "access" : undefined,
   });
+}
+
+// Keep partial-save recovery from JSON error envelopes, never arbitrary server prose.
+function errorRecovery(payload, depth = 0) {
+  if (depth > 8 || payload == null) return {};
+  if (typeof payload === "string") {
+    try { return errorRecovery(JSON.parse(payload), depth + 1); } catch { return {}; }
+  }
+  if (typeof payload !== "object") return {};
+  const found = {};
+  if (payload.code === "site_not_owner_only") found.code = payload.code;
+  if (typeof payload.saved_version_id === "string" && payload.saved_version_id) {
+    found.saved_version_id = payload.saved_version_id;
+  }
+  for (const value of Object.values(payload)) {
+    const nested = errorRecovery(value, depth + 1);
+    found.code ||= nested.code;
+    found.saved_version_id ||= nested.saved_version_id;
+  }
+  return found;
 }
 
 function safeStringify(value) {

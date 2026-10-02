@@ -28,6 +28,7 @@ import { CodexProtocolError } from "./openai-codex/stream-events.ts";
 import { type CodexTurnState, withCodexTurnState } from "./openai-codex/turn-state.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
+import { assertRemoteDeliveryPairs } from "../context-management/remote-delivery-protocol.ts";
 import {
 	createCodexTransportStream,
 	getEffectiveCodexTransport,
@@ -83,6 +84,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		retainSocket?: boolean | undefined;
 		generate?: boolean | undefined;
 		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
+		validateRequest?: ((body: ResponsesBody, responsesLite: boolean) => Promise<void>) | undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
@@ -119,11 +121,15 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 		retainSocket?: boolean | undefined;
 		generate?: boolean | undefined;
 		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
+		validateRequest?: ((body: ResponsesBody, responsesLite: boolean) => Promise<void>) | undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
+	if (assertRemoteDeliveryPairs(body.input) > 0 && !deps.validateRequest)
+		throw new Error("Remote delivery requires its session validation before prewarm");
+	await deps.validateRequest?.(body, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
 	const originator = runtimeConfig?.openai.harnessIdentifierHeader === "codex" ? "codex_cli_rs"
 		: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi";

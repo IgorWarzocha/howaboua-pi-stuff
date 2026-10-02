@@ -14,7 +14,7 @@ With Pi Codex's compatible custom developer-message API active, asynchronous wor
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 0.84.4 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
+Requires Pi 1.0.0 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
 
 ```bash
 herdr integration install pi
@@ -82,6 +82,40 @@ Messages beginning with `/` use the target Pi session's command, skill and promp
 Idle messages start a prepared user turn. Messages arriving during a run use steering, promoted to developer messages when Pi Codex developer delivery is active. Otherwise they remain ordinary Pi custom messages.
 
 For `answer` inside Code or Notebook Mode, update Pi Ask on workers together with Shepherdr on controllers.
+
+## Message board
+
+The board is off by default. In the root session, run `/herdr board` to open its settings menu. Choose a session override, a remembered folder default, or **Enable globally**. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+
+Session overrides survive resume but do not carry into new root sessions or forks. Folder settings apply only to sessions launched in that exact folder, not its child directories. Global enablement is a separate setting. Precedence is session, folder, then global. Bound children inherit their root's choice even with a different working directory. Orchestration mode and shared notes remain independent.
+
+The menu saves folder settings in `<launch-folder>/.pi/pi-shepherdr.json`:
+
+```json
+{ "board": { "enabled": true } }
+```
+
+The extension creates `pi-shepherdr.json` in Pi's global agent directory with this default:
+
+```json
+{ "board": { "enabledGlobally": false } }
+```
+
+The agent directory defaults to `~/.pi/agent` and respects `PI_CODING_AGENT_DIR`. Enabling a board in the home folder writes `~/.pi/pi-shepherdr.json`, not the global setting. It does not enable boards in other folders. Storage location never implies activation scope. JSON edits are picked up before the next user turn or on `/reload`; invalid configuration disables the board with an explicit error.
+
+Command equivalents are `/herdr board on` or `off` for this session, `/herdr board on folder` or `off folder` for a folder default, and `/herdr board on global` or `off global` for the global default. `/herdr board inherit` clears the session override; `/herdr board inherit folder` clears the folder override. A session override can mask changes to either default. Outside the TUI, `/herdr board` reports status and archive location.
+
+Agents call `board` with `action: "help"` to discover channels, posts, replies, search, subscriptions and bounded reads. Code and Notebook Mode use `tools.board`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
+
+Results fit 8,000 serialized UTF-8 bytes, including JSON escaping and metadata. Reads may return smaller pages or text slices than requested. Continue with the returned cursor or `next_offset_chars`. A search with `after_message_id` requires a post in the selected board, even before an archive exists.
+
+One archive at `<owning-folder>/.pi/agent-message-board.sqlite` retains all boards for that folder. Each root Pi session has an isolated board; resume keeps it and new root sessions get separate boards. Children spawned while the board is enabled inherit its location and board ID even with another working directory. The spawn result's `boardAgent` is their address for subscriptions and explicit notifications, distinct from a pane or shared-notes identity. Independently started agents, existing `assign` targets and children spawned while it is off do not join automatically. Board identity is independent of shared notes and `share_context`.
+
+Calls default to the current board. `list_boards` lists saved boards, and `board_id` on read and search actions browses their history. Writes and subscriptions always target the current board. There is no task assignment, post editing or board deletion tool. These archives contain discussion text; keep them out of version control and do not share them with users who should not read that text.
+
+Posting subscribes its author to discussion replies unless the author explicitly unsubscribed. Channel subscriptions concern only new first posts. Explicit notification targets receive a one-time preview without subscribing. Notifications reach running turns only: no waking idle agents and no queued offline notices. Full text remains available through reads.
+
+Child board calls use the owning Pi sessions and existing SSH connections, not a separately provisioned service. The root and intermediate controllers must be running as processes, but need not be in an active model turn. Resume the owner and use `/herdr connect` after a lost connection. Future root sessions can browse the archive even when the old owner is offline. A fork starts a new independent identity. Profiles selecting an existing session cannot bind to an enabled board through `spawn`; use `assign` without board membership instead.
 
 ## Shared notes and history
 

@@ -1,52 +1,38 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { BROWSER_ACTIONS } from "./browser/operation.js";
-import { type BrowserRequest, parseBrowserRequest } from "./browser/request.js";
+import { Type } from "typebox";
+import { isRecordValue } from "./browser/parse-operation.js";
+import { parseBrowserRequest } from "./browser/request.js";
 import { BrowserRuntime } from "./browser/runtime.js";
-import { browserParameters } from "./browser-parameters.js";
 
-interface BrowserToolParams {
-	action: (typeof BROWSER_ACTIONS)[number];
-}
-
-const preparedBrowserRequest = Symbol("preparedBrowserRequest");
-
-interface PreparedBrowserInput {
-	[preparedBrowserRequest]: BrowserRequest;
-}
-
-export function prepareBrowserCodeModeInput(input: unknown): BrowserToolParams {
-	// Freeform requests can batch operations that the normal Pi schema does not
-	// expose. Carry the parsed request beside a schema-valid adapter input.
-	const prepared: BrowserToolParams = { action: "help" };
-	Object.defineProperty(prepared, preparedBrowserRequest, {
-		value: parseBrowserRequest(input),
-	});
-	return prepared;
-}
-
-function isPreparedBrowserInput(input: unknown): input is PreparedBrowserInput {
-	return (
-		typeof input === "object" &&
-		input !== null &&
-		preparedBrowserRequest in input
-	);
-}
-
-function browserRequest(input: unknown): BrowserRequest {
-	return isPreparedBrowserInput(input)
-		? input[preparedBrowserRequest]
-		: parseBrowserRequest(input);
+export function prepareBrowserInput(input: unknown): { command: string } {
+	if (typeof input === "string") return { command: input };
+	if (!isRecordValue(input)) {
+		throw new Error("browser input must be a command envelope or JSON request");
+	}
+	if (Object.hasOwn(input, "command")) {
+		if (typeof input["command"] !== "string") {
+			throw new Error(
+				'browser command must be "help" or a JSON request string',
+			);
+		}
+		return { ...input, command: input["command"] };
+	}
+	// Resume old object calls without changing their stored history representation.
+	return { command: JSON.stringify(input) };
 }
 
 export function createBrowserTool(runtime: BrowserRuntime) {
-	const parameters = browserParameters(runtime.hosts);
 	return defineTool({
 		name: "browser",
 		label: "Browser",
 		description: "Control logged-in browser; call help before other actions",
-		parameters,
+		parameters: Type.Object(
+			{ command: Type.String({ description: "help or JSON request" }) },
+			{ additionalProperties: false },
+		),
+		prepareArguments: prepareBrowserInput,
 		async execute(_toolCallId, input, signal, onUpdate, ctx) {
-			const result = await runtime.execute(browserRequest(input), {
+			const result = await runtime.execute(parseBrowserRequest(input.command), {
 				ownerId: ctx.sessionManager.getSessionId(),
 				signal: signal ?? new AbortController().signal,
 				onOperation(operation, index, total) {

@@ -1,4 +1,5 @@
 import { shortHash } from "./signatures.ts";
+import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../../context-management/remote-delivery-protocol.ts";
 
 type ToolFamily = "function" | "custom" | "search";
 
@@ -88,6 +89,7 @@ function syntheticOutput(
 export function normalizeResponsesToolHistory(
 	input: readonly unknown[],
 ): unknown[] {
+	assertRemoteDeliveryPairs(input);
 	const calls = new Map<string, PairedCall>();
 	const validCalls = new Set<number>();
 	const droppedCalls = new Set<number>();
@@ -112,6 +114,9 @@ export function normalizeResponsesToolHistory(
 		const id = callId(item);
 		if (!family) continue;
 		const call = id === undefined ? undefined : calls.get(id);
+		// Native exec relays encrypted function outputs in addition to its ordinary custom receipt.
+		if (call && call.index < index && isOriginalExecCall(input[call.index]) && isEncryptedFunctionOutput(item))
+			continue;
 		if (
 			!call ||
 			call.family !== family ||

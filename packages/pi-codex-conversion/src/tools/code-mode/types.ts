@@ -47,10 +47,19 @@ export interface ProgrammaticCodeModeToolDefinition
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
 	discoverWhenDeferred?: boolean | undefined;
+	/** Compact callable spine; full help remains in ALL_TOOLS. */
+	discoveryUsage?: string | undefined;
+	/** Server summaries replace appended per-tool inventory. */
+	discovery?: "server" | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi owns validation, permissions and completion hooks for these calls. */
 	executionPipeline?: "pi" | undefined;
+	/** Protected results reach the model, never JavaScript. */
+	opaqueResult?: boolean | undefined;
+	/** Forward owned handoff completion to the outer exec/wait result. */
+	propagateTermination?: boolean | undefined;
+	isContextNoteWrite?(input: unknown): boolean;
 	inputSchema?: unknown;
 	invoke(
 		input: unknown,
@@ -77,6 +86,8 @@ export type CodeModeToolDefinition =
 export interface ToolExecutionContext {
 	cwd: string;
 	toolCallId?: string | undefined;
+	/** Set only when the host starts the original outer exec. */
+	originalExecCallId?: string | undefined;
 	extensionContext?: ExtensionContext | undefined;
 	piToolScope?: PiToolCallScope | undefined;
 	executeTool?: ExtensionToolContext["executeTool"] | undefined;
@@ -84,6 +95,10 @@ export interface ToolExecutionContext {
 	completion?: CodeModeToolCompletion | undefined;
 	onUpdate?: ((result: AgentToolResult<unknown>) => void) | undefined;
 	captureResult?: ((result: RuntimeToolResult) => void) | undefined;
+	captureOpaqueResult?: ((output: OpaqueToolOutput, images: RuntimeContentItem[]) => void) | undefined;
+	opaqueScope?: string | undefined;
+	opaqueContextGeneration?: number | undefined;
+	opaqueContextValid?: (() => Promise<boolean>) | undefined;
 	refreshTrace?: (() => void) | undefined;
 	setBlocked?: ((blockerId: string, active: boolean) => void) | undefined;
 }
@@ -115,6 +130,7 @@ export interface CodeModeRenderContext extends CodeModeNestedRenderContext {
 }
 
 export interface RuntimeToolResult {
+	terminate?: boolean | undefined;
 	content: Array<
 		| { type: "text"; text: string }
 		| { type: "image"; data: string; mimeType: string }
@@ -136,6 +152,12 @@ export interface RuntimeContentItem {
 	text?: string;
 	image_url?: string;
 	detail?: "auto" | "low" | "high" | "original" | null;
+}
+
+export interface OpaqueToolOutput {
+	resultId: string;
+	name: string;
+	encryptedOutput: string;
 }
 
 export interface NotebookMemoryUsage {
@@ -177,6 +199,13 @@ export type RuntimeResponse = (
 			errorText?: string | undefined;
 	  }
 ) & {
+	opaqueOutputs?: OpaqueToolOutput[] | undefined;
+	opaqueScope?: string | undefined;
+	opaqueDeliveryId?: string | undefined;
+	originalExecCallId?: string | undefined;
+	terminate?: true | undefined;
+	contextNotesSaved?: boolean | undefined;
+	contextNotesSource?: "remote" | undefined;
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
 	execSessionIds?: number[] | undefined;

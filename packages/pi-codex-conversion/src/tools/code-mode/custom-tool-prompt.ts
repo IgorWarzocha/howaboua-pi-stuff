@@ -42,14 +42,18 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-export function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
-	return tool.deferLoading &&
-		(isConfiguredCustomTool(tool) || ("invoke" in tool && tool.discoverWhenDeferred === true));
+function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
+	return tool.deferLoading && isCodeModeToolDiscoverable(tool);
+}
+
+export function isCodeModeToolDiscoverable(tool: CodeModeToolDefinition): boolean {
+	return isConfiguredCustomTool(tool) ||
+		(tool.deferLoading && "invoke" in tool && tool.discoverWhenDeferred === true);
 }
 
 export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 	return [
-		`Usage: ${translateCodeModeUsage(tool.usage, tool.name)}`,
+		`Usage: ${translateCodeModeUsage("discoveryUsage" in tool && tool.discoveryUsage ? tool.discoveryUsage : tool.usage, tool.name)}`,
 		tool.description
 			? translateCodeModeToolReferences(tool.description, tool.name)
 			: undefined,
@@ -59,7 +63,8 @@ export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 		...(tool.promptGuidelines ?? []).map((guideline) =>
 			translateCodeModeGuideline(guideline, tool.name)),
 		tool.namespace?.instructions ? `Instructions: ${tool.namespace.instructions}` : undefined,
-		"inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
+		isConfiguredCustomTool(tool) ? 'Schema: {"type":"string"}'
+			: "inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
 		tool.output ? `Output: ${tool.output}` : undefined,
 		tool.annotations ? `Annotations: ${JSON.stringify(tool.annotations)}` : undefined,
 	]

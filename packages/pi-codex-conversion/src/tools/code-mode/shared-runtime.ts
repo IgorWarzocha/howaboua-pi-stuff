@@ -1,4 +1,4 @@
-import type { ToolLoadout, ToolLoadoutChanges } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ToolLoadout, ToolLoadoutChanges } from "@earendil-works/pi-coding-agent";
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { CodeModeHostClient } from "./host-client.js";
 import { createNotebookControlProxy } from "./notebook-tool.ts";
@@ -14,6 +14,14 @@ import type {
 
 export type CodeModeExecutionKind = "code" | "notebook";
 
+export interface OpaqueContextGuard {
+	scope: string;
+	owner: string;
+	generation: number;
+	deliver(response: RuntimeResponse, callId: string): string;
+	valid(): Promise<boolean>;
+}
+
 export interface NotebookRuntimeOptions {
 	maxHeapMiB: number;
 	agentDir: string;
@@ -27,6 +35,7 @@ export interface CodeModeExecutionClient {
 	checkpoint?(): Promise<void>;
 	controlNotebook?(request: NotebookControlRequest, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
 	shutdown(): Promise<void>;
+	clearOpaqueResults?(): void;
 }
 
 export interface CodeModeToolProvider {
@@ -39,6 +48,8 @@ export interface CodeModeToolProvider {
 	minimalOutput?(): boolean;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
+	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
+	deliverOpaqueResponse?(response: RuntimeResponse, callId: string, scope: string, ctx: ExtensionContext): string;
 }
 
 export class SharedCodeModeRuntime {
@@ -50,6 +61,83 @@ export class SharedCodeModeRuntime {
 	private notebookClientTransition: Promise<void> = Promise.resolve();
 	private clientStartupAbort: AbortController | undefined;
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
+	private opaqueGeneration = 0;
+	// Completed status only. Protected contents live in persisted host events, never a second delivery queue.
+	private readonly completedCells = new Map<string, { response: RuntimeResponse; owner: string; expires: number }>();
+
+	async opaqueContextGuard(ctx: ExtensionContext): Promise<OpaqueContextGuard> {
+		const generation = this.opaqueGeneration;
+		const baseOwner = this.opaqueOwner(ctx);
+		const providers = this.activeProviders(ctx).filter(provider => provider.opaqueResultScope);
+		const provider = providers[0];
+		if (providers.length !== 1 || !provider?.opaqueResultScope || !provider.deliverOpaqueResponse)
+			throw new Error("Remote context authentication is unavailable or conflicting");
+		const resolver = provider.opaqueResultScope;
+		const deliver = provider.deliverOpaqueResponse;
+		const resolveScope = () => resolver.call(provider, ctx);
+		const scope = await resolveScope();
+		const unchanged = () => generation === this.opaqueGeneration && baseOwner === this.opaqueOwner(ctx) &&
+			this.activeProviders(ctx).includes(provider);
+		if (!unchanged()) throw new Error("Remote context changed during authentication; start a new exec cell");
+		return { scope, generation, owner: JSON.stringify([baseOwner, scope]),
+			deliver: (response, callId) => {
+				if (!unchanged()) throw new Error("Remote context changed after execution; verify note state before repeating a write");
+				return deliver.call(provider, response, callId, scope, ctx);
+			}, valid: async () => {
+			if (!unchanged()) return false;
+			const latest = await resolveScope();
+			return unchanged() && latest === scope;
+		} };
+	}
+
+	deliverOpaqueResponse(response: RuntimeResponse, callId: string, guard?: OpaqueContextGuard): RuntimeResponse {
+		const hasDelivery = Boolean(response.opaqueOutputs?.length || response.contextNotesSource === "remote");
+		if (hasDelivery && !guard)
+			throw new Error("Remote delivery is unavailable after execution; verify note state before repeating a write");
+		const opaqueDeliveryId = hasDelivery && guard ? guard.deliver(response, callId) : undefined;
+		if (guard && response.kind !== "yielded" && !response.missingCell) {
+			this.expireCompletedCells();
+			this.completedCells.delete(response.cellId);
+			const oldest = this.completedCells.keys().next().value;
+			if (this.completedCells.size >= 32 && oldest !== undefined) this.completedCells.delete(oldest);
+			this.completedCells.set(response.cellId, { owner: guard.owner, expires: Date.now() + 15 * 60_000,
+				response: { kind: response.kind, cellId: response.cellId, contentItems: [{ type: "input_text",
+					text: "Execution already complete; termination does not undo completed operations" }],
+					...(response.kind === "result" && response.errorText ? { errorText: response.errorText.slice(0, 4096) } : {}) } });
+		}
+		if (!hasDelivery) return response;
+		const { opaqueOutputs: _outputs, opaqueScope: _scope, originalExecCallId: _origin, ...receipt } = response;
+		return { ...receipt, opaqueDeliveryId, contentItems: response.contentItems.filter(item => item.type !== "input_image") };
+	}
+
+	async completedCell(cellId: string, ctx: ExtensionContext): Promise<RuntimeResponse | undefined> {
+		const entry = this.completedCells.get(cellId);
+		if (!entry) return undefined;
+		const guard = await this.opaqueContextGuard(ctx);
+		if (this.completedCells.get(cellId) !== entry || entry.expires <= Date.now() || entry.owner !== guard.owner) {
+			if (this.completedCells.get(cellId) === entry) this.completedCells.delete(cellId);
+			throw new Error("Remote result expired or context changed after execution; verify note state before repeating a write");
+		}
+		return entry.response;
+	}
+
+	clearOpaqueResults(): void {
+		this.opaqueGeneration++;
+		this.completedCells.clear();
+		for (const pending of [this.clientPromise, this.notebookClientPromise])
+			void pending?.then(client => client.clearOpaqueResults?.(), () => undefined);
+	}
+
+	private opaqueOwner(ctx: ExtensionContext): string {
+		return JSON.stringify([ctx.sessionManager.getSessionId(), ctx.model?.api, ctx.model?.provider,
+			ctx.model?.id, ctx.model?.baseUrl, this.executionKind(ctx),
+			this.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)]);
+	}
+
+	private expireCompletedCells(): void {
+		for (const [cellId, entry] of this.completedCells)
+			if (entry.expires <= Date.now()) this.completedCells.delete(cellId);
+	}
 
 	addProvider(provider: CodeModeToolProvider): object {
 		const id = {};
@@ -210,6 +298,7 @@ export class SharedCodeModeRuntime {
 	}
 
 	async shutdownHost(): Promise<void> {
+		this.clearOpaqueResults();
 		await this.notebookClientTransition;
 		while (this.clientPromise) {
 			const pending = this.clientPromise;

@@ -16,6 +16,8 @@ import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation
 import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "./activation/tool-set.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 import { createContextWindowTools } from "../context-management/tools.ts";
+import { resolveRemoteContextScope } from "../context-management/remote-scope.ts";
+import { appendRemoteDelivery } from "../context-management/remote-delivery.ts";
 import { createMcpCodeModeBridge } from "./code-mode/mcp-tools.ts";
 import { syncAdapter } from "./activation/activation.ts";
 
@@ -49,18 +51,23 @@ export async function registerCodexCodeMode(
 			if (!isCodeModeRuntime(plan)) return undefined;
 			const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			if (!required.every((name) => loadout.declared.some((tool) => tool.name === name))) return undefined;
-			// MCP can activate native codemode after our preparation hook or during
+			// MCP can activate native discovery after our preparation hook or during
 			// a run. Reconcile outside Pi's synchronous loadout callback.
-			if (!pendingNativeProjection && loadout.declared.some((tool) => tool.name === "codemode")) {
+			const nativeSearch = pi.getAllTools().some(tool =>
+				tool.name === "tool_search" && tool.sourceInfo?.path === "builtin:tool-search");
+			if (!pendingNativeProjection && loadout.declared.some((tool) =>
+				tool.name === "codemode" || (nativeSearch && tool.name === "tool_search"))) {
 				pendingNativeProjection = true;
 				queueMicrotask(() => {
 					pendingNativeProjection = false;
-					if (!stopped && latestContext && isActive(latestContext) && pi.getActiveTools().includes("codemode"))
+					if (!stopped && latestContext && isActive(latestContext)
+						&& pi.getActiveTools().some(name => name === "codemode" || (nativeSearch && name === "tool_search")))
 						syncAdapter(pi, latestContext, runtime.state);
 				});
 			}
 			const changes = mcp.prepareLoadout(loadout);
-			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode"] };
+			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode",
+				...(nativeSearch ? ["tool_search"] : [])] };
 		},
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
@@ -75,6 +82,8 @@ export async function registerCodexCodeMode(
 			];
 		},
 		isActive,
+		opaqueResultScope: (ctx) => resolveRemoteContextScope(ctx, runtime.state),
+		deliverOpaqueResponse: (response, callId, scope, ctx) => appendRemoteDelivery(pi, response, callId, scope, ctx),
 		executionKind: (ctx) =>
 			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
 				? "notebook"
@@ -91,6 +100,7 @@ export async function registerCodexCodeMode(
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
+		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
@@ -228,7 +238,7 @@ function createNestedTools(
 		));
 	}
 	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning) {
-		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" }) // ${runtime.autoReasoning.tool.description}`));
+		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" }) // ${runtime.autoReasoning.tool.description}`));
 	}
 	return tools.filter((tool) => registeredToolNames.has(tool.name));
 }

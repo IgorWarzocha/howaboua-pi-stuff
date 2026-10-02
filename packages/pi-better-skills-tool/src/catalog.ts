@@ -16,14 +16,38 @@ export {
 } from "./discovery.js";
 
 const MAX_OUTPUT_BYTES = 48 * 1024;
+// Leave room for an exact continuation command inside the output budget.
+const MAX_COMMAND_BYTES = 4 * 1024;
 
 type SkillRequest =
 	| { action: "list"; categories: string[] }
 	| { action: "read"; name: string; selectors: string[] };
 
-export function parseRequest(input: unknown): SkillRequest {
+interface SkillsRequest {
+	commands: SkillRequest[];
+	offset: number;
+}
+
+export function parseRequest(input: unknown): SkillsRequest {
 	if (typeof input !== "string")
 		throw new Error("skills expects a string command");
+	const offsetMatch = input.match(/\s+--offset\s+(\d+)\s*$/);
+	const offset = offsetMatch ? Number(offsetMatch[1]) : 0;
+	if (!Number.isSafeInteger(offset))
+		throw new Error("--offset expects a non-negative safe integer byte offset");
+	const command = offsetMatch ? input.slice(0, offsetMatch.index) : input;
+	if (/(?:^|\s)--offset(?:\s|$)/.test(command))
+		throw new Error("Use --offset <byte> once at the end of the command");
+	const groups = command.split(";");
+	if (groups.length > 1 && groups.some((group) => !group.trim()))
+		throw new Error("Empty command group. Separate read/list commands with ;");
+	const commands = groups.map(parseCommand);
+	if (Buffer.byteLength(formatCommand(commands)) > MAX_COMMAND_BYTES)
+		throw new Error(`skills command exceeds ${MAX_COMMAND_BYTES} bytes`);
+	return { commands, offset };
+}
+
+function parseCommand(input: string): SkillRequest {
 	const parts = input.trim().split(/\s+/).filter(Boolean);
 	const [action, ...arguments_] = parts;
 	if (!action || action === "list") {
@@ -33,7 +57,7 @@ export function parseRequest(input: unknown): SkillRequest {
 		return {
 			action,
 			name: arguments_[0] ?? "",
-			selectors: [...new Set(arguments_.slice(1))],
+			selectors: arguments_.slice(1),
 		};
 	}
 	if (action === "read") {
@@ -44,6 +68,16 @@ export function parseRequest(input: unknown): SkillRequest {
 	throw new Error(
 		'Expected "list", "list <category>...", or "read <exact-skill-name> [skill-or-reference...]"',
 	);
+}
+
+function formatCommand(commands: SkillRequest[]): string {
+	return commands
+		.map((group) =>
+			group.action === "list"
+				? ["list", ...group.categories].join(" ")
+				: ["read", group.name, ...group.selectors].join(" "),
+		)
+		.join("; ");
 }
 
 function formatSkillList(
@@ -97,14 +131,23 @@ function formatSkillList(
 	return lines.join("\n");
 }
 
-function enforceOutputLimit(output: string): string {
-	const bytes = Buffer.byteLength(output);
-	if (bytes > MAX_OUTPUT_BYTES) {
+function boundedOutput(output: string, request: SkillsRequest): string {
+	const bytes = Buffer.from(output);
+	const { offset } = request;
+	if (offset > bytes.length || (offset > 0 && offset === bytes.length))
 		throw new Error(
-			`skills output is ${bytes} bytes; maximum is ${MAX_OUTPUT_BYTES} bytes`,
+			`--offset ${offset} is outside output (${bytes.length} bytes)`,
 		);
-	}
-	return output;
+	if (offset < bytes.length && ((bytes[offset] ?? 0) & 0xc0) === 0x80)
+		throw new Error(`--offset ${offset} splits a UTF-8 character`);
+	if (bytes.length - offset <= MAX_OUTPUT_BYTES)
+		return offset === 0 ? output : bytes.subarray(offset).toString("utf8");
+	const command = formatCommand(request.commands);
+	const footer = (end: number) =>
+		`\n\n---\nIncomplete: bytes ${offset}-${end} of ${bytes.length}. Continue with command:\n${command} --offset ${end}`;
+	let end = offset + MAX_OUTPUT_BYTES - Buffer.byteLength(footer(bytes.length));
+	while (((bytes[end] ?? 0) & 0xc0) === 0x80) end--;
+	return bytes.subarray(offset, end).toString("utf8") + footer(end);
 }
 
 export function runSkills(
@@ -117,9 +160,14 @@ export function runSkills(
 ): string {
 	const request = parseRequest(input);
 	const skills = discoverVisibleSkills(globalRoot, sessionRoot, loadedSkills);
-	return enforceOutputLimit(
-		request.action === "list"
-			? formatSkillList(skills, request.categories)
-			: readSkillPackage(skills, request.name, request.selectors),
+	return boundedOutput(
+		request.commands
+			.map((command) =>
+				command.action === "list"
+					? formatSkillList(skills, command.categories)
+					: readSkillPackage(skills, command.name, command.selectors),
+			)
+			.join("\n\n"),
+		request,
 	);
 }

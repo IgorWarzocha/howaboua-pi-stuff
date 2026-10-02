@@ -14,6 +14,7 @@ import { CodexContextWindowKickoff } from "../src/context-management/window-kick
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { buildContextSettings } from "../src/ui/settings/config-items-context.ts";
+import { registerContextManagementTools } from "../src/context-management/tools.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
@@ -194,24 +195,63 @@ test("adapter activation requires registered tools and follows scope independent
 	conflict.unregister();
 
 	for (const mode of ["code", "notebook"] as const) {
-		for (const nativeActive of [false, true]) {
-			const original = ["read", ...(nativeActive ? ["codemode"] : [])];
-			const pi = createToolHarness(original, ["read", "codemode", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
+		for (const discovery of [[], ["codemode"], ["codemode", "tool_search"]]) {
+			const nativeActive = discovery.includes("codemode");
+			const searchWasActive = discovery.includes("tool_search");
+			const original = ["read", ...discovery];
+			const pi = createToolHarness(original, ["read", "codemode", "tool_search", ...ALL_CODEX_ADAPTER_TOOL_NAMES]);
+			const getAllTools = pi.getAllTools;
+			Object.assign(pi, { getAllTools: () => getAllTools().map((tool) => tool.name === "tool_search"
+				? { ...tool, exposure: "model-only", sourceInfo: { path: "builtin:tool-search" } } : tool) });
 			const state = createAdapterState({ executionMode: mode });
 			const ctx = createContext(dynamicModel);
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), false);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
 			assert.ok(pi.activeTools().includes("exec"));
+			syncAdapter(pi as never, ctx as never, state);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
+			assert.equal(state.adapterOwnedToolNames?.includes("tool_search") ?? false, false);
 			state.executionMode = "normal";
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), nativeActive);
+			assert.equal(pi.activeTools().includes("tool_search"), searchWasActive);
 			state.executionMode = mode;
 			syncAdapter(pi as never, ctx as never, state);
-			pi.setActiveTools([...pi.activeTools(), "codemode"]);
+			pi.setActiveTools([...pi.activeTools(), "codemode", "tool_search"]);
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), false);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
 			syncAdapter(pi as never, createContext({ provider: "meta", api: "openai-responses", id: "muse" }) as never, state);
-			assert.deepEqual(pi.activeTools(), ["read", "codemode"]);
+			assert.deepEqual(pi.activeTools(), ["read", "codemode", "tool_search"]);
+		}
+	}
+	for (const mode of ["normal", "code", "notebook"] as const) {
+		for (const historyStorage of ["local", "tree", "remote"] as const) {
+			const pi = createToolHarness(["read", "bash"]);
+			const state = createAdapterState({ executionMode: mode, compaction: {
+				...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage,
+			} });
+			registerContextManagementTools(pi as never, state);
+			const ctx = createContext(dynamicModel);
+			const plan = syncAdapter(pi as never, ctx as never, state);
+			const nested = mode !== "normal";
+			assert.equal(plan.contextManagementNested, nested);
+			assert.equal(pi.activeTools().includes("new_context"), true);
+			assert.equal(pi.activeTools().includes("history"), !nested);
+			assert.equal(pi.activeTools().includes("notes"), !nested);
+			assert.deepEqual(getCodeModeExtensionTools(pi as never, ctx as never).map((tool) => tool.name),
+				nested ? ["history", "notes"] : []);
+			assert.equal(resolveCodexRuntimePlanForState(ctx as never, {
+				...state, availableToolNames: ALL_CODEX_ADAPTER_TOOL_NAMES.filter((name) => name !== "notes"),
+			}).kind, "inactive", "nested context tools still respect the tool allowlist");
+			state.config.compaction.continuity = "compaction";
+			assert.equal(syncAdapter(pi as never, ctx as never, state).contextManagementNested, false);
+			assert.deepEqual(getCodeModeExtensionTools(pi as never, ctx as never), []);
+			state.config.compaction.continuity = "notes";
+			const unsupported = createContext({ provider: "openai-codex", api: "openai-completions", id: "gpt-5.6" });
+			assert.equal(syncAdapter(pi as never, unsupported as never, state).contextManagementNested, false);
+			assert.deepEqual(getCodeModeExtensionTools(pi as never, unsupported as never), []);
 		}
 	}
 });
@@ -250,13 +290,14 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 		for (const continuity of ["compaction", "notes", "notes-and-compaction"] as const) {
 			for (const historyStorage of ["local", "tree", "remote"] as const) {
 				for (const method of ["pi", "v2", "both"] as const) {
-					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method, shareSubagentContext: true } };
+					const configured = { ...config, compaction: { ...config.compaction, continuity, historyStorage, method, shareSubagentContext: true, idleNotesRollover: true } };
 					const plan = resolveCodexRuntimePlan(ctx, configured);
 					const notes = continuity !== "compaction" && route.api !== "openai-completions"
 						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
 					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
 					assert.equal(plan.shareSubagentContext, notes, "sharing still requires an eligible notes-based runtime");
 					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
+					assert.equal(plan.idleNotesRollover, notes && continuity === "notes");
 					assert.equal(plan.nativeCompaction, route.native && continuity !== "notes" && method !== "pi");
 					assert.equal(plan.nativeReplay, route.native, "continuity and method settings must not disable an existing checkpoint's replay");
 				}

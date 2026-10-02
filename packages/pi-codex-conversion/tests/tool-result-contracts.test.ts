@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { registerApplyPatchResultEvent } from "../src/index.ts";
 import { toCodeModeToolResult } from "../src/tools/code-mode/tool-result.ts";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
@@ -28,7 +29,7 @@ test("apply_patch partial mutations remain error results", () => {
 	assert.equal(handler?.({ toolName: "apply_patch", details: { status: "success", result } }), undefined);
 });
 
-test("Code and Notebook results retain output, recovery and memory pressure without success boilerplate", async () => {
+test("Code, Notebook and custom-tool results retain output and recovery without success boilerplate", async () => {
 	const completed = toCodeModeToolResult({
 		kind: "result", cellId: "complete",
 		contentItems: [{ type: "input_text", text: "Script completed" }],
@@ -76,7 +77,7 @@ test("Code and Notebook results retain output, recovery and memory pressure with
 		});
 		const native = { name: "mcp__records_store__read", description: "Read", parameters: { type: "object" } };
 		const bridge = createMcpCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
-		bridge.prepareLoadout({ callable: [native], getNamespace: () => ({ name: "mcp__records.store" }) } as never);
+		bridge.prepareLoadout({ callable: [native], getExposure: () => "codemode" as const, getNamespace: () => ({ name: "mcp__records.store" }) } as never);
 		const tools = bridge.getTools();
 		delegate.bindCell("missing", { cwd: process.cwd() }, new Map(tools.map((tool) => [tool.name, tool])));
 		const known = /MCP namespace "mcp__records\.store"\. If that server connects/;
@@ -115,4 +116,32 @@ test("Code and Notebook results retain output, recovery and memory pressure with
 		Function("globalThis", withMissingMcpToolRecovery("", ambiguousTools))(ambiguousSandbox);
 		assert.throws(() => (ambiguousSandbox.tools as Record<string, () => void>)["mcp__records_store__missing"]!(), ambiguity);
 	} finally { delegate.clear(); }
+
+	// The command-backed example runs outside the TypeScript tool registry.
+	const sitesClient = new URL("../examples/custom-tools/sites/client.mjs", import.meta.url).href;
+	const sitesOperations = new URL("../examples/custom-tools/sites/operations.mjs", import.meta.url).href;
+	execFileSync(process.execPath, ["--input-type=module", "-e", `
+		import assert from "node:assert/strict";
+		import { SitesClient } from ${JSON.stringify(sitesClient)};
+		import { resolveOperation } from ${JSON.stringify(sitesOperations)};
+		for (const [resource, action] of [["site", "constructor"], ["__proto__", "get"]]) {
+			assert.throws(() => resolveOperation(resource, action), { code: "unknown_operation" });
+		}
+		const error = { code: "site_not_owner_only", saved_version_id: "saved-opaque-id" };
+		for (const payload of [
+			{ result: { isError: true, structuredContent: { error } } },
+			{ result: { isError: true, content: [{ type: "text", text: JSON.stringify({ error }) }] } },
+			{ error: { code: -32603, data: error } },
+		]) {
+			const client = new SitesClient({ fetchImpl: async () => Response.json(payload) });
+			client.headers = {};
+			client.tools = [{ name: "sites_save_version_and_deploy_private" }];
+			await assert.rejects(client.call("save_version_and_deploy_private", {}), (failure) => {
+				assert.equal(failure.code, "site_not_owner_only");
+				assert.deepEqual(failure.details, { saved_version_id: "saved-opaque-id" });
+				assert.equal(failure.topic, "deployment");
+				return true;
+			});
+		}
+	`], { encoding: "utf8", timeout: 10_000 });
 });
