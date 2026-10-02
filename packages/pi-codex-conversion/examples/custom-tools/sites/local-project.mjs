@@ -91,7 +91,7 @@ export async function resolveProjectId(params, context) {
 export async function inspectCleanCommit(context) {
   const root = (await git(context.root, ["rev-parse", "--show-toplevel"])).trim();
   const status = await git(root, ["status", "--porcelain=v1", "--untracked-files=all"]);
-  if (status.trim()) throw new Error("version.save requires a clean Git worktree");
+  if (status.trim()) throw new Error("Source save requires a clean Git worktree");
   const manifestRelative = ".openai/hosting.json";
   await git(root, ["ls-files", "--error-unmatch", manifestRelative]);
   const commitSha = (await git(root, ["rev-parse", "HEAD"])).trim();
