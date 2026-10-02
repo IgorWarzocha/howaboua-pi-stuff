@@ -142,7 +142,10 @@ async function openInbox(
 								content: sender,
 								display: true,
 							},
-							{ triggerTurn: false, deliverAs: "steer" },
+							{
+								triggerTurn: false,
+								deliverAs: idle && !command ? "nextTurn" : "steer",
+							},
 						);
 						pi.sendUserMessage(text, {
 							expandPromptTemplates: true,
@@ -163,11 +166,11 @@ async function openInbox(
 						display: true,
 					},
 					idle
-						? { triggerTurn: false, deliverAs: "steer" }
+						? { triggerTurn: false, deliverAs: "nextTurn" }
 						: { deliverAs: "steer" },
 				);
-				// Appending then claiming the shared kickoff also coalesces arrivals
-				// during async preparation, when Pi still reports itself idle.
+				// Keep arrivals out of history until idle rollover and preparation
+				// finish. The shared kickoff coalesces arrivals during preparation.
 				if (idle) startPreparedIdleTurn(pi, ctx);
 				// Voice failure must not turn accepted delivery into a retry.
 				try {

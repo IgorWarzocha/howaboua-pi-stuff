@@ -25,6 +25,9 @@ test("developer messages preserve delivery and provider-role semantics", async (
 	const handlers = new Map<string, Set<(value: unknown) => void>>();
 	const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
 	const kickoffs: Array<{ content: string; options: unknown }> = [];
+	const lifecycle = new Map<string, (event: { reason: string }, ctx: ExtensionContext) => void>();
+	const deliveryManager = SessionManager.inMemory("/repo");
+	const deliveryContext = { sessionManager: deliveryManager, ui: { notify() {} } } as never;
 	const eventBus = {
 		on(channel: string, handler: (value: unknown) => void) {
 			const listeners = handlers.get(channel) ?? new Set();
@@ -38,6 +41,8 @@ test("developer messages preserve delivery and provider-role semantics", async (
 	};
 	const pi = {
 		events: eventBus,
+		on(event: string, handler: (event: { reason: string }, ctx: ExtensionContext) => void) { lifecycle.set(event, handler); },
+		appendEntry(type: string, data: unknown) { deliveryManager.appendCustomEntry(type, data); },
 		sendMessage(message: Record<string, unknown>, options: unknown) {
 			sent.push({ message, options });
 		},
@@ -46,7 +51,9 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		},
 	} as never;
 	let active = false;
-	const unregister = registerCodexDeveloperMessageBroker(pi, () => active, () => true);
+	let idle = true;
+	const unregister = registerCodexDeveloperMessageBroker(pi, () => active, () => idle);
+	lifecycle.get("session_start")!({ reason: "startup" }, deliveryContext);
 	const callerPi = { events: eventBus } as never;
 	const kickoffContext = { ui: { notify() {} } } as never;
 
@@ -69,13 +76,23 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		deliverAs: "steer",
 		triggerTurn: true,
 	}), true);
-	assert.deepEqual(sent[0]?.options, { deliverAs: "steer", triggerTurn: false });
+	assert.deepEqual(sent[0]?.options, { deliverAs: "nextTurn", triggerTurn: false });
 	assert.deepEqual(kickoffs.at(-1), {
 		content: "Continue.",
 		options: { deliverAs: "steer" },
 	});
 	assert.equal(sent[0]?.message["customType"], CODEX_DEVELOPER_MESSAGE_TYPE);
 	assert.equal(isCodexDeveloperMessageDetails(sent[0]?.message["details"]), true);
+	idle = false;
+	const activeKickoffs = kickoffs.length;
+	assert.equal(trySendCodexDeveloperMessage(pi, "During native navigation", { deliverAs: "steer", triggerTurn: true }), true);
+	assert.deepEqual(sent.at(-1)?.options, { deliverAs: "nextTurn", triggerTurn: false });
+	assert.equal(kickoffs.length, activeKickoffs);
+	updateCodexPreparedIdleKickoff(pi, "agent_start");
+	assert.equal(trySendCodexDeveloperMessage(pi, "Active steering", { deliverAs: "steer", triggerTurn: true }), true);
+	assert.deepEqual(sent.at(-1)?.options, { deliverAs: "steer", triggerTurn: true });
+	assert.equal(kickoffs.length, activeKickoffs);
+	idle = true;
 
 	const bridge = new CodexDeveloperMessageBridge();
 	const persisted = {
@@ -120,6 +137,8 @@ test("developer messages preserve delivery and provider-role semantics", async (
 	};
 	const original = structuredClone(custom);
 	assert.equal(trySendCodexDeveloperCustomMessage(pi, custom, { triggerTurn: false }), true);
+	assert.deepEqual(sent.at(-1)?.options, { triggerTurn: false });
+	assert.equal(kickoffs.length, activeKickoffs, "persistent state alone must not start a turn");
 	assert.deepEqual(custom, original);
 	const saved = sent.at(-1)!.message;
 	const customBridge = new CodexDeveloperMessageBridge();
@@ -133,6 +152,15 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		() => trySendCodexDeveloperCustomMessage(pi, { ...custom, details: saved["details"] as object }),
 		/reserved/,
 	);
+	assert.equal(deliveryManager.buildSessionContext().messages.length, 0, "pending deliveries are durable metadata, not new conversation");
+	deliveryManager.appendCustomMessageEntry(CODEX_DEVELOPER_MESSAGE_TYPE, "Developer guidance", true, sent[0]!.message["details"]);
+	const beforeRestore = sent.length;
+	lifecycle.get("session_start")!({ reason: "reload" }, deliveryContext);
+	assert.equal(sent.length, beforeRestore, "in-place reload retains Pi's queue without duplicating it");
+	lifecycle.get("session_start")!({ reason: "startup" }, deliveryContext);
+	assert.equal(sent.length, beforeRestore + 1, "replacement restores only unconsumed delivery IDs");
+	assert.equal(sent.at(-1)?.message["content"], "During native navigation");
+	assert.deepEqual(sent.at(-1)?.options, { deliverAs: "nextTurn", triggerTurn: false });
 
 	active = false;
 	assert.equal(trySendCodexDeveloperMessage(pi, "Inactive"), false);

@@ -385,7 +385,7 @@ export function injectAgentEvent(
 	const message = agentEvent(options);
 	const idle = ctx.isIdle();
 	const delivery = idle
-		? { triggerTurn: false, deliverAs: "steer" as const }
+		? { triggerTurn: false, deliverAs: "nextTurn" as const }
 		: { deliverAs: "steer" as const };
 	sendPolicyMessage(
 		pi,

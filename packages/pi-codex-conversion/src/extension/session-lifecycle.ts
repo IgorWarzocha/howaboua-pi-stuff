@@ -139,11 +139,12 @@ export function createCodexSessionLifecycle(
 			return state.contextTree.handoff.prepare(pi, event, ctx, plan.contextManagementMode);
 		},
 		tree: async (event, ctx) => {
-			updateCodexPreparedIdleKickoff(pi, "session_reset");
 			activate(ctx);
 			const previousMode = state.executionMode;
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
+			// Internal rollover is still preparing the same claimed user kickoff.
 			if (state.contextTree.handleSessionTree(event)) return;
+			updateCodexPreparedIdleKickoff(pi, "session_reset");
 			state.notebookStatusMessageId = undefined;
 			if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
