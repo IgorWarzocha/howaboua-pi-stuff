@@ -11,5 +11,6 @@ Codex Conversion and its SDK example now require Pi 1.0.0 or later.
 - Image blocking now also covers images returned with protected Remote results.
 - Tree navigation now loads its handoff note before resuming, without an extra model turn to read it. Failed reads cancel the jump. Remote results stay encrypted through replay and compaction, and their read calls retain the notes namespace across model switches.
 - Idle developer-message turns now apply saved-Notes rollover before adding incoming work to context. Pending messages survive failed startup and session reopening without duplicate delivery.
+- Low-context reminders no longer restart completed replies. Automatic checkpointing stays between active tool steps.
 - History and notes now show callable actions and required arguments upfront. Complete deferred contracts use the synchronous `ALL_TOOLS` catalogue without a second discovery tool.
 - MCP discovery now starts from server summaries and uses `ALL_TOOLS` in Code and Notebook. Server names and descriptions are preserved, and configured direct tools stay direct. Compaction prewarming uses the same MCP guidance as the resumed turn.

@@ -80,7 +80,8 @@ export function createCodexTurnLifecycle(
 					if (!continued) runtime.autoReasoning.settle(ctx);
 				}
 			})) return;
-			if (state.contextTree.handoff.active) return;
+			// Budget maintenance must not restart an assistant that has already answered.
+			if (state.contextTree.handoff.active || event.toolResults.length === 0) return;
 			const reminder = state.contextWindows.recordBudget(ctx, plan.contextManagement ? plan.contextManagementMode : "off");
 			if (reminder) return { entries: [...event.entries, reminder], continue: true };
 		},

@@ -21,6 +21,7 @@ import { REMOTE_DELIVERY_MESSAGE } from "../src/context-management/remote-delive
 import { projectTreeHandoffReads, readTreeHandoffNote } from "../src/context-management/tree-handoff-read.ts";
 import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { collectReplayMessages } from "../src/adapter/replay/native-replay-matching.ts";
+import { createCodexTurnLifecycle } from "../src/extension/turn-lifecycle.ts";
 
 function createContext(apiKey?: string): ExtensionContext {
 	return {
@@ -394,6 +395,26 @@ test("context windows preserve rollover and native request semantics", async () 
 			},
 		},
 	};
+	for (const mode of ["local", "tree", "remote"] as const) {
+		for (const tokens of [232_000, 250_000]) {
+			const windows = new CodexContextWindowManager();
+			const boundaryPi = { sendMessage() {} } as never;
+			windows.ensureInitialized(boundaryPi, ctx, true);
+			const state = { ...contextState, contextWindows: windows,
+				config: { ...contextState.config, compaction: { ...contextState.config.compaction, historyStorage: mode } } };
+			const { turnEnded } = createCodexTurnLifecycle(boundaryPi, { state } as never,
+				{} as never, {} as never, {} as never, {} as never);
+			const budgetCtx = { ...ctx, getContextUsage: () => ({ tokens, contextWindow: 272_000, percent: tokens / 2720 }) };
+			const boundary = { entries: [], message: { role: "assistant", stopReason: "stop" }, toolResults: [] };
+			assert.equal(await turnEnded(boundary as never, budgetCtx), undefined,
+				"neither threshold may revive a finished reply");
+			const continuing = await turnEnded({ ...boundary, message: { role: "assistant", stopReason: "toolUse" },
+				toolResults: [{ role: "toolResult", toolCallId: "read", toolName: "read", content: [], isError: false, timestamp: 1 }],
+			} as never, budgetCtx);
+			assert.equal(continuing?.continue, true, "the next completed tool step still receives its reminder");
+			assert.equal(continuing?.entries?.length, 1);
+		}
+	}
 	const routerTools = buildRequestBody(codexModel, normalizeContext({
 		messages: [],
 		tools: createHistoryNotesTools(),
