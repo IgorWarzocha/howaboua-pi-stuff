@@ -23,7 +23,7 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
-	"When finished or blocked, end with an assistant reply, not a separate send report. Do not watch your parent or use messaging to wait for a reply.";
+	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
 
 function xml(value: string): string {
 	return value
