@@ -18,4 +18,4 @@ History and notes now show their callable action names and required arguments up
 
 MCP discovery now starts from server summaries instead of an upfront per-tool inventory. Configured direct tools remain directly exposed.
 
-Code and Notebook retain the synchronous `ALL_TOOLS` catalogue. Its nested `tools.tool_search` helper returns complete matching contracts for MCP, custom and deferred tools in one query, including tools that finish connecting during lookup.
+Code and Notebook expose complete deferred contracts through the synchronous `ALL_TOOLS` catalogue without a second discovery tool.

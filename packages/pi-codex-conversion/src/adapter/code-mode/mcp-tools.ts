@@ -23,7 +23,7 @@ export function createMcpCodeModeBridge(pi: ExtensionAPI): {
 				kind: "function",
 				deferLoading: true,
 				discoverWhenDeferred: true,
-				discovery: "tool_search",
+				discovery: "server",
 				executionPipeline: "pi",
 				inputSchema: tool.parameters,
 				output: tool.outputSchema ? JSON.stringify(tool.outputSchema) : undefined,

@@ -41,7 +41,7 @@ Unknown fields and invalid definitions disable only that named tool. The tool re
 
 ## Deferred tools
 
-Deferred tools remain callable but add no per-tool provider schema or standing usage. Read, find or filter the synchronous `ALL_TOOLS` array for full help. Its nested `tools.tool_search({ query, limit? })` helper returns complete matching contracts in one query, including usage, schema and output metadata.
+Deferred tools remain callable but add no per-tool provider schema or standing usage. Read, find or filter the synchronous `ALL_TOOLS` array for full help, including usage, schema and output metadata.
 
 Set `defer_loading = false` only for stable, frequently used tools. Promotion adds only `usage` to the system prompt; full help remains local.
 

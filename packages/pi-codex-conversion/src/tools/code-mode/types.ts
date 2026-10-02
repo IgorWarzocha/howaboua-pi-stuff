@@ -49,8 +49,8 @@ export interface ProgrammaticCodeModeToolDefinition
 	discoverWhenDeferred?: boolean | undefined;
 	/** Compact callable spine; full help remains in ALL_TOOLS. */
 	discoveryUsage?: string | undefined;
-	/** Pi's public search owns discovery instead of appended per-tool inventory. */
-	discovery?: "tool_search" | undefined;
+	/** Server summaries replace appended per-tool inventory. */
+	discovery?: "server" | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi owns validation, permissions and completion hooks for these calls. */

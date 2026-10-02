@@ -52,7 +52,7 @@ Structured mode reads files through the shell and edits with `apply_patch`. Ther
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. `ALL_TOOLS` contains complete callable contracts. Its nested `tools.tool_search` helper returns matching contracts in one query.
+Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. `ALL_TOOLS` contains complete callable contracts.
 
 </details>
 
@@ -236,7 +236,7 @@ Configure servers once in Pi's built-in MCP extension. Its callable tools and re
 
 `exec` does not wait for pending MCP connections. In Code and Notebook modes, missing-tool errors identify the MCP namespace when known, otherwise flag ambiguous name prefixes. If that server connects, retry in a new exec cell. If failures repeat, the agent should suggest disabling that specific server to you. This recovery guidance does not retry calls or disable servers.
 
-MCP discovery starts from Pi's server summaries. `ALL_TOOLS` remains the synchronous array of complete callable contracts, with ordinary reads, `find` and `filter`. Discover `tools.tool_search({ query, limit? })` there for targeted lookup across custom, deferred and MCP tools. It reuses Pi's ranking and waits for pending MCP connection attempts to settle, not for user sign-in. Results include usage, schemas and server instructions without a second catalogue lookup. If a match connected after the current cell started, the result identifies bindings to call in the next cell. Catalogue-only tools remain nested calls, not native declarations.
+MCP discovery starts from Pi's server summaries. Read, `find` or `filter` the synchronous `ALL_TOOLS` array for complete usage, schemas and server instructions. Each cell's catalogue contains tools connected when that cell starts. Custom and deferred tools use the same catalogue, not another discovery tool.
 
 Notebook status and tool notices follow Pi's theme. Use **Ctrl+O** to expand or collapse them all, or click an individual notice in fullscreen mode.
 
@@ -393,7 +393,7 @@ pi.on("session_shutdown", () => registration.unregister());
 
 See the [complete example](./examples/code-mode-extension). Declare `@howaboua/pi-codex-conversion` 3.0.24 or newer as a peer dependency. Import lazily if your extension must work without Pi Codex.
 
-Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript receives model-usable content. Code Mode owns nested-call preflight and translates non-JavaScript tool names consistently in prompts, `ALL_TOOLS` and search results.
+Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript receives model-usable content. Code Mode owns nested-call preflight and translates non-JavaScript tool names consistently in prompts and `ALL_TOOLS`.
 
 | Option | Purpose |
 | --- | --- |

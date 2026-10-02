@@ -60,7 +60,7 @@ export function recordCodeModeToolkit(
 	const previous = latest?.compactionId === compactionId && visible.some((update) => update.id === latest.rootId)
 		? latest : undefined;
 	const discoverable = catalog.filter((tool) => isCodeModeToolDiscoverable(tool)
-		&& !("discovery" in tool && tool.discovery === "tool_search"));
+		&& !("discovery" in tool && tool.discovery === "server"));
 	const current = new Map(discoverable.map((tool) => [codeModeGlobalName(tool.name), tool]));
 	const callable = new Set(catalog.map((tool) => codeModeGlobalName(tool.name)));
 	const standingPromoted = new Map(promptCatalog.filter((tool) => "command" in tool && !tool.deferLoading)

@@ -207,22 +207,23 @@ test("adapter activation requires registered tools and follows scope independent
 			const ctx = createContext(dynamicModel);
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), false);
-			assert.equal(pi.activeTools().includes("tool_search"), nativeActive);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
 			assert.ok(pi.activeTools().includes("exec"));
 			syncAdapter(pi as never, ctx as never, state);
-			assert.equal(pi.activeTools().includes("tool_search"), nativeActive);
-			assert.equal(state.adapterOwnedToolNames?.includes("tool_search") ?? false, nativeActive && !searchWasActive);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
+			assert.equal(state.adapterOwnedToolNames?.includes("tool_search") ?? false, false);
 			state.executionMode = "normal";
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), nativeActive);
 			assert.equal(pi.activeTools().includes("tool_search"), searchWasActive);
 			state.executionMode = mode;
 			syncAdapter(pi as never, ctx as never, state);
-			pi.setActiveTools([...pi.activeTools(), "codemode"]);
+			pi.setActiveTools([...pi.activeTools(), "codemode", "tool_search"]);
 			syncAdapter(pi as never, ctx as never, state);
 			assert.equal(pi.activeTools().includes("codemode"), false);
+			assert.equal(pi.activeTools().includes("tool_search"), false);
 			syncAdapter(pi as never, createContext({ provider: "meta", api: "openai-responses", id: "muse" }) as never, state);
-			assert.deepEqual(pi.activeTools(), ["read", "codemode", ...(searchWasActive ? ["tool_search"] : [])]);
+			assert.deepEqual(pi.activeTools(), ["read", "codemode", "tool_search"]);
 		}
 	}
 	for (const mode of ["normal", "code", "notebook"] as const) {
