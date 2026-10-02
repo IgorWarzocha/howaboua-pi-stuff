@@ -4,9 +4,10 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi SDK baseline: published `0.99.1` (`d86654abb`)
-- Stock provider comparison: published Pi `0.99.1` (2026-09-29)
+- Pi SDK baseline: published `0.99.2`
+- Stock provider comparison: published Pi `0.99.2` (2026-10-01)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
+- WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
@@ -41,6 +42,22 @@ Reviewed 642 Codex commits after `8ace915aced81ed841e34fa069b2e489c324731c`. The
 Stock Pi `0.87.0` was compared for request shape, headers, reasoning/service tier, retries and stream termination. This adapter intentionally keeps Codex's fresh-request WebSocket recovery and its existing three-minute throttling budgets rather than stock Pi's retry defaults. No request-schema or prompt changes accompany this transport sync.
 
 Responses Lite steering and history-aware main-lane idle prewarm remain separate integration work; neither is equivalent to Pi's current steering or isolated captured-prefix keepalive. Native executor, sandbox and rollout changes have no direct port in this sync. Vendored native source revisions remain independently pinned above.
+
+## October 1 WebSocket preparation
+
+Compared Codex's handshake overlap, cached-session repair, readiness and history-aware warmup changes (`ce7df3623757`, `d838c2346d05`, `f5f08c54cb7a`, `a98a07759a3f`, `3f4668da20a5`) with the current Pi callers.
+
+- With the existing cached-WebSocket policy, handshake acquisition overlaps final asynchronous payload rewrites and Responses Lite image preparation. Pi has already completed the full `before_agent_start` chain and context conversion. This is not Codex's parallel tool discovery. Only the handshake overlaps preparation. Warmup still awaits the authoritative final request in `beforeRequestSend`.
+- Handoff revalidates endpoint, account, credentials, proxy and handshake headers. Negotiated beta features participate in socket identity. Cancelled or mismatched preparation closes its lease without advancing continuation or canonical history.
+- Transport reset and session shutdown also cancel preparation handshakes that have not yet entered the socket cache. Handoff retires the preparation's lifecycle registration.
+- Handshake `426` and close `1009` retain immediate sticky SSE fallback only when the finalized route still matches the failed attempt. Other speculative failures leave normal request recovery in charge.
+- Repeated compaction warmup checks the live cached session instead of trusting a past request key. Matching ready history sends no warmup. Extended history can use a validated `previous_response_id` delta, while changed request settings or disconnected sockets require a full request.
+
+Ordinary ready-socket skipping and the default `forceCachedWebSockets: true` policy are preserved. No new idle warmup caller or model generation is added. Isolated keepalive remains unchanged.
+
+Pi `0.99.2` queues steering input between completed responses rather than interrupting an active generation. Codex's `response.interrupt` and interrupted-terminal handling (`12de0e395d33`) therefore have no current Pi caller. Stock Pi's request shape, headers, reasoning, service tier, retry and stream termination were compared again. The adapter retains its documented transport recovery policy.
+
+Deterministic protocol checks establish handshake overlap, final prompt/tool capture, route handoff, cancellation and warmup repair. They do not establish provider cache hits or a latency improvement.
 
 ## Implemented portable behavior
 

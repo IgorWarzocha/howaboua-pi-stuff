@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeContext } from "@earendil-works/pi-ai";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
@@ -27,7 +28,7 @@ import {
 	user,
 } from "./websocket-test-support.ts";
 
-test("ordinary prewarm reuses a ready lane after final-body capture; keepalive remains isolated", async () => {
+test("ordinary prewarm reuses a ready lane after final-body capture; keepalive remains isolated", { timeout: 3000 }, async () => {
 	const restoreWebSocket = installScriptedWebSocket([[
 		(socket) => {
 			socket.emitJson({ type: "response.created", response: { id: "resp_authoritative_prewarm" } });
@@ -41,10 +42,12 @@ test("ordinary prewarm reuses a ready lane after final-body capture; keepalive r
 	], [websocketSuccess, websocketSuccess]]);
 	try {
 		const openedHeaders: Record<string, string>[] = [];
+		const handshakeOpened = Promise.withResolvers<void>();
 		globalThis.WebSocket = class extends ScriptedWebSocket {
 			constructor(_url: string, options: { headers: Record<string, string> }) {
 				super();
 				openedHeaders.push(options.headers);
+				this.addEventListener("open", () => handshakeOpened.resolve());
 			}
 		} as never;
 		let refreshedKey = apiKey;
@@ -120,8 +123,10 @@ test("ordinary prewarm reuses a ready lane after final-body capture; keepalive r
 			{
 				...options,
 				headers: { "x-extension": "final", "x-deleted": null },
-				onPayload: (body: unknown) => {
+				onPayload: async (body: unknown) => {
 					onPayloadCalls++;
+					await handshakeOpened.promise;
+					assert.equal(sentFrames().length, 0, "handshake overlaps final preparation without sending a prompt or tools");
 					return { ...(body as ResponsesBody), client_metadata: { final_hook: "once" } };
 				},
 			} as never,
@@ -243,7 +248,9 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 });
 
 test("compaction prewarm accepts renamed Codex routes and deliberately resets sticky SSE", async () => {
-	const restoreWebSocket = installScriptedWebSocket([(socket) => {
+	let warmedSocket: ScriptedWebSocket | undefined;
+	const warmup = (socket: ScriptedWebSocket) => {
+		warmedSocket = socket;
 		socket.emitJson({ type: "response.created", response: { id: "resp_cached" } });
 		socket.emitJson({
 			type: "response.completed",
@@ -256,7 +263,8 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 				},
 			},
 		});
-	}]);
+	};
+	const restoreWebSocket = installScriptedWebSocket([[warmup, warmup, warmup], warmup]);
 	const sessionId = "history-prewarm-identity";
 	try {
 		const runtime = createCodexExtensionRuntime({
@@ -280,6 +288,9 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			provider: "openai-codex-personal",
 			baseUrl: "https://codex-proxy.example.com/backend-api",
 		};
+		const history: SessionEntry[] = [{ type: "message", id: "system", parentId: null, timestamp: "2026-01-01T00:00:00.000Z", message: {
+			role: "system", content: "Stable prompt", toolsAdded: codeModeTools, timestamp: 0,
+		} }];
 		const extensionContext = {
 			cwd: "/repo",
 			getSystemPrompt: () => "Stable prompt",
@@ -289,9 +300,7 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			},
 			sessionManager: {
 				getEntries: () => [],
-				getBranch: () => [{ type: "message", id: "system", parentId: null, message: {
-					role: "system", content: "Stable prompt", toolsAdded: codeModeTools, timestamp: 0,
-				} }],
+				getBranch: () => history,
 				getSessionId: () => sessionId,
 			},
 		} as never;
@@ -306,8 +315,23 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			socketReused: false,
 		});
 
-		assert.equal(runtime.startCompactionPrewarm(extensionContext), undefined);
+		assert.deepEqual(await runtime.startCompactionPrewarm(extensionContext), { status: "ready", socketReused: true });
 		assert.equal(sentFrames().length, 1);
+		history.push({ type: "message", id: "next", parentId: "system", timestamp: "2026-01-01T00:00:01.000Z", message: user("Next turn", 1) });
+		assert.equal((await runtime.startCompactionPrewarm(extensionContext))?.status, "ready");
+		assert.equal(sentFrames()[1]?.previous_response_id, "resp_cached");
+		assert.equal(sentFrames()[1]?.input?.length, 1, "history-aware warmup sends only the validated extension");
+		runtime.state.config.openai.verbosity = "high";
+		assert.equal((await runtime.startCompactionPrewarm(extensionContext))?.status, "ready");
+		assert.equal(sentFrames()[2]?.previous_response_id, undefined, "changed request settings require a full warmup");
+		assert.ok(warmedSocket);
+		warmedSocket.close();
+		const repaired = await runtime.startCompactionPrewarm(extensionContext);
+		assert.equal(repaired?.status, "ready");
+		if (repaired?.status !== "ready") throw new Error("dead socket was not repaired");
+		assert.equal(repaired.socketReused, false, "past readiness cannot hide a dead socket");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(sentFrames()[3]?.previous_response_id, undefined);
 		assert.equal(runtime.startKeepalivePrewarm(extensionContext), undefined, "compaction does not invent an authoritative live prefix");
 	} finally {
 		restoreWebSocket();
