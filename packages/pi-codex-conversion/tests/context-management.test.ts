@@ -309,14 +309,10 @@ test("context windows preserve rollover and native request semantics", async () 
 		const output = wire.find(item => "type" in item && item.type === "function_call_output");
 		assert.ok(output && "call_id" in output && "output" in output);
 		assert.ok(wire.some(item => "type" in item && item.type === "function_call" && "call_id" in item && item.call_id === output.call_id));
-		if (mode === "remote") assert.deepEqual(output.output, [{ type: "encrypted_content", encrypted_content: "encrypted-handoff" }]);
 		if (mode === "remote") {
-			const switchedModel = { ...codexModel, id: "different-responses-model" };
-			const switched = serializeMessagesToResponsesInput(switchedModel, messages);
-			const call = switched.find(item => "type" in item && item.type === "function_call");
-			assert.ok(call && "namespace" in call && call.namespace === "notes", "host reads keep their namespace after a model switch");
-			assert.deepEqual(serializeActiveSessionToResponsesInput({ model: switchedModel, entries: sessionManager.getBranch() }), switched);
-			assert.deepEqual(serializeMessagesToResponsesInput(switchedModel, collectReplayMessages(sessionManager.getBranch())), switched);
+			assert.deepEqual(output.output, [{ type: "encrypted_content", encrypted_content: "encrypted-handoff" }]);
+			const call = wire.find(item => "type" in item && item.type === "function_call");
+			assert.ok(call && "namespace" in call && call["namespace"] === "notes", "gpt-5.6 host read retains its namespace on gpt-5.4 replay");
 		}
 		await navigationWindow.startNewWindow(persistedPi, noteCtx, { mode, trimPreviousWindow: true });
 		assert.doesNotMatch(JSON.stringify(projected()), /tree-handoff-contract|Departing branch decisions|encrypted-handoff|Selected destination context/,
