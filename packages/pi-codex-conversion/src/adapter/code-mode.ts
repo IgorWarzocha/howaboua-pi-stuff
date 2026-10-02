@@ -19,6 +19,7 @@ import { createContextWindowTools } from "../context-management/tools.ts";
 import { resolveRemoteContextScope } from "../context-management/remote-scope.ts";
 import { appendRemoteDelivery } from "../context-management/remote-delivery.ts";
 import { createMcpCodeModeBridge } from "./code-mode/mcp-tools.ts";
+import { registerCodeModeToolSearch } from "./code-mode/tool-search.ts";
 import { syncAdapter } from "./activation/activation.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
@@ -31,6 +32,7 @@ export async function registerCodexCodeMode(
 	let stopped = false;
 	let pendingNativeProjection = false;
 	const mcp = createMcpCodeModeBridge(pi);
+	let search: Awaited<ReturnType<typeof registerCodeModeToolSearch>> | undefined;
 	const isActive = (ctx: unknown) => {
 		if (ctx) latestContext = ctx as ExtensionContext;
 		const plan = resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state);
@@ -62,7 +64,8 @@ export async function registerCodexCodeMode(
 				});
 			}
 			const changes = mcp.prepareLoadout(loadout);
-			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode"] };
+			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode",
+				...(search?.getTools().length ? ["tool_search"] : [])] };
 		},
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
@@ -74,6 +77,7 @@ export async function registerCodexCodeMode(
 					runtime.state.previousToolNames ?? pi.getActiveTools(),
 				),
 				...mcp.getTools(),
+				...(search?.getTools(mcp.getTools().map(tool => tool.name)) ?? []),
 			];
 		},
 		isActive,
@@ -92,6 +96,7 @@ export async function registerCodexCodeMode(
 		richRendering: () => runtime.state.config.ui.codeModeDetails,
 		minimalOutput: () => runtime.state.config.ui.compactTools === "minimal",
 	});
+	search = await registerCodeModeToolSearch(pi, ctx => programmaticRuntime.getTools(ctx), isActive);
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),

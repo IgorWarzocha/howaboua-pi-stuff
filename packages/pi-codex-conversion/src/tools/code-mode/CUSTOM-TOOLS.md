@@ -11,7 +11,7 @@ Definitions are top-level `*.toml` files in either location:
 
 Only the active session working directory is checked; parent directories are not searched. Project-local definitions are ignored unless Pi trusts the project. A project-local definition replaces a global definition with the same tool name. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
 
-Definitions remain live for execution. Promoted usage stays fixed in the standing instructions until a session or model reset. Added or renamed tools remain deferred until that reset. Contract changes and removals are announced before the next model request without rebuilding standing instructions, including after compaction. Current help for every custom tool is in `ALL_TOOLS`; later updates supersede earlier usage.
+Definitions remain live for execution. Promoted usage stays fixed in the standing instructions until a session or model reset. Added or renamed tools remain deferred until that reset. Contract changes and removals are announced before the next model request without rebuilding standing instructions, including after compaction. `ALL_TOOLS` contains complete callable contracts; later updates supersede earlier usage.
 
 ```toml
 usage = 'await tools.port_info(port_number)'
@@ -41,12 +41,7 @@ Unknown fields and invalid definitions disable only that named tool. The tool re
 
 ## Deferred tools
 
-Deferred tools remain callable but add nothing tool-specific to the provider schema or system prompt. `ALL_TOOLS` includes current help for deferred and promoted custom tools, but excludes bundled tools:
-
-```js
-text(ALL_TOOLS.map(({ name }) => name));
-text(ALL_TOOLS.find(({ name }) => name === "port_info"));
-```
+Deferred tools remain callable but add no per-tool provider schema or standing usage. Read, find or filter the synchronous `ALL_TOOLS` array for full help. Its nested `tools.tool_search({ query, limit? })` helper returns complete matching contracts in one query, including usage, schema and output metadata.
 
 Set `defer_loading = false` only for stable, frequently used tools. Promotion adds only `usage` to the system prompt; full help remains local.
 

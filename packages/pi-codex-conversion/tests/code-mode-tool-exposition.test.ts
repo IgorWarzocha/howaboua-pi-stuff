@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { convertToLlm, createToolSearchExtension, SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, SessionManager, type ToolDefinition, type ToolResultEvent, type ToolResultEventResult } from "@earendil-works/pi-coding-agent";
 import { createMcpCodeModeBridge } from "../src/adapter/code-mode/mcp-tools.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, readToolkitUpdate, recordCodeModeToolkit } from "../src/adapter/code-mode/toolkit-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
@@ -10,6 +10,10 @@ import { scopeAllToolsToDiscoverable } from "../src/tools/code-mode/host-client.
 import { toWireToolDefinition } from "../src/tools/code-mode/host-protocol.ts";
 import { codeModeGlobalName } from "../src/tools/code-mode/tool-identity.ts";
 import { notebookBootstrapSource } from "../src/tools/notebook-mode/kernel-runtime.ts";
+import { registerCodeModeToolSearch } from "../src/adapter/code-mode/tool-search.ts";
+import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
+import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
+import { toNestedTool } from "../src/adapter/code-mode/nested-tool-adapter.ts";
 import type {
 	CustomToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
@@ -125,7 +129,7 @@ test("custom-tool discovery and availability share the callable catalog without 
 	assert.equal(carrier.role, "custom");
 	const payload = bridge.rewritePayload({ input: [{ role: "user", content: carrier.content }] }) as { input: Array<{ role: string; content: string }> };
 	assert.equal(payload.input[0]!.role, "developer");
-	assert.match(payload.input[0]!.content, /Tool help in ALL_TOOLS/);
+	assert.match(payload.input[0]!.content, /help in ALL_TOOLS/);
 	const changedInstructions = catalog.map((tool) => tool.name === native.name
 		? { ...tool, namespace: { ...loadout.getNamespace(), instructions: "Preserve opaque IDs" } } : tool);
 	assert.equal(recordCodeModeToolkit(pi, ctx, initial, changedInstructions), false);
@@ -143,22 +147,91 @@ test("custom-tool discovery and availability share the callable catalog without 
 	assert.equal(recordCodeModeToolkit(pi, ctx, messages(), nextCatalog), false);
 	// A surviving delta cannot stand in for a full catalog lost at a context boundary.
 	assert.equal(recordCodeModeToolkit(pi, ctx, [delta], nextCatalog), true);
-	assert.match(JSON.stringify(messages().at(-1)), /Tool help in ALL_TOOLS/);
-	// Discovery uses Pi's public tool-search owner, then the existing nested executor.
+	assert.match(JSON.stringify(messages().at(-1)), /help in ALL_TOOLS/);
+	// One query returns complete contracts across the live owned catalogue, then calls a local command.
+	const sites = { ...customTool("sites", true),
+		usage: "await tools.sites(JSON.stringify({ resource, action }))", description: "Sites operations",
+		command: process.execPath, args: ["-e", "process.stdout.write(process.argv[1])"], output: "Owned fixture receipt" };
+	const [historyCore, notesCore] = createHistoryNotesTools();
+	const deferredContract = { deferLoading: true, discoverWhenDeferred: true };
+	const core = [
+		toNestedTool(historyCore, "await tools.history({ action, ...args })", {}, deferredContract),
+		toNestedTool(notesCore, "await tools.notes({ action, ...args })", {}, deferredContract),
+	];
+	const searchCatalog = [...catalog, sites, ...core];
 	let search: ToolDefinition | undefined;
-	let active: string[] = [];
-	await createToolSearchExtension()({
+	let codeModeActive = true;
+	let active: string[] = ["exec", resource.name];
+	const handlers = new Map<string, (event: never, ctx: never) => unknown>();
+	const searchPi = {
 		registerTool: (tool: ToolDefinition) => { search = tool; },
-		getAllTools: () => [{
-			...native, exposure: "codemode", namespace: loadout.getNamespace(),
-		}],
+		getAllTools: () => [
+			{ ...bundled, name: "exec", sourceInfo: { path: "/conversion" }, exposure: "model-only" },
+			{ ...search, sourceInfo: { path: "/conversion" } },
+			...[native, resource].map(tool => ({
+				...tool, exposure: tool === native ? "codemode" : "direct",
+				namespace: loadout.getNamespace(), sourceInfo: { path: "builtin:mcp" },
+			})),
+		],
 		getActiveTools: () => active,
-		setActiveTools: (names: string[]) => { active = names; },
-	} as never);
+		setActiveTools: (names: string[]) => {
+			assert(names.every(name => searchPi.getAllTools().some(tool => tool.name === name)), "Catalogue-only names never enter native loadout");
+			active = names;
+		},
+		on: (name: string, handler: (event: never, ctx: never) => unknown) => { handlers.set(name, handler); },
+	};
+	const searchBridge = await registerCodeModeToolSearch(searchPi as never, () => searchCatalog, () => codeModeActive);
 	assert(search);
-	const discovery = await search.execute("search", { query: "records lookup" }, new AbortController().signal, undefined, {} as never);
-	assert.match(discovery.content.filter(block => block.type === "text").map(block => block.text).join("\n"), /mcp__records__lookup: Find records/);
-	assert.deepEqual(active, [native.name]);
+	assert.equal(search.exposure, "codemode");
+	const [searchHelper] = searchBridge.getTools([native.name, resource.name]);
+	assert(searchHelper);
+	const searchState = { ALL_TOOLS: [...searchCatalog, searchHelper].map(tool => ({
+		name: codeModeGlobalName(tool.name), description: toWireToolDefinition(tool).description,
+	})) };
+	Function("globalThis", scopeAllToolsToDiscoverable("", [...searchCatalog, searchHelper]))(searchState);
+	assert(Array.isArray(searchState.ALL_TOOLS));
+	assert.equal(searchState.ALL_TOOLS.find(tool => tool.name === "tool_search")?.description,
+		formatCodeModeToolHelp(searchHelper));
+	const query = { query: "sites notes history records deferred promoted", limit: 12 };
+	handlers.get("tool_call")!({ toolName: "tool_search" } as never, ctx as never);
+	const discovery = await search.execute("search", query, new AbortController().signal, undefined, ctx as never);
+	const originalDiscovery = JSON.stringify(discovery);
+	const expand = (result: typeof discovery) => handlers.get("tool_result")!({
+		type: "tool_result", toolName: "tool_search", toolCallId: "search", input: query,
+		...result, isError: false,
+	} as ToolResultEvent as never, ctx as never) as ToolResultEventResult;
+	const complete = expand(discovery);
+	assert.deepEqual(complete.details, { loaded: [native.name, resource.name],
+		matches: (discovery.details as { loaded: string[] }).loaded });
+	const contracts = complete.content!.filter(block => block.type === "text").map(block => block.text).join("\n");
+	for (const tool of [sites, ...core, promoted, deferred, ...mcp.getTools()])
+		assert(contracts.includes(formatCodeModeToolHelp(tool)), `Complete contract for ${tool.name}`);
+	assert.equal(JSON.stringify(discovery), originalDiscovery, "Fresh result transformation leaves its source untouched");
+	assert(!contracts.includes(process.execPath), "Custom command paths are not call contracts");
+	const executionContext = { cwd: "/project", executeTool: async (name: string, input: unknown) => {
+		assert.equal(name, "tool_search");
+		assert.deepEqual(input, query);
+		return { toolCall: { type: "toolCall" as const, id: "search", name, arguments: input },
+			isError: false, result: { ...discovery, ...complete } };
+	} };
+	assert.equal(await searchHelper.invoke(query, executionContext, new AbortController().signal), contracts);
+	assert.match(String(await searchBridge.getTools([])[0]!.invoke(query, executionContext, new AbortController().signal)),
+		/Newly connected bindings: mcp__records__lookup, list_mcp_resources\. Call them in the next exec cell/);
+	assert.deepEqual(active, ["exec", resource.name, native.name]);
+	codeModeActive = false;
+	assert.equal(expand(discovery), undefined, "Native result remains unchanged outside Code/Notebook");
+	active = ["exec", resource.name];
+	const nativeOnly = await search.execute("native", { query: "sites history notes records", limit: 12 },
+		new AbortController().signal, undefined, ctx as never);
+	assert.deepEqual((nativeOnly.details as { loaded: string[] }).loaded, [native.name],
+		"Nested-only contracts never enter the native search catalogue");
+	codeModeActive = true;
+	const delegate = new CodeModeDelegateRuntime(() => undefined);
+	delegate.bindCell("discovered", { cwd: process.cwd() }, new Map(searchCatalog.map(tool => [tool.name, tool])));
+	try {
+		const input = JSON.stringify({ resource: "site", action: "get" });
+		assert.equal(await delegate.invokeDirect("discovered", 1, sites.name, input), input);
+	} finally { delegate.clear(); }
 	const invoked: unknown[] = [];
 	assert.deepEqual(await mcp.getTools()[0]!.invoke({ id: "record-1" }, {
 		cwd: "/project",
