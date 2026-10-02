@@ -72,7 +72,7 @@ test("trusted folder config overrides globals without crossing folder or process
 		writeFileSync(globalPath, legacyGlobal);
 		writeFileSync(projectPath, legacyProject);
 		const migrated = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
-		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", shareSubagentContext: false, method: "both", v2UserMessageRetention: 16 });
+		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", shareSubagentContext: false, idleNotesRollover: false, method: "both", v2UserMessageRetention: 16 });
 		assert.equal(readFileSync(globalPath, "utf8"), legacyGlobal);
 		assert.equal(readFileSync(projectPath, "utf8"), legacyProject, "startup normalization never writes configuration");
 		assert.equal(writeCodexConversionConfig(migrated, projectPath, true).ok, true);
@@ -80,7 +80,7 @@ test("trusted folder config overrides globals without crossing folder or process
 			...migrated.compaction, futureOption: "preserve",
 		}, "explicit writes remove obsolete controls but preserve unknown fields");
 
-		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", shareSubagentContext: true, method: "both", v2UserMessageRetention: 32 };
+		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", shareSubagentContext: true, idleNotesRollover: true, method: "both", v2UserMessageRetention: 32 };
 		writeFileSync(globalPath, JSON.stringify({ compaction: inherited }));
 		for (const { override, expected } of [
 			{ override: { contextManagement: "tree" }, expected: { historyStorage: "tree" } },

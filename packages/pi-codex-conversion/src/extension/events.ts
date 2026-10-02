@@ -203,11 +203,12 @@ export function registerCodexEvents(
 		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
 	});
-	pi.on("session_before_switch", () => state.contextTree.handoff.active ? { cancel: true } : undefined);
-	pi.on("session_before_fork", () => state.contextTree.handoff.active ? { cancel: true } : undefined);
+	pi.on("session_before_switch", () => state.contextTree.handoff.active || state.contextKickoff.hasIdleInput ? { cancel: true } : undefined);
+	pi.on("session_before_fork", () => state.contextTree.handoff.active || state.contextKickoff.hasIdleInput ? { cancel: true } : undefined);
 	pi.on("session_before_tree", (event, ctx) => {
 		if (state.contextTree.handoff.active) return { cancel: true };
 		if (state.contextTree.archiving) return;
+		if (state.contextKickoff.hasIdleInput) return { cancel: true };
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		if (!plan.contextManagement || !event.preparation.userWantsSummary) return;
 		return state.contextTree.handoff.prepare(pi, event, ctx, plan.contextManagementMode);
@@ -316,6 +317,24 @@ export function registerCodexEvents(
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event, ctx) => {
+		const inputPlan = resolveCodexRuntimePlanForState(ctx, state);
+		if (state.contextKickoff.hasIdleInput || (inputPlan.idleNotesRollover && event.streamingBehavior === undefined &&
+			!state.contextTree.rolloverPending && !state.contextTree.handoff.active && !state.contextKickoff.pending &&
+			state.contextWindows.hasIdleNotesCheckpoint(ctx, inputPlan.contextManagementMode))) {
+			const result = await state.contextKickoff.prepareIdleInput(ctx, async () => {
+				if (!inputPlan.idleNotesRollover) throw new Error("Idle notes rollover is not active on this route");
+				const rolled = inputPlan.contextManagementMode === "tree"
+					? state.contextTree.schedule(ctx, { triggerTurn: false }) && await state.contextTree.settle(pi, ctx)
+					: await state.contextKickoff.startWindow(pi, ctx, {
+						triggerTurn: false, mode: inputPlan.contextManagementMode, trimPreviousWindow: true,
+					});
+				if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+				return rolled;
+			});
+			if (result.action === "handled") return result;
+			// The same SDK call proceeds to expansion and every before_agent_start handler.
+			// Do not resubmit a custom-message turn or a captured system prompt.
+		}
 		const intercepted = state.contextTree.interceptInput(event);
 		if (intercepted) return intercepted;
 		if (event.streamingBehavior === undefined) {
@@ -404,6 +423,9 @@ export function registerCodexEvents(
 		} finally {
 			if (continuingWork && !continued && !state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
 		}
+		const settledPlan = resolveCodexRuntimePlanForState(ctx, state);
+		if (!rolled && !continued && settledPlan.contextManagement && state.config.compaction.continuity === "notes")
+			state.contextWindows.recordSettledCheckpoint(pi, ctx, settledPlan.contextManagementMode);
 		if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isRolloverCompactionRunning()) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("cache_warming_decision", (_event, ctx) => {

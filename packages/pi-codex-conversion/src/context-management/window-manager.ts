@@ -49,6 +49,8 @@ type ThreadHintLoader = (
 	signal?: AbortSignal,
 ) => Promise<string | undefined>;
 
+const IDLE_CHECKPOINT_ENTRY_TYPE = "codex-context-idle-checkpoint";
+
 export class CodexContextWindowManager {
 	private identity: ContextWindowIdentity | undefined;
 	private readonly budget = new ContextWindowBudget();
@@ -91,6 +93,36 @@ export class CodexContextWindowManager {
 
 	currentIdentity(): ContextWindowIdentity | undefined {
 		return this.identity ? { ...this.identity } : undefined;
+	}
+
+	recordSettledCheckpoint(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode, now = Date.now()): void {
+		if (!ctx.isIdle() || !this.identity) return;
+		const branch = ctx.sessionManager.getBranch();
+		if (!hasFreshContextNotes(branch, this.identity.currentWindowId, mode, true)) return;
+		const completed = branch.findLast((entry) => entry.type === "message" && entry.message.role !== "system");
+		if (!completed) return;
+		pi.appendEntry(IDLE_CHECKPOINT_ENTRY_TYPE, {
+			protocol: 1, windowId: this.identity.currentWindowId, completedEntryId: completed.id, settledAt: now,
+		});
+	}
+
+	hasIdleNotesCheckpoint(ctx: ExtensionContext, mode: ContextManagementMode, now = Date.now()): boolean {
+		if (!ctx.isIdle() || !this.identity || this.rolloverPending || this.rolloverCompaction) return false;
+		const branch = ctx.sessionManager.getBranch();
+		if (!hasFreshContextNotes(branch, this.identity.currentWindowId, mode, true)) return false;
+		// The final reply can precede retries and settled hooks. Only a persisted
+		// settlement on this selected run establishes idle age across resume.
+		const completed = branch.findLast((entry) => entry.type === "message" && entry.message.role !== "system");
+		if (completed?.type !== "message" || completed.message.role !== "assistant" || completed.message.stopReason !== "stop") return false;
+		// A tree return may select the final reply before its metadata child. The
+		// settlement still proves this exact selected run, never a sibling's run.
+		const checkpoint = ctx.sessionManager.getEntries().findLast((entry) => entry.type === "custom" && entry.customType === IDLE_CHECKPOINT_ENTRY_TYPE &&
+			entry.data && typeof entry.data === "object" && "completedEntryId" in entry.data && entry.data.completedEntryId === completed.id);
+		if (checkpoint?.type !== "custom" || !checkpoint.data || typeof checkpoint.data !== "object") return false;
+		const data = checkpoint.data;
+		return "protocol" in data && data.protocol === 1 && "windowId" in data && data.windowId === this.identity.currentWindowId &&
+			"completedEntryId" in data && data.completedEntryId === completed.id && "settledAt" in data &&
+			typeof data.settledAt === "number" && Number.isFinite(data.settledAt) && now - data.settledAt >= 25 * 60_000;
 	}
 
 	restore(entries: readonly SessionEntry[]): void {

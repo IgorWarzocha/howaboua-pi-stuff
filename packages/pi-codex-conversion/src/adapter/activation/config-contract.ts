@@ -72,6 +72,7 @@ export interface CodexConversionConfig {
 		continuity: ContinuityStrategy;
 		historyStorage: HistoryStorage;
 		shareSubagentContext: boolean;
+		idleNotesRollover: boolean;
 		method: CompactionMethod;
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
@@ -136,6 +137,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		continuity: "compaction",
 		historyStorage: "local",
 		shareSubagentContext: false,
+		idleNotesRollover: false,
 		method: "pi",
 		v2UserMessageRetention: 64,
 	},

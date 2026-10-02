@@ -79,6 +79,16 @@ export function buildContextSettings(
 				compaction: { ...current.compaction, method: value === "Both" ? "both" : value === "Codex V2" ? "v2" : "pi" },
 			}),
 		)]),
+		...(continuity === "notes" && plan.contextManagement ? [toggle(
+			"idleNotesRollover",
+			"New window after 25 minutes idle",
+			config.compaction.idleNotesRollover,
+			(enabled, current) => ({
+				...current,
+				compaction: { ...current.compaction, idleNotesRollover: enabled },
+			}),
+			"Before the next prompt, open a window only if the last completed run saved fresh notes. Off by default. This is an idle policy, not a cache-expiry check.",
+		)] : []),
 		...(continuity !== "notes" && method !== "pi" ? [setting(
 			{
 				id: "v2UserMessageRetention",

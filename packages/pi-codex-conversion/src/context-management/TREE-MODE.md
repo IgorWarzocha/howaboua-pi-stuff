@@ -179,7 +179,7 @@ At `session_start`, `session_tree` and before each context projection:
 
 Do not remove manual Pi branch summaries or summaries created by other extensions.
 
-After a completed archive, the active tree path already performs the cut. Before the first archive, only an explicit notes-only rollover marker trims prior history. Initialization after resume or user tree navigation must preserve the selected context and handoff. Its context handler should:
+After a completed archive, the active tree path already performs the cut. Before the first archive, a notes-only rollover marker trims prior history. Initialization after resume or user tree navigation must preserve the selected context and handoff. Its context handler should:
 
 - filter marked Tree summaries
 - omit model-invisible archive and note entries naturally
