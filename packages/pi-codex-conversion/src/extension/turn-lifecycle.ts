@@ -6,6 +6,8 @@ import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } 
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { prepareCodexSystemPrompt, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
+import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
+import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "../adapter/activation/tool-set.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -193,6 +195,16 @@ export function createCodexTurnLifecycle(
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
 				messages = runtime.projectContextMessages(ctx, event.messages);
+			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			try {
+				messages = projectCodeModeMcpSections(messages, isCodeModeRuntime(plan)
+					&& required.every(name => pi.getActiveTools().includes(name)));
+			} catch (error) {
+				// Pi reports hook errors and continues; abort rather than send unadapted discovery guidance.
+				ctx.abort();
+				throw error;
+			}
 			return {
 				messages: state.developerMessages.prepare(
 					messages,
