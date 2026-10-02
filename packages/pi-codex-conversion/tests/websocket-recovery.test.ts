@@ -22,37 +22,53 @@ import {
 } from "./websocket-test-support.ts";
 
 test("WebSocket 426 falls back to sticky SSE without retrying", async () => {
-	const restoreWebSocket = installScriptedWebSocket([upgradeRequired]);
-	const originalFetch = globalThis.fetch;
-	let fetchCalls = 0;
-	globalThis.fetch = (async () => {
-		fetchCalls++;
-		return sseResponse([{
-			type: "response.completed",
-			response: { id: `resp_sse_${fetchCalls}`, status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
-		}]);
-	}) as typeof fetch;
-	try {
-		const registered = createRegisteredCodexProvider({ codeMode: true });
-		const sessionId = "upgrade-required";
-		const requestContext = context([user("same user", 1)]);
+	for (const phase of ["handshake", "response"] as const) {
+		const restoreWebSocket = installScriptedWebSocket([upgradeRequired]);
+		if (phase === "handshake") {
+			globalThis.WebSocket = class extends ScriptedWebSocket {
+				constructor() {
+					super();
+					queueMicrotask(() => this.emitError({ status: 426, message: "Upgrade Required" }));
+				}
+				override addEventListener(type: string, listener: (event: unknown) => void): void {
+					if (type !== "open") super.addEventListener(type, listener);
+				}
+			} as never;
+		}
+		const originalFetch = globalThis.fetch;
+		let fetchCalls = 0;
+		globalThis.fetch = (async () => {
+			fetchCalls++;
+			return sseResponse([{
+				type: "response.completed",
+				response: { id: `resp_sse_${fetchCalls}`, status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
+			}]);
+		}) as typeof fetch;
+		try {
+			const registered = createRegisteredCodexProvider({
+				codeMode: true,
+				...(phase === "handshake" ? { beforeRequestSend: async () => undefined } : {}),
+			});
+			const sessionId = `upgrade-required-${phase}`;
+			const requestContext = context([user("same user", 1)]);
 
-		await collectStream(registered.provider.streamSimple(
-			model as never,
-			requestContext as never,
-			streamOptions(sessionId) as never,
-		));
-		await collectStream(registered.provider.streamSimple(
-			model as never,
-			requestContext as never,
-			streamOptions(sessionId) as never,
-		));
+			await collectStream(registered.provider.streamSimple(
+				model as never,
+				requestContext as never,
+				streamOptions(sessionId) as never,
+			));
+			await collectStream(registered.provider.streamSimple(
+				model as never,
+				requestContext as never,
+				streamOptions(sessionId) as never,
+			));
 
-		assert.equal(ScriptedWebSocket.opened, 1);
-		assert.equal(fetchCalls, 2);
-	} finally {
-		globalThis.fetch = originalFetch;
-		restoreWebSocket();
+			assert.equal(ScriptedWebSocket.opened, 1);
+			assert.equal(fetchCalls, 2);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreWebSocket();
+		}
 	}
 });
 

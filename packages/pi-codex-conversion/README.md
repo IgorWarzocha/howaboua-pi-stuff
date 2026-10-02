@@ -52,7 +52,7 @@ Structured mode reads files through the shell and edits with `apply_patch`. Ther
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Change promoted tool loadouts between runs. MCP and deferred-tool changes are announced before the next model request without rebuilding the standing Code or Notebook instructions.
+Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. Current help is in `ALL_TOOLS`. MCP and deferred-tool changes use the same appended updates.
 
 </details>
 
@@ -129,6 +129,7 @@ Choose under `/codex context`:
 | **Continuity strategy** | Compaction · Notes and history · Notes + history + compaction | Always |
 | **History and notes storage** | Local · Tree · Remote | Using notes |
 | **Share subagent context** | Off (default) · On | Using notes |
+| **New window after 25 minutes idle** | Off (default) · On | Using Notes and history on an eligible route |
 | **Compaction method** | Pi summary · Codex V2 · Both | Using compaction |
 | **Preserved user messages (V2 only)** | 16k · 32k · 64k | Using Codex V2 or Both |
 
@@ -138,7 +139,7 @@ Defaults are **Compaction**, **Pi summary** and **64k** retention, with **Local*
 - **Notes and history:** the model saves notes and retrieves history. Explicit new windows start without a conversation summary.
 - **Notes + history + compaction:** the model saves notes and retrieves history. New windows also carry a compaction checkpoint. Compaction reduces active context without disabling history lookup or deleting the stored conversation.
 
-**Notes-based strategies are experimental.** Purple markers identify windows. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and usable checkpoints. Only an explicit notes-only rollover cuts the previous conversation.
+**Notes-based strategies are experimental.** Purple markers identify windows. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and usable checkpoints. A notes-only rollover cuts the previous conversation from active context, not stored history.
 
 Resume notes-based sessions with the same storage. Changing storage neither copies notes nor starts a window or disables compaction. Switching to **Compaction** removes recovery tools without turning notes into a summary.
 
@@ -163,6 +164,8 @@ With notes enabled, choosing a summary in Pi's tree navigator saves a handoff no
 The model receives history, notes, rollover and remaining-context tools. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
 
 With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, `/compact` and `new_context` compact before rollover.
+
+**New window after 25 minutes idle** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. After at least 25 minutes without a run, the next prompt opens a window first only if the last completed run saved fresh notes successfully. The original prompt and attachments then proceed normally. Resume uses the saved run's settlement time. Older runs without a recorded settlement do not trigger idle rollover. This is an idle rollover policy, not proof that the provider cache expired. If rollover fails, input and attachments stay queued for a retry when you submit another prompt.
 
 Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
 

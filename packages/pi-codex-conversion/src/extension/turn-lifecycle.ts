@@ -83,6 +83,24 @@ export function createCodexTurnLifecycle(
 			if (reminder) return { entries: [...event.entries, reminder], continue: true };
 		},
 		input: async (event, ctx) => {
+			const inputPlan = resolveCodexRuntimePlanForState(ctx, state);
+			if (state.contextKickoff.hasIdleInput || (inputPlan.idleNotesRollover && event.streamingBehavior === undefined &&
+				!state.contextTree.rolloverPending && !state.contextTree.handoff.active && !state.contextKickoff.pending &&
+				state.contextWindows.hasIdleNotesCheckpoint(ctx, inputPlan.contextManagementMode))) {
+				const result = await state.contextKickoff.prepareIdleInput(ctx, async () => {
+					if (!inputPlan.idleNotesRollover) throw new Error("Idle notes rollover is not active on this route");
+					const rolled = inputPlan.contextManagementMode === "tree"
+						? state.contextTree.schedule(ctx, { triggerTurn: false }) && await state.contextTree.settle(pi, ctx)
+						: await state.contextKickoff.startWindow(pi, ctx, {
+							triggerTurn: false, mode: inputPlan.contextManagementMode, trimPreviousWindow: true,
+						});
+					if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+					return rolled;
+				});
+				if (result.action === "handled") return result;
+				// The same SDK call proceeds to expansion and every before_agent_start handler.
+				// Do not resubmit a custom-message turn or a captured system prompt.
+			}
 			const intercepted = state.contextTree.interceptInput(event);
 			if (intercepted) return intercepted;
 			if (event.streamingBehavior === undefined) {
@@ -161,13 +179,16 @@ export function createCodexTurnLifecycle(
 			} finally {
 				if (continuingWork && !continued && !state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
 			}
+			const settledPlan = resolveCodexRuntimePlanForState(ctx, state);
+			if (!rolled && !continued && settledPlan.contextManagement && state.config.compaction.continuity === "notes")
+				state.contextWindows.recordSettledCheckpoint(pi, ctx, settledPlan.contextManagementMode);
 			if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isRolloverCompactionRunning()) runtime.armCacheKeepalive(ctx);
 		},
 		contextWithSystem: async (event, ctx) => {
 			let messages = runtime.projectContextMessages(ctx, event.messages);
 			if (await refreshNotebookStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
-			if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx)))
+			if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx), codeMode.getPromptTools(ctx)))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))

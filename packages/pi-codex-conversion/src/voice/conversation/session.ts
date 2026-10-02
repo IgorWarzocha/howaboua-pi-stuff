@@ -173,6 +173,10 @@ export class CodexRealtimeConversation {
 		this.handoff.activate(id);
 	}
 
+	agentStarted(): void {
+		this.handoff.agentStarted();
+	}
+
 	piInput(
 		input: unknown,
 		streamingBehavior?: RealtimePiInputBehavior,

@@ -31,6 +31,8 @@ import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUn
 import { processWebSocketStream } from "./websocket-stream.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
 import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
+import { preconnectWebSocket } from "./websocket-session-cache.ts";
+import { osInfoReady } from "./node-runtime.ts";
 
 export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "executionMode"> & Partial<Pick<CodexConversionConfig, "compaction">>;
 
@@ -200,6 +202,7 @@ export function createCodexTransportStream<TApi extends Api>(
 		const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 		let lane: Exclude<CodexDiagnosticsLane, "prewarm"> = "response";
 		let diagnosticsFailureRecorded = false;
+		let preconnect: ReturnType<typeof preconnectWebSocket> | undefined;
 		const recordFailure = (transport: "websocket" | "sse", error: unknown) => {
 			if (!diagnostics) return;
 			diagnosticsFailureRecorded = true;
@@ -213,9 +216,39 @@ export function createCodexTransportStream<TApi extends Api>(
 
 			const accountId = extractAccountId(apiKey);
 			const canonicalSessionToken = captureCanonicalSessionToken(effectiveOptions?.sessionId);
+			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
+			const originator = runtimeConfig?.openai.harnessIdentifierHeader === "codex" ? "codex_cli_rs"
+				: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi";
+			// Pi has completed every before_agent_start/context hook. Only the
+			// handshake overlaps payload rewrites and image preparation, never warmup.
+			if (effectiveTransport !== "sse" && runtimeConfig?.openai.forceCachedWebSockets
+				&& deps.beforeRequestSend && effectiveOptions.sessionId
+				&& !effectiveOptions.canonicalCompaction && effectiveOptions.cacheRetention !== "none") {
+				validateWebSocketTimeoutOptions(effectiveOptions);
+				// Do not let async OS discovery change the route's User-Agent mid-preparation.
+				await osInfoReady;
+				preconnect = preconnectWebSocket(
+					resolveCodexWebSocketUrl(model.baseUrl),
+					buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, apiKey, websocketRequestId, originator),
+					effectiveOptions.sessionId, accountId, effectiveOptions.signal,
+					normalizeTimeoutMs(effectiveOptions.websocketConnectTimeoutMs, "websocketConnectTimeoutMs"), effectiveOptions.env,
+					(error) => diagnostics?.({ type: "failure", lane: "prewarm", transport: "websocket", failure: codexDiagnosticsFailure(error) }),
+				);
+			}
 			const reconstructedBody = await deps.prepareRequestBody(model, resolvedContext, effectiveOptions, responsesLite);
 			const body = reconstructedBody;
 			if (hasRemoteCompactionV2Input(body.input)) effectiveOptions.headers = withRemoteCompactionV2Feature(effectiveOptions.headers);
+			if (preconnect) {
+				const finalHeaders = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, apiKey, websocketRequestId, originator);
+				const failure = await preconnect.handoff(resolveCodexWebSocketUrl(model.baseUrl), finalHeaders, accountId, effectiveOptions.env,
+					getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId) !== "sse");
+				if (failure && !(failure.error instanceof CodexProtocolError)
+					&& (isWebSocketUpgradeRequiredError(failure.error) || isWebSocketMessageTooBigError(failure.error))) {
+					recordWebSocketSseFallback(effectiveOptions.sessionId);
+					diagnostics?.({ type: "fallback", lane: diagnosticsLane(body), from: "websocket", to: "sse",
+						reason: isWebSocketUpgradeRequiredError(failure.error) ? "upgrade_required" : "message_too_big" });
+				}
+			}
 			await deps.beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, responsesLite);
 			const canonicalHistory: CanonicalHistoryDecision | undefined = effectiveOptions?.canonicalCompaction
 				? "compaction"
@@ -227,9 +260,6 @@ export function createCodexTransportStream<TApi extends Api>(
 				);
 			lane = diagnosticsLane(body);
 			deps.onPreparedPayload?.(body);
-			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
-			const originator = runtimeConfig?.openai.harnessIdentifierHeader === "codex" ? "codex_cli_rs"
-				: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi";
 			const baseSseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId, originator);
 			const bodyJson = JSON.stringify(body);
@@ -482,6 +512,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			});
 			stream.end();
 		} finally {
+			await preconnect?.close();
 			deps.onStreamSettled?.();
 		}
 	})();

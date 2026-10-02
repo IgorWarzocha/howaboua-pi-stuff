@@ -91,6 +91,7 @@ export async function registerCodexCodeMode(
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
+		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),
 		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
@@ -228,7 +229,7 @@ function createNestedTools(
 		));
 	}
 	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning) {
-		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" }) // ${runtime.autoReasoning.tool.description}`));
+		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" }) // ${runtime.autoReasoning.tool.description}`));
 	}
 	return tools.filter((tool) => registeredToolNames.has(tool.name));
 }

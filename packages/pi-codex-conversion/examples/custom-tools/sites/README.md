@@ -1,19 +1,9 @@
 # Sites
 
-Use for explicit ChatGPT Sites work. The backend is private and mutable, so verify and maintain this custom tool before relying on it.
+An optional private-beta ChatGPT Sites bridge using Pi's OpenAI Codex OAuth. Keep `sites.toml`, `sites_documentation.toml` and this companion directory together when enabling the example.
 
-## Verify and repair
+Read `sites_documentation("index")`, then `workflow` and the relevant topic. `resource.action` retrieves a compact live parameter schema. Read-only discovery can confirm account access without creating or changing a Site.
 
-Before the first mutating Sites action in a session:
+The bridge supports source save, saved-version deployment and atomic private source publication. It requires a clean committed Site binding for source pushes. It has no archive uploader, automatic publish-on-push workflow or native approval UI. Every deployment URL is production. Preserve the requested audience.
 
-1. Read `sites_documentation("index")` and `sites_documentation("site.list")`.
-2. Call `sites` with `resource: "site"`, `action: "list"`, and the schema-valid read-only parameters.
-3. If the live schema, endpoint, response, or documented operation differs from the facade, inspect `sites.mjs`, `operations.mjs`, `client.mjs`, and the affected operation document. Update the local custom-tool scripts and docs to match the verified contract, then rerun the read-only call.
-
-If OAuth, terms, or account access fails, report the exact user action instead of changing scripts. Do not leave a known stale facade in place. Do not create a Site, save a version, deploy, change access, environment, or domains merely to test or repair the tool.
-
-## Normal use
-
-Read the matching `sites_documentation` topic and live operation schema before each unfamiliar action. Use the narrowest read operation first. Saving a version and deploying it are separate actions. A deployment URL is production.
-
-The tool reads a Site binding from `.openai/hosting.json` when available. It never returns OAuth tokens, repository credentials, secret environment values, or bypass tokens.
+The `mcp` topic covers Site-hosted tools, Sites-managed OAuth and the manual plugin connection path in Pi. The bridge does not expose credentials or supply an unattended updater. OAuth, terms and account failures require the stated user action, not a test mutation or guessed backend repair.

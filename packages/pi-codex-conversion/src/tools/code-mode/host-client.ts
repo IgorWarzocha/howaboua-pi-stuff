@@ -18,7 +18,7 @@ import {
 import { CodeModeHostSession } from "./host-session.js";
 import {
 	directToolYieldTime,
-	scopeAllToolsToDeferredCustom,
+	scopeAllToolsToDiscoverable,
 } from "./tool-source.js";
 import type { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import type {
@@ -27,7 +27,7 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export { scopeAllToolsToDeferredCustom } from "./tool-source.js";
+export { scopeAllToolsToDiscoverable } from "./tool-source.js";
 
 type HostClientOptions = {
 	binary: string;
@@ -89,7 +89,7 @@ export class CodeModeHostClient {
 				request: {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
-					source: scopeAllToolsToDeferredCustom(withMissingMcpToolRecovery(withCommandOutput(code, tools), tools), tools),
+					source: scopeAllToolsToDiscoverable(withMissingMcpToolRecovery(withCommandOutput(code, tools), tools), tools),
 					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},

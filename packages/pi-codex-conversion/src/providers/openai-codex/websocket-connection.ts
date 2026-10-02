@@ -236,6 +236,7 @@ export function extractWebSocketCloseError(event: unknown): Error {
 
 export async function connectWebSocket(url: string, headers: Headers, signal: AbortSignal | undefined, connectTimeoutMs = DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, env?: ProviderEnv): Promise<WebSocketLike> {
 	const WebSocketCtor = await getWebSocketConstructor(url, env);
+	if (signal?.aborted) throw new Error("Request was aborted");
 	if (!WebSocketCtor) {
 		throw new Error("WebSocket transport is not available in this runtime");
 	}
@@ -265,6 +266,7 @@ export async function connectWebSocket(url: string, headers: Headers, signal: Ab
 			if (settled) return;
 			settled = true;
 			cleanup();
+			closeWebSocketSilently(socket, 1000, "connect_error");
 			reject(extractWebSocketError(event));
 		};
 		const onClose = (event: unknown) => {

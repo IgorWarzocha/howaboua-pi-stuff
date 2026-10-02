@@ -1,4 +1,4 @@
-import { formatCodeModeToolHelp, isDeferredDiscoverableTool } from "../code-mode/custom-tool-prompt.ts";
+import { formatCodeModeToolHelp, isCodeModeToolDiscoverable } from "../code-mode/custom-tool-prompt.ts";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import {
 	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
@@ -99,7 +99,7 @@ export class NotebookExecutionRuntime {
 			}
 		}
 		const metadata = tools
-			.filter(isDeferredDiscoverableTool)
+			.filter(isCodeModeToolDiscoverable)
 			.map((tool) => ({
 				name: codeModeGlobalName(tool.name),
 				description: formatCodeModeToolHelp(tool),

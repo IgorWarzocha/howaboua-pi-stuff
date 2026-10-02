@@ -26,6 +26,7 @@
 				"src/code-mode-hooks.ts",
 				"src/context-sharing.ts",
 				"src/realtime-voice.ts",
+				"src/codex-usage/analyse.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
 				"tests/**/*.test.ts",
@@ -35,7 +36,7 @@
 				"src/**/*.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-			"tests/**/*.ts"
+				"tests/**/*.ts"
 			],
 			"ignoreDependencies": ["proxy-from-env"]
 		},

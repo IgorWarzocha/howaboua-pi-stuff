@@ -1,15 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { unlinkSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { importUsageHistory, scanUsageHistory } from "../src/codex-usage/backfill.ts";
+import { importUsageHistory } from "../src/codex-usage/backfill.ts";
+import { scanUsageHistory } from "../src/codex-usage/history-scan.ts";
 import { scanSessionUsage } from "../src/codex-usage/session-analysis.ts";
 import { parseCodexReserveStatus } from "../src/codex-usage/reserve-policy.ts";
 import { observeWeeklyUsage, recordSpend, usageAccount, WEEK_MS } from "../src/codex-usage/ledger.ts";
 import { emptyStats, parseUsageLedger, type UsageLedger } from "../src/codex-usage/ledger-schema.ts";
-import { formatSpendReport, usageReport } from "../src/codex-usage/report.ts";
+import { formatSpendReport, usageReport } from "../src/codex-usage/spend-report.ts";
 import {
 	codexUsageStatus,
 	parseCodexRateLimitResetCreditsPayload,
@@ -80,6 +82,27 @@ test("weekly accounting imports deduplicated pre-tracking costs and freezes wind
 		const history = await scanUsageHistory(root, start - WEEK_MS, cutoff, start);
 		assert.equal(history.coverage.skippedCopies, 2);
 		assert.equal(history.total.total.usd, 6); // Request-start timestamps must not re-import live settlements.
+		// Ordinary Node must resolve reports without Pi or TypeBox host peers.
+		const standalone = join(root, "standalone");
+		await mkdir(standalone, { recursive: true });
+		await cp(new URL("../src/codex-usage/", import.meta.url), join(standalone, "codex-usage"), { recursive: true });
+		await writeFile(join(standalone, "package.json"), '{"type":"module"}');
+		const run = (...args: string[]) => {
+			const child = spawnSync(process.execPath, [join(standalone, "codex-usage/analyse.ts"), ...args], { encoding: "utf8" });
+			assert.equal(child.status, 0, child.stderr);
+			return child.stdout;
+		};
+		assert.match(run("--help"), /Read-only Codex usage analysis/);
+		const missingPath = spawnSync(process.execPath, [join(standalone, "codex-usage/analyse.ts"), "summary"], { encoding: "utf8" });
+		assert.equal(missingPath.status, 1);
+		assert.match(missingPath.stderr, /summary requires --file/);
+		assert.deepEqual(JSON.parse(run("history", "--root", root, "--from", new Date(start - WEEK_MS).toISOString(), "--to", new Date(cutoff).toISOString(), "--window-start", new Date(start).toISOString())), history);
+		const ledgerFile = join(standalone, "ledger.json");
+		const saved = JSON.stringify(ledger);
+		await writeFile(ledgerFile, saved);
+		const summary = JSON.parse(run("summary", "--file", ledgerFile));
+		assert.deepEqual(summary.accounts.account.lifetime, account.total.total);
+		assert.equal(await readFile(ledgerFile, "utf8"), saved, "analysis must remain read-only");
 		const beforeFailedImport = JSON.stringify(account);
 		const emptyFailed = await scanUsageHistory(join(root, "missing"), start - WEEK_MS, cutoff, start);
 		assert.throws(() => importUsageHistory(account, emptyFailed, cutoff + 1), /refresh to retry/);

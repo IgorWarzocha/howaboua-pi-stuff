@@ -20,6 +20,7 @@ import {
 	settlementResult,
 	toolResult,
 } from "./agents-work.js";
+import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
 import { attributeAgentPrompt, modelAsk } from "./messages.js";
@@ -28,6 +29,7 @@ import type { SharedAgentContext } from "./shared-context.js";
 export function createAgentsTool(
 	fleet: AgentFleet,
 	sharedContext: SharedAgentContext,
+	board: AgentBoard,
 ) {
 	return defineTool({
 		name: "agents",
@@ -59,6 +61,7 @@ export function createAgentsTool(
 					update,
 					sharedContext,
 					ctx,
+					board,
 				);
 			}
 

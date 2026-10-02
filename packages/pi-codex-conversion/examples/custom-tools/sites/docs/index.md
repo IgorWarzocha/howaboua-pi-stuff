@@ -1,34 +1,20 @@
-# ChatGPT Sites custom tool
+# ChatGPT Sites
 
-This is an exploratory, private-API bridge from Pi to ChatGPT Sites. The backend is in public beta and may change. Use the facade rather than guessing remote MCP names.
+Private beta API. Read `workflow`, then the relevant topic. `resource.action` returns that guide and a compact live parameter schema.
 
-## First use
+Call `sites` with `JSON.stringify({resource, action, params})`. Omitted `project_id` uses `.openai/hosting.json`. `project_dir` selects another project root. Copy IDs and cursors unchanged.
 
-1. Read `sites_documentation("workflow")`.
-2. Read the resource topic you need.
-3. For exact parameters, read `sites_documentation("resource.action")`.
-4. Call `sites` with one resource, action, and `params` object.
-
-```js
-await tools.sites(JSON.stringify({
-  resource: "site",
-  action: "list",
-  params: { limit: 10 }
-}))
-```
-
-## Topics and resources
-
-| Topic | Actions |
+| Topic | Resource actions |
 |---|---|
-| `site` | `list`, `get`, `create`, `update` |
-| `version` | `list`, `get`, `save` |
-| `deployment` | `deploy`, `status` |
-| `access` | `get`, `update` |
-| `environment` | `get`, `update` |
-| `domains` | resource `domain`: `list`, `add`, `refresh`, `remove` |
-| `analytics` | `overview`, `events`, `query` |
+| `site` | `site`: `list`, `get`, `create`, `update`, `slug` |
+| `version` | `version`: `list`, `get`, `save`, `publish_private` |
+| `deployment` | `deployment`: `deploy`, `status` |
+| `access` | `access`: `get`, `update` |
+| `environment` | `environment`: `get`, `update` |
+| `domains` | `domain`: `list`, `add`, `refresh`, `remove` |
+| `analytics` | `analytics`: `overview`, `events`, `query` |
+| `diagnostics` | `diagnostics`: `logs` |
+| `database` | `database`: `overview`, `rows` |
+| `schedules` | `schedule`: `create`, `validate` |
 
-`project_id` is read from `<project>/.openai/hosting.json` when omitted. Pass `project_dir` when Pi's current directory is not the Site project.
-
-The tool never returns OAuth tokens, source-repository credentials, secret environment values, or SIWC bypass tokens. Unknown operations return one documentation pointer instead of the full catalog.
+`building` covers build, storage and connector boundaries. `mcp` covers Site-hosted tools and connection. OAuth, Git credentials, secret environment values and service-access tokens are redacted.

@@ -1,19 +1,21 @@
 ---
 name: harness-checklist
 description: "Read before auditing a coding-agent harness environment and recommending improvements."
-last-changed: "2026-08-23"
+last-changed: "2026-10-01"
 ---
 
 Perform a read-only audit. Establish what the harness provides natively before assessing its surrounding environment. Do not count native capabilities as additions or recommend rebuilding them by default. Judge capabilities, not package names. Do not install, remove, edit, enable, or reconfigure anything during the audit.
 
 ## Establish the audit
 
-1. Ask where the complete harness working set lives. Accept a monorepo, assembly directory, or maintained copy folder containing extensions, skills, context files, tools, profiles, configuration, and user interfaces. If none exists, record the limitation and recommend one. Do not assemble it without a separate request.
+Use the request and known environment to bound the audit. Select the checks below that bear on the requested workflows; do not turn a focused audit into a full-environment survey. Ask only for missing decisions or context that cannot be recovered from the available evidence.
+
+1. Locate the harness working set from supplied paths and environment records; ask only if its location remains unknown. Accept a monorepo, assembly directory, or maintained copy folder containing extensions, skills, context files, tools, profiles, configuration, and user interfaces. If none exists, record the limitation and recommend one. Do not assemble it without a separate request.
 2. Reconcile three views: capabilities native to the current harness, the exact user and agent toolkit exposed in this session, and additions present in the working set. Inspect current help, active tools and skills, commands and UI, loaders, settings, and model-visible context. Mark capabilities as native, active from the working set, active from another source, available but inactive, generated, obsolete, or absent. A folder does not prove exposure, while one session does not prove the complete available setup.
-3. Run a fresh visible session with the effective setup and one trivial first turn such as `Reply only with hi`. Record provider-reported prompt input and inspect the session, active tools, instructions, startup messages, and other model-visible surface. When the harness can safely disable optional layers, repeat with the same model, reasoning, working directory, and prompt as a native baseline. Treat the difference as permanent startup overhead, not a quality score.
-4. Ask what feels wrong and what the user expected instead. Record the affected workflow.
-5. Ask for representative project folders or overlays for each stated kind of work. Do not call a capability missing until checking its work-specific layer. If the base permanently loads one domain's surface, consider a project folder, launch profile, or overlay.
-6. Ask what the agent may do silently, report afterward, ask before doing, or hand back. Map this per workflow rather than choosing one autonomy level.
+3. When startup exposure or overhead is in scope, run a fresh visible session with the effective setup and one trivial first turn such as `Reply only with hi`. Record provider-reported prompt input and inspect the session, active tools, instructions, startup messages, and other model-visible surface. When the harness can safely disable optional layers, repeat with the same model, reasoning, working directory, and prompt as a native baseline. Treat the difference as permanent startup overhead, not a quality score.
+4. Use the reported friction and expected behaviour to identify the affected workflow. Ask only when the mismatch remains unclear.
+5. Inspect representative project folders or overlays for each in-scope workflow; ask for their location only when it is unknown. Do not call a capability missing until checking its work-specific layer. If the base permanently loads one domain's surface, consider a project folder, launch profile, or overlay.
+6. Establish what the agent may do silently, report afterward, ask before doing, or hand back from existing user decisions and policy. Ask about unresolved boundaries that affect the workflow rather than reopening settled permissions.
 7. Compare that contract with instructions, approvals, tool restrictions, extension behaviour, notifications, and recovery controls. Flag unwanted ceremony and invisible automation.
 8. Trace global and scoped context, skills, extension prompts, tool guidance, and templates through their real load paths. Find conflicts, duplication, shadowing, misplaced scope, and double-loaded behaviour.
 9. Group extensions, tools, skills, CLIs, scripts, slash commands, and host behaviour by job and audience. Identify one behavioural owner. Prefer a CLI or CLI plus skill when hooks, state, UI, or tool registration add nothing.

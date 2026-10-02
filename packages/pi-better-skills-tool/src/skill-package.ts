@@ -238,12 +238,15 @@ function resolvePrimarySelection(
 function resolveAdditionalSelection(
 	skills: CatalogSkill[],
 	name: string,
+	selectedSkill: CatalogSkill,
 	catalog: ReferenceCatalog,
 ): ReadSelection {
 	const exactSkill = skills.find((skill) => skill.name === name);
 	if (exactSkill) return { kind: "skill", skill: exactSkill };
 	const explicit = resolveExplicitSelection(skills, name, catalog);
 	if (explicit) return explicit;
+	const local = findReference(selectedSkill, name, catalog);
+	if (local) return local;
 	const references = skills.flatMap((skill) => {
 		const reference = findReference(skill, name, catalog);
 		return reference ? [reference] : [];
@@ -323,9 +326,19 @@ export function readSkillPackage(
 ): string {
 	const catalog: ReferenceCatalog = new Map();
 	const primary = resolvePrimarySelection(skills, name, catalog);
-	const additional = selectors
-		.filter((reference) => !isOwnSkillDocument(reference, primary.skill))
-		.map((reference) => resolveAdditionalSelection(skills, reference, catalog));
+	let selectedSkill = primary.skill;
+	const additional: ReadSelection[] = [];
+	for (const selector of selectors) {
+		if (isOwnSkillDocument(selector, selectedSkill)) continue;
+		const selection = resolveAdditionalSelection(
+			skills,
+			selector,
+			selectedSkill,
+			catalog,
+		);
+		additional.push(selection);
+		if (selection.kind === "skill") selectedSkill = selection.skill;
+	}
 	const selections = deduplicateSelections(
 		primary.kind === "skill" &&
 			additional.length > 0 &&

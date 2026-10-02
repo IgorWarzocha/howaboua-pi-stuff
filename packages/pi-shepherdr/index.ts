@@ -2,6 +2,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import { isBlockingAgentsCall } from "./src/agents-contract.js";
 import { createAgentsTool } from "./src/agents-tool.js";
+import { ensureBoardConfig } from "./src/board/config.js";
+import { AgentBoard } from "./src/board/host.js";
+import { createBoardTool } from "./src/board/tool.js";
 import { registerAgentController } from "./src/controller.js";
 import { registerDeveloperDelivery } from "./src/delivery.js";
 import { AgentFleet } from "./src/fleet.js";
@@ -17,22 +20,28 @@ export default async function shepherdrExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
 	registerPackageChangelog(pi);
+	ensureBoardConfig();
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
 	registerPeerInbox(pi);
 	const fleet = new AgentFleet(pi);
-	const sharedContext = await registerSharedAgentContext(pi, fleet);
-	const tool = createAgentsTool(fleet, sharedContext);
+	const board = new AgentBoard(pi, fleet);
+	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
+	const tool = createAgentsTool(fleet, sharedContext, board);
+	const boardTool = createBoardTool(board);
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
-	await registerAgentsInCodeMode(pi, tool);
-	registerAgentController(pi, fleet);
+	pi.registerTool(boardTool);
+	await registerAgentsInCodeMode(pi, tool, boardTool, board);
+	registerAgentController(pi, fleet, board);
 }
 
 async function registerAgentsInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createAgentsTool>,
+	boardTool: ReturnType<typeof createBoardTool>,
+	board: AgentBoard,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
@@ -44,7 +53,21 @@ async function registerAgentsInCodeMode(
 					'await tools.agents({ action: "help" }) // Persistent agents; first call alone',
 			}),
 		]);
-		pi.on("session_shutdown", () => registration.unregister());
+		const boardRegistration = registerCodeModeExtensionTools(
+			pi,
+			() => [
+				adaptToolForCodeMode(boardTool, {
+					usage:
+						'await tools.board({ action: "help" }) // Shared discussion archive',
+				}),
+			],
+			{ isActive: (ctx) => board.enabled(ctx) },
+		);
+		board.setToolRefresh(() => boardRegistration.refresh());
+		pi.on("session_shutdown", () => {
+			registration.unregister();
+			boardRegistration.unregister();
+		});
 		return registration;
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return undefined;

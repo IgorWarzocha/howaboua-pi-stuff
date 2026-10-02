@@ -12,6 +12,9 @@ import { executeRemoteCompactionV2, type ExecuteRemoteCompactionV2Options } from
 import { resolveCanonicalCompactionReplay } from "../src/adapter/compaction/compaction.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
+import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
+import { acquireWebSocket, closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex/websocket-session-cache.ts";
+import { buildWebSocketHeaders, resolveCodexWebSocketUrl } from "../src/providers/openai-codex/headers.ts";
 import {
 	ScriptedWebSocket,
 	collectStream,
@@ -149,7 +152,7 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 	}
 });
 
-test("an explicit reset rejects a late canonical response from the old lane", () => {
+test("transport reset rejects late responses and pending preparation handshakes", { timeout: 3000 }, async () => {
 	const sessionId = "reset-generation";
 	const token = captureCanonicalSessionToken(sessionId);
 	clearCanonicalSessions(sessionId);
@@ -164,4 +167,60 @@ test("an explicit reset rejects a late canonical response from the old lane", ()
 
 	assert.equal(canonicalCompactionPromptInput(sessionId, "model"), undefined);
 	clearCanonicalSessions(sessionId);
+
+	for (const teardown of ["reset", "shutdown", "all"] as const) {
+		const originalWebSocket = globalThis.WebSocket;
+		const created = [Promise.withResolvers<DelayedWebSocket>(), Promise.withResolvers<DelayedWebSocket>()];
+		let constructions = 0;
+		class DelayedWebSocket {
+			readyState = 0;
+			readonly events = new EventTarget();
+			constructor() { created[constructions++]?.resolve(this); }
+			addEventListener(type: string, listener: EventListener) { this.events.addEventListener(type, listener); }
+			removeEventListener(type: string, listener: EventListener) { this.events.removeEventListener(type, listener); }
+			open() {
+				if (this.readyState === 3) return;
+				this.readyState = 1;
+				this.events.dispatchEvent(new Event("open"));
+			}
+			close() { this.readyState = 3; }
+			send() { assert.fail("no payload may be sent while final preparation is blocked"); }
+		}
+		globalThis.WebSocket = DelayedWebSocket as never;
+		const payloadEntered = Promise.withResolvers<void>();
+		const payload = Promise.withResolvers<void>();
+		const streamController = new AbortController();
+		const runtime = createCodexExtensionRuntime({ getThinkingLevel: () => "low", sendUserMessage: () => undefined } as never);
+		const preparationSession = `pending-preparation-${teardown}`;
+		runtime.prepareTurn({ model, sessionManager: { getSessionId: () => preparationSession } } as never);
+		const registered = createRegisteredCodexProvider({ codeMode: true, beforeRequestSend: runtime.beforeRequestSend });
+		const stream = collectStream(registered.provider.streamSimple(model as never, normalizeContext(context([user("go", 1)])), {
+			...streamOptions(preparationSession), signal: streamController.signal,
+			onPayload: async (body: unknown) => { payloadEntered.resolve(); await payload.promise; return body; },
+		} as never));
+		try {
+			const [pending] = await Promise.all([created[0]!.promise, payloadEntered.promise]);
+			if (teardown === "reset") runtime.resetTransport(preparationSession);
+			else if (teardown === "shutdown") runtime.shutdownTransport(preparationSession);
+			else runtime.resetTransport();
+			assert.equal(streamController.signal.aborted, false, "session teardown must cancel preparation without relying on stream abort");
+			pending.open();
+			assert.equal(pending.readyState, 3, "a late open cannot resurrect the retired preparation");
+
+			const replacement = acquireWebSocket(resolveCodexWebSocketUrl(model.baseUrl),
+				buildWebSocketHeaders(model.headers, undefined, "acct_1", apiKey, preparationSession), preparationSession, "acct_1", undefined);
+			const nextSocket = await created[1]!.promise;
+			nextSocket.open();
+			const acquired = await replacement;
+			assert.equal(acquired.reused, false, "the new lane must not retain pre-reset preparation state");
+			assert.notEqual(acquired.socket, pending);
+			acquired.release({ keep: false });
+		} finally {
+			streamController.abort();
+			payload.resolve();
+			await stream;
+			closeOpenAICodexWebSocketSessions(preparationSession);
+			globalThis.WebSocket = originalWebSocket;
+		}
+	}
 });

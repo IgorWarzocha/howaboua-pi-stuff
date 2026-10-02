@@ -128,11 +128,12 @@ export function createCodexSessionLifecycle(
 			void ui.refreshUsageStatus(ctx);
 			prepareCodeModeHost(codeMode, ctx);
 		},
-		beforeSwitch: () => state.contextTree.handoff.active ? { cancel: true } : undefined,
-		beforeFork: () => state.contextTree.handoff.active ? { cancel: true } : undefined,
+		beforeSwitch: () => state.contextTree.handoff.active || state.contextKickoff.hasIdleInput ? { cancel: true } : undefined,
+		beforeFork: () => state.contextTree.handoff.active || state.contextKickoff.hasIdleInput ? { cancel: true } : undefined,
 		beforeTree: (event, ctx) => {
 			if (state.contextTree.handoff.active) return { cancel: true };
 			if (state.contextTree.archiving) return;
+			if (state.contextKickoff.hasIdleInput) return { cancel: true };
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			if (!plan.contextManagement || !event.preparation.userWantsSummary) return;
 			return state.contextTree.handoff.prepare(pi, event, ctx, plan.contextManagementMode);

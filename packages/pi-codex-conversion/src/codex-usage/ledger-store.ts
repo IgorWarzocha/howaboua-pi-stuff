@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { getAgentDir, type ModelRegistry } from "@earendil-works/pi-coding-agent";
@@ -8,6 +8,7 @@ import { isStandardCodexSubscriptionModel } from "../adapter/prompt/codex-model.
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import { observeWeeklyUsage, recordSpend, usageAccount } from "./ledger.ts";
 import { parseUsageLedger, type UsageAccount, type UsageLedger } from "./ledger-schema.ts";
+import { readUsageLedgerFile } from "./ledger-read.ts";
 import type { CodexUsageSnapshot } from "./payload.ts";
 
 let lastWriteError: string | undefined;
@@ -16,13 +17,7 @@ const pendingGaps = new Map<string, number>();
 export function usageLedgerPath(): string { return join(getAgentDir(), "codex-usage.json"); }
 export function usageAccountKey(accountId: string): string { return createHash("sha256").update(accountId).digest("hex"); }
 
-export function readUsageLedger(path = usageLedgerPath()): UsageLedger {
-	try { return parseUsageLedger(JSON.parse(readFileSync(path, "utf8"))); }
-	catch (error) {
-		if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return { version: 1, accounts: {} };
-		throw error;
-	}
-}
+export function readUsageLedger(path = usageLedgerPath()): UsageLedger { return readUsageLedgerFile(path); }
 
 export function usageRecordingError(): string | undefined { return lastWriteError; }
 

@@ -33,6 +33,7 @@ interface RuntimePlanBase {
 	contextManagementRemote: boolean;
 	shareSubagentContext: boolean;
 	compactOnRollover: boolean;
+	idleNotesRollover: boolean;
 	autoReasoning: boolean;
 }
 
@@ -160,6 +161,7 @@ export function resolveCodexRuntimePlan(
 		contextManagementRemote: false,
 		shareSubagentContext: false,
 		compactOnRollover: false,
+		idleNotesRollover: false,
 		autoReasoning: false,
 	};
 	const extras = hasExtras(config)
@@ -184,6 +186,7 @@ export function resolveCodexRuntimePlan(
 	const contextManagementRemote = contextManagementMode === "remote";
 	base.shareSubagentContext = contextManagement && config.compaction.shareSubagentContext;
 	base.compactOnRollover = contextManagement && config.compaction.continuity === "notes-and-compaction";
+	base.idleNotesRollover = contextManagement && config.compaction.continuity === "notes" && config.compaction.idleNotesRollover;
 	base.nativeReplay = effectiveOpenAICodex;
 	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
@@ -264,6 +267,7 @@ export function resolveCodexRuntimePlanForState(
 		contextManagementRemote: false,
 		shareSubagentContext: false,
 		compactOnRollover: false,
+		idleNotesRollover: false,
 		autoReasoning: false,
 	};
 }

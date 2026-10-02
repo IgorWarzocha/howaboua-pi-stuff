@@ -2,10 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { BrowserRoutes, loadBrowserRoutes } from "./src/browser/routes.js";
 import { BrowserRuntime } from "./src/browser/runtime.js";
 import { registerBrowserCommand } from "./src/browser/settings.js";
-import {
-	createBrowserTool,
-	prepareBrowserCodeModeInput,
-} from "./src/browser-tool.js";
+import { createBrowserTool, prepareBrowserInput } from "./src/browser-tool.js";
 
 export { createBrowserTool } from "./src/browser-tool.js";
 
@@ -49,7 +46,7 @@ async function registerBrowserInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
-				prepareInput: prepareBrowserCodeModeInput,
+				prepareInput: prepareBrowserInput,
 				usage:
 					'await tools.browser("help") // Logged-in browser; help before other actions',
 			}),

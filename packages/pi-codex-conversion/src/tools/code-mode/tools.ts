@@ -32,6 +32,7 @@ export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 export interface CodeModeRegistration {
 	prepare(ctx?: unknown): Promise<void> | undefined;
 	getTools(ctx?: unknown): CodeModeToolDefinition[];
+	getPromptTools(ctx?: unknown): CodeModeToolDefinition[];
 	notebookStatus(ctx: ExtensionContext): Promise<NotebookControlResult>;
 	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
@@ -114,6 +115,7 @@ export async function registerCodeModeTools(
 	return {
 		prepare: (ctx) => runtime.prepare(ctx),
 		getTools: (ctx) => runtime.collectTools(ctx),
+		getPromptTools: (ctx) => runtime.collectPromptTools(ctx),
 		notebookStatus: (ctx) => runtime.controlNotebook({ action: "status", query: "*" }, { cwd: ctx.cwd, extensionContext: ctx }, ctx.signal),
 		checkpointNotebook: () => runtime.checkpointNotebook(),
 		shutdownHost: () => runtime.shutdownHost(),
