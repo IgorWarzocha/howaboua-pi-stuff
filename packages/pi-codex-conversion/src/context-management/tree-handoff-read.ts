@@ -6,6 +6,7 @@ import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
+import type { ResponsesToolCall } from "../providers/openai-responses/native-items.ts";
 
 const READ_KEY = "codexContextNoteRead";
 const READ_SCHEMA = Type.Object({
@@ -73,10 +74,11 @@ export function projectTreeHandoffReads(messages: readonly AgentMessage[], entri
 		const id = callId(read.id);
 		if (calls.has(id) !== results.has(id)) throw new Error("Incomplete tree handoff read in context");
 		if (calls.has(id)) return [message];
+		const call: ResponsesToolCall = { type: "toolCall", id, name: "notes", arguments: { action: "read_file", path: read.path },
+			...(read.namespace ? { namespace: read.namespace, responsesNamespace: read.namespace } : {}) };
 		return [message, {
 			role: "assistant", api: read.api, provider: read.provider, model: read.model,
-			content: [{ type: "toolCall", id, name: "notes", arguments: { action: "read_file", path: read.path },
-				...(read.namespace ? { namespace: read.namespace } : {}) }],
+			content: [call],
 			// This host operation has no generated tokens or provider response ID.
 			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },

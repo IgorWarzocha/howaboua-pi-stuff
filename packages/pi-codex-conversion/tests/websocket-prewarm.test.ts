@@ -289,8 +289,10 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			provider: "openai-codex-personal",
 			baseUrl: "https://codex-proxy.example.com/backend-api",
 		};
+		runtime.state.executionMode = "code";
+		const sections = { mcp_servers: '<mcp_servers>\nMCP servers whose tools are not declared to you. Call the tools of `codemode` servers from codemode scripts.\n- mcp__records (codemode): Lookup\n</mcp_servers>' };
 		const history: SessionEntry[] = [{ type: "message", id: "system", parentId: null, timestamp: "2026-01-01T00:00:00.000Z", message: {
-			role: "system", content: "Stable prompt", toolsAdded: codeModeTools, timestamp: 0,
+			role: "system", content: "Stable prompt", sections, toolsAdded: codeModeTools, timestamp: 0,
 		} }];
 		const extensionContext = {
 			cwd: "/repo",
@@ -315,6 +317,9 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			},
 			socketReused: false,
 		});
+		assert.match(JSON.stringify(sentFrames()[0]), /mcp__records: Lookup/);
+		assert.doesNotMatch(JSON.stringify(sentFrames()[0]), /Call the tools of|\(codemode\)/);
+		assert.match(sections.mcp_servers, /\(codemode\)/, "prewarm never rewrites persisted MCP metadata");
 
 		assert.deepEqual(await runtime.startCompactionPrewarm(extensionContext), { status: "ready", socketReused: true });
 		assert.equal(sentFrames().length, 1);
@@ -334,6 +339,9 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 		assert.equal(ScriptedWebSocket.opened, 2);
 		assert.equal(sentFrames()[3]?.previous_response_id, undefined);
 		assert.equal(runtime.startKeepalivePrewarm(extensionContext), undefined, "compaction does not invent an authoritative live prefix");
+		sections.mcp_servers = "Unsupported renderer";
+		assert.throws(() => runtime.startCompactionPrewarm(extensionContext), /Unsupported Pi MCP server summary/);
+		assert.equal(sentFrames().length, 4, "unsupported discovery guidance never reaches prewarm");
 	} finally {
 		restoreWebSocket();
 	}

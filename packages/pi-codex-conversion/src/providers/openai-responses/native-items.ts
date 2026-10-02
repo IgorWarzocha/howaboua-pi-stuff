@@ -1,7 +1,15 @@
 import type { ToolCall } from "@earendil-works/pi-ai";
 
-/** Native custom-call provenance survives declaration removal and absent provider item IDs. */
-export type ResponsesToolCall = ToolCall & { responsesCustomInputProperty?: string };
+/** Recorded wire provenance survives model switches and declaration removal. */
+export type ResponsesToolCall = ToolCall & { responsesCustomInputProperty?: string; responsesNamespace?: string };
+
+export function recordedResponsesNamespace(block: ToolCall): string | undefined {
+	if (!("responsesNamespace" in block)) return undefined;
+	const namespace = block.responsesNamespace;
+	if (typeof namespace !== "string" || !namespace || namespace !== block.namespace)
+		throw new Error("Invalid persisted Responses namespace provenance");
+	return namespace;
+}
 
 export function recordedCustomInputProperty(block: ToolCall, sourceApi: string): string | undefined {
 	if ("responsesCustomInputProperty" in block) {

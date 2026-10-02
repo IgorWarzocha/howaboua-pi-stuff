@@ -27,7 +27,7 @@ import {
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
-import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, recordedResponsesNamespace, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
@@ -224,7 +224,8 @@ export function convertResponsesMessages<TApi extends Api>(
 					}
 					const itemIdPrefix = customInputProperty === undefined ? "fc_" : "ctc_";
 					if (isDifferentModel || !itemId?.startsWith(itemIdPrefix)) itemId = undefined;
-					const canReplayNamespace = isSameModel || anchoredToolNames.has(block.name);
+					const namespace = recordedResponsesNamespace(block) ??
+						(isSameModel || anchoredToolNames.has(block.name) ? block.namespace : undefined);
 					output.push(customInputProperty === undefined
 						? {
 								type: "function_call",
@@ -232,7 +233,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: wireCall.name,
 								arguments: JSON.stringify(wireCall.arguments),
-								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
+								...(namespace !== undefined ? { namespace } : {}),
 							} as ResponseInput[number]
 						: {
 								type: "custom_tool_call",
@@ -240,7 +241,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: wireCall.name,
 								input: sanitizeSurrogates(getGrammarToolInput(block.name, wireCall.arguments, customInputProperty)),
-								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
+								...(namespace !== undefined ? { namespace } : {}),
 							} as ResponseInput[number]);
 				}
 			}
