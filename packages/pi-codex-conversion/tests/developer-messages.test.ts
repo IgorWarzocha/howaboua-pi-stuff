@@ -9,6 +9,7 @@ import { REMOTE_DELIVERY_MESSAGE, appendRemoteDelivery, readRemoteDelivery, remo
 import { remoteContextScope } from "../src/context-management/remote-scope.ts";
 import { contextAgentIdentity } from "../src/context-management/agent-identity.ts";
 import { normalizeResponsesToolHistory } from "../src/providers/openai-responses/tool-history.ts";
+import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
 	isCodexDeveloperMessageDetails,
@@ -188,7 +189,8 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		const resumed = readRemoteDelivery({ ...initial, id: "00000000-0000-4000-8000-000000000002", sourceCallId: "wait-call",
 			status: "result", outputs: [{ resultId: "nested-c", name: "notes.read_file", encryptedOutput: "cipher-c" }] });
 		const persist = (delivery: typeof initial, name: "exec" | "wait") => {
-			sessionManager.appendMessage({ ...assistant, content: [{ type: "toolCall", id: delivery.sourceCallId, name, arguments: {} }] });
+			sessionManager.appendMessage({ ...assistant, content: [{ type: "toolCall", id: delivery.sourceCallId, name,
+				arguments: name === "exec" ? { code: "ordinary source" } : {} }] });
 			sessionManager.appendMessage({ role: "toolResult", toolCallId: delivery.sourceCallId, toolName: name,
 				content: [{ type: "text", text: "receipt" }], isError: false, timestamp: 2,
 				details: { codeMode: true, cellId: delivery.cellId, status: delivery.status, opaqueDeliveryId: delivery.id } });
@@ -209,6 +211,16 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		assert.equal(JSON.stringify([exec, receipt, wait, waitReceipt]), originals);
 		await bridge.validateRemotePayload(payload, () => "account", ctx, false, "https://chatgpt.com/backend-api");
 		await new CodexDeveloperMessageBridge().validateRemotePayload(payload, () => "account", ctx, false, "https://chatgpt.com/backend-api");
+		const normalInput = serializeMessagesToResponsesInput({ id: assistant.model, provider: assistant.provider,
+			api: assistant.api, input: ["text"], reasoning: true } as never, sessionManager.buildSessionContext().messages,
+			{ grammarToolInputProperties: new Map() });
+		assert.deepEqual(normalInput.filter(item => "type" in item && item.type === "custom_tool_call"), [exec]);
+		assert.deepEqual(normalInput.filter(item => "type" in item && item.type === "custom_tool_call_output"), [
+			{ type: "custom_tool_call_output", call_id: "original", output: "receipt" },
+		]);
+		assert.deepEqual(normalInput.filter(item => "type" in item && item.type === "function_call_output" && Array.isArray(item.output)),
+			[...remoteDeliveryItems(initial), ...remoteDeliveryItems(resumed)]);
+		await new CodexDeveloperMessageBridge().validateRemotePayload({ input: normalInput }, () => "account", ctx);
 		await assert.rejects(bridge.validateRemotePayload(payload, () => "foreign", ctx), /different Codex account/);
 		await assert.rejects(bridge.validateRemotePayload(payload, () => "account", ctx, false, "https://proxy.invalid"), /different backend/);
 		await assert.rejects(bridge.validateRemotePayload({ input: [exec, ...remoteDeliveryItems(initial), receipt] }, () => "account", ctx), /original exec receipt/);
@@ -225,7 +237,7 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		assert.throws(() => normalizeResponsesToolHistory([...payload.input, payload.input[2]]), /duplicate/);
 		assert.throws(() => normalizeResponsesToolHistory([{ type: "function_call", name: "exec", call_id: "original", arguments: "{}" },
 			{ type: "function_call_output", call_id: "original", output: "ordinary receipt" }, ...remoteDeliveryItems(initial)]),
-			/original custom call/, "a mode projection cannot silently discard encrypted relay output");
+			/recorded custom exec call/, "a mode projection cannot silently discard encrypted relay output");
 		assert.deepEqual(new CodexDeveloperMessageBridge().prepare(sessionManager.buildSessionContext().messages.filter(message => message.role === "custom"), true), [],
 			"selected cuts discard relays with their removed original calls rather than fabricate calls");
 		assert.deepEqual(remoteDeliveryItems(readRemoteDelivery({ ...resumed, outputs: [], contextNotesSaved: true })), []);

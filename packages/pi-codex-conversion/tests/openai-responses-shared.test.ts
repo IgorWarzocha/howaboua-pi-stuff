@@ -245,7 +245,8 @@ test("processResponsesStream retains finalized freeform input for execution and 
 		},
 	);
 
-	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" }, namespace: "security" }]);
+	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" },
+		responsesCustomInputProperty: "code", namespace: "security" }]);
 	assert.equal(toolCallDeltas.join(""), JSON.stringify({ code: "canonical();" }));
 	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", namespace: "security", input: "canonical();" }]);
 });

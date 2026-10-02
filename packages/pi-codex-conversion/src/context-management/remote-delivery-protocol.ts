@@ -25,7 +25,7 @@ export function assertRemoteDeliveryPairs(input: readonly unknown[]): number {
 		if (typeof id !== "string" || !id || !call || encrypted.has(key))
 			throw new Error("Invalid encrypted Remote output ancestry or duplicate");
 		if (isRecord(call) && call["type"] === "function_call" && call["name"] === "exec")
-			throw new Error("Encrypted Remote exec history requires its original custom call; resume in Code or Notebook mode");
+			throw new Error("Encrypted Remote output does not match its recorded custom exec call");
 		encrypted.add(key);
 		if (isOriginalExecCall(call)) {
 			const calls = input.flatMap((item, at) => isRecord(item) && item["call_id"] === id &&

@@ -6,6 +6,8 @@ Codex Conversion and its SDK example now require Pi 1.0.0 or later.
 
 Fixed model switches replaying reasoning-bound tool item IDs while retaining deterministic cross-provider tool IDs.
 
+Historical custom `exec` calls and receipts retain their recorded wire shape across execution-mode changes.
+
 Notebook state management now exposes a compact help-first tool. Startup and failed recovery errors point to its action guidance.
 
 History and notes compose inside Code and Notebook execution with Local, Tree or Remote storage. Remote calls accept query and note text directly in JavaScript without an input helper. Direct native tools retain encrypted inputs. Protected results reach the model automatically through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Context rollover remains native.

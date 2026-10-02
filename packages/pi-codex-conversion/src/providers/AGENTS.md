@@ -1,6 +1,7 @@
 - Keep proxy-only transports cold: `code-mode-proxy-provider.ts` loads the OpenAI SDK only when a configured proxy stream executes; ordinary Responses stays behind Pi's lazy provider API.
 - Code Mode `exec` uses Pi grammar constrained sampling end-to-end; keep normal mode function-only for parallel tool calls and never restore request-payload contract surgery.
 - Cross-provider replay keeps stable type-correct item IDs (`ctc_*` custom, `fc_*` function) for model switching and cache continuity.
+- Historical custom calls and their receipt family follow recorded native origin in `native-items.ts`, not current declarations. Keep source input bytes through mode switches; never reactivate a removed grammar tool just to replay it.
 - `openai-responses/tool-history.ts` is the final pairing boundary after message, replay, and payload rewrites; do not bypass it before transport.
 - `openai-responses/message-history.ts` owns model-switch cleanup, image downgrades, tool-call ID pairing, and synthetic aborted results before `shared.ts` serializes Responses wire items.
 - Configured Code Mode proxies own idempotent Responses Lite relocation/header; never depend on `onPayload`.
