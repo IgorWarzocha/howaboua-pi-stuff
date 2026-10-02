@@ -213,10 +213,14 @@ function applyRuntimeTools(
 	toolNames: string[],
 ): void {
 	// Retain the native loadout in previousToolNames, but never run two code
-	// orchestrators or let native codemode hide our model-facing tool surface.
-	setActiveTools(pi, plan.kind === "code" || plan.kind === "notebook"
-		? toolNames.filter((name) => name !== "codemode")
-		: toolNames);
+	// orchestrators or expose a second discovery path beside ALL_TOOLS.
+	let projected = toolNames;
+	if (plan.kind === "code" || plan.kind === "notebook") {
+		const nativeSearch = pi.getAllTools().some((tool) =>
+			tool.name === "tool_search" && tool.sourceInfo?.path === "builtin:tool-search");
+		projected = toolNames.filter((name) => name !== "codemode" && !(nativeSearch && name === "tool_search"));
+	}
+	setActiveTools(pi, projected);
 	state.appliedRuntimeKind = plan.kind;
 	state.appliedRuntimeToolNames = [...plan.toolNames];
 	state.appliedActiveToolNames = [...pi.getActiveTools()];

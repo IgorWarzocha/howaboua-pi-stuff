@@ -2,7 +2,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionProjection, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isCodexContextManagementMessageDetails } from "./messages.ts";
-import { REMOTE_DELIVERY_MESSAGE, readRemoteDelivery, type RemoteDelivery } from "./remote-delivery.ts";
+import { REMOTE_DELIVERY_MESSAGE, readRemoteDelivery, remoteDeliverySource, type RemoteDelivery } from "./remote-delivery.ts";
 
 /** Check the selected conversation, not a process-local recollection of a tool execution. */
 export function hasFreshContextNotes(
@@ -53,7 +53,7 @@ export function hasFreshContextNotes(
 				const result = results.get(call.id)!;
 				if (result.isError) return false;
 				if (call.name !== "notes") return nestedNoteWrite(result) === true &&
-					(mode !== "remote" || remoteNoteWrite(result, deliveries.get(call.id)));
+					(mode !== "remote" || remoteNoteWrite(result, deliveries.get(call.id), messages, index, branch));
 				const details = result.details;
 				if (!details || typeof details !== "object" || !("codexHistoryNotes" in details)) return false;
 				const note = details["codexHistoryNotes"];
@@ -72,15 +72,49 @@ export function hasFreshContextNotes(
 	return false;
 }
 
-function remoteNoteWrite(result: Extract<AgentMessage, { role: "toolResult" }>, delivery?: RemoteDelivery): boolean {
+function remoteNoteWrite(result: Extract<AgentMessage, { role: "toolResult" }>, delivery: RemoteDelivery | undefined,
+	messages: readonly AgentMessage[], callIndex: number, branch: readonly SessionEntry[]): boolean {
 	const details = result.details;
 	if (!details || typeof details !== "object" || !("contextNotesSource" in details) || details["contextNotesSource"] !== "remote") return false;
 	// Pre-host-delivery sessions used native wait. Keep their selected history readable without rewriting it.
 	if (!("opaqueDeliveryId" in details)) return result.toolName === "wait";
+	if (delivery?.protocol === 2 && !hasCurrentProtectedOutput(delivery, messages, callIndex, branch)) return false;
 	return Boolean(delivery && details["opaqueDeliveryId"] === delivery.id &&
 		"cellId" in details && details["cellId"] === delivery.cellId && "status" in details && details["status"] === "result" &&
 		delivery.sourceCallId === result.toolCallId && delivery.status === "result" &&
 		delivery.contextNotesSaved === true && !delivery.errorText && !("scriptError" in details));
+}
+
+function hasCurrentProtectedOutput(delivery: Extract<RemoteDelivery, { protocol: 2 }>, messages: readonly AgentMessage[],
+	callIndex: number, branch: readonly SessionEntry[]): boolean {
+	const start = messages.slice(0, callIndex).findLastIndex(message => message.role === "user" ||
+		message.role === "assistant" && !message.content.some(part => part.type === "toolCall"));
+	const run = messages.slice(start + 1);
+	if (!run.some(message => message.role === "assistant" && message.content.some(part =>
+		part.type === "toolCall" && part.name === "exec" && part.id === delivery.originalExecCallId))) return false;
+	if (!run.some(message => message.role === "toolResult" && message.toolCallId === delivery.originalExecCallId &&
+		message.toolName === "exec" && message.details && typeof message.details === "object" &&
+		"codeMode" in message.details && message.details["codeMode"] === true &&
+		"cellId" in message.details && message.details["cellId"] === delivery.cellId)) return false;
+	const ctx = { sessionManager: {
+		getEntries: () => [...branch],
+		getBranch: (id?: string | null) => id ? branch.slice(0, branch.findIndex(entry => entry.id === id) + 1) : [...branch],
+	} };
+	try {
+		remoteDeliverySource(delivery, ctx);
+		return run.some(message => {
+			if (message.role !== "custom" || message.customType !== REMOTE_DELIVERY_MESSAGE) return false;
+			const protectedDelivery = readRemoteDelivery(message.details);
+			if (protectedDelivery.protocol !== 2 || !protectedDelivery.outputs.length ||
+				protectedDelivery.originalExecCallId !== delivery.originalExecCallId || protectedDelivery.cellId !== delivery.cellId ||
+				protectedDelivery.scope !== delivery.scope) return false;
+			if (!run.some(result => result.role === "toolResult" && result.toolCallId === protectedDelivery.sourceCallId &&
+				result.details && typeof result.details === "object" && "opaqueDeliveryId" in result.details &&
+				result.details["opaqueDeliveryId"] === protectedDelivery.id)) return false;
+			remoteDeliverySource(protectedDelivery, ctx);
+			return true;
+		});
+	} catch { return false; }
 }
 
 function nestedNoteWrite(result: Extract<AgentMessage, { role: "toolResult" }>): boolean | undefined {

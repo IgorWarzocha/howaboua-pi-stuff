@@ -27,7 +27,7 @@ import {
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
-import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, recordedResponsesNamespace, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
@@ -88,19 +88,32 @@ export function convertResponsesMessages<TApi extends Api>(
 ): ResponseInput {
 	const normalizedContext = resolveTranscript(context, options?.supportsMidConvoSystemMessages);
 	const messages: ResponseInput = [];
-	const buildForeignResponsesItemId = (itemId: string) => {
-		const normalized = `fc_${shortHash(itemId)}`;
+	const recordedCustomInputs = new Map(normalizedContext.messages.flatMap(message => message.role === "assistant"
+		? message.content.flatMap(block => {
+			if (block.type !== "toolCall") return [];
+			const property = recordedCustomInputProperty(block, message.api);
+			return property === undefined ? [] : [[block.id, property] as const];
+		}) : []));
+	const customCallIds = new Set<string>();
+	const buildForeignResponsesItemId = (itemId: string, prefix: "fc" | "ctc") => {
+		const normalized = `${prefix}_${shortHash(itemId)}`;
 		return normalized.length > 64 ? normalized.slice(0, 64) : normalized;
 	};
 	const normalizeToolCallId = (id: string, _targetModel: Model<TApi>, source: Extract<Message, { role: "assistant" }>) => {
-		if (!allowedToolCallProviders.has(model.provider)) return normalizeResponsesId(id);
-		if (!id.includes("|")) return normalizeResponsesId(id);
+		const property = recordedCustomInputs.get(id);
+		const remember = (normalized: string) => {
+			if (property !== undefined) recordedCustomInputs.set(normalized, property);
+			return normalized;
+		};
+		if (!allowedToolCallProviders.has(model.provider)) return remember(normalizeResponsesId(id));
+		if (!id.includes("|")) return remember(normalizeResponsesId(id));
 		const [callId, itemId] = id.split("|") as [string, string | undefined];
 		const normalizedCallId = normalizeResponsesId(callId);
 		const isForeignToolCall = source.provider !== model.provider || source.api !== model.api;
-		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "") : normalizeResponsesId(itemId ?? "");
-		if (!normalizedItemId.startsWith("fc_")) normalizedItemId = normalizeResponsesId(`fc_${normalizedItemId}`);
-		return `${normalizedCallId}|${normalizedItemId}`;
+		const prefix = property === undefined ? "fc" : "ctc";
+		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "", prefix) : normalizeResponsesId(itemId ?? "");
+		if (!normalizedItemId.startsWith(prefix + "_")) normalizedItemId = normalizeResponsesId(`${prefix}_${normalizedItemId}`);
+		return remember(`${normalizedCallId}|${normalizedItemId}`);
 	};
 
 	const transformedMessages = normalizeResponsesMessageHistory(normalizedContext.messages, model as Model<Api>, normalizeToolCallId as never);
@@ -203,14 +216,16 @@ export function convertResponsesMessages<TApi extends Api>(
 				} else if (block.type === "toolCall") {
 					const wireCall = unrouteContextNamespaceToolCall(block);
 					const [callId, itemIdRaw] = block.id.split("|");
-					const customInputProperty = options?.grammarToolInputProperties?.get(block.name);
+					const customInputProperty = recordedCustomInputs.get(block.id) ?? options?.grammarToolInputProperties?.get(block.name);
+					if (customInputProperty !== undefined && callId !== undefined) customCallIds.add(callId);
 					let itemId: string | undefined = itemIdRaw;
 					if (customInputProperty !== undefined && itemId?.startsWith("fc_")) {
 						itemId = `ctc_${itemId.slice(3)}`;
 					}
 					const itemIdPrefix = customInputProperty === undefined ? "fc_" : "ctc_";
 					if (isDifferentModel || !itemId?.startsWith(itemIdPrefix)) itemId = undefined;
-					const canReplayNamespace = isSameModel || anchoredToolNames.has(block.name);
+					const namespace = recordedResponsesNamespace(block) ??
+						(isSameModel || anchoredToolNames.has(block.name) ? block.namespace : undefined);
 					output.push(customInputProperty === undefined
 						? {
 								type: "function_call",
@@ -218,7 +233,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: wireCall.name,
 								arguments: JSON.stringify(wireCall.arguments),
-								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
+								...(namespace !== undefined ? { namespace } : {}),
 							} as ResponseInput[number]
 						: {
 								type: "custom_tool_call",
@@ -226,7 +241,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: wireCall.name,
 								input: sanitizeSurrogates(getGrammarToolInput(block.name, wireCall.arguments, customInputProperty)),
-								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
+								...(namespace !== undefined ? { namespace } : {}),
 							} as ResponseInput[number]);
 				}
 			}
@@ -238,8 +253,8 @@ export function convertResponsesMessages<TApi extends Api>(
 			const [callId] = msg.toolCallId.split("|");
 			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
 			const opaqueOutputs = opaqueToolOutputsFromDetails(msg.details);
-			if (opaqueOutputs.length && options?.grammarToolInputProperties?.has(msg.toolName))
-				throw new Error("Protected Code Mode results require native wait output");
+			if (opaqueOutputs.length && callId !== undefined && customCallIds.has(callId))
+				throw new Error("Protected results require a native tool output");
 			const output = opaqueOutputs.length
 				? [
 						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
@@ -278,7 +293,7 @@ export function convertResponsesMessages<TApi extends Api>(
 						]
 					: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
 			messages.push({
-				type: options?.grammarToolInputProperties?.has(msg.toolName)
+				type: callId !== undefined && customCallIds.has(callId)
 					? "custom_tool_call_output"
 					: "function_call_output",
 				call_id: callId!,

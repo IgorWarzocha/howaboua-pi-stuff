@@ -96,7 +96,7 @@ function createExecTool(
 					? await runtime.opaqueContextGuard(ctx) : undefined;
 				const response = await (await runtime.getClient(ctx)).execute(
 					params.code,
-					{ cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate,
+					{ cwd: ctx.cwd, toolCallId: id, originalExecCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate,
 						opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid },
 					signal,
 					tools,

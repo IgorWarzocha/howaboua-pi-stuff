@@ -33,4 +33,11 @@ test("compaction preserves full tool output until session usage exceeds the endp
 	assert.equal(withinBudget.rewrittenOutputs, 0);
 	assert.equal(overBudget.rewrittenOutputs, 1);
 	assert.equal((overBudget.request.input[0] as { output?: unknown })?.output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+	const protectedOutput = { type: "function_call_output", call_id: "exec", output: [
+		{ type: "encrypted_content", encrypted_content: "protected" },
+	] };
+	const protectedRequest = { ...request, input: [...request.input, protectedOutput] };
+	const shrunk = await shrinkNativeCompactionRequestForEndpoint(protectedRequest, { budgetTokens: 1, tokensBefore: 2 });
+	assert.equal(shrunk.rewrittenOutputs, 1);
+	assert.equal(shrunk.request.input[1], protectedOutput, "endpoint shrinking never rewrites protected contents");
 });

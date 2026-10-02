@@ -24,6 +24,7 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	const userKickoffs: Array<{ content: unknown; options: unknown }> = [];
 	const pi = {
 		events: createEventBus(),
+		on() {},
 		appendEntry() {},
 		sendMessage(message: ExtensionMessage, options: unknown) {
 			modelMessages.push({ message, options });

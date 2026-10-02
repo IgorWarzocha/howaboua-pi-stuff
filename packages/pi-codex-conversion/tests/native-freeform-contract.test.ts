@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeContext } from "@earendil-works/pi-ai";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
-import { registerPublicCodeModeTools } from "../src/tools/code-mode/public-tools.ts";
 import {
 	convertResponsesMessages,
-	convertResponsesTools,
 } from "../src/providers/openai-responses/shared.ts";
 import { buildRequestBody } from "../src/providers/openai-codex/request-body.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
@@ -24,24 +22,7 @@ const exec = {
 	},
 } as const;
 
-test("Code Mode factory wires exec as a native grammar tool", () => {
-	const registered: unknown[] = [];
-	registerPublicCodeModeTools({
-		events: { emit() {}, on() { return () => {}; } },
-		on() {},
-		registerTool(tool: { name: string }) {
-			if (tool.name === "exec") registered.push(tool);
-		},
-	} as never, {} as never);
-
-	const [native] = convertResponsesTools(registered as never, {
-		supportsOpenAIGrammarTools: true,
-	});
-	assert.equal(native?.type, "custom");
-	assert.equal((native as { format?: { syntax?: string } }).format?.syntax, "lark");
-});
-
-test("native grammar metadata controls custom replay and function fallback", () => {
+test("recorded custom origin survives removed or changed declarations while legacy function replay stays compatible", () => {
 	const model = {
 		id: "gpt-5.6",
 		provider: "openai-codex",
@@ -113,10 +94,21 @@ test("native grammar metadata controls custom replay and function fallback", () 
 	assert.deepEqual(
 		convertResponsesMessages(model, context, new Set(["openai-codex"])),
 		[
-			{ type: "function_call", call_id: "call_1", name: "exec", arguments: JSON.stringify({ code: "text(42);" }), namespace: "security" },
-			{ type: "function_call_output", call_id: "call_1", output: "42" },
+			{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(42);", namespace: "security" },
+			{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
 		],
 	);
+	assert.deepEqual(convertResponsesMessages(model, context, new Set(["openai-codex"]), {
+		grammarToolInputProperties: new Map([["exec", "replacement"]]),
+	}), convertResponsesMessages(model, context, new Set(["openai-codex"])), "active schemas cannot reinterpret recorded input or receipt bytes");
+	const explicitOrigin = JSON.parse(JSON.stringify(context));
+	explicitOrigin.messages[0].content[0].id = "call_1|";
+	explicitOrigin.messages[0].content[0].responsesCustomInputProperty = "code";
+	explicitOrigin.messages[1].toolCallId = "call_1|";
+	assert.deepEqual(convertResponsesMessages(model, explicitOrigin, new Set(["openai-codex"])), [
+		{ type: "custom_tool_call", call_id: "call_1", name: "exec", input: "text(42);", namespace: "security" },
+		{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
+	], "recorded native provenance survives JSON restoration even without a provider item ID");
 	const encryptedHistory = {
 		messages: [
 			{
@@ -214,7 +206,7 @@ test("Responses replay keeps cross-provider IDs and clears model-bound IDs", () 
 	const [firstCase] = cases;
 	assert.ok(firstCase);
 	const functionBody = buildRequestBody(firstCase.target as never, normalizeContext({
-		messages: messages("litellm", "openai-responses"),
+		messages: messages("litellm", "openai-responses", "fc_source"),
 		tools: [exec],
 	} as never));
 	const functionCall = functionBody.input.find((item) => (item as { type?: string }).type === "function_call") as { id: string };

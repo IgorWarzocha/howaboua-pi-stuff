@@ -23,6 +23,7 @@ export function createMcpCodeModeBridge(pi: ExtensionAPI): {
 				kind: "function",
 				deferLoading: true,
 				discoverWhenDeferred: true,
+				discovery: "server",
 				executionPipeline: "pi",
 				inputSchema: tool.parameters,
 				output: tool.outputSchema ? JSON.stringify(tool.outputSchema) : undefined,
@@ -47,7 +48,7 @@ export function createMcpCodeModeBridge(pi: ExtensionAPI): {
 					return result.content.some((block) => block.type !== "text") ? { content: result.content } : text;
 				},
 			}));
-			return { hiddenDeclarations: tools.map((tool) => tool.name) };
+			return { hiddenDeclarations: tools.filter((tool) => loadout.getExposure(tool.name) !== "direct").map((tool) => tool.name) };
 		},
 	};
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_COMPACTION_SETTINGS, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_COMPACTION_SETTINGS, SessionManager, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
@@ -13,6 +13,7 @@ import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { createAssistantMessageEventStream, type AssistantMessage, type Model, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { fakeJwt } from "./openai-codex-test-support.ts";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
 	type CodexDeveloperMessageDetails,
@@ -297,4 +298,29 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 	assert.notEqual(summaryRequest?.options?.sessionId, "session-1");
 	assert.ok(summaryRequest?.options?.sessionId);
 	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
+
+	const handoff = SessionManager.inMemory("/repo");
+	handoff.appendMessage({ role: "user", content: "Departing branch", timestamp: 1 });
+	handoff.branchWithSummary(null, "Handoff note already loaded", { codexContextNoteRead: {
+		protocol: 1, origin: "host", id: "00000000-0000-0000-0000-000000000001", path: "/root/notes/handoff",
+		namespace: "notes", api: model.api, provider: model.provider, model: model.id, timestamp: 2,
+		content: [{ type: "text", text: "notes operation completed" }],
+		details: { codexHistoryNotes: { encrypted_output: "sealed-handoff" } },
+	} });
+	let wire: unknown;
+	await assert.rejects(runPortablePiCompaction({ ...portableEvent,
+		branchEntries: handoff.getBranch(), preparation: { ...portableEvent.preparation,
+			messagesToSummarize: handoff.buildSessionContext().messages },
+	}, {
+		model, apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "account-1" } }),
+		// Inspect the real stock provider's payload, not a replacement serializer.
+		onPayload: payload => { wire = payload; throw new Error("captured-before-network"); },
+	}), /captured-before-network/);
+	assert.ok(wire && typeof wire === "object" && "input" in wire && Array.isArray(wire.input));
+	const [call, output] = wire.input;
+	assert.equal(call.name, "read_file");
+	assert.equal(call.namespace, "notes");
+	assert.deepEqual(JSON.parse(call.arguments), { path: "/root/notes/handoff" });
+	assert.equal(output.call_id, call.call_id);
+	assert.deepEqual(output.output, [{ type: "encrypted_content", encrypted_content: "sealed-handoff" }]);
 });

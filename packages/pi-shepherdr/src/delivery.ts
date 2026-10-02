@@ -142,7 +142,14 @@ export function sendPolicyMessage(
 	options: CodexDeveloperMessageOptions,
 ): void {
 	if (senders.get(pi)?.(pi, message, options)) return;
-	pi.sendMessage(message, options);
+	// Without Conversion there is no Notes admission to defer. Persist before
+	// kickoff so failed preflight cannot strand an accepted report in memory.
+	pi.sendMessage(
+		message,
+		options.deliverAs === "nextTurn"
+			? { ...options, deliverAs: "steer" }
+			: options,
+	);
 }
 
 function isUnavailable(error: unknown): boolean {

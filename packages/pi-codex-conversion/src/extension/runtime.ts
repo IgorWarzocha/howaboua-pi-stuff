@@ -6,7 +6,8 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
 import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-keepalive.ts";
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "../adapter/activation/tool-set.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
@@ -31,10 +32,12 @@ import { CodexContextWindowKickoff } from "../context-management/window-kickoff.
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
 import { hasTreeArchives } from "../context-management/tree-archive.ts";
+import { projectTreeHandoffReads } from "../context-management/tree-handoff-read.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 import { priceGeneratedPrewarm } from "../providers/openai-codex/usage.ts";
+import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -300,13 +303,18 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			branch,
 			allEntries,
 		);
-		return projected.filter((message) => !isProviderContextExcludedMessage(message));
+		return projectTreeHandoffReads(projected, checkpointBranch)
+			.filter((message) => !isProviderContextExcludedMessage(message));
 	};
 
 	const currentMessages = (ctx: CodexContext) => {
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+		const messages = projectCodeModeMcpSections(projectContextMessages(ctx), isCodeModeRuntime(plan)
+			&& required.every(name => pi.getActiveTools().includes(name)));
 		return convertToLlm(
 			state.developerMessages.prepare(
-				projectContextMessages(ctx),
+				messages,
 				supportsCodexDeveloperMessages(ctx, state),
 				ctx.model,
 			),

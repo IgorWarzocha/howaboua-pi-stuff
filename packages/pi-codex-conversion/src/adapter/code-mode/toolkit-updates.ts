@@ -59,13 +59,17 @@ export function recordCodeModeToolkit(
 	const latest = visible.at(-1);
 	const previous = latest?.compactionId === compactionId && visible.some((update) => update.id === latest.rootId)
 		? latest : undefined;
-	const discoverable = catalog.filter(isCodeModeToolDiscoverable);
+	const discoverable = catalog.filter((tool) => isCodeModeToolDiscoverable(tool)
+		&& !("discovery" in tool && tool.discovery === "server"));
 	const current = new Map(discoverable.map((tool) => [codeModeGlobalName(tool.name), tool]));
+	const callable = new Set(catalog.map((tool) => codeModeGlobalName(tool.name)));
 	const standingPromoted = new Map(promptCatalog.filter((tool) => "command" in tool && !tool.deferLoading)
 		.map((tool) => [codeModeGlobalName(tool.name), tool]));
 	const tools: ToolkitTool[] = discoverable.map((tool) => ({
 		name: codeModeGlobalName(tool.name),
-		description: excerpt(`${"disabledReason" in tool && tool.disabledReason ? "Disabled: " : ""}${tool.description || tool.promptSnippet || tool.usage}`),
+		description: "discoveryUsage" in tool && tool.discoveryUsage
+			? `${tool.discoveryUsage}\n${tool.description ?? ""}`.trim()
+			: excerpt(`${"disabledReason" in tool && tool.disabledReason ? "Disabled: " : ""}${tool.description || tool.promptSnippet || tool.usage}`),
 		contract: toolContract(tool),
 		namespace: tool.namespace?.name ?? "",
 	})).sort((left, right) => left.name.localeCompare(right.name));
@@ -79,8 +83,8 @@ export function recordCodeModeToolkit(
 		: standingPromoted.has(tool.name) && tool.contract !== toolContract(standingPromoted.get(tool.name)!));
 	// A new context must override standing contracts even when the earlier removal update was lost.
 	const removed = previous
-		? previous.tools.filter((tool) => !current.has(tool.name)).map((tool) => tool.name)
-		: [...standingPromoted.keys()].filter((name) => !current.has(name));
+		? previous.tools.filter((tool) => !callable.has(tool.name)).map((tool) => tool.name)
+		: [...standingPromoted.keys()].filter((name) => !callable.has(name));
 	if (!previous && tools.length === 0 && removed.length === 0) return false;
 	const updateLines = (entries: ToolkitTool[]) => entries.flatMap((entry) => {
 		const tool = current.get(entry.name)!;
@@ -111,7 +115,7 @@ function toolContract(tool: CodeModeToolDefinition): string {
 	// Executor changes also invalidate custom-tool contracts without exposing command paths in context.
 	return createHash("sha256").update("command" in tool
 		? JSON.stringify([help, tool.command, tool.args, tool.input, tool.yieldTimeMs, tool.disabledReason])
-		: help).digest("hex");
+		: tool.discoveryUsage ? JSON.stringify([help, tool.discoveryUsage]) : help).digest("hex");
 }
 
 function excerpt(description: string): string {

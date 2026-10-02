@@ -1,6 +1,7 @@
 import {
 	buildSessionProjection,
 	compact,
+	convertToLlm,
 	type CompactionResult,
 	type ExtensionContext,
 	type SessionBeforeCompactEvent,
@@ -16,6 +17,9 @@ import {
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { openAICodexResponsesApi, openAIResponsesApi, streamSimple } from "@earendil-works/pi-ai/compat";
+import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
+import { serializeMessagesToResponsesInput } from "./serializer.ts";
+import { encryptedToolOutputFromDetails } from "../../providers/openai-responses/native-items.ts";
 
 type PortableSummaryStream = (
 	model: Model<Api>,
@@ -74,6 +78,22 @@ export async function runPortablePiCompaction(
 	},
 ): Promise<CompactionResult> {
 	const sessionId = uuidv7();
+	const summarized = [...event.preparation.messagesToSummarize, ...event.preparation.turnPrefixMessages];
+	// Pi flattens summaries to text. Keep the completed reads outside that text so
+	// Remote encrypted outputs remain native tool results on the summary lane too.
+	const reads = projectTreeHandoffReads(summarized, event.branchEntries)
+		.filter(message => !summarized.includes(message));
+	const responses = options.model.api === "openai-codex-responses" || options.model.api === "openai-responses";
+	if (!responses && reads.some(message => message.role === "toolResult" && encryptedToolOutputFromDetails(message.details)))
+		throw new Error("The encrypted handoff note needs its matching Responses provider before Pi compaction");
+	const prefix = responses ? serializeMessagesToResponsesInput(options.model, reads) : [];
+	const onPayload: SimpleStreamOptions["onPayload"] = prefix.length ? async (payload, model) => {
+		if (!payload || typeof payload !== "object" || !("input" in payload) || !Array.isArray(payload.input))
+			throw new Error("Pi compaction has no Responses input for the handoff note");
+		// The isolated stock provider does not serialize encrypted tool details.
+		const body = { ...payload, input: [...prefix, ...payload.input] };
+		return (await options.onPayload?.(body, model)) ?? body;
+	} : options.onPayload;
 	const result = await compact(
 		event.preparation,
 		options.model,
@@ -84,14 +104,15 @@ export async function runPortablePiCompaction(
 		options.thinkingLevel,
 		(model, context, streamOptions) => (options.stream ?? streamPortableSummary)(
 			model,
-			context,
+			!responses && reads.length
+				? { ...context, messages: [context.messages[0]!, ...convertToLlm(reads), ...context.messages.slice(1)] } : context,
 			{
 				...streamOptions,
 				transport: "sse",
 				...(options.apiKey ? { apiKey: options.apiKey } : {}),
 				...(options.headers ? { headers: options.headers } : {}),
 				...(options.env ? { env: options.env } : {}),
-				...(options.onPayload ? { onPayload: options.onPayload } : {}),
+				...(onPayload ? { onPayload } : {}),
 			},
 		),
 		undefined,

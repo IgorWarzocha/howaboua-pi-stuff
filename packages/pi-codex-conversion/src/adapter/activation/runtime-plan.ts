@@ -73,7 +73,6 @@ export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalR
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
-	"context_input",
 	...CORE_ADAPTER_TOOL_NAMES,
 	...NOTEBOOK_MODE_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
@@ -144,7 +143,6 @@ export function resolveCodexRuntimePlan(
 	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
 		"change_reasoning",
-		"context_input",
 		...SHELL_ADAPTER_TOOL_NAMES,
 		...NOTEBOOK_MODE_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
@@ -202,7 +200,7 @@ export function resolveCodexRuntimePlan(
 	if (requestedCodeMode) {
 		const contextManagementNested = contextManagement;
 		const contextTools = !contextManagement ? []
-			: ["new_context", ...(contextManagementRemote ? ["context_input"] : [])];
+			: ["new_context"];
 		const transport = usesResponsesLite(ctx, config)
 			? "responses-lite"
 			: "responses";

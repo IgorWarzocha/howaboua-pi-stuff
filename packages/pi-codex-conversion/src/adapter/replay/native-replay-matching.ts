@@ -7,6 +7,7 @@ import { areEquivalentValues, cloneResponsesInputSlice, isRecord } from "./paylo
 import type { FreshAuthoritativePreamble } from "./payload-preamble.ts";
 import type { NativeCompactionEntry } from "../compaction/types.js";
 import { toPiReplayAgentMessage, toReplayAgentMessage } from "./replay-message-conversion.ts";
+import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
 
 export type SerializedReplaySlice = {
 	entries: SessionEntry[];
@@ -63,7 +64,7 @@ export function collectReplayMessages(entries: readonly SessionEntry[]): AgentMe
 		}
 	}
 
-	return messages;
+	return projectTreeHandoffReads(messages, entries);
 }
 
 function collectPiReplayMessages(entries: readonly SessionEntry[]): AgentMessage[] {
@@ -72,7 +73,7 @@ function collectPiReplayMessages(entries: readonly SessionEntry[]): AgentMessage
 		const message = toPiReplayAgentMessage(entry);
 		if (message) messages.push(message);
 	}
-	return messages;
+	return projectTreeHandoffReads(messages, entries);
 }
 
 export function createCompactionSummaryAgentMessage(entry: NativeCompactionEntry): AgentMessage {

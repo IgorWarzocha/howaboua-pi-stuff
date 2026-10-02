@@ -1,3 +1,33 @@
+import type { ToolCall } from "@earendil-works/pi-ai";
+
+/** Recorded wire provenance survives model switches and declaration removal. */
+export type ResponsesToolCall = ToolCall & { responsesCustomInputProperty?: string; responsesNamespace?: string };
+
+export function recordedResponsesNamespace(block: ToolCall): string | undefined {
+	if (!("responsesNamespace" in block)) return undefined;
+	const namespace = block.responsesNamespace;
+	if (typeof namespace !== "string" || !namespace || namespace !== block.namespace)
+		throw new Error("Invalid persisted Responses namespace provenance");
+	return namespace;
+}
+
+export function recordedCustomInputProperty(block: ToolCall, sourceApi: string): string | undefined {
+	if ("responsesCustomInputProperty" in block) {
+		const property = block.responsesCustomInputProperty;
+		if (typeof property !== "string" || !property)
+			throw new Error("Invalid persisted Responses custom-call provenance");
+		return property;
+	}
+	// Older exec records carry their native wire kind in the provider's type-specific item ID.
+	if (block.name !== "exec" || !block.id.split("|")[1]?.startsWith("ctc_") ||
+		(sourceApi !== "openai-responses" && sourceApi !== "openai-codex-responses")) return undefined;
+	const inputs = Object.entries(block.arguments);
+	const input = inputs[0];
+	if (inputs.length !== 1 || !input || typeof input[1] !== "string")
+		throw new Error("Invalid persisted custom exec input");
+	return input[0];
+}
+
 export interface ImageGenerationCallItem {
 	type: "image_generation_call";
 	id: string;

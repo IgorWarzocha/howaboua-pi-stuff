@@ -47,11 +47,15 @@ export interface ProgrammaticCodeModeToolDefinition
 	blocking?: boolean | undefined;
 	isBlocking?(input: unknown): boolean;
 	discoverWhenDeferred?: boolean | undefined;
+	/** Compact callable spine; full help remains in ALL_TOOLS. */
+	discoveryUsage?: string | undefined;
+	/** Server summaries replace appended per-tool inventory. */
+	discovery?: "server" | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi owns validation, permissions and completion hooks for these calls. */
 	executionPipeline?: "pi" | undefined;
-	/** Results are delivered to the model by native wait, not to JavaScript. */
+	/** Protected results reach the model, never JavaScript. */
 	opaqueResult?: boolean | undefined;
 	/** Forward owned handoff completion to the outer exec/wait result. */
 	propagateTermination?: boolean | undefined;
@@ -82,6 +86,8 @@ export type CodeModeToolDefinition =
 export interface ToolExecutionContext {
 	cwd: string;
 	toolCallId?: string | undefined;
+	/** Set only when the host starts the original outer exec. */
+	originalExecCallId?: string | undefined;
 	extensionContext?: ExtensionContext | undefined;
 	piToolScope?: PiToolCallScope | undefined;
 	executeTool?: ExtensionToolContext["executeTool"] | undefined;
@@ -196,6 +202,7 @@ export type RuntimeResponse = (
 	opaqueOutputs?: OpaqueToolOutput[] | undefined;
 	opaqueScope?: string | undefined;
 	opaqueDeliveryId?: string | undefined;
+	originalExecCallId?: string | undefined;
 	terminate?: true | undefined;
 	contextNotesSaved?: boolean | undefined;
 	contextNotesSource?: "remote" | undefined;

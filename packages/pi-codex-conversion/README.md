@@ -52,7 +52,7 @@ Structured mode reads files through the shell and edits with `apply_patch`. Ther
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. Current help is in `ALL_TOOLS`. MCP and deferred-tool changes use the same appended updates.
+Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. `ALL_TOOLS` contains complete callable contracts.
 
 </details>
 
@@ -161,7 +161,7 @@ Old configurations migrate on read without rewriting the file. Hybrid becomes **
 
 With notes enabled, choosing a summary in Pi's tree navigator saves a handoff note for the destination, even before the first window marker. Local and Tree preserve existing destination notes. Remote note contents remain encrypted and cannot be independently verified. Interrupted or failed handoffs cancel the jump. **No summary** remains a plain jump.
 
-The model receives history, notes, rollover and remaining-context tools. Code and Notebook modes use `tools.history({ action, ...args })` and `tools.notes({ action, ...args })` inside `exec`, with argument help in `ALL_TOOLS`. With Remote storage, native `context_input` prepares query or note-text handles. JavaScript receives receipts, and protected contents reach the model automatically before it continues. Remote contents cannot be inspected inside JavaScript. Input acquisition adds a tool roundtrip, but completed results need no extra delivery call. `wait` resumes or terminates unfinished cells. `new_context` stays native. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
+The model receives history, notes, rollover and remaining-context tools. Code and Notebook modes use `tools.history({ action, ...args })` and `tools.notes({ action, ...args })` inside `exec`, with required arguments upfront and detailed help in `ALL_TOOLS`. Remote calls accept ordinary query and note text directly in JavaScript. These inputs appear in execution source and traces. Protected results reach the model automatically through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Remote results cannot be inspected inside JavaScript and need no extra delivery call. Direct native Remote tools retain encrypted inputs. `wait` resumes or terminates unfinished cells. `new_context` stays native. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
 
 Remote results remain tied to their original context family and Codex account. Re-reading a completed result does not count as a new note checkpoint.
 
@@ -236,7 +236,7 @@ Configure servers once in Pi's built-in MCP extension. Its callable tools and re
 
 `exec` does not wait for pending MCP connections. In Code and Notebook modes, missing-tool errors identify the MCP namespace when known, otherwise flag ambiguous name prefixes. If that server connects, retry in a new exec cell. If failures repeat, the agent should suggest disabling that specific server to you. This recovery guidance does not retry calls or disable servers.
 
-MCP and other deferred tools receive a short name-and-description inventory, followed by added, changed and removed-tool updates before the next model request. Compatible Responses models receive these as developer messages. Server instructions are preserved; full tool contracts stay in `ALL_TOOLS`, refreshed for each exec cell. Unchanged inventories are not repeated, and a lost inventory is restored after context rollover.
+MCP discovery starts from Pi's server summaries. Read, `find` or `filter` the synchronous `ALL_TOOLS` array for complete usage, schemas and server instructions. Each cell's catalogue contains tools connected when that cell starts. Custom and deferred tools use the same catalogue, not another discovery tool.
 
 Notebook status and tool notices follow Pi's theme. Use **Ctrl+O** to expand or collapse them all, or click an individual notice in fullscreen mode.
 
@@ -263,7 +263,7 @@ Custom tools pair a top-level TOML definition with a command accepting one strin
 <project>/.pi/codex-conversion-custom-tools/
 ```
 
-Promoted tools add one standing usage line. Deferred tools appear in the availability inventory, with full help in `ALL_TOOLS`. Neither adds a provider schema.
+Promoted tools add one standing usage line. Deferred tools appear in the availability inventory, with complete contracts in `ALL_TOOLS`. Neither adds a per-tool provider schema.
 
 See the disabled [working examples](./examples/custom-tools/) and [definition contract](./src/tools/code-mode/CUSTOM-TOOLS.md). For progressive skills, prefer [`pi-better-skills-tool`](../pi-better-skills-tool). The legacy `skills` example requires `--no-skills`.
 
@@ -401,7 +401,7 @@ Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript 
 | `toolName` | Non-default Responses namespace |
 | `resultValue` | Structured JavaScript result instead of ordinary model-visible content |
 | `blocking` | `true` or an input predicate to hold the turn. Otherwise long calls can yield to `wait` |
-| `deferLoading` | Omit startup usage. Full metadata remains discoverable through `ALL_TOOLS` |
+| `deferLoading` | Omit startup usage. Complete contracts remain discoverable in `ALL_TOOLS` |
 | `kind: "freeform"` | Use `prepareInput` to map a string into normal Pi parameters |
 | `isActive` | Gate a session-specific tool. Keep returning its definition and call `registration.refresh()` when activation changes |
 

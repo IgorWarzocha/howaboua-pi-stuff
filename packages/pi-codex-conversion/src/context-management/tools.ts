@@ -13,7 +13,7 @@ import { toNestedTool } from "../adapter/code-mode/nested-tool-adapter.ts";
 import { remoteBackendScope, withRemoteContextScope } from "./remote-scope.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
-import { registerRemoteContextInput } from "./remote-input.ts";
+import { HISTORY_NESTED_USAGE, NOTES_NESTED_USAGE } from "./tool-contract.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
 
@@ -122,7 +122,6 @@ export function registerContextManagementTools(
 	pi.registerTool(getContextRemaining);
 	pi.registerTool(history);
 	pi.registerTool(notes);
-	const resolveRemoteInput = registerRemoteContextInput(pi, state);
 	// Reuse the registered routers, including family routing and Tree write completion.
 	const contract = { deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
 		opaqueResultScope: (result: AgentToolResult<unknown>) => {
@@ -141,22 +140,16 @@ export function registerContextManagementTools(
 		}),
 	].map((tool) => ({
 		...tool,
+		discoveryUsage: tool.name === "history" ? HISTORY_NESTED_USAGE : NOTES_NESTED_USAGE,
 		...(remote ? {
 			output: "Receipts only; contents reach the model automatically, not JavaScript",
-			inputSchema: {
-				...tool.inputSchema as object,
-				properties: Object.fromEntries(Object.entries((tool.inputSchema as { properties: Record<string, unknown> }).properties)
-					.map(([name, schema]) => [name, name === "query" || name === "text"
-						? { ...schema as object, description: "Handle from native context_input" } : schema])),
-			},
 		} : {}),
 		invoke: async (...[input, context, signal]: Parameters<typeof tool.invoke>) => {
 			if (!context.extensionContext || !plan(context.extensionContext).contextManagementNested)
 				throw new Error("Nested history and notes require active context in Code or Notebook");
 			if (plan(context.extensionContext).contextManagementRemote !== remote)
 				throw new Error("Context storage changed; start a new exec cell");
-			const prepared = remote ? await resolveRemoteInput(input, context.extensionContext) : input;
-			return tool.invoke(prepared, remote ? { ...context,
+			return tool.invoke(input, remote ? { ...context,
 				extensionContext: withRemoteContextScope(context.extensionContext, context.opaqueScope) } : context, signal);
 		},
 	}));

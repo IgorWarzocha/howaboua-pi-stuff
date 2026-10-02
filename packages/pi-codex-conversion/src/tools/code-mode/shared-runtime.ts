@@ -49,7 +49,7 @@ export interface CodeModeToolProvider {
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
-	deliverOpaqueResponse?(response: RuntimeResponse, callId: string, scope: string): string;
+	deliverOpaqueResponse?(response: RuntimeResponse, callId: string, scope: string, ctx: ExtensionContext): string;
 }
 
 export class SharedCodeModeRuntime {
@@ -82,7 +82,7 @@ export class SharedCodeModeRuntime {
 		return { scope, generation, owner: JSON.stringify([baseOwner, scope]),
 			deliver: (response, callId) => {
 				if (!unchanged()) throw new Error("Remote context changed after execution; verify note state before repeating a write");
-				return deliver.call(provider, response, callId, scope);
+				return deliver.call(provider, response, callId, scope, ctx);
 			}, valid: async () => {
 			if (!unchanged()) return false;
 			const latest = await resolveScope();
@@ -106,7 +106,7 @@ export class SharedCodeModeRuntime {
 					...(response.kind === "result" && response.errorText ? { errorText: response.errorText.slice(0, 4096) } : {}) } });
 		}
 		if (!hasDelivery) return response;
-		const { opaqueOutputs: _outputs, opaqueScope: _scope, ...receipt } = response;
+		const { opaqueOutputs: _outputs, opaqueScope: _scope, originalExecCallId: _origin, ...receipt } = response;
 		return { ...receipt, opaqueDeliveryId, contentItems: response.contentItems.filter(item => item.type !== "input_image") };
 	}
 

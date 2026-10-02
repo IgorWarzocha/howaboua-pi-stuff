@@ -22,6 +22,7 @@ export interface CodexDeveloperMessageDetails {
 export const CODEX_DEVELOPER_MESSAGE_TYPE = "codex-developer-message";
 
 const CUSTOM_DEVELOPER_DETAILS_KEY = "@howaboua/pi-codex-conversion/developer-message";
+const PENDING_DEVELOPER_MESSAGE_TYPE = "codex-pending-developer-message";
 
 export interface CodexDeveloperCustomMessage {
 	customType: string;
@@ -166,6 +167,25 @@ export function registerCodexDeveloperMessageBroker(
 	isIdle: () => boolean = () => false,
 ): () => void {
 	let preparedIdleKickoff: "preparing" | "running" | { prompt: string | undefined } | undefined;
+	let currentContext: ExtensionContext | undefined;
+	pi.on("session_start", (event, ctx) => {
+		currentContext = ctx;
+		// Pi reloads extensions in place and retains nextTurn. A replacement
+		// AgentSession has an empty queue; recover accepted, unconsumed entries.
+		if (event.reason === "reload") return;
+		const entries = ctx.sessionManager.getEntries();
+		const delivered = new Set(entries.flatMap(entry => entry.type === "custom_message"
+			? [developerMessageId(entry)] : []));
+		let restored = false;
+		for (const entry of entries) {
+			if (entry.type !== "custom" || entry.customType !== PENDING_DEVELOPER_MESSAGE_TYPE) continue;
+			const pending = readPendingDeveloperMessage(entry.data);
+			if (pending.sessionId !== ctx.sessionManager.getSessionId() || delivered.has(developerMessageId(pending.message))) continue;
+			pi.sendMessage(pending.message, { deliverAs: "nextTurn", triggerTurn: false });
+			restored = true;
+		}
+		if (restored) ctx.ui.notify("Pending developer messages restored. Send a message to continue.", "warning");
+	});
 	const startKickoff = (start?: () => void, prompt = "Continue."): PreparedIdleKickoffRequest["outcome"] => {
 		// Pi exposes no completion for async preflight. Lifecycle owners clear the
 		// claim; guessing here could launch a concurrent turn.
@@ -194,18 +214,30 @@ export function registerCodexDeveloperMessageBroker(
 			const metadata: CodexDeveloperMessageDetails = { protocol: 1, id: randomUUID() };
 			const preparedIdleTurn = value.options?.triggerTurn === true
 				&& value.options.deliverAs !== "nextTurn"
-				&& isIdle();
-			pi.sendMessage<object>(
-				value.message ? {
-					...value.message,
-					details: { ...value.message.details, [CUSTOM_DEVELOPER_DETAILS_KEY]: metadata },
-				} : {
-					customType: CODEX_DEVELOPER_MESSAGE_TYPE,
-					content: value.content,
-					display: true,
-					details: metadata,
-				},
-				preparedIdleTurn ? { ...value.options, triggerTurn: false } : value.options,
+				&& (isIdle() || preparedIdleKickoff === "preparing");
+			// Native Tree navigation is busy without a running agent. Reports
+			// arriving during the claimed preparation still belong to its turn.
+			const deferred = preparedIdleTurn || value.options?.deliverAs === "nextTurn" ||
+				(preparedIdleKickoff === "preparing" && value.options?.deliverAs === "steer" && value.options.triggerTurn !== false);
+			const message = value.message ? {
+				...value.message,
+				details: { ...value.message.details, [CUSTOM_DEVELOPER_DETAILS_KEY]: metadata },
+			} : {
+				customType: CODEX_DEVELOPER_MESSAGE_TYPE,
+				content: value.content,
+				display: true,
+				details: metadata,
+			};
+			if (deferred) {
+				if (!currentContext) throw new Error("Developer message delivery requires a started session");
+				// Metadata is durable but not conversation: it cannot stale Notes
+				// before admission. The eventual custom-message ID proves consumption.
+				pi.appendEntry(PENDING_DEVELOPER_MESSAGE_TYPE, {
+					protocol: 1, sessionId: currentContext.sessionManager.getSessionId(), message,
+				});
+			}
+			pi.sendMessage<object>(message,
+				deferred ? { ...value.options, triggerTurn: false, deliverAs: "nextTurn" } : value.options,
 			);
 			if (preparedIdleTurn && tryStartCodexPreparedIdlePrompt(pi) === false)
 				throw new Error("Prepared developer message kickoff is unavailable");
@@ -267,6 +299,23 @@ export function registerCodexDeveloperMessageBroker(
 export function customDeveloperMessageMetadata(details: unknown): unknown {
 	return details && typeof details === "object" && CUSTOM_DEVELOPER_DETAILS_KEY in details
 		? details[CUSTOM_DEVELOPER_DETAILS_KEY] : undefined;
+}
+
+function developerMessageId(message: { customType: string; details?: unknown }): string | undefined {
+	const metadata = message.customType === CODEX_DEVELOPER_MESSAGE_TYPE ? message.details : customDeveloperMessageMetadata(message.details);
+	return isCodexDeveloperMessageDetails(metadata) ? metadata.id : undefined;
+}
+
+function readPendingDeveloperMessage(value: unknown): { sessionId: string; message: CodexDeveloperCustomMessage } {
+	if (value && typeof value === "object" && "protocol" in value && value.protocol === 1 &&
+		"sessionId" in value && typeof value.sessionId === "string" && "message" in value &&
+		value.message && typeof value.message === "object") {
+		const message = value.message as CodexDeveloperCustomMessage;
+		if (typeof message.customType === "string" && message.customType.trim() &&
+			typeof message.content === "string" && message.content.trim() && typeof message.display === "boolean" && developerMessageId(message))
+			return { sessionId: value.sessionId, message };
+	}
+	throw new Error("Stored pending developer message is invalid");
 }
 
 function validateCustomMessage(message: CodexDeveloperCustomMessage): void {

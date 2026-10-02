@@ -50,6 +50,7 @@ export class CodeModeDelegateRuntime {
 	private readonly controllers = new Map<string, DelegateController>();
 	private readonly notifications = new Map<string, string[]>();
 	private readonly opaqueResults = new Map<string, PendingOpaqueResults>();
+	private readonly originalExecCalls = new Map<string, string>();
 	// Continuation routing must survive bounded display traces.
 	private readonly execSessions = new Map<string, Set<number>>();
 	private readonly terminatingCells = new Set<string>();
@@ -76,6 +77,8 @@ export class CodeModeDelegateRuntime {
 		tools?: Map<string, CodeModeToolDefinition>,
 	): void {
 		this.updateCellContext(cellId, context);
+		if (context.originalExecCallId && !this.originalExecCalls.has(cellId))
+			this.originalExecCalls.set(cellId, context.originalExecCallId);
 		if (tools) this.cellTools.set(cellId, tools);
 	}
 
@@ -106,6 +109,7 @@ export class CodeModeDelegateRuntime {
 			const opaque = this.opaqueResults.get(cellId);
 			if (opaque?.timer) clearTimeout(opaque.timer);
 			this.opaqueResults.delete(cellId);
+			this.originalExecCalls.delete(cellId);
 			this.execSessions.delete(cellId);
 			this.terminatingCells.delete(cellId);
 			this.contextNoteWrites.delete(cellId);
@@ -117,6 +121,7 @@ export class CodeModeDelegateRuntime {
 		for (const { controller } of this.controllers.values()) controller.abort();
 		this.controllers.clear();
 		this.cellContexts.clear();
+		this.originalExecCalls.clear();
 		for (const change of this.contextChanges.values()) change.resolve();
 		this.contextChanges.clear();
 		this.cellTools.clear();
@@ -216,6 +221,8 @@ export class CodeModeDelegateRuntime {
 	}
 
 	attach(response: RuntimeResponse): RuntimeResponse {
+		const originalExecCallId = this.originalExecCalls.get(response.cellId);
+		if (response.kind !== "yielded") this.originalExecCalls.delete(response.cellId);
 		const cleanupTimer = this.cleanupTimers.get(response.cellId);
 		if (cleanupTimer) clearTimeout(cleanupTimer);
 		this.cleanupTimers.delete(response.cellId);
@@ -245,6 +252,7 @@ export class CodeModeDelegateRuntime {
 		const withTraces = this.traces.attach(response);
 		return {
 			...withTraces,
+			...(originalExecCallId ? { originalExecCallId } : {}),
 			...(opaqueOutputs?.length ? { opaqueOutputs } : {}),
 			...(terminate ? { terminate: true as const } : {}),
 			...(noteWrites !== undefined && response.kind !== "yielded"

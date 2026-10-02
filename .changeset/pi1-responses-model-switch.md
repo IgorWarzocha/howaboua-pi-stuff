@@ -4,10 +4,12 @@
 
 Codex Conversion and its SDK example now require Pi 1.0.0 or later.
 
-Fixed model switches replaying reasoning-bound tool item IDs while retaining deterministic cross-provider tool IDs.
-
-Notebook state management now exposes a compact help-first tool. Startup and failed recovery errors point to its action guidance.
-
-History and notes compose inside Code and Notebook execution with Local, Tree or Remote storage. Remote searches and note text use `context_input` handles. Protected results reach the model automatically without an extra delivery call, while JavaScript receives only receipts. `wait` resumes unfinished cells. Context rollover remains native.
-
-Protected results stay bound to their original context family and Codex account. Replaying a completed delivery does not count as a new note checkpoint.
+- Fixed reasoning-bound tool IDs on model switches while retaining deterministic cross-provider IDs. Historical custom `exec` calls and receipts preserve their recorded wire shape across execution-mode changes.
+- Notebook state management now has compact help-first guidance, including recovery from startup failures.
+- History and notes now compose inside Code and Notebook with Local, Tree or Remote storage. Remote calls accept query and note text directly in JavaScript. Direct native tools retain encrypted inputs.
+- Protected Remote results now reach the model through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Results remain bound to their original context family and Codex account. Replay does not count as a new note checkpoint.
+- Image blocking now also covers images returned with protected Remote results.
+- Tree navigation now loads its handoff note before resuming, without an extra model turn to read it. Failed reads cancel the jump. Remote results stay encrypted through replay and compaction, and their read calls retain the notes namespace across model switches.
+- Idle developer-message turns now apply saved-Notes rollover before adding incoming work to context. Pending messages survive failed startup and session reopening without duplicate delivery.
+- History and notes now show callable actions and required arguments upfront. Complete deferred contracts use the synchronous `ALL_TOOLS` catalogue without a second discovery tool.
+- MCP discovery now starts from server summaries and uses `ALL_TOOLS` in Code and Notebook. Server names and descriptions are preserved, and configured direct tools stay direct. Compaction prewarming uses the same MCP guidance as the resumed turn.
