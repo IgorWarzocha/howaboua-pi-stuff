@@ -21,6 +21,7 @@ test("review findings remain lower authority than the promoted preface", () => {
 		[];
 	const pi = {
 		events: createEventBus(),
+		on() {},
 		sendMessage(message: ExtensionMessage, options: unknown) {
 			sent.push({ message, options });
 			sessionManager.appendCustomMessageEntry(
