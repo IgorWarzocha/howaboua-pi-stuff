@@ -77,7 +77,7 @@ test("Code, Notebook and custom-tool results retain output and recovery without 
 		});
 		const native = { name: "mcp__records_store__read", description: "Read", parameters: { type: "object" } };
 		const bridge = createMcpCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
-		bridge.prepareLoadout({ callable: [native], getNamespace: () => ({ name: "mcp__records.store" }) } as never);
+		bridge.prepareLoadout({ callable: [native], getExposure: () => "codemode" as const, getNamespace: () => ({ name: "mcp__records.store" }) } as never);
 		const tools = bridge.getTools();
 		delegate.bindCell("missing", { cwd: process.cwd() }, new Map(tools.map((tool) => [tool.name, tool])));
 		const known = /MCP namespace "mcp__records\.store"\. If that server connects/;

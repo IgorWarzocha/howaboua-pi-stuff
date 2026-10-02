@@ -22,7 +22,7 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	} as never);
 	const native = { name: "mcp__records__read", description: "Read a record", parameters: { type: "object" } };
 	const mcp = createMcpCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
-	mcp.prepareLoadout({ callable: [native], getNamespace: () => undefined } as never);
+	mcp.prepareLoadout({ callable: [native], getExposure: () => "codemode" as const, getNamespace: () => undefined } as never);
 	runtime.bindCell("cell-a", {
 		cwd: process.cwd(), piToolScope: firstScope,
 		preflight: async () => assert.fail("MCP permissions belong to Pi's executor"),
