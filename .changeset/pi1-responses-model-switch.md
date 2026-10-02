@@ -4,18 +4,10 @@
 
 Codex Conversion and its SDK example now require Pi 1.0.0 or later.
 
-Fixed model switches replaying reasoning-bound tool item IDs while retaining deterministic cross-provider tool IDs.
-
-Historical custom `exec` calls and receipts retain their recorded wire shape across execution-mode changes.
-
-Notebook state management now exposes a compact help-first tool. Startup and failed recovery errors point to its action guidance.
-
-History and notes compose inside Code and Notebook execution with Local, Tree or Remote storage. Remote calls accept query and note text directly in JavaScript without an input helper. Direct native tools retain encrypted inputs. Protected results reach the model automatically through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Context rollover remains native.
-
-Protected results stay bound to their original context family and Codex account. Replaying a completed delivery does not count as a new note checkpoint.
-
-History and notes now show their callable action names and required arguments upfront in Code and Notebook. Detailed options stay in on-demand help.
-
-MCP discovery now starts from server summaries instead of an upfront per-tool inventory. Configured direct tools remain directly exposed.
-
-Code and Notebook expose complete deferred contracts through the synchronous `ALL_TOOLS` catalogue without a second discovery tool. Native MCP server summaries use that same discovery path while preserving server names and descriptions.
+- Fixed reasoning-bound tool IDs on model switches while retaining deterministic cross-provider IDs. Historical custom `exec` calls and receipts preserve their recorded wire shape across execution-mode changes.
+- Notebook state management now has compact help-first guidance, including recovery from startup failures.
+- History and notes now compose inside Code and Notebook with Local, Tree or Remote storage. Remote calls accept query and note text directly in JavaScript. Direct native tools retain encrypted inputs.
+- Protected Remote results now reach the model through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Results remain bound to their original context family and Codex account. Replay does not count as a new note checkpoint.
+- Tree navigation now loads its handoff note before resuming, without an extra model turn to read it. Failed reads cancel the jump, and Remote results stay encrypted through replay and compaction.
+- History and notes now show callable actions and required arguments upfront. Complete deferred contracts use the synchronous `ALL_TOOLS` catalogue without a second discovery tool.
+- MCP discovery now starts from server summaries and uses `ALL_TOOLS` in Code and Notebook. Server names and descriptions are preserved, and configured direct tools stay direct.

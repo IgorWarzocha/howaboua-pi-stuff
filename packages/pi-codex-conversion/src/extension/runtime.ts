@@ -31,6 +31,7 @@ import { CodexContextWindowKickoff } from "../context-management/window-kickoff.
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
 import { hasTreeArchives } from "../context-management/tree-archive.ts";
+import { projectTreeHandoffReads } from "../context-management/tree-handoff-read.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
@@ -300,7 +301,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			branch,
 			allEntries,
 		);
-		return projected.filter((message) => !isProviderContextExcludedMessage(message));
+		return projectTreeHandoffReads(projected, checkpointBranch)
+			.filter((message) => !isProviderContextExcludedMessage(message));
 	};
 
 	const currentMessages = (ctx: CodexContext) => {
