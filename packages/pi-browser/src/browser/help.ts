@@ -4,7 +4,7 @@ export function browserHelp(
 	const routed = hosts.length > 0;
 	return {
 		input:
-			"Request={action,...fields}; Code/Notebook: JSON.stringify(request), JSON.parse(result)",
+			"Request={action,...fields}; Pi: {command:JSON.stringify(request)}; Code/Notebook: JSON.stringify(request), JSON.parse(result)",
 		...(routed
 			? {
 					host: `${hosts.join("|")} optional; keep a user-named host on every call and its refs/handles`,
@@ -14,7 +14,7 @@ export function browserHelp(
 		safety:
 			"Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
 		batch:
-			"Code/Notebook: {action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
+			"{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
 		actions: {
 			tabs: "query? offset? owned_only? -> ref_id title url owned",
 			open: "ref_id lineno? | url; new tabs open in background",
