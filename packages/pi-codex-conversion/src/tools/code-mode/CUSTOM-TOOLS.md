@@ -11,7 +11,7 @@ Definitions are top-level `*.toml` files in either location:
 
 Only the active session working directory is checked; parent directories are not searched. Project-local definitions are ignored unless Pi trusts the project. A project-local definition replaces a global definition with the same tool name. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
 
-Definitions remain live for execution, but the custom-tool prompt is snapshotted when a session starts. A promoted tool added or renamed during a session remains deferred until compaction, reload, or a new, resumed, or forked session. Compaction refreshes custom-tool promotion for subsequent turns.
+Definitions remain live for execution. Promoted usage stays fixed in the standing instructions until a session or model reset. Added or renamed tools remain deferred until that reset. Contract changes and removals are announced before the next model request without rebuilding standing instructions, including after compaction. Current help for every custom tool is in `ALL_TOOLS`; later updates supersede earlier usage.
 
 ```toml
 usage = 'await tools.port_info(port_number)'
@@ -41,7 +41,7 @@ Unknown fields and invalid definitions disable only that named tool. The tool re
 
 ## Deferred tools
 
-Deferred tools remain callable but add nothing tool-specific to the provider schema or system prompt. Their metadata is available through `ALL_TOOLS`; bundled and promoted tools are excluded:
+Deferred tools remain callable but add nothing tool-specific to the provider schema or system prompt. `ALL_TOOLS` includes current help for deferred and promoted custom tools, but excludes bundled tools:
 
 ```js
 text(ALL_TOOLS.map(({ name }) => name));

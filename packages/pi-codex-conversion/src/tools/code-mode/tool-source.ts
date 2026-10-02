@@ -1,13 +1,13 @@
-import { isDeferredDiscoverableTool } from "./custom-tool-prompt.js";
+import { isCodeModeToolDiscoverable } from "./custom-tool-prompt.js";
 import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 
-export function scopeAllToolsToDeferredCustom(
+export function scopeAllToolsToDiscoverable(
 	source: string,
 	tools: CodeModeToolDefinition[],
 ): string {
 	const names = tools
-		.filter(isDeferredDiscoverableTool)
+		.filter(isCodeModeToolDiscoverable)
 		.map((tool) => codeModeGlobalName(tool.name));
 	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>${JSON.stringify(names)}.includes(name));${source}`;
 }

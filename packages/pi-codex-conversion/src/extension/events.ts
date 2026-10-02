@@ -559,7 +559,7 @@ export function registerCodexEvents(
 		let messages = runtime.projectContextMessages(ctx, event.messages);
 		if (await refreshNotebookStatus(ctx, messages))
 			messages = runtime.projectContextMessages(ctx, event.messages);
-		if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx)))
+		if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx), codeMode.getPromptTools(ctx)))
 			messages = runtime.projectContextMessages(ctx, event.messages);
 		const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 		if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
