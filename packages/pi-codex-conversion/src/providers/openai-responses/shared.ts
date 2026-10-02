@@ -62,6 +62,12 @@ interface ConvertResponsesToolsOptions {
 
 export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 
+export function normalizeResponsesId(part: string): string {
+	const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
+	const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
+	return normalized.replace(/_+$/, "");
+}
+
 function sanitizeSurrogates(text: string): string {
 	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 }
@@ -82,23 +88,18 @@ export function convertResponsesMessages<TApi extends Api>(
 ): ResponseInput {
 	const normalizedContext = resolveTranscript(context, options?.supportsMidConvoSystemMessages);
 	const messages: ResponseInput = [];
-	const normalizeIdPart = (part: string) => {
-		const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
-		const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
-		return normalized.replace(/_+$/, "");
-	};
 	const buildForeignResponsesItemId = (itemId: string) => {
 		const normalized = `fc_${shortHash(itemId)}`;
 		return normalized.length > 64 ? normalized.slice(0, 64) : normalized;
 	};
 	const normalizeToolCallId = (id: string, _targetModel: Model<TApi>, source: Extract<Message, { role: "assistant" }>) => {
-		if (!allowedToolCallProviders.has(model.provider)) return normalizeIdPart(id);
-		if (!id.includes("|")) return normalizeIdPart(id);
+		if (!allowedToolCallProviders.has(model.provider)) return normalizeResponsesId(id);
+		if (!id.includes("|")) return normalizeResponsesId(id);
 		const [callId, itemId] = id.split("|") as [string, string | undefined];
-		const normalizedCallId = normalizeIdPart(callId);
+		const normalizedCallId = normalizeResponsesId(callId);
 		const isForeignToolCall = source.provider !== model.provider || source.api !== model.api;
-		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "") : normalizeIdPart(itemId ?? "");
-		if (!normalizedItemId.startsWith("fc_")) normalizedItemId = normalizeIdPart(`fc_${normalizedItemId}`);
+		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "") : normalizeResponsesId(itemId ?? "");
+		if (!normalizedItemId.startsWith("fc_")) normalizedItemId = normalizeResponsesId(`fc_${normalizedItemId}`);
 		return `${normalizedCallId}|${normalizedItemId}`;
 	};
 

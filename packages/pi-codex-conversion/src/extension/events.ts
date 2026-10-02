@@ -102,7 +102,7 @@ export function registerCodexEvents(
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
-		return rewriteCodexProviderRequest(event.payload, ctx, state);
+		return rewriteCodexProviderRequest(event.payload, ctx, state, pi.getSettings().images?.blockImages);
 	});
 	pi.on("before_provider_headers", (event, ctx) => {
 		rewriteCodexProviderHeaders(event.headers, ctx, state);

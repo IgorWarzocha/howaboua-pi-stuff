@@ -142,7 +142,7 @@ export function registerContextManagementTools(
 	].map((tool) => ({
 		...tool,
 		...(remote ? {
-			output: "Receipts only; wait delivers content to the model, not JavaScript",
+			output: "Receipts only; contents reach the model automatically, not JavaScript",
 			inputSchema: {
 				...tool.inputSchema as object,
 				properties: Object.fromEntries(Object.entries((tool.inputSchema as { properties: Record<string, unknown> }).properties)

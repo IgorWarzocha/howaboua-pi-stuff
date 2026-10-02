@@ -17,6 +17,7 @@ import { CodexContextTreeCoordinator } from "../src/context-management/tree-coor
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { codexModel } from "./openai-codex-test-support.ts";
+import { REMOTE_DELIVERY_MESSAGE } from "../src/context-management/remote-delivery.ts";
 
 function createContext(): ExtensionContext {
 	return {
@@ -164,16 +165,27 @@ test("context windows preserve rollover and native request semantics", async () 
 				sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
 					type: "toolCall", id: "nested-save", name, arguments: {},
 				}] });
-				sessionManager.appendMessage({ ...result, toolCallId: "nested-save", toolName: name,
+				const deliveryId = "00000000-0000-4000-8000-000000000001";
+				const nestedResult = sessionManager.appendMessage({ ...result, toolCallId: "nested-save", toolName: name,
 					details: { codeMode: true, contextNotesSaved: saved,
-						...(mode === "remote" ? { contextNotesSource: "remote" } : {}) } });
+						...(mode === "remote" ? { contextNotesSource: "remote", opaqueDeliveryId: deliveryId,
+							cellId: "nested-cell", status: "result" } : {}) } });
+				if (mode === "remote") sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
+					protocol: 1, origin: "host", id: deliveryId, sourceCallId: "nested-save", cellId: "nested-cell", scope: "fixture",
+					status: "result", contextNotesSaved: saved, outputs: [], images: [],
+				});
 				sessionManager.appendMessage(assistant);
-				const eligible = saved && (mode !== "remote" || name === "wait");
-				assert.equal(reuse(), eligible, "Remote nested checkpoints require successful native wait delivery");
+				const eligible = saved;
+				assert.equal(reuse(), eligible, "Remote nested checkpoints require a matched persisted delivery");
 				const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
 				restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
 					noteCtx, mode, settledAt);
 				assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, settledAt + 26 * 60_000), eligible);
+				if (mode === "remote") {
+					sessionManager.branch(nestedResult);
+					sessionManager.appendMessage(assistant);
+					assert.equal(reuse(), false, "a receipt without its host delivery cannot grant fresh notes");
+				}
 			}
 		}
 		sessionManager.branch(user);

@@ -18,6 +18,7 @@ export interface OpaqueContextGuard {
 	scope: string;
 	owner: string;
 	generation: number;
+	deliver(response: RuntimeResponse, callId: string): string;
 	valid(): Promise<boolean>;
 }
 
@@ -48,6 +49,7 @@ export interface CodeModeToolProvider {
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
+	deliverOpaqueResponse?(response: RuntimeResponse, callId: string, scope: string): string;
 }
 
 export class SharedCodeModeRuntime {
@@ -60,84 +62,68 @@ export class SharedCodeModeRuntime {
 	private clientStartupAbort: AbortController | undefined;
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
 	private opaqueGeneration = 0;
-	private readonly pendingDeliveries = new Map<string, { response: RuntimeResponse; owner: string; expires: number; bytes: number; delivered: boolean }>();
-	private deliveryExpiryTimer: ReturnType<typeof setTimeout> | undefined;
+	// Completed status only. Protected contents live in persisted host events, never a second delivery queue.
+	private readonly completedCells = new Map<string, { response: RuntimeResponse; owner: string; expires: number }>();
 
 	async opaqueContextGuard(ctx: ExtensionContext): Promise<OpaqueContextGuard> {
 		const generation = this.opaqueGeneration;
 		const baseOwner = this.opaqueOwner(ctx);
 		const providers = this.activeProviders(ctx).filter(provider => provider.opaqueResultScope);
 		const provider = providers[0];
-		if (providers.length !== 1 || !provider?.opaqueResultScope)
+		if (providers.length !== 1 || !provider?.opaqueResultScope || !provider.deliverOpaqueResponse)
 			throw new Error("Remote context authentication is unavailable or conflicting");
 		const resolver = provider.opaqueResultScope;
+		const deliver = provider.deliverOpaqueResponse;
 		const resolveScope = () => resolver.call(provider, ctx);
 		const scope = await resolveScope();
-		const unchanged = () => generation === this.opaqueGeneration && baseOwner === this.opaqueOwner(ctx);
+		const unchanged = () => generation === this.opaqueGeneration && baseOwner === this.opaqueOwner(ctx) &&
+			this.activeProviders(ctx).includes(provider);
 		if (!unchanged()) throw new Error("Remote context changed during authentication; start a new exec cell");
-		return { scope, generation, owner: JSON.stringify([baseOwner, scope]), valid: async () => {
+		return { scope, generation, owner: JSON.stringify([baseOwner, scope]),
+			deliver: (response, callId) => {
+				if (!unchanged()) throw new Error("Remote context changed after execution; verify note state before repeating a write");
+				return deliver.call(provider, response, callId, scope);
+			}, valid: async () => {
 			if (!unchanged()) return false;
 			const latest = await resolveScope();
 			return unchanged() && latest === scope;
 		} };
 	}
 
-	assertOpaqueDeliveryCapacity(): void {
-		this.expireDeliveries();
-		const pending = [...this.pendingDeliveries.values()].filter(entry => !entry.delivered);
-		if (pending.length >= 32 || pending.reduce((sum, entry) => sum + entry.bytes, 0) >= 32 * 1024 * 1024)
-			throw new Error("Remote delivery capacity reached; call wait for pending cells before starting another exec");
-	}
-
-	deferOpaqueResponse(response: RuntimeResponse, guard?: OpaqueContextGuard): RuntimeResponse {
-		if (!response.opaqueOutputs?.length) return response;
-		if (!guard) throw new Error("Remote result authentication is unavailable");
-		response = { ...response, opaqueScope: guard.scope };
-		this.expireDeliveries();
-		const bytes = Buffer.byteLength(JSON.stringify(response), "utf8");
-		let held = [...this.pendingDeliveries.values()].reduce((sum, entry) => sum + entry.bytes, 0);
-		for (const [cellId, entry] of this.pendingDeliveries) {
-			if (this.pendingDeliveries.size < 32 && held + bytes <= 32 * 1024 * 1024) break;
-			if (!entry.delivered) continue;
-			this.pendingDeliveries.delete(cellId);
-			held -= entry.bytes;
+	deliverOpaqueResponse(response: RuntimeResponse, callId: string, guard?: OpaqueContextGuard): RuntimeResponse {
+		const hasDelivery = Boolean(response.opaqueOutputs?.length || response.contextNotesSource === "remote");
+		if (hasDelivery && !guard)
+			throw new Error("Remote delivery is unavailable after execution; verify note state before repeating a write");
+		const opaqueDeliveryId = hasDelivery && guard ? guard.deliver(response, callId) : undefined;
+		if (guard && response.kind !== "yielded" && !response.missingCell) {
+			this.expireCompletedCells();
+			this.completedCells.delete(response.cellId);
+			const oldest = this.completedCells.keys().next().value;
+			if (this.completedCells.size >= 32 && oldest !== undefined) this.completedCells.delete(oldest);
+			this.completedCells.set(response.cellId, { owner: guard.owner, expires: Date.now() + 15 * 60_000,
+				response: { kind: response.kind, cellId: response.cellId, contentItems: [{ type: "input_text",
+					text: "Execution already complete; termination does not undo completed operations" }],
+					...(response.kind === "result" && response.errorText ? { errorText: response.errorText.slice(0, 4096) } : {}) } });
 		}
-		if (this.pendingDeliveries.size >= 32 || held + bytes > 32 * 1024 * 1024)
-			throw new Error("Remote operation executed but delivery capacity was exceeded; verify note state before repeating a write");
-		this.pendingDeliveries.set(response.cellId, { response, owner: guard.owner, expires: Date.now() + 15 * 60_000, bytes, delivered: false });
-		this.armDeliveryExpiry();
-		return {
-			kind: "yielded", cellId: response.cellId, contentItems: [],
-			deliveryPending: response.kind !== "yielded",
-		};
+		if (!hasDelivery) return response;
+		const { opaqueOutputs: _outputs, opaqueScope: _scope, ...receipt } = response;
+		return { ...receipt, opaqueDeliveryId, contentItems: response.contentItems.filter(item => item.type !== "input_image") };
 	}
 
-	async takeOpaqueDelivery(cellId: string, ctx: ExtensionContext): Promise<RuntimeResponse | undefined> {
-		const entry = this.pendingDeliveries.get(cellId);
+	async completedCell(cellId: string, ctx: ExtensionContext): Promise<RuntimeResponse | undefined> {
+		const entry = this.completedCells.get(cellId);
 		if (!entry) return undefined;
 		const guard = await this.opaqueContextGuard(ctx);
-		if (this.pendingDeliveries.get(cellId) !== entry || entry.expires <= Date.now() || entry.owner !== guard.owner) {
-			if (this.pendingDeliveries.get(cellId) === entry) this.pendingDeliveries.delete(cellId);
+		if (this.completedCells.get(cellId) !== entry || entry.expires <= Date.now() || entry.owner !== guard.owner) {
+			if (this.completedCells.get(cellId) === entry) this.completedCells.delete(cellId);
 			throw new Error("Remote result expired or context changed after execution; verify note state before repeating a write");
 		}
-		if (!entry.delivered) return entry.response;
-		// A cached result is retrieval, not a new write or rollover authorization.
-		const { contextNotesSaved: _saved, contextNotesSource: _source, terminate: _terminate, ...replay } = entry.response;
-		return replay;
-	}
-
-	acknowledgeOpaqueDelivery(cellId: string): void {
-		const entry = this.pendingDeliveries.get(cellId);
-		if (!entry) return;
-		entry.delivered = true;
-		if (entry.response.kind === "yielded") this.pendingDeliveries.delete(cellId);
+		return entry.response;
 	}
 
 	clearOpaqueResults(): void {
 		this.opaqueGeneration++;
-		this.pendingDeliveries.clear();
-		if (this.deliveryExpiryTimer) clearTimeout(this.deliveryExpiryTimer);
-		this.deliveryExpiryTimer = undefined;
+		this.completedCells.clear();
 		for (const pending of [this.clientPromise, this.notebookClientPromise])
 			void pending?.then(client => client.clearOpaqueResults?.(), () => undefined);
 	}
@@ -148,21 +134,9 @@ export class SharedCodeModeRuntime {
 			this.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)]);
 	}
 
-	private expireDeliveries(): void {
-		for (const [cellId, entry] of this.pendingDeliveries)
-			if (entry.expires <= Date.now()) this.pendingDeliveries.delete(cellId);
-	}
-
-	private armDeliveryExpiry(): void {
-		if (this.deliveryExpiryTimer) clearTimeout(this.deliveryExpiryTimer);
-		const expires = Math.min(...[...this.pendingDeliveries.values()].map(entry => entry.expires));
-		if (!Number.isFinite(expires)) return;
-		this.deliveryExpiryTimer = setTimeout(() => {
-			this.deliveryExpiryTimer = undefined;
-			this.expireDeliveries();
-			this.armDeliveryExpiry();
-		}, Math.max(1, expires - Date.now()));
-		this.deliveryExpiryTimer.unref();
+	private expireCompletedCells(): void {
+		for (const [cellId, entry] of this.completedCells)
+			if (entry.expires <= Date.now()) this.completedCells.delete(cellId);
 	}
 
 	addProvider(provider: CodeModeToolProvider): object {

@@ -96,12 +96,12 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 						detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
 							? item.detail : "high",
 					})));
-				context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId} available through wait` }], details: {} });
+				context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId}` }], details: {} });
 			} else context.captureResult?.(result);
 			const resultError = contract.resultError?.(result);
 			if (resultError) throw new Error(resultError);
 			if (contract.opaqueResult)
-				return { result_id: toolCallId, delivery: "wait" };
+				return { result_id: toolCallId };
 			return contract.resultValue?.(result) ??
 				(contract.modelVisibleResult
 					? modelVisibleNestedResult(result)

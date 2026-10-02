@@ -195,7 +195,7 @@ export type RuntimeResponse = (
 ) & {
 	opaqueOutputs?: OpaqueToolOutput[] | undefined;
 	opaqueScope?: string | undefined;
-	deliveryPending?: boolean | undefined;
+	opaqueDeliveryId?: string | undefined;
 	terminate?: true | undefined;
 	contextNotesSaved?: boolean | undefined;
 	contextNotesSource?: "remote" | undefined;

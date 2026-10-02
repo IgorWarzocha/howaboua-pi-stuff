@@ -471,7 +471,7 @@ export class CodeModeDelegateRuntime {
 		}
 		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? { outputs: [], images: [], calls: 0, bytes: 0, expires: Date.now() + OPAQUE_TTL_MS };
 		if (pending.calls >= MAX_OPAQUE_CALLS_PER_CELL || (!this.opaqueResults.has(cellId) && this.opaqueResults.size >= 32))
-			throw new Error("Remote batch capacity reached; collect results with wait, then start a new exec cell");
+			throw new Error("Remote batch capacity reached; finish pending cells, then start a new exec cell");
 		pending.calls++;
 		if (!pending.timer) {
 			pending.timer = setTimeout(() => {

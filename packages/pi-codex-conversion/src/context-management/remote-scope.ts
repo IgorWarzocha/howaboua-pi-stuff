@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
+import { resolveCodexToolProvider, resolveCodexApiProviderBaseUrl } from "../adapter/codex-tool-provider.ts";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { contextAccountScope, contextAgentIdentity, type ContextAgentIdentity } from "./agent-identity.ts";
@@ -52,7 +52,7 @@ export function remoteBackendScope(result: unknown): string | undefined {
 	return typeof result[BACKEND_SCOPE] === "string" ? result[BACKEND_SCOPE] : undefined;
 }
 
-export function validateRemoteOutputReplay(messages: readonly unknown[], account: () => string | undefined, ctx?: ExtensionContext): void {
+export function validateRemoteOutputReplay(messages: readonly unknown[], account: () => string | undefined, ctx?: ExtensionContext, baseUrl?: string): void {
 	for (const message of messages) {
 		if (!message || typeof message !== "object" || !("role" in message) || message.role !== "toolResult" ||
 			!("details" in message)) continue;
@@ -60,22 +60,28 @@ export function validateRemoteOutputReplay(messages: readonly unknown[], account
 		if (!details || typeof details !== "object" || !("codeMode" in details) || details.codeMode !== true ||
 			!("opaqueOutputs" in details) || !Array.isArray(details.opaqueOutputs) || !details.opaqueOutputs.length) continue;
 		const encoded = "opaqueScope" in details ? details.opaqueScope : undefined;
-		const accountId = account();
-		let scope: unknown;
-		try { scope = typeof encoded === "string" ? JSON.parse(encoded) : undefined; }
-		catch { throw new Error("Remote result has invalid account scope"); }
-		if (!scope || typeof scope !== "object" ||
-			!("threadId" in scope) || typeof scope.threadId !== "string" || !scope.threadId ||
-			!("sessionId" in scope) || typeof scope.sessionId !== "string" || !scope.sessionId ||
-			!("agentName" in scope) || typeof scope.agentName !== "string" || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(scope.agentName) ||
-			!("baseUrl" in scope) || typeof scope.baseUrl !== "string" || !scope.baseUrl ||
-			!("accountScope" in scope) || typeof scope.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(scope.accountScope) ||
-			!accountId || scope.accountScope !== contextAccountScope(accountId))
-			throw new Error("Remote result belongs to a different Codex account; use its original account");
-		if (ctx) {
-			const identity = contextAgentIdentity(ctx);
-			if (scope.threadId !== identity.threadId || scope.sessionId !== identity.sessionId || scope.agentName !== identity.agentName)
-				throw new Error("Remote result belongs to a different context family");
-		}
+		validateRemoteScope(encoded, account, ctx, baseUrl);
+	}
+}
+
+export function validateRemoteScope(encoded: unknown, account: () => string | undefined, ctx?: ExtensionContext, baseUrl?: string): void {
+	const accountId = account();
+	let scope: unknown;
+	try { scope = typeof encoded === "string" ? JSON.parse(encoded) : undefined; }
+	catch { throw new Error("Remote result has invalid account scope"); }
+	if (!scope || typeof scope !== "object" ||
+		!("threadId" in scope) || typeof scope.threadId !== "string" || !scope.threadId ||
+		!("sessionId" in scope) || typeof scope.sessionId !== "string" || !scope.sessionId ||
+		!("agentName" in scope) || typeof scope.agentName !== "string" || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(scope.agentName) ||
+		!("baseUrl" in scope) || typeof scope.baseUrl !== "string" || !scope.baseUrl ||
+		!("accountScope" in scope) || typeof scope.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(scope.accountScope) ||
+		!accountId || scope.accountScope !== contextAccountScope(accountId))
+		throw new Error("Remote result belongs to a different Codex account; use its original account");
+	if (baseUrl && scope.baseUrl !== resolveCodexApiProviderBaseUrl(baseUrl))
+		throw new Error("Remote result belongs to a different backend; use its original backend");
+	if (ctx) {
+		const identity = contextAgentIdentity(ctx);
+		if (scope.threadId !== identity.threadId || scope.sessionId !== identity.sessionId || scope.agentName !== identity.agentName)
+			throw new Error("Remote result belongs to a different context family");
 	}
 }

@@ -212,7 +212,7 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			},
 		},
 	) as ResponsesInputItem[];
-	return (developerMessages.rewritePayload({ input }, model) as { input: ResponsesInputItem[] }).input;
+	return (developerMessages.rewritePayload({ input }, model, options.blockImages ?? readBlockImagesSetting()) as { input: ResponsesInputItem[] }).input;
 }
 
 export function createResponsesInputParitySignature(input: readonly unknown[]): string[] {

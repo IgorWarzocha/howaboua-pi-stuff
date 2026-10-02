@@ -17,6 +17,7 @@ import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "./activation/too
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 import { createContextWindowTools } from "../context-management/tools.ts";
 import { resolveRemoteContextScope } from "../context-management/remote-scope.ts";
+import { appendRemoteDelivery } from "../context-management/remote-delivery.ts";
 import { createMcpCodeModeBridge } from "./code-mode/mcp-tools.ts";
 import { syncAdapter } from "./activation/activation.ts";
 
@@ -77,6 +78,7 @@ export async function registerCodexCodeMode(
 		},
 		isActive,
 		opaqueResultScope: (ctx) => resolveRemoteContextScope(ctx, runtime.state),
+		deliverOpaqueResponse: (response, callId, scope) => appendRemoteDelivery(pi, response, callId, scope),
 		executionKind: (ctx) =>
 			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
 				? "notebook"

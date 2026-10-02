@@ -56,11 +56,11 @@ export function rewriteCodexProviderHeaders(
 		state.contextWindows.rewriteHeaders(headers, ctx);
 }
 
-export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
+export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState, blockImages = false): Promise<unknown | undefined> {
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
 	if (!prepared) return undefined;
 	const { plan, configuredPayload } = prepared;
-	let rewrittenPayload = state.developerMessages.rewritePayload(configuredPayload, ctx.model);
+	let rewrittenPayload = state.developerMessages.rewritePayload(configuredPayload, ctx.model, blockImages);
 	if (plan.contextManagement) {
 		const remoteHistoryNotes = usesRemoteHistoryNotes(
 			ctx,
