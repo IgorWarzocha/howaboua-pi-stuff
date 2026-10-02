@@ -2,6 +2,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentBoard } from "./board/host.js";
+import { openBoardSettings } from "./board/settings.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
 import { loadAgentProfiles } from "./profiles.js";
@@ -16,12 +18,24 @@ const NORMAL_MESSAGE = "Work normally. Delegate only when useful or requested.";
 export function registerAgentController(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
+	board: AgentBoard,
 ): void {
 	let orchestrationEnabled = false;
 	pi.registerCommand("herdr", {
-		description: "Toggle agent orchestration or reconnect machines",
+		description: "Toggle orchestration, message board, or reconnect machines",
 		getArgumentCompletions: (prefix) =>
-			["connect"]
+			[
+				"connect",
+				"board",
+				"board on",
+				"board off",
+				"board inherit",
+				"board on folder",
+				"board off folder",
+				"board inherit folder",
+				"board on global",
+				"board off global",
+			]
 				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
 				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
@@ -66,7 +80,37 @@ export function registerAgentController(
 				}
 				return;
 			}
-			ctx.ui.notify("Usage: /herdr [connect [machine]]", "warning");
+			if (action === "board") {
+				try {
+					if (rest.length === 0) {
+						if (ctx.mode === "tui") await openBoardSettings(ctx, board);
+						else ctx.ui.notify(board.status(ctx), "info");
+					} else if (
+						rest.length <= 2 &&
+						(rest[0] === "on" || rest[0] === "off" || rest[0] === "inherit") &&
+						(rest[1] === undefined ||
+							rest[1] === "session" ||
+							rest[1] === "folder" ||
+							rest[1] === "global") &&
+						!(rest[0] === "inherit" && rest[1] === "global")
+					) {
+						await board.setSetting(
+							ctx,
+							rest[1] ?? "session",
+							rest[0] === "inherit" ? undefined : rest[0] === "on",
+						);
+						ctx.ui.notify(board.status(ctx), "info");
+					} else
+						ctx.ui.notify(
+							"Usage: /herdr board [on|off|inherit [session|folder] | on|off global]",
+							"warning",
+						);
+				} catch (error) {
+					ctx.ui.notify(String(error), "error");
+				}
+				return;
+			}
+			ctx.ui.notify("Usage: /herdr [connect [machine] | board]", "warning");
 		},
 	});
 
