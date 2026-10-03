@@ -31,6 +31,7 @@ interface RuntimePlanBase {
 	contextManagementMode: ContextManagementMode;
 	contextManagementRemote: boolean;
 	contextManagementNested: boolean;
+	notesTreeHandoff: boolean;
 	shareSubagentContext: boolean;
 	compactOnRollover: boolean;
 	idleNotesRollover: boolean;
@@ -160,6 +161,7 @@ export function resolveCodexRuntimePlan(
 		contextManagementMode: "off" as const,
 		contextManagementRemote: false,
 		contextManagementNested: false,
+		notesTreeHandoff: false,
 		shareSubagentContext: false,
 		compactOnRollover: false,
 		idleNotesRollover: false,
@@ -185,6 +187,7 @@ export function resolveCodexRuntimePlan(
 		? configuredContextManagementMode
 		: "off";
 	const contextManagementRemote = contextManagementMode === "remote";
+	base.notesTreeHandoff = contextManagement && config.compaction.notesTreeHandoff;
 	base.shareSubagentContext = contextManagement && config.compaction.shareSubagentContext;
 	base.compactOnRollover = contextManagement && config.compaction.continuity === "notes-and-compaction";
 	base.idleNotesRollover = contextManagement && config.compaction.continuity === "notes" && config.compaction.idleNotesRollover;
@@ -273,6 +276,7 @@ export function resolveCodexRuntimePlanForState(
 		contextManagementMode: "off",
 		contextManagementRemote: false,
 		contextManagementNested: false,
+		notesTreeHandoff: false,
 		shareSubagentContext: false,
 		compactOnRollover: false,
 		idleNotesRollover: false,

@@ -71,6 +71,7 @@ export interface CodexConversionConfig {
 	compaction: {
 		continuity: ContinuityStrategy;
 		historyStorage: HistoryStorage;
+		notesTreeHandoff: boolean;
 		shareSubagentContext: boolean;
 		idleNotesRollover: boolean;
 		method: CompactionMethod;
@@ -136,6 +137,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	compaction: {
 		continuity: "compaction",
 		historyStorage: "local",
+		notesTreeHandoff: true,
 		shareSubagentContext: false,
 		idleNotesRollover: false,
 		method: "pi",

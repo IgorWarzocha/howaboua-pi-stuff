@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeContext, type AssistantMessage } from "@earendil-works/pi-ai";
-import { SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type CompactionResult, type ExtensionContext, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
@@ -22,6 +22,8 @@ import { projectTreeHandoffReads, readTreeHandoffNote } from "../src/context-man
 import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { collectReplayMessages } from "../src/adapter/replay/native-replay-matching.ts";
 import { createCodexTurnLifecycle } from "../src/extension/turn-lifecycle.ts";
+import { createCodexCompactionLifecycle } from "../src/extension/compaction-lifecycle.ts";
+import { createContextWindowTools } from "../src/context-management/tools.ts";
 
 function createContext(apiKey?: string): ExtensionContext {
 	return {
@@ -395,6 +397,81 @@ test("context windows preserve rollover and native request semantics", async () 
 			},
 		},
 	};
+	for (const mode of ["local", "tree", "remote"] as const) {
+		const sessionManager = SessionManager.inMemory("/repo");
+		const windows = new CodexContextWindowManager(async () => undefined);
+		const windowPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) => {
+			sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
+		} } as never;
+		let completion: Parameters<ExtensionContext["compact"]>[0];
+		const windowCtx = { ...ctx, sessionManager, compact: (options: typeof completion) => { completion = options; } };
+		windows.ensureInitialized(windowPi, windowCtx, true);
+		const identity = windows.currentIdentity();
+		const treeRequests: Array<{ compactionEntryId: string; triggerTurn: boolean }> = [];
+		const state = { ...contextState, contextWindows: windows,
+			contextTree: { handoff: { active: false }, schedule: (_ctx: ExtensionContext, options: typeof treeRequests[number]) => {
+				treeRequests.push(options);
+				return true;
+			} },
+			config: { ...contextState.config, compaction: { ...contextState.config.compaction,
+				continuity: "notes-and-compaction" as const, historyStorage: mode, method: "pi" as const } },
+		};
+		const calls = { checkpoint: 0, notebook: 0, prewarm: 0, voice: 0 };
+		const lifecycle = createCodexCompactionLifecycle(windowPi, {
+			state, finishTurn() {}, resetTransportAfterCompaction() {},
+			startCompactionPrewarm: async () => { calls.prewarm++; },
+			voice: { announceContextTransition() {}, compactionStarted() {}, compactionFinished() {}, resetContextAnnouncements() {},
+				refreshRealtimeContext: async () => { calls.voice++; } },
+		} as never, { checkpointNotebook: async () => { calls.checkpoint++; } } as never,
+		async () => { throw new Error("Combined compaction must not invoke notes-only rollover"); },
+		async () => { calls.notebook++; return true; });
+		const compact = async (reason: SessionBeforeCompactEvent["reason"]) => {
+			const kept = sessionManager.appendMessage({ role: "user", content: "Continue work", timestamp: 1 });
+			const preparation: SessionBeforeCompactEvent["preparation"] = {
+				firstKeptEntryId: kept, tokensBefore: 240_000,
+				messagesToSummarize: sessionManager.buildSessionContext().messages, turnPrefixMessages: [], isSplitTurn: false,
+				fileOps: { read: new Set(), written: new Set(), edited: new Set() },
+				settings: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 0 },
+			};
+			assert.equal(await lifecycle.beforeCompact({ type: "session_before_compact", reason, preparation,
+				branchEntries: sessionManager.getBranch(), signal: new AbortController().signal, willRetry: reason === "overflow" }, windowCtx),
+				undefined, "combined compaction reaches the selected Pi method instead of cancelling or creating a notes-only cut");
+			const result: CompactionResult = { summary: "Pi checkpoint", firstKeptEntryId: kept, tokensBefore: preparation.tokensBefore };
+			sessionManager.appendCompaction(result.summary, kept, result.tokensBefore);
+			const entry = sessionManager.getBranch().at(-1);
+			assert.ok(entry?.type === "compaction");
+			await lifecycle.compacted({ type: "session_compact", reason, compactionEntry: entry,
+				fromExtension: false, willRetry: reason === "overflow" }, windowCtx);
+			return { result, entry };
+		};
+		for (const reason of ["threshold", "manual", "overflow"] as const) {
+			await compact(reason);
+			assert.deepEqual(windows.currentIdentity(), identity, "ordinary compaction never moves the window");
+			assert.deepEqual(treeRequests, [], "ordinary Tree compaction does not archive the current window");
+		}
+		assert.deepEqual(calls, { checkpoint: 3, notebook: 3, prewarm: 3, voice: 3 });
+		const [newContext] = createContextWindowTools(windowPi, state as never);
+		assert.equal((await newContext.execute("rollover", {}, undefined, undefined, {
+			...windowCtx, tools: [], executeTool: async () => { throw new Error("Rollover does not execute nested tools"); },
+		})).terminate, true);
+		let continued!: () => void;
+		const continuing = new Promise<void>((resolve) => { continued = resolve; });
+		assert.equal(windows.finishTurn(windowCtx, async () => {
+			await windows.startNewWindow(windowPi, windowCtx, { mode, trimPreviousWindow: false });
+			continued();
+		}), true);
+		assert.equal(windows.isRolloverCompactionRunning(), true);
+		const { result, entry } = await compact("manual");
+		assert.deepEqual(windows.currentIdentity(), identity, "the checkpoint completes before the rollover callback starts the next window");
+		assert.deepEqual(treeRequests, mode === "tree" ? [{ compactionEntryId: entry.id, triggerTurn: true }] : []);
+		assert.deepEqual(calls, { checkpoint: 4, notebook: 3, prewarm: 3, voice: 3 }, "rollover refreshes at the window boundary, not the old checkpoint");
+		assert.ok(completion?.onComplete);
+		completion.onComplete(result);
+		await continuing;
+		assert.equal(windows.isRolloverCompactionRunning(), false);
+		assert.equal(windows.currentIdentity()?.windowNumber, 1);
+		assert.equal(windows.currentIdentity()?.previousWindowId, identity?.currentWindowId);
+	}
 	for (const mode of ["local", "tree", "remote"] as const) {
 		for (const tokens of [232_000, 250_000]) {
 			const windows = new CodexContextWindowManager();
