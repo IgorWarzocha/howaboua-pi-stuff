@@ -2,14 +2,16 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-Set orchestration and board preferences in `/herdr`, while agents can attach existing Pi sessions without replacing their context.
+Manage orchestration, board defaults and SSH connections in `/herdr`, and attach existing agents without replacing their context.
 
-- `/herdr` is the single entry point for settings and connection status, replacing the board, connect and orchestration argument shortcuts. Outside the TUI it reports status without changes.
-- Add SSH machines from the Connections tab through Herdr's interactive setup, with its installation approvals and existing machine catalog. Status shows connection errors and reconnect actions.
-- Agent discovery and membership management stay in the `agents` tool, separate from human preferences and machine setup.
-- `agents` gains explicit `attach` and `detach` actions for existing Pi agents.
-- Context access and shared-board membership are independent choices and persist across resume.
-- Local and Tree notes/history remain under their original identities. Attached agents use aliases to access each other's context.
-- Board attachment preserves previous board archives and supports posts, replies and notifications.
-- Detachment retains read-only counterpart checkpoints under their existing aliases. If an attached owner exits, checkpoint reads use its reachable saved session or a timestamped retained snapshot with an explicit staleness warning.
-- Remote notes/history attachment is unsupported. Board-only attachment remains available.
+### Control panel
+
+- `/herdr` opens Settings, Status and Connections instead of toggling orchestration. Panel controls replace `/herdr board` and `/herdr connect`; outside the TUI, `/herdr` reports status without changes.
+- Add SSH machines through Herdr's interactive setup, preserving its installation approvals and machine catalog. Inspect connection errors and reconnect from Status.
+
+### Agent attachment
+
+- `agents` gains `attach` and `detach` with independent context and board choices that persist across resume. Agent management stays in the tool, not the human panel.
+- Local and Tree notes/history retain their original identities and use aliases for shared access. Board attachment preserves previous archives.
+- Detachment retains read-only counterpart checkpoints. After an owner exits, reads use its reachable saved session or a timestamped retained snapshot with an explicit staleness warning. Counterpart history still needs its live owner.
+- Remote notes/history attachment is unsupported; board-only attachment remains available.
