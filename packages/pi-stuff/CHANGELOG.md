@@ -1,5 +1,12 @@
 # @howaboua/pi-stuff
 
+## 0.0.93
+
+- Include bundled package updates:
+
+  - @howaboua/pi-better-skills-tool: Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands. Remove `--no-skills` from launch wrappers or aliases. Separate catalog-clearing hooks are no longer needed.
+  - @howaboua/pi-shepherdr: Shepherdr now tells agents to use an enabled shared board for plans, decisions and findings in substantial multi-agent work, while keeping task assignment and urgent messages in agents. Spawned agents receive the same guidance.
+
 ## 0.0.92
 
 - Include bundled package updates:
