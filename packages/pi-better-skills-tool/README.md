@@ -8,31 +8,13 @@ Progressive skill discovery for Pi, Code Mode and Notebook Mode. The `skills` to
 pi install npm:@howaboua/pi-better-skills-tool
 ```
 
-Requires Pi 1.0.0 or newer. Install `@howaboua/pi-codex-conversion` 3.0.25 or newer too for Code Mode and Notebook Mode. The extension remains a normal Pi tool when Codex conversion is absent.
+Requires Pi 1.0.0 or newer. Install `@howaboua/pi-codex-conversion` 3.0.43 or newer too for Code Mode and Notebook Mode. The extension remains a normal Pi tool when Codex conversion is absent.
 
-## Start Pi without native skills
+## Start Pi normally
 
-This setup assumes agent sessions start with `--no-skills`. Pi then omits its native skill catalog from the initial prompt, while the `skills` tool owns progressive discovery. Without the flag, the extension still works but treats Pi's already-loaded catalog as authoritative.
+Start Pi without `--no-skills`. Better Skills hides catalog advertising from the system prompt while preserving Pi's native `/skill:<name>` commands. The model discovers and reads the loaded catalog on demand through `skills`.
 
-Our wrapper adds `--no-skills` to agent sessions and passes every supplied Pi argument through unchanged. Package-management and configuration commands bypass the flag:
-
-```zsh
-#!/usr/bin/env zsh
-set -euo pipefail
-
-real_pi="$HOME/.cache/.bun/bin/pi"
-
-case "${1-}" in
-  install|remove|uninstall|update|list|config|auth)
-    exec "$real_pi" "$@"
-    ;;
-  *)
-    exec "$real_pi" --no-skills "$@"
-    ;;
-esac
-```
-
-Put the wrapper earlier on `PATH` than the real Pi executable. Change `real_pi` when Pi was installed somewhere other than Bun's global binary directory. Quoted `"$@"` preserves each argument exactly, including spaces and repeated flags.
+Remove `--no-skills` from an existing wrapper or alias. An additional catalog-clearing `before_agent_start` hook is no longer needed.
 
 ## Use
 

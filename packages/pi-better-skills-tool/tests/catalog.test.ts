@@ -3,6 +3,17 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import {
+	discoverAndLoadExtensions,
+	ExtensionRunner,
+	formatSkillsForPrompt,
+	loadSkillsFromDir,
+	ModelRegistry,
+	ModelRuntime,
+	SessionManager,
+	wrapRegisteredTool,
+} from "@earendil-works/pi-coding-agent";
 import { discoverSkills, parseRequest, runSkills } from "../src/catalog.js";
 
 function fixture() {
@@ -219,7 +230,7 @@ test("puts cwd skills in session and lets them override globals", (t) => {
 	);
 });
 
-test("adds Pi-loaded package skills to the filesystem catalog", (t) => {
+test("keeps Pi-loaded skills authoritative while hiding prompt catalogs", async (t) => {
 	const global = fixture();
 	const packaged = fixture();
 	t.after(() => global.cleanup());
@@ -228,23 +239,76 @@ test("adds Pi-loaded package skills to the filesystem catalog", (t) => {
 		"packaged",
 		"---\nname: packaged\ndescription: Package skill.\n---\nPackage body\n",
 	);
-	const filePath = resolve(packaged.root, "packaged/SKILL.md");
-	global.add(
-		"packaged",
-		"---\nname: packaged\ndescription: Global collision.\n---\nGlobal body\n",
+	const loaded = await discoverAndLoadExtensions(
+		[fileURLToPath(new URL("../index.ts", import.meta.url))],
+		packaged.root,
+		global.root,
 	);
-	assert.match(
-		runSkills("read packaged", global.root, undefined, [
-			{
-				name: "packaged",
-				description: "Project winner.",
-				filePath,
-				baseDir: resolve(packaged.root, "packaged"),
-				sourceInfo: { scope: "project" },
-			},
-		]),
-		/^Package body/,
+	assert.deepEqual(loaded.errors, []);
+	const runner = new ExtensionRunner(
+		loaded.extensions,
+		loaded.runtime,
+		packaged.root,
+		SessionManager.inMemory(packaged.root),
+		new ModelRegistry(
+			await ModelRuntime.create({
+				authPath: join(global.root, "auth.json"),
+				modelsPath: null,
+				refreshOnCreate: false,
+			}),
+		),
 	);
+	const errors: unknown[] = [];
+	runner.onError((error) => errors.push(error));
+	t.after(() => runner.emit({ type: "session_shutdown", reason: "quit" }));
+	const { skills } = loadSkillsFromDir({
+		dir: packaged.root,
+		source: "test",
+	});
+	const sections = {
+		skills: "Native catalog override",
+		skill_catalog: "Previously derived catalog",
+		unrelated: "Keep this section",
+	};
+	const forceSystemPrompt = [
+		"Keep custom instructions",
+		`<skills>\n${formatSkillsForPrompt(skills).trim()}\n</skills>`,
+		"<skill_catalog>\nPreviously derived catalog\n</skill_catalog>",
+		"Keep inline <runtime_guidelines>examples</runtime_guidelines>",
+	].join("\n");
+	const prepared = await runner.emitBeforeAgentStart(
+		"read packaged",
+		undefined,
+		{
+			cwd: packaged.root,
+			skills,
+			sections,
+			forceSystemPrompt,
+		},
+	);
+	assert.deepEqual(errors, []);
+	assert.deepEqual(prepared.systemPromptOptions.skills, []);
+	assert.deepEqual(prepared.systemPromptOptions.sections, {
+		unrelated: "Keep this section",
+	});
+	assert.equal(
+		prepared.systemPromptOptions.forceSystemPrompt,
+		"Keep custom instructions\n\n\nKeep inline <runtime_guidelines>examples</runtime_guidelines>",
+	);
+	assert.equal(skills.length, 1);
+	assert.equal(sections.skill_catalog, "Previously derived catalog");
+	const registered = runner
+		.getAllRegisteredTools()
+		.find((tool) => tool.definition.name === "skills");
+	assert.ok(registered);
+	const result = await wrapRegisteredTool(registered, runner).execute(
+		"call",
+		{ command: "read packaged" },
+		new AbortController().signal,
+	);
+	const content = result.content[0];
+	assert.equal(content?.type, "text");
+	assert.match(content?.type === "text" ? content.text : "", /^Package body/);
 });
 
 test("keeps user-only skills out of the model catalog", (t) => {
