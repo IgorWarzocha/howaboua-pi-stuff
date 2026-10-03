@@ -7,7 +7,6 @@ import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
 import { loadAgentProfiles } from "./profiles.js";
-import type { SharedAgentContext } from "./shared-context.js";
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
 const GENERAL_ORCHESTRATION_MESSAGE =
@@ -20,7 +19,6 @@ export function registerAgentController(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	board: AgentBoard,
-	shared: SharedAgentContext,
 ): void {
 	let orchestrationEnabled = false;
 	let sessionLifetime = new AbortController();
@@ -97,7 +95,6 @@ export function registerAgentController(
 			const options = {
 				fleet,
 				board,
-				shared,
 				orchestration: () => orchestrationEnabled,
 				setOrchestration: (enabled: boolean, signal: AbortSignal) =>
 					setOrchestration(ctx, enabled, signal),
@@ -126,7 +123,7 @@ export function registerAgentController(
 				orchestrationEnabled = restoreOrchestrationState(ctx);
 				if (!rest.length)
 					ctx.ui.notify(
-						`Orchestration ${orchestrationEnabled ? "on" : "off"}. Agents, tools and monitoring work in either mode.`,
+						`Orchestration ${orchestrationEnabled ? "on" : "off"}.`,
 						"info",
 					);
 				else
@@ -160,7 +157,7 @@ export function registerAgentController(
 					if (rest.length === 0) {
 						if (ctx.mode === "tui") {
 							orchestrationEnabled = restoreOrchestrationState(ctx);
-							await openControlPanel(ctx, options, "Sharing");
+							await openControlPanel(ctx, options, "board:session");
 						} else ctx.ui.notify(board.status(ctx), "info");
 					} else if (
 						rest.length <= 2 &&

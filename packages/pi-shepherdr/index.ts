@@ -34,7 +34,7 @@ export default async function shepherdrExtension(
 	pi.registerTool(tool);
 	pi.registerTool(boardTool);
 	await registerAgentsInCodeMode(pi, tool, boardTool, board);
-	registerAgentController(pi, fleet, board, sharedContext);
+	registerAgentController(pi, fleet, board);
 }
 
 async function registerAgentsInCodeMode(

@@ -32,7 +32,7 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 /herdr
 ```
 
-Use **Orchestration** to prioritize delegation, **Sharing** for board defaults and existing agents' independent context and board attachments, and **Connections** for machine status, errors and reconnect actions. Opening the panel changes nothing and starts no task or watch. Pi Codex remains optional; its continuity, storage and spawn-sharing settings stay under `/codex context`.
+**Settings** contains orchestration and board preferences. **Status** shows machine connections and reconnect actions. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
 
 Outside the TUI, `/herdr` reports status without changing it. `/herdr orchestration on` or `off` changes guidance directly; `/herdr orchestration` reports the current mode. A mode change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
 
@@ -111,7 +111,7 @@ If an attached owner closes or dies, notes reads first use its latest saved Loca
 
 ## Message board
 
-The board is off by default. In the root session, run `/herdr board` to open the panel's Sharing section. Choose a session override, a remembered folder default, or a global default. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+The board is off by default. In the root session, run `/herdr board` to open its settings. Choose a session override, a remembered folder default, or a global default. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
 
 Session overrides survive resume but do not carry into new root sessions or forks. Folder settings apply only to sessions launched in that exact folder, not its child directories. Global enablement is a separate setting. Precedence is session, folder, then global. Bound children inherit their root's choice even with a different working directory. Orchestration mode and shared notes remain independent.
 

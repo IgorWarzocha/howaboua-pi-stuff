@@ -42,104 +42,21 @@ import {
 } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
 
-interface AttachmentMembership {
-	role: "controller" | "target";
-	machine?: string;
-	sessionId: string;
-	phase: "pending" | "ready";
-	context: "none" | "pending" | "live" | "detached";
-	board: "none" | "pending" | "live" | "detached";
-	contextAgent?: string;
-	boardAgent?: string;
-}
-
 /** Mounts live owners without changing their native context or moving board archives. */
 export class AgentAttachment {
 	private readonly pi: ExtensionAPI;
 	private readonly board: AgentBoard;
 	private readonly getService: () => ContextSharingService | undefined;
 	private readonly notes: AttachmentNotes;
-	private readonly onChange: () => void;
 	constructor(
 		pi: ExtensionAPI,
 		board: AgentBoard,
 		getService: () => ContextSharingService | undefined,
-		onChange: () => void = () => undefined,
 	) {
 		this.pi = pi;
 		this.board = board;
 		this.getService = getService;
 		this.notes = new AttachmentNotes(getService);
-		this.onChange = onChange;
-	}
-	private summary(
-		plan: AttachmentPlan,
-		role: "controller" | "target",
-		phase: "pending" | "ready",
-		detached?: { context?: unknown; board?: boolean },
-	): AttachmentMembership {
-		return {
-			role,
-			phase,
-			sessionId:
-				role === "controller" ? plan.targetSessionId : plan.controllerSessionId,
-			context: !plan.context
-				? "none"
-				: detached?.context
-					? "detached"
-					: phase === "pending"
-						? "pending"
-						: "live",
-			board: !plan.board
-				? "none"
-				: detached?.board
-					? "detached"
-					: phase === "pending"
-						? "pending"
-						: "live",
-			...(plan.context
-				? {
-						contextAgent:
-							role === "controller"
-								? plan.context.alias
-								: plan.context.controllerAlias,
-					}
-				: {}),
-			...(plan.board ? { boardAgent: plan.board.desired.agentName } : {}),
-		};
-	}
-	memberships(ctx: ExtensionContext): AttachmentMembership[] {
-		const owner = this.owner(ctx);
-		return [
-			...this.routes(ctx).map((route) => ({
-				...this.summary(route.plan, "controller", route.phase, route.detached),
-				machine: route.machine,
-			})),
-			...(owner
-				? [this.summary(owner, "target", "ready", this.detached(ctx, owner))]
-				: []),
-		];
-	}
-	membership(
-		ctx: ExtensionContext,
-		machine: string,
-		panel: PaneInfo,
-	): AttachmentMembership | undefined {
-		const route = this.routes(ctx).find(
-			(entry) =>
-				entry.machine === machine && entry.sessionFile === sessionPath(panel),
-		);
-		return route
-			? {
-					...this.summary(
-						route.plan,
-						"controller",
-						route.phase,
-						route.detached,
-					),
-					machine,
-				}
-			: undefined;
 	}
 	private detached(ctx: ExtensionContext, plan: AttachmentPlan) {
 		return saved(ctx, DETACHED, Detachment).findLast((entry) =>
@@ -308,7 +225,6 @@ export class AgentAttachment {
 					plan.board.desired,
 				);
 			this.pi.appendEntry(OWNER, plan);
-			this.onChange();
 			sendPolicyMessage(
 				this.pi,
 				attachmentMessage(
@@ -439,7 +355,6 @@ export class AgentAttachment {
 			this.notes.checkTransport({ operation: "attach-commit", plan });
 			// A retry after a lost response reuses the same aliases and board identity.
 			this.pi.appendEntry(ROUTE, route);
-			this.onChange();
 		}
 		try {
 			const accepted = await runtime.client.requestContext(
@@ -465,7 +380,6 @@ export class AgentAttachment {
 			if (route.plan.context) this.retainIdentity(ctx);
 			if (route.phase !== "ready")
 				this.pi.appendEntry(ROUTE, { ...route, phase: "ready" });
-			this.onChange();
 		} catch (error) {
 			throw new Error(
 				`Attachment incomplete; the target may already be attached. Retry attach with the same controller, target and choices after both sessions settle. ${String(error)}`,
@@ -517,7 +431,6 @@ export class AgentAttachment {
 		if (requested.board && plan.board && !previous?.board)
 			this.board.detachTarget(ctx, plan.board.desired, plan.board.previous);
 		this.pi.appendEntry(DETACHED, { ...previous, ...requested });
-		this.onChange();
 		if (requested.board) await this.board.refreshAttachment(ctx);
 		if (ctx.sessionManager.getSessionId() !== plan.targetSessionId)
 			throw new Error("Target changed after detach; resume it and retry");
@@ -596,7 +509,6 @@ export class AgentAttachment {
 					...(params.board ? { board: true } : {}),
 				},
 			});
-			this.onChange();
 			if (params.board && plan.board)
 				await this.board.unregisterAttachment(ctx, {
 					...plan.board.desired,

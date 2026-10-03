@@ -17,9 +17,7 @@ import {
 	type PanelOwners,
 	PANEL_TABS as TABS,
 	type PanelTab as Tab,
-	type PanelTarget as Target,
 } from "./control-panel-items.js";
-import { resolvePiAgent } from "./herdr.js";
 
 interface PanelOptions extends PanelOwners {
 	setOrchestration: (enabled: boolean, signal: AbortSignal) => Promise<void>;
@@ -36,18 +34,9 @@ export function controlPanelStatus(
 	ctx: ExtensionContext,
 	options: PanelOptions,
 ): string {
-	const context = options.shared.summary(ctx);
 	return [
-		`Orchestration ${options.orchestration() ? "on" : "off"}. Agents, tools and monitoring work in either mode.`,
+		`Orchestration ${options.orchestration() ? "on" : "off"}.`,
 		options.board.status(ctx),
-		`Context: ${context.agentName ?? "unavailable"}. New spawn sharing ${context.spawnSharing ? "on" : "off"}.`,
-		...(context.contextError
-			? [`Context unavailable: ${context.contextError}. Check /codex context.`]
-			: []),
-		...context.attachments.map(
-			(member) =>
-				`${member.machine ?? "Controller"} ${member.sessionId}: context ${member.context}, board ${member.board} (${member.phase})`,
-		),
 		...options.fleet
 			.statuses()
 			.map(
@@ -66,7 +55,7 @@ export function controlPanelStatus(
 export async function openControlPanel(
 	ctx: ExtensionContext,
 	options: PanelOptions,
-	initialTab: Tab = "Orchestration",
+	initialRow?: string,
 ): Promise<void> {
 	const sessionId = ctx.sessionManager.getSessionId();
 	const lifetime = new AbortController();
@@ -74,14 +63,10 @@ export async function openControlPanel(
 	signal.throwIfAborted();
 	await ctx.ui
 		.custom<void>((tui, theme, _kb, done) => {
-			let tab: Tab = initialTab;
+			let tab: Tab = "Settings";
 			let busy = false;
 			let message = "";
-			let targets: Target[] = [];
-			let selected: string | undefined;
-			let contextChoice = false;
-			let boardChoice = false;
-			let selectedRow: string | undefined;
+			let selectedRow = initialRow;
 			let list: SettingsList;
 			let definitions: SettingItem[] = [];
 			let listRowOffset = 0;
@@ -96,27 +81,10 @@ export async function openControlPanel(
 				signal.throwIfAborted();
 				if (!current()) throw new Error("Session changed; reopen /herdr");
 			};
-			const target = () => targets.find((entry) => entry.key === selected);
-			const membership = () => {
-				const entry = target();
-				return entry
-					? options.shared.attachment.membership(
-							ctx,
-							entry.machine,
-							entry.panel,
-						)
-					: undefined;
-			};
 			const rebuild = () => {
 				if (!current()) return;
 				try {
-					definitions = buildPanelItems(ctx, options, {
-						tab,
-						targets,
-						selected,
-						contextChoice,
-						boardChoice,
-					});
+					definitions = buildPanelItems(ctx, options, tab);
 				} catch (error) {
 					message = error instanceof Error ? error.message : String(error);
 					definitions = [
@@ -147,8 +115,7 @@ export async function openControlPanel(
 					return;
 				}
 				busy = true;
-				message =
-					"Working... Esc closes and cancels pending panel requests. A remote change may already have committed.";
+				message = "Working...";
 				tui.requestRender();
 				void (async () => {
 					try {
@@ -163,93 +130,9 @@ export async function openControlPanel(
 					}
 				})();
 			};
-			const loadTargets = async () => {
-				const machines = await options.fleet.snapshots();
-				check();
-				targets = machines.flatMap((machine) =>
-					(machine.snapshot?.agents ?? [])
-						.filter(
-							(panel) =>
-								panel.agent === "pi" &&
-								(!machine.local ||
-									panel.pane_id !== process.env["HERDR_PANE_ID"]),
-						)
-						.map((panel) => ({
-							key: `${machine.id} ${panel.pane_id} ${panel.label ?? panel.name ?? "Pi"}`,
-							machine: machine.id,
-							panel,
-						})),
-				);
-				if (!targets.some((entry) => entry.key === selected))
-					selected = targets[0]?.key;
-				message =
-					machines
-						.filter((machine) => machine.snapshotError)
-						.map((machine) => `${machine.id}: ${machine.snapshotError}`)
-						.join("\n") ||
-					(targets.length
-						? "Select an existing agent below."
-						: "No other Pi agents found on connected machines.");
-			};
-			const attach = async (detach: "context" | "board" | undefined) => {
-				const entry = target();
-				if (!entry)
-					throw new Error("Refresh and select an existing agent first");
-				if (!ctx.isIdle())
-					throw new Error("Change membership after this session settles");
-				const runtime = options.fleet.connected(entry.machine);
-				const panel = await resolvePiAgent(
-					runtime.client,
-					entry.panel.pane_id,
-					runtime.local ? process.env["HERDR_PANE_ID"] : "",
-				);
-				check();
-				// A pane can resume a different session while the panel is open.
-				if (panel.agent_session?.value !== entry.panel.agent_session?.value)
-					throw new Error(
-						"Target session changed; refresh existing agents before retrying",
-					);
-				const member = membership();
-				const context = detach
-					? detach === "context"
-					: member
-						? member.context !== "none"
-						: contextChoice;
-				const board = detach
-					? detach === "board"
-					: member
-						? member.board !== "none"
-						: boardChoice;
-				if (!context && !board)
-					throw new Error("Choose context or board before attaching");
-				await options.shared.attachment[detach ? "detach" : "attach"](
-					ctx,
-					runtime,
-					panel,
-					{ action: detach ? "detach" : "attach", context, board },
-					signal,
-				);
-				check();
-				message = detach
-					? `${detach === "context" ? "Context" : "Board"} detached.`
-					: "Attachment complete. No task or watch started.";
-			};
 			function change(id: string, value: string) {
 				selectedRow = id;
 				if (busy || !current()) {
-					rebuild();
-					return;
-				}
-				if (id === "context-choice") {
-					contextChoice = value === "yes";
-					return;
-				}
-				if (id === "board-choice") {
-					boardChoice = value === "yes";
-					return;
-				}
-				if (id === "target") {
-					selected = value;
 					rebuild();
 					return;
 				}
@@ -278,19 +161,6 @@ export async function openControlPanel(
 							id === "connect" ? undefined : id.slice(8),
 							signal,
 						);
-					else if (id === "targets") await loadTargets();
-					else if (
-						id === "attach" ||
-						id === "detach-context" ||
-						id === "detach-board"
-					)
-						await attach(
-							id === "attach"
-								? undefined
-								: id === "detach-context"
-									? "context"
-									: "board",
-						);
 				});
 			}
 			function close() {
@@ -302,12 +172,10 @@ export async function openControlPanel(
 			const subscriptions = [
 				options.fleet.subscribe(rebuild),
 				options.board.subscribe(rebuild),
-				options.shared.subscribe(rebuild),
 			];
 			signal.addEventListener("abort", close, { once: true });
 			rebuild();
 			if (signal.aborted) close();
-			else if (tab === "Sharing") run(loadTargets);
 			return {
 				render(width: number) {
 					const wrap = (text: string) =>
@@ -318,51 +186,6 @@ export async function openControlPanel(
 									(part) => `  ${part}`,
 								),
 							);
-					const details: string[] = [];
-					if (tab === "Orchestration")
-						details.push(
-							"Agents and their tools are available in either mode. Fleet monitoring continues independently. New sessions use normal guidance; resumed sessions restore the last choice.",
-						);
-					if (tab === "Connections" && !options.fleet.isActive())
-						details.push(
-							"Fleet inactive. Pi must run inside Herdr. Refresh catalog and reconnect retries activation.",
-						);
-					if (tab === "Sharing") {
-						const shared = options.shared.summary(ctx);
-						const board = options.board.summary(ctx);
-						details.push(
-							options.board.status(ctx),
-							`Context: ${shared.agentName ?? (shared.contextError ? "unavailable" : shared.available ? "inactive in this session" : "Codex Conversion unavailable")}${shared.storage ? ` (${shared.storage})` : ""}. New spawn sharing ${shared.spawnSharing ? "on" : "off"}. Configure continuity, storage and spawn sharing in /codex context.`,
-							...(shared.contextError
-								? [
-										`Context unavailable: ${shared.contextError}. Check /codex context. Board controls remain independent.`,
-									]
-								: []),
-							"Board setting and context access are independent. Membership survives resume, not forks. Live access needs owners and machine connections. Detached notes are read-only; reattachment is unsupported.",
-						);
-						if (board.inherited)
-							details.push(
-								"Board setting inherited from its root. Change defaults in that root session.",
-							);
-						const selectedTarget = target();
-						if (selectedTarget) {
-							const native = options.shared.member(
-								ctx,
-								selectedTarget.machine,
-								selectedTarget.panel,
-							);
-							details.push(
-								`Selected: ${selectedTarget.key}. Context ${membership()?.context ?? native.contextAgent ?? (native.contextError ? "unavailable" : "not shared here")}, board ${membership()?.board ?? native.boardAgent ?? "not shared here"}.`,
-							);
-							if (
-								native.contextError &&
-								native.contextError !== shared.contextError
-							)
-								details.push(
-									`Context unavailable: ${native.contextError}. Check /codex context.`,
-								);
-						}
-					}
 					const header = [
 						theme.fg("accent", "─".repeat(Math.max(0, width))),
 						truncateToWidth(
@@ -371,7 +194,13 @@ export async function openControlPanel(
 							"",
 						),
 						"",
-						...details.flatMap(wrap),
+						...wrap(
+							tab === "Settings"
+								? options.board.status(ctx, false)
+								: options.fleet.isActive()
+									? ""
+									: "Pi must run inside Herdr. Reconnect retries activation.",
+						).filter((line) => line.trim()),
 						"",
 					];
 					const listLines = list.render(width).slice(0, -2);
@@ -389,9 +218,9 @@ export async function openControlPanel(
 								]
 							: []),
 						"",
-						...wrap(
-							"Tab/Shift+Tab sections · ↑/↓ select · Enter/Space change · Esc close",
-						).map((line) => theme.fg("dim", line)),
+						...wrap("Tab switch · ↑/↓ select · Enter change · Esc close").map(
+							(line) => theme.fg("dim", line),
+						),
 						theme.fg("accent", "─".repeat(Math.max(0, width))),
 					];
 				},
@@ -451,10 +280,9 @@ export async function openControlPanel(
 						tab =
 							TABS[
 								(TABS.indexOf(tab) + direction + TABS.length) % TABS.length
-							] ?? "Orchestration";
+							] ?? "Settings";
 						selectedRow = undefined;
 						rebuild();
-						if (tab === "Sharing" && !targets.length && !busy) run(loadTargets);
 						return;
 					}
 					if (!busy) {

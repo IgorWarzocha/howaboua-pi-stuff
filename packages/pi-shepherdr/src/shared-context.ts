@@ -3,7 +3,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type {
-	ContextAgentIdentity,
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
@@ -44,81 +43,6 @@ export class SharedAgentContext {
 	private readonly getService: () => ContextSharingService | undefined;
 	private readonly board: AgentBoard;
 	private running = false;
-	private readonly listeners = new Set<() => void>();
-	subscribe(listener: () => void): () => void {
-		this.listeners.add(listener);
-		return () => {
-			this.listeners.delete(listener);
-		};
-	}
-	private changed() {
-		for (const listener of this.listeners) listener();
-	}
-	private displayContext(ctx: ExtensionContext) {
-		const service = this.getService();
-		let own: ContextAgentIdentity | undefined;
-		let contextError: string | undefined;
-		let spawnSharing = false;
-		try {
-			own = service?.describe(ctx);
-			spawnSharing = service?.canCreateChild(ctx) ?? false;
-		} catch (error) {
-			contextError = error instanceof Error ? error.message : String(error);
-		}
-		return { own, available: !!service, spawnSharing, contextError };
-	}
-	member(ctx: ExtensionContext, machine: string, panel: PaneInfo) {
-		const { own, contextError } = this.displayContext(ctx);
-		let contextAgent: string | undefined;
-		for (const entry of ctx.sessionManager.getEntries()) {
-			if (entry.type !== "custom" || entry.customType !== MEMBER_ENTRY)
-				continue;
-			const child = entry.data as Partial<Member> | undefined;
-			if (
-				own &&
-				child?.threadId === own.threadId &&
-				child.sessionId === own.sessionId &&
-				child.machine === machine &&
-				child.sessionFile === sessionPath(panel) &&
-				typeof child.agentName === "string"
-			)
-				contextAgent = child.agentName;
-		}
-		return {
-			contextAgent,
-			boardAgent: this.board.member(ctx, machine, panel),
-			contextError,
-		};
-	}
-	summary(ctx: ExtensionContext) {
-		const { own, available, spawnSharing, contextError } =
-			this.displayContext(ctx);
-		const found = new Map<string, { agentName: string; machine: string }>();
-		for (const entry of ctx.sessionManager.getEntries()) {
-			if (entry.type !== "custom" || entry.customType !== MEMBER_ENTRY)
-				continue;
-			const child = entry.data as Partial<Member> | undefined;
-			if (
-				own &&
-				child?.threadId === own.threadId &&
-				child?.sessionId === own.sessionId &&
-				typeof child?.agentName === "string" &&
-				typeof child.machine === "string"
-			)
-				found.set(child.agentName, {
-					agentName: child.agentName,
-					machine: child.machine,
-				});
-		}
-		return {
-			available,
-			spawnSharing,
-			contextError,
-			...(own ? { agentName: own.agentName, storage: own.storage } : {}),
-			children: [...found.values()],
-			attachments: this.attachment.memberships(ctx),
-		};
-	}
 	readonly attachment: AgentAttachment;
 
 	constructor(
@@ -131,15 +55,12 @@ export class SharedAgentContext {
 		this.fleet = fleet;
 		this.getService = getService;
 		this.board = board;
-		this.attachment = new AgentAttachment(pi, board, getService, () =>
-			this.changed(),
-		);
+		this.attachment = new AgentAttachment(pi, board, getService);
 		pi.on("agent_start", () => {
 			this.running = true;
 		});
 		pi.on("agent_settled", () => {
 			this.running = false;
-			this.changed();
 		});
 	}
 
@@ -163,12 +84,7 @@ export class SharedAgentContext {
 		const identity = service?.describe(ctx);
 		if ("operation" in value && value.operation === "bind") {
 			if (!service || !identity) return null;
-			const result = await service.bind(
-				ctx,
-				"binding" in value ? value.binding : undefined,
-			);
-			this.changed();
-			return result;
+			return service.bind(ctx, "binding" in value ? value.binding : undefined);
 		}
 		if (!identity || !service)
 			throw new Error("Context sharing is unavailable in this session");
@@ -326,7 +242,6 @@ export class SharedAgentContext {
 					machine: runtime.machine,
 					sessionFile,
 				});
-				this.changed();
 				return { agentName: binding.agentName };
 			},
 		};

@@ -57,28 +57,6 @@ export class AgentBoard {
 	private changed() {
 		for (const listener of this.listeners) listener();
 	}
-	summary(ctx: ExtensionContext) {
-		const own = binding(ctx);
-		return {
-			enabled: own.enabled,
-			agentName: own.agentName,
-			inherited: !!own.upstream,
-			members: members(ctx).map((member) => ({
-				agentName: member.agentName,
-				sessionId: member.sessionId,
-			})),
-		};
-	}
-	member(
-		ctx: ExtensionContext,
-		machine: string,
-		panel: Parameters<typeof sessionPath>[0],
-	): string | undefined {
-		return children(ctx).find(
-			(child) =>
-				child.machine === machine && child.sessionFile === sessionPath(panel),
-		)?.binding.agentName;
-	}
 	private readonly pi: ExtensionAPI;
 	private readonly fleet: AgentFleet;
 	private readonly turns: BoardTurns;
@@ -169,10 +147,10 @@ export class AgentBoard {
 		else writeBoardConfig(own.ownerFolder, scope, enabled);
 		await this.refresh(ctx);
 	}
-	status(ctx: ExtensionContext) {
+	status(ctx: ExtensionContext, includeArchive = true) {
 		const own = binding(ctx);
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
-		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"}). ${own.boardId}\nArchive: ${own.databasePath}${setting?.error ? `\n${setting.error}` : ""}`;
+		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"})${includeArchive ? `. ${own.boardId}\nArchive: ${own.databasePath}` : ""}${setting?.error ? `\n${setting.error}` : ""}`;
 	}
 	async execute(ctx: ExtensionContext, input: unknown, requestId: string) {
 		const params = parseBoardRequest(input);
@@ -256,7 +234,6 @@ export class AgentBoard {
 					machine: runtime.machine,
 					sessionFile,
 				});
-				this.changed();
 				return adopted.agentName;
 			},
 		};
@@ -317,7 +294,6 @@ export class AgentBoard {
 			machine: runtime.machine,
 			sessionFile,
 		});
-		this.changed();
 	}
 	async refreshAttachment(ctx: ExtensionContext) {
 		await this.refresh(ctx);
@@ -351,7 +327,6 @@ export class AgentBoard {
 		if (!sameMembership(binding(ctx), own))
 			throw new Error("Controller board changed during detach");
 		removeMember(this.pi, member);
-		this.changed();
 	}
 	async handle(
 		ctx: ExtensionContext,
@@ -460,7 +435,6 @@ export class AgentBoard {
 			if (existing && !sameMembership(existing, member))
 				throw new Error("Board member changed before detach");
 			removeMember(this.pi, member);
-			this.changed();
 			this.turns.active.delete(member.agentName);
 			return true;
 		}
@@ -481,7 +455,6 @@ export class AgentBoard {
 			if (existing && isDeepStrictEqual(existing, member)) return true;
 			if (existing) throw new Error("Board member already bound");
 			saveMember(this.pi, member);
-			this.changed();
 			return true;
 		}
 		if (request.operation === "board-active") {
