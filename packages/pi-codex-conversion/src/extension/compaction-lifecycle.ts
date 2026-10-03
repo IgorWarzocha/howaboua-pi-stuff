@@ -82,6 +82,8 @@ export function createCodexCompactionLifecycle(
 				state.pendingPiCompactionNativeWindow = undefined;
 				state.contextWindows.recordCompaction(event.compactionEntry.details);
 				const plan = resolveCodexRuntimePlanForState(ctx, state);
+				const rolloverCompaction = plan.compactOnRollover && event.reason === "manual" &&
+					state.contextWindows.isRolloverCompactionRunning();
 				let treeRolloverScheduled = false;
 				const contextCompaction =
 					event.fromExtension &&
@@ -104,19 +106,12 @@ export function createCodexCompactionLifecycle(
 						});
 					}
 				}
-				// Overflow compaction keeps the current window and resumes from its checkpoint.
-				if (plan.compactOnRollover && event.reason !== "overflow") {
-					if (plan.contextManagementMode === "tree" && compactionEntry) {
-						const requested = state.contextWindows.isRolloverCompactionRunning();
-						treeRolloverScheduled = state.contextTree.schedule(ctx, {
-							compactionEntryId: compactionEntry.id,
-							triggerTurn: requested,
-						});
-						if (event.reason === "manual" && !requested) {
-							await state.contextTree.settle(pi, ctx);
-							treeRolloverScheduled = false;
-						}
-					} else await state.contextWindows.completeRolloverCompaction(pi, ctx, plan.contextManagementMode);
+				// Only new_context requests rollover. Ordinary compaction stays in this window.
+				if (rolloverCompaction && plan.contextManagementMode === "tree" && compactionEntry) {
+					treeRolloverScheduled = state.contextTree.schedule(ctx, {
+						compactionEntryId: compactionEntry.id,
+						triggerTurn: true,
+					});
 				}
 				if (!treeRolloverScheduled) {
 					runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
@@ -128,7 +123,7 @@ export function createCodexCompactionLifecycle(
 					}
 				}
 				// Explicit rollover refreshes at its window boundary; overflow stays here.
-				if (!contextCompaction && (!plan.compactOnRollover || event.reason === "overflow"))
+				if (!contextCompaction && !rolloverCompaction)
 					await runtime.voice.refreshRealtimeContext(ctx, state.config);
 			} finally {
 				runtime.voice.compactionFinished();

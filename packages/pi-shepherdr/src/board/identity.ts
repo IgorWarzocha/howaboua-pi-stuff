@@ -35,6 +35,7 @@ const BINDING = "shepherdr-board-binding";
 const MEMBER = "shepherdr-board-member";
 const CHILD = "shepherdr-board-child";
 const SETTING = "shepherdr-board-setting";
+const REMOVED = "shepherdr-board-removed";
 const SettingSchema = Type.Object({
 	sessionId: uuid,
 	enabled: Type.Union([Type.Boolean(), Type.Null()]),
@@ -124,6 +125,11 @@ export function members(ctx: ExtensionContext): BoardBinding[] {
 	const own = binding(ctx);
 	const found = new Map([[own.agentName, own]]);
 	for (const entry of ctx.sessionManager.getEntries()) {
+		if (entry.type === "custom" && entry.customType === REMOVED) {
+			const value = parseBinding(entry.data);
+			if (value.boardId === own.boardId) found.delete(value.agentName);
+			continue;
+		}
 		if (entry.type !== "custom" || entry.customType !== MEMBER) continue;
 		const value = parseBinding(entry.data);
 		if (value.rootSessionId === own.sessionId && value.boardId === own.boardId)
@@ -138,6 +144,11 @@ export function children(ctx: ExtensionContext): BoardChild[] {
 	const own = binding(ctx);
 	const found = new Map<string, BoardChild>();
 	for (const entry of ctx.sessionManager.getEntries()) {
+		if (entry.type === "custom" && entry.customType === REMOVED) {
+			const value = parseBinding(entry.data);
+			if (value.boardId === own.boardId) found.delete(value.agentName);
+			continue;
+		}
 		if (entry.type !== "custom" || entry.customType !== CHILD) continue;
 		if (!Check(ChildSchema, entry.data))
 			throw new Error("Invalid saved board child route");
@@ -152,4 +163,7 @@ export function children(ctx: ExtensionContext): BoardChild[] {
 }
 export function saveChild(pi: ExtensionAPI, value: BoardChild) {
 	pi.appendEntry(CHILD, value);
+}
+export function removeMember(pi: ExtensionAPI, value: BoardBinding) {
+	pi.appendEntry(REMOVED, value);
 }

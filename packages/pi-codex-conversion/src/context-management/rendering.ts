@@ -58,7 +58,7 @@ export const newContextRenderers = auxiliaryToolRenderers("Context rollover fail
 	active: "Requesting new context window",
 	complete: "Requested new context window",
 	...(result ? {
-		summary: displayRecord(result.details)["started"] === false ? "Already scheduled · environment unchanged" : "Rollover scheduled · environment unchanged",
+		summary: displayRecord(result.details)["started"] === false ? "Already scheduled" : "Rollover scheduled",
 		body: "",
 	} : {}),
 }));
@@ -81,15 +81,13 @@ export const contextRemainingRenderers = auxiliaryToolRenderers("Context check f
 
 export function renderContextWindowBoundary(details: CodexContextManagementMessageDetails, expanded: boolean, theme: RenderTheme): Text | Container {
 	const window = details.contextManagement;
-	const cell = renderCodexToolCell(`Started context window ${window.windowNumber + 1}`, window.previousWindowId
-		? "Previous history searchable · environment unchanged"
-		: "Environment unchanged", theme);
+	const cell = renderCodexToolCell(`Started context window ${window.windowNumber + 1}`, undefined, theme);
 	if (!expanded) return cell;
 	const expandedCell = new Container();
 	expandedCell.addChild(cell);
 	expandedCell.addChild(new Text([
 		theme.fg("dim", `    Current: ${window.currentWindowId}`),
-		...(window.previousWindowId ? [theme.fg("dim", `    Previous: ${window.previousWindowId}`), theme.fg("dim", "    No conversation summary generated")] : []),
+		...(window.previousWindowId ? [theme.fg("dim", `    Previous: ${window.previousWindowId}`)] : []),
 	].join("\n"), 0, 0));
 	return expandedCell;
 }

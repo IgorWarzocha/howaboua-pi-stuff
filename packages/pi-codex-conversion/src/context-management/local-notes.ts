@@ -72,7 +72,13 @@ export function usePiSessionNotes(
 export function createPiSessionNotesSnapshot(
 	entries: readonly SessionEntry[],
 	path?: string,
+	strict = false,
 ): NoteSnapshotData {
+	if (strict) for (const entry of entries) {
+		if (entry.type === "custom" && entry.customType === CONTEXT_NOTE_ENTRY_TYPE && !isNoteEntryData(entry.data)) throw new Error("Invalid persisted note entry");
+		if (entry.type === "custom" && entry.customType === CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE && !isNoteSnapshotData(entry.data)) throw new Error("Invalid persisted note snapshot");
+		if (entry.type === "branch_summary" && entry.details && typeof entry.details === "object" && "codexContextNoteHandoff" in entry.details && !isNoteSnapshotData(entry.details.codexContextNoteHandoff)) throw new Error("Invalid persisted note handoff");
+	}
 	const files = [...collectNotes(entries).values()]
 		.filter((note) => path === undefined || note.path === path)
 		.sort((left, right) => left.path.localeCompare(right.path))
@@ -90,6 +96,16 @@ export function createPiSessionNotesSnapshot(
 	if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > MAX_SNAPSHOT_BYTES)
 		throw new Error("Context note snapshot exceeds the 10,000,000-byte limit");
 	return snapshot;
+}
+
+/** Read-only peer checkpoints use the same parser and query semantics as native notes. */
+export function readPiSessionNotesSnapshot(snapshot: unknown, params: Record<string, unknown>): Record<string, unknown> {
+	if (!isNoteSnapshotData(snapshot)) throw new Error("Invalid retained note snapshot");
+	const notes = new Map(snapshot.files.map((file) => [file.path, file]));
+	if (params["action"] === "list_files_by_prefix") return listNotes(notes, params);
+	if (params["action"] === "read_file") return readNote(notes, params);
+	if (params["action"] === "search_contents") return searchNotes(notes, params);
+	throw new Error("Retained checkpoints are read-only; resume the attached owner to write notes");
 }
 
 export function renderPiSessionNotesThreadHint(

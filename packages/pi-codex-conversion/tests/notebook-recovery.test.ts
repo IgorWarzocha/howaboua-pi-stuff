@@ -34,6 +34,8 @@ test("notebook recovery preserves durable state and can unpin without startup", 
 	const root = join(tmpdir(), `pi-notebook-reset-${process.pid}-${Date.now()}`);
 	const project = join(root, "project");
 	const agentDir = join(root, "agent");
+	// Project resolution must not inherit a Git boundary from the temp directory.
+	mkdirSync(join(project, ".git"), { recursive: true });
 	const payload = Buffer.from("durable");
 	const paths = projectStatePaths(project, agentDir);
 	const manifest: ProjectStateManifest = {

@@ -99,6 +99,8 @@ export interface MachineStatus {
 	target?: string;
 	session?: string;
 	monitoringIssue?: MonitoringIssue;
+	contextRelayError?: string;
+	attempting?: boolean;
 	reason?: string;
 	status: MachineConnectionStatus;
 }

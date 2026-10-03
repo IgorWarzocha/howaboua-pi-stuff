@@ -16,6 +16,12 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	assert.equal(normalized.openai.fast, true);
 	assert.equal(normalizeCodexConversionConfig({ ui: { compactTools: true } }).ui.compactTools, "on");
 	assert.equal(normalizeCodexConversionConfig({ ui: { compactTools: false } }).ui.compactTools, "off");
+	for (const notesTreeHandoff of [undefined, null, "off", 1])
+		assert.equal(normalizeCodexConversionConfig({ compaction: { notesTreeHandoff } }).compaction.notesTreeHandoff, true,
+			"absent or invalid tree handoff settings preserve the existing policy");
+	assert.equal(normalizeCodexConversionConfig({ compaction: { notesTreeHandoff: false } }).compaction.notesTreeHandoff, false);
+	assert.equal(migrateCodexConversionConfigIfNeeded({ compaction: { notesTreeHandoff: false } }).migrated, false,
+		"the independent toggle needs no migration");
 
 	const code = migrateCodexConversionConfigIfNeeded({ beta: { codeMode: true, responsesLite: false } });
 	assert.equal(code.migrated, true);
@@ -33,6 +39,7 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 			assert.deepEqual(normalizeCodexConversionConfig(migration.config).compaction, {
 				continuity: contextManagement === "off" ? "compaction" : hybridCompaction ? "notes-and-compaction" : "notes",
 				historyStorage: contextManagement === "off" ? "local" : contextManagement,
+				notesTreeHandoff: true,
 				shareSubagentContext: false,
 				idleNotesRollover: false,
 				method: contextManagement === "off" || hybridCompaction ? "both" : "pi",
@@ -46,7 +53,7 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 		assert.equal(normalizeCodexConversionConfig(migrateCodexConversionConfigIfNeeded({ responsesCompaction }).config).compaction.method,
 			responsesCompaction ? "v2" : "pi");
 	}
-	const current = { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes-and-compaction" as const, method: "both" as const };
+	const current = { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes-and-compaction" as const, method: "both" as const, notesTreeHandoff: false };
 	assert.deepEqual(normalizeCodexConversionConfig(migrateCodexConversionConfigIfNeeded({ compaction: {
 		...current, contextManagement: "off", responsesCompaction: false,
 	} }).config).compaction, current, "explicit current fields win over stale legacy options");

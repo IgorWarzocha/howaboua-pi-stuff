@@ -132,6 +132,10 @@ export function normalizeCodexConversionConfig(
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.continuity,
 			historyStorage: normalizeHistoryStorage(compaction["historyStorage"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.historyStorage,
+			notesTreeHandoff: normalizeBoolean(
+				compaction["notesTreeHandoff"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.notesTreeHandoff,
+			),
 			shareSubagentContext: normalizeBoolean(
 				compaction["shareSubagentContext"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.shareSubagentContext,

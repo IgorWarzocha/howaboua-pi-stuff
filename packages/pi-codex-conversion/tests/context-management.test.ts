@@ -1,488 +1,181 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeContext, type AssistantMessage } from "@earendil-works/pi-ai";
-import { SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { SessionManager, type CompactionResult, type ExtensionContext, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import type { AdapterState } from "../src/adapter/activation/state.ts";
-import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
-import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
-import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
-import {
-	CONTEXT_WINDOW_COMPACTION_SUMMARY,
-	createContextWindowMessage,
-} from "../src/context-management/messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
-import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
-import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
-import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
-import { codexModel, fakeJwt } from "./openai-codex-test-support.ts";
 import { REMOTE_DELIVERY_MESSAGE } from "../src/context-management/remote-delivery.ts";
-import { projectTreeHandoffReads, readTreeHandoffNote } from "../src/context-management/tree-handoff-read.ts";
-import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
-import { collectReplayMessages } from "../src/adapter/replay/native-replay-matching.ts";
+import { hasFreshContextNotes } from "../src/context-management/saved-notes.ts";
+import { createCodexCompactionLifecycle } from "../src/extension/compaction-lifecycle.ts";
 import { createCodexTurnLifecycle } from "../src/extension/turn-lifecycle.ts";
+import { createContextWindowTools } from "../src/context-management/tools.ts";
 
-function createContext(apiKey?: string): ExtensionContext {
+function createContext(sessionManager: SessionManager): ExtensionContext {
 	return {
-		cwd: "/repo",
+		cwd: process.cwd(),
 		model: {
-			provider: "openai-codex",
-			api: "openai-codex-responses",
-			id: "gpt-5.6",
-			baseUrl: "https://chatgpt.com/backend-api",
-			contextWindow: 272_000,
+			provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6",
+			baseUrl: "https://chatgpt.com/backend-api", contextWindow: 272_000,
 		},
-		sessionManager: {
-			getEntries: () => [],
-			getBranch: () => [],
-			getSessionId: () => "session-context",
-		},
-		getContextUsage: () => ({
-			tokens: 12_000,
-			contextWindow: 272_000,
-			percent: 4.4,
-		}),
-		isIdle: () => true,
-		isProjectTrusted: () => false,
-		modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey, baseUrl: "https://chatgpt.com/backend-api" }) },
+		sessionManager, isIdle: () => true, isProjectTrusted: () => false,
+		ui: { notify() {} },
 	} as never;
 }
 
-test("context windows preserve rollover and native request semantics", async () => {
-	const contextMessages: Array<Record<string, unknown>> = [];
-	const contextPi = {
-		sendMessage(message: Record<string, unknown>) {
-			contextMessages.push(message);
-		},
-	} as never;
-	const manager = new CodexContextWindowManager(async () => "Recovered checkpoint");
-	const ctx = createContext();
-	manager.ensureInitialized(contextPi, ctx, true);
-	const contextEntries = () =>
-		contextMessages.map((message, index) => ({
-			type: "custom_message",
-			id: "entry-" + index,
-			parentId: index === 0 ? null : "entry-" + (index - 1),
-			timestamp: new Date(index).toISOString(),
-			customType: message["customType"],
-			content: message["content"],
-			display: message["display"],
-			details: message["details"],
-		}));
-	const compactionEvent = () => ({
-		reason: "threshold",
-		branchEntries: contextEntries(),
-		preparation: {
-			firstKeptEntryId: "default-cut",
-			tokensBefore: 240_000,
-		},
-	}) as never;
-
-	assert.equal(manager.recordBudget(ctx, "remote", 230_000), undefined);
-	const reminder = manager.recordBudget(ctx, "remote", 232_000);
-	assert.match(String(reminder?.content), /context_window_reminder/);
-	assert.equal(manager.recordBudget(ctx, "remote", 232_000), undefined);
-	assert.match(String(manager.recordBudget(ctx, "remote", 250_000)?.content), /Urgent/);
-
-	for (const mode of ["local", "tree", "remote"] as const) {
-		const sessionManager = SessionManager.inMemory("/repo");
-		const beforeMarker = sessionManager.appendMessage({ role: "user", content: "Selected destination context", timestamp: 0 });
-		const noteCtx = { ...ctx, sessionManager };
-		const window = createContextWindowMessage("Window", "window", {
-			firstWindowId: "saved-window", currentWindowId: "saved-window", windowNumber: 0,
-		});
-		sessionManager.appendCustomMessageEntry(window.customType, window.content, true, window.details);
-		const user = sessionManager.appendMessage({ role: "user", content: "Save progress", timestamp: 1 });
-		const assistant: AssistantMessage = {
-			role: "assistant", content: [], stopReason: "stop", timestamp: 2,
-			api: "openai-codex-responses", provider: "openai-codex", model: "gpt-6-luna",
-			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-		};
-		const call = sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
-			type: "toolCall", id: "save", name: "notes", arguments: { action: "write_file", path: "state", text: "state" },
-		}] });
-		const result = { role: "toolResult" as const, toolCallId: "save", toolName: "notes", isError: false,
-			content: [{ type: "text" as const, text: "saved" }], timestamp: 3,
-			details: { codexHistoryNotes: mode === "remote" ? { encrypted_output: "opaque" } : { source: "pi-session" } } };
-		const write = sessionManager.appendMessage(result);
-		const quietPi = { sendMessage() {}, sendUserMessage() {}, events: { emit() {} } } as never;
-		const restored = () => {
-			const fresh = new CodexContextWindowManager();
-			fresh.ensureInitialized(quietPi, noteCtx, true);
-			return fresh;
-		};
-		const reuse = (customInstructions?: string) => {
-			const fresh = restored();
-			fresh.prepareCompaction({ reason: "manual", customInstructions, signal: new AbortController().signal } as never, mode);
-			return fresh.finishManualCheckpointRequest(quietPi, noteCtx,
-				{ type: "session_compact_failed", reason: "manual", aborted: true, willRetry: false, fromExtension: false }, true);
-		};
-		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "persisted writes suppress reminders");
-		assert.equal(reuse(), false, "an unfinished run cannot silently roll over");
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, Number.MAX_SAFE_INTEGER), false);
-		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
-			type: "toolCall", id: "cleanup", name: "exec", arguments: { code: "cleanup()" },
-		}] });
-		assert.equal(reuse(), false, "a pending tool batch cannot silently roll over");
-		sessionManager.appendMessage({ ...result, toolCallId: "cleanup", toolName: "exec", details: {} });
-		assert.equal(restored().recordBudget(noteCtx, mode, 250_000), undefined, "later tools in the same run do not stale notes");
-		const final = sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Saved" }] });
-		const finishedAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp) + 60_000;
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 60 * 60_000), false, "a final reply alone does not prove settlement");
-		restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
-			noteCtx, mode, finishedAt);
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 25 * 60_000 - 1), false);
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 25 * 60_000), true, "idle age survives a fresh manager on the persisted branch");
-		assert.equal(restored().hasIdleNotesCheckpoint({ ...noteCtx, isIdle: () => false }, mode, finishedAt + 26 * 60_000), false);
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, "off", finishedAt + 26 * 60_000), false);
-		assert.equal(reuse(), true, "fresh runtime recovers notes saved before cleanup in the completed run");
-		assert.equal(reuse("Preserve extra detail"), false);
-		sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
-		assert.equal(reuse(), false, "visible peer input invalidates the checkpoint");
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
-		sessionManager.branch(final);
-		sessionManager.appendCustomEntry("metadata", {});
-		assert.equal(reuse(), true, "tree return to the saved response ignores bookkeeping");
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), true);
-		sessionManager.appendContextEdit(write, null);
-		assert.equal(reuse(), false, "omitted evidence cannot grant checkpoint credit");
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
-		for (const invalid of [{ ...result, isError: true }, { ...result, toolCallId: "wrong-call" }]) {
-			sessionManager.branch(call);
-			sessionManager.appendMessage(invalid);
-			sessionManager.appendMessage(assistant);
-			assert.equal(reuse(), false, "only a successful matched write counts");
-			assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
-		}
-		sessionManager.branch(final);
-		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
-			type: "toolCall", id: "work", name: "exec", arguments: { code: "work()" },
-		}] });
-		sessionManager.appendMessage({ ...result, toolCallId: "work", toolName: "exec" });
-		sessionManager.appendMessage(assistant);
-		assert.equal(reuse(), false, "a later run cannot reuse notes from before the previous final reply");
-		assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, finishedAt + 26 * 60_000), false);
-		for (const name of ["exec", "wait"] as const) {
-			for (const saved of [true, false]) {
-				sessionManager.branch(user);
-				sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
-					type: "toolCall", id: "nested-save", name, arguments: {},
-				}] });
-				const deliveryId = "00000000-0000-4000-8000-000000000001";
-				const nestedResult = sessionManager.appendMessage({ ...result, toolCallId: "nested-save", toolName: name,
-					details: { codeMode: true, contextNotesSaved: saved,
-						...(mode === "remote" ? { contextNotesSource: "remote", opaqueDeliveryId: deliveryId,
-							cellId: "nested-cell", status: "result" } : {}) } });
-				if (mode === "remote") sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
-					protocol: 1, origin: "host", id: deliveryId, sourceCallId: "nested-save", cellId: "nested-cell", scope: "fixture",
-					status: "result", contextNotesSaved: saved, outputs: [], images: [],
-				});
-				sessionManager.appendMessage(assistant);
-				const eligible = saved;
-				assert.equal(reuse(), eligible, "Remote nested checkpoints require a matched persisted delivery");
-				const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
-				restored().recordSettledCheckpoint({ appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never,
-					noteCtx, mode, settledAt);
-				assert.equal(restored().hasIdleNotesCheckpoint(noteCtx, mode, settledAt + 26 * 60_000), eligible);
-				if (mode === "remote") {
-					sessionManager.branch(nestedResult);
-					sessionManager.appendMessage(assistant);
-					assert.equal(reuse(), false, "a receipt without its host delivery cannot grant fresh notes");
-				}
-			}
-		}
-		sessionManager.branch(user);
-		if (mode === "remote") {
-			const original = "v2-exec";
-			const deliveryId = "00000000-0000-4000-8000-000000000002";
-			const completedId = "00000000-0000-4000-8000-000000000003";
-			sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{ type: "toolCall", id: original,
-				name: "exec", arguments: {} }] });
-			const yielded = sessionManager.appendMessage({ ...result, toolCallId: original, toolName: "exec", details: {
-				codeMode: true, cellId: "v2-cell", status: "yielded", opaqueDeliveryId: deliveryId,
-			} });
-			sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
-				protocol: 2, origin: "host", id: deliveryId, sourceCallId: original, originalExecCallId: original,
-				cellId: "v2-cell", scope: "fixture", status: "yielded", images: [],
-				outputs: [{ resultId: "write-result", name: "notes.write_file", encryptedOutput: "opaque" }],
-			});
-			sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{ type: "toolCall", id: "v2-wait",
-				name: "wait", arguments: {} }] });
-			const completed = sessionManager.appendMessage({ ...result, toolCallId: "v2-wait", toolName: "wait", details: {
-				codeMode: true, cellId: "v2-cell", status: "result", opaqueDeliveryId: completedId,
-				contextNotesSaved: true, contextNotesSource: "remote",
-			} });
-			sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, {
-				protocol: 2, origin: "host", id: completedId, sourceCallId: "v2-wait", originalExecCallId: original,
-				cellId: "v2-cell", scope: "fixture", status: "result", contextNotesSaved: true, images: [], outputs: [],
-			});
-			sessionManager.appendMessage(assistant);
-			assert.equal(reuse(), true, "genuine wait completion retains current-run protected write evidence");
-			sessionManager.appendContextEdit(yielded, null);
-			assert.equal(reuse(), false, "a projected-away protected source receipt cannot grant fresh notes");
-			sessionManager.branch(completed);
-			sessionManager.appendMessage(assistant);
-			assert.equal(reuse(), false, "completion receipts cannot replace their persisted host event");
-			sessionManager.branch(user);
-		}
-		sessionManager.appendMessage(assistant);
-		assert.equal(reuse(), false, "abandoned branch saves do not count");
-
-		const prompted = restored();
-		const prompts: string[] = [];
-		const promptedPi = {
-			sendMessage(message: { customType: string; content: string; display: boolean; details: unknown }) {
-				sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
-			},
-			sendUserMessage(content: string) {
-				prompts.push(content);
-				sessionManager.appendMessage({ role: "user", content, timestamp: 4 });
-			},
-			events: { emit() {} },
-		} as never;
-		prompted.prepareCompaction({ reason: "manual", signal: new AbortController().signal } as never, mode);
-		assert.equal(prompted.finishManualCheckpointRequest(promptedPi, noteCtx,
-			{ type: "session_compact_failed", reason: "manual", aborted: true, willRetry: false, fromExtension: false }, true), false);
-		assert.deepEqual(prompts, ["Continue."], "only the note-saving run requires a prompt");
-		prompted.ensureInitialized(promptedPi, noteCtx, true); // Pi refreshes the window on input before the prompted run.
-		prompted.beginPromptedManualCheckpointRun();
-		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
-			type: "toolCall", id: "checkpoint", name: "notes", arguments: { action: "write_file", path: "state", text: "now" },
-		}] });
-		sessionManager.appendMessage({ ...result, toolCallId: "checkpoint" });
-		sessionManager.appendMessage({ ...assistant, stopReason: "toolUse", content: [{
-			type: "toolCall", id: "later", name: "exec", arguments: { code: "cleanup()" },
-		}] });
-		sessionManager.appendMessage({ ...result, toolCallId: "later", toolName: "exec", details: {} });
-		sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Checkpoint saved" }] });
-		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), "ready");
-		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), undefined, "rollover request is consumed once");
-		const promptedKickoff = new CodexContextWindowKickoff(prompted);
-		assert.equal(await promptedKickoff.startWindow(promptedPi, noteCtx,
-			{ mode, trimPreviousWindow: mode !== "tree", triggerTurn: false }), true);
-		assert.deepEqual(prompts, ["Continue."], "no agent turn starts in the new window");
-		prompted.prepareCompaction({ reason: "manual", signal: new AbortController().signal } as never, mode);
-		assert.equal(prompted.finishManualCheckpointRequest(promptedPi, noteCtx,
-			{ type: "session_compact_failed", reason: "manual", aborted: true, willRetry: false, fromExtension: false }, true), false);
-		prompted.beginPromptedManualCheckpointRun();
-		sessionManager.appendMessage({ ...assistant, content: [{ type: "text", text: "Could not save a note" }] });
-		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), "missing", "failed checkpoint cannot roll over");
-		assert.equal(prompted.finishPromptedManualCheckpoint(noteCtx, true), undefined, "a later run cannot satisfy the failed request");
-
-		const path = "/root/notes/tree-handoff-contract";
-		const notesPi = { appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data) } as never;
-		const [, notes] = createHistoryNotesTools(notesPi, () => mode);
-		const handoffCtx = { ...createContext(fakeJwt({
-				"https://api.openai.com/auth": { chatgpt_account_id: "account-1" },
-			})), sessionManager };
-		const originalFetch = globalThis.fetch;
-		let details: Record<string, unknown>;
-		try {
-			if (mode === "remote") globalThis.fetch = async () => new Response(JSON.stringify({ encrypted_output: "encrypted-handoff" }));
-			else {
-				await assert.rejects(readTreeHandoffNote(notesPi, handoffCtx, mode, path, new AbortController().signal), /could not be read/);
-				await notes.execute("save-handoff", { action: "write_file", path, text: "Departing branch decisions" }, undefined, undefined, handoffCtx);
-			}
-			details = await readTreeHandoffNote(notesPi, handoffCtx, mode, path, new AbortController().signal);
-		} finally { globalThis.fetch = originalFetch; }
-		// The native summary is the atomic persistence boundary, including after JSONL replay.
-		sessionManager.branchWithSummary(beforeMarker, `Handoff note already loaded from ${path}`, JSON.parse(JSON.stringify(details)));
-		const navigationWindow = new CodexContextWindowManager(async () => undefined);
-		const persistedPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) => {
+test("combined compaction stays in its window until new_context completes its checkpoint", async () => {
+	// Tree has a distinct archive route. Local represents the non-Tree route.
+	for (const mode of ["local", "tree"] as const) {
+		const sessionManager = SessionManager.inMemory(process.cwd());
+		const windows = new CodexContextWindowManager(async () => undefined);
+		const pi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) => {
 			sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
 		} } as never;
-		navigationWindow.ensureInitialized(persistedPi, noteCtx, true);
-		const projected = () => projectTreeHandoffReads(navigationWindow.project(
-			sessionManager.buildSessionContext().messages, mode, sessionManager.getBranch(), sessionManager.getEntries(),
-		), sessionManager.getBranch());
-		const messages = projected();
-		const summaryIndex = messages.findIndex(message => message.role === "branchSummary");
-		assert.equal(messages[summaryIndex + 1]?.role, "assistant");
-		assert.equal(messages[summaryIndex + 2]?.role, "toolResult", "the completed read follows its surviving summary");
-		assert.deepEqual(projectTreeHandoffReads(messages, sessionManager.getBranch()), messages, "projection never repeats the read");
-		assert.match(JSON.stringify(messages), /Selected destination context/);
-		assert.match(JSON.stringify(messages), mode === "remote" ? /encrypted-handoff/ : /Departing branch decisions/);
-		const wire = serializeMessagesToResponsesInput(codexModel, messages);
-		assert.deepEqual(serializeActiveSessionToResponsesInput({ model: codexModel, entries: sessionManager.getBranch() }), wire);
-		assert.deepEqual(serializeMessagesToResponsesInput(codexModel, collectReplayMessages(sessionManager.getBranch())), wire);
-		const output = wire.find(item => "type" in item && item.type === "function_call_output");
-		assert.ok(output && "call_id" in output && "output" in output);
-		assert.ok(wire.some(item => "type" in item && item.type === "function_call" && "call_id" in item && item.call_id === output.call_id));
-		if (mode === "remote") {
-			assert.deepEqual(output.output, [{ type: "encrypted_content", encrypted_content: "encrypted-handoff" }]);
-			const call = wire.find(item => "type" in item && item.type === "function_call");
-			assert.ok(call && "namespace" in call && call["namespace"] === "notes", "gpt-5.6 host read retains its namespace on gpt-5.4 replay");
-		}
-		await navigationWindow.startNewWindow(persistedPi, noteCtx, { mode, trimPreviousWindow: true });
-		assert.doesNotMatch(JSON.stringify(projected()), /tree-handoff-contract|Departing branch decisions|encrypted-handoff|Selected destination context/,
-			"retiring the summary also retires the read");
-	}
-
-	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), { cancel: true });
-	assert.equal(await manager.startNewWindow(contextPi, ctx, {
-		mode: "remote",
-		trimPreviousWindow: true,
-	}), true);
-	assert.equal(contextMessages.length, 2);
-
-	const activeWindow = manager.project([
-		{ role: "user", content: "old window", timestamp: 1 },
-		...contextMessages.map((message, index) => ({
-			...message,
-			role: "custom",
-			timestamp: index + 2,
-		})),
-	] as never, "remote");
-	assert.match((activeWindow[0] as { content: string }).content, /Recovered checkpoint/);
-	const currentWindowId = (
-		contextMessages[1]!["details"] as {
-			contextManagement: { currentWindowId: string };
-		}
-	).contextManagement.currentWindowId;
-	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "local"), {
-		compaction: {
-			summary: CONTEXT_WINDOW_COMPACTION_SUMMARY,
-			firstKeptEntryId: "entry-1",
-			tokensBefore: 240_000,
-			details: {
-				protocol: 1,
-				strategy: "codex-context-window",
-				windowId: currentWindowId,
-			},
-		},
-	});
-
-	const contextBridge = new CodexDeveloperMessageBridge();
-	const contextKickoff = new CodexContextWindowKickoff(manager);
-	const notifications: string[] = [];
-	const inputCtx = { ...ctx, ui: { ...ctx.ui, notify: (message: string) => { notifications.push(message); } } };
-	let release!: (started: boolean) => void;
-	const preparing = contextKickoff.prepareIdleInput(inputCtx, () => new Promise<boolean>((resolve) => { release = resolve; }));
-	assert.equal(contextKickoff.hasIdleInput, true);
-	const queued = contextKickoff.prepareIdleInput(inputCtx,
-		async () => { throw new Error("queued input must not start another rollover"); });
-	await Promise.resolve();
-	release(true);
-	assert.deepEqual(await preparing, { action: "continue" });
-	assert.deepEqual(await queued, { action: "continue" }, "reentrant admission is released independently after the shared rollover");
-	assert.equal(contextKickoff.hasIdleInput, false);
-	let failedInputFinished = false;
-	const failedInput = contextKickoff.prepareIdleInput(inputCtx, async () => false).then((result) => { failedInputFinished = true; return result; });
-	await new Promise<void>((resolve) => setImmediate(resolve));
-	assert.equal(failedInputFinished, false, "failure cannot admit or discard the original input");
-	assert.match(notifications[0]!, /pending/);
-	const retry = contextKickoff.prepareIdleInput(inputCtx, async () => true);
-	assert.deepEqual(await failedInput, { action: "continue" });
-	assert.deepEqual(await retry, { action: "continue" });
-	const contextState: AdapterState = {
-		enabled: true,
-		cwd: "/repo",
-		promptSkills: [],
-		executionMode: "code",
-		codexTurnState: createCodexTurnState(),
-		developerMessages: contextBridge,
-		contextWindows: manager,
-		contextKickoff,
-		contextTree: new CodexContextTreeCoordinator(manager, contextKickoff),
-		config: {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			compaction: {
+		let completion: Parameters<ExtensionContext["compact"]>[0];
+		const ctx = { ...createContext(sessionManager), compact: (options: typeof completion) => { completion = options; } };
+		windows.ensureInitialized(pi, ctx, true);
+		const identity = windows.currentIdentity();
+		const treeRequests: Array<{ compactionEntryId: string; triggerTurn: boolean }> = [];
+		const state = {
+			enabled: true, executionMode: "code", contextWindows: windows,
+			contextKickoff: new CodexContextWindowKickoff(windows),
+			contextTree: { handoff: { active: false }, schedule: (_ctx: ExtensionContext, options: typeof treeRequests[number]) => {
+				treeRequests.push(options);
+				return true;
+			} },
+			config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: {
 				...DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
-				continuity: "notes",
-				historyStorage: "remote",
-			},
-		},
-	};
-	for (const mode of ["local", "tree", "remote"] as const) {
-		for (const tokens of [232_000, 250_000]) {
-			const windows = new CodexContextWindowManager();
-			const boundaryPi = { sendMessage() {} } as never;
-			windows.ensureInitialized(boundaryPi, ctx, true);
-			const state = { ...contextState, contextWindows: windows,
-				config: { ...contextState.config, compaction: { ...contextState.config.compaction, historyStorage: mode } } };
-			const { turnEnded } = createCodexTurnLifecycle(boundaryPi, { state } as never,
-				{} as never, {} as never, {} as never, {} as never);
-			const budgetCtx = { ...ctx, getContextUsage: () => ({ tokens, contextWindow: 272_000, percent: tokens / 2720 }) };
-			const boundary = { entries: [], message: { role: "assistant", stopReason: "stop" }, toolResults: [] };
-			assert.equal(await turnEnded(boundary as never, budgetCtx), undefined,
-				"neither threshold may revive a finished reply");
-			const continuing = await turnEnded({ ...boundary, message: { role: "assistant", stopReason: "toolUse" },
-				toolResults: [{ role: "toolResult", toolCallId: "read", toolName: "read", content: [], isError: false, timestamp: 1 }],
-			} as never, budgetCtx);
-			assert.equal(continuing?.continue, true, "the next completed tool step still receives its reminder");
-			assert.equal(continuing?.entries?.length, 1);
-		}
-	}
-	const routerTools = buildRequestBody(codexModel, normalizeContext({
-		messages: [],
-		tools: createHistoryNotesTools(),
-	})).tools as Array<{
-		name: string;
-		parameters: {
-			additionalProperties: boolean;
-			properties: Record<string, Record<string, unknown>>;
+				continuity: "notes-and-compaction", historyStorage: mode, method: "pi",
+			} },
 		};
-	}>;
-	const contextPayload = await rewriteCodexProviderRequest(
-		{
-			model: "gpt-5.6",
-			tools: routerTools,
-			input: contextBridge.prepare(activeWindow, true).map((message) => ({
-				role: "user",
-				content: [{
-					type: "input_text",
-					text: (message as { content: string }).content,
-				}],
-			})),
-		},
-		ctx,
-		contextState,
-	) as {
-		input: Array<{ role: string }>;
-		client_metadata: Record<string, string>;
-		tools: Array<{
-			type: string;
-			name: string;
-			tools: Array<{
-				name: string;
-				parameters: {
-					properties: Record<string, Record<string, unknown>>;
-				};
-			}>;
-		}>;
-	};
-	assert.deepEqual(contextPayload.input.map(({ role }) => role), ["developer"]);
-	assert.deepEqual(
-		contextPayload.tools.map(({ type, name }) => [type, name]),
-		[["namespace", "history"], ["namespace", "notes"]],
-	);
-	for (const namespace of contextPayload.tools) {
-		for (const operation of namespace.tools) {
-			assert.equal(Object.hasOwn(operation.parameters, "additionalProperties"), false);
-			for (const property of Object.values(operation.parameters.properties))
-				assert.equal(Object.hasOwn(property, "minimum"), false);
-		}
-	}
-	const notesWrite = contextPayload.tools[1]!.tools.find(
-		(operation) => operation.name === "write_file",
-	)!;
-	assert.equal(notesWrite.parameters.properties["text"]!["encrypted"], true);
+		const lifecycle = createCodexCompactionLifecycle(pi, {
+			state, finishTurn() {}, resetTransportAfterCompaction() {}, startCompactionPrewarm: async () => {},
+			voice: { announceContextTransition() {}, compactionStarted() {}, compactionFinished() {},
+				resetContextAnnouncements() {}, refreshRealtimeContext: async () => {} },
+		} as never, { checkpointNotebook: async () => {} } as never,
+		async () => { assert.fail("combined compaction cannot use the notes-only rollover route"); },
+		async () => true);
+		const kept = sessionManager.appendMessage({ role: "user", content: "Continue work", timestamp: 1 });
+		const preparation: SessionBeforeCompactEvent["preparation"] = {
+			firstKeptEntryId: kept, tokensBefore: 240_000,
+			messagesToSummarize: sessionManager.buildSessionContext().messages, turnPrefixMessages: [], isSplitTurn: false,
+			fileOps: { read: new Set(), written: new Set(), edited: new Set() },
+			settings: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 0 },
+		};
+		const event: SessionBeforeCompactEvent = { type: "session_before_compact", reason: "manual", preparation,
+			branchEntries: sessionManager.getBranch(), signal: new AbortController().signal, willRetry: false };
+		assert.equal(await lifecycle.beforeCompact(event, ctx), undefined, "Pi must produce the checkpoint, not a notes-only cut");
+		const result: CompactionResult = { summary: "Pi checkpoint", firstKeptEntryId: kept, tokensBefore: preparation.tokensBefore };
+		sessionManager.appendCompaction(result.summary, kept, result.tokensBefore);
+		const entry = sessionManager.getBranch().at(-1);
+		assert.ok(entry?.type === "compaction");
+		const completed = { type: "session_compact" as const, reason: "manual" as const,
+			compactionEntry: entry, fromExtension: false, willRetry: false };
+		await lifecycle.compacted(completed, ctx);
+		assert.deepEqual(windows.currentIdentity(), identity);
+		assert.deepEqual(treeRequests, [], "ordinary Tree compaction cannot archive the window");
 
-	const metadata = JSON.parse(
-		contextPayload.client_metadata["x-codex-turn-metadata"]!,
-	) as Record<string, unknown>;
-	assert.deepEqual(
-		{
-			window_id: metadata["window_id"],
-			window_number: metadata["window_number"],
-			context_window_id: metadata["context_window_id"],
-		},
-		{
-			window_id: "session-context:1",
-			window_number: 1,
-			context_window_id: currentWindowId,
-		},
-	);
+		const [newContext] = createContextWindowTools(pi, state as never);
+		assert.equal((await newContext.execute("rollover", {}, undefined, undefined, {
+			...ctx, tools: [], executeTool: async () => { assert.fail("rollover cannot execute nested tools"); },
+		})).terminate, true);
+		let continued!: () => void;
+		const continuing = new Promise<void>((resolve) => { continued = resolve; });
+		windows.finishTurn(ctx, async () => {
+			await windows.startNewWindow(pi, ctx, { mode, trimPreviousWindow: false });
+			continued();
+		});
+		assert.deepEqual(windows.currentIdentity(), identity, "new_context schedules rather than immediately rolling over");
+		assert.equal(await lifecycle.beforeCompact({ ...event, branchEntries: sessionManager.getBranch() }, ctx), undefined);
+		sessionManager.appendCompaction(result.summary, kept, result.tokensBefore);
+		const rolloverEntry = sessionManager.getBranch().at(-1);
+		assert.ok(rolloverEntry?.type === "compaction");
+		await lifecycle.compacted({ ...completed, compactionEntry: rolloverEntry }, ctx);
+		assert.deepEqual(windows.currentIdentity(), identity, "session_compact precedes the completion boundary");
+		assert.deepEqual(treeRequests, mode === "tree" ? [{ compactionEntryId: rolloverEntry.id, triggerTurn: true }] : []);
+		assert.ok(completion?.onComplete, "new_context must request a Pi completion callback");
+		completion.onComplete(result);
+		await continuing;
+		assert.equal(windows.currentIdentity()?.windowNumber, 1);
+		assert.equal(windows.currentIdentity()?.previousWindowId, identity?.currentWindowId);
+		const payload = windows.rewritePayload({}, ctx) as { client_metadata: Record<string, string> };
+		const metadata = JSON.parse(payload.client_metadata["x-codex-turn-metadata"]!);
+		assert.deepEqual([metadata.window_id, metadata.window_number, metadata.context_window_id],
+			[sessionManager.getSessionId() + ":1", 1, windows.currentIdentity()?.currentWindowId]);
+	}
+});
+
+test("notes maintenance respects selected checkpoint evidence and Pi turn admission", async () => {
+	const sessionManager = SessionManager.inMemory(process.cwd());
+	const ctx = createContext(sessionManager);
+	const pi = {
+		sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) =>
+			sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details),
+		appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data),
+	} as never;
+	const windows = new CodexContextWindowManager(async () => undefined);
+	windows.ensureInitialized(pi, ctx, true);
+	sessionManager.appendMessage({ role: "user", content: "Save progress", timestamp: 1 });
+	const assistant: AssistantMessage = {
+		role: "assistant", content: [], stopReason: "toolUse", timestamp: 2,
+		api: "openai-codex-responses", provider: "openai-codex", model: "gpt-5.6",
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+	};
+	const original = "save";
+	const firstId = "00000000-0000-4000-8000-000000000001";
+	const lastId = "00000000-0000-4000-8000-000000000002";
+	sessionManager.appendMessage({ ...assistant, content: [{ type: "toolCall", id: original, name: "exec", arguments: {} }] });
+	const source = sessionManager.appendMessage({ role: "toolResult", toolCallId: original, toolName: "exec", isError: false,
+		content: [], timestamp: 3, details: { codeMode: true, cellId: "cell", status: "yielded", opaqueDeliveryId: firstId } });
+	const delivery = { protocol: 2, origin: "host", sourceCallId: original, originalExecCallId: original,
+		cellId: "cell", scope: "fixture", images: [] };
+	sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, { ...delivery,
+		id: firstId, status: "yielded", outputs: [{ resultId: "write", name: "notes.write_file", encryptedOutput: "opaque" }] });
+	sessionManager.appendMessage({ ...assistant, content: [{ type: "toolCall", id: "wait", name: "wait", arguments: {} }] });
+	const receipt = sessionManager.appendMessage({ role: "toolResult", toolCallId: "wait", toolName: "wait", isError: false,
+		content: [], timestamp: 4, details: { codeMode: true, cellId: "cell", status: "result", opaqueDeliveryId: lastId,
+			contextNotesSaved: true, contextNotesSource: "remote" } });
+	sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, { ...delivery,
+		id: lastId, sourceCallId: "wait", status: "result", contextNotesSaved: true, outputs: [] });
+	const final = sessionManager.appendMessage({ ...assistant, stopReason: "stop" });
+	const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
+	const freshNotes = () => hasFreshContextNotes(sessionManager.getBranch(), windows.currentIdentity()!.currentWindowId, "remote", true);
+	const restored = () => {
+		const fresh = new CodexContextWindowManager();
+		fresh.ensureInitialized(pi, ctx, true);
+		return fresh;
+	};
+	assert.equal(restored().hasIdleNotesCheckpoint(ctx, "remote", settledAt + 26 * 60_000), false, "a final reply is not settlement");
+	windows.recordSettledCheckpoint(pi, ctx, "remote", settledAt);
+	assert.equal(restored().hasIdleNotesCheckpoint(ctx, "remote", settledAt + 25 * 60_000 - 1), false);
+	assert.equal(restored().hasIdleNotesCheckpoint(ctx, "remote", settledAt + 25 * 60_000), true, "idle age survives runtime replacement");
+	sessionManager.appendContextEdit(source, null);
+	assert.equal(freshNotes(), false, "an omitted source cannot grant checkpoint credit");
+	sessionManager.branch(receipt);
+	sessionManager.appendMessage({ ...assistant, stopReason: "stop" });
+	assert.equal(freshNotes(), false, "a receipt cannot replace its host delivery");
+	sessionManager.branch(final);
+	sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
+	assert.equal(freshNotes(), false, "new visible work invalidates saved notes");
+
+	const kickoff = new CodexContextWindowKickoff(windows);
+	let admitted = false;
+	const input = kickoff.prepareIdleInput(ctx, async () => false).then(result => { admitted = true; return result; });
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(admitted, false, "failed rollover cannot admit or discard the original input");
+	const retry = kickoff.prepareIdleInput(ctx, async () => true);
+	assert.deepEqual(await input, { action: "continue" });
+	assert.deepEqual(await retry, { action: "continue" }, "retry releases both original SDK admissions");
+	const state = { enabled: true, executionMode: "code", contextWindows: windows,
+		contextTree: { handoff: { active: false } }, config: { ...DEFAULT_CODEX_CONVERSION_CONFIG,
+			compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: "remote" } } };
+	const { turnEnded } = createCodexTurnLifecycle(pi, { state } as never, {} as never, {} as never, {} as never, {} as never);
+	const budgetCtx = { ...ctx, getContextUsage: () => ({ tokens: 232_000, contextWindow: 272_000, percent: 85.3 }) };
+	const boundary = { entries: [], message: { role: "assistant", stopReason: "stop" }, toolResults: [] };
+	assert.equal(await turnEnded(boundary as never, budgetCtx), undefined, "maintenance cannot restart a final reply");
+	const reminder = await turnEnded({ ...boundary, message: { role: "assistant", stopReason: "toolUse" },
+		toolResults: [{ role: "toolResult", toolCallId: "read", toolName: "read", content: [], isError: false, timestamp: 1 }],
+	} as never, budgetCtx);
+	assert.equal(reminder?.continue, true, "a completed tool step still receives its reminder");
 });

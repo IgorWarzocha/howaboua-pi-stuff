@@ -135,7 +135,7 @@ export function createCodexSessionLifecycle(
 			if (state.contextTree.archiving) return;
 			if (state.contextKickoff.hasIdleInput) return { cancel: true };
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
-			if (!plan.contextManagement || !event.preparation.userWantsSummary) return;
+			if (!plan.notesTreeHandoff || !event.preparation.userWantsSummary) return;
 			return state.contextTree.handoff.prepare(pi, event, ctx, plan.contextManagementMode);
 		},
 		tree: async (event, ctx) => {

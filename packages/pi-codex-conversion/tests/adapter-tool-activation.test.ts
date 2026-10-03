@@ -295,6 +295,12 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 					const notes = continuity !== "compaction" && route.api !== "openai-completions"
 						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
 					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
+					assert.equal(plan.notesTreeHandoff, notes, "eligible notes routes retain handoffs by default");
+					const withoutHandoff = resolveCodexRuntimePlan(ctx, {
+						...configured, compaction: { ...configured.compaction, notesTreeHandoff: false },
+					});
+					assert.deepEqual(withoutHandoff, { ...plan, notesTreeHandoff: false },
+						"disabling tree handoffs must not change tools, storage, compaction or rollover");
 					assert.equal(plan.shareSubagentContext, notes, "sharing still requires an eligible notes-based runtime");
 					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
 					assert.equal(plan.idleNotesRollover, notes && continuity === "notes");
@@ -313,10 +319,15 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	const storage = buildContextSettings(original, ctx).find(({ item }) => item.id === "historyStorage")!;
 	const remote = storage.update!("Remote", enabled);
 	assert.deepEqual(remote.compaction, { ...enabled.compaction, historyStorage: "remote" }, "storage selection must not switch off compaction or portability");
-	const strategy = buildContextSettings(remote, ctx).find(({ item }) => item.id === "continuity")!;
-	const notes = strategy.update!("Notes and history", remote);
+	const treeSummary = buildContextSettings(remote, ctx).find(({ item }) => item.id === "notesTreeHandoff")!;
+	const withoutHandoff = treeSummary.update!("off", remote);
+	assert.deepEqual(withoutHandoff.compaction, { ...remote.compaction, notesTreeHandoff: false });
+	assert.deepEqual(treeSummary.update!("on", withoutHandoff), remote);
+	const strategy = buildContextSettings(withoutHandoff, ctx).find(({ item }) => item.id === "continuity")!;
+	const notes = strategy.update!("Notes and history", withoutHandoff);
 	const compaction = strategy.update!("Compaction", notes);
 	assert.equal(resolveCodexRuntimePlan(ctx, compaction).shareSubagentContext, false);
+	assert.equal(buildContextSettings(compaction, ctx).some(({ item }) => item.id === "notesTreeHandoff"), false);
 	const restored = strategy.update!("Notes + history + compaction", compaction);
-	assert.deepEqual(restored.compaction, remote.compaction, "inapplicable method and retention settings are remembered, not cleared");
+	assert.deepEqual(restored.compaction, withoutHandoff.compaction, "inapplicable method, retention and tree summary settings are remembered, not cleared");
 });

@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { readPersistedNoteEntries } from "./shepherdr-checkpoints.mjs";
 import { readReceiver } from "./shepherdr-peer.mjs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -41,6 +42,50 @@ function hasCode(error, code) {
  * @returns {Promise<unknown>} */
 export async function requestContext(path, request, signal) {
 	signal?.throwIfAborted();
+	if (
+		request &&
+		typeof request === "object" &&
+		"operation" in request &&
+		request.operation === "attachment-persisted-notes"
+	) {
+		if (
+			!("identity" in request) ||
+			!request.identity ||
+			typeof request.identity !== "object"
+		)
+			throw new Error("Invalid saved checkpoint identity");
+		const identity = request.identity;
+		if (
+			!("protocol" in identity) ||
+			identity.protocol !== 1 ||
+			!("threadId" in identity) ||
+			typeof identity.threadId !== "string" ||
+			!identity.threadId ||
+			!("sessionId" in identity) ||
+			typeof identity.sessionId !== "string" ||
+			!identity.sessionId ||
+			!("agentName" in identity) ||
+			typeof identity.agentName !== "string" ||
+			!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(identity.agentName) ||
+			!("storage" in identity) ||
+			identity.storage !== "session"
+		)
+			throw new Error("Invalid saved checkpoint identity");
+		if (path.endsWith(".shepherdr-context.json"))
+			return readPersistedNoteEntries(
+				path.slice(0, -".shepherdr-context.json".length),
+				{
+					...identity,
+					protocol: 1,
+					threadId: identity.threadId,
+					sessionId: identity.sessionId,
+					agentName: identity.agentName,
+					storage: "session",
+				},
+			);
+		// A relay can only reach the authenticated owner, which selects its own
+		// saved session. Never interpret a relay path as a checkpoint file.
+	}
 	let descriptor;
 	try {
 		descriptor = JSON.parse(await readReceiver(path));

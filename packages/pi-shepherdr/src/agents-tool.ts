@@ -90,6 +90,17 @@ export function createAgentsTool(
 				target,
 				runtime.local ? process.env["HERDR_PANE_ID"] : "",
 			);
+			if (params.action === "attach" || params.action === "detach") {
+				return toolResult(
+					await sharedContext.attachment[params.action](
+						ctx,
+						runtime,
+						panel,
+						params,
+						executionSignal,
+					),
+				);
+			}
 			if (params.action === "watch") {
 				await runtime.monitor.watch(panel);
 				return toolResult({

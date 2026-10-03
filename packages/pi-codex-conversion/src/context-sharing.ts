@@ -1,5 +1,7 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ContextAgentBinding, ContextAgentIdentity } from "./context-management/agent-identity.js";
+import type { NoteSnapshotData } from "./context-management/local-notes.js";
+export type { NoteSnapshotData } from "./context-management/local-notes.js";
 
 export type { ContextAgentBinding, ContextAgentIdentity } from "./context-management/agent-identity.js";
 
@@ -24,6 +26,14 @@ export interface ContextSharingService {
 		adopt(): Promise<void>;
 	}>;
 	bind(ctx: ExtensionContext, binding: unknown): Promise<ContextAgentIdentity>;
+	/** Inspect an idle standalone owner for alias attachment without rebinding its identity. */
+	inspectAttachment?(ctx: ExtensionContext): ContextAgentIdentity;
+	/** Keep the native IDs while pinning Local/Tree storage for live aliases. */
+	retainAttachmentIdentity?(ctx: ExtensionContext): ContextAgentIdentity;
+	exportAttachmentNotes?(ctx: ExtensionContext): NoteSnapshotData;
+	/** Parse only the verified owner's persisted active note branch. */
+	parseAttachmentNotes?(entries: unknown, identity: ContextAgentIdentity): NoteSnapshotData;
+	readAttachmentNotes?(snapshot: unknown, params: Record<string, unknown>): SharedContextResult;
 	execute(ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal): Promise<SharedContextResult>;
 	registerRouter(router: ContextRouter): () => void;
 }
