@@ -2,8 +2,9 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet.js";
+import { type SshSetupDraft, sshSetupItems } from "./ssh-setup.js";
 
-export const PANEL_TABS = ["Settings", "Status"] as const;
+export const PANEL_TABS = ["Settings", "Status", "Connections"] as const;
 export type PanelTab = (typeof PANEL_TABS)[number];
 export interface PanelOwners {
 	fleet: AgentFleet;
@@ -15,7 +16,9 @@ export function buildPanelItems(
 	ctx: ExtensionContext,
 	options: PanelOwners,
 	tab: PanelTab,
+	draft: SshSetupDraft,
 ): SettingItem[] {
+	if (tab === "Connections") return sshSetupItems(draft);
 	if (tab === "Status")
 		return [
 			{
@@ -23,8 +26,7 @@ export function buildPanelItems(
 				label: "Refresh and reconnect",
 				currentValue: "Enter",
 				values: ["Enter"],
-				description:
-					"Reload Herdr profiles and retry connections. Manage profiles in Herdr.",
+				description: "Reload Herdr profiles and retry connections.",
 			},
 			...options.fleet.statuses().map((machine) => ({
 				id: `machine:${machine.id}`,

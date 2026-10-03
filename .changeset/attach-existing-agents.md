@@ -4,8 +4,9 @@
 
 Set orchestration and board preferences in `/herdr`, while agents can attach existing Pi sessions without replacing their context.
 
-- `/herdr` opens the panel instead of toggling orchestration. Use `/herdr orchestration on|off` for direct changes; outside the TUI, bare `/herdr` reports status.
-- The panel explains board inheritance and machine connection errors with reconnect actions. Agent discovery and membership management stay in the `agents` tool. Existing board and connect shortcuts remain available.
+- `/herdr` is the single entry point for settings and connection status, replacing the board, connect and orchestration argument shortcuts. Outside the TUI it reports status without changes.
+- Add SSH machines from the Connections tab through Herdr's interactive setup, with its installation approvals and existing machine catalog. Status shows connection errors and reconnect actions.
+- Agent discovery and membership management stay in the `agents` tool, separate from human preferences and machine setup.
 - `agents` gains explicit `attach` and `detach` actions for existing Pi agents.
 - Context access and shared-board membership are independent choices and persist across resume.
 - Local and Tree notes/history remain under their original identities. Attached agents use aliases to access each other's context.

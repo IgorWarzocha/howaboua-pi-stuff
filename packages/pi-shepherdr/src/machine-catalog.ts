@@ -23,21 +23,14 @@ const Machine = Type.Object({
 const Catalog = Type.Array(Machine);
 export type SshMachine = Static<typeof Machine>;
 
-export async function readMachineCatalog(): Promise<
-	Record<string, SshMachine>
-> {
+export async function withHerdrBinary<T>(
+	run: (binary: string) => Promise<T>,
+): Promise<T> {
 	const inheritedBinary = process.env["HERDR_BIN_PATH"]?.trim() || "herdr";
 	let binary = inheritedBinary;
-	const read = (path: string) =>
-		promisify(execFile)(path, ["machine", "list", "--json"], {
-			timeout: 10_000,
-			maxBuffer: 1024 * 1024,
-			encoding: "utf8",
-		});
-	let stdout: string;
 	try {
 		try {
-			({ stdout } = await read(binary));
+			return await run(binary);
 		} catch (error) {
 			if (
 				!(error instanceof Error) ||
@@ -50,14 +43,27 @@ export async function readMachineCatalog(): Promise<
 			}
 			// Linux /proc executable paths can retain this suffix after replacement.
 			binary = binary.slice(0, -" (deleted)".length);
-			({ stdout } = await read(binary));
+			return await run(binary);
 		}
 	} catch (error) {
 		throw new Error(
-			`Could not read Herdr machines${binary !== inheritedBinary ? " after retrying stale HERDR_BIN_PATH" : ""}: ${error instanceof Error ? error.message : String(error)}`,
+			`Herdr failed${binary !== inheritedBinary ? " after retrying stale HERDR_BIN_PATH" : ""}: ${error instanceof Error ? error.message : String(error)}`,
 			{ cause: error },
 		);
 	}
+}
+
+export async function readMachineCatalog(
+	signal?: AbortSignal,
+): Promise<Record<string, SshMachine>> {
+	const { stdout } = await withHerdrBinary((binary) =>
+		promisify(execFile)(binary, ["machine", "list", "--json"], {
+			signal,
+			timeout: 10_000,
+			maxBuffer: 1024 * 1024,
+			encoding: "utf8",
+		}),
+	);
 	let value: unknown;
 	try {
 		value = JSON.parse(stdout);

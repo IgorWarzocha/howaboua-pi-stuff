@@ -21,6 +21,7 @@ export function registerAgentController(
 	board: AgentBoard,
 ): void {
 	let orchestrationEnabled = false;
+	const panels = new Set<Promise<void>>();
 	let sessionLifetime = new AbortController();
 	const resetLifetime = () => {
 		sessionLifetime.abort();
@@ -64,34 +65,17 @@ export function registerAgentController(
 		return fleet.connect(machine);
 	};
 	pi.registerCommand("herdr", {
-		description:
-			"Shepherdr control panel, board settings and machine connections",
-		getArgumentCompletions: (prefix) =>
-			[
-				"orchestration",
-				"orchestration on",
-				"orchestration off",
-				"connect",
-				"board",
-				"board on",
-				"board off",
-				"board inherit",
-				"board on folder",
-				"board off folder",
-				"board inherit folder",
-				"board on global",
-				"board off global",
-			]
-				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
-				.map((value) => ({ label: value, value })),
+		description: "Shepherdr settings, status and SSH setup",
 		handler: async (args, ctx) => {
 			const commandSignal = sessionLifetime.signal;
 			const commandSessionId = ctx.sessionManager.getSessionId();
 			const current = () =>
 				!commandSignal.aborted &&
 				ctx.sessionManager.getSessionId() === commandSessionId;
-			const [rawAction = "", ...rest] = args.trim().split(/\s+/);
-			const action = rawAction.toLowerCase();
+			if (args.trim()) {
+				ctx.ui.notify("Open /herdr, then choose a tab.", "warning");
+				return;
+			}
 			const options = {
 				fleet,
 				board,
@@ -102,92 +86,20 @@ export function registerAgentController(
 					reconnect(ctx, machine, signal),
 				signal: commandSignal,
 			};
-			if (!action) {
-				orchestrationEnabled = restoreOrchestrationState(ctx);
-				try {
-					if (ctx.mode === "tui") await openControlPanel(ctx, options);
-					else ctx.ui.notify(controlPanelStatus(ctx, options), "info");
-				} catch (error) {
-					if (current()) ctx.ui.notify(String(error), "error");
-				}
-				return;
-			}
-			if (action === "orchestration") {
-				if (
-					rest.length > 1 ||
-					(rest[0] !== undefined && rest[0] !== "on" && rest[0] !== "off")
-				) {
-					ctx.ui.notify("Usage: /herdr orchestration [on|off]", "warning");
-					return;
-				}
-				orchestrationEnabled = restoreOrchestrationState(ctx);
-				if (!rest.length)
-					ctx.ui.notify(
-						`Orchestration ${orchestrationEnabled ? "on" : "off"}.`,
-						"info",
-					);
-				else
+			orchestrationEnabled = restoreOrchestrationState(ctx);
+			try {
+				if (ctx.mode === "tui") {
+					const panel = openControlPanel(ctx, options);
+					panels.add(panel);
 					try {
-						await setOrchestration(ctx, rest[0] === "on", commandSignal);
-						ctx.ui.notify(
-							orchestrationEnabled
-								? "Agent orchestration enabled"
-								: "Normal mode enabled",
-							"info",
-						);
-					} catch (error) {
-						if (current()) ctx.ui.notify(String(error), "error");
+						await panel;
+					} finally {
+						panels.delete(panel);
 					}
-				return;
+				} else ctx.ui.notify(controlPanelStatus(ctx, options), "info");
+			} catch (error) {
+				if (current()) ctx.ui.notify(String(error), "error");
 			}
-			if (action === "connect") {
-				try {
-					ctx.ui.notify(await reconnect(ctx, rest[0], commandSignal), "info");
-				} catch (error) {
-					if (current())
-						ctx.ui.notify(
-							error instanceof Error ? error.message : String(error),
-							"error",
-						);
-				}
-				return;
-			}
-			if (action === "board") {
-				try {
-					if (rest.length === 0) {
-						if (ctx.mode === "tui") {
-							orchestrationEnabled = restoreOrchestrationState(ctx);
-							await openControlPanel(ctx, options, "board:session");
-						} else ctx.ui.notify(board.status(ctx), "info");
-					} else if (
-						rest.length <= 2 &&
-						(rest[0] === "on" || rest[0] === "off" || rest[0] === "inherit") &&
-						(rest[1] === undefined ||
-							rest[1] === "session" ||
-							rest[1] === "folder" ||
-							rest[1] === "global") &&
-						!(rest[0] === "inherit" && rest[1] === "global")
-					) {
-						await board.setSetting(
-							ctx,
-							rest[1] ?? "session",
-							rest[0] === "inherit" ? undefined : rest[0] === "on",
-						);
-						if (current()) ctx.ui.notify(board.status(ctx), "info");
-					} else
-						ctx.ui.notify(
-							"Usage: /herdr board [on|off|inherit [session|folder] | on|off global]",
-							"warning",
-						);
-				} catch (error) {
-					if (current()) ctx.ui.notify(String(error), "error");
-				}
-				return;
-			}
-			ctx.ui.notify(
-				"Usage: /herdr [orchestration [on|off] | connect [machine] | board]",
-				"warning",
-			);
 		},
 	});
 
@@ -197,9 +109,10 @@ export function registerAgentController(
 		await activateController(fleet, ctx);
 	});
 
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", async () => {
 		sessionLifetime.abort();
 		fleet.deactivate();
+		await Promise.allSettled(panels);
 	});
 }
 

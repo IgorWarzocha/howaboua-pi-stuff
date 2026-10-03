@@ -161,7 +161,7 @@ export class AgentBoard {
 		}
 		if (!caller.enabled)
 			throw new Error(
-				"Board is off; the user can enable it with /herdr board on",
+				"Board is off; the user can enable it in /herdr → Settings",
 			);
 		return this.toOwner(ctx, {
 			operation: "board-call",
@@ -467,7 +467,7 @@ export class AgentBoard {
 		if (params.action === "help") return { ...boardHelp, enabled: own.enabled };
 		if (!own.enabled)
 			throw new Error(
-				"Board is off; the user can enable it with /herdr board on",
+				"Board is off; the user can enable it in /herdr → Settings",
 			);
 		const prepared: BoardParams =
 			params.author === undefined

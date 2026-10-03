@@ -95,9 +95,7 @@ export function renderAgentWidget(
 			machine.monitoringIssue.state === "degraded"
 				? "incomplete"
 				: "unavailable";
-		const recovery = machine.local
-			? "retrying"
-			: `/herdr connect ${machine.id}`;
+		const recovery = machine.local ? "retrying" : "/herdr → Status";
 		lines.push(
 			`${theme.fg("muted", "│")} ${theme.fg("warning", `${machine.id} monitoring ${status} · ${recovery}`)}`,
 		);

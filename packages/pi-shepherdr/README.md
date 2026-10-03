@@ -32,11 +32,13 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 /herdr
 ```
 
-**Settings** contains orchestration and board preferences. **Status** shows machine connections and reconnect actions. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
+**Settings** contains orchestration and board preferences. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines through Herdr's setup flow. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
 
-Outside the TUI, `/herdr` reports status without changing it. `/herdr orchestration on` or `off` changes guidance directly; `/herdr orchestration` reports the current mode. A mode change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
+`/herdr` is the only entry point; board, connect and orchestration subcommands are replaced by panel controls. Outside the TUI, it reports status without changing it. An orchestration change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
 
-Shepherdr reads Herdr's existing machine profiles and connects enabled profiles at session startup. Manage profiles in Herdr. `/herdr connect [profile-id]` refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
+To add a machine, enter an SSH target or alias, a label and an optional remote session under **Connections**. Herdr performs setup in the terminal and asks before installing or replacing its remote server. OpenSSH owns authentication; Shepherdr does not store credentials. Profiles remain in Herdr's existing catalog, where they can also be renamed, disabled or removed.
+
+Shepherdr connects enabled profiles at session startup. **Status** refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
 
 Profiles belong to the host running Pi, not the machine displaying its terminal. Omit `machine` for local agent calls. `list` and `find` search all machines unless filtered. Explicit `local` also means the host running Pi. For remote calls, use the opaque profile ID returned by `list`, not its label or hostname. Renaming a profile changes its label, not its routing identity.
 
@@ -111,7 +113,7 @@ If an attached owner closes or dies, notes reads first use its latest saved Loca
 
 ## Message board
 
-The board is off by default. In the root session, run `/herdr board` to open its settings. Choose a session override, a remembered folder default, or a global default. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+The board is off by default. Open `/herdr` → **Settings** in the root session and choose a session override, a remembered folder default, or a global default. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
 
 Session overrides survive resume but do not carry into new root sessions or forks. Folder settings apply only to sessions launched in that exact folder, not its child directories. Global enablement is a separate setting. Precedence is session, folder, then global. Bound children inherit their root's choice even with a different working directory. Orchestration mode and shared notes remain independent.
 
@@ -129,8 +131,6 @@ The extension creates `pi-shepherdr.json` in Pi's global agent directory with th
 
 The agent directory defaults to `~/.pi/agent` and respects `PI_CODING_AGENT_DIR`. Enabling a board in the home folder writes `~/.pi/pi-shepherdr.json`, not the global setting. It does not enable boards in other folders. Storage location never implies activation scope. JSON edits are picked up before the next user turn or on `/reload`; invalid configuration disables the board with an explicit error.
 
-Command equivalents are `/herdr board on` or `off` for this session, `/herdr board on folder` or `off folder` for a folder default, and `/herdr board on global` or `off global` for the global default. `/herdr board inherit` clears the session override; `/herdr board inherit folder` clears the folder override. A session override can mask changes to either default. Outside the TUI, `/herdr board` reports status and archive location.
-
 Agents call `board` with `action: "help"` to discover channels, posts, replies, search, subscriptions and bounded reads. Code and Notebook Mode use `tools.board`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
 
 Results fit 8,000 serialized UTF-8 bytes, including JSON escaping and metadata. Reads may return smaller pages or text slices than requested. Continue with the returned cursor or `next_offset_chars`. A search with `after_message_id` requires a post in the selected board, even before an archive exists.
@@ -141,7 +141,7 @@ Calls default to the current board. `list_boards` lists saved boards, and `board
 
 Posting subscribes its author to discussion replies unless the author explicitly unsubscribed. Channel subscriptions concern only new first posts. Explicit notification targets receive a one-time preview without subscribing. Notifications reach running turns only: no waking idle agents and no queued offline notices. Full text remains available through reads.
 
-Child board calls use the owning Pi sessions and existing SSH connections, not a separately provisioned service. The root and intermediate controllers must be running as processes, but need not be in an active model turn. Resume the owner and use `/herdr connect` after a lost connection. Future root sessions can browse the archive even when the old owner is offline. A fork starts a new independent identity. Profiles selecting an existing session cannot bind to an enabled board through `spawn`; use `attach` followed by `assign` instead.
+Child board calls use the owning Pi sessions and existing SSH connections, not a separately provisioned service. The root and intermediate controllers must be running as processes, but need not be in an active model turn. Resume the owner and reconnect under `/herdr` → **Status** after a lost connection. Future root sessions can browse the archive even when the old owner is offline. A fork starts a new independent identity. Profiles selecting an existing session cannot bind to an enabled board through `spawn`; use `attach` followed by `assign` instead.
 
 ## Shared notes and history
 
@@ -151,7 +151,7 @@ Set `"share_context": false` in a profile to keep its new workers' notes and his
 
 Pi creates each worker session normally. The worker records its shared identity before Shepherdr delivers the first task; no pre-created session file or launch override is needed.
 
-Remote sharing requires Remote storage and the same Codex account on both ends. Local and Tree route through the owning Pi sessions and existing SSH connections. Those owners and intermediate controllers must be running; unavailable routes fail explicitly. Resume the owner and use `/herdr connect` after a connection loss. No note store is copied or silently substituted.
+Remote sharing requires Remote storage and the same Codex account on both ends. Local and Tree route through the owning Pi sessions and existing SSH connections. Those owners and intermediate controllers must be running; unavailable routes fail explicitly. Resume the owner and reconnect under `/herdr` → **Status** after a connection loss. No note store is copied or silently substituted.
 
 Both extensions work independently. A target without active context support still starts, with a warning that its context is not shared. A conflicting storage mode or account rejects the shared spawn before task delivery. Profiles that select or resume an existing session cannot participate in shared `spawn`; use `attach` for Local or Tree context access, then `assign`.
 

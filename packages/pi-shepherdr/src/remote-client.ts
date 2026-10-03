@@ -272,7 +272,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	contextRelayPath(): string {
 		if (!this.relayPath)
 			throw new Error(
-				"Shared context relay is unavailable; run /herdr connect to retry",
+				"Shared context relay is unavailable; open /herdr → Status to retry",
 			);
 		return this.relayPath;
 	}
