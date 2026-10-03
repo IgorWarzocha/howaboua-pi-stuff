@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -22,10 +23,12 @@ import {
 	parseBoardRequest,
 } from "./contract.js";
 import {
+	type BoardBinding,
 	binding,
 	children,
 	members,
 	parseBinding,
+	removeMember,
 	rootBoardSetting,
 	saveBinding,
 	saveBoardSetting,
@@ -35,6 +38,13 @@ import {
 } from "./identity.js";
 import { type BoardEnvelope, parseEnvelope } from "./protocol.js";
 import { BoardTurns } from "./turns.js";
+
+function sameMembership(left: BoardBinding, right: BoardBinding) {
+	return isDeepStrictEqual(
+		{ ...left, enabled: false },
+		{ ...right, enabled: false },
+	);
+}
 
 export class AgentBoard {
 	private readonly pi: ExtensionAPI;
@@ -217,6 +227,96 @@ export class AgentBoard {
 			},
 		};
 	}
+	inspectAttachment(ctx: ExtensionContext) {
+		const own = binding(ctx);
+		if (own.upstream || children(ctx).length || members(ctx).length > 1)
+			throw new Error("Target already owns or belongs to a board family");
+		return own;
+	}
+	prepareAttachment(ctx: ExtensionContext, upstream: string, name: string) {
+		const own = binding(ctx);
+		if (!own.enabled)
+			throw new Error(
+				"Enable the controller's board before attaching a member",
+			);
+		if (!ctx.sessionManager.getSessionFile())
+			throw new Error("Board attachment requires a saved controller session");
+		return { ...own, agentName: `${own.agentName}/${name}`, upstream };
+	}
+	commitAttachment(
+		ctx: ExtensionContext,
+		expected: BoardBinding,
+		desired: BoardBinding,
+	) {
+		if (!ctx.isIdle())
+			throw new Error("Attach a board only after the target settles");
+		const own = binding(ctx);
+		const adopted = { ...desired, sessionId: own.sessionId };
+		if (isDeepStrictEqual(own, adopted)) return adopted;
+		if (!isDeepStrictEqual(this.inspectAttachment(ctx), expected))
+			throw new Error(
+				"Target board changed during attachment; resolve it again",
+			);
+		saveBinding(this.pi, adopted);
+		return adopted;
+	}
+	async registerAttachment(
+		ctx: ExtensionContext,
+		runtime: ConnectedMachine,
+		sessionFile: string,
+		adopted: BoardBinding,
+		expected: BoardBinding,
+	) {
+		if (!isDeepStrictEqual(binding(ctx), expected))
+			throw new Error("Controller board changed during attachment");
+		saveBinding(this.pi, expected);
+		await this.toOwner(ctx, {
+			operation: "board-register",
+			caller: expected,
+			member: adopted,
+		});
+		if (!isDeepStrictEqual(binding(ctx), expected))
+			throw new Error("Controller board changed during attachment");
+		saveChild(this.pi, {
+			parentSessionId: expected.sessionId,
+			binding: adopted,
+			machine: runtime.machine,
+			sessionFile,
+		});
+	}
+	async refreshAttachment(ctx: ExtensionContext) {
+		await this.refresh(ctx);
+	}
+	detachTarget(
+		ctx: ExtensionContext,
+		desired: BoardBinding,
+		previous: BoardBinding,
+	) {
+		if (children(ctx).length)
+			throw new Error(
+				"Detach a board member only when it has no board children",
+			);
+		if (
+			!sameMembership(binding(ctx), {
+				...desired,
+				sessionId: previous.sessionId,
+			})
+		)
+			throw new Error("Target board changed before detach");
+		saveBinding(this.pi, previous);
+		this.turns.active.clear();
+	}
+	async unregisterAttachment(ctx: ExtensionContext, member: BoardBinding) {
+		const own = binding(ctx);
+		await this.toOwner(ctx, {
+			operation: "board-unregister",
+			caller: own,
+			member,
+		});
+		if (!sameMembership(binding(ctx), own))
+			throw new Error("Controller board changed during detach");
+		removeMember(this.pi, member);
+	}
 	async handle(
 		ctx: ExtensionContext,
 		value: unknown,
@@ -302,6 +402,31 @@ export class AgentBoard {
 			request.caller.databasePath !== own.databasePath
 		)
 			throw new Error("Caller not bound to this board");
+		if (request.operation === "board-unregister") {
+			const member = request.member;
+			if (
+				member.boardId !== own.boardId ||
+				member.databasePath !== own.databasePath ||
+				!member.agentName.startsWith(`${caller.agentName}/`)
+			)
+				throw new Error("Invalid board member removal");
+			if (
+				directory.some((entry) =>
+					entry.agentName.startsWith(`${member.agentName}/`),
+				)
+			)
+				throw new Error(
+					"Detach a board member only when it has no board children",
+				);
+			const existing = directory.find(
+				(entry) => entry.agentName === member.agentName,
+			);
+			if (existing && !sameMembership(existing, member))
+				throw new Error("Board member changed before detach");
+			removeMember(this.pi, member);
+			this.turns.active.delete(member.agentName);
+			return true;
+		}
 		if (request.operation === "board-register") {
 			const member = request.member;
 			if (
@@ -311,14 +436,13 @@ export class AgentBoard {
 				!member.agentName.startsWith(`${caller.agentName}/`)
 			)
 				throw new Error("Invalid board member registration");
-			if (
-				directory.some(
-					(entry) =>
-						entry.agentName === member.agentName ||
-						entry.sessionId === member.sessionId,
-				)
-			)
-				throw new Error("Board member already bound");
+			const existing = directory.find(
+				(entry) =>
+					entry.agentName === member.agentName ||
+					entry.sessionId === member.sessionId,
+			);
+			if (existing && isDeepStrictEqual(existing, member)) return true;
+			if (existing) throw new Error("Board member already bound");
 			saveMember(this.pi, member);
 			return true;
 		}

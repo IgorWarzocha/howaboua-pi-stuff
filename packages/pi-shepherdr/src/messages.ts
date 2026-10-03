@@ -25,6 +25,24 @@ const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
 
+export function attachmentMessage(
+	controllerContextAgent?: string,
+	boardAgent?: string,
+) {
+	return {
+		customType: "herdr-agent-attachment",
+		content: [
+			...(controllerContextAgent
+				? [
+						`Controller notes/history: ${controllerContextAgent}; own context unchanged`,
+					]
+				: []),
+			...(boardAgent ? [`Shared board: ${boardAgent}`] : []),
+		].join("\n"),
+		display: true,
+	};
+}
+
 function xml(value: string): string {
 	return value
 		.replaceAll("&", "&amp;")

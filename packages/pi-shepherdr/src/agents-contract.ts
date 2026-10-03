@@ -13,6 +13,8 @@ const ACTIONS = [
 	"unwatch",
 	"send",
 	"assign",
+	"attach",
+	"detach",
 	"read",
 	"answer",
 ] as const;
@@ -42,6 +44,8 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	unwatch: new Set(["action", "machine", "target"]),
 	send: new Set(["action", "machine", "target", "message"]),
 	assign: new Set(["action", "machine", "target", "message", "blocking"]),
+	attach: new Set(["action", "machine", "target", "context", "board"]),
+	detach: new Set(["action", "machine", "target", "context", "board"]),
 	read: new Set(["action", "machine", "target", "source", "lines"]),
 	answer: new Set(["action", "machine", "target", "ask_id", "answers"]),
 };
@@ -83,6 +87,8 @@ const AgentsRequest = Type.Object(
 					"Delegation only; profile policy overrides spawn; otherwise defaults true",
 			}),
 		),
+		context: Type.Optional(Type.Boolean()),
+		board: Type.Optional(Type.Boolean()),
 		query: Type.Optional(Type.String()),
 		status: Type.Optional(StringEnum(STATUSES)),
 		source: Type.Optional(StringEnum(READ_SOURCES)),
@@ -134,6 +140,15 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		);
 	}
 	const request = value as Record<string, unknown>;
+	if (
+		(action === "attach" || action === "detach") &&
+		(typeof request["context"] !== "boolean" ||
+			typeof request["board"] !== "boolean" ||
+			(!request["context"] && !request["board"]))
+	)
+		throw new Error(
+			`${action} requires context and board booleans; enable at least one`,
+		);
 	const askId = request["ask_id"];
 	if (action === "answer" && (typeof askId !== "string" || !askId.trim())) {
 		throw new Error("ask_id is required for answer");

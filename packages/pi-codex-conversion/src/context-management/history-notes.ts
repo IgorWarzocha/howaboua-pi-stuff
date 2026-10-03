@@ -325,7 +325,7 @@ async function callHistoryNotesTool(
 			{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT },
 		);
 	} else {
-		const target = identity.storage ? contextTargetAgent(namespace, params, identity.agentName) : identity.agentName;
+		const target = contextTargetAgent(namespace, params, identity.agentName);
 		if (target !== identity.agentName) {
 			if (!route) throw new Error("Cross-agent context router is unavailable");
 			return route(ctx, { sessionId: identity.sessionId, agentName: target, namespace,
