@@ -11,7 +11,7 @@ import {
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 
-const BRIDGE_VERSION = 12;
+const BRIDGE_VERSION = 13;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();

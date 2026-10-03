@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -7,7 +8,9 @@ import type {
 	SharedContextRequest,
 	SharedContextResult,
 } from "@howaboua/pi-codex-conversion/context-sharing";
+import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
+import { Identity } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { isBoardEnvelope } from "./board/protocol.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
@@ -82,6 +85,21 @@ export class SharedAgentContext {
 			return this.attachment.handle(ctx, value);
 		const service = this.getService();
 		const identity = service?.describe(ctx);
+		if (
+			"operation" in value &&
+			value.operation === "attachment-persisted-notes"
+		) {
+			const file = ctx.sessionManager.getSessionFile();
+			if (
+				!file ||
+				!("identity" in value) ||
+				!Check(Identity, value.identity) ||
+				!isDeepStrictEqual(identity, value.identity) ||
+				identity?.threadId !== ctx.sessionManager.getSessionId()
+			)
+				throw new Error("Invalid saved checkpoint owner");
+			return requestContext(sessionContextPath(file), value, signal);
+		}
 		if ("operation" in value && value.operation === "bind") {
 			if (!service || !identity) return null;
 			return service.bind(ctx, "binding" in value ? value.binding : undefined);

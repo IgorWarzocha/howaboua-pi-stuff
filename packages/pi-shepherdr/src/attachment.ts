@@ -35,7 +35,7 @@ import { binding } from "./board/identity.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { ConnectedMachine } from "./fleet.js";
 import { sessionPath } from "./herdr.js";
-import { attachmentMessage } from "./messages.js";
+import { attachmentMessage, detachmentMessage } from "./messages.js";
 import {
 	requestContext,
 	sessionContextPath,
@@ -431,6 +431,18 @@ export class AgentAttachment {
 		if (requested.board && plan.board && !previous?.board)
 			this.board.detachTarget(ctx, plan.board.desired, plan.board.previous);
 		this.pi.appendEntry(DETACHED, { ...previous, ...requested });
+		const contextAlias =
+			requested.context && !previous?.context
+				? plan.context?.controllerAlias
+				: undefined;
+		const restoredBoard =
+			requested.board && !previous?.board ? plan.board?.previous : undefined;
+		if (contextAlias || restoredBoard)
+			sendPolicyMessage(
+				this.pi,
+				detachmentMessage(contextAlias, restoredBoard),
+				{ triggerTurn: false },
+			);
 		if (requested.board) await this.board.refreshAttachment(ctx);
 		if (ctx.sessionManager.getSessionId() !== plan.targetSessionId)
 			throw new Error("Target changed after detach; resume it and retry");
@@ -570,7 +582,8 @@ export class AgentAttachment {
 					})) as SharedContextResult;
 				} catch (error) {
 					signal?.throwIfAborted();
-					if (!this.notes.unavailable(error)) throw error;
+					if (!this.notes.canRead(next) || !this.notes.unavailable(error))
+						throw error;
 					result = await this.notes.read(
 						next,
 						link.target,
@@ -626,7 +639,8 @@ export class AgentAttachment {
 					)) as SharedContextResult;
 				} catch (error) {
 					signal?.throwIfAborted();
-					if (!this.notes.unavailable(error)) throw error;
+					if (!this.notes.canRead(next) || !this.notes.unavailable(error))
+						throw error;
 					result = await this.notes.read(
 						next,
 						link.controller,

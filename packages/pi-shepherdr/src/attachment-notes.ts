@@ -41,10 +41,18 @@ export class AttachmentNotes {
 				"Attached checkpoints exceed the transport limit; attachment or detach was not committed",
 			);
 	}
+	canRead(request: SharedContextRequest) {
+		return (
+			request.namespace === "notes" &&
+			["read_file", "list_files_by_prefix", "search_contents"].includes(
+				String(request.params["action"]),
+			)
+		);
+	}
 	unavailable(error: unknown) {
 		return (
 			error instanceof Error &&
-			/^(Shared context (?:owner|controller) is unavailable|Shared context response was lost|Herdr machine .* is (?:unavailable|disconnected)|remote Shepherdr bridge is unavailable|remote Shepherdr context timed out)/.test(
+			/^(Shared context (?:owner|controller) is unavailable|Shared context response was lost|Herdr machine .* is (?:unavailable|disconnected)|remote Shepherdr bridge (?:is unavailable|closed|exited\b)|remote Shepherdr context timed out)/.test(
 				error.message,
 			)
 		);

@@ -173,19 +173,20 @@ export async function requestContext(path, request, signal) {
 			identity.storage !== "session"
 		)
 			throw new Error("Invalid saved checkpoint identity");
-		if (!path.endsWith(".shepherdr-context.json"))
-			throw new Error("Saved checkpoint source is unavailable on this machine");
-		return readPersistedNoteEntries(
-			path.slice(0, -".shepherdr-context.json".length),
-			{
-				...identity,
-				protocol: 1,
-				threadId: identity.threadId,
-				sessionId: identity.sessionId,
-				agentName: identity.agentName,
-				storage: "session",
-			},
-		);
+		if (path.endsWith(".shepherdr-context.json"))
+			return readPersistedNoteEntries(
+				path.slice(0, -".shepherdr-context.json".length),
+				{
+					...identity,
+					protocol: 1,
+					threadId: identity.threadId,
+					sessionId: identity.sessionId,
+					agentName: identity.agentName,
+					storage: "session",
+				},
+			);
+		// A relay can only reach the authenticated owner, which selects its own
+		// saved session. Never interpret a relay path as a checkpoint file.
 	}
 	let descriptor;
 	try {

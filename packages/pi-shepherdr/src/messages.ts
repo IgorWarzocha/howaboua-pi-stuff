@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
+import type { BoardBinding } from "./board/identity.js";
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
@@ -38,6 +39,26 @@ export function attachmentMessage(
 					]
 				: []),
 			...(boardAgent ? [`Shared board: ${boardAgent}`] : []),
+		].join("\n"),
+		display: true,
+	};
+}
+
+export function detachmentMessage(
+	controllerContextAgent?: string,
+	board?: BoardBinding,
+) {
+	return {
+		customType: "herdr-agent-detachment",
+		content: [
+			...(controllerContextAgent
+				? [
+						`Detached controller: ${controllerContextAgent}; checkpoints read-only, history unavailable; own context unchanged`,
+					]
+				: []),
+			...(board
+				? [`Board restored: ${board.boardId} as ${board.agentName}`]
+				: []),
 		].join("\n"),
 		display: true,
 	};
