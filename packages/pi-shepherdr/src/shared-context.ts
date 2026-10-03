@@ -82,7 +82,7 @@ export class SharedAgentContext {
 				value.operation === "attachment-export-notes" ||
 				value.operation === "detach-commit")
 		)
-			return this.attachment.handle(ctx, value);
+			return this.attachment.target.handle(ctx, value);
 		const service = this.getService();
 		const identity = service?.describe(ctx);
 		if (
@@ -130,7 +130,7 @@ export class SharedAgentContext {
 			...envelope,
 			visited: [...envelope.visited, identity.threadId],
 		};
-		const attached = await this.attachment.route(
+		const attached = await this.attachment.routing.route(
 			ctx,
 			request,
 			forwarded.visited,

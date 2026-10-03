@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SharedContextResult } from "@howaboua/pi-codex-conversion/context-sharing";
@@ -39,7 +40,7 @@ export const Plan = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-export const Route = Type.Object({
+const Route = Type.Object({
 	plan: Plan,
 	machine: Type.String(),
 	sessionFile: Type.String({ minLength: 1 }),
@@ -70,7 +71,7 @@ export const Detachment = Type.Object({
 	board: Type.Optional(Type.Literal(true)),
 });
 
-export function saved<T extends TSchema>(
+function saved<T extends TSchema>(
 	ctx: ExtensionContext,
 	key: string,
 	schema: T,
@@ -120,4 +121,22 @@ export function remapResult(
 		content: [{ type: "text", text: JSON.stringify(details) }],
 		details: { codexHistoryNotes: details },
 	};
+}
+
+export function detachment(ctx: ExtensionContext, plan: AttachmentPlan) {
+	return saved(ctx, DETACHED, Detachment).findLast((entry) =>
+		isDeepStrictEqual(entry.plan, plan),
+	);
+}
+export function attachmentOwner(ctx: ExtensionContext) {
+	return saved(ctx, OWNER, Plan).findLast(
+		(plan) => plan.targetSessionId === ctx.sessionManager.getSessionId(),
+	);
+}
+export function attachmentRoutes(ctx: ExtensionContext) {
+	const found = new Map<string, AttachmentRoute>();
+	for (const route of saved(ctx, ROUTE, Route))
+		if (route.plan.controllerSessionId === ctx.sessionManager.getSessionId())
+			found.set(route.sessionFile + "\0" + route.machine, route);
+	return [...found.values()];
 }
