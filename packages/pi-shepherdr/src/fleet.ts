@@ -107,6 +107,13 @@ function groupSaved(values: unknown[]): Map<string, unknown[]> {
 }
 
 export class AgentFleet {
+	private readonly listeners = new Set<() => void>();
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
 	private contextRelay:
 		| ((
 				ctx: ExtensionContext,
@@ -206,6 +213,7 @@ export class AgentFleet {
 		this.runtimes.clear();
 		renderAgentWidget(this.context, [], []);
 		this.context = undefined;
+		for (const listener of this.listeners) listener();
 	}
 
 	isActive(): boolean {
@@ -442,6 +450,10 @@ export class AgentFleet {
 				? { monitoringIssue: runtime.monitoringIssue }
 				: {}),
 			...(runtime.reason ? { reason: runtime.reason } : {}),
+			...(runtime.contextRelayError
+				? { contextRelayError: runtime.contextRelayError }
+				: {}),
+			...(runtime.attempting ? { attempting: true } : {}),
 		};
 	}
 
@@ -523,6 +535,7 @@ export class AgentFleet {
 		const generation = this.generation;
 		if (!monitor || !ctx || runtime.attempting) return;
 		runtime.attempting = true;
+		this.refresh();
 		try {
 			if (
 				runtime.contextRelayError &&
@@ -549,6 +562,7 @@ export class AgentFleet {
 		} finally {
 			if (this.runtimes.get(name) === runtime && runtime.monitor === monitor)
 				delete runtime.attempting;
+			this.refresh();
 		}
 	}
 
@@ -673,6 +687,7 @@ export class AgentFleet {
 	private refresh(): void {
 		if (!this.context) return;
 		renderAgentWidget(this.context, this.list(), this.statuses());
+		for (const listener of this.listeners) listener();
 	}
 
 	private persistedAgents(): Array<MonitoredAgent & { machine: string }> {

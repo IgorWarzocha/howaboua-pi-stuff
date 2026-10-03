@@ -3,10 +3,11 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentBoard } from "./board/host.js";
-import { openBoardSettings } from "./board/settings.js";
+import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
 import { loadAgentProfiles } from "./profiles.js";
+import type { SharedAgentContext } from "./shared-context.js";
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
 const GENERAL_ORCHESTRATION_MESSAGE =
@@ -19,12 +20,59 @@ export function registerAgentController(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	board: AgentBoard,
+	shared: SharedAgentContext,
 ): void {
 	let orchestrationEnabled = false;
+	let sessionLifetime = new AbortController();
+	const resetLifetime = () => {
+		sessionLifetime.abort();
+		sessionLifetime = new AbortController();
+	};
+	const setOrchestration = async (
+		ctx: ExtensionContext,
+		enabled: boolean,
+		signal: AbortSignal,
+	) => {
+		const sessionId = ctx.sessionManager.getSessionId();
+		const content = enabled ? await orchestrationMessage() : NORMAL_MESSAGE;
+		signal.throwIfAborted();
+		if (ctx.sessionManager.getSessionId() !== sessionId)
+			throw new Error("Session changed; retry /herdr");
+		orchestrationEnabled = enabled;
+		sendPolicyMessage(
+			pi,
+			{
+				customType: ORCHESTRATION_STATE_TYPE,
+				content,
+				details: { enabled },
+				display: true,
+			},
+			{ triggerTurn: false },
+		);
+	};
+	const reconnect = async (
+		ctx: ExtensionContext,
+		machine: string | undefined,
+		signal: AbortSignal,
+	) => {
+		if (!fleet.isActive()) {
+			await activateController(fleet, ctx);
+			signal.throwIfAborted();
+			if (!fleet.isActive())
+				throw new Error("Fleet inactive. Pi must run inside Herdr.");
+		}
+		await fleet.reload();
+		signal.throwIfAborted();
+		return fleet.connect(machine);
+	};
 	pi.registerCommand("herdr", {
-		description: "Toggle orchestration, message board, or reconnect machines",
+		description:
+			"Shepherdr control panel, board settings and machine connections",
 		getArgumentCompletions: (prefix) =>
 			[
+				"orchestration",
+				"orchestration on",
+				"orchestration off",
 				"connect",
 				"board",
 				"board on",
@@ -39,52 +87,81 @@ export function registerAgentController(
 				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
 				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
+			const commandSignal = sessionLifetime.signal;
+			const commandSessionId = ctx.sessionManager.getSessionId();
+			const current = () =>
+				!commandSignal.aborted &&
+				ctx.sessionManager.getSessionId() === commandSessionId;
 			const [rawAction = "", ...rest] = args.trim().split(/\s+/);
 			const action = rawAction.toLowerCase();
+			const options = {
+				fleet,
+				board,
+				shared,
+				orchestration: () => orchestrationEnabled,
+				setOrchestration: (enabled: boolean, signal: AbortSignal) =>
+					setOrchestration(ctx, enabled, signal),
+				reconnect: (machine: string | undefined, signal: AbortSignal) =>
+					reconnect(ctx, machine, signal),
+				signal: commandSignal,
+			};
 			if (!action) {
 				orchestrationEnabled = restoreOrchestrationState(ctx);
-				orchestrationEnabled = !orchestrationEnabled;
-				sendPolicyMessage(
-					pi,
-					{
-						customType: ORCHESTRATION_STATE_TYPE,
-						content: orchestrationEnabled
-							? await orchestrationMessage()
-							: NORMAL_MESSAGE,
-						details: { enabled: orchestrationEnabled },
-						display: true,
-					},
-					{ triggerTurn: false },
-				);
-				ctx.ui.notify(
-					orchestrationEnabled
-						? "Agent orchestration enabled"
-						: "Normal mode enabled",
-					"info",
-				);
+				try {
+					if (ctx.mode === "tui") await openControlPanel(ctx, options);
+					else ctx.ui.notify(controlPanelStatus(ctx, options), "info");
+				} catch (error) {
+					if (current()) ctx.ui.notify(String(error), "error");
+				}
+				return;
+			}
+			if (action === "orchestration") {
+				if (
+					rest.length > 1 ||
+					(rest[0] !== undefined && rest[0] !== "on" && rest[0] !== "off")
+				) {
+					ctx.ui.notify("Usage: /herdr orchestration [on|off]", "warning");
+					return;
+				}
+				orchestrationEnabled = restoreOrchestrationState(ctx);
+				if (!rest.length)
+					ctx.ui.notify(
+						`Orchestration ${orchestrationEnabled ? "on" : "off"}. Agents, tools and monitoring work in either mode.`,
+						"info",
+					);
+				else
+					try {
+						await setOrchestration(ctx, rest[0] === "on", commandSignal);
+						ctx.ui.notify(
+							orchestrationEnabled
+								? "Agent orchestration enabled"
+								: "Normal mode enabled",
+							"info",
+						);
+					} catch (error) {
+						if (current()) ctx.ui.notify(String(error), "error");
+					}
 				return;
 			}
 			if (action === "connect") {
-				if (!fleet.isActive()) {
-					await activateController(fleet, ctx);
-					if (!fleet.isActive()) return;
-				}
 				try {
-					await fleet.reload();
-					ctx.ui.notify(fleet.connect(rest[0]), "info");
+					ctx.ui.notify(await reconnect(ctx, rest[0], commandSignal), "info");
 				} catch (error) {
-					ctx.ui.notify(
-						error instanceof Error ? error.message : String(error),
-						"error",
-					);
+					if (current())
+						ctx.ui.notify(
+							error instanceof Error ? error.message : String(error),
+							"error",
+						);
 				}
 				return;
 			}
 			if (action === "board") {
 				try {
 					if (rest.length === 0) {
-						if (ctx.mode === "tui") await openBoardSettings(ctx, board);
-						else ctx.ui.notify(board.status(ctx), "info");
+						if (ctx.mode === "tui") {
+							orchestrationEnabled = restoreOrchestrationState(ctx);
+							await openControlPanel(ctx, options, "Sharing");
+						} else ctx.ui.notify(board.status(ctx), "info");
 					} else if (
 						rest.length <= 2 &&
 						(rest[0] === "on" || rest[0] === "off" || rest[0] === "inherit") &&
@@ -99,27 +176,32 @@ export function registerAgentController(
 							rest[1] ?? "session",
 							rest[0] === "inherit" ? undefined : rest[0] === "on",
 						);
-						ctx.ui.notify(board.status(ctx), "info");
+						if (current()) ctx.ui.notify(board.status(ctx), "info");
 					} else
 						ctx.ui.notify(
 							"Usage: /herdr board [on|off|inherit [session|folder] | on|off global]",
 							"warning",
 						);
 				} catch (error) {
-					ctx.ui.notify(String(error), "error");
+					if (current()) ctx.ui.notify(String(error), "error");
 				}
 				return;
 			}
-			ctx.ui.notify("Usage: /herdr [connect [machine] | board]", "warning");
+			ctx.ui.notify(
+				"Usage: /herdr [orchestration [on|off] | connect [machine] | board]",
+				"warning",
+			);
 		},
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		resetLifetime();
 		orchestrationEnabled = restoreOrchestrationState(ctx);
 		await activateController(fleet, ctx);
 	});
 
 	pi.on("session_shutdown", () => {
+		sessionLifetime.abort();
 		fleet.deactivate();
 	});
 }
