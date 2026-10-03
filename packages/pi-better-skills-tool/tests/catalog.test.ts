@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
 	discoverAndLoadExtensions,
 	ExtensionRunner,
+	formatSkillsForPrompt,
 	loadSkillsFromDir,
 	ModelRegistry,
 	ModelRuntime,
@@ -269,6 +270,12 @@ test("keeps Pi-loaded skills authoritative while hiding prompt catalogs", async 
 		skill_catalog: "Previously derived catalog",
 		unrelated: "Keep this section",
 	};
+	const forceSystemPrompt = [
+		"Keep custom instructions",
+		`<skills>\n${formatSkillsForPrompt(skills).trim()}\n</skills>`,
+		"<skill_catalog>\nPreviously derived catalog\n</skill_catalog>",
+		"Keep inline <runtime_guidelines>examples</runtime_guidelines>",
+	].join("\n");
 	const prepared = await runner.emitBeforeAgentStart(
 		"read packaged",
 		undefined,
@@ -276,6 +283,7 @@ test("keeps Pi-loaded skills authoritative while hiding prompt catalogs", async 
 			cwd: packaged.root,
 			skills,
 			sections,
+			forceSystemPrompt,
 		},
 	);
 	assert.deepEqual(errors, []);
@@ -283,6 +291,10 @@ test("keeps Pi-loaded skills authoritative while hiding prompt catalogs", async 
 	assert.deepEqual(prepared.systemPromptOptions.sections, {
 		unrelated: "Keep this section",
 	});
+	assert.equal(
+		prepared.systemPromptOptions.forceSystemPrompt,
+		"Keep custom instructions\n\n\nKeep inline <runtime_guidelines>examples</runtime_guidelines>",
+	);
 	assert.equal(skills.length, 1);
 	assert.equal(sections.skill_catalog, "Previously derived catalog");
 	const registered = runner

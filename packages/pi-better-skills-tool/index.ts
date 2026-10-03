@@ -21,11 +21,19 @@ export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
 
 	let loadedSkills: readonly Skill[] = [];
 	pi.on("before_agent_start", (event) => {
-		loadedSkills = [...event.systemPromptOptions.skills];
+		const options = event.systemPromptOptions;
+		loadedSkills = [...options.skills];
 		// Native /skill: expansion uses Pi's loader, not these prompt fields.
-		event.systemPromptOptions.skills = [];
-		delete event.systemPromptOptions.sections["skills"];
-		delete event.systemPromptOptions.sections["skill_catalog"];
+		options.skills = [];
+		delete options.sections["skills"];
+		delete options.sections["skill_catalog"];
+		if (options.forceSystemPrompt !== undefined) {
+			// Full-prompt overrides bypass sections. Preserve text outside catalog containers.
+			options.forceSystemPrompt = options.forceSystemPrompt.replace(
+				/<(skills|skill_catalog)>[\s\S]*?<\/\1>/g,
+				"",
+			);
+		}
 	});
 	const tool = createSkillsTool({ getLoadedSkills: () => loadedSkills });
 	pi.registerTool(tool);
