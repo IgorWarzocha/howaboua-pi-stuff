@@ -39,8 +39,7 @@ export function createContextWindowTools(
 		{
 			name: "new_context",
 			label: "new_context",
-			description:
-				"Start a new context window; environment state is unchanged",
+			description: "Start a new context window",
 			parameters: EMPTY_PARAMETERS,
 			...newContextRenderers,
 			executionMode: "sequential",
