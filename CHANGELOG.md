@@ -38,12 +38,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.6
+### @howaboua/pi-better-skills-tool — 0.0.7
 
-- Requires Pi 1.0.0 or later.
+- Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands.
 
-  - Skill reads now resolve shorthand references within the selected skill and accept semicolon-separated read/list groups.
-  - Large results now return bounded pages with explicit continuation commands instead of failing.
+  Remove `--no-skills` from launch wrappers or aliases. Separate catalog-clearing hooks are no longer needed.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
@@ -112,15 +111,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.84
+### @howaboua/pi-extensions — 0.0.85
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Requires Pi 1.0.0 or later. Fixed Ask text cursor and input-method candidate window placement in Pi's fullscreen interface.
-  - @howaboua/pi-better-skills-tool: Requires Pi 1.0.0 or later. - Skill reads now resolve shorthand references within the selected skill and accept semicolon-separated read/list groups. - Large results now return bounded pages with explicit continuation commands instead of failing.
-  - @howaboua/pi-gippity-control: Requires Pi 1.0.0 or later. Updated Undici to 8.10.2 with security fixes.
-  - @howaboua/pi-shepherdr: Requires Pi 1.0.0 or later. - Added optional agent-tree message boards with channels, replies, search, subscriptions and persistent folder-local history. Boards require Node.js 22.13 or later. - Added session, exact-folder and global board settings under `/herdr board`. Board notifications reach running turns without waking idle agents. - Board history is stored as plaintext in `.pi/agent-message-board.sqlite` and remains after disabling boards. Keep this archive out of version control and restricted to its intended readers. - Agent messages and worker reports now respect Codex Conversion's saved-Notes idle rollover before waking an idle agent. - Updated coordination guidance to favor asynchronous implementation workers and ending the controller turn when only waiting. Blocked workers are directed to a question-asking tool instead of peer messages, and final replies replace duplicate completion reports.
-  - @howaboua/pi-explore-subagents: Remove retired bundled extension.
+  - @howaboua/pi-better-skills-tool: Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands. Remove `--no-skills` from launch wrappers or aliases. Separate catalog-clearing hooks are no longer needed.
+  - @howaboua/pi-shepherdr: Shepherdr now tells agents to use an enabled shared board for plans, decisions and findings in substantial multi-agent work, while keeping task assignment and urgent messages in agents. Spawned agents receive the same guidance.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -162,15 +158,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.10
+### @howaboua/pi-shepherdr — 0.2.11
 
-- Requires Pi 1.0.0 or later.
-
-  - Added optional agent-tree message boards with channels, replies, search, subscriptions and persistent folder-local history. Boards require Node.js 22.13 or later.
-  - Added session, exact-folder and global board settings under `/herdr board`. Board notifications reach running turns without waking idle agents.
-  - Board history is stored as plaintext in `.pi/agent-message-board.sqlite` and remains after disabling boards. Keep this archive out of version control and restricted to its intended readers.
-  - Agent messages and worker reports now respect Codex Conversion's saved-Notes idle rollover before waking an idle agent.
-  - Updated coordination guidance to favor asynchronous implementation workers and ending the controller turn when only waiting. Blocked workers are directed to a question-asking tool instead of peer messages, and final replies replace duplicate completion reports.
+- Shepherdr now tells agents to use an enabled shared board for plans, decisions and findings in substantial multi-agent work, while keeping task assignment and urgent messages in agents. Spawned agents receive the same guidance.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -228,16 +218,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.92
+### @howaboua/pi-stuff — 0.0.93
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Requires Pi 1.0.0 or later. Fixed Ask text cursor and input-method candidate window placement in Pi's fullscreen interface.
-  - @howaboua/pi-better-skills-tool: Requires Pi 1.0.0 or later. - Skill reads now resolve shorthand references within the selected skill and accept semicolon-separated read/list groups. - Large results now return bounded pages with explicit continuation commands instead of failing.
-  - @howaboua/pi-gippity-control: Requires Pi 1.0.0 or later. Updated Undici to 8.10.2 with security fixes.
-  - @howaboua/pi-shepherdr: Requires Pi 1.0.0 or later. - Added optional agent-tree message boards with channels, replies, search, subscriptions and persistent folder-local history. Boards require Node.js 22.13 or later. - Added session, exact-folder and global board settings under `/herdr board`. Board notifications reach running turns without waking idle agents. - Board history is stored as plaintext in `.pi/agent-message-board.sqlite` and remains after disabling boards. Keep this archive out of version control and restricted to its intended readers. - Agent messages and worker reports now respect Codex Conversion's saved-Notes idle rollover before waking an idle agent. - Updated coordination guidance to favor asynchronous implementation workers and ending the controller turn when only waiting. Blocked workers are directed to a question-asking tool instead of peer messages, and final replies replace duplicate completion reports.
-  - @howaboua/pi-explore-subagents: Remove retired bundled extension.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Harness audits now stay within the requested workflow, reuse supplied context and measure startup overhead only when in scope. Tool-design guidance now prefers on-demand help for unfamiliar multi-action or state-dependent tools, while preserving familiar native contracts and simple schemas.
+  - @howaboua/pi-better-skills-tool: Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands. Remove `--no-skills` from launch wrappers or aliases. Separate catalog-clearing hooks are no longer needed.
+  - @howaboua/pi-shepherdr: Shepherdr now tells agents to use an enabled shared board for plans, decisions and findings in substantial multi-agent work, while keeping task assignment and urgent messages in agents. Spawned agents receive the same guidance.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

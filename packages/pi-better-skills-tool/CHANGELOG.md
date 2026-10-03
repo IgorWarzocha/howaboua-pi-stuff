@@ -1,5 +1,11 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.7
+
+- Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands.
+
+  Remove `--no-skills` from launch wrappers or aliases. Separate catalog-clearing hooks are no longer needed.
+
 ## 0.0.6
 
 - Requires Pi 1.0.0 or later.
