@@ -249,8 +249,8 @@ test("developer messages preserve delivery and provider-role semantics", async (
 		assert.deepEqual(normalInput.filter(item => "type" in item && item.type === "function_call_output" && Array.isArray(item.output)),
 			[...remoteDeliveryItems(initial), ...remoteDeliveryItems(resumed)]);
 		await new CodexDeveloperMessageBridge().validateRemotePayload({ input: normalInput }, () => "account", ctx);
-		await assert.rejects(bridge.validateRemotePayload(payload, () => "foreign", ctx), /different Codex account/);
-		await assert.rejects(bridge.validateRemotePayload(payload, () => "account", ctx, false, "https://proxy.invalid"), /different backend/);
+		await assert.rejects(bridge.validateRemotePayload(payload, () => "foreign", ctx), /Account mismatch/);
+		await assert.rejects(bridge.validateRemotePayload(payload, () => "account", ctx, false, "https://proxy.invalid"), /Shared notes are unavailable/);
 		await assert.rejects(bridge.validateRemotePayload({ input: [exec, ...remoteDeliveryItems(initial), receipt] }, () => "account", ctx), /original exec receipt/);
 		const changed = structuredClone(payload);
 		(changed.input[2] as { output: unknown }).output = [{ type: "encrypted_content", encrypted_content: "tampered" }];

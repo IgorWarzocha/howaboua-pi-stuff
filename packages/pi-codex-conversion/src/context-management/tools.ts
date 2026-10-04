@@ -149,6 +149,8 @@ export function registerContextManagementTools(
 				throw new Error("Nested history and notes require active context in Code or Notebook");
 			if (plan(context.extensionContext).contextManagementRemote !== remote)
 				throw new Error("Context storage changed; start a new exec cell");
+			if (!protectedResults && route.requiresRemoteScope?.(context.extensionContext))
+				throw new Error("Shared context changed; start a new exec cell");
 			return tool.invoke(input, protectedResults ? { ...context,
 				extensionContext: withRemoteContextScope(context.extensionContext, context.opaqueScope) } : context, signal);
 		},

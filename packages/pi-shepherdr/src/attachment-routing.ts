@@ -51,7 +51,7 @@ export class AttachmentRouting {
 			const link = child.plan.context;
 			if (!isDeepStrictEqual(native, link.controller))
 				throw new Error(
-					"Attached controller context changed; restore its original storage",
+					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			const next = {
 				...request,
@@ -110,7 +110,7 @@ export class AttachmentRouting {
 		if (owner && link && inside(request.agentName, link.controllerAlias)) {
 			if (!isDeepStrictEqual(native, link.target))
 				throw new Error(
-					"Attached target context changed; restore its original storage",
+					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			const next = {
 				...request,

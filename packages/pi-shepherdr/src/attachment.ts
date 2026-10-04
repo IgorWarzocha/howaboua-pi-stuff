@@ -226,7 +226,7 @@ export class AgentAttachment {
 		if ((params.context && !plan.context) || (params.board && !plan.board))
 			throw new Error("Cannot detach a choice that was not attached");
 		const controllerBoard = params.board ? binding(ctx) : undefined;
-		const check = async () => {
+		const check = async (checkRoute = true) => {
 			const currentContext =
 				params.context && plan.context
 					? await this.target.context(ctx, false)
@@ -234,6 +234,15 @@ export class AgentAttachment {
 			signal.throwIfAborted();
 			if (
 				ctx.sessionManager.getSessionId() !== plan.controllerSessionId ||
+				(checkRoute &&
+					!isDeepStrictEqual(
+						attachmentRoutes(ctx).find(
+							(entry) =>
+								entry.machine === route.machine &&
+								entry.sessionFile === route.sessionFile,
+						),
+						route,
+					)) ||
 				(params.context &&
 					plan.context &&
 					!isDeepStrictEqual(currentContext, plan.context.controller)) ||
@@ -245,7 +254,17 @@ export class AgentAttachment {
 		};
 		await check();
 		try {
+			if (params.context && plan.context) {
+				await this.notes.verify(
+					ctx,
+					route.detached?.context ?? plan.context.targetNotes,
+					plan.context.target,
+					true,
+				);
+				await check();
+			}
 			const context = params.context ? await this.notes.export(ctx) : undefined;
+			await check();
 			this.notes.checkTransport({
 				operation: "detach-commit",
 				plan,
@@ -274,7 +293,8 @@ export class AgentAttachment {
 			if (params.context && plan.context) {
 				if (!("notes" in result))
 					throw new Error("Target checkpoints were not retained");
-				this.notes.validate(result.notes, plan.context.target);
+				await this.notes.verify(ctx, result.notes, plan.context.target, true);
+				await check();
 				notes = result.notes;
 			}
 			this.pi.appendEntry(ROUTE, {
@@ -290,7 +310,7 @@ export class AgentAttachment {
 					...plan.board.desired,
 					sessionId: plan.targetSessionId,
 				});
-			await check();
+			await check(false);
 		} catch (error) {
 			throw new Error(
 				`Detach incomplete; retry from the same controller and target with the same choices. ${String(error)}`,

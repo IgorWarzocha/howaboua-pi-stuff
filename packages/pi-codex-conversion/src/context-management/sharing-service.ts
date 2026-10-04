@@ -2,22 +2,20 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { CodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
-import { resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import {
 	CONTEXT_SHARING_AVAILABLE, CONTEXT_SHARING_REQUEST,
 	type ContextSharingService, type ContextRouter, type SharedContextRequest, type SharedContextResult,
 } from "../context-sharing.ts";
-import { CONTEXT_AGENT_ENTRY, contextAccountScope, contextAgentIdentity, contextTargetAgent, parseContextAgentBinding } from "./agent-identity.ts";
+import { CONTEXT_AGENT_ENTRY, CONTEXT_BACKEND_ENTRY, contextAccountScope, contextAgentIdentity, contextTargetAgent, parseContextAgentBinding } from "./agent-identity.ts";
 import { createPiSessionNotesSnapshot, readPiSessionNotesSnapshot } from "./local-notes.ts";
 import { executeRemoteAttachment } from "./history-notes.ts";
-import { readRemoteNoteReference } from "./remote-scope.ts";
+import { readRemoteNoteReference, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 
 async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string, backendUrl?: string): Promise<string> {
-	const provider = await resolveCodexToolProvider(ctx);
-	if (provider.route !== "openai-codex") throw new Error("Shared Remote context requires Codex transport");
+	const provider = await resolveRemoteContextProvider(ctx);
 	const scope = contextAccountScope(provider.accountId);
-	if (expected && scope !== expected) throw new Error("Shared Remote context requires the parent's Codex account");
-	if (backendUrl && backendUrl !== provider.baseUrl) throw new Error("Shared Remote context requires its original backend");
+	if (expected && scope !== expected) throw new Error(REMOTE_ACCOUNT_MISMATCH);
+	if (backendUrl && backendUrl !== provider.baseUrl) throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 	return scope;
 }
 
@@ -51,10 +49,10 @@ export function registerContextSharingService(
 		if (identity.storage !== "remote") return identity;
 		const model = JSON.stringify(ctx.model);
 		return (async () => {
-			const provider = await resolveCodexToolProvider(ctx);
-			if (provider.route !== "openai-codex" || (identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId)) ||
-				(identity.backendUrl && identity.backendUrl !== provider.baseUrl))
-				throw new Error("Attached Remote context requires its original Codex account and backend");
+			const provider = await resolveRemoteContextProvider(ctx);
+			if (identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId))
+				throw new Error(REMOTE_ACCOUNT_MISMATCH);
+			if (identity.backendUrl && identity.backendUrl !== provider.baseUrl) throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 			if (!isDeepStrictEqual(check(), identity) || JSON.stringify(ctx.model) !== model) throw new Error("Context changed during attachment authentication; retry");
 			const verified = { ...identity, accountScope: contextAccountScope(provider.accountId), backendUrl: provider.baseUrl };
 			preparedAttachments.set(ctx, { native: identity, identity: verified, model });
@@ -129,6 +127,10 @@ export function registerContextSharingService(
 				throw new Error("Remote attachment authentication changed; inspect the original owner and retry");
 			const identity = native.storage === "remote" ? prepared!.identity : native;
 			if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, identity);
+			else if (identity.storage === "remote" && !native.backendUrl)
+				pi.appendEntry(CONTEXT_BACKEND_ENTRY, { threadId: identity.threadId, sessionId: identity.sessionId,
+					agentName: identity.agentName, accountScope: identity.accountScope, backendUrl: identity.backendUrl });
+			if (prepared) prepared.native = identity;
 			return identity;
 		},
 		async execute(ctx, request, signal) {
@@ -162,9 +164,9 @@ export function registerContextSharingService(
 			const reference = readRemoteNoteReference(snapshot);
 			const identity = describe(ctx);
 			const model = JSON.stringify(ctx.model);
-			const provider = await resolveCodexToolProvider(ctx);
-			if (provider.route !== "openai-codex" || reference.identity.accountScope !== contextAccountScope(provider.accountId) || reference.baseUrl !== provider.baseUrl)
-				throw new Error("Attached Remote context requires its original Codex account and backend");
+			const provider = await resolveRemoteContextProvider(ctx);
+			if (reference.identity.accountScope !== contextAccountScope(provider.accountId)) throw new Error(REMOTE_ACCOUNT_MISMATCH);
+			if (reference.baseUrl !== provider.baseUrl) throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 			if (!isDeepStrictEqual(describe(ctx), identity) || JSON.stringify(ctx.model) !== model)
 				throw new Error("Context changed during attachment authentication; retry");
 		},

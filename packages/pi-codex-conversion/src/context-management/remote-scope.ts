@@ -8,6 +8,22 @@ import type { RemoteNoteReference } from "../context-sharing.ts";
 const BACKEND_SCOPE = Symbol("Remote context backend scope");
 const EXPECTED_SCOPE = Symbol("Remote context expected scope");
 
+export const REMOTE_ACCOUNT_MISMATCH = "Account mismatch. Shared notes are unavailable. Use messages to exchange the context you need.";
+export const REMOTE_CONTEXT_UNAVAILABLE = "Shared notes are unavailable here. Use messages to exchange the context you need.";
+
+/** Encrypted context needs the active transport, not another model's registry credentials. */
+export async function resolveRemoteContextProvider(ctx: ExtensionContext) {
+	if ((ctx.model?.api ?? "").trim().toLowerCase() !== "openai-codex-responses")
+		throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
+	try {
+		const provider = await resolveCodexToolProvider(ctx);
+		if (provider.route !== "openai-codex") throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
+		return provider;
+	} catch (error) {
+		throw new Error(REMOTE_CONTEXT_UNAVAILABLE, { cause: error });
+	}
+}
+
 export function remoteContextScope(identity: ContextAgentIdentity, accountId: string, baseUrl: string): string {
 	return JSON.stringify({ threadId: identity.threadId, sessionId: identity.sessionId,
 		agentName: identity.agentName, accountScope: contextAccountScope(accountId), baseUrl });
@@ -54,16 +70,16 @@ export async function resolveRemoteContextScope(ctx: ExtensionContext, state: Ad
 		throw new Error("Protected context requires Code or Notebook");
 	const identity = contextAgentIdentity(ctx);
 	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
-	const provider = await resolveCodexToolProvider(ctx);
+	const provider = await resolveRemoteContextProvider(ctx);
 	const latest = resolveCodexRuntimePlanForState(ctx, state);
 	if (!latest.contextManagementNested || latest.contextManagementMode !== plan.contextManagementMode || latest.kind !== plan.kind ||
 		JSON.stringify(identity) !== JSON.stringify(contextAgentIdentity(ctx)) ||
 		model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
 		throw new Error("Remote context changed during authentication; start a new exec cell");
-	if (provider.route !== "openai-codex" ||
-		(identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId)) ||
-		(identity.backendUrl && identity.backendUrl !== provider.baseUrl))
-		throw new Error("Remote context requires the same Codex account");
+	if (identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId))
+		throw new Error(REMOTE_ACCOUNT_MISMATCH);
+	if (identity.backendUrl && identity.backendUrl !== provider.baseUrl)
+		throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 	return remoteContextScope(identity, provider.accountId, provider.baseUrl);
 }
 
@@ -101,9 +117,9 @@ export function validateRemoteScope(encoded: unknown, account: () => string | un
 		!("baseUrl" in scope) || typeof scope.baseUrl !== "string" || !scope.baseUrl ||
 		!("accountScope" in scope) || typeof scope.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(scope.accountScope) ||
 		!accountId || scope.accountScope !== contextAccountScope(accountId))
-		throw new Error("Remote result belongs to a different Codex account; use its original account");
+		throw new Error(REMOTE_ACCOUNT_MISMATCH);
 	if (baseUrl && scope.baseUrl !== resolveCodexApiProviderBaseUrl(baseUrl))
-		throw new Error("Remote result belongs to a different backend; use its original backend");
+		throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 	if (ctx) {
 		const identity = contextAgentIdentity(ctx);
 		if (scope.threadId !== identity.threadId || scope.sessionId !== identity.sessionId || scope.agentName !== identity.agentName)

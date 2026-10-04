@@ -46,6 +46,7 @@ export class AttachmentNotes {
 		ctx: ExtensionContext,
 		snapshot: unknown,
 		identity: ContextAgentIdentity,
+		alreadyShared = false,
 	) {
 		this.validate(snapshot, identity);
 		if (identity.storage === "remote") {
@@ -54,7 +55,20 @@ export class AttachmentNotes {
 				throw new Error(
 					"Update Codex Conversion to authenticate Remote attachments",
 				);
-			await verify(ctx, snapshot);
+			try {
+				await verify(ctx, snapshot);
+			} catch (error) {
+				if (
+					!alreadyShared &&
+					error instanceof Error &&
+					error.message.startsWith("Account mismatch.")
+				)
+					throw new Error(
+						"Account mismatch. Context was not shared. Each agent keeps its own notes and history. Use messages to exchange the context you need.",
+						{ cause: error },
+					);
+				throw error;
+			}
 		}
 	}
 	async remote(

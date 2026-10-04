@@ -229,7 +229,7 @@ export class AttachmentTarget {
 				!isDeepStrictEqual(await this.context(ctx, false), plan.context.target)
 			)
 				throw new Error(
-					"Attached context changed; restore its original storage and account",
+					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			if (
 				plan.board &&
@@ -274,7 +274,12 @@ export class AttachmentTarget {
 			)
 				throw new Error("Target context changed before detach");
 			this.notes.validate(requested.context, plan.context.controller);
-			await this.notes.verify(ctx, requested.context, plan.context.controller);
+			await this.notes.verify(
+				ctx,
+				requested.context,
+				plan.context.controller,
+				true,
+			);
 		}
 		const ownNotes = requested.context
 			? await this.notes.export(ctx)

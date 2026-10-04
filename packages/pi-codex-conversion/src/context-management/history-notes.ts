@@ -10,12 +10,9 @@ import { Type, type Static, type TSchema } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import type { ContextRouter, SharedContextRequest, RemoteNoteReference } from "../context-sharing.ts";
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
-import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope } from "./remote-scope.ts";
+import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 import { historyNotesRenderers } from "./rendering.ts";
-import {
-	codexToolProviderHeaders,
-	resolveCodexToolProvider,
-} from "../adapter/codex-tool-provider.ts";
+import { codexToolProviderHeaders } from "../adapter/codex-tool-provider.ts";
 import {
 	getPiSessionHistoryRecoveryHint,
 	readPiSessionHistory,
@@ -312,7 +309,7 @@ async function callHistoryNotesTool(
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
 	const identity = contextAgentIdentity(ctx);
 	if (identity.storage && identity.storage !== (mode === "remote" ? "remote" : "session"))
-		throw new Error("Shared context storage changed; restore the family's Remote or Local/Tree storage setting");
+		throw new Error("Shared notes are unavailable with this storage. Use messages to exchange the context you need.");
 	const target = contextTargetAgent(namespace, params, identity.agentName);
 	if (target !== identity.agentName && route) {
 		const routed = await route(ctx, { sessionId: identity.sessionId, agentName: target, namespace,
@@ -324,7 +321,7 @@ async function callHistoryNotesTool(
 	let result: Record<string, unknown>;
 	if (mode === "remote") {
 		if (!usesRemoteHistoryNotes(ctx, mode))
-			throw new Error("Remote history and notes require Codex transport");
+			throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 		result = await callHistoryNotesBackend(
 			endpoint,
 			stripAction(params),
@@ -369,22 +366,20 @@ async function callHistoryNotesBackend(
 	signal: AbortSignal | undefined,
 	truncationPolicy: { mode: "bytes" | "tokens"; limit: number },
 	target?: RemoteNoteReference,
-	ordinaryArguments = false,
 ): Promise<Record<string, unknown>> {
 	const before = JSON.stringify(contextAgentIdentity(ctx));
 	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
-	const provider = await resolveCodexToolProvider(ctx);
+	const provider = await resolveRemoteContextProvider(ctx);
 	const identity = contextAgentIdentity(ctx);
 	if (before !== JSON.stringify(identity) || model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
 		throw new Error("Context changed during authentication; retry in the original session");
-	if (provider.route !== "openai-codex")
-		throw new Error("History and notes require the OpenAI Codex backend");
 	if (identity.accountScope && contextAccountScope(provider.accountId) !== identity.accountScope)
-		throw new Error("Shared Remote context requires the parent's Codex account");
+		throw new Error(REMOTE_ACCOUNT_MISMATCH);
 	if (identity.backendUrl && identity.backendUrl !== provider.baseUrl)
-		throw new Error("Attached Remote context requires its original backend");
-	if (target && (target.identity.accountScope !== contextAccountScope(provider.accountId) || target.baseUrl !== provider.baseUrl))
-		throw new Error("Attached Remote context requires its original Codex account and backend");
+		throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
+	if (target && target.identity.accountScope !== contextAccountScope(provider.accountId))
+		throw new Error(REMOTE_ACCOUNT_MISMATCH);
+	if (target && target.baseUrl !== provider.baseUrl) throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 	const scope = remoteContextScope(identity, provider.accountId, provider.baseUrl);
 	assertRemoteBackendScope(ctx, scope);
 	const headers = codexToolProviderHeaders(provider);
@@ -392,7 +387,7 @@ async function callHistoryNotesBackend(
 		"x-openai-tool-output-truncation-policy",
 		JSON.stringify(truncationPolicy),
 	);
-	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx) && !ordinaryArguments)
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx))
 		headers.set("x-openai-encrypted-tool-arguments", "true");
 	const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
 	const response = await fetch(
@@ -438,8 +433,10 @@ export async function executeRemoteAttachment(
 	if (request.namespace === "history") validateHistoryArguments(action as HistoryAction, request.params);
 	else validateNotesArguments(action as NotesAction, request.params);
 	const endpoint = request.namespace === "history" ? HISTORY_ENDPOINTS[action as HistoryAction] : NOTES_ENDPOINTS[action as NotesAction];
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx) && !request.encryptedArguments)
+		throw new Error("Use Code or Notebook history/notes with ordinary query/text for this attached context");
 	return historyNotesResult(request.namespace, await callHistoryNotesBackend(endpoint, stripAction(request.params), ctx, signal,
-		{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT }, reference, request.encryptedArguments !== true));
+		{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT }, reference));
 }
 
 export function usesRemoteHistoryNotes(
