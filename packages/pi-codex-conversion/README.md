@@ -231,9 +231,11 @@ text(status);
 
 **Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool accepts `{ input: "help" }` for state-management guidance, then JSON action objects in `input`. The first turn receives status and retained bindings automatically.
 
-### MCP tools
+### Pi extension and MCP tools
 
-Configure servers once in Pi's built-in MCP extension. Its callable tools and resource helpers automatically appear in `tools` and `ALL_TOOLS`; ordinary extensions still require the [opt-in integration](#extension-apis). Pi's extension switches, tool restrictions and disabled servers are respected. Pi retains connection management, authentication, permissions and tool hooks; its native `codemode` extension is not required.
+Pi-callable extension tools automatically appear in `tools` and `ALL_TOOLS`, with no extra registration. An [explicit integration](#extension-apis) takes precedence for the same Pi tool, including its custom behavior and activation gate. Hidden and model-only tools are not imported.
+
+Configure MCP servers once in Pi's built-in MCP extension. Its callable tools and resource helpers use the same bridge. Pi's extension switches, tool restrictions and disabled servers are respected. Pi retains connection management, authentication, permissions and tool hooks; its native `codemode` extension is not required.
 
 `exec` does not wait for pending MCP connections. In Code and Notebook modes, missing-tool errors identify the MCP namespace when known, otherwise flag ambiguous name prefixes. If that server connects, retry in a new exec cell. If failures repeat, the agent should suggest disabling that specific server to you. This recovery guidance does not retry calls or disable servers.
 
@@ -375,7 +377,7 @@ See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) a
 
 ### Pi extension API
 
-Register a Pi tool normally, then adapt it for Code and Notebook Mode:
+Normal Pi registration is enough for automatic Code and Notebook access. Use this optional API to customize usage, blocking behavior, result conversion or rendering:
 
 ```ts
 import {

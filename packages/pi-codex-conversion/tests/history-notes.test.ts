@@ -15,7 +15,7 @@ import { createTreeArchiveManifest } from "../src/context-management/tree-archiv
 import { projectTreeCheckpointBranch } from "../src/context-management/tree-checkpoint.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
 import { registerContextManagementTools } from "../src/context-management/tools.ts";
-import { getCodeModeExtensionTools } from "../src/code-mode-extension-tools.ts";
+import { getCodeModeExtensionToolSnapshot } from "../src/code-mode-extension-tools.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { contextAgentIdentity } from "../src/context-management/agent-identity.ts";
 import { remoteContextScope } from "../src/context-management/remote-scope.ts";
@@ -301,7 +301,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: "remote",
 			} }, executionMode: "code", contextTree: { handoff: { finishNoteWrite: () => false } } };
 			registerContextManagementTools(nestedPi as never, state as never);
-			const tools = getCodeModeExtensionTools(nestedPi as never, context);
+			const tools = getCodeModeExtensionToolSnapshot(nestedPi as never, context).tools;
 			const scope = remoteContextScope(contextAgentIdentity(context), "account-1", "https://chatgpt.com/backend-api/codex");
 			for (const [name, params] of [
 				["history", { action: "search_contents", query: "ordinary query" }],
@@ -343,7 +343,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				contextTree: { handoff: { finishNoteWrite: () => true } },
 			};
 			registerContextManagementTools(bridgePi as never, bridgeState as never);
-			const [history, notes] = getCodeModeExtensionTools(bridgePi as never, bridgeContext);
+			const [history, notes] = getCodeModeExtensionToolSnapshot(bridgePi as never, bridgeContext).tools;
 			assert(history && notes);
 			const invocation = { cwd: bridgeContext.cwd, extensionContext: bridgeContext };
 			const signal = new AbortController().signal;

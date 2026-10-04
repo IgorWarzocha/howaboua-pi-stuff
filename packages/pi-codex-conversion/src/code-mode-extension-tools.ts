@@ -73,23 +73,10 @@ export function onCodeModeExtensionToolsRefresh(
 	return pi.events.on(EXTENSION_TOOLS_REFRESH_CHANNEL, handler);
 }
 
-export function getCodeModeExtensionTools(
-	pi: ExtensionAPI,
-	context: ExtensionContext | undefined,
-	eligibleTopLevelNames?: readonly string[],
-): ProgrammaticCodeModeToolDefinition[] {
-	const tools = getCodeModeExtensionToolSnapshot(pi, context).tools;
-	if (eligibleTopLevelNames === undefined) return tools;
-	const eligible = new Set(eligibleTopLevelNames);
-	return tools.filter(
-		(tool) => tool.topLevelName === undefined || eligible.has(tool.topLevelName),
-	);
-}
-
 export function getCodeModeExtensionToolSnapshot(
 	pi: ExtensionAPI,
 	context: ExtensionContext | undefined,
-	refreshGates = false,
+	options: { refreshGates?: boolean; eligibleTopLevelNames?: readonly string[] | undefined } = {},
 ): {
 	tools: ProgrammaticCodeModeToolDefinition[];
 	allToolNames: string[];
@@ -100,7 +87,7 @@ export function getCodeModeExtensionToolSnapshot(
 	}> = [];
 	pi.events.emit(EXTENSION_TOOLS_CHANNEL, {
 		context,
-		refreshGates,
+		refreshGates: options.refreshGates ?? false,
 		add(provider, active) {
 			providers.push({ provider, active });
 		},
@@ -119,7 +106,8 @@ export function getCodeModeExtensionToolSnapshot(
 		tools: resolved
 			.filter(({ active }) => active)
 			.flatMap(({ tools }) => tools)
-			.filter((tool) => tool.topLevelName === undefined || registeredNames.has(tool.topLevelName)),
+			.filter((tool) => tool.topLevelName === undefined || (registeredNames.has(tool.topLevelName)
+				&& (options.eligibleTopLevelNames === undefined || options.eligibleTopLevelNames.includes(tool.topLevelName)))),
 		allToolNames: [
 			...new Set(
 				allTools.map((tool) => tool.topLevelName ?? tool.name),

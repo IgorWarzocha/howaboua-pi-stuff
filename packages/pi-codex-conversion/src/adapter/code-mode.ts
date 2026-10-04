@@ -1,6 +1,6 @@
 import { getAgentDir, type AgentToolResult, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
-import { getCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
+import { getCodeModeExtensionToolSnapshot } from "../code-mode-extension-tools.ts";
 import {
 	type CodeModeRegistration,
 	registerCodeModeTools,
@@ -18,7 +18,7 @@ import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapt
 import { createContextWindowTools } from "../context-management/tools.ts";
 import { resolveRemoteContextScope } from "../context-management/remote-scope.ts";
 import { appendRemoteDelivery } from "../context-management/remote-delivery.ts";
-import { createMcpCodeModeBridge } from "./code-mode/mcp-tools.ts";
+import { createPiCodeModeBridge } from "./code-mode/pi-tools.ts";
 import { syncAdapter } from "./activation/activation.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
@@ -30,7 +30,7 @@ export async function registerCodexCodeMode(
 	let latestContext: ExtensionContext | undefined;
 	let stopped = false;
 	let pendingNativeProjection = false;
-	const mcp = createMcpCodeModeBridge(pi);
+	const piTools = createPiCodeModeBridge(pi);
 	const isActive = (ctx: unknown) => {
 		if (ctx) latestContext = ctx as ExtensionContext;
 		const plan = resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state);
@@ -65,20 +65,19 @@ export async function registerCodexCodeMode(
 						syncAdapter(pi, latestContext, runtime.state);
 				});
 			}
-			const changes = mcp.prepareLoadout(loadout);
+			const changes = piTools.prepareLoadout(loadout);
 			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode",
 				...(nativeSearch ? ["tool_search"] : [])] };
 		},
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
+			const extensions = getCodeModeExtensionToolSnapshot(pi, context, {
+				eligibleTopLevelNames: runtime.state.previousToolNames ?? pi.getActiveTools(),
+			});
 			return [
 				...createNestedTools(pi, runtime, context),
-				...getCodeModeExtensionTools(
-					pi,
-					context,
-					runtime.state.previousToolNames ?? pi.getActiveTools(),
-				),
-				...mcp.getTools(),
+				...extensions.tools,
+				...piTools.getTools(extensions.allToolNames),
 			];
 		},
 		isActive,

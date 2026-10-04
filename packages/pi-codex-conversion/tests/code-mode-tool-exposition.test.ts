@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
-import { createMcpCodeModeBridge } from "../src/adapter/code-mode/mcp-tools.ts";
+import { createPiCodeModeBridge } from "../src/adapter/code-mode/pi-tools.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, readToolkitUpdate, recordCodeModeToolkit } from "../src/adapter/code-mode/toolkit-updates.ts";
 import { projectCodexDeveloperHistory } from "../src/adapter/developer-history.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
@@ -43,7 +43,7 @@ function customTool(
 	};
 }
 
-test("custom-tool discovery and availability share the callable catalog without importing ordinary extensions", async () => {
+test("tool discovery follows Pi callable admission and preserves deferred contracts", async () => {
 	const promoted = customTool("promoted_tool", false);
 	const deferred = customTool("deferred_tool", true);
 	const deferredProgrammatic = {
@@ -58,24 +58,25 @@ test("custom-tool discovery and availability share the callable catalog without 
 		outputSchema: { type: "object", properties: { content: { type: "array" } } },
 	};
 	const resource = { ...native, name: "list_mcp_resources" };
-	const extension = { ...native, name: "mcp__pretender__lookup" };
+	const extension = { ...native, name: "record-lookup" };
 	const hidden = { ...native, name: "mcp__records__hidden" };
-	const mcp = createMcpCodeModeBridge({
+	const piTools = createPiCodeModeBridge({
 		getAllTools: () => [native, resource, extension, hidden].map((tool) => ({
 			...tool, sourceInfo: { path: tool === extension ? "/extension.ts" : "builtin:mcp" },
+			...(tool === extension ? { promptGuidelines: ["record-lookup: Preserve record IDs"] } : {}),
 		})),
 	} as never);
 	const loadout = {
 		declared: [native, extension], callable: [native, resource, extension], registered: [native, resource, extension, hidden],
 		getExposure: (name: string) => name === resource.name ? "direct" as const : "codemode" as const,
-		getNamespace: () => ({
+		getNamespace: (name = native.name) => name === extension.name ? undefined : ({
 			name: "mcp__records", description: "Record lookup",
 			instructions: "Keep record IDs unchanged\nReturn source citations",
 		}),
 	};
-	assert.deepEqual(mcp.prepareLoadout(loadout as never).hiddenDeclarations, [native.name]);
-	const catalog = [bundled, promoted, deferred, deferredProgrammatic, ...mcp.getTools()];
-	assert.match(formatCodeModeToolHelp(mcp.getTools()[0]!), /Output: .*"content"/);
+	assert.deepEqual(piTools.prepareLoadout(loadout as never).hiddenDeclarations, [native.name, resource.name, extension.name]);
+	const catalog = [bundled, promoted, deferred, deferredProgrammatic, ...piTools.getTools()];
+	assert.match(formatCodeModeToolHelp(piTools.getTools()[0]!), /Output: .*"content"/);
 	const state = {
 		ALL_TOOLS: catalog.map((tool) => ({
 			name: codeModeGlobalName(tool.name),
@@ -85,11 +86,13 @@ test("custom-tool discovery and availability share the callable catalog without 
 	const source = scopeAllToolsToDiscoverable("", catalog);
 	Function("globalThis", source)(state);
 
-	assert.deepEqual(state.ALL_TOOLS, [promoted, deferred, deferredProgrammatic, ...mcp.getTools()].map((tool) => ({
+	assert.deepEqual(state.ALL_TOOLS, [promoted, deferred, deferredProgrammatic, ...piTools.getTools()].map((tool) => ({
 		name: codeModeGlobalName(tool.name), description: formatCodeModeToolHelp(tool),
 	})));
 	assert.match(state.ALL_TOOLS.find((tool) => tool.name === native.name)!.description,
 		/Instructions: Keep record IDs unchanged\nReturn source citations/);
+	assert.match(state.ALL_TOOLS.find((tool) => tool.name === "record_lookup")!.description,
+		/record_lookup: Preserve record IDs/);
 	assert(!state.ALL_TOOLS.find((tool) => tool.name === deferred.name)!.description.includes("Instructions:"));
 	for (const mode of ["code", "notebook"] as const) {
 		assert.equal(buildCodeModeToolsPrompt(catalog, mode), buildCodeModeToolsPrompt(catalog.map((tool) => ({
@@ -113,7 +116,7 @@ test("custom-tool discovery and availability share the callable catalog without 
 	assert(!String(inventory.content).includes("Record lookup"));
 	assert(!JSON.stringify(inventory).includes("Keep record IDs unchanged"));
 	assert(!String(inventory.content).includes("promoted_tool"));
-	assert(!JSON.stringify(inventory).includes("pretender"));
+	assert.match(JSON.stringify(inventory), /record_lookup/);
 	assert(!JSON.stringify(inventory).includes(hidden.name));
 	assert.equal(recordCodeModeToolkit(pi, ctx, initial, [...catalog].reverse()), false);
 	const bridge = new CodexDeveloperMessageBridge();
@@ -127,7 +130,7 @@ test("custom-tool discovery and availability share the callable catalog without 
 	assert.equal(payload.input[0]!.role, "developer");
 	assert.match(payload.input[0]!.content, /help in ALL_TOOLS/);
 	const changedInstructions = catalog.map((tool) => tool.name === native.name
-		? { ...tool, namespace: { ...loadout.getNamespace(), instructions: "Preserve opaque IDs" } } : tool);
+		? { ...tool, namespace: { ...loadout.getNamespace()!, instructions: "Preserve opaque IDs" } } : tool);
 	assert.equal(recordCodeModeToolkit(pi, ctx, initial, changedInstructions), false);
 	assert(!JSON.stringify(messages().at(-1)).includes("Preserve opaque IDs"));
 
@@ -145,7 +148,7 @@ test("custom-tool discovery and availability share the callable catalog without 
 	assert.equal(recordCodeModeToolkit(pi, ctx, [delta], nextCatalog), true);
 	assert.match(JSON.stringify(messages().at(-1)), /help in ALL_TOOLS/);
 	const invoked: unknown[] = [];
-	assert.deepEqual(await mcp.getTools()[0]!.invoke({ id: "record-1" }, {
+	assert.deepEqual(await piTools.getTools()[0]!.invoke({ id: "record-1" }, {
 		cwd: "/project",
 		executeTool: async (name: string, input: unknown) => {
 			invoked.push({ name, input });
@@ -165,8 +168,8 @@ test("custom-tool discovery and availability share the callable catalog without 
 	assert(migration.role === "custom");
 	assert(!String(migration.content).includes(native.name), "Changing discovery does not declare a still-callable MCP tool removed");
 	assert.equal(JSON.stringify(legacy), legacyBytes);
-	assert.deepEqual(mcp.prepareLoadout({ ...loadout, callable: [extension] } as never).hiddenDeclarations, []);
-	assert.deepEqual(mcp.getTools(), []);
+	assert.deepEqual(piTools.prepareLoadout({ ...loadout, callable: [] } as never).hiddenDeclarations, []);
+	assert.deepEqual(piTools.getTools(), []);
 
 	const calls: unknown[] = [];
 	const kernel: Record<string, unknown> = {

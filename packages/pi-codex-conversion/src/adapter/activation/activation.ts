@@ -11,7 +11,7 @@ export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: Adap
 	reconcileExternalToolLoadout(state, pi.getActiveTools());
 	const extensionTools =
 		state.enabled || plan.kind === "extras" || isAdapterRuntime(plan)
-			? getCodeModeExtensionToolSnapshot(pi, ctx, true)
+			? getCodeModeExtensionToolSnapshot(pi, ctx, { refreshGates: true })
 			: { tools: [], allToolNames: [] };
 	if (plan.kind === "extras")
 		enableExtraTools(pi, ctx, state, plan, extensionTools);
