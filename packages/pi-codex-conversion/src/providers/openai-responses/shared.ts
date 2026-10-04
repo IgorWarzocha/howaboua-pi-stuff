@@ -252,6 +252,7 @@ export function convertResponsesMessages<TApi extends Api>(
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
 			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
+			const attachmentHint = (msg.details as { codexHistoryNotes?: { attachment_hint?: unknown } } | undefined)?.codexHistoryNotes?.attachment_hint;
 			const opaqueOutputs = opaqueToolOutputsFromDetails(msg.details);
 			if (opaqueOutputs.length && callId !== undefined && customCallIds.has(callId))
 				throw new Error("Protected results require a native tool output");
@@ -269,6 +270,7 @@ export function convertResponsesMessages<TApi extends Api>(
 					]
 				: encryptedToolOutput
 				? [
+						...(typeof attachmentHint === "string" ? [{ type: "input_text" as const, text: sanitizeSurrogates(attachmentHint) }] : []),
 						{ type: "encrypted_content" as const, encrypted_content: encryptedToolOutput },
 						...(hasImages && model.input.includes("image")
 							? msg.content

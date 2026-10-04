@@ -7,7 +7,7 @@ import {
 } from "../src/context-management/history-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
 import { connectCodexContextSharing } from "../src/context-sharing.ts";
-import { contextAccountScope } from "../src/context-management/agent-identity.ts";
+import { contextAccountScope, CONTEXT_AGENT_ENTRY, CONTEXT_BACKEND_ENTRY } from "../src/context-management/agent-identity.ts";
 import { registerContextSharingService } from "../src/context-management/sharing-service.ts";
 import { CodexContextWindowManager, projectContextWindowBranch } from "../src/context-management/window-manager.ts";
 import { projectPiCompactionEvent } from "../src/adapter/compaction/portable-summary.ts";
@@ -17,8 +17,9 @@ import { fakeJwt } from "./openai-codex-test-support.ts";
 import { registerContextManagementTools } from "../src/context-management/tools.ts";
 import { getCodeModeExtensionToolSnapshot } from "../src/code-mode-extension-tools.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { resolveCodexToolProvider } from "../src/adapter/codex-tool-provider.ts";
 import { contextAgentIdentity } from "../src/context-management/agent-identity.ts";
-import { remoteContextScope } from "../src/context-management/remote-scope.ts";
+import { remoteContextScope, remoteBackendScope, readRemoteNoteReference, withRemoteContextScope } from "../src/context-management/remote-scope.ts";
 
 const { prepareCompaction } = await import(new URL("./core/compaction/compaction.js", import.meta.resolve("@earendil-works/pi-coding-agent")).href);
 
@@ -168,7 +169,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		shareSubagentContext = false;
 		liveSession = worker;
 		const shared = { ...context, sessionManager: worker, isIdle: () => true };
-		await assert.rejects(() => service.bind(shared, { ...binding, accountScope: contextAccountScope("other-account") }), /parent's Codex account/);
+		await assert.rejects(() => service.bind(shared, { ...binding, accountScope: contextAccountScope("other-account") }), /Account mismatch/);
 		assert.equal(worker.getEntries().length, 0, "failed validation cannot commit an identity");
 		await assert.rejects(() => service.bind({ ...context, isIdle: () => true }, binding), /fresh, idle/);
 		const identity = await service.bind(shared, binding);
@@ -176,6 +177,21 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 		await adopt();
 		await adopt();
 		assert.equal(parent.getEntries().length, 1, "parent adoption is idempotent after binding");
+		service.registerRouter(async () => undefined);
+		const savedParent = { ...context, sessionManager: { ...context.sessionManager,
+			getEntries: () => parent.getEntries(), getSessionId: () => parent.getSessionId(), getSessionFile: () => "/saved-parent" }, isIdle: () => true };
+		const verifiedParent = await service.inspectAttachment!(savedParent, false);
+		assert.equal(contextAgentIdentity(savedParent).backendUrl, undefined);
+		assert.deepEqual(service.retainAttachmentIdentity!(savedParent), verifiedParent);
+		assert.deepEqual(service.describe(savedParent), verifiedParent, "retained identity matches alias route ownership");
+		service.retainAttachmentIdentity!(savedParent);
+		assert.equal(parent.getEntries().filter(entry => entry.type === "custom" && entry.customType === CONTEXT_AGENT_ENTRY).length, 1);
+		assert.equal(parent.getEntries().filter(entry => entry.type === "custom" && entry.customType === CONTEXT_BACKEND_ENTRY).length, 1);
+		assert.deepEqual(contextAgentIdentity({ ...savedParent }), verifiedParent, "backend pin survives a new context object");
+		assert.throws(() => contextAgentIdentity({ sessionManager: { ...savedParent.sessionManager,
+			getEntries: () => [...parent.getEntries(), { type: "custom", customType: CONTEXT_BACKEND_ENTRY,
+				data: { ...verifiedParent, accountScope: contextAccountScope("other-account") } } as SessionEntry],
+		} }), /Conflicting persisted Remote context backend/);
 		liveSession = worker;
 		assert.equal(identity.threadId, worker.getSessionId(), "Pi owns the worker thread ID");
 		assert.equal(identity.sessionId, parent.getSessionId());
@@ -190,7 +206,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "other-account" } }),
 			baseUrl: "https://chatgpt.com/backend-api",
 		}) } } as unknown as ExtensionContext;
-		await assert.rejects(() => remoteNotes.execute("wrong-account", { action: "read_file", path: "proof" }, undefined, undefined, wrongAccount), /parent's Codex account/);
+		await assert.rejects(() => remoteNotes.execute("wrong-account", { action: "read_file", path: "proof" }, undefined, undefined, wrongAccount), /Account mismatch/);
 		const windows = new CodexContextWindowManager(async () => undefined);
 		const windowPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) =>
 			worker.appendCustomMessageEntry(message.customType, message.content, message.display, message.details) } as never;
@@ -324,6 +340,61 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			await assert.rejects(nested.invoke({ action: "read_file", path: "state" }, { cwd: context.cwd,
 				extensionContext: context, opaqueScope: "wrong", opaqueContextValid: async () => true,
 				captureOpaqueResult() {} }, new AbortController().signal), /changed before dispatch/);
+			const sharing = connectCodexContextSharing(nestedPi as never).service!;
+			const reference = { protocol: 1, storage: "remote", timestamp: 0, baseUrl: "https://chatgpt.com/backend-api/codex",
+				identity: { protocol: 1, storage: "remote", sessionId: "other-session", threadId: "other-thread", agentName: "/root",
+					accountScope: contextAccountScope("account-1"), backendUrl: "https://chatgpt.com/backend-api/codex" } } as const;
+			sharing.validateAttachmentNotes!(reference, reference.identity);
+			assert.throws(() => readRemoteNoteReference({ ...reference, identity: { ...reference.identity, sessionId: "x".repeat(513) } }), /Invalid Remote checkpoint/);
+			const peerRequest = { namespace: "notes", sessionId: "other-session", agentName: "/root",
+				params: { action: "search_contents", query: "ordinary peer query", path_prefix: "/root/notes" } } as const;
+			const renamed = { ...context, model: { ...context.model!, provider: "private-codex-name" } };
+			const incompatible = { ...renamed, model: { ...renamed.model, api: "openai-responses" }, modelRegistry: {
+				...renamed.modelRegistry, find: () => ({ ...renamed.model, provider: "openai-codex" }),
+			} } as unknown as ExtensionContext;
+			assert.equal((await resolveCodexToolProvider(incompatible)).route, "openai-codex", "unrelated Codex-backed tools retain registry fallback");
+			await assert.rejects(sharing.verifyAttachmentAccess!(incompatible, reference), /Shared notes are unavailable/);
+			const beforeDirect = request;
+			await assert.rejects(sharing.executeRemoteAttachment!(renamed, reference, peerRequest), /Use Code or Notebook/);
+			assert.equal(request, beforeDirect, "ordinary direct sensitive calls cannot dispatch");
+			const scoped = withRemoteContextScope(renamed, scope);
+			const peerResult = await sharing.executeRemoteAttachment!(scoped, reference, peerRequest);
+			assert.equal(remoteBackendScope(peerResult.details.codexHistoryNotes), scope, "backend addressing does not rebind protected delivery to the owner");
+			assert.deepEqual(JSON.parse(String(request?.init.body)).context, { session_id: "other-session", current_agent_name: "/root" });
+			assert.equal(new Headers(request?.init.headers).has("x-openai-encrypted-tool-arguments"), false);
+			await sharing.executeRemoteAttachment!(renamed, reference, { ...peerRequest, encryptedArguments: true });
+			assert.equal(new Headers(request?.init.headers).get("x-openai-encrypted-tool-arguments"), "true");
+			await assert.rejects(sharing.executeRemoteAttachment!(scoped, { ...reference, baseUrl: "https://other.example/codex",
+				identity: { ...reference.identity, backendUrl: "https://other.example/codex" } }, peerRequest), /Shared notes are unavailable/);
+			await assert.rejects(sharing.executeRemoteAttachment!(context, reference, peerRequest, AbortSignal.abort()), /abort/i);
+			const alias = "/root/attached-peer";
+			state.config.compaction.historyStorage = "local";
+			const stale = getCodeModeExtensionToolSnapshot(nestedPi as never, renamed).tools.find(tool => tool.name === "notes")!;
+			let routedCalls = 0;
+			sharing.registerRouter(Object.assign(async (ctx: ExtensionContext, routed: Parameters<typeof sharing.execute>[1], signal?: AbortSignal) => {
+				routedCalls += 1;
+				if (routed.agentName !== alias) return undefined;
+				const result = await sharing.executeRemoteAttachment!(ctx, reference, { ...routed, sessionId: reference.identity.sessionId,
+					agentName: "/root", params: { ...routed.params, path: "/root/notes/state" } }, signal);
+				result.details.codexHistoryNotes["attachment_hint"] = `Source /root, access through ${alias}`;
+				return result;
+			}, { requiresRemoteScope: () => true }));
+			await assert.rejects(stale.invoke({ action: "write_file", path: `${alias}/notes/state`, text: "must not dispatch" },
+				{ cwd: context.cwd, extensionContext: renamed }, new AbortController().signal), /start a new exec cell/);
+			assert.equal(routedCalls, 0, "a stale plain tool rejects before routed writes");
+			const beforeLocalDirect = request;
+			await assert.rejects(registered.get("notes")!.execute("local-direct", { action: "write_file", path: `${alias}/notes/state`, text: "ordinary" },
+				undefined, undefined, { ...renamed, tools: [], executeTool: async () => { throw new Error("Unexpected nested tool"); } }), /Use Code or Notebook/);
+			assert.equal(request, beforeLocalDirect);
+			const mixed = getCodeModeExtensionToolSnapshot(nestedPi as never, renamed).tools.find(tool => tool.name === "notes")!;
+			let protectedName: string | undefined;
+			const receipt = await mixed.invoke({ action: "read_file", path: `${alias}/notes/state` }, { cwd: context.cwd, extensionContext: renamed,
+				opaqueScope: scope, opaqueContextValid: async () => true, captureOpaqueResult: output => { protectedName = output.name; } }, new AbortController().signal);
+			assert.match(protectedName!, /Source \/root, access through \/root\/attached-peer/);
+			assert.deepEqual(receipt, { result_id: "code-mode-notes" });
+			assert(!JSON.stringify(receipt).includes("encrypted-note"));
+			await sharing.executeRemoteAttachment!(context, reference, { ...peerRequest, namespace: "history", params: { action: "list_windows" } });
+			assert.match(request!.url, /history\/v2\/list_windows$/);
 		}
 		for (const mode of ["local", "tree"] as const) {
 			const bridgeEntries: Record<string, unknown>[] = [];

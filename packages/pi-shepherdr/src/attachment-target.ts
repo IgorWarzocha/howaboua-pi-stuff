@@ -40,16 +40,14 @@ export class AttachmentTarget {
 		this.getService = getService;
 		this.notes = notes;
 	}
-	context(ctx: ExtensionContext, target: boolean) {
+	async context(ctx: ExtensionContext, target: boolean) {
 		const service = this.getService();
 		if (!service?.inspectAttachment || !service.retainAttachmentIdentity)
 			throw new Error("Update Codex Conversion to attach existing context");
-		const identity = target
-			? service.inspectAttachment(ctx)
-			: service.describe(ctx);
+		const identity = await service.inspectAttachment(ctx, target);
 		if (!identity || !Check(Identity, identity))
 			throw new Error(
-				"Context attachment requires Local or Tree on both agents; Remote attachment is unsupported",
+				"Context attachment requires notes-based continuity on both agents",
 			);
 		return identity as Static<typeof Identity>;
 	}
@@ -59,9 +57,9 @@ export class AttachmentTarget {
 			throw new Error(
 				"Context attachment support became unavailable; reload and retry",
 			);
-		service.retainAttachmentIdentity(ctx);
+		return service.retainAttachmentIdentity(ctx);
 	}
-	private inspect(ctx: ExtensionContext) {
+	private async inspect(ctx: ExtensionContext) {
 		if (!ctx.isIdle()) throw new Error("Attach only after the target settles");
 		if (!ctx.sessionManager.getSessionFile())
 			throw new Error("Attachment requires a saved target session");
@@ -69,7 +67,7 @@ export class AttachmentTarget {
 		let contextError: string | undefined;
 		let boardError: string | undefined;
 		try {
-			context = this.context(ctx, true);
+			context = await this.context(ctx, true);
 			if (
 				attachmentRoutes(ctx).some((route) => route.plan.context) ||
 				ctx.sessionManager
@@ -95,12 +93,17 @@ export class AttachmentTarget {
 		return {
 			sessionId: ctx.sessionManager.getSessionId(),
 			board: binding(ctx),
-			...(context ? { context, notes: this.notes.export(ctx) } : {}),
+			...(context ? { context, notes: await this.notes.export(ctx) } : {}),
 			...(contextError ? { contextError } : {}),
 			...(boardError ? { boardError } : {}),
 		};
 	}
-	async handle(ctx: ExtensionContext, input: unknown): Promise<unknown> {
+	async handle(
+		ctx: ExtensionContext,
+		input: unknown,
+		signal?: AbortSignal,
+	): Promise<unknown> {
+		signal?.throwIfAborted();
 		if (!input || typeof input !== "object" || !("operation" in input))
 			throw new Error("Invalid attachment request");
 		if (input.operation === "attach-inspect") return this.inspect(ctx);
@@ -114,7 +117,7 @@ export class AttachmentTarget {
 			return this.notes.export(ctx);
 		}
 		if (input.operation === "detach-commit")
-			return this.commitDetach(ctx, input);
+			return this.commitDetach(ctx, input, signal);
 		if (
 			input.operation !== "attach-commit" ||
 			!("plan" in input) ||
@@ -162,7 +165,7 @@ export class AttachmentTarget {
 				"Target is already attached; another controller or different attachment choices are unsupported",
 			);
 		if (!owner) {
-			const current = this.inspect(ctx);
+			const current = await this.inspect(ctx);
 			if (
 				plan.context &&
 				(!current.context ||
@@ -174,15 +177,37 @@ export class AttachmentTarget {
 			if (plan.board && current.boardError) throw new Error(current.boardError);
 			if (plan.board && !isDeepStrictEqual(current.board, plan.board.previous))
 				throw new Error("Target board changed during attachment");
-			// All checks precede either mutation; no await between the two commits.
+			// Authentication completes before either membership mutation.
 			if (plan.context) {
-				this.notes.validate(
+				await this.notes.verify(
+					ctx,
 					plan.context.controllerNotes,
 					plan.context.controller,
 				);
 				this.notes.validate(plan.context.targetNotes, plan.context.target);
 			}
-			if (plan.context) this.retainIdentity(ctx);
+			if (plan.context) {
+				const identity = await this.context(ctx, true);
+				signal?.throwIfAborted();
+				if (
+					!ctx.isIdle() ||
+					ctx.sessionManager.getSessionId() !== plan.targetSessionId ||
+					!isDeepStrictEqual(identity, plan.context.target) ||
+					(plan.board && !isDeepStrictEqual(binding(ctx), plan.board.previous))
+				)
+					throw new Error(
+						"Target changed during attachment authentication; retry after it settles",
+					);
+				this.retainIdentity(ctx);
+			}
+			signal?.throwIfAborted();
+			if (
+				!ctx.isIdle() ||
+				ctx.sessionManager.getSessionId() !== plan.targetSessionId
+			)
+				throw new Error(
+					"Target changed during attachment; retry after it settles",
+				);
 			if (plan.board)
 				this.board.membership.commitAttachment(
 					ctx,
@@ -201,9 +226,11 @@ export class AttachmentTarget {
 		} else {
 			if (
 				plan.context &&
-				!isDeepStrictEqual(this.context(ctx, false), plan.context.target)
+				!isDeepStrictEqual(await this.context(ctx, false), plan.context.target)
 			)
-				throw new Error("Attached context changed; restore Local or Tree");
+				throw new Error(
+					"Shared notes are unavailable. Use messages to exchange the context you need.",
+				);
 			if (
 				plan.board &&
 				!isDeepStrictEqual(binding(ctx), {
@@ -220,7 +247,11 @@ export class AttachmentTarget {
 			);
 		return plan;
 	}
-	private async commitDetach(ctx: ExtensionContext, input: unknown) {
+	private async commitDetach(
+		ctx: ExtensionContext,
+		input: unknown,
+		signal?: AbortSignal,
+	) {
 		if (!Check(Detachment, input)) throw new Error("Invalid detach request");
 		const requested = input as Static<typeof Detachment>;
 		const { plan } = requested;
@@ -238,12 +269,31 @@ export class AttachmentTarget {
 			throw new Error("Invalid detach choices");
 		const previous = detachment(ctx, plan);
 		if (requested.context && plan.context) {
-			if (!isDeepStrictEqual(this.context(ctx, false), plan.context.target))
+			if (
+				!isDeepStrictEqual(await this.context(ctx, false), plan.context.target)
+			)
 				throw new Error("Target context changed before detach");
 			this.notes.validate(requested.context, plan.context.controller);
+			await this.notes.verify(
+				ctx,
+				requested.context,
+				plan.context.controller,
+				true,
+			);
 		}
-		const ownNotes = requested.context ? this.notes.export(ctx) : undefined;
+		const ownNotes = requested.context
+			? await this.notes.export(ctx)
+			: undefined;
 		if (ownNotes) this.notes.checkTransport(ownNotes);
+		signal?.throwIfAborted();
+		if (
+			!ctx.isIdle() ||
+			ctx.sessionManager.getSessionId() !== plan.targetSessionId ||
+			!isDeepStrictEqual(attachmentOwner(ctx), plan)
+		)
+			throw new Error(
+				"Target changed during detach authentication; retry after it settles",
+			);
 		if (requested.board && plan.board && !previous?.board)
 			this.board.membership.detachTarget(
 				ctx,

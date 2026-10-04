@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const CONTEXT_AGENT_ENTRY = "codex-context-agent";
+export const CONTEXT_BACKEND_ENTRY = "codex-context-backend";
 
 export interface ContextAgentIdentity {
 	protocol: 1;
@@ -10,6 +11,7 @@ export interface ContextAgentIdentity {
 	agentName: string;
 	storage?: "remote" | "session";
 	accountScope?: string;
+	backendUrl?: string;
 	routing?: unknown;
 }
 
@@ -22,10 +24,12 @@ export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
 	if (value?.protocol !== 1 || typeof value.sessionId !== "string" || !value.sessionId ||
 		typeof value.agentName !== "string" || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(value.agentName) ||
 		(value.storage !== "remote" && value.storage !== "session") ||
+		(value.backendUrl !== undefined && (typeof value.backendUrl !== "string" || !value.backendUrl)) ||
 		(value.storage === "remote" && (typeof value.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(value.accountScope))))
 		throw new Error("Invalid Codex context identity");
 	return { protocol: 1, sessionId: value.sessionId, agentName: value.agentName, storage: value.storage,
 		...(value.accountScope === undefined ? {} : { accountScope: value.accountScope }),
+		...(value.backendUrl === undefined ? {} : { backendUrl: value.backendUrl }),
 		...(value.routing === undefined ? {} : { routing: value.routing }) };
 }
 
@@ -39,6 +43,18 @@ export function contextAgentIdentity(ctx: Pick<ExtensionContext, "sessionManager
 		if (value?.threadId !== threadId) continue;
 		if (identity) throw new Error("Conflicting persisted Codex context identities");
 		identity = { ...parseContextAgentBinding(value), threadId };
+	}
+	if (identity?.storage === "remote") {
+		for (const entry of ctx.sessionManager.getEntries()) {
+			if (entry.type !== "custom" || entry.customType !== CONTEXT_BACKEND_ENTRY) continue;
+			const pin = entry.data as Partial<ContextAgentIdentity> | undefined;
+			if (pin?.threadId !== threadId) continue;
+			if (pin.sessionId !== identity.sessionId || pin.agentName !== identity.agentName ||
+				pin.accountScope !== identity.accountScope || typeof pin.backendUrl !== "string" || !pin.backendUrl ||
+				(identity.backendUrl && identity.backendUrl !== pin.backendUrl))
+				throw new Error("Conflicting persisted Remote context backend");
+			identity.backendUrl = pin.backendUrl;
+		}
 	}
 	return identity ?? { protocol: 1, sessionId: threadId, threadId, agentName: "/root" };
 }

@@ -1,7 +1,7 @@
 ---
 name: agent-tool-design
 description: "Read before creating, reviewing, or refining a tool exposed to an agent."
-last-changed: "2026-10-01"
+last-changed: "2026-10-04"
 ---
 
 For a Pi tool, also read `references/pi.md`.
@@ -25,7 +25,7 @@ For a Pi tool, also read `references/pi.md`.
 
 Prefer a stable help-backed or deferred contract for unfamiliar multi-action tools or tools whose accepted arguments vary with state. Keep capability discovery visible. Disclose current arguments and tool-specific guidance on demand. Where supported, use a string input with a help operation. Preserve familiar native contracts and simple self-explanatory schemas instead of wrapping them for uniformity. If harness or API constraints require an upfront schema, keep it minimal. For prompt or tool-vector changes, load an applicable prompt-caching skill.
 
-- Give one tool one coherent job.
+- Give one tool one coherent job. Extend an existing tool instead of making the agent choose between overlapping alternatives.
 - Expose only decisions the caller must make. Keep providers, models, prompts, commands, internal modes, formatting, and policy inside the implementation unless the agent genuinely chooses them.
 - Require only the minimum valid input. Add an optional field only when omission has a useful deterministic meaning.
 - Do not invent an argument whose only job is to splice ordinary intent into an existing prompt. Attach concise guidance to that prompt field instead.
@@ -53,8 +53,9 @@ Prefer a stable help-backed or deferred contract for unfamiliar multi-action too
 
 ## Return useful state
 
-- On success, return the identity, path, state, output, or continuation handle needed next.
-- On failure, identify the failed condition and a valid retry when one exists.
+- Treat every tool return, including errors, as a next-action contract. On success, return needed state and disclose a newly available action when it is useful, not generic workflow advice.
+- On failure, state the practical consequence, what remains available, and a valid next action. Distinguish no change from partial completion before suggesting a retry.
+- Keep implementation diagnostics out of model-facing text unless needed to act. Recovery must use the agent's available capabilities; leave account, authentication, and configuration decisions to the user instead of prescribing them as agent recovery.
 - Bound large output and make truncation visible. If omitted content may be needed, return a way to retrieve it.
 - Keep render-only detail out of the model-facing result.
 

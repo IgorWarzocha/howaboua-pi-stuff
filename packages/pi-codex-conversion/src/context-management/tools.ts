@@ -128,11 +128,12 @@ export function registerContextManagementTools(
 			return remoteBackendScope(details && typeof details === "object" && "codexHistoryNotes" in details
 				? details.codexHistoryNotes : undefined);
 		} };
-	const nestedTools = (remote: boolean) => [
-		toNestedTool(history, "await tools.history({ action, ...args })", {}, { ...contract, opaqueResult: remote }),
+	const nestedTools = (remote: boolean, protectedResults = remote) => [
+		toNestedTool(history, "await tools.history({ action, ...args })", {}, { ...contract, opaqueResult: protectedResults, allowPlainResult: true }),
 		toNestedTool(notes, "await tools.notes({ action, ...args })", {}, {
 			...contract,
-			opaqueResult: remote,
+			opaqueResult: protectedResults,
+			allowPlainResult: true,
 			propagateTermination: true,
 			isContextNoteWrite: (input) => Boolean(input && typeof input === "object" && "action" in input &&
 				(input.action === "write_file" || input.action === "append_to_file")),
@@ -140,22 +141,25 @@ export function registerContextManagementTools(
 	].map((tool) => ({
 		...tool,
 		discoveryUsage: tool.name === "history" ? HISTORY_NESTED_USAGE : NOTES_NESTED_USAGE,
-		...(remote ? {
-			output: "Receipts only; contents reach the model automatically, not JavaScript",
+		...(protectedResults ? {
+			output: "Remote receipts only; contents reach the model automatically, not JavaScript",
 		} : {}),
 		invoke: async (...[input, context, signal]: Parameters<typeof tool.invoke>) => {
 			if (!context.extensionContext || !plan(context.extensionContext).contextManagementNested)
 				throw new Error("Nested history and notes require active context in Code or Notebook");
 			if (plan(context.extensionContext).contextManagementRemote !== remote)
 				throw new Error("Context storage changed; start a new exec cell");
-			return tool.invoke(input, remote ? { ...context,
+			if (!protectedResults && route.requiresRemoteScope?.(context.extensionContext))
+				throw new Error("Shared context changed; start a new exec cell");
+			return tool.invoke(input, protectedResults ? { ...context,
 				extensionContext: withRemoteContextScope(context.extensionContext, context.opaqueScope) } : context, signal);
 		},
 	}));
 	const nested = nestedTools(false);
+	const mixedNested = nestedTools(false, true);
 	const remoteNested = nestedTools(true);
 	registerCodeModeExtensionTools(pi, (ctx) => ctx && plan(ctx).contextManagementNested
-		? plan(ctx).contextManagementRemote ? remoteNested : nested
+		? plan(ctx).contextManagementRemote ? remoteNested : route.requiresRemoteScope?.(ctx) ? mixedNested : nested
 		: []);
 }
 

@@ -51,7 +51,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			send: "Only for a needed answer or to change the recipient's current work. No courtesy updates, acknowledgements or completion echoes. Can wake idle agents; no wait/watch",
 			assign: "Delegate a task to an existing agent",
 			attach:
-				"Idle target; context/board booleans choose shared access and board membership independently. Local/Tree context only; no task/watch",
+				"Idle target; context/board booleans choose shared access and board membership independently; no task/watch",
 			detach:
 				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking:

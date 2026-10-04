@@ -10,7 +10,11 @@ import type {
 } from "@howaboua/pi-codex-conversion/context-sharing";
 import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
-import { Identity } from "./attachment-protocol.js";
+import {
+	attachmentOwner,
+	attachmentRoutes,
+	Identity,
+} from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { isBoardEnvelope } from "./board/protocol.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
@@ -82,7 +86,7 @@ export class SharedAgentContext {
 				value.operation === "attachment-export-notes" ||
 				value.operation === "detach-commit")
 		)
-			return this.attachment.target.handle(ctx, value);
+			return this.attachment.target.handle(ctx, value, signal);
 		const service = this.getService();
 		const identity = service?.describe(ctx);
 		if (
@@ -311,12 +315,46 @@ export async function registerSharedAgentContext(
 		close = undefined;
 		unregister?.();
 		unregister = connection?.service?.registerRouter(
-			async (context, request, signal) =>
-				shared.handle(
-					context,
-					{ operation: "context", request, visited: [] },
-					signal,
-				) as Promise<SharedContextResult>,
+			Object.assign(
+				async (
+					context: ExtensionContext,
+					request: SharedContextRequest,
+					signal?: AbortSignal,
+				) => {
+					const attached = await shared.attachment.routing.route(
+						context,
+						request,
+						[],
+						(route, next) =>
+							fleet
+								.connected(route.machine)
+								.client.requestContext(
+									sessionContextPath(route.sessionFile),
+									next,
+									signal,
+								),
+						signal,
+					);
+					if (attached) return attached;
+					if (connection?.service?.describe(context)?.storage === "remote")
+						return undefined;
+					return shared.handle(
+						context,
+						{ operation: "context", request, visited: [] },
+						signal,
+					) as Promise<SharedContextResult>;
+				},
+				{
+					requiresRemoteScope: (context: ExtensionContext) =>
+						attachmentOwner(context)?.context?.controller.storage ===
+							"remote" ||
+						attachmentRoutes(context).some(
+							(route) =>
+								route.phase === "ready" &&
+								route.plan.context?.target.storage === "remote",
+						),
+				},
+			),
 		);
 		const file = ctx.sessionManager.getSessionFile();
 		if (file)

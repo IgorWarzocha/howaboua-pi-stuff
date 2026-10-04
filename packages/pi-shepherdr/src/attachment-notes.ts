@@ -24,16 +24,65 @@ export class AttachmentNotes {
 			export: service.exportAttachmentNotes,
 			parse: service.parseAttachmentNotes,
 			read: service.readAttachmentNotes,
+			validate: service.validateAttachmentNotes,
+			verify: service.verifyAttachmentAccess,
+			remote: service.executeRemoteAttachment,
 		};
 	}
 	export(ctx: ExtensionContext) {
 		return this.service().export(ctx);
 	}
 	validate(snapshot: unknown, identity: ContextAgentIdentity) {
+		const service = this.service();
+		if (service.validate) return service.validate(snapshot, identity);
+		if (identity.storage === "remote")
+			throw new Error("Update Codex Conversion to retain Remote checkpoints");
 		this.service().read(snapshot, {
 			action: "list_files_by_prefix",
 			prefix: `${identity.agentName}/notes`,
 		});
+	}
+	async verify(
+		ctx: ExtensionContext,
+		snapshot: unknown,
+		identity: ContextAgentIdentity,
+		alreadyShared = false,
+	) {
+		this.validate(snapshot, identity);
+		if (identity.storage === "remote") {
+			const verify = this.service().verify;
+			if (!verify)
+				throw new Error(
+					"Update Codex Conversion to authenticate Remote attachments",
+				);
+			try {
+				await verify(ctx, snapshot);
+			} catch (error) {
+				if (
+					!alreadyShared &&
+					error instanceof Error &&
+					error.message.startsWith("Account mismatch.")
+				)
+					throw new Error(
+						"Account mismatch. Context was not shared. Each agent keeps its own notes and history. Use messages to exchange the context you need.",
+						{ cause: error },
+					);
+				throw error;
+			}
+		}
+	}
+	async remote(
+		ctx: ExtensionContext,
+		reference: unknown,
+		request: SharedContextRequest,
+		signal?: AbortSignal,
+	) {
+		const execute = this.service().remote;
+		if (!execute)
+			throw new Error(
+				"Update Codex Conversion to read attached Remote context",
+			);
+		return execute(ctx, reference, request, signal);
 	}
 	checkTransport(value: unknown) {
 		if (Buffer.byteLength(JSON.stringify(value), "utf8") > 7 * 1024 * 1024)

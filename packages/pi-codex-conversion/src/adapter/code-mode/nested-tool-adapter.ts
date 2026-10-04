@@ -27,6 +27,7 @@ interface NestedToolContract {
 	modelVisibleResult?: boolean;
 	propagateTermination?: boolean;
 	opaqueResult?: boolean;
+	allowPlainResult?: boolean;
 	opaqueResultScope?(result: AgentToolResult<unknown>): string | undefined;
 	isContextNoteWrite?(input: unknown): boolean;
 	translatePromptMetadata?: boolean;
@@ -80,17 +81,21 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				extensionContext,
 			);
 			acceptingUpdates = false;
-			if (contract.opaqueResult) {
+			const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown; attachment_hint?: unknown } } | undefined;
+			const encrypted = details?.codexHistoryNotes?.encrypted_output;
+			const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || encrypted !== undefined || contract.opaqueResultScope?.(result) !== undefined);
+			if (encrypted !== undefined && !contract.opaqueResult)
+				throw new Error("Protected result delivery is unavailable; start a new exec cell");
+			if (protectedResult) {
 				if (!context.opaqueScope || contract.opaqueResultScope?.(result) !== context.opaqueScope ||
 					!context.opaqueContextValid || !await context.opaqueContextValid())
 					throw new Error("Remote operation executed in a different context; verify note state before repeating a write");
-				const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown } } | undefined;
-				const encrypted = details?.codexHistoryNotes?.encrypted_output;
 				if (typeof encrypted !== "string" || !encrypted.trim())
 					throw new Error("Remote operation executed but returned no protected output; verify its state before repeating a write");
 				const action = prepared && typeof prepared === "object" && "action" in prepared && typeof prepared.action === "string"
 					? `.${prepared.action}` : "";
-				context.captureOpaqueResult!({ resultId: toolCallId, name: tool.name + action, encryptedOutput: encrypted },
+				const hint = details?.codexHistoryNotes?.attachment_hint;
+				context.captureOpaqueResult!({ resultId: toolCallId, name: tool.name + action + (typeof hint === "string" ? `; ${hint}` : ""), encryptedOutput: encrypted },
 					result.content.filter(item => item.type === "image").map(item => ({
 						type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
 						detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
@@ -100,7 +105,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 			} else context.captureResult?.(result);
 			const resultError = contract.resultError?.(result);
 			if (resultError) throw new Error(resultError);
-			if (contract.opaqueResult)
+			if (protectedResult)
 				return { result_id: toolCallId };
 			return contract.resultValue?.(result) ??
 				(contract.modelVisibleResult

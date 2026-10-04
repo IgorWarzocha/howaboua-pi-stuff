@@ -8,14 +8,11 @@ import type {
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type, type Static, type TSchema } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
-import type { ContextRouter } from "../context-sharing.ts";
+import type { ContextRouter, SharedContextRequest, RemoteNoteReference } from "../context-sharing.ts";
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
-import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope } from "./remote-scope.ts";
+import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 import { historyNotesRenderers } from "./rendering.ts";
-import {
-	codexToolProviderHeaders,
-	resolveCodexToolProvider,
-} from "../adapter/codex-tool-provider.ts";
+import { codexToolProviderHeaders } from "../adapter/codex-tool-provider.ts";
 import {
 	getPiSessionHistoryRecoveryHint,
 	readPiSessionHistory,
@@ -312,11 +309,19 @@ async function callHistoryNotesTool(
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
 	const identity = contextAgentIdentity(ctx);
 	if (identity.storage && identity.storage !== (mode === "remote" ? "remote" : "session"))
-		throw new Error("Shared context storage changed; restore the family's Remote or Local/Tree storage setting");
+		throw new Error("Shared notes are unavailable with this storage. Use messages to exchange the context you need.");
+	const target = contextTargetAgent(namespace, params, identity.agentName);
+	if (target !== identity.agentName && route) {
+		const routed = await route(ctx, { sessionId: identity.sessionId, agentName: target, namespace,
+			params: namespace === "history" ? { ...params, agent_name: target } : params,
+			encryptedArguments: mode === "remote" && ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx),
+		}, signal);
+		if (routed) return routed;
+	}
 	let result: Record<string, unknown>;
 	if (mode === "remote") {
 		if (!usesRemoteHistoryNotes(ctx, mode))
-			throw new Error("Remote history and notes require Codex transport");
+			throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 		result = await callHistoryNotesBackend(
 			endpoint,
 			stripAction(params),
@@ -325,14 +330,15 @@ async function callHistoryNotesTool(
 			{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT },
 		);
 	} else {
-		const target = contextTargetAgent(namespace, params, identity.agentName);
 		if (target !== identity.agentName) {
-			if (!route) throw new Error("Cross-agent context router is unavailable");
-			return route(ctx, { sessionId: identity.sessionId, agentName: target, namespace,
-				params: namespace === "history" ? { ...params, agent_name: target } : params }, signal);
+			throw new Error("Cross-agent context router is unavailable");
 		}
 		result = callLocalHistoryNotes(namespace, action, params, ctx, pi, mode);
 	}
+	return historyNotesResult(namespace, result);
+}
+
+function historyNotesResult(namespace: "history" | "notes", result: Record<string, unknown>): AgentToolResult<CodexHistoryNotesDetails> {
 	const modelResult = { ...result };
 	const backendScope = remoteBackendScope(result);
 	if (backendScope) bindRemoteBackendScope(modelResult, backendScope);
@@ -359,13 +365,21 @@ async function callHistoryNotesBackend(
 	ctx: ExtensionContext,
 	signal: AbortSignal | undefined,
 	truncationPolicy: { mode: "bytes" | "tokens"; limit: number },
+	target?: RemoteNoteReference,
 ): Promise<Record<string, unknown>> {
-	const provider = await resolveCodexToolProvider(ctx);
+	const before = JSON.stringify(contextAgentIdentity(ctx));
+	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
+	const provider = await resolveRemoteContextProvider(ctx);
 	const identity = contextAgentIdentity(ctx);
-	if (provider.route !== "openai-codex")
-		throw new Error("History and notes require the OpenAI Codex backend");
+	if (before !== JSON.stringify(identity) || model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
+		throw new Error("Context changed during authentication; retry in the original session");
 	if (identity.accountScope && contextAccountScope(provider.accountId) !== identity.accountScope)
-		throw new Error("Shared Remote context requires the parent's Codex account");
+		throw new Error(REMOTE_ACCOUNT_MISMATCH);
+	if (identity.backendUrl && identity.backendUrl !== provider.baseUrl)
+		throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
+	if (target && target.identity.accountScope !== contextAccountScope(provider.accountId))
+		throw new Error(REMOTE_ACCOUNT_MISMATCH);
+	if (target && target.baseUrl !== provider.baseUrl) throw new Error(REMOTE_CONTEXT_UNAVAILABLE);
 	const scope = remoteContextScope(identity, provider.accountId, provider.baseUrl);
 	assertRemoteBackendScope(ctx, scope);
 	const headers = codexToolProviderHeaders(provider);
@@ -387,8 +401,8 @@ async function callHistoryNotesBackend(
 			body: JSON.stringify({
 				...arguments_,
 				context: {
-					session_id: identity.sessionId,
-					current_agent_name: identity.agentName,
+					session_id: target?.identity.sessionId ?? identity.sessionId,
+					current_agent_name: target?.identity.agentName ?? identity.agentName,
 				},
 			}),
 		},
@@ -398,8 +412,31 @@ async function callHistoryNotesBackend(
 	const result: unknown = JSON.parse(await response.text());
 	if (!result || typeof result !== "object" || Array.isArray(result))
 		throw new Error("History and notes backend returned invalid data");
+	if (before !== JSON.stringify(contextAgentIdentity(ctx)) || model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
+		throw new Error("Context changed after Remote execution; verify note state before repeating a write");
 	bindRemoteBackendScope(result, scope);
 	return result as Record<string, unknown>;
+}
+
+/** The caller authenticates and owns protected delivery; the reference owns backend addressing. */
+export async function executeRemoteAttachment(
+	ctx: ExtensionContext, reference: RemoteNoteReference, request: SharedContextRequest, signal?: AbortSignal,
+): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
+	signal?.throwIfAborted();
+	if ((request.namespace !== "history" && request.namespace !== "notes") || !request.params || typeof request.params !== "object" || Array.isArray(request.params))
+		throw new Error("Invalid Remote attachment request");
+	const action = request.namespace === "history" ? historyAction(request.params["action"]) : notesAction(request.params["action"]);
+	if (request.sessionId !== reference.identity.sessionId ||
+		(request.agentName !== reference.identity.agentName && !request.agentName.startsWith(`${reference.identity.agentName}/`)) ||
+		contextTargetAgent(request.namespace, request.params, reference.identity.agentName) !== request.agentName)
+		throw new Error("Remote attachment request does not belong to its checkpoint owner");
+	if (request.namespace === "history") validateHistoryArguments(action as HistoryAction, request.params);
+	else validateNotesArguments(action as NotesAction, request.params);
+	const endpoint = request.namespace === "history" ? HISTORY_ENDPOINTS[action as HistoryAction] : NOTES_ENDPOINTS[action as NotesAction];
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx) && !request.encryptedArguments)
+		throw new Error("Use Code or Notebook history/notes with ordinary query/text for this attached context");
+	return historyNotesResult(request.namespace, await callHistoryNotesBackend(endpoint, stripAction(request.params), ctx, signal,
+		{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT }, reference));
 }
 
 export function usesRemoteHistoryNotes(

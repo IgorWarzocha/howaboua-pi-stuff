@@ -1,10 +1,12 @@
 ---
 name: prompt-caching
 description: "Read before designing, measuring, or debugging prompt-cache behaviour in an agent harness or extension."
-last-changed: "2026-09-24"
+last-changed: "2026-10-04"
 ---
 
 Use provider-reported cache reads and writes as evidence. Continuation IDs, prewarm readiness, predictions, keys, and latency do not prove a hit. Verify the active endpoint and usage mapping rather than assuming public-API parity.
+
+Design for a small, stable static prefix before adding capabilities. Prefer code-mode or deferred tool discovery over loading every schema upfront. Keep available capabilities discoverable while revealing their current arguments on demand. Supply tool-specific instructions through supported mid-session system or developer messages, help, or tool results instead of rewriting the prefix. Do not preload instructions merely because a tool may become relevant later.
 
 ## Locate the first unexplained miss
 

@@ -40,12 +40,7 @@ export class AttachmentRouting {
 		signal?: AbortSignal,
 	): Promise<SharedContextResult | undefined> {
 		const native = this.getService()?.describe(ctx);
-		if (
-			!native ||
-			native.storage !== "session" ||
-			request.sessionId !== native.sessionId
-		)
-			return undefined;
+		if (!native || request.sessionId !== native.sessionId) return undefined;
 		const child = attachmentRoutes(ctx).find(
 			(route) =>
 				route.phase === "ready" &&
@@ -56,7 +51,7 @@ export class AttachmentRouting {
 			const link = child.plan.context;
 			if (!isDeepStrictEqual(native, link.controller))
 				throw new Error(
-					"Attached controller context changed; restore its original storage",
+					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			const next = {
 				...request,
@@ -65,7 +60,18 @@ export class AttachmentRouting {
 				params: remapParams(request.params, link.alias, link.target.agentName),
 			};
 			let result: SharedContextResult;
-			if (!child.detached?.context) {
+			if (link.target.storage === "remote") {
+				if (child.detached?.context && !this.notes.canRead(next))
+					throw new Error(
+						"Detached counterpart checkpoints are read-only; native history is unchanged",
+					);
+				result = await this.notes.remote(
+					ctx,
+					child.detached?.context ?? link.targetNotes,
+					next,
+					signal,
+				);
+			} else if (!child.detached?.context) {
 				try {
 					result = (await send(child, {
 						operation: "context",
@@ -104,7 +110,7 @@ export class AttachmentRouting {
 		if (owner && link && inside(request.agentName, link.controllerAlias)) {
 			if (!isDeepStrictEqual(native, link.target))
 				throw new Error(
-					"Attached target context changed; restore its original storage",
+					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			const next = {
 				...request,
@@ -122,7 +128,18 @@ export class AttachmentRouting {
 			};
 			const detached = detachment(ctx, owner)?.context;
 			let result: SharedContextResult;
-			if (!detached) {
+			if (link.controller.storage === "remote") {
+				if (detached && !this.notes.canRead(next))
+					throw new Error(
+						"Detached counterpart checkpoints are read-only; native history is unchanged",
+					);
+				result = await this.notes.remote(
+					ctx,
+					detached ?? link.controllerNotes,
+					next,
+					signal,
+				);
+			} else if (!detached) {
 				try {
 					result = (await requestContext(
 						owner.upstream,
