@@ -1,5 +1,12 @@
 # @howaboua/pi-stuff
 
+## 0.0.95
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
+
 ## 0.0.94
 
 - Include bundled package updates:

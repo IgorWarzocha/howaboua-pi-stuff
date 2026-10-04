@@ -64,14 +64,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.44
+### @howaboua/pi-codex-conversion — 3.0.45
 
-- Code and Notebook modes now import Pi-callable extension tools automatically, preferring explicit integrations through the Pi Codex Conversion API.
-
-  - Pi automatic compaction and `/compact` now stay in the current window with Notes + history + compaction. Explicit `new_context` still compacts before rollover.
-  - Added **Use notes for tree summaries**, on by default. Turning it off uses Pi's ordinary branch summary without a note-writing run.
-  - Added Local and Tree notes/history access for existing agents attached through Shepherdr, preserving their original identity and read-only checkpoint access after detachment or owner exit.
-  - Removed static environment, history availability and summary claims from context rollover messages.
+- Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -103,11 +98,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.86
+### @howaboua/pi-extensions — 0.0.87
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Manage orchestration, board defaults and SSH connections in `/herdr`, and attach existing agents without replacing their context. Control panel - `/herdr` opens Settings, Status and Connections instead of toggling orchestration. Panel controls replace `/herdr board` and `/herdr connect`; outside the TUI, `/herdr` reports status without changes. - Add SSH machines through Herdr's interactive setup, preserving its installation approvals and machine catalog. Inspect connection errors and reconnect from Status. - Fixed board startup when the global agent directory overlaps the launch folder's `.pi` directory. The global config is no longer mistaken for folder config. Agent attachment - `agents` gains `attach` and `detach` with independent context and board choices that persist across resume. Agent management stays in the tool, not the human panel. - Local and Tree notes/history retain their original identities and use aliases for shared access. Board attachment preserves previous archives. - Detachment retains read-only counterpart checkpoints. After an owner exits, reads use its reachable saved session or a timestamped retained snapshot with an explicit staleness warning. Counterpart history still needs its live owner. - Remote notes/history attachment is unsupported; board-only attachment remains available.
+  - @howaboua/pi-shepherdr: Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -149,20 +144,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.12
+### @howaboua/pi-shepherdr — 0.2.13
 
-- Manage orchestration, board defaults and SSH connections in `/herdr`, and attach existing agents without replacing their context.
-
-  ### Control panel
-  - `/herdr` opens Settings, Status and Connections instead of toggling orchestration. Panel controls replace `/herdr board` and `/herdr connect`; outside the TUI, `/herdr` reports status without changes.
-  - Add SSH machines through Herdr's interactive setup, preserving its installation approvals and machine catalog. Inspect connection errors and reconnect from Status.
-  - Fixed board startup when the global agent directory overlaps the launch folder's `.pi` directory. The global config is no longer mistaken for folder config.
-
-  ### Agent attachment
-  - `agents` gains `attach` and `detach` with independent context and board choices that persist across resume. Agent management stays in the tool, not the human panel.
-  - Local and Tree notes/history retain their original identities and use aliases for shared access. Board attachment preserves previous archives.
-  - Detachment retains read-only counterpart checkpoints. After an owner exits, reads use its reachable saved session or a timestamped retained snapshot with an explicit staleness warning. Counterpart history still needs its live owner.
-  - Remote notes/history attachment is unsupported; board-only attachment remains available.
+- Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -186,11 +170,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
-### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.5
+### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.6
 
-- Harness audits now stay within the requested workflow, reuse supplied context and measure startup overhead only when in scope.
-
-  Tool-design guidance now prefers on-demand help for unfamiliar multi-action or state-dependent tools, while preserving familiar native contracts and simple schemas.
+- Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
 
 [Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
@@ -200,11 +182,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.23
+### @howaboua/pi-skills — 0.0.24
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-harness-and-agent-engineering: Harness audits now stay within the requested workflow, reuse supplied context and measure startup overhead only when in scope. Tool-design guidance now prefers on-demand help for unfamiliar multi-action or state-dependent tools, while preserving familiar native contracts and simple schemas.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -220,11 +202,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.94
+### @howaboua/pi-stuff — 0.0.95
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Manage orchestration, board defaults and SSH connections in `/herdr`, and attach existing agents without replacing their context. Control panel - `/herdr` opens Settings, Status and Connections instead of toggling orchestration. Panel controls replace `/herdr board` and `/herdr connect`; outside the TUI, `/herdr` reports status without changes. - Add SSH machines through Herdr's interactive setup, preserving its installation approvals and machine catalog. Inspect connection errors and reconnect from Status. - Fixed board startup when the global agent directory overlaps the launch folder's `.pi` directory. The global config is no longer mistaken for folder config. Agent attachment - `agents` gains `attach` and `detach` with independent context and board choices that persist across resume. Agent management stays in the tool, not the human panel. - Local and Tree notes/history retain their original identities and use aliases for shared access. Board attachment preserves previous archives. - Detachment retains read-only counterpart checkpoints. After an owner exits, reads use its reachable saved session or a timestamped retained snapshot with an explicit staleness warning. Counterpart history still needs its live owner. - Remote notes/history attachment is unsupported; board-only attachment remains available.
+  - @howaboua/pi-shepherdr: Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

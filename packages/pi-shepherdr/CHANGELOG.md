@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.13
+
+- Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+
 ## 0.2.12
 
 - Manage orchestration, board defaults and SSH connections in `/herdr`, and attach existing agents without replacing their context.

@@ -1,5 +1,11 @@
 # @howaboua/pi-extensions
 
+## 0.0.87
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+
 ## 0.0.86
 
 - Include bundled package updates:
