@@ -59,7 +59,8 @@ export function buildPanelItems(
 	];
 	try {
 		const settings = options.board.settings(ctx);
-		for (const scope of ["session", "folder", "global"] as const)
+		for (const scope of ["session", "folder", "global"] as const) {
+			if (scope === "folder" && !settings.paths.folder) continue;
 			rows.push({
 				id: `board:${scope}`,
 				label: `Board ${scope}`,
@@ -77,6 +78,7 @@ export function buildPanelItems(
 							? "Default for this exact launch folder, unless overridden by the session."
 							: "Default for sessions without a session or folder override.",
 			});
+		}
 	} catch (error) {
 		rows.push({
 			id: "board-owner",

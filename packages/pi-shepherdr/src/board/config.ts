@@ -3,6 +3,7 @@ import {
 	existsSync,
 	mkdirSync,
 	readFileSync,
+	realpathSync,
 	renameSync,
 	rmSync,
 	writeFileSync,
@@ -46,9 +47,17 @@ function readEnabled(path: string, scope: "folder" | "global") {
 }
 
 function boardConfigPaths(folder: string) {
+	// Keep aliases on one write target so atomic saves do not replace symlinks.
+	function configPath(directory: string) {
+		const path = resolve(directory, CONFIG_FILE);
+		return existsSync(path) ? realpathSync(path) : path;
+	}
+	const global = configPath(getAgentDir());
+	const local = configPath(resolve(folder, ".pi"));
 	return {
-		global: resolve(getAgentDir(), CONFIG_FILE),
-		folder: resolve(folder, ".pi", CONFIG_FILE),
+		global,
+		// The global config is never also a folder config.
+		folder: local === global ? undefined : local,
 	};
 }
 
@@ -74,7 +83,7 @@ export function readBoardConfig(folder: string) {
 	const paths = boardConfigPaths(folder);
 	return {
 		paths,
-		folder: readEnabled(paths.folder, "folder"),
+		folder: paths.folder ? readEnabled(paths.folder, "folder") : undefined,
 		global: readEnabled(paths.global, "global") ?? false,
 	};
 }
@@ -87,6 +96,10 @@ export function writeBoardConfig(
 	if (scope === "global" && enabled === undefined)
 		throw new Error("Global enablement must be on or off");
 	const path = boardConfigPaths(folder)[scope];
+	if (!path)
+		throw new Error(
+			"This folder's config is the global config; use a session override instead",
+		);
 	readEnabled(path, scope);
 	const document = readDocument(path);
 	const board = object(document["board"]) ? { ...document["board"] } : {};

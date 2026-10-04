@@ -8,6 +8,7 @@ Manage orchestration, board defaults and SSH connections in `/herdr`, and attach
 
 - `/herdr` opens Settings, Status and Connections instead of toggling orchestration. Panel controls replace `/herdr board` and `/herdr connect`; outside the TUI, `/herdr` reports status without changes.
 - Add SSH machines through Herdr's interactive setup, preserving its installation approvals and machine catalog. Inspect connection errors and reconnect from Status.
+- Fixed board startup when the global agent directory overlaps the launch folder's `.pi` directory. The global config is no longer mistaken for folder config.
 
 ### Agent attachment
 
