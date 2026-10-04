@@ -95,10 +95,9 @@ export class CodexContextWindowManager {
 		return this.identity ? { ...this.identity } : undefined;
 	}
 
-	recordSettledCheckpoint(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode, now = Date.now()): void {
+	recordSettlement(pi: ExtensionAPI, ctx: ExtensionContext, now = Date.now()): void {
 		if (!ctx.isIdle() || !this.identity) return;
 		const branch = ctx.sessionManager.getBranch();
-		if (!hasFreshContextNotes(branch, this.identity.currentWindowId, mode, true)) return;
 		const completed = branch.findLast((entry) => entry.type === "message" && entry.message.role !== "system");
 		if (!completed) return;
 		pi.appendEntry(IDLE_CHECKPOINT_ENTRY_TYPE, {
@@ -106,14 +105,13 @@ export class CodexContextWindowManager {
 		});
 	}
 
-	hasIdleNotesCheckpoint(ctx: ExtensionContext, mode: ContextManagementMode, now = Date.now()): boolean {
+	isIdleRolloverDue(ctx: ExtensionContext, now = Date.now()): boolean {
 		if (!ctx.isIdle() || !this.identity || this.rolloverPending || this.rolloverCompaction) return false;
 		const branch = ctx.sessionManager.getBranch();
-		if (!hasFreshContextNotes(branch, this.identity.currentWindowId, mode, true)) return false;
 		// The final reply can precede retries and settled hooks. Only a persisted
 		// settlement on this selected run establishes idle age across resume.
 		const completed = branch.findLast((entry) => entry.type === "message" && entry.message.role !== "system");
-		if (completed?.type !== "message" || completed.message.role !== "assistant" || completed.message.stopReason !== "stop") return false;
+		if (!completed) return false;
 		// A tree return may select the final reply before its metadata child. The
 		// settlement still proves this exact selected run, never a sibling's run.
 		const checkpoint = ctx.sessionManager.getEntries().findLast((entry) => entry.type === "custom" && entry.customType === IDLE_CHECKPOINT_ENTRY_TYPE &&
@@ -364,24 +362,36 @@ export class CodexContextWindowManager {
 		if (idle && !pending.customInstructions?.trim() && hasFreshContextNotes(
 			ctx.sessionManager.getBranch(), pending.identity.currentWindowId, pending.mode, true,
 		)) return true;
-		const reminder = createContextWindowMessage(renderManualContextCheckpoint(pending.customInstructions),
-			"reminder", pending.identity);
+		this.promptNotesCheckpoint(pi, ctx, pending.mode, pending.customInstructions);
+		return false;
+	}
+
+	promptNotesCheckpoint(
+		pi: ExtensionAPI,
+		ctx: Pick<ExtensionContext, "isIdle" | "ui" | "sessionManager">,
+		mode: ContextManagementMode,
+		customInstructions?: string,
+		prompt?: string,
+	): void {
+		if (!this.identity || this.promptedManualCheckpoint) throw new Error("A context checkpoint cannot start yet");
+		const idle = ctx.isIdle();
+		const reminder = createContextWindowMessage(renderManualContextCheckpoint(customInstructions),
+			"reminder", this.identity);
 		const checkpoint = this.promptedManualCheckpoint = {
 			sessionId: ctx.sessionManager.getSessionId(),
-			windowId: pending.identity.currentWindowId,
+			windowId: this.identity.currentWindowId,
 			reminderId: reminder.details.id,
-			mode: pending.mode,
+			mode,
 			phase: idle ? "awaiting" : "running",
 		};
 		try {
 			pi.sendMessage(reminder, idle ? { triggerTurn: false } : { deliverAs: "steer", triggerTurn: true });
-			if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
-				pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+			if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx, prompt))
+				pi.sendUserMessage(prompt ?? "Continue.", { deliverAs: "steer" });
 		} catch (error) {
 			if (this.promptedManualCheckpoint === checkpoint) this.promptedManualCheckpoint = undefined;
 			throw error;
 		}
-		return false;
 	}
 
 	beginPromptedManualCheckpointRun(): void {
