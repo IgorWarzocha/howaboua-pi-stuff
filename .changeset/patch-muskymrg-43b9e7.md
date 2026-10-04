@@ -2,7 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Code and Notebook modes now import Pi-callable extension tools automatically, preferring explicit Code Mode integrations.
+Code and Notebook modes now import Pi-callable extension tools automatically, preferring explicit integrations through the Pi Codex Conversion API.
 
 - Pi automatic compaction and `/compact` now stay in the current window with Notes + history + compaction. Explicit `new_context` still compacts before rollover.
 - Added **Use notes for tree summaries**, on by default. Turning it off uses Pi's ordinary branch summary without a note-writing run.
