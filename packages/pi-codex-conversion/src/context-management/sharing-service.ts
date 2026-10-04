@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { CodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import {
@@ -8,6 +8,7 @@ import {
 	type ContextSharingService, type ContextRouter, type SharedContextRequest, type SharedContextResult,
 } from "../context-sharing.ts";
 import { CONTEXT_AGENT_ENTRY, contextAccountScope, contextAgentIdentity, contextTargetAgent, parseContextAgentBinding } from "./agent-identity.ts";
+import { createPiSessionNotesSnapshot, readPiSessionNotesSnapshot } from "./local-notes.ts";
 
 async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string): Promise<string> {
 	const provider = await resolveCodexToolProvider(ctx);
@@ -90,6 +91,23 @@ export function registerContextSharingService(
 			if (!check()) pi.appendEntry(CONTEXT_AGENT_ENTRY, identity);
 			return identity;
 		},
+		inspectAttachment(ctx) {
+			const identity = describe(ctx);
+			if (!identity) throw new Error("Context attachment requires notes-based continuity");
+			if (identity.storage !== "session") throw new Error("Existing Remote context cannot be attached; use Local or Tree on both agents");
+			if (!ctx.isIdle()) throw new Error("Attach context only after the target settles");
+			if (!ctx.sessionManager.getSessionFile()) throw new Error("Context attachment requires a saved Pi session");
+			if (contextAgentIdentity(ctx).storage) throw new Error("Target already belongs to a shared context family");
+			if (!router) throw new Error("Context attachment requires an available context router");
+			return identity;
+		},
+		retainAttachmentIdentity(ctx) {
+			const identity = describe(ctx);
+			if (!identity || identity.storage !== "session") throw new Error("Attached context requires Local or Tree storage");
+			if (!ctx.sessionManager.getSessionFile() || !router) throw new Error("Context attachment requires a saved owner and live router");
+			if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, identity);
+			return identity;
+		},
 		async execute(ctx, request, signal) {
 			signal?.throwIfAborted();
 			const identity = describe(ctx);
@@ -100,6 +118,27 @@ export function registerContextSharingService(
 				throw new Error("Shared context request does not belong to this agent");
 			if (identity.storage !== "session") throw new Error("Remote context uses the Codex backend, not peer routing");
 			return execute(ctx, request, signal);
+		},
+		exportAttachmentNotes(ctx) {
+			const identity = describe(ctx);
+			if (!identity || identity.storage !== "session") throw new Error("Checkpoint export requires Local or Tree");
+			const snapshot = createPiSessionNotesSnapshot(ctx.sessionManager.getBranch());
+			return { ...snapshot, files: snapshot.files.filter((file) => contextTargetAgent("notes", { path: file.path }, identity.agentName) === identity.agentName) };
+		},
+		parseAttachmentNotes(input, identity) {
+			if (!Array.isArray(input)) throw new Error("Invalid persisted checkpoint entries");
+			const entries: SessionEntry[] = input.map((entry: unknown) => {
+				if (!entry || typeof entry !== "object" || !("type" in entry) ||
+					!((entry.type === "custom" && "customType" in entry && typeof entry.customType === "string" && "data" in entry) ||
+					(entry.type === "branch_summary" && "details" in entry))) throw new Error("Invalid persisted checkpoint entry");
+				return entry as SessionEntry;
+			});
+			const snapshot = createPiSessionNotesSnapshot(entries, undefined, true);
+			return { ...snapshot, files: snapshot.files.filter((file) => contextTargetAgent("notes", { path: file.path }, identity.agentName) === identity.agentName) };
+		},
+		readAttachmentNotes(snapshot, params) {
+			const details = readPiSessionNotesSnapshot(snapshot, params);
+			return { content: [{ type: "text", text: JSON.stringify(details) }], details: { codexHistoryNotes: details } };
 		},
 		registerRouter(next) {
 			if (router && router !== next) throw new Error("A context router is already registered");

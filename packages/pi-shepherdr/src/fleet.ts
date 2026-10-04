@@ -107,6 +107,13 @@ function groupSaved(values: unknown[]): Map<string, unknown[]> {
 }
 
 export class AgentFleet {
+	private readonly listeners = new Set<() => void>();
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
 	private contextRelay:
 		| ((
 				ctx: ExtensionContext,
@@ -206,6 +213,7 @@ export class AgentFleet {
 		this.runtimes.clear();
 		renderAgentWidget(this.context, [], []);
 		this.context = undefined;
+		for (const listener of this.listeners) listener();
 	}
 
 	isActive(): boolean {
@@ -278,7 +286,7 @@ export class AgentFleet {
 		}
 		if (runtime.status !== "connected" || !runtime.client || !runtime.monitor) {
 			throw new Error(
-				`Herdr machine ${JSON.stringify(name)} is ${runtime.status}${runtime.reason ? `: ${runtime.reason}` : ""}; run /herdr connect ${name} to retry`,
+				`Herdr machine ${JSON.stringify(name)} is ${runtime.status}${runtime.reason ? `: ${runtime.reason}` : ""}; open /herdr → Status to reconnect`,
 			);
 		}
 		const remote =
@@ -442,6 +450,10 @@ export class AgentFleet {
 				? { monitoringIssue: runtime.monitoringIssue }
 				: {}),
 			...(runtime.reason ? { reason: runtime.reason } : {}),
+			...(runtime.contextRelayError
+				? { contextRelayError: runtime.contextRelayError }
+				: {}),
+			...(runtime.attempting ? { attempting: true } : {}),
 		};
 	}
 
@@ -469,7 +481,7 @@ export class AgentFleet {
 				};
 				this.refresh();
 				this.context?.ui.notify(
-					`${machine}: ${issue.message}${runtime.local ? "" : `\nRun /herdr connect ${machine} to retry`}`,
+					`${machine}: ${issue.message}${runtime.local ? "" : "\nOpen /herdr → Status to reconnect"}`,
 					"warning",
 				);
 			},
@@ -511,7 +523,7 @@ export class AgentFleet {
 			if (this.context !== ctx || this.runtimes.get(name) !== runtime) return;
 			runtime.contextRelayError = errorMessage(error);
 			ctx.ui.notify(
-				`Context sharing unavailable on ${name}: ${runtime.contextRelayError}\nRun /herdr connect ${name} to retry sharing.`,
+				`Context sharing unavailable on ${name}: ${runtime.contextRelayError}\nOpen /herdr → Status to retry sharing.`,
 				"warning",
 			);
 		}
@@ -523,6 +535,7 @@ export class AgentFleet {
 		const generation = this.generation;
 		if (!monitor || !ctx || runtime.attempting) return;
 		runtime.attempting = true;
+		this.refresh();
 		try {
 			if (
 				runtime.contextRelayError &&
@@ -549,6 +562,7 @@ export class AgentFleet {
 		} finally {
 			if (this.runtimes.get(name) === runtime && runtime.monitor === monitor)
 				delete runtime.attempting;
+			this.refresh();
 		}
 	}
 
@@ -658,7 +672,7 @@ export class AgentFleet {
 		runtime.reason = reason;
 		this.changed();
 		this.context?.ui.notify(
-			`Shepherdr unavailable on ${name}: ${reason}\nRun /herdr connect ${name} to retry`,
+			`Shepherdr unavailable on ${name}: ${reason}\nOpen /herdr → Status to reconnect`,
 			"warning",
 		);
 	}
@@ -673,6 +687,7 @@ export class AgentFleet {
 	private refresh(): void {
 		if (!this.context) return;
 		renderAgentWidget(this.context, this.list(), this.statuses());
+		for (const listener of this.listeners) listener();
 	}
 
 	private persistedAgents(): Array<MonitoredAgent & { machine: string }> {

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -7,6 +8,9 @@ import type {
 	SharedContextRequest,
 	SharedContextResult,
 } from "@howaboua/pi-codex-conversion/context-sharing";
+import { Check } from "typebox/value";
+import { AgentAttachment } from "./attachment.js";
+import { Identity } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { isBoardEnvelope } from "./board/protocol.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
@@ -42,6 +46,7 @@ export class SharedAgentContext {
 	private readonly getService: () => ContextSharingService | undefined;
 	private readonly board: AgentBoard;
 	private running = false;
+	readonly attachment: AgentAttachment;
 
 	constructor(
 		pi: ExtensionAPI,
@@ -53,6 +58,7 @@ export class SharedAgentContext {
 		this.fleet = fleet;
 		this.getService = getService;
 		this.board = board;
+		this.attachment = new AgentAttachment(pi, board, getService);
 		pi.on("agent_start", () => {
 			this.running = true;
 		});
@@ -69,8 +75,31 @@ export class SharedAgentContext {
 		if (isBoardEnvelope(value)) return this.board.handle(ctx, value, signal);
 		if (!value || typeof value !== "object")
 			throw new Error("Invalid shared context request");
+		if (
+			"operation" in value &&
+			(value.operation === "attach-inspect" ||
+				value.operation === "attach-commit" ||
+				value.operation === "attachment-export-notes" ||
+				value.operation === "detach-commit")
+		)
+			return this.attachment.target.handle(ctx, value);
 		const service = this.getService();
 		const identity = service?.describe(ctx);
+		if (
+			"operation" in value &&
+			value.operation === "attachment-persisted-notes"
+		) {
+			const file = ctx.sessionManager.getSessionFile();
+			if (
+				!file ||
+				!("identity" in value) ||
+				!Check(Identity, value.identity) ||
+				!isDeepStrictEqual(identity, value.identity) ||
+				identity?.threadId !== ctx.sessionManager.getSessionId()
+			)
+				throw new Error("Invalid saved checkpoint owner");
+			return requestContext(sessionContextPath(file), value, signal);
+		}
 		if ("operation" in value && value.operation === "bind") {
 			if (!service || !identity) return null;
 			return service.bind(ctx, "binding" in value ? value.binding : undefined);
@@ -101,6 +130,21 @@ export class SharedAgentContext {
 			...envelope,
 			visited: [...envelope.visited, identity.threadId],
 		};
+		const attached = await this.attachment.routing.route(
+			ctx,
+			request,
+			forwarded.visited,
+			async (route, next) =>
+				this.fleet
+					.connected(route.machine)
+					.client.requestContext(
+						sessionContextPath(route.sessionFile),
+						next,
+						signal,
+					) as Promise<SharedContextResult>,
+			signal,
+		);
+		if (attached) return attached;
 		const member = ctx.sessionManager.getEntries().findLast((entry) => {
 			if (entry.type !== "custom" || entry.customType !== MEMBER_ENTRY)
 				return false;

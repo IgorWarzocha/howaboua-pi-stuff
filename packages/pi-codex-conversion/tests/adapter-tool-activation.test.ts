@@ -4,9 +4,10 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../src/adapter/activation/runtime-plan.ts";
 import {
-	getCodeModeExtensionTools,
+	getCodeModeExtensionToolSnapshot,
 	registerCodeModeExtensionTools,
 } from "../src/code-mode-extension-tools.ts";
+import { createPiCodeModeBridge } from "../src/adapter/code-mode/pi-tools.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
@@ -144,16 +145,22 @@ test("adapter activation requires registered tools and follows scope independent
 	const dynamicModel = { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL };
 	const dynamicContext = createContext(dynamicModel);
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
+	const bridge = createPiCodeModeBridge(dynamic as never);
+	bridge.prepareLoadout({ callable: [{ name: "agents" }, { name: "exec" }], getNamespace: () => undefined } as never);
+	const inactive = getCodeModeExtensionToolSnapshot(dynamic as never, dynamicContext as never);
+	assert.deepEqual(inactive.tools, []);
+	assert.deepEqual(bridge.getTools(inactive.allToolNames), [], "an inactive explicit integration must not fall back to automatic admission");
 
 	orchestrationActive = true;
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.deepEqual(
-		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).map(
+		getCodeModeExtensionToolSnapshot(dynamic as never, dynamicContext as never).tools.map(
 			(tool) => tool.name,
 		),
 		["orchestration__agents"],
 	);
+	assert.deepEqual(bridge.getTools(getCodeModeExtensionToolSnapshot(dynamic as never, dynamicContext as never).allToolNames), [],
+		"a renamed explicit integration reserves its native tool");
 	assert.equal(dynamic.activeTools().includes("agents"), false);
 	dynamic.registerTool({ name: "temporary" });
 	dynamic.setActiveTools(["wait", "read", "temporary"]);
@@ -168,15 +175,16 @@ test("adapter activation requires registered tools and follows scope independent
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.deepEqual(dynamic.activeTools(), ["exec", "wait", "temporary"]);
 	assert.deepEqual(
-		getCodeModeExtensionTools(
+		getCodeModeExtensionToolSnapshot(
 			dynamic as never,
 			dynamicContext as never,
-			dynamicState.previousToolNames,
-		).map((tool) => tool.name),
+			{ eligibleTopLevelNames: dynamicState.previousToolNames },
+		).tools.map((tool) => tool.name),
 		["orchestration__agents"],
 	);
 
 	registration.unregister();
+	assert.deepEqual(bridge.getTools(getCodeModeExtensionToolSnapshot(dynamic as never, dynamicContext as never).allToolNames).map((tool) => tool.name), ["agents"]);
 
 	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);
 	const conflictingContext = createContext(dynamicModel);
@@ -189,7 +197,7 @@ test("adapter activation requires registered tools and follows scope independent
 		async invoke() { return ""; },
 	}]);
 	assert.throws(
-		() => getCodeModeExtensionTools(conflicting as never, conflictingContext as never),
+		() => getCodeModeExtensionToolSnapshot(conflicting as never, conflictingContext as never),
 		/Reserved Code Mode extension tool name: exec/,
 	);
 	conflict.unregister();
@@ -240,18 +248,18 @@ test("adapter activation requires registered tools and follows scope independent
 			assert.equal(pi.activeTools().includes("new_context"), true);
 			assert.equal(pi.activeTools().includes("history"), !nested);
 			assert.equal(pi.activeTools().includes("notes"), !nested);
-			assert.deepEqual(getCodeModeExtensionTools(pi as never, ctx as never).map((tool) => tool.name),
+			assert.deepEqual(getCodeModeExtensionToolSnapshot(pi as never, ctx as never).tools.map((tool) => tool.name),
 				nested ? ["history", "notes"] : []);
 			assert.equal(resolveCodexRuntimePlanForState(ctx as never, {
 				...state, availableToolNames: ALL_CODEX_ADAPTER_TOOL_NAMES.filter((name) => name !== "notes"),
 			}).kind, "inactive", "nested context tools still respect the tool allowlist");
 			state.config.compaction.continuity = "compaction";
 			assert.equal(syncAdapter(pi as never, ctx as never, state).contextManagementNested, false);
-			assert.deepEqual(getCodeModeExtensionTools(pi as never, ctx as never), []);
+			assert.deepEqual(getCodeModeExtensionToolSnapshot(pi as never, ctx as never).tools, []);
 			state.config.compaction.continuity = "notes";
 			const unsupported = createContext({ provider: "openai-codex", api: "openai-completions", id: "gpt-5.6" });
 			assert.equal(syncAdapter(pi as never, unsupported as never, state).contextManagementNested, false);
-			assert.deepEqual(getCodeModeExtensionTools(pi as never, unsupported as never), []);
+			assert.deepEqual(getCodeModeExtensionToolSnapshot(pi as never, unsupported as never).tools, []);
 		}
 	}
 });
@@ -295,6 +303,12 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 					const notes = continuity !== "compaction" && route.api !== "openai-completions"
 						&& (historyStorage !== "remote" || route.api === "openai-codex-responses");
 					assert.equal(plan.contextManagementMode, notes ? historyStorage : "off");
+					assert.equal(plan.notesTreeHandoff, notes, "eligible notes routes retain handoffs by default");
+					const withoutHandoff = resolveCodexRuntimePlan(ctx, {
+						...configured, compaction: { ...configured.compaction, notesTreeHandoff: false },
+					});
+					assert.deepEqual(withoutHandoff, { ...plan, notesTreeHandoff: false },
+						"disabling tree handoffs must not change tools, storage, compaction or rollover");
 					assert.equal(plan.shareSubagentContext, notes, "sharing still requires an eligible notes-based runtime");
 					assert.equal(plan.compactOnRollover, notes && continuity === "notes-and-compaction");
 					assert.equal(plan.idleNotesRollover, notes && continuity === "notes");
@@ -313,10 +327,15 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	const storage = buildContextSettings(original, ctx).find(({ item }) => item.id === "historyStorage")!;
 	const remote = storage.update!("Remote", enabled);
 	assert.deepEqual(remote.compaction, { ...enabled.compaction, historyStorage: "remote" }, "storage selection must not switch off compaction or portability");
-	const strategy = buildContextSettings(remote, ctx).find(({ item }) => item.id === "continuity")!;
-	const notes = strategy.update!("Notes and history", remote);
+	const treeSummary = buildContextSettings(remote, ctx).find(({ item }) => item.id === "notesTreeHandoff")!;
+	const withoutHandoff = treeSummary.update!("off", remote);
+	assert.deepEqual(withoutHandoff.compaction, { ...remote.compaction, notesTreeHandoff: false });
+	assert.deepEqual(treeSummary.update!("on", withoutHandoff), remote);
+	const strategy = buildContextSettings(withoutHandoff, ctx).find(({ item }) => item.id === "continuity")!;
+	const notes = strategy.update!("Notes and history", withoutHandoff);
 	const compaction = strategy.update!("Compaction", notes);
 	assert.equal(resolveCodexRuntimePlan(ctx, compaction).shareSubagentContext, false);
+	assert.equal(buildContextSettings(compaction, ctx).some(({ item }) => item.id === "notesTreeHandoff"), false);
 	const restored = strategy.update!("Notes + history + compaction", compaction);
-	assert.deepEqual(restored.compaction, remote.compaction, "inapplicable method and retention settings are remembered, not cleared");
+	assert.deepEqual(restored.compaction, withoutHandoff.compaction, "inapplicable method, retention and tree summary settings are remembered, not cleared");
 });

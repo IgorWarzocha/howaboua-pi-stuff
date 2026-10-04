@@ -30,13 +30,24 @@ import {
 	saveBinding,
 	saveBoardSetting,
 	saveChild,
-	saveMember,
 	sessionBoardSetting,
 } from "./identity.js";
+import { BoardMembership } from "./membership.js";
 import { type BoardEnvelope, parseEnvelope } from "./protocol.js";
 import { BoardTurns } from "./turns.js";
 
 export class AgentBoard {
+	private readonly listeners = new Set<() => void>();
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
+	private changed() {
+		for (const listener of this.listeners) listener();
+	}
+	readonly membership: BoardMembership;
 	private readonly pi: ExtensionAPI;
 	private readonly fleet: AgentFleet;
 	private readonly turns: BoardTurns;
@@ -48,6 +59,11 @@ export class AgentBoard {
 		this.fleet = fleet;
 		this.turns = new BoardTurns(pi, (ctx, request) =>
 			this.toOwner(ctx, request),
+		);
+		this.membership = new BoardMembership(
+			pi,
+			(ctx, request) => this.toOwner(ctx, request),
+			this.turns.active,
 		);
 		pi.on("session_start", (_event, ctx) => this.refresh(ctx));
 		pi.on("before_agent_start", async (_event, ctx) => {
@@ -86,7 +102,7 @@ export class AgentBoard {
 	enabled(ctx: ExtensionContext | undefined) {
 		return ctx ? binding(ctx).enabled : false;
 	}
-	private async refresh(ctx: ExtensionContext) {
+	async refresh(ctx: ExtensionContext) {
 		const own = binding(ctx);
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
 		if (setting?.error && setting.error !== this.configError)
@@ -101,6 +117,7 @@ export class AgentBoard {
 			this.lastSetting?.sessionId !== own.sessionId ||
 			this.lastSetting.enabled !== own.enabled;
 		this.lastSetting = { sessionId: own.sessionId, enabled: own.enabled };
+		this.changed();
 		if (changed && !own.upstream) await this.propagateEnabled(ctx, own.enabled);
 	}
 	settings(ctx: ExtensionContext) {
@@ -126,10 +143,10 @@ export class AgentBoard {
 		else writeBoardConfig(own.ownerFolder, scope, enabled);
 		await this.refresh(ctx);
 	}
-	status(ctx: ExtensionContext) {
+	status(ctx: ExtensionContext, includeArchive = true) {
 		const own = binding(ctx);
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
-		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"}). ${own.boardId}\nArchive: ${own.databasePath}${setting?.error ? `\n${setting.error}` : ""}`;
+		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"})${includeArchive ? `. ${own.boardId}\nArchive: ${own.databasePath}` : ""}${setting?.error ? `\n${setting.error}` : ""}`;
 	}
 	async execute(ctx: ExtensionContext, input: unknown, requestId: string) {
 		const params = parseBoardRequest(input);
@@ -140,7 +157,7 @@ export class AgentBoard {
 		}
 		if (!caller.enabled)
 			throw new Error(
-				"Board is off; the user can enable it with /herdr board on",
+				"Board is off; the user can enable it in /herdr → Settings",
 			);
 		return this.toOwner(ctx, {
 			operation: "board-call",
@@ -302,26 +319,11 @@ export class AgentBoard {
 			request.caller.databasePath !== own.databasePath
 		)
 			throw new Error("Caller not bound to this board");
-		if (request.operation === "board-register") {
-			const member = request.member;
-			if (
-				member.boardId !== own.boardId ||
-				member.databasePath !== own.databasePath ||
-				member.rootSessionId !== own.rootSessionId ||
-				!member.agentName.startsWith(`${caller.agentName}/`)
-			)
-				throw new Error("Invalid board member registration");
-			if (
-				directory.some(
-					(entry) =>
-						entry.agentName === member.agentName ||
-						entry.sessionId === member.sessionId,
-				)
-			)
-				throw new Error("Board member already bound");
-			saveMember(this.pi, member);
-			return true;
-		}
+		if (
+			request.operation === "board-unregister" ||
+			request.operation === "board-register"
+		)
+			return this.membership.commitDirectory(own, directory, caller, request);
 		if (request.operation === "board-active") {
 			if (own.enabled) this.turns.register(caller, request);
 			return true;
@@ -332,7 +334,7 @@ export class AgentBoard {
 		if (params.action === "help") return { ...boardHelp, enabled: own.enabled };
 		if (!own.enabled)
 			throw new Error(
-				"Board is off; the user can enable it with /herdr board on",
+				"Board is off; the user can enable it in /herdr → Settings",
 			);
 		const prepared: BoardParams =
 			params.author === undefined

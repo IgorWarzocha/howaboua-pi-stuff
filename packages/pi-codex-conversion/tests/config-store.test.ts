@@ -72,18 +72,21 @@ test("trusted folder config overrides globals without crossing folder or process
 		writeFileSync(globalPath, legacyGlobal);
 		writeFileSync(projectPath, legacyProject);
 		const migrated = readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} });
-		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", shareSubagentContext: false, idleNotesRollover: false, method: "both", v2UserMessageRetention: 16 });
+		assert.deepEqual(migrated.compaction, { continuity: "notes-and-compaction", historyStorage: "tree", notesTreeHandoff: true, shareSubagentContext: false, idleNotesRollover: false, method: "both", v2UserMessageRetention: 16 });
 		assert.equal(readFileSync(globalPath, "utf8"), legacyGlobal);
 		assert.equal(readFileSync(projectPath, "utf8"), legacyProject, "startup normalization never writes configuration");
-		assert.equal(writeCodexConversionConfig(migrated, projectPath, true).ok, true);
+		const explicit = { ...migrated, compaction: { ...migrated.compaction, notesTreeHandoff: false } };
+		assert.equal(writeCodexConversionConfig(explicit, projectPath, true).ok, true);
 		assert.deepEqual(JSON.parse(readFileSync(projectPath, "utf8")).compaction, {
-			...migrated.compaction, futureOption: "preserve",
+			...explicit.compaction, futureOption: "preserve",
 		}, "explicit writes remove obsolete controls but preserve unknown fields");
+		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).compaction.notesTreeHandoff,
+			false, "the disabled handoff survives saving and reopening settings");
 
-		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", shareSubagentContext: true, idleNotesRollover: true, method: "both", v2UserMessageRetention: 32 };
+		const inherited = { continuity: "notes-and-compaction", historyStorage: "local", notesTreeHandoff: false, shareSubagentContext: true, idleNotesRollover: true, method: "both", v2UserMessageRetention: 32 };
 		writeFileSync(globalPath, JSON.stringify({ compaction: inherited }));
 		for (const { override, expected } of [
-			{ override: { contextManagement: "tree" }, expected: { historyStorage: "tree" } },
+			{ override: { contextManagement: "tree", notesTreeHandoff: true }, expected: { historyStorage: "tree", notesTreeHandoff: true } },
 			{ override: { portableSummary: false }, expected: { method: "v2" } },
 			{
 				override: { contextManagement: "tree", portableSummary: false, continuity: "compaction", historyStorage: "remote", method: "pi", shareSubagentContext: false },

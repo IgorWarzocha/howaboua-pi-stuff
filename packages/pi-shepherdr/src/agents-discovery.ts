@@ -36,6 +36,8 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			unwatch: "target machine?",
 			send: "target message machine?",
 			assign: "target message machine? blocking?",
+			attach: "target context board machine?",
+			detach: "target context board machine?",
 			read: "target machine? source? lines?",
 			answer: "target ask_id answers machine?",
 		},
@@ -48,6 +50,10 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			ask_id: "Exact pending Ask ID",
 			send: "Only for a needed answer or to change the recipient's current work. No courtesy updates, acknowledgements or completion echoes. Can wake idle agents; no wait/watch",
 			assign: "Delegate a task to an existing agent",
+			attach:
+				"Idle target; context/board booleans choose shared access and board membership independently. Local/Tree context only; no task/watch",
+			detach:
+				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking:
 				"spawn/assign default true; profile blocking overrides spawn. Fan out independent implementation workers with false; end your turn when only waiting. Completion/blockage arrives after you reply; no polling or sleep waits",
 			share_context:

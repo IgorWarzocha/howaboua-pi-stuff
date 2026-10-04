@@ -32,7 +32,7 @@ export function buildContextSettings(
 			{
 				id: "continuity",
 				label: "Continuity strategy",
-				description: "Compaction carries a checkpoint. Notes and history rolls over with saved notes. Notes + history + compaction adds a checkpoint while keeping history lookup. Changing strategy preserves the current context. Notes-based strategies are experimental.",
+				description: "Compaction carries a checkpoint. Notes and history rolls over with saved notes. Notes + history + compaction keeps normal compaction and adds notes and history lookup. Changing strategy preserves the current context. Notes-based strategies are experimental.",
 				currentValue: CONTINUITY_LABELS[continuity],
 				values: Object.values(CONTINUITY_LABELS),
 			},
@@ -54,6 +54,15 @@ export function buildContextSettings(
 				...current,
 				compaction: { ...current.compaction, historyStorage: normalizeHistoryStorage(value.toLowerCase()) ?? current.compaction.historyStorage },
 			}),
+		), toggle(
+			"notesTreeHandoff",
+			"Use notes for tree summaries",
+			config.compaction.notesTreeHandoff,
+			(enabled, current) => ({
+				...current,
+				compaction: { ...current.compaction, notesTreeHandoff: enabled },
+			}),
+			"On: save a handoff note before a summarized tree jump. Off: use Pi's branch summary without a note-writing run. Notes and history tools and window rollover stay unchanged.",
 		), toggle(
 			"shareSubagentContext",
 			"Share subagent context",

@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
+import type { BoardBinding } from "./board/identity.js";
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
@@ -24,6 +25,44 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+
+export function attachmentMessage(
+	controllerContextAgent?: string,
+	boardAgent?: string,
+) {
+	return {
+		customType: "herdr-agent-attachment",
+		content: [
+			...(controllerContextAgent
+				? [
+						`Controller notes/history: ${controllerContextAgent}; own context unchanged`,
+					]
+				: []),
+			...(boardAgent ? [`Shared board: ${boardAgent}`] : []),
+		].join("\n"),
+		display: true,
+	};
+}
+
+export function detachmentMessage(
+	controllerContextAgent?: string,
+	board?: BoardBinding,
+) {
+	return {
+		customType: "herdr-agent-detachment",
+		content: [
+			...(controllerContextAgent
+				? [
+						`Detached controller: ${controllerContextAgent}; checkpoints read-only, history unavailable; own context unchanged`,
+					]
+				: []),
+			...(board
+				? [`Board restored: ${board.boardId} as ${board.agentName}`]
+				: []),
+		].join("\n"),
+		display: true,
+	};
+}
 
 function xml(value: string): string {
 	return value

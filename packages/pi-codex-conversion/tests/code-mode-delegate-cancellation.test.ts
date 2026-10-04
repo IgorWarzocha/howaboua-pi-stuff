@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
 import { PiToolCallScope } from "../src/tools/code-mode/pi-tool-call-scope.ts";
-import { createMcpCodeModeBridge } from "../src/adapter/code-mode/mcp-tools.ts";
+import { createPiCodeModeBridge } from "../src/adapter/code-mode/pi-tools.ts";
 
 test("nested cell lifecycle preserves cancellation, blockers, and resumed progress", async () => {
 	const runtime = new CodeModeDelegateRuntime(() => undefined);
@@ -21,7 +21,7 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 		},
 	} as never);
 	const native = { name: "mcp__records__read", description: "Read a record", parameters: { type: "object" } };
-	const mcp = createMcpCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
+	const mcp = createPiCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
 	mcp.prepareLoadout({ callable: [native], getExposure: () => "codemode" as const, getNamespace: () => undefined } as never);
 	runtime.bindCell("cell-a", {
 		cwd: process.cwd(), piToolScope: firstScope, toolCallId: "outer-exec", originalExecCallId: "outer-exec",

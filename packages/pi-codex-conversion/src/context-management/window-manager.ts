@@ -256,14 +256,6 @@ export class CodexContextWindowManager {
 		return true;
 	}
 
-	async completeRolloverCompaction(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode): Promise<void> {
-		if (this.isRolloverCompactionRunning()) return;
-		this.cancelScheduledCompaction();
-		await this.startNewWindow(pi, ctx, {
-			mode, trimPreviousWindow: false,
-		});
-	}
-
 	isRolloverCompactionRunning(): boolean {
 		return this.rolloverCompaction?.phase === "running";
 	}
@@ -334,7 +326,7 @@ export class CodexContextWindowManager {
 		| { cancel: true }
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
-		if (compactOnRollover) return event.reason === "threshold" ? { cancel: true } : undefined;
+		if (compactOnRollover) return undefined;
 		if (event.reason === "overflow") return undefined;
 		if (event.reason === "manual") {
 			this.promptedManualCheckpoint = undefined;

@@ -128,6 +128,7 @@ Choose under `/codex context`:
 | --- | --- | --- |
 | **Continuity strategy** | Compaction · Notes and history · Notes + history + compaction | Always |
 | **History and notes storage** | Local · Tree · Remote | Using notes |
+| **Use notes for tree summaries** | On (default) · Off | Using notes |
 | **Share subagent context** | Off (default) · On | Using notes |
 | **New window after 25 minutes idle** | Off (default) · On | Using Notes and history on an eligible route |
 | **Compaction method** | Pi summary · Codex V2 · Both | Using compaction |
@@ -137,7 +138,7 @@ Defaults are **Compaction**, **Pi summary** and **64k** retention, with **Local*
 
 - **Compaction:** Pi's manual and automatic compaction, without notes or rollover tools.
 - **Notes and history:** the model saves notes and retrieves history. Explicit new windows start without a conversation summary.
-- **Notes + history + compaction:** the model saves notes and retrieves history. New windows also carry a compaction checkpoint. Compaction reduces active context without disabling history lookup or deleting the stored conversation.
+- **Notes + history + compaction:** Pi's automatic compaction and `/compact` use the selected method while notes and history lookup remain available. Compaction stays in the current window and does not require saved notes.
 
 **Notes-based strategies are experimental.** Purple markers identify windows. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and usable checkpoints. A notes-only rollover cuts the previous conversation from active context, not stored history.
 
@@ -146,7 +147,7 @@ Resume notes-based sessions with the same storage. Changing storage neither copi
 ### Storage and compaction
 
 - **Local:** reads prior windows and stores model-invisible note updates in Pi's JSONL.
-- **Tree:** archives windows as Pi side branches. Branch summaries stay visible in the transcript, outside model context. History search prioritizes summaries but can retrieve every raw entry.
+- **Tree:** archives windows as Pi side branches. Archive summaries stay visible in the transcript, outside model context. History search prioritizes summaries but can retrieve every raw entry.
 - **Remote:** uses Codex's encrypted history and notes service. Requires `openai-codex-responses` and fails without switching storage. Other transports ignore it.
 
 Local and Tree require an active Responses adapter. Other provider APIs do not expose notes-based context management.
@@ -159,13 +160,13 @@ Old configurations migrate on read without rewriting the file. Hybrid becomes **
 
 ### Rollover and recovery
 
-With notes enabled, choosing a summary in Pi's tree navigator saves a handoff note for the destination, even before the first window marker. Local and Tree preserve existing destination notes. Remote note contents remain encrypted and cannot be independently verified. Interrupted or failed handoffs cancel the jump. **No summary** remains a plain jump.
+**Use notes for tree summaries** is on by default for Local, Tree and Remote. Choosing a summary in Pi's tree navigator saves a handoff note for the destination, even before the first window marker. Local and Tree preserve existing destination notes. Remote note contents remain encrypted and cannot be independently verified. Interrupted or failed handoffs cancel the jump. Turn the setting off to use Pi's ordinary branch summary without a note-writing run, while keeping notes and history enabled. Either choice navigates to your selected destination and does not roll over the window. **No summary** remains a plain jump.
 
 The model receives history, notes, rollover and remaining-context tools. Code and Notebook modes use `tools.history({ action, ...args })` and `tools.notes({ action, ...args })` inside `exec`, with required arguments upfront and detailed help in `ALL_TOOLS`. Remote calls accept ordinary query and note text directly in JavaScript. These inputs appear in execution source and traces. Protected results reach the model automatically through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Remote results cannot be inspected inside JavaScript and need no extra delivery call. Direct native Remote tools retain encrypted inputs. `wait` resumes or terminates unfinished cells. `new_context` stays native. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
 
 Remote results remain tied to their original context family and Codex account. Re-reading a completed result does not count as a new note checkpoint.
 
-With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, `/compact` and `new_context` compact before rollover.
+With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, explicit `new_context` compacts before rollover.
 
 **New window after 25 minutes idle** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. After at least 25 minutes without a run, the next prompt opens a window first only if the last completed run saved fresh notes successfully. The original prompt and attachments then proceed normally. Resume uses the saved run's settlement time. Older runs without a recorded settlement do not trigger idle rollover. This is an idle rollover policy, not proof that the provider cache expired. If rollover fails, input and attachments stay queued for a retry when you submit another prompt.
 
@@ -230,9 +231,11 @@ text(status);
 
 **Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool accepts `{ input: "help" }` for state-management guidance, then JSON action objects in `input`. The first turn receives status and retained bindings automatically.
 
-### MCP tools
+### Pi extension and MCP tools
 
-Configure servers once in Pi's built-in MCP extension. Its callable tools and resource helpers automatically appear in `tools` and `ALL_TOOLS`; ordinary extensions still require the [opt-in integration](#extension-apis). Pi's extension switches, tool restrictions and disabled servers are respected. Pi retains connection management, authentication, permissions and tool hooks; its native `codemode` extension is not required.
+Pi-callable extension tools automatically appear in `tools` and `ALL_TOOLS`, with no extra registration. An [explicit integration](#extension-apis) takes precedence for the same Pi tool, including its custom behavior and activation gate. Hidden and model-only tools are not imported.
+
+Configure MCP servers once in Pi's built-in MCP extension. Its callable tools and resource helpers use the same bridge. Pi's extension switches, tool restrictions and disabled servers are respected. Pi retains connection management, authentication, permissions and tool hooks; its native `codemode` extension is not required.
 
 `exec` does not wait for pending MCP connections. In Code and Notebook modes, missing-tool errors identify the MCP namespace when known, otherwise flag ambiguous name prefixes. If that server connects, retry in a new exec cell. If failures repeat, the agent should suggest disabling that specific server to you. This recovery guidance does not retry calls or disable servers.
 
@@ -374,7 +377,7 @@ See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) a
 
 ### Pi extension API
 
-Register a Pi tool normally, then adapt it for Code and Notebook Mode:
+Normal Pi registration is enough for automatic Code and Notebook access. Use this optional API to customize usage, blocking behavior, result conversion or rendering:
 
 ```ts
 import {

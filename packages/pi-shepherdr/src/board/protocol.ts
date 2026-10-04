@@ -27,6 +27,11 @@ const Protocol = Type.Union([
 		member: BindingSchema,
 	}),
 	Type.Object({
+		operation: Type.Literal("board-unregister"),
+		caller: BindingSchema,
+		member: BindingSchema,
+	}),
+	Type.Object({
 		operation: Type.Literal("board-enabled"),
 		boardId: Type.String(),
 		enabled: Type.Boolean(),

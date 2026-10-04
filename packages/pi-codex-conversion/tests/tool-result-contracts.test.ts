@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { registerApplyPatchResultEvent } from "../src/index.ts";
 import { toCodeModeToolResult } from "../src/tools/code-mode/tool-result.ts";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
-import { createMcpCodeModeBridge } from "../src/adapter/code-mode/mcp-tools.ts";
+import { createPiCodeModeBridge } from "../src/adapter/code-mode/pi-tools.ts";
 import { withMissingMcpToolRecovery } from "../src/tools/code-mode/mcp-tool-recovery.ts";
 
 test("apply_patch partial mutations remain error results", () => {
@@ -76,7 +76,7 @@ test("Code, Notebook and custom-tool results retain output and recovery without 
 			message: "Unknown custom tool: ordinary_missing",
 		});
 		const native = { name: "mcp__records_store__read", description: "Read", parameters: { type: "object" } };
-		const bridge = createMcpCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
+		const bridge = createPiCodeModeBridge({ getAllTools: () => [{ ...native, sourceInfo: { path: "builtin:mcp" } }] } as never);
 		bridge.prepareLoadout({ callable: [native], getExposure: () => "codemode" as const, getNamespace: () => ({ name: "mcp__records.store" }) } as never);
 		const tools = bridge.getTools();
 		delegate.bindCell("missing", { cwd: process.cwd() }, new Map(tools.map((tool) => [tool.name, tool])));

@@ -12,7 +12,9 @@ import { hasPortableNativeCompactionSummary, NATIVE_COMPACTION_SHIM_SUMMARY, NAT
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { createAssistantMessageEventStream, type AssistantMessage, type Model, type SimpleStreamOptions } from "@earendil-works/pi-ai";
-import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { projectTreeHandoffReads } from "../src/context-management/tree-handoff-read.ts";
+import { collectReplayMessages } from "../src/adapter/replay/native-replay-matching.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
@@ -62,93 +64,34 @@ function summaryStream(message: AssistantMessage) {
 	return stream;
 }
 
-test("first native compaction sends the full active Pi context", () => {
-	const entry = (id: string, parentId: string | null, content: string) => ({
-		type: "message",
-		id,
-		parentId,
-		timestamp: new Date(1).toISOString(),
-		message: { role: "user", content, timestamp: 1 },
+test("native compaction serializes Pi's selected context and model-visible message roles", () => {
+	const session = SessionManager.inMemory(process.cwd());
+	session.appendMessage({ role: "user", content: "superseded old context", timestamp: 1 });
+	const kept = session.appendMessage({ role: "user", content: "exact kept context", timestamp: 2 });
+	session.appendMessage({
+		role: "system",
+		content: "Latest effective instructions",
+		sections: { tools: "<tools>current</tools>" },
+		timestamp: 2,
 	});
-	const old = entry("old", null, "superseded old context");
-	const kept = entry("kept", "old", "exact kept context");
-	const compaction = {
-		type: "compaction",
-		id: "pi-compaction",
-		parentId: "kept",
-		timestamp: new Date(2).toISOString(),
-		summary: "Pi summary",
-		firstKeptEntryId: "kept",
-		tokensBefore: 100,
-		systemMessage: {
-			role: "system",
-			content: "Latest effective instructions",
-			sections: { tools: "<tools>current</tools>" },
-			timestamp: 2,
-		},
-	};
-	const tail = entry("tail", "pi-compaction", "exact live tail");
-
+	session.appendCompaction("Pi summary", kept, 100);
+	session.appendMessage({ role: "user", content: "exact live tail", timestamp: 3 });
+	session.appendCustomMessageEntry(REALTIME_VOICE_MESSAGE_TYPE, "voice-only conversation", false);
+	session.appendCustomMessageEntry(REALTIME_DELEGATION_MESSAGE_TYPE, "Pi-visible delegation", false);
+	session.appendCustomMessageEntry(CODEX_DEVELOPER_MESSAGE_TYPE, "Provider-level guidance", false,
+		{ protocol: 1, id: "developer-1" } satisfies CodexDeveloperMessageDetails);
 	const input = serializeActiveSessionToResponsesInput({
 		model,
-		entries: [old, kept, compaction, tail] as never,
-		leafId: "tail",
+		entries: session.getBranch(),
 		options: { includeInstructionsInInput: true },
 	});
 	const serialized = JSON.stringify(input);
-
 	assert.match(serialized, /Pi summary/);
 	assert.match(serialized, /Latest effective instructions/);
 	assert.match(serialized, /<tools>current<\/tools>/);
 	assert.match(serialized, /exact kept context/);
 	assert.match(serialized, /exact live tail/);
 	assert.doesNotMatch(serialized, /superseded old context/);
-});
-
-test("native compaction excludes voice-only chatter but preserves Pi delegations", () => {
-	const customEntry = (
-		id: string,
-		parentId: string | null,
-		customType: string,
-		content: string,
-		details: unknown = {},
-	) => ({
-		type: "custom_message",
-		id,
-		parentId,
-		timestamp: new Date(1).toISOString(),
-		customType,
-		content,
-		display: false,
-		details,
-	});
-	const chatter = customEntry(
-		"chatter",
-		null,
-		REALTIME_VOICE_MESSAGE_TYPE,
-		"voice-only conversation",
-	);
-	const delegation = customEntry(
-		"delegation",
-		"chatter",
-		REALTIME_DELEGATION_MESSAGE_TYPE,
-		"Pi-visible delegation",
-	);
-	const developer = customEntry(
-		"developer",
-		"delegation",
-		CODEX_DEVELOPER_MESSAGE_TYPE,
-		"Provider-level guidance",
-		{ protocol: 1, id: "developer-1" } satisfies CodexDeveloperMessageDetails,
-	);
-
-	const input = serializeActiveSessionToResponsesInput({
-		model,
-		entries: [chatter, delegation, developer] as never,
-		leafId: "developer",
-	});
-	const serialized = JSON.stringify(input);
-
 	assert.doesNotMatch(serialized, /voice-only conversation/);
 	assert.match(serialized, /Pi-visible delegation/);
 	assert.deepEqual(input.at(-1), {
@@ -299,14 +242,20 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 	assert.ok(summaryRequest?.options?.sessionId);
 	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
 
-	const handoff = SessionManager.inMemory("/repo");
+	const handoff = SessionManager.inMemory(process.cwd());
 	handoff.appendMessage({ role: "user", content: "Departing branch", timestamp: 1 });
-	handoff.branchWithSummary(null, "Handoff note already loaded", { codexContextNoteRead: {
+	handoff.branchWithSummary(null, "Handoff note already loaded", JSON.parse(JSON.stringify({ codexContextNoteRead: {
 		protocol: 1, origin: "host", id: "00000000-0000-0000-0000-000000000001", path: "/root/notes/handoff",
 		namespace: "notes", api: model.api, provider: model.provider, model: model.id, timestamp: 2,
 		content: [{ type: "text", text: "notes operation completed" }],
 		details: { codexHistoryNotes: { encrypted_output: "sealed-handoff" } },
-	} });
+	} })));
+	const projected = projectTreeHandoffReads(handoff.buildSessionContext().messages, handoff.getBranch());
+	assert.deepEqual(projected.map(message => message.role), ["branchSummary", "assistant", "toolResult"]);
+	assert.deepEqual(projectTreeHandoffReads(projected, handoff.getBranch()), projected, "persisted summary projects its read once");
+	const expectedWire = serializeMessagesToResponsesInput(model, projected);
+	assert.deepEqual(serializeActiveSessionToResponsesInput({ model, entries: handoff.getBranch() }), expectedWire);
+	assert.deepEqual(serializeMessagesToResponsesInput(model, collectReplayMessages(handoff.getBranch())), expectedWire);
 	let wire: unknown;
 	await assert.rejects(runPortablePiCompaction({ ...portableEvent,
 		branchEntries: handoff.getBranch(), preparation: { ...portableEvent.preparation,
@@ -323,4 +272,13 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 	assert.deepEqual(JSON.parse(call.arguments), { path: "/root/notes/handoff" });
 	assert.equal(output.call_id, call.call_id);
 	assert.deepEqual(output.output, [{ type: "encrypted_content", encrypted_content: "sealed-handoff" }]);
+	const retirement = new CodexContextWindowManager(async () => undefined);
+	const handoffCtx = { model, sessionManager: handoff } as never;
+	const handoffPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) =>
+		handoff.appendCustomMessageEntry(message.customType, message.content, message.display, message.details) } as never;
+	retirement.ensureInitialized(handoffPi, handoffCtx, true);
+	await retirement.startNewWindow(handoffPi, handoffCtx, { mode: "remote", trimPreviousWindow: true });
+	const retired = retirement.project(handoff.buildSessionContext().messages, "remote", handoff.getBranch());
+	assert.doesNotMatch(JSON.stringify(projectTreeHandoffReads(retired, handoff.getBranch())),
+		/Handoff note already loaded|sealed-handoff/, "retiring the summary also retires its read");
 });

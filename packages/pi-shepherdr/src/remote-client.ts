@@ -14,10 +14,11 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 11;
+const BRIDGE_VERSION = 13;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
+const REMOTE_CHECKPOINT_HELPER = "~/.pi/agent/shepherdr-checkpoints.mjs";
 const REMOTE_CONTEXT_HELPER = "~/.pi/agent/shepherdr-context.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
@@ -201,7 +202,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		config: SshMachine,
 		onClose: (error: Error) => void,
 	): Promise<RemoteHerdrClient> {
-		const [source, peerSource, sessionSource, contextSource] =
+		const [source, peerSource, sessionSource, contextSource, checkpointSource] =
 			await Promise.all([
 				readFile(
 					fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
@@ -221,9 +222,15 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 						new URL("./remote/shepherdr-context.mjs", import.meta.url),
 					),
 				),
+				readFile(
+					fileURLToPath(
+						new URL("./remote/shepherdr-checkpoints.mjs", import.meta.url),
+					),
+				),
 			]);
 		await deploy(config, peerSource, REMOTE_PEER_HELPER);
 		await deploy(config, sessionSource, REMOTE_SESSION_HELPER);
+		await deploy(config, checkpointSource, REMOTE_CHECKPOINT_HELPER);
 		await deploy(config, contextSource, REMOTE_CONTEXT_HELPER);
 		await deploy(config, source, REMOTE_HELPER);
 		const child = spawnConnector(config, remoteCommand(config));
@@ -272,7 +279,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	contextRelayPath(): string {
 		if (!this.relayPath)
 			throw new Error(
-				"Shared context relay is unavailable; run /herdr connect to retry",
+				"Shared context relay is unavailable; open /herdr → Status to retry",
 			);
 		return this.relayPath;
 	}
