@@ -10,11 +10,25 @@ export interface SharedContextRequest {
 	agentName: string;
 	namespace: "history" | "notes";
 	params: Record<string, unknown>;
+	/** Direct Remote sensitive fields remain encrypted in peer transit. */
+	encryptedArguments?: boolean;
 }
 
 export type SharedContextResult = AgentToolResult<{ codexHistoryNotes: Record<string, unknown> }>;
 
-export type ContextRouter = (ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => Promise<SharedContextResult>;
+export type ContextRouter = ((ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => Promise<SharedContextResult | undefined>) & {
+	requiresRemoteScope?(ctx: ExtensionContext): boolean;
+};
+
+/** Remote checkpoints retain an authenticated address, never decrypted note contents. */
+export interface RemoteNoteReference {
+	protocol: 1;
+	storage: "remote";
+	timestamp: number;
+	identity: ContextAgentIdentity;
+	baseUrl: string;
+}
+export type AttachmentNotesData = NoteSnapshotData | RemoteNoteReference;
 
 export interface ContextSharingService {
 	protocol: 1;
@@ -27,10 +41,13 @@ export interface ContextSharingService {
 	}>;
 	bind(ctx: ExtensionContext, binding: unknown): Promise<ContextAgentIdentity>;
 	/** Inspect an idle standalone owner for alias attachment without rebinding its identity. */
-	inspectAttachment?(ctx: ExtensionContext): ContextAgentIdentity;
-	/** Keep the native IDs while pinning Local/Tree storage for live aliases. */
+	inspectAttachment?(ctx: ExtensionContext, standalone?: boolean): Promise<ContextAgentIdentity> | ContextAgentIdentity;
+	/** Keep native IDs while pinning storage and Remote account/backend for live aliases. */
 	retainAttachmentIdentity?(ctx: ExtensionContext): ContextAgentIdentity;
-	exportAttachmentNotes?(ctx: ExtensionContext): NoteSnapshotData;
+	exportAttachmentNotes?(ctx: ExtensionContext): Promise<AttachmentNotesData> | AttachmentNotesData;
+	validateAttachmentNotes?(snapshot: unknown, identity: ContextAgentIdentity): void;
+	verifyAttachmentAccess?(ctx: ExtensionContext, snapshot: unknown): Promise<void>;
+	executeRemoteAttachment?(ctx: ExtensionContext, reference: unknown, request: SharedContextRequest, signal?: AbortSignal): Promise<SharedContextResult>;
 	/** Parse only the verified owner's persisted active note branch. */
 	parseAttachmentNotes?(entries: unknown, identity: ContextAgentIdentity): NoteSnapshotData;
 	readAttachmentNotes?(snapshot: unknown, params: Record<string, unknown>): SharedContextResult;

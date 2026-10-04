@@ -64,18 +64,18 @@ export class AgentAttachment {
 		const context = params.context === true;
 		const useBoard = params.board === true;
 		const controllerContext = context
-			? this.target.context(ctx, false)
+			? await this.target.context(ctx, false)
 			: undefined;
 		const controllerBoard = useBoard ? binding(ctx) : undefined;
-		const check = () => {
+		const check = async () => {
+			const currentContext = controllerContext
+				? await this.target.context(ctx, false)
+				: undefined;
 			signal.throwIfAborted();
 			if (
 				ctx.sessionManager.getSessionId() !== controllerSessionId ||
 				(controllerContext &&
-					!isDeepStrictEqual(
-						this.target.context(ctx, false),
-						controllerContext,
-					)) ||
+					!isDeepStrictEqual(currentContext, controllerContext)) ||
 				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
 			)
 				throw new Error(
@@ -102,7 +102,7 @@ export class AgentAttachment {
 				{ operation: "attach-inspect" },
 				signal,
 			);
-			check();
+			await check();
 			if (!Check(Snapshot, snapshot))
 				throw new Error(
 					"Target does not support attachment; update and reload Shepherdr",
@@ -113,6 +113,10 @@ export class AgentAttachment {
 					current.contextError ?? "Target context is unavailable",
 				);
 			if (useBoard && current.boardError) throw new Error(current.boardError);
+			if (controllerContext && current.context) {
+				await this.notes.verify(ctx, current.notes, current.context);
+				await check();
+			}
 			const upstream = runtime.local
 				? sessionContextPath(controllerFile)
 				: runtime.client.contextRelayPath();
@@ -129,7 +133,7 @@ export class AgentAttachment {
 								alias: `${controllerContext.agentName}/${segment}`,
 								controllerAlias: `${current.context.agentName}/controller-${randomUUID()}`,
 								...(runtime.local ? { controllerFile } : {}),
-								controllerNotes: this.notes.export(ctx),
+								controllerNotes: await this.notes.export(ctx),
 								targetNotes: current.notes,
 							},
 						}
@@ -148,6 +152,7 @@ export class AgentAttachment {
 						}
 					: {}),
 			};
+			await check();
 			route = { plan, machine: runtime.machine, sessionFile, phase: "pending" };
 			this.notes.checkTransport({ operation: "attach-commit", plan });
 			// A retry after a lost response reuses the same aliases and board identity.
@@ -159,7 +164,7 @@ export class AgentAttachment {
 				{ operation: "attach-commit", plan: route.plan },
 				signal,
 			);
-			check();
+			await check();
 			if (!isDeepStrictEqual(accepted, route.plan))
 				throw new Error("Target did not accept the requested attachment");
 			if (route.plan.board)
@@ -173,7 +178,7 @@ export class AgentAttachment {
 					},
 					route.plan.board.controller,
 				);
-			check();
+			await check();
 			if (route.plan.context) this.target.retainIdentity(ctx);
 			if (route.phase !== "ready")
 				this.pi.appendEntry(ROUTE, { ...route, phase: "ready" });
@@ -220,24 +225,27 @@ export class AgentAttachment {
 		const { plan } = route;
 		if ((params.context && !plan.context) || (params.board && !plan.board))
 			throw new Error("Cannot detach a choice that was not attached");
-		const check = () => {
+		const controllerBoard = params.board ? binding(ctx) : undefined;
+		const check = async () => {
+			const currentContext =
+				params.context && plan.context
+					? await this.target.context(ctx, false)
+					: undefined;
 			signal.throwIfAborted();
 			if (
 				ctx.sessionManager.getSessionId() !== plan.controllerSessionId ||
 				(params.context &&
 					plan.context &&
-					!isDeepStrictEqual(
-						this.target.context(ctx, false),
-						plan.context.controller,
-					))
+					!isDeepStrictEqual(currentContext, plan.context.controller)) ||
+				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
 			)
 				throw new Error(
 					"Controller changed during detach; resume it and retry",
 				);
 		};
-		check();
+		await check();
 		try {
-			const context = params.context ? this.notes.export(ctx) : undefined;
+			const context = params.context ? await this.notes.export(ctx) : undefined;
 			this.notes.checkTransport({
 				operation: "detach-commit",
 				plan,
@@ -254,7 +262,7 @@ export class AgentAttachment {
 				},
 				signal,
 			);
-			check();
+			await check();
 			if (
 				!result ||
 				typeof result !== "object" ||
@@ -282,7 +290,7 @@ export class AgentAttachment {
 					...plan.board.desired,
 					sessionId: plan.targetSessionId,
 				});
-			check();
+			await check();
 		} catch (error) {
 			throw new Error(
 				`Detach incomplete; retry from the same controller and target with the same choices. ${String(error)}`,

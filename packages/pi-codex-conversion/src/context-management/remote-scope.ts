@@ -3,6 +3,7 @@ import { resolveCodexToolProvider, resolveCodexApiProviderBaseUrl } from "../ada
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { contextAccountScope, contextAgentIdentity, type ContextAgentIdentity } from "./agent-identity.ts";
+import type { RemoteNoteReference } from "../context-sharing.ts";
 
 const BACKEND_SCOPE = Symbol("Remote context backend scope");
 const EXPECTED_SCOPE = Symbol("Remote context expected scope");
@@ -24,6 +25,24 @@ export function isRemoteNestedContext(ctx: ExtensionContext): boolean {
 	return EXPECTED_SCOPE in ctx;
 }
 
+export function readRemoteNoteReference(input: unknown): RemoteNoteReference {
+	if (!input || typeof input !== "object" || !("protocol" in input) || input.protocol !== 1 ||
+		!("storage" in input) || input.storage !== "remote" || !("timestamp" in input) ||
+		typeof input.timestamp !== "number" || !Number.isFinite(input.timestamp) || input.timestamp < 0 ||
+		!("baseUrl" in input) || typeof input.baseUrl !== "string" || !input.baseUrl || input.baseUrl.length > 8192 ||
+		!("identity" in input) || !input.identity || typeof input.identity !== "object")
+		throw new Error("Invalid Remote checkpoint reference");
+	const identity = input.identity as Partial<ContextAgentIdentity>;
+	if (identity.protocol !== 1 || identity.storage !== "remote" ||
+		typeof identity.threadId !== "string" || !identity.threadId || identity.threadId.length > 512 ||
+		typeof identity.sessionId !== "string" || !identity.sessionId || identity.sessionId.length > 512 ||
+		typeof identity.agentName !== "string" || identity.agentName.length > 4096 || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(identity.agentName) ||
+		typeof identity.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(identity.accountScope) ||
+		identity.backendUrl !== input.baseUrl)
+		throw new Error("Invalid Remote checkpoint identity");
+	return input as RemoteNoteReference;
+}
+
 export function assertRemoteBackendScope(ctx: ExtensionContext, scope: string): void {
 	if (EXPECTED_SCOPE in ctx && ctx[EXPECTED_SCOPE] !== scope)
 		throw new Error("Remote context changed before dispatch; start a new exec cell");
@@ -31,18 +50,19 @@ export function assertRemoteBackendScope(ctx: ExtensionContext, scope: string): 
 
 export async function resolveRemoteContextScope(ctx: ExtensionContext, state: AdapterState): Promise<string> {
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (!plan.contextManagementNested || !plan.contextManagementRemote)
-		throw new Error("Remote context requires Code or Notebook");
+	if (!plan.contextManagementNested)
+		throw new Error("Protected context requires Code or Notebook");
 	const identity = contextAgentIdentity(ctx);
 	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
 	const provider = await resolveCodexToolProvider(ctx);
 	const latest = resolveCodexRuntimePlanForState(ctx, state);
-	if (!latest.contextManagementNested || !latest.contextManagementRemote || latest.kind !== plan.kind ||
+	if (!latest.contextManagementNested || latest.contextManagementMode !== plan.contextManagementMode || latest.kind !== plan.kind ||
 		JSON.stringify(identity) !== JSON.stringify(contextAgentIdentity(ctx)) ||
 		model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
 		throw new Error("Remote context changed during authentication; start a new exec cell");
 	if (provider.route !== "openai-codex" ||
-		(identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId)))
+		(identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId)) ||
+		(identity.backendUrl && identity.backendUrl !== provider.baseUrl))
 		throw new Error("Remote context requires the same Codex account");
 	return remoteContextScope(identity, provider.accountId, provider.baseUrl);
 }

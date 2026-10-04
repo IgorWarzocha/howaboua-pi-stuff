@@ -10,6 +10,7 @@ export interface ContextAgentIdentity {
 	agentName: string;
 	storage?: "remote" | "session";
 	accountScope?: string;
+	backendUrl?: string;
 	routing?: unknown;
 }
 
@@ -22,10 +23,12 @@ export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
 	if (value?.protocol !== 1 || typeof value.sessionId !== "string" || !value.sessionId ||
 		typeof value.agentName !== "string" || !/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(value.agentName) ||
 		(value.storage !== "remote" && value.storage !== "session") ||
+		(value.backendUrl !== undefined && (typeof value.backendUrl !== "string" || !value.backendUrl)) ||
 		(value.storage === "remote" && (typeof value.accountScope !== "string" || !/^[a-f0-9]{64}$/.test(value.accountScope))))
 		throw new Error("Invalid Codex context identity");
 	return { protocol: 1, sessionId: value.sessionId, agentName: value.agentName, storage: value.storage,
 		...(value.accountScope === undefined ? {} : { accountScope: value.accountScope }),
+		...(value.backendUrl === undefined ? {} : { backendUrl: value.backendUrl }),
 		...(value.routing === undefined ? {} : { routing: value.routing }) };
 }
 

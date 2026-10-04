@@ -9,12 +9,15 @@ import {
 } from "../context-sharing.ts";
 import { CONTEXT_AGENT_ENTRY, contextAccountScope, contextAgentIdentity, contextTargetAgent, parseContextAgentBinding } from "./agent-identity.ts";
 import { createPiSessionNotesSnapshot, readPiSessionNotesSnapshot } from "./local-notes.ts";
+import { executeRemoteAttachment } from "./history-notes.ts";
+import { readRemoteNoteReference } from "./remote-scope.ts";
 
-async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string): Promise<string> {
+async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string, backendUrl?: string): Promise<string> {
 	const provider = await resolveCodexToolProvider(ctx);
 	if (provider.route !== "openai-codex") throw new Error("Shared Remote context requires Codex transport");
 	const scope = contextAccountScope(provider.accountId);
 	if (expected && scope !== expected) throw new Error("Shared Remote context requires the parent's Codex account");
+	if (backendUrl && backendUrl !== provider.baseUrl) throw new Error("Shared Remote context requires its original backend");
 	return scope;
 }
 
@@ -24,6 +27,7 @@ export function registerContextSharingService(
 	execute: (ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => Promise<SharedContextResult>,
 ): ContextRouter {
 	let router: ContextRouter | undefined;
+	const preparedAttachments = new WeakMap<ExtensionContext, { native: ReturnType<ContextSharingService["describe"]>; identity: NonNullable<ReturnType<ContextSharingService["describe"]>>; model: string }>();
 	const describe: ContextSharingService["describe"] = (ctx) => {
 		const storageMode = plan(ctx).contextManagementMode;
 		if (storageMode === "off") return undefined;
@@ -33,6 +37,30 @@ export function registerContextSharingService(
 			throw new Error(`Shared context requires ${identity.storage === "remote" ? "Remote" : "Local or Tree"} history storage in this session`);
 		return { ...identity, storage };
 	};
+	const inspectAttachment: NonNullable<ContextSharingService["inspectAttachment"]> = (ctx, standalone = true) => {
+		const check = () => {
+			const identity = describe(ctx);
+			if (!identity) throw new Error("Context attachment requires notes-based continuity");
+			if (standalone && !ctx.isIdle()) throw new Error("Attach context only after the target settles");
+			if (!ctx.sessionManager.getSessionFile()) throw new Error("Context attachment requires a saved Pi session");
+			if (standalone && contextAgentIdentity(ctx).storage) throw new Error("Target already belongs to a shared context family");
+			if (!router) throw new Error("Context attachment requires an available context router");
+			return identity;
+		};
+		const identity = check();
+		if (identity.storage !== "remote") return identity;
+		const model = JSON.stringify(ctx.model);
+		return (async () => {
+			const provider = await resolveCodexToolProvider(ctx);
+			if (provider.route !== "openai-codex" || (identity.accountScope && identity.accountScope !== contextAccountScope(provider.accountId)) ||
+				(identity.backendUrl && identity.backendUrl !== provider.baseUrl))
+				throw new Error("Attached Remote context requires its original Codex account and backend");
+			if (!isDeepStrictEqual(check(), identity) || JSON.stringify(ctx.model) !== model) throw new Error("Context changed during attachment authentication; retry");
+			const verified = { ...identity, accountScope: contextAccountScope(provider.accountId), backendUrl: provider.baseUrl };
+			preparedAttachments.set(ctx, { native: identity, identity: verified, model });
+			return verified;
+		})();
+	};
 	const service: ContextSharingService = {
 		protocol: 1,
 		canCreateChild: (ctx) => plan(ctx).shareSubagentContext,
@@ -40,7 +68,7 @@ export function registerContextSharingService(
 		async verify(ctx) {
 			const identity = describe(ctx);
 			if (identity?.storage !== "remote" || !identity.accountScope) return;
-			await verifyRemoteAccount(ctx, identity.accountScope);
+			await verifyRemoteAccount(ctx, identity.accountScope, identity.backendUrl);
 		},
 		async createChild(ctx, options) {
 			if (!service.canCreateChild(ctx)) throw new Error("Shared subagent context is disabled; enable it in /codex context");
@@ -49,14 +77,15 @@ export function registerContextSharingService(
 			if (!/^[a-zA-Z0-9_-]+$/.test(options.name)) throw new Error("Invalid context agent name");
 			if (parent.storage === "session" && (!router || options.routing === undefined))
 				throw new Error("Local and Tree sharing require a registered context router");
-			if (parent.storage === "remote") parent.accountScope = await verifyRemoteAccount(ctx, parent.accountScope);
+			if (parent.storage === "remote") parent.accountScope = await verifyRemoteAccount(ctx, parent.accountScope, parent.backendUrl);
 			if (ctx.sessionManager.getSessionId() !== parent.threadId) throw new Error("Controller session changed while preparing shared context");
 			const binding = { protocol: 1 as const, sessionId: parent.sessionId,
 				agentName: `${parent.agentName}/${options.name}-${randomUUID()}`, storage: parent.storage!,
 				...(parent.accountScope ? { accountScope: parent.accountScope } : {}),
+				...(parent.backendUrl ? { backendUrl: parent.backendUrl } : {}),
 				...(options.routing === undefined ? {} : { routing: options.routing }) };
 			return { binding, async adopt() {
-				if (parent.storage === "remote") await verifyRemoteAccount(ctx, parent.accountScope);
+				if (parent.storage === "remote") await verifyRemoteAccount(ctx, parent.accountScope, parent.backendUrl);
 				const current = describe(ctx);
 				if (!current || current.threadId !== parent.threadId || current.sessionId !== parent.sessionId ||
 					current.agentName !== parent.agentName || current.storage !== parent.storage ||
@@ -86,25 +115,19 @@ export function registerContextSharingService(
 				return false;
 			};
 			check();
-			if (binding.storage === "remote") await verifyRemoteAccount(ctx, binding.accountScope);
+			if (binding.storage === "remote") await verifyRemoteAccount(ctx, binding.accountScope, binding.backendUrl);
 			// Auth can yield to input or a session switch; the live owner commits only while still fresh.
 			if (!check()) pi.appendEntry(CONTEXT_AGENT_ENTRY, identity);
 			return identity;
 		},
-		inspectAttachment(ctx) {
-			const identity = describe(ctx);
-			if (!identity) throw new Error("Context attachment requires notes-based continuity");
-			if (identity.storage !== "session") throw new Error("Existing Remote context cannot be attached; use Local or Tree on both agents");
-			if (!ctx.isIdle()) throw new Error("Attach context only after the target settles");
-			if (!ctx.sessionManager.getSessionFile()) throw new Error("Context attachment requires a saved Pi session");
-			if (contextAgentIdentity(ctx).storage) throw new Error("Target already belongs to a shared context family");
-			if (!router) throw new Error("Context attachment requires an available context router");
-			return identity;
-		},
+		inspectAttachment,
 		retainAttachmentIdentity(ctx) {
-			const identity = describe(ctx);
-			if (!identity || identity.storage !== "session") throw new Error("Attached context requires Local or Tree storage");
-			if (!ctx.sessionManager.getSessionFile() || !router) throw new Error("Context attachment requires a saved owner and live router");
+			const native = describe(ctx);
+			if (!native || !router || !ctx.sessionManager.getSessionFile()) throw new Error("Context attachment requires a saved owner and live router");
+			const prepared = preparedAttachments.get(ctx);
+			if (native.storage === "remote" && (!prepared || !isDeepStrictEqual(prepared.native, native) || prepared.model !== JSON.stringify(ctx.model)))
+				throw new Error("Remote attachment authentication changed; inspect the original owner and retry");
+			const identity = native.storage === "remote" ? prepared!.identity : native;
 			if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, identity);
 			return identity;
 		},
@@ -116,14 +139,37 @@ export function registerContextSharingService(
 				!request.params || typeof request.params !== "object" || Array.isArray(request.params) ||
 				contextTargetAgent(request.namespace, request.params, identity.agentName) !== identity.agentName)
 				throw new Error("Shared context request does not belong to this agent");
-			if (identity.storage !== "session") throw new Error("Remote context uses the Codex backend, not peer routing");
+			if (request.encryptedArguments)
+				throw new Error("Encrypted Remote arguments cannot execute against Local or Tree storage; use Code or Notebook history/notes with ordinary query/text");
+			if (identity.storage !== "session") throw new Error("Remote context requires reader-host authenticated dispatch");
 			return execute(ctx, request, signal);
 		},
 		exportAttachmentNotes(ctx) {
 			const identity = describe(ctx);
-			if (!identity || identity.storage !== "session") throw new Error("Checkpoint export requires Local or Tree");
+			if (!identity) throw new Error("Checkpoint export requires notes-based continuity");
+			if (identity.storage === "remote") return Promise.resolve(inspectAttachment(ctx, false)).then(verified =>
+				({ protocol: 1 as const, storage: "remote" as const, timestamp: Date.now(), identity: verified, baseUrl: verified.backendUrl! }));
 			const snapshot = createPiSessionNotesSnapshot(ctx.sessionManager.getBranch());
 			return { ...snapshot, files: snapshot.files.filter((file) => contextTargetAgent("notes", { path: file.path }, identity.agentName) === identity.agentName) };
+		},
+		validateAttachmentNotes(snapshot, identity) {
+			if (identity.storage === "remote") {
+				if (!isDeepStrictEqual(readRemoteNoteReference(snapshot).identity, identity)) throw new Error("Remote checkpoint owner changed");
+			} else readPiSessionNotesSnapshot(snapshot, { action: "list_files_by_prefix", prefix: `${identity.agentName}/notes` });
+		},
+		async verifyAttachmentAccess(ctx, snapshot) {
+			if (!snapshot || typeof snapshot !== "object" || !("storage" in snapshot) || snapshot.storage !== "remote") return;
+			const reference = readRemoteNoteReference(snapshot);
+			const identity = describe(ctx);
+			const model = JSON.stringify(ctx.model);
+			const provider = await resolveCodexToolProvider(ctx);
+			if (provider.route !== "openai-codex" || reference.identity.accountScope !== contextAccountScope(provider.accountId) || reference.baseUrl !== provider.baseUrl)
+				throw new Error("Attached Remote context requires its original Codex account and backend");
+			if (!isDeepStrictEqual(describe(ctx), identity) || JSON.stringify(ctx.model) !== model)
+				throw new Error("Context changed during attachment authentication; retry");
+		},
+		async executeRemoteAttachment(ctx, snapshot, request, signal) {
+			return executeRemoteAttachment(ctx, readRemoteNoteReference(snapshot), request, signal);
 		},
 		parseAttachmentNotes(input, identity) {
 			if (!Array.isArray(input)) throw new Error("Invalid persisted checkpoint entries");
@@ -149,9 +195,12 @@ export function registerContextSharingService(
 	const off = pi.events.on(CONTEXT_SHARING_REQUEST, () => pi.events.emit(CONTEXT_SHARING_AVAILABLE, service));
 	pi.events.emit(CONTEXT_SHARING_AVAILABLE, service);
 	pi.on("session_shutdown", () => { off(); router = undefined; });
-	return async (ctx, request, signal) => {
+	return Object.assign(async (ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => {
 		describe(ctx);
-		if (!router) throw new Error("Cross-agent Local/Tree context requires an available context router");
+		if (!router) {
+			if (describe(ctx)?.storage === "remote") return undefined;
+			throw new Error("Cross-agent context requires an available context router");
+		}
 		return router(ctx, request, signal);
-	};
+	}, { requiresRemoteScope: (ctx: ExtensionContext) => router?.requiresRemoteScope?.(ctx) ?? false });
 }

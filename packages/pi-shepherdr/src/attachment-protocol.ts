@@ -12,7 +12,9 @@ export const Identity = Type.Object({
 	sessionId: Type.String({ minLength: 1 }),
 	threadId: Type.String({ minLength: 1 }),
 	agentName: AgentPath,
-	storage: Type.Literal("session"),
+	storage: Type.Union([Type.Literal("session"), Type.Literal("remote")]),
+	accountScope: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$" })),
+	backendUrl: Type.Optional(Type.String({ minLength: 1 })),
 	routing: Type.Optional(Type.Unknown()),
 });
 const ContextLink = Type.Object({
@@ -109,6 +111,17 @@ export function remapResult(
 	from: string,
 	to: string,
 ): SharedContextResult {
+	if (
+		typeof result.details.codexHistoryNotes["encrypted_output"] === "string"
+	) {
+		const hint = `Source ${from}, access through ${to}. Use ${to}/notes for note paths and ${to} for history agent_name`;
+		// Ciphertext paths cannot be remapped. Preserve host-only provenance on the original details.
+		result.details.codexHistoryNotes["attachment_hint"] = hint;
+		return {
+			...result,
+			content: [{ type: "text", text: hint }, ...result.content],
+		};
+	}
 	const details = JSON.parse(
 		JSON.stringify(result.details.codexHistoryNotes),
 		(key, value: unknown) =>

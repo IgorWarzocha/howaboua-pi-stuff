@@ -18,7 +18,7 @@ import { registerContextManagementTools } from "../src/context-management/tools.
 import { getCodeModeExtensionToolSnapshot } from "../src/code-mode-extension-tools.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { contextAgentIdentity } from "../src/context-management/agent-identity.ts";
-import { remoteContextScope } from "../src/context-management/remote-scope.ts";
+import { remoteContextScope, remoteBackendScope, readRemoteNoteReference } from "../src/context-management/remote-scope.ts";
 
 const { prepareCompaction } = await import(new URL("./core/compaction/compaction.js", import.meta.resolve("@earendil-works/pi-coding-agent")).href);
 
@@ -324,6 +324,42 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			await assert.rejects(nested.invoke({ action: "read_file", path: "state" }, { cwd: context.cwd,
 				extensionContext: context, opaqueScope: "wrong", opaqueContextValid: async () => true,
 				captureOpaqueResult() {} }, new AbortController().signal), /changed before dispatch/);
+			const sharing = connectCodexContextSharing(nestedPi as never).service!;
+			const reference = { protocol: 1, storage: "remote", timestamp: 0, baseUrl: "https://chatgpt.com/backend-api/codex",
+				identity: { protocol: 1, storage: "remote", sessionId: "other-session", threadId: "other-thread", agentName: "/root",
+					accountScope: contextAccountScope("account-1"), backendUrl: "https://chatgpt.com/backend-api/codex" } } as const;
+			sharing.validateAttachmentNotes!(reference, reference.identity);
+			assert.throws(() => readRemoteNoteReference({ ...reference, identity: { ...reference.identity, sessionId: "x".repeat(513) } }), /Invalid Remote checkpoint/);
+			const peerRequest = { namespace: "notes", sessionId: "other-session", agentName: "/root",
+				params: { action: "search_contents", query: "ordinary peer query", path_prefix: "/root/notes" } } as const;
+			const renamed = { ...context, model: { ...context.model!, provider: "private-codex-name" } };
+			const peerResult = await sharing.executeRemoteAttachment!(renamed, reference, peerRequest);
+			assert.equal(remoteBackendScope(peerResult.details.codexHistoryNotes), scope, "backend addressing does not rebind protected delivery to the owner");
+			assert.deepEqual(JSON.parse(String(request?.init.body)).context, { session_id: "other-session", current_agent_name: "/root" });
+			assert.equal(new Headers(request?.init.headers).has("x-openai-encrypted-tool-arguments"), false);
+			await sharing.executeRemoteAttachment!(renamed, reference, { ...peerRequest, encryptedArguments: true });
+			assert.equal(new Headers(request?.init.headers).get("x-openai-encrypted-tool-arguments"), "true");
+			await assert.rejects(sharing.executeRemoteAttachment!(context, { ...reference, baseUrl: "https://other.example/codex",
+				identity: { ...reference.identity, backendUrl: "https://other.example/codex" } }, peerRequest), /original Codex account and backend/);
+			await assert.rejects(sharing.executeRemoteAttachment!(context, reference, peerRequest, AbortSignal.abort()), /abort/i);
+			const alias = "/root/attached-peer";
+			sharing.registerRouter(Object.assign(async (ctx: ExtensionContext, routed: Parameters<typeof sharing.execute>[1], signal?: AbortSignal) => {
+				if (routed.agentName !== alias) return undefined;
+				const result = await sharing.executeRemoteAttachment!(ctx, reference, { ...routed, sessionId: reference.identity.sessionId,
+					agentName: "/root", params: { ...routed.params, path: "/root/notes/state" } }, signal);
+				result.details.codexHistoryNotes["attachment_hint"] = `Source /root, access through ${alias}`;
+				return result;
+			}, { requiresRemoteScope: () => true }));
+			state.config.compaction.historyStorage = "local";
+			const mixed = getCodeModeExtensionToolSnapshot(nestedPi as never, renamed).tools.find(tool => tool.name === "notes")!;
+			let protectedName: string | undefined;
+			const receipt = await mixed.invoke({ action: "read_file", path: `${alias}/notes/state` }, { cwd: context.cwd, extensionContext: renamed,
+				opaqueScope: scope, opaqueContextValid: async () => true, captureOpaqueResult: output => { protectedName = output.name; } }, new AbortController().signal);
+			assert.match(protectedName!, /Source \/root, access through \/root\/attached-peer/);
+			assert.deepEqual(receipt, { result_id: "code-mode-notes" });
+			assert(!JSON.stringify(receipt).includes("encrypted-note"));
+			await sharing.executeRemoteAttachment!(context, reference, { ...peerRequest, namespace: "history", params: { action: "list_windows" } });
+			assert.match(request!.url, /history\/v2\/list_windows$/);
 		}
 		for (const mode of ["local", "tree"] as const) {
 			const bridgeEntries: Record<string, unknown>[] = [];
