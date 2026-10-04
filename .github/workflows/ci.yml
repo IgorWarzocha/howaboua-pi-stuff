@@ -1,12 +1,11 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,7 +24,7 @@ jobs:
       - name: Resolve changed base
         id: changed-base
         env:
-          EVENT_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+          EVENT_BASE: ${{ github.event.before }}
         run: |
           base="$EVENT_BASE"
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
