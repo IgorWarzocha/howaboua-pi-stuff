@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-harness-and-agent-engineering
 
+## 0.0.6
+
+- Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
+
 ## 0.0.5
 
 - Harness audits now stay within the requested workflow, reuse supplied context and measure startup overhead only when in scope.

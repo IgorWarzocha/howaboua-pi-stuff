@@ -1,5 +1,11 @@
 # @howaboua/pi-skills
 
+## 0.0.24
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
+
 ## 0.0.23
 
 - Include bundled package updates:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.45
+
+- Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+
 ## 3.0.44
 
 - Code and Notebook modes now import Pi-callable extension tools automatically, preferring explicit integrations through the Pi Codex Conversion API.
