@@ -382,12 +382,9 @@ export class MonitorState {
 	): boolean {
 		const record = this.byTerminal(terminalId);
 		if (!record || activityTask(record.activity) !== task) return false;
-		if (record.scope === "task" && status !== "blocked") {
-			this.agents.delete(terminalId);
-			return true;
-		}
 		this.agents.set(terminalId, {
 			...record,
+			scope: "persistent",
 			activity: { phase: "settled", status },
 			...(lastAssistantId ? { lastAssistantId } : {}),
 		});

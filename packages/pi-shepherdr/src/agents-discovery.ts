@@ -59,7 +59,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			share_context:
 				"Profile false isolates notes/history; otherwise follows controller sharing setting",
 			watch:
-				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
+				"Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			slash:

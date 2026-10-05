@@ -22,7 +22,7 @@ import {
 	rollbackStartedAgent,
 	startAgent,
 } from "./launch.js";
-import { attributeAgentPrompt } from "./messages.js";
+import { attributeAgentPrompt, BOARD_MEMBER_GUIDANCE } from "./messages.js";
 import {
 	loadAgentProfiles,
 	prepareProfileMessage,
@@ -129,6 +129,13 @@ export async function spawnAgent(
 	const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 	try {
 		boardAgent = await boardBinding?.accept(started.agent);
+		if (boardAgent)
+			attributedMessage.context = [
+				attributedMessage.context,
+				BOARD_MEMBER_GUIDANCE,
+			]
+				.filter(Boolean)
+				.join("\n\n");
 		shared = await sharing?.accept(started.agent);
 		dispatch = await dispatchAgentWork(
 			runtime,

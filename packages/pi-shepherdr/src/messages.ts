@@ -25,6 +25,8 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+export const BOARD_MEMBER_GUIDANCE =
+	"Read relevant board threads before starting your task. Post plans, decisions and findings your parent or peers need.";
 
 export function attachmentMessage(
 	controllerContextAgent?: string,
@@ -38,7 +40,9 @@ export function attachmentMessage(
 						`Controller notes/history: ${controllerContextAgent}; own context unchanged`,
 					]
 				: []),
-			...(boardAgent ? [`Shared board: ${boardAgent}`] : []),
+			...(boardAgent
+				? [`Shared board: ${boardAgent}`, BOARD_MEMBER_GUIDANCE]
+				: []),
 		].join("\n"),
 		display: true,
 	};

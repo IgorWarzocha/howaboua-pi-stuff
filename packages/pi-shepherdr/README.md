@@ -73,7 +73,7 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 
 Questions, status updates and replies use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages.
 
-Automatic delegation watches end when the task finishes or fails. Blocked tasks stay watched until resolved. Only an explicit `watch` keeps reporting subsequent work until `unwatch`. Sending an update to your worker preserves its existing task watch without replacing the task.
+Delegation and explicit `watch` keep reporting subsequent work until `unwatch` or the agent's pane closes. Finishing or failing a task clears that task, not its watch. Follow-up messages through `send` retain completion reporting without replacing the task.
 
 Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
