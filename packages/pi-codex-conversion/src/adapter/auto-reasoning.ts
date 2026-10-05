@@ -39,7 +39,7 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 		tool: {
 			name: "change_reasoning",
 			label: "Change Reasoning",
-			description: "Before substantial work, select effort for the next phase: low/medium for routine work, high/xhigh for difficult analysis, max for the hardest problems; reassess when the work changes",
+			description: "Use at task start and when the work changes",
 			parameters: PARAMETERS,
 			...auxiliaryToolRenderers("Reasoning adjustment failed", (_args, result) => {
 				const details = displayRecord(result?.details);
