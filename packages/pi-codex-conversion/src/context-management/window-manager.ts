@@ -10,6 +10,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 	ExtensionEvent,
+	InputEvent,
 	SessionBeforeCompactEvent,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
@@ -68,6 +69,8 @@ export class CodexContextWindowManager {
 		reminderId: string;
 		mode: ContextManagementMode;
 		phase: "awaiting" | "running";
+		prompt: string;
+		admitted: boolean;
 	} | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
@@ -383,15 +386,25 @@ export class CodexContextWindowManager {
 			reminderId: reminder.details.id,
 			mode,
 			phase: idle ? "awaiting" : "running",
+			prompt: prompt ?? "Continue.",
+			admitted: false,
 		};
 		try {
 			pi.sendMessage(reminder, idle ? { triggerTurn: false } : { deliverAs: "steer", triggerTurn: true });
-			if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx, prompt))
-				pi.sendUserMessage(prompt ?? "Continue.", { deliverAs: "steer" });
+			if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx, checkpoint.prompt))
+				pi.sendUserMessage(checkpoint.prompt, { deliverAs: "steer" });
 		} catch (error) {
 			if (this.promptedManualCheckpoint === checkpoint) this.promptedManualCheckpoint = undefined;
 			throw error;
 		}
+	}
+
+	admitPromptedCheckpointInput(event: InputEvent): boolean {
+		const pending = this.promptedManualCheckpoint;
+		if (!pending || pending.phase !== "awaiting" || pending.admitted ||
+			event.source !== "extension" || event.text !== pending.prompt) return false;
+		pending.admitted = true;
+		return true;
 	}
 
 	beginPromptedManualCheckpointRun(): void {

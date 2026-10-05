@@ -88,7 +88,8 @@ export function createCodexTurnLifecycle(
 		},
 		input: async (event, ctx) => {
 			const inputPlan = resolveCodexRuntimePlanForState(ctx, state);
-			const checkpointInput = state.contextKickoff.admitCheckpointInput(event);
+			const checkpointInput = state.contextKickoff.admitCheckpointInput(event)
+				|| state.contextWindows.admitPromptedCheckpointInput(event);
 			if (!checkpointInput && (state.contextKickoff.hasIdleInput || (inputPlan.idleNotesRollover && event.streamingBehavior === undefined &&
 				!state.contextTree.rolloverPending && !state.contextTree.handoff.active && !state.contextKickoff.pending &&
 				state.contextWindows.isIdleRolloverDue(ctx)))) {
@@ -169,6 +170,7 @@ export function createCodexTurnLifecycle(
 			runtime.finishTurn();
 			updateCodexPreparedIdleKickoff(pi, "agent_settled");
 			flushCodexReasoningUpdates(pi, ctx);
+			ui.recordNoteSave(ctx);
 			// Rollover compaction aborts this run before its successor exists.
 			const continuingWork = state.contextWindows.isRolloverCompactionRunning()
 				|| state.contextTree.rolloverPending || state.contextKickoff.pending;

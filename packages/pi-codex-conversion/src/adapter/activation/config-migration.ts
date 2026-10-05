@@ -64,6 +64,7 @@ export function migrateCodexConversionConfigIfNeeded(
 			toolRenaming: DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
 			compactTools: DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"],
 			codeModeDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],
+			noteSaveMarkers: DEFAULT_CODEX_CONVERSION_CONFIG.ui.noteSaveMarkers,
 			backgroundShellWidget: typeof value["backgroundShellWidget"] === "boolean" ? value["backgroundShellWidget"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
 			backgroundShellToggleShortcut: stringValue(value["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
 			backgroundShellPrevShortcut: stringValue(value["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),

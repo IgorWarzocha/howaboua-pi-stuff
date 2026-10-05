@@ -110,6 +110,10 @@ export function normalizeCodexConversionConfig(
 				ui["backgroundShellWidget"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
 			),
+			noteSaveMarkers: normalizeBoolean(
+				ui["noteSaveMarkers"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.ui.noteSaveMarkers,
+			),
 			backgroundShellToggleShortcut: normalizeString(
 				ui["backgroundShellToggleShortcut"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"],

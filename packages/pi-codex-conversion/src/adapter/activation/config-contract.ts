@@ -62,6 +62,7 @@ export interface CodexConversionConfig {
 		toolRenaming: boolean;
 		compactTools: CompactToolsMode;
 		codeModeDetails: boolean;
+		noteSaveMarkers: boolean;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
 		backgroundShellPrevShortcut: string;
@@ -128,6 +129,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		toolRenaming: true,
 		compactTools: "off",
 		codeModeDetails: false,
+		noteSaveMarkers: false,
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",
 		backgroundShellPrevShortcut: "alt+q",

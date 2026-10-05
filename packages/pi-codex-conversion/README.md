@@ -69,7 +69,7 @@ Custom-tool contract changes and removals, including promoted tools, are announc
 | Context | Continuity, notes storage, subagent sharing, compaction, V2 retention |
 | Tools | Auto reasoning (GPT-6), image descriptions, standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite |
-| Display | Statusline, tool rendering, Code Mode detail, background shells |
+| Display | Statusline, tool rendering, Code Mode detail, note save markers, background shells |
 | Voice | LAN server, realtime behaviour, summarisation, dictation, shortcuts, prompt paths |
 | Usage | Spend by model and reset window, Codex limits, banked reset credits |
 | About | GitHub, changelog, Discord, issues |
@@ -167,6 +167,8 @@ The model receives history, notes, rollover and remaining-context tools. Code an
 Remote results remain tied to their original context family and Codex account. An account mismatch makes pinned notes unavailable without moving them to another account or store. Agents can exchange needed context through messages. Re-reading a completed result does not count as a new note checkpoint.
 
 With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, explicit `new_context` compacts before rollover.
+
+**Note save markers** in `/codex display` is off by default. When enabled, completed turns with confirmed saved notes get a **✓ Notes saved** marker and a bookmark on the reply in `/tree`. To discard a later conversation turn, return to the bookmarked reply with **No summary**, then run plain `/compact` in **Notes and history**. A new window opens without another note-writing turn. Tree navigation preserves that reply's original idle age. Existing user labels are preserved, and turning markers off keeps saved bookmarks.
 
 **New window after 25 minutes idle** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. After at least 25 minutes since a run settled, including an aborted or failed run, the next prompt opens a window first. If fresh saved notes are missing, a checkpoint turn saves the current state before rollover. The original prompt and attachments then proceed normally. Resume uses the recorded settlement time. Older runs without a recorded settlement do not trigger idle rollover. This policy does not prove that the provider cache expired. If checkpointing or rollover fails, input and attachments remain pending. Submit another prompt to retry, or reload to cancel pending input. Aborting the checkpoint turn cancels pending input and attachments instead of submitting them later.
 
