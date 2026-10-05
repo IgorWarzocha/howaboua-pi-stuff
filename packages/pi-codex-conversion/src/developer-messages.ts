@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+export { CODEX_CONTEXT_BRIEFING_TYPE, registerCodexContextBriefing, hasCodexContextBriefingHost, type CodexContextBriefing, type CodexContextBriefingHandler } from "./context-briefings.ts";
 
 export type CodexDeveloperMessageDelivery =
 	| "steer"

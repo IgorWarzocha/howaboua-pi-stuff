@@ -3,8 +3,11 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type {
+	CodexContextBriefingHandler,
 	CodexDeveloperCustomMessage,
 	CodexDeveloperMessageOptions,
+	hasCodexContextBriefingHost,
+	registerCodexContextBriefing,
 	trySendCodexDeveloperCustomMessage,
 	tryStartCodexPreparedIdleKickoff,
 	tryStartCodexPreparedIdlePrompt,
@@ -26,6 +29,14 @@ const preparedPrompts = new WeakMap<
 	ExtensionAPI,
 	typeof tryStartCodexPreparedIdlePrompt
 >();
+const briefingHosts = new WeakMap<
+	ExtensionAPI,
+	{
+		register: typeof registerCodexContextBriefing;
+		available: typeof hasCodexContextBriefingHost;
+	}
+>();
+const outdatedBriefingHosts = new WeakSet<ExtensionAPI>();
 const PACKAGE = "@howaboua/pi-codex-conversion";
 const MODULE = `${PACKAGE}/developer-messages`;
 
@@ -42,6 +53,15 @@ export async function registerDeveloperDelivery(
 			preparedKickoffs.set(pi, api.tryStartCodexPreparedIdleKickoff);
 		if (typeof api.tryStartCodexPreparedIdlePrompt === "function")
 			preparedPrompts.set(pi, api.tryStartCodexPreparedIdlePrompt);
+		if (
+			typeof api.registerCodexContextBriefing === "function" &&
+			typeof api.hasCodexContextBriefingHost === "function"
+		)
+			briefingHosts.set(pi, {
+				register: api.registerCodexContextBriefing,
+				available: api.hasCodexContextBriefingHost,
+			});
+		else outdatedBriefingHosts.add(pi);
 	} catch (error) {
 		if (!isUnavailable(error)) throw error;
 	}
@@ -87,6 +107,19 @@ export async function registerDeveloperDelivery(
 		}
 		return;
 	});
+}
+
+export function registerInferenceBriefing(
+	pi: ExtensionAPI,
+	handler: CodexContextBriefingHandler,
+) {
+	const host = briefingHosts.get(pi);
+	const unregister = host?.register(pi, handler);
+	pi.on("session_shutdown", () => unregister?.());
+	return {
+		hosted: () => host?.available(pi) ?? false,
+		outdated: outdatedBriefingHosts.has(pi),
+	};
 }
 
 export function startPreparedIdleTurn(

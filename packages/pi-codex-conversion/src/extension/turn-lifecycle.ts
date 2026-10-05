@@ -16,9 +16,11 @@ import { updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import type { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
+import { recordCodexContextBriefings } from "../context-briefings.ts";
 import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
 import { recordNotebookStatus } from "../adapter/notebook-status.ts";
 import { hasFreshContextNotes } from "../context-management/saved-notes.ts";
+import { findLatestWindowBoundaryEntry } from "../context-management/window-manager.ts";
 import type { ExtensionHandler, TurnEndEvent, InputEvent, BeforeAgentStartEvent, AgentStartEvent, AgentBeforeSettleEvent, AgentSettledEvent, ContextWithSystemEvent, TurnEndEventResult, InputEventResult, BeforeAgentStartEventResult, ContextEventResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexTurnLifecycle(
@@ -207,6 +209,14 @@ export function createCodexTurnLifecycle(
 			state.contextKickoff.finishIdleCheckpoint(ctx, idleCheckpoint);
 		},
 		contextWithSystem: async (event, ctx) => {
+			const plan = resolveCodexRuntimePlanForState(ctx, state);
+			try {
+				const window = findLatestWindowBoundaryEntry(ctx.sessionManager.getBranch());
+				await recordCodexContextBriefings(pi, ctx, window?.details.contextManagement.currentWindowId);
+			} catch (error) {
+				ctx.abort();
+				throw error;
+			}
 			let messages = runtime.projectContextMessages(ctx, event.messages);
 			if (await refreshNotebookStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
@@ -215,7 +225,6 @@ export function createCodexTurnLifecycle(
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
 				messages = runtime.projectContextMessages(ctx, event.messages);
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(messages, isCodeModeRuntime(plan)

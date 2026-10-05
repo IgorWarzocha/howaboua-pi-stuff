@@ -25,8 +25,21 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
-export const BOARD_MEMBER_GUIDANCE =
-	"Read relevant board threads before starting your task. Post plans, decisions and findings your parent or peers need.";
+export function boardBriefing(
+	member: boolean,
+	population: "empty" | "populated" | "unavailable",
+) {
+	const state =
+		population === "populated"
+			? "Your shared board has posts. Read relevant threads and contribute useful plans, decisions and findings."
+			: population === "empty"
+				? "Shared board available; no posts yet."
+				: "Shared board status unavailable. Check board help and retry reading when available.";
+	const setup = member
+		? "The root agent owns setup; follow your assigned task."
+		: "You own setup. Before delegating, consider posting shared context if useful.";
+	return `${state} ${setup} Use agents for assignments and urgent messages.`;
+}
 
 export function attachmentMessage(
 	controllerContextAgent?: string,
@@ -40,9 +53,7 @@ export function attachmentMessage(
 						`Controller notes/history: ${controllerContextAgent}; own context unchanged`,
 					]
 				: []),
-			...(boardAgent
-				? [`Shared board: ${boardAgent}`, BOARD_MEMBER_GUIDANCE]
-				: []),
+			...(boardAgent ? [`Shared board: ${boardAgent}`] : []),
 		].join("\n"),
 		display: true,
 	};

@@ -15,6 +15,7 @@ import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
 import { registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
+import { registerCodexContextBriefingHost } from "../context-briefings.ts";
 import type { ExtensionHandler, SessionStartEvent, ModelSelectEvent, SessionBeforeSwitchEvent, SessionBeforeForkEvent, SessionBeforeTreeEvent, SessionTreeEvent, SessionShutdownEvent, SessionBeforeSwitchResult, SessionBeforeForkResult, SessionBeforeTreeResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexSessionLifecycle(
@@ -29,6 +30,7 @@ export function createCodexSessionLifecycle(
 	const { state, tracker, sessions } = runtime;
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
+	const unregisterContextBriefingHost = registerCodexContextBriefingHost(pi);
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
 		pi,
 		() => Boolean(
@@ -171,6 +173,7 @@ export function createCodexSessionLifecycle(
 			// Voice's persisted end policy still needs the active developer broker.
 			activeContext = undefined;
 			await runShutdownStep(failures, unregisterDeveloperMessageBroker);
+			await runShutdownStep(failures, unregisterContextBriefingHost);
 			await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
 			await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
 			await runShutdownStep(failures, () => sessions.shutdown());

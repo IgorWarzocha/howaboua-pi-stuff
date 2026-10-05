@@ -10,6 +10,7 @@ import {
 	sessionContextPath,
 } from "../remote/shepherdr-context.mjs";
 import { executeArchive } from "./archive.js";
+import { BoardAwareness } from "./awareness.js";
 import {
 	type BoardScope,
 	readBoardConfig,
@@ -51,12 +52,14 @@ export class AgentBoard {
 	private readonly pi: ExtensionAPI;
 	private readonly fleet: AgentFleet;
 	private readonly turns: BoardTurns;
+	private readonly awareness: BoardAwareness;
 	private refreshTools: (() => void) | undefined;
 	private lastSetting: { sessionId: string; enabled: boolean } | undefined;
 	private configError: string | undefined;
 	constructor(pi: ExtensionAPI, fleet: AgentFleet) {
 		this.pi = pi;
 		this.fleet = fleet;
+		this.awareness = new BoardAwareness(pi, (ctx) => this.population(ctx));
 		this.turns = new BoardTurns(pi, (ctx, request) =>
 			this.toOwner(ctx, request),
 		);
@@ -99,11 +102,44 @@ export class AgentBoard {
 	setToolRefresh(refresh: () => void) {
 		this.refreshTools = refresh;
 	}
+	private async population(ctx: ExtensionContext) {
+		const own = binding(ctx);
+		if (own.upstream) {
+			const status = await this.toOwner(
+				ctx,
+				{
+					operation: "board-call",
+					caller: own,
+					params: { action: "help" },
+					requestId: "briefing-status",
+				},
+				ctx.signal,
+			);
+			if (
+				!status ||
+				typeof status !== "object" ||
+				!("enabled" in status) ||
+				typeof status.enabled !== "boolean"
+			)
+				throw new Error("Board status unavailable");
+			if (status.enabled !== own.enabled) {
+				saveBinding(this.pi, { ...own, enabled: status.enabled });
+				await this.refresh(ctx);
+			}
+			if (!status.enabled) return;
+		}
+		return this.execute(
+			ctx,
+			{ action: "search_posts", limit: 1, max_chars_per_post: 1 },
+			"briefing",
+		);
+	}
 	enabled(ctx: ExtensionContext | undefined) {
 		return ctx ? binding(ctx).enabled : false;
 	}
 	async refresh(ctx: ExtensionContext) {
 		const own = binding(ctx);
+		this.awareness.refresh(ctx);
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
 		if (setting?.error && setting.error !== this.configError)
 			ctx.ui.notify(`Board disabled: ${setting.error}`, "error");
@@ -159,12 +195,16 @@ export class AgentBoard {
 			throw new Error(
 				"Board is off; the user can enable it in /herdr → Settings",
 			);
-		return this.toOwner(ctx, {
-			operation: "board-call",
-			caller,
-			params,
-			requestId,
-		});
+		return this.toOwner(
+			ctx,
+			{
+				operation: "board-call",
+				caller,
+				params,
+				requestId,
+			},
+			ctx.signal,
+		);
 	}
 	async prepare(
 		ctx: ExtensionContext,
