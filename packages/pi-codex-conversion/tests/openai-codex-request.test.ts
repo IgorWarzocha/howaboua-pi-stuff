@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { normalizeContext } from "@earendil-works/pi-ai";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
+import { applyCodexRequestOptions } from "../src/adapter/request-options.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG, FAST_MODE_FAMILIES } from "../src/adapter/activation/config.ts";
+import { normalizeFastMode } from "../src/adapter/activation/fast-mode.ts";
 import {
 	codeModeTools,
 	codexModel,
@@ -219,6 +222,42 @@ test("Codex request serialization preserves provider and strict-schema contracts
 	assertCodexRequestShape();
 	assertTranscriptSerialization();
 	assertStrictToolConstraints();
+	for (const enabledFamily of FAST_MODE_FAMILIES) {
+		const config = {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, fast: { ...normalizeFastMode(false), [enabledFamily]: true } },
+		};
+		for (const family of FAST_MODE_FAMILIES) {
+			for (const model of [`gpt-5.6-${family}`, `gpt-6-${family}`, `openai/gpt-6.1-${family}`, `proxy/OPENAI/GPT-7.2-${family.toUpperCase()}-2026-10-05`]) {
+				const payload = { model, text: { format: { type: "text" } } };
+				assert.deepEqual(applyCodexRequestOptions(payload, config), {
+					...payload,
+					...(family === enabledFamily ? { service_tier: "priority" } : {}),
+					text: { ...payload.text, verbosity: "low" },
+				});
+			}
+		}
+		assert.deepEqual(applyCodexRequestOptions({ model: "gpt-reserve" }, config), {
+			model: "gpt-reserve", ...(enabledFamily === "luna" ? { service_tier: "priority" } : {}), text: { verbosity: "low" },
+		});
+		assert.deepEqual(applyCodexRequestOptions({ model: "gpt-6-daybreak" }, config), { model: "gpt-6-daybreak", text: { verbosity: "low" } });
+		assert.deepEqual(applyCodexRequestOptions({ model: `gpt-6-${enabledFamily}`, service_tier: "flex" }, config, { serviceTier: false }),
+			{ model: `gpt-6-${enabledFamily}`, service_tier: "flex" }, "ineligible routes retain their explicit service tier");
+		assert.deepEqual(applyCodexRequestOptions({ model: "gpt-6-daybreak", service_tier: "flex" }, config),
+			{ model: "gpt-6-daybreak", service_tier: "flex", text: { verbosity: "low" } });
+		assert.deepEqual(applyCodexRequestOptions({}, config, { serviceTier: true, modelId: `gpt-6-${enabledFamily}` }),
+			{ service_tier: "priority" }, "context supplies the model only when payload has none");
+		assert.deepEqual(applyCodexRequestOptions({ model: "gpt-6-daybreak" }, config, { serviceTier: true, modelId: `gpt-6-${enabledFamily}` }),
+			{ model: "gpt-6-daybreak" }, "compaction and sidecar payloads follow their actual target, not the foreground model");
+	}
+	for (const enabled of [false, true]) {
+		const config = { ...DEFAULT_CODEX_CONVERSION_CONFIG, openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, fast: normalizeFastMode(enabled) } };
+		for (const model of ["gpt-5.4", "gpt-6-daybreak", "custom/sol", undefined]) {
+			assert.deepEqual(applyCodexRequestOptions({ model }, config), {
+				model, ...(enabled ? { service_tier: "priority" } : {}), text: { verbosity: "low" },
+			}, "unrecognized models retain legacy boolean behavior");
+		}
+	}
 });
 
 test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {

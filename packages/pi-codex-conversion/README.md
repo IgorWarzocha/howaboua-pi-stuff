@@ -68,7 +68,7 @@ Custom-tool contract changes and removals, including promoted tools, are announc
 | General | Settings scope, execution and extension modes, providers, heavy prompt overwrite, time reminders |
 | Context | Continuity, notes storage, subagent sharing, compaction, V2 retention |
 | Tools | Auto reasoning (GPT-6), image descriptions, standalone tools |
-| OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite |
+| OpenAI | Per-family Fast Mode, verbosity, transport, cache diagnostics, Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail, note save markers, background shells |
 | Voice | LAN server, realtime behaviour, summarisation, dictation, shortcuts, prompt paths |
 | Usage | Spend by model and reset window, Codex limits, banked reset credits |
@@ -97,7 +97,7 @@ The first setting chooses **Global** or **This project**:
 - Switching back to Global removes project overrides. Without a project file, all settings inherit globally.
 - GPT-5.6 Luna cache keepalive remains global. GPT-5.6 Sol and Terra keepalive follows the project.
 
-`PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` overrides Fast Mode for one Pi process. Run `/reload` after editing config files by hand.
+Fast Mode has independent settings for Astra, Sol, Terra and Luna, shared across each family's model versions. Existing boolean preferences still apply to all families. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` overrides every family for one Pi process. Run `/reload` after editing config files by hand.
 
 `tools.customRustBinariesDir` overrides bundled helpers by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build on the target machine, collect the binaries in one directory, set its path, then `/reload`.
 
@@ -105,7 +105,7 @@ The first setting chooses **Global** or **This project**:
 
 - **Heavy system prompt overwrite:** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. Off by default.
 - **Current time reminders:** choose 30 or 60 minutes under **General**. Active Responses adapters receive a persisted UTC developer message on the first inference in each context and when the interval has elapsed. No timer, extra turn or system-prompt change. Off by default.
-- **Auto reasoning (GPT-6):** lets Astra, Sol and Luna adjust effort through `change_reasoning` on Codex transport. Offers low, medium and high, never below your starting level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
+- **Auto reasoning (GPT-6):** lets Astra, Sol and Luna adjust effort through `change_reasoning` on Codex transport. Offers low, medium, high, xhigh and max, never below your selected level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
 
 On these GPT-6 models, auto reasoning and **Shift+Tab** use native configuration updates that preserve the request prefix and continuation eligibility. Cache hits still depend on the server. Updates survive resume and native compaction. Server-side automatic truncation and compaction are incompatible, but explicit Responses compaction V2 is supported. Other models retain Pi's usual reasoning selector.
 

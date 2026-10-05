@@ -4,6 +4,7 @@ import { supportsViewImageInputs } from "../tool-support.ts";
 import { isGpt6ModelId, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
 import { isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
 import type { CodexConversionConfig, ContextManagementMode } from "./config.ts";
+import { FAST_MODE_FAMILIES } from "./config-contract.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
 import type { AdapterState } from "./state.ts";
 import {
@@ -127,7 +128,7 @@ export function hasCodexTransportConfigChanged(previous: CodexConversionConfig, 
 	return next.voiceFeaturesOnly !== previous.voiceFeaturesOnly
 		|| next.executionMode !== previous.executionMode
 		|| next.prompt.heavySystemPromptOverwrite !== previous.prompt.heavySystemPromptOverwrite
-		|| next.openai.fast !== previous.openai.fast
+		|| [...FAST_MODE_FAMILIES, "other" as const].some((family) => next.openai.fast[family] !== previous.openai.fast[family])
 		|| next.openai.harnessIdentifierHeader !== previous.openai.harnessIdentifierHeader
 		|| nativeCompactionConfigured(next.compaction) !== nativeCompactionConfigured(previous.compaction)
 		|| next.compaction.continuity !== previous.compaction.continuity

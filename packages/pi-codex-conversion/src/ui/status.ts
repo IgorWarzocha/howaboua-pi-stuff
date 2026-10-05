@@ -3,6 +3,7 @@ import type { AdapterState } from "../adapter/activation/state.ts";
 import type { CodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { STATUS_KEY, buildStatusText } from "../adapter/activation/tool-set.ts";
 import { isResponsesContext } from "../adapter/prompt/codex-model.ts";
+import { isFastModeEnabled } from "../adapter/activation/fast-mode.ts";
 
 export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" }>): void {
 	if (!ctx.hasUI) return;
@@ -15,7 +16,7 @@ export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, pl
 		mode: plan.kind,
 		useOnAllModels: config.scope.allProviders === "on",
 		additionalProvider: plan.configuredProvider,
-		fast: plan.effectiveOpenAICodex && config.openai.fast,
+		fast: plan.effectiveOpenAICodex && isFastModeEnabled(config.openai.fast, ctx.model?.id),
 		contextManagement: plan.contextManagementMode,
 		compaction: plan.nativeCompaction,
 		usageStatus: state.usageStatus,

@@ -1,6 +1,7 @@
 import {
 	type CodexConversionConfig,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	FAST_MODE_FAMILIES,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	normalizeCodexVerbosity,
 } from "../../adapter/activation/config.ts";
@@ -10,10 +11,16 @@ export function buildOpenAISettings(
 	config: CodexConversionConfig,
 ): ConfigSetting[] {
 	return [
-		toggle("fast", "Fast mode", config.openai.fast, (enabled, current) => ({
-			...current,
-			openai: { ...current.openai, fast: enabled },
-		}), "Request priority processing where supported. May use more quota or cost more."),
+		...FAST_MODE_FAMILIES.map((family) => toggle(
+			`fast-${family}`,
+			`${family[0]!.toUpperCase()}${family.slice(1)} Fast Mode`,
+			config.openai.fast[family],
+			(enabled, current) => ({
+				...current,
+				openai: { ...current.openai, fast: { ...current.openai.fast, [family]: enabled } },
+			}),
+			"Request priority processing for this family across model versions. May use more quota or cost more.",
+		)),
 		{
 			item: {
 				id: "lunaCacheKeepaliveMinutes",

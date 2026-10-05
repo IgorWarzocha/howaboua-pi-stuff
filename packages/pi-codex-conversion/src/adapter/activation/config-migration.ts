@@ -8,6 +8,7 @@ import {
 	type CodexConversionConfig,
 } from "./config.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
+import { normalizeFastMode } from "./fast-mode.ts";
 
 export function migrateCodexConversionConfigIfNeeded(
 	value: unknown,
@@ -76,7 +77,7 @@ export function migrateCodexConversionConfigIfNeeded(
 			method: value["responsesCompaction"] === true ? "v2" : "pi",
 		},
 		openai: {
-			fast: typeof value["fast"] === "boolean" ? value["fast"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"],
+			fast: normalizeFastMode(value["fast"]),
 			verbosity: normalizeCodexVerbosity(value["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			lunaCacheKeepaliveMinutes: DEFAULT_CODEX_CONVERSION_CONFIG.openai.lunaCacheKeepaliveMinutes,
 			cacheKeepalive: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheKeepalive,

@@ -30,6 +30,7 @@ import {
 	normalizeVoiceContextModel,
 } from "./config-values.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
+import { normalizeFastMode } from "./fast-mode.ts";
 
 export function normalizeCodexConversionConfig(
 	value: unknown,
@@ -218,10 +219,7 @@ export function normalizeCodexConversionConfig(
 			...(outputDevice ? { outputDevice } : {}),
 		},
 		openai: {
-			fast: normalizeBoolean(
-				openai["fast"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"],
-			),
+			fast: normalizeFastMode(openai["fast"]),
 			verbosity:
 				normalizeCodexVerbosity(openai["verbosity"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

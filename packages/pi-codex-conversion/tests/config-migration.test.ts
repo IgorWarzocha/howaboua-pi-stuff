@@ -13,7 +13,14 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	assert.equal(flat.migrated, true);
 	const normalized = normalizeCodexConversionConfig(flat.config);
 	assert.deepEqual(normalized.scope, { allProviders: "on", additionalProviders: [] });
-	assert.equal(normalized.openai.fast, true);
+	assert.deepEqual(normalized.openai.fast, { astra: true, sol: true, terra: true, luna: true, other: true });
+	for (const fast of [true, false]) {
+		assert.deepEqual(normalizeCodexConversionConfig({ openai: { fast } }).openai.fast,
+			{ astra: fast, sol: fast, terra: fast, luna: fast, other: fast },
+			"grouped legacy booleans preserve Fast Mode for known and unknown models");
+	}
+	assert.deepEqual(normalizeCodexConversionConfig({ openai: { fast: { astra: true, sol: "true", terra: null, luna: false } } }).openai.fast,
+		{ astra: true, sol: false, terra: false, luna: false, other: false });
 	assert.equal(normalizeCodexConversionConfig({ ui: { compactTools: true } }).ui.compactTools, "on");
 	assert.equal(normalizeCodexConversionConfig({ ui: { compactTools: false } }).ui.compactTools, "off");
 	for (const notesTreeHandoff of [undefined, null, "off", 1])

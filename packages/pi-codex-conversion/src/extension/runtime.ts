@@ -3,6 +3,7 @@ import { getCurrentSystemMessage, type Api, type Context, type Model, type Trans
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { isFastModeEnabled } from "../adapter/activation/fast-mode.ts";
 import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
 import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-keepalive.ts";
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
@@ -232,7 +233,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					signal: controller.signal,
 					...reasoning,
 					textVerbosity: config.openai.verbosity,
-					...(config.openai.fast ? { serviceTier: "priority" as const } : {}),
+					...(isFastModeEnabled(config.openai.fast, model.id) ? { serviceTier: "priority" as const } : {}),
 				};
 				const deps = {
 					validateRequest: (body: ResponsesBody, responsesLite: boolean) =>
