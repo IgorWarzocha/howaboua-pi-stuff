@@ -8,16 +8,17 @@ import {
 
 export type ActionRequest = BrowserOperation | { action: "help" };
 
-const fields = (...names: string[]) => new Set(["action", ...names]);
+const fields = (...names: string[]) =>
+	new Set(["action", "response_length", ...names]);
 
 const ACTION_FIELDS: Record<BrowserAction, ReadonlySet<string>> = {
 	help: fields(),
 	start: fields(),
 	tabs: fields("query", "offset", "owned_only"),
-	open: fields("ref_id", "url", "lineno", "response_length"),
+	open: fields("ref_id", "url", "lineno"),
 	show: fields("ref_id"),
 	close: fields("ref_id"),
-	find: fields("ref_id", "pattern", "lineno", "response_length"),
+	find: fields("ref_id", "pattern", "lineno"),
 	click: fields("ref_id", "id", "selector", "x", "y"),
 	type: fields("ref_id", "id", "text"),
 	fill: fields("ref_id", "id", "selector", "value"),
