@@ -187,6 +187,27 @@ export class ActivityTimeline {
 	private readonly replayMessages = new Map<string, string[]>();
 	private nextMessageId = 0;
 	private afterUser = false;
+	private beforeAssistant: Set<string> | undefined;
+
+	assistantStarted(): void {
+		// Native assistant rows precede their streamed text and any tool rows.
+		this.beforeAssistant = new Set(this.current?.members.keys());
+	}
+
+	assistantUpdated(content: readonly { type: string; text?: string }[]): void {
+		if (
+			!this.beforeAssistant ||
+			!content.some((block) => block.type === "text" && block.text?.trim())
+		)
+			return;
+		// Retire only rows above this reply. Tools already streamed below it stay eligible.
+		for (const id of this.beforeAssistant) {
+			const member = this.current?.members.get(id);
+			if (member) member.anchorEligible = false;
+		}
+		this.beforeAssistant = undefined;
+		this.current?.refresh();
+	}
 
 	/** Anchor after the latest native user row, even for steering inside one run. */
 	userStarted(): void {
@@ -336,6 +357,7 @@ export class ActivityTimeline {
 		this.current = undefined;
 		this.pendingMessageGroup = undefined;
 		this.afterUser = false;
+		this.beforeAssistant = undefined;
 	}
 
 	retain(ids: ReadonlySet<string>, entries: readonly SessionEntry[]): void {
@@ -393,6 +415,7 @@ export class ActivityTimeline {
 		this.current = undefined;
 		this.pendingMessageGroup = undefined;
 		this.afterUser = false;
+		this.beforeAssistant = undefined;
 		let startedAt: number | undefined;
 		let endedAt = 0;
 		for (const entry of entries) {
@@ -421,6 +444,8 @@ export class ActivityTimeline {
 				this.userStarted();
 				startedAt = endedAt;
 			} else if (message.role === "assistant") {
+				this.assistantStarted();
+				this.assistantUpdated(message.content);
 				const tools = message.content.filter(
 					(block) => block.type === "toolCall",
 				);

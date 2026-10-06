@@ -152,12 +152,16 @@ export default function (pi: ExtensionAPI) {
 			progress();
 		}
 		if (!tui || !timeline.current || event.message.role !== "assistant") return;
+		timeline.assistantStarted();
+		timeline.assistantUpdated(event.message.content);
 		timeline.current.stage.thinking("");
 		progress();
 	});
 	pi.on("message_update", (event) => {
 		if (!tui || !timeline.current) return;
 		const update = event.assistantMessageEvent;
+		if (event.message.role === "assistant")
+			timeline.assistantUpdated(event.message.content);
 		if (
 			update.type === "thinking_start" ||
 			update.type === "thinking_delta" ||
