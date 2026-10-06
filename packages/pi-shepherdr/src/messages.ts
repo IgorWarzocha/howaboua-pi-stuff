@@ -25,6 +25,12 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+export function orchestrationGuidance(enabled: boolean, general: boolean) {
+	if (!enabled) return "Work normally. Delegate only when useful or requested.";
+	return general
+		? "Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks."
+		: "Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
+}
 export function boardBriefing(
 	member: boolean,
 	population: "empty" | "populated" | "unavailable",
