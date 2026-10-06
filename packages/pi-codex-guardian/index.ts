@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { FetchFunction } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
@@ -12,7 +13,7 @@ import {
 	reviewAction,
 	serializeAction,
 } from "./src/review.js";
-import { loadScope, requiresReview, type ScopePolicy } from "./src/scope.js";
+import { decideAction, loadScope, type ScopePolicy } from "./src/scope.js";
 
 const SETTING_ENTRY = "codex-guardian-setting";
 const PARENT_REQUIRED =
@@ -41,7 +42,16 @@ export default async function guardian(
 		for (const review of reviews) review.abort();
 	};
 	const updateStatus = (ctx: ExtensionContext) => {
-		ctx.ui.setStatus("guardian", enabled ? "Guardian on" : "Guardian off");
+		ctx.ui.setStatus(
+			"guardian",
+			!enabled
+				? "Guardian off"
+				: !scope.valid
+					? "Guardian config error"
+					: !scope.rules.length
+						? "Guardian on: no rules"
+						: `Guardian on: ${scope.rules.length} rules`,
+		);
 	};
 	const restore = (ctx: ExtensionContext) => {
 		invalidate();
@@ -59,11 +69,20 @@ export default async function guardian(
 		}
 		updateStatus(ctx);
 	};
-	parents.register(pi, () => enabled);
+	parents.register(
+		pi,
+		(ctx) =>
+			enabled &&
+			scope.valid &&
+			scope.cwd === ctx.cwd &&
+			(!scope.repoLoaded || ctx.isProjectTrusted()) &&
+			scope.rules.some((rule) => rule.action === "review"),
+	);
 	const reloadScope = (ctx: ExtensionContext) => {
 		invalidate();
 		scope = loadScope(ctx.cwd, ctx.isProjectTrusted());
 		if (!scope.valid) ctx.ui.notify(scope.error, "error");
+		updateStatus(ctx);
 	};
 	pi.on("session_start", (_event, ctx) => {
 		reloadScope(ctx);
@@ -91,7 +110,7 @@ export default async function guardian(
 	});
 
 	pi.registerCommand("guardian", {
-		description: "Guardian status, on, off, reload review policy",
+		description: "Guardian status, on, off, reload rules",
 		handler: async (args, ctx) => {
 			const action = args.trim().toLowerCase() || "status";
 			if (action === "on" || action === "off") {
@@ -115,11 +134,7 @@ export default async function guardian(
 				: " No review completed.";
 			const failure = lastFailure ? ` Last failure: ${lastFailure}.` : "";
 			const policy = scope.valid
-				? ` Review policy (${scope.source}): ${Object.entries(scope.review)
-						.map(([name, enabled]) => `${name}=${enabled}`)
-						.join(
-							", ",
-						)}.${ctx.isProjectTrusted() ? "" : " Repo config ignored: folder not trusted."}`
+				? ` Rules (${scope.source}): ${scope.rules.filter((rule) => rule.action === "review").length} review, ${scope.rules.filter((rule) => rule.action === "block").length} block.${scope.rules.length ? " Unmatched calls pass through." : " No rules: no reviews or blocks."}${scope.repoLoaded && !ctx.isProjectTrusted() ? " Repo trust revoked: reload required, actions blocked." : ctx.isProjectTrusted() ? "" : " Repo config ignored: folder not trusted."}`
 				: ` Configuration error: ${scope.error}. Actions blocked while Guardian is on.`;
 			ctx.ui.notify(
 				`Guardian ${enabled ? "on" : "off"}. ${nested}.${policy}${usage}${failure}`,
@@ -144,15 +159,84 @@ export default async function guardian(
 		if (
 			!scope.valid ||
 			scope.cwd !== ctx.cwd ||
-			(scope.source === "repo" && !ctx.isProjectTrusted())
+			(scope.repoLoaded && !ctx.isProjectTrusted())
 		)
 			return {
 				block: true,
 				reason:
-					"Guardian configuration is unavailable or no longer trusted. Ask the user to check /guardian status and reload its review policy.",
+					"Guardian configuration is unavailable or no longer trusted. Ask the user to check /guardian status and reload its rules.",
+			};
+		const matchingRevision = revision;
+		const matchingLeaf = ctx.sessionManager.getLeafId();
+		const matchingSession = ctx.sessionManager.getSessionId();
+		const matchingSystem = ctx.getSystemPrompt();
+		const matchingController = new AbortController();
+		const matchingSignal = AbortSignal.any(
+			[matchingController.signal, ctx.signal, signal].filter(
+				(item): item is AbortSignal => item !== undefined,
+			),
+		);
+		let matchingAction: Action | undefined;
+		let decision;
+		reviews.add(matchingController);
+		try {
+			if (
+				scope.rules.some(
+					(rule) =>
+						rule.tool === action.toolName && Object.keys(rule.args).length,
+				)
+			)
+				matchingAction = structuredClone(action);
+			const result = decideAction(
+				action.toolName,
+				action.input,
+				scope.rules,
+				matchingSignal,
+			);
+			decision = typeof result === "string" ? result : await result;
+		} catch (error) {
+			if (matchingRevision === revision)
+				lastFailure =
+					error instanceof Error &&
+					error.message === "Node argument matcher unavailable"
+						? "Argument matcher unavailable: Node required"
+						: error instanceof Error &&
+								error.message === "Argument matching timed out"
+							? "Rule matching timed out"
+							: "Rule matching unavailable";
+			return {
+				block: true,
+				reason:
+					"Guardian could not match this action against its rules. Nothing executed. Ask the user to check /guardian status and its argument regexes.",
+			};
+		} finally {
+			reviews.delete(matchingController);
+			matchingController.abort();
+		}
+		if (
+			matchingRevision !== revision ||
+			matchingLeaf !== ctx.sessionManager.getLeafId() ||
+			matchingSession !== ctx.sessionManager.getSessionId() ||
+			matchingSystem !== ctx.getSystemPrompt() ||
+			action.cwd !== ctx.cwd ||
+			(matchingAction && !isDeepStrictEqual(matchingAction, action)) ||
+			ctx.signal?.aborted ||
+			signal?.aborted ||
+			(scope.repoLoaded && !ctx.isProjectTrusted())
+		)
+			return {
+				block: true,
+				reason:
+					"Guardian rules changed or matching was cancelled. Nothing executed. Request the action again.",
+			};
+		if (decision === "block")
+			return {
+				block: true,
+				reason:
+					"Guardian blocked this action by a configured rule. Nothing executed.",
 			};
 		const parent = parents.resolve(originCallId, ctx);
-		if (!requiresReview(action.toolName, scope.review)) {
+		if (decision === "pass") {
 			if (parent) parents.admitted(action.toolCallId, parent);
 			return;
 		}
@@ -188,7 +272,7 @@ export default async function guardian(
 			});
 			if (
 				cancellation.aborted ||
-				(scope.valid && scope.source === "repo" && !ctx.isProjectTrusted()) ||
+				(scope.valid && scope.repoLoaded && !ctx.isProjectTrusted()) ||
 				observedRevision !== revision ||
 				observedLeaf !== ctx.sessionManager.getLeafId() ||
 				observedSystem !== ctx.getSystemPrompt() ||
@@ -244,6 +328,7 @@ export default async function guardian(
 	pi.on("tool_call", async (event, ctx) => {
 		if (!enabled) return;
 		if (
+			(!scope.valid || scope.rules.length > 0) &&
 			["exec", "wait", "notebook"].includes(event.toolName) &&
 			!preflight?.available
 		)
@@ -281,6 +366,6 @@ export default async function guardian(
 			),
 		);
 	} catch {
-		// Native Pi still works. Wrappers fail closed, with visible recovery above.
+		// Native Pi still works. Wrappers with active rules fail closed above.
 	}
 }

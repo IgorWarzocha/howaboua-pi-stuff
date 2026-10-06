@@ -12,3 +12,4 @@ Fixed the 25-minute idle rollover after aborted or failed runs. Stale notes now 
 - Fixed inactive Codex conversion restoring tools disabled by other extensions, including hashline editing.
 - Fixed hidden tools' guidelines remaining in the standing prompt with Pi 1.0.4.
 - Added request-scoped fetch support and honored zero-retry requests for approval reviewers. Nested tool hooks now retain the original exec call ID across waits.
+- Nested approval hooks now inspect prepared arguments, so tool aliases and freeform inputs cannot bypass argument-based approval rules.

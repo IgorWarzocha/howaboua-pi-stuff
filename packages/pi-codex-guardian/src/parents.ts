@@ -92,16 +92,20 @@ export class ParentBindings {
 		this.contextUnavailable = false;
 	}
 
-	register(pi: ExtensionAPI, isEnabled: () => boolean): void {
-		pi.on("context_with_system", () => {
+	register(
+		pi: ExtensionAPI,
+		isEnabled: (ctx: ExtensionContext) => boolean,
+	): void {
+		pi.on("context_with_system", (_event, ctx) => {
 			this.pending = undefined;
-			this.requestPrepared = isEnabled();
+			this.requestPrepared = isEnabled(ctx);
 			this.contextUnavailable = false;
 		});
 		pi.on("before_provider_request", (event, ctx) => {
 			this.pending = undefined;
-			if (!isEnabled() || !isRecord(event.payload)) return;
+			if (!isRecord(event.payload)) return;
 			const payload = event.payload;
+			const existingMetadata = isRecord(payload["client_metadata"]);
 			const metadata = {
 				...(isRecord(payload["client_metadata"])
 					? payload["client_metadata"]
@@ -109,6 +113,10 @@ export class ParentBindings {
 			};
 			delete metadata["guardian_credits_requested"];
 			delete metadata["parent_response_id"];
+			if (!isEnabled(ctx)) {
+				if (existingMetadata) payload["client_metadata"] = metadata;
+				return;
+			}
 			// Codex excludes Guardian's own basic/reviewer sessions from earning parent credits.
 			const reviewer =
 				payload["model"] === REVIEW_MODEL ||
@@ -156,7 +164,7 @@ export class ParentBindings {
 		pi.on("provider_stream_event", (event, ctx) => {
 			const pending = this.pending;
 			if (
-				!isEnabled() ||
+				!isEnabled(ctx) ||
 				!pending ||
 				!supportsParent(ctx) ||
 				pending.sessionId !== ctx.sessionManager.getSessionId() ||
@@ -182,7 +190,7 @@ export class ParentBindings {
 			if (message.role !== "assistant" || !pending) return;
 			this.pending = undefined;
 			if (
-				!isEnabled() ||
+				!isEnabled(ctx) ||
 				!supportsParent(ctx) ||
 				!message.responseId ||
 				message.responseId !== pending.completedId ||

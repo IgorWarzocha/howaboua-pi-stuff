@@ -1,8 +1,8 @@
 # Pi Codex Guardian
 
-Review pending agent actions with Codex Guardian before Pi executes them. The default policy reviews command and code execution, file changes, and other tools, including external actions and unfamiliar tools. Known read-only tools skip review. The same policy applies to ordinary and nested calls, including Code Mode and Notebook Mode wrapper source, `exec_command`, and `write_stdin`.
+Review or block pending Pi tool calls that match your explicit rules. Rules name an exact tool and optionally match its arguments with regexes. There are no default rules. Without configuration, every call passes through with no reviews or blocks. Native Pi and nested Code Mode and Notebook Mode calls use the same rules.
 
-Guardian turns on when installed. Reviews require Pi 1.0.4 or later, ChatGPT OAuth sign-in, and a current parent response using the Codex Responses API at the canonical ChatGPT endpoint. Actions requiring review are blocked on other models or unverified parent responses. Actions outside the configured review scope do not require a Codex parent. Code Mode and Notebook Mode additionally require Pi Codex Conversion 3.0.46 or later.
+Guardian turns on when installed. Reviews require Pi 1.0.4 or later, ChatGPT OAuth sign-in, and a current parent response using the Codex Responses API at the canonical ChatGPT endpoint. Matching review calls are blocked on other models or unverified parent responses. Matching block calls never contact the reviewer and need no Codex parent. Unmatched calls need no parent. With rules loaded, Code Mode and Notebook Mode additionally require Pi Codex Conversion 3.0.46 or later.
 
 ## Install
 
@@ -10,9 +10,9 @@ Guardian turns on when installed. Reviews require Pi 1.0.4 or later, ChatGPT OAu
 pi install npm:@howaboua/pi-codex-guardian
 ```
 
-Start a new Pi session with a signed-in Codex model. Guardian sends the selected parent instructions, transcript, tool declarations, and exact pending action to `codex-auto-review`. Installing alongside Conversion uses its currently registered provider automatically. Native Pi works without Conversion.
+Add rules below, then start a new Pi session with a signed-in Codex model. For matching review calls, Guardian sends the selected parent instructions, transcript, tool declarations, and exact pending action to `codex-auto-review`. Installing alongside Conversion uses its currently registered provider automatically. Native Pi works without Conversion.
 
-Parent credit requests require the native ChatGPT subscription backend, stored subscription credentials, and canonical model and provider endpoints. Configured API-key handlers, runtime keys, custom authentication and legacy stream overrides do not qualify. Guardian reviewer requests never request parent credits. These checks follow the client-side eligibility contract; the backend's billing decision is not observable here.
+Parent observation and credit requests run only while review rules are loaded and enabled. Block-only and empty policies do not request credits. Credit requests require the native ChatGPT subscription backend, stored subscription credentials, and canonical model and provider endpoints. Configured API-key handlers, runtime keys, custom authentication and legacy stream overrides do not qualify. Guardian reviewer requests never request parent credits. These checks follow the client-side eligibility contract; the backend's billing decision is not observable here.
 
 ## Control
 
@@ -25,44 +25,46 @@ Parent credit requests require the native ChatGPT subscription backend, stored s
 
 The setting persists in the selected session branch. New sessions default to on. `/guardian` without arguments shows status. Only the user command changes the setting. Guardian adds no agent tool or standing prompt.
 
-Status shows whether nested preflight is available and the last completed verdict. Review token counts are not charges. Guardian billing eligibility and per-review cost have not been established, so this package makes no zero-cost claim.
+Status shows loaded review and block counts, whether nested preflight is available, and the last completed verdict. Zero rules is explicitly reported as no reviews or blocks. Review token counts are not charges. Guardian billing eligibility and per-review cost have not been established, so this package makes no zero-cost claim.
 
-## Review scope
+## Rules
 
-No configuration is required. To adjust the defaults, use either file:
+Use either file:
 
 - Global: `~/.pi/agent/pi-codex-guardian.json`, respecting `PI_CODING_AGENT_DIR`.
 - Repo: `.pi/pi-codex-guardian.json` in the Pi session's working directory. Parent directories are not searched. Pi must trust the folder.
 
 ```json
 {
-  "review": {
-    "execution": true,
-    "fileChanges": true,
-    "readOnly": false,
-    "otherTools": true
-  }
+  "rules": [
+    { "tool": "bash", "args": { "command": "\\brm\\b.*-rf" }, "action": "review" },
+    { "tool": "exec_command", "args": { "cmd": "\\brm\\b.*-rf" }, "action": "block" }
+  ]
 }
 ```
 
-These are the shipped defaults. Each supplied repo setting overrides its global counterpart. Omitted settings inherit. `true` requests review; `false` skips review, not execution.
+This example reviews native `bash` calls whose `command` matches the pattern and blocks nested `exec_command` calls whose `cmd` matches it. These are text patterns, not shell parsing. They do not identify every equivalent command or interpret command safety.
 
-| Scope | Tools |
-|---|---|
-| `execution` | `bash`, `powershell`, `exec_command`, `write_stdin`, `exec`, `wait`, `notebook` |
-| `fileChanges` | `write`, `edit`, `apply_patch` |
-| `readOnly` | `read`, `ls`, `find`, `grep`, `view_image` |
-| `otherTools` | Everything else, including custom, MCP, browser and external-service tools |
+- `tool` is a literal tool name. No glob, regex, prefix, or category matching.
+- Omit `args`, or use `{}`, to match every call to that tool.
+- `args` keys are exact top-level argument properties. Values are JavaScript regex strings without flags or `/.../` delimiters. Matching uses substring search unless you add anchors.
+- Every argument predicate in a rule must match. Missing, inherited, and non-string arguments do not match. Values are never coerced to strings.
+- Any matching rule applies. `block` wins over `review` regardless of rule order. Unmatched calls pass through.
+- Global and trusted repo rules add together. Repo rules cannot remove global restrictions.
 
-Classification uses exact tool names, not shell-command prefixes or guesses about code safety. Unknown tools remain reviewed by default. Skipping an outer wrapper does not skip its nested tools. Conversely, arbitrary code can perform effects without calling a nested tool, so disabling `execution` removes review of those effects.
+Rules see prepared tool arguments. Supported aliases such as nested `exec_command`'s `command` are resolved to `cmd` before matching.
 
-Policy files load at session startup and through `/guardian reload`. Editing a file during a session does not change the active policy. Reload cancels pending reviews. Invalid or unreadable configuration blocks actions while Guardian is on. `/guardian status` shows the loaded scope and configuration errors. Untrusted repo configuration is ignored.
+An unmatched `exec`, `wait`, or `notebook` wrapper does not trigger an outer review. Its nested calls still match their own rules. To review arbitrary wrapper source itself, add an explicit wrapper rule, such as `{ "tool": "exec", "action": "review" }`. Arbitrary wrapper code can perform effects without calling a nested tool.
+
+Files load at session startup and through `/guardian reload`. Editing a file during a session does not change the active rules. Reload cancels pending matching and reviews. Invalid or unreadable configuration blocks actions while Guardian is on. Untrusted repo configuration is ignored. Revoking trust from loaded repo rules requires a reload before actions can continue. The former category configuration is not accepted.
+
+Each file is limited to 64 KiB and 256 rules. Each regex is limited to 4,096 characters. Regex predicates run in an isolated Node process with a 32 MiB heap limit and a one-second deadline including startup. Argument strings sent to that process are limited to 1 MiB total per call, counting repeated predicates. Timeout, cancellation, memory exhaustion, or matching failure blocks that action rather than hanging Pi or silently passing it. Invalid regex syntax is reported when loading the file. If Pi runs on Bun, Node must also be available on `PATH`. Missing Node is reported in `/guardian status`, with no unbounded matching fallback.
 
 ## When an action is blocked
 
 A denial, error, timeout, malformed assessment, changed action, or stale parent stops that pending execution. Reviews have a 30-second deadline including authentication, use SSE, and make at most one inference request with no retries or fallback model. The reviewer has no tools and never executes the candidate.
 
-After installing, resuming, changing models, or navigating the session tree, request the action again so Guardian can observe a fresh parent response. If nested preflight is unavailable, install or update Conversion before using Code Mode or Notebook Mode. `/guardian off` deliberately stops protection for the session branch.
+For review rules, after installing, resuming, changing models, or navigating the session tree, request the action again so Guardian can observe a fresh parent response. If rules are loaded and nested preflight is unavailable, install or update Conversion before using Code Mode or Notebook Mode. Without rules, missing preflight does not block execution. `/guardian off` deliberately disables rules for the session branch.
 
 Guardian preserves authorization and action text rather than truncating it. The complete review payload must fit within 96 KiB of UTF-8, or the parent model's smaller context limit. Image, audio, file, opaque checkpoint, and referenced-history context is not supported. Start a new text-only session with complete authorization when the context cannot be reviewed intact.
 
