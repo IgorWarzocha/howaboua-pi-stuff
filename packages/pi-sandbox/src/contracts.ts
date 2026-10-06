@@ -171,13 +171,13 @@ export const actionSchema = z.discriminatedUnion("action", [
 	z.strictObject({
 		action: z.literal("exec-status"),
 		...identity,
-		pid: z.number().int().positive(),
+		pid: z.string().uuid(),
 		timeoutMs: waitMs,
 	}),
 	z.strictObject({
 		action: z.literal("exec-kill"),
 		...identity,
-		pid: z.number().int().positive(),
+		pid: z.string().uuid(),
 	}),
 	z.strictObject({ action: z.literal("read"), ...identity, path: guestPath }),
 	z.strictObject({
@@ -217,6 +217,10 @@ export const actionSchema = z.discriminatedUnion("action", [
 		lines: z.number().int().min(1).max(500).default(100),
 	}),
 ]);
+export const agentActionSchema = actionSchema.refine(
+	(action) => action.action !== "shell",
+	"Guest terminal handoff is available to the user through /sandbox",
+);
 export type Action = z.infer<typeof actionSchema>;
 export const recordSchema = z.strictObject({
 	version: z.literal(1),
@@ -243,7 +247,9 @@ export const statusSchema = z.strictObject({
 	previews: z.record(z.string(), z.string()).optional(),
 	persistence: z.literal("disk-only").optional(),
 	startupError: z.string().optional(),
-	resumePid: z.number().int().positive().optional(),
+	resumePid: z
+		.union([z.string().uuid(), z.number().int().positive()])
+		.optional(),
 	recovery: z.string().optional(),
 });
 export const inspectionSchema = z.object({
@@ -265,11 +271,9 @@ export const HELP = {
 			"name. Reopen stopped instance from disk, rerun resume hooks and services. Running is unchanged",
 		stop: "name. Stop processes and preserve disk. No memory/process resume",
 		inspect: "name",
-		shell:
-			"name, user?: root. Fresh ephemeral localhost SSH command for the user. No forwarded host credentials. Requires guest sshd and host ssh-keygen",
-		exec: "name, cmd, cwd?: workspace-relative, timeoutMs?: 10000 (0..60000). Wait only, never kills. Running returns pid",
+		exec: "name, cmd, cwd?: workspace-relative, timeoutMs?: 10000 (0..60000). Wait only, never kills. Running returns opaque pid handle",
 		"exec-status":
-			"name, pid, timeoutMs?: 10000 (0..60000). Wait and return new output",
+			"name, pid, timeoutMs?: 10000 (0..60000). Wait and return new output. Keeps 128 completed handles; new launches may expire older handles and unread output",
 		"exec-kill": "name, pid. Stop command process group",
 		read: "name, path: guest absolute path. Text up to 64 KiB",
 		write: "name, path: guest absolute path, content. Parent must exist",

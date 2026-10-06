@@ -101,3 +101,34 @@ export function existsError(error: unknown, code: string): boolean {
 export function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
 }
+
+export function agentError(error: unknown): unknown {
+	const code =
+		error instanceof Error && error.name === "AbortError"
+			? "ABORT_ERR"
+			: error instanceof Error && "code" in error
+				? error.code
+				: undefined;
+	const recovery: Record<string, string> = {
+		ENOENT:
+			"A required sandbox file or program is missing. Check the supplied config or instance name, then retry",
+		EACCES: "Sandbox access was denied. Ask the user to check file permissions",
+		EPERM:
+			"Sandbox operation was not permitted. Ask the user to check host permissions",
+		ENOSPC:
+			"The host has no space for sandbox data. Ask the user to free disk space before retrying",
+		EROFS:
+			"Sandbox storage is read-only. Ask the user to check the storage location",
+		EADDRINUSE:
+			"A sandbox listening address is occupied. Inspect running instances before retrying",
+		ECONNREFUSED:
+			"Sandbox controller is unavailable. Use inspect and controller logs before retrying",
+		ECONNRESET:
+			"Sandbox connection was interrupted. Use inspect before retrying",
+		ABORT_ERR:
+			"Sandbox wait was cancelled. Cancellation does not stop the controller or guest work. Use inspect or exec-status",
+	};
+	return typeof code === "string" && recovery[code]
+		? new Error(recovery[code])
+		: error;
+}

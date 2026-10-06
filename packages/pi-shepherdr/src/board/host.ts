@@ -209,10 +209,10 @@ export class AgentBoard {
 		if (params.action === "post") {
 			try {
 				recordBoardPostMarker(this.pi, ctx, value);
-			} catch (error) {
+			} catch {
 				// Presentation failure must not turn a committed post into a retry.
 				ctx.ui.notify(
-					`Posted to board, but could not save its history notice: ${String(error)}`,
+					"Posted to board. Its history notice is unavailable. Read the board to check the post; do not repost.",
 					"warning",
 				);
 			}

@@ -113,7 +113,9 @@ Guest HTTP responses must use `Content-Length` or chunked framing. Gondolin 0.13
 
 Environment values may contain `${services.web.publicURL}`. The referenced declared service starts first and must have a preview. Missing references, cycles, and references to excluded services are rejected. `platforms: [linux]` or `[darwin]` filters by the guest OS, which is always Linux even on a macOS host. Empty platform lists are invalid. Amp review-widget injection and Amp identity placeholders are not available. `review: true`, `AMP_THREAD_ID` environment overrides, and `$AMP_USER_EMAIL` preview placeholders are rejected explicitly.
 
-`exec` waits up to `timeoutMs`, default 10000 and range 0 to 60000. **Timeout only ends the wait. The command keeps running.** A continuing command returns `pid` and `running: true`. Use `exec-status` with that handle to wait and retrieve new output, or `exec-kill` to request process-group termination. Status waits do not block file operations, other commands, or kill. Handles belong to the current controller and do not survive stop or restart. Long-lived applications belong in supervised services.
+`exec` waits up to `timeoutMs`, default 10000 and range 0 to 60000. **Timeout only ends the wait. The command keeps running.** A continuing command returns an opaque string `pid` handle and `running: true`, not a guest process ID. Use `exec-status` with that handle to wait and retrieve new output, or `exec-kill` to request process-group termination. Status waits do not block file operations, other commands, or kill. Handles belong to the current controller and do not survive stop or restart. Long-lived applications belong in supervised services.
+
+Completed handles are bounded to 128. Consuming completed output removes its guest files but retains final status with empty output. New command launches may expire older completed handles and discard their unread output. Collect needed output before launching more commands. Reopen removes stale command files from the previous controller.
 
 ```js
 const command = await tools.sandbox('{"action":"exec","name":"demo","cmd":"sleep 30; echo done","timeoutMs":0}')

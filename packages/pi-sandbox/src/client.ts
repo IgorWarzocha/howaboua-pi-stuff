@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import http from "node:http";
 import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import {
 	type Action,
@@ -18,6 +19,7 @@ import {
 	replySchema,
 	statusSchema,
 } from "./contracts.ts";
+import { processIdentity } from "./identity.ts";
 import {
 	directory,
 	existsError,
@@ -67,9 +69,19 @@ function request(
 		req.end(JSON.stringify(action));
 	});
 }
-async function reachable(dir: string, name: string): Promise<boolean> {
+async function reachable(
+	dir: string,
+	name: string,
+	signal?: AbortSignal,
+): Promise<boolean> {
 	try {
-		await request(dir, { action: "inspect", name }, AbortSignal.timeout(1000));
+		await request(
+			dir,
+			{ action: "inspect", name },
+			signal
+				? AbortSignal.any([signal, AbortSignal.timeout(1000)])
+				: AbortSignal.timeout(1000),
+		);
 		return true;
 	} catch (error) {
 		if (existsError(error, "ENOENT") || existsError(error, "ECONNREFUSED"))
@@ -79,14 +91,32 @@ async function reachable(dir: string, name: string): Promise<boolean> {
 }
 async function controllerAlive(dir: string): Promise<boolean> {
 	try {
-		const pid = Number(await readFile(join(dir, "controller.pid"), "utf8"));
+		const raw = await readFile(join(dir, "controller.pid"), "utf8");
+		let identity: { pid: number; start: string } | number;
+		try {
+			identity = JSON.parse(raw);
+			if (
+				typeof identity !== "number" &&
+				(!identity || typeof identity.start !== "string" || !identity.start)
+			)
+				throw new Error("Invalid identity");
+		} catch {
+			throw new Error(
+				"Sandbox controller identity is invalid. Inspect its logs before retrying",
+			);
+		}
+		const pid = typeof identity === "number" ? identity : identity.pid;
 		if (!Number.isSafeInteger(pid) || pid <= 0)
 			throw new Error(
 				"Sandbox controller identity is invalid. Inspect its logs before retrying",
 			);
 		try {
 			process.kill(pid, 0);
-			return true;
+			if (typeof identity === "number")
+				throw new Error(
+					"Sandbox controller ownership is from an older version. Ask the user to verify its process before removing controller.pid",
+				);
+			return identity.start === (await processIdentity(pid)).start;
 		} catch (error) {
 			if (existsError(error, "ESRCH")) return false;
 			throw error;
@@ -96,9 +126,14 @@ async function controllerAlive(dir: string): Promise<boolean> {
 		throw error;
 	}
 }
-async function launch(dir: string, name: string): Promise<unknown> {
-	if (await reachable(dir, name))
-		return request(dir, { action: "inspect", name });
+async function launch(
+	dir: string,
+	name: string,
+	signal?: AbortSignal,
+): Promise<unknown> {
+	signal?.throwIfAborted();
+	if (await reachable(dir, name, signal))
+		return request(dir, { action: "inspect", name }, signal);
 	if (await controllerAlive(dir))
 		throw new Error(
 			"Sandbox controller is still starting or unavailable. Read controller logs before retrying",
@@ -184,7 +219,7 @@ async function launch(dir: string, name: string): Promise<unknown> {
 		});
 		child.unref();
 		for (let attempt = 0; attempt < 6000; attempt++) {
-			await new Promise((accept) => setTimeout(accept, 250));
+			await delay(250, undefined, { signal });
 			const status = statusSchema.parse(
 				JSON.parse(await readFile(join(dir, "status.json"), "utf8")),
 			);
@@ -196,8 +231,8 @@ async function launch(dir: string, name: string): Promise<unknown> {
 						"Sandbox start failed. Read controller logs before retrying start",
 					)
 				);
-			if (await reachable(dir, name)) {
-				const result = await request(dir, { action: "inspect", name });
+			if (await reachable(dir, name, signal)) {
+				const result = await request(dir, { action: "inspect", name }, signal);
 				const inspect = inspectionSchema.parse(result);
 				if (inspect.status.startupError)
 					throw new Error(
@@ -217,6 +252,7 @@ async function create(
 	root: string,
 	action: Extract<Action, { action: "create" | "prepare" }>,
 	cwd: string,
+	signal?: AbortSignal,
 ): Promise<unknown> {
 	const kind = action.action === "prepare" ? "templates" : "instances";
 	const dir = directory(root, kind, action.name);
@@ -263,9 +299,9 @@ async function create(
 		throw error;
 	}
 	try {
-		return await launch(dir, action.name);
+		return await launch(dir, action.name, signal);
 	} catch (error) {
-		if (action.action !== "prepare") throw error;
+		if (signal?.aborted || action.action !== "prepare") throw error;
 		const log = await readLogTail(join(dir, "controller.log"), 20);
 		const output = log.output.slice(-4096);
 		const detail =
@@ -287,7 +323,7 @@ export async function run(
 	const root = stateRoot();
 	await privateDirectory(root);
 	if (action.action === "create" || action.action === "prepare")
-		return create(root, action, cwd);
+		return create(root, action, cwd, signal);
 	if (action.action === "list") {
 		const base = join(root, action.kind);
 		let names: string[];
@@ -321,7 +357,7 @@ export async function run(
 			...(await readLogTail(join(dir, "controller.log"), action.lines)),
 		};
 	}
-	if (action.action === "start") return launch(dir, action.name);
+	if (action.action === "start") return launch(dir, action.name, signal);
 	if (action.action === "destroy") {
 		if (action.confirm !== action.name)
 			throw new Error("confirm must match name");

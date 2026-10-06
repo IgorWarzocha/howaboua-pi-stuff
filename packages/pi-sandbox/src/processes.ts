@@ -6,6 +6,7 @@ import { checked, guestExists } from "./guest.ts";
 import { shellQuote as q } from "./storage.ts";
 
 const root = "/var/lib/pi-sandbox/commands";
+const completedLimit = 128;
 const outcome = z.strictObject({
 	exitCode: z.number().int(),
 	truncated: z.boolean(),
@@ -78,15 +79,22 @@ const worker = [
 // foreground exec/file-RPC lock. Handles belong to this controller lifetime.
 export class GuestProcesses {
 	private commands = new Map<
-		number,
+		string,
 		{
 			path: string;
 			offset: number;
 			decoder: StringDecoder;
+			final?: { exitCode: number; truncated: boolean };
+			cursor: Promise<unknown>;
 		}
 	>();
 	private vm: VM;
-	constructor(vm: VM) {
+	private rpc: <T>(work: () => Promise<T>) => Promise<T>;
+	constructor(
+		vm: VM,
+		rpc: <T>(work: () => Promise<T>) => Promise<T> = (work) => work(),
+	) {
+		this.rpc = rpc;
 		this.vm = vm;
 	}
 	async launch(
@@ -94,8 +102,17 @@ export class GuestProcesses {
 		cwd: string,
 		cleanup = false,
 		deadlineSeconds = 0,
-	): Promise<number> {
-		const path = `${root}/${randomUUID()}`;
+	): Promise<string> {
+		return this.rpc(() => this.start(cmd, cwd, cleanup, deadlineSeconds));
+	}
+	private async start(
+		cmd: string,
+		cwd: string,
+		cleanup: boolean,
+		deadlineSeconds: number,
+	): Promise<string> {
+		const handle = randomUUID();
+		const path = `${root}/${handle}`;
 		await checked(this.vm, `mkdir -p ${q(path)}; chmod 700 ${q(path)}`);
 		await this.vm.fs.writeFile(`${path}/worker.py`, worker);
 		await checked(
@@ -104,35 +121,56 @@ export class GuestProcesses {
 		);
 		const deadline = Date.now() + 5000;
 		while (!(await guestExists(this.vm, `${path}/pid`))) {
-			if (await guestExists(this.vm, `${path}/done`))
-				throw new Error(
-					`Guest command could not start: ${await this.vm.fs.readFile(`${path}/output`, { encoding: "utf8" })}`,
-				);
+			if (await guestExists(this.vm, `${path}/done`)) {
+				const output = await this.vm.fs.readFile(`${path}/output`, {
+					encoding: "utf8",
+				});
+				await checked(this.vm, `rm -rf ${q(path)}`);
+				throw new Error(`Guest command could not start: ${output}`);
+			}
 			if (Date.now() >= deadline)
 				throw new Error(
 					"Guest command did not start. Check its working directory and image Python installation",
 				);
 			await new Promise((accept) => setTimeout(accept, 50));
 		}
-		const pid = z
-			.number()
+		z.number()
 			.int()
 			.positive()
 			.parse(
 				Number(await this.vm.fs.readFile(`${path}/pid`, { encoding: "utf8" })),
 			);
-		this.commands.set(pid, {
+		this.commands.set(handle, {
 			path,
 			offset: 0,
 			decoder: new StringDecoder("utf8"),
+			cursor: Promise.resolve(),
 		});
-		return pid;
+		if (this.commands.size > completedLimit) {
+			const completed: string[] = [];
+			for (const [id, command] of this.commands)
+				if (
+					command.final ||
+					(await guestExists(this.vm, `${command.path}/done`))
+				)
+					completed.push(id);
+			for (const id of completed.slice(
+				0,
+				Math.max(0, completed.length - completedLimit),
+			)) {
+				const command = this.commands.get(id)!;
+				await command.cursor.catch(() => {});
+				await checked(this.vm, `rm -rf ${q(command.path)}`);
+				this.commands.delete(id);
+			}
+		}
+		return handle;
 	}
 	async status(
-		pid: number,
+		pid: string,
 		timeoutMs: number,
 	): Promise<{
-		pid: number;
+		pid: string;
 		running: boolean;
 		output: string;
 		exitCode?: number;
@@ -141,54 +179,100 @@ export class GuestProcesses {
 		const command = this.commands.get(pid);
 		if (!command)
 			throw new Error(
-				"Unknown command handle. Handles do not survive stop or controller restart",
+				"Unknown or expired command handle. Completed status is bounded; handles do not survive stop or controller restart",
 			);
-		// Waits are independent. Cursor consumption below is synchronous after
-		// each read, so concurrent status requests cannot replay prior output.
-		const read = async () => {
-			const deadline = Date.now() + timeoutMs;
-			let done: z.infer<typeof outcome> | undefined;
-			while (true) {
-				if (await guestExists(this.vm, `${command.path}/done`)) {
-					done = outcome.parse(
-						JSON.parse(
-							await this.vm.fs.readFile(`${command.path}/done`, {
-								encoding: "utf8",
-							}),
-						),
-					);
-					break;
-				}
-				if (Date.now() >= deadline) break;
-				await new Promise((accept) => setTimeout(accept, 100));
-			}
-			const bytes = (await guestExists(this.vm, `${command.path}/output`))
-				? Buffer.from(await this.vm.fs.readFile(`${command.path}/output`))
-				: Buffer.alloc(0);
-			let output =
-				bytes.length > command.offset
-					? command.decoder.write(bytes.subarray(command.offset))
-					: "";
-			command.offset = Math.max(command.offset, bytes.length);
-			if (done) output += command.decoder.end();
-			return {
-				pid,
-				running: !done,
-				output,
-				truncated:
-					done?.truncated ??
-					(await guestExists(this.vm, `${command.path}/truncated`)),
-				...(done ?? {}),
-			};
-		};
-		return read();
+		// Only short probes and output consumption share the cursor, never waits.
+		if (command.final)
+			return { pid, running: false, output: "", ...command.final };
+		const deadline = Date.now() + timeoutMs;
+		while (true) {
+			if (this.commands.get(pid) !== command)
+				throw new Error(
+					"Command status expired. Completed handles retain status for 128 commands",
+				);
+			const probe = command.cursor
+				.catch(() => {})
+				.then(() =>
+					this.rpc(
+						async () =>
+							command.final ||
+							(await guestExists(this.vm, `${command.path}/done`)),
+					),
+				);
+			command.cursor = probe;
+			if ((await probe) || Date.now() >= deadline) break;
+			await new Promise((accept) => setTimeout(accept, 100));
+		}
+		const consume = command.cursor
+			.catch(() => {})
+			.then(() =>
+				this.rpc(async () => {
+					if (this.commands.get(pid) !== command)
+						throw new Error(
+							"Command status expired. Completed handles retain status for 128 commands",
+						);
+					if (command.final)
+						return { pid, running: false, output: "", ...command.final };
+					const done = (await guestExists(this.vm, `${command.path}/done`))
+						? outcome.parse(
+								JSON.parse(
+									await this.vm.fs.readFile(`${command.path}/done`, {
+										encoding: "utf8",
+									}),
+								),
+							)
+						: undefined;
+					const bytes = (await guestExists(this.vm, `${command.path}/output`))
+						? Buffer.from(await this.vm.fs.readFile(`${command.path}/output`))
+						: Buffer.alloc(0);
+					let output =
+						bytes.length > command.offset
+							? command.decoder.write(bytes.subarray(command.offset))
+							: "";
+					command.offset = Math.max(command.offset, bytes.length);
+					if (done) {
+						output += command.decoder.end();
+						await checked(this.vm, `rm -rf ${q(command.path)}`);
+						command.final = done;
+						const completed = [...this.commands].filter(
+							([, value]) => value.final,
+						);
+						for (const [handle] of completed.slice(
+							0,
+							Math.max(0, completed.length - completedLimit),
+						))
+							this.commands.delete(handle);
+					}
+					return {
+						pid,
+						running: !done,
+						output,
+						truncated:
+							done?.truncated ??
+							(await guestExists(this.vm, `${command.path}/truncated`)),
+						...(done ?? {}),
+					};
+				}),
+			);
+		command.cursor = consume;
+		return consume;
 	}
-	async kill(pid: number): Promise<unknown> {
+	async kill(pid: string): Promise<unknown> {
 		const command = this.commands.get(pid);
 		if (!command)
 			throw new Error("Unknown command handle. Use the pid returned by exec");
-		await this.vm.fs.writeFile(`${command.path}/kill`, "kill\n");
-		// Kill must not wait behind a concurrent status cursor.
-		return { pid, killRequested: true };
+		// The cursor contains only short RPCs, never the status wait.
+		const kill = command.cursor
+			.catch(() => {})
+			.then(() =>
+				this.rpc(async () => {
+					if (command.final)
+						return { pid, killRequested: false, running: false };
+					await this.vm.fs.writeFile(`${command.path}/kill`, "kill\n");
+					return { pid, killRequested: true };
+				}),
+			);
+		command.cursor = kill;
+		return kill;
 	}
 }

@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ZodError } from "zod";
-import { HELP } from "./src/contracts.ts";
+import { agentActionSchema, HELP } from "./src/contracts.ts";
 
 export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 	const tool = {
@@ -28,8 +28,9 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 					throw new Error("Send help or a JSON action object");
 				}
 				const { run } = await import("./src/client.ts");
+				const { agentError } = await import("./src/storage.ts");
 				try {
-					result = await run(action, ctx.cwd, signal);
+					result = await run(agentActionSchema.parse(action), ctx.cwd, signal);
 				} catch (error) {
 					if (error instanceof ZodError)
 						throw new Error(
@@ -41,7 +42,7 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 								)
 								.join("; ")}. Send help for valid arguments`,
 						);
-					throw error;
+					throw agentError(error);
 				}
 			}
 			return {

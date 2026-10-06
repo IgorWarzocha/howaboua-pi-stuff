@@ -18,7 +18,7 @@ export class SandboxRuntime {
 	private processes: GuestProcesses | undefined;
 	private managed: GuestServices | undefined;
 	private startupError: string | undefined;
-	private resumePid: number | undefined;
+	private resumePid: string | undefined;
 	private recovery: string | undefined;
 	private terminal:
 		| { user: string; command: string; close(): Promise<void> }
@@ -37,7 +37,12 @@ export class SandboxRuntime {
 		this.dir = dir;
 		this.record = record;
 	}
-	async boot(prepare: boolean, fresh: boolean): Promise<void> {
+	async boot(
+		prepare: boolean,
+		fresh: boolean,
+		setupError?: string,
+	): Promise<void> {
+		this.startupError = setupError;
 		const config = this.record.config;
 		const resources = config.resources ?? profiles[config.profile];
 		const options: VMOptions = {
@@ -71,7 +76,7 @@ export class SandboxRuntime {
 			: await VM.create(options);
 		this.vm = vm;
 		await vm.start();
-		this.processes = new GuestProcesses(vm);
+		this.processes = new GuestProcesses(vm, (work) => this.rpc(work));
 		// Disabling scratch tmpfs preserves HOME on disk. OCI images still need
 		// normal Unix temporary-directory permissions for unprivileged tools.
 		await checked(vm, "mkdir -p /tmp /var/tmp; chmod 1777 /tmp /var/tmp");
@@ -86,6 +91,7 @@ export class SandboxRuntime {
 		if (!(await guestExists(vm, configPath)))
 			await vm.fs.writeFile(configPath, JSON.stringify(config, null, 2));
 		if (fresh || !resume) {
+			this.startupError = undefined;
 			const setup = [
 				...config.setup,
 				"if test -x .agents/setup; then .agents/setup; fi",
@@ -108,7 +114,11 @@ export class SandboxRuntime {
 					if (prepare) throw new Error(this.startupError);
 				}
 			}
-			await saveJson(join(this.dir, "intent.json"), { prepare, fresh: false });
+			await saveJson(join(this.dir, "intent.json"), {
+				prepare,
+				fresh: false,
+				...(this.startupError ? { setupError: this.startupError } : {}),
+			});
 		}
 		if (prepare) {
 			await this.stop(true);
@@ -142,13 +152,30 @@ export class SandboxRuntime {
 		try {
 			await this.managed.operate("ensure");
 		} catch (error) {
-			this.startupError =
+			this.startupError = [
+				this.startupError,
 				error instanceof Error
 					? error.message
-					: "Service readiness failed. Read service logs";
+					: "Service readiness failed. Read service logs",
+			]
+				.filter(Boolean)
+				.join("\n");
 			console.error(error);
 		}
 		await this.persistStatus();
+	}
+	private active = new Set<Promise<unknown>>();
+	private rpc<T>(work: () => Promise<T>): Promise<T> {
+		if (this.state !== "running" && this.state !== "starting")
+			return Promise.reject(
+				new Error(
+					"Sandbox is stopping. Wait for stop to complete, then use start",
+				),
+			);
+		const task = work();
+		this.active.add(task);
+		void task.finally(() => this.active.delete(task)).catch(() => {});
+		return task;
 	}
 	private requireVm(): VM {
 		if (!this.vm) throw new Error("Sandbox is not running. Use start first");
@@ -171,11 +198,15 @@ export class SandboxRuntime {
 	private async persistStatus(): Promise<void> {
 		await saveJson(join(this.dir, "status.json"), this.status());
 	}
+	beginShutdown(): void {
+		if (this.state === "running") this.state = "stopping";
+	}
 	async stop(prepare = false): Promise<unknown> {
 		if (this.state === "stopped" || this.state === "prepared")
 			return this.status();
 		const vm = this.requireVm();
 		this.state = "stopping";
+		await Promise.allSettled([...this.active]);
 		await this.persistStatus();
 		await this.closeAccess();
 		await this.managed?.stopAll();
@@ -207,6 +238,20 @@ export class SandboxRuntime {
 		return this.state === "interrupted";
 	}
 	async handle(action: Action): Promise<unknown> {
+		if (
+			[
+				"inspect",
+				"stop",
+				"destroy",
+				"exec",
+				"exec-status",
+				"exec-kill",
+			].includes(action.action)
+		)
+			return this.dispatch(action);
+		return this.rpc(() => this.dispatch(action));
+	}
+	private async dispatch(action: Action): Promise<unknown> {
 		if (action.action === "inspect")
 			return {
 				name: this.record.name,
@@ -222,6 +267,8 @@ export class SandboxRuntime {
 		if (action.action === "destroy") {
 			if (action.confirm !== this.record.name)
 				throw new Error("confirm must match name");
+			this.state = "stopping";
+			await Promise.allSettled([...this.active]);
 			await this.closeAccess();
 			await this.vm?.close();
 			this.vm = undefined;
@@ -352,11 +399,17 @@ export class SandboxRuntime {
 	}
 }
 
-export async function readIntent(
-	dir: string,
-): Promise<{ prepare: boolean; fresh: boolean }> {
+export async function readIntent(dir: string): Promise<{
+	prepare: boolean;
+	fresh: boolean;
+	setupError?: string | undefined;
+}> {
 	const { z } = await import("zod");
 	return z
-		.strictObject({ prepare: z.boolean(), fresh: z.boolean() })
+		.strictObject({
+			prepare: z.boolean(),
+			fresh: z.boolean(),
+			setupError: z.string().optional(),
+		})
 		.parse(JSON.parse(await readFile(join(dir, "intent.json"), "utf8")));
 }

@@ -2,19 +2,22 @@ import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { join } from "node:path";
 import { actionSchema } from "./contracts.ts";
+import { processIdentity } from "./identity.ts";
 import { readIntent, SandboxRuntime } from "./runtime.ts";
-import { readRecord } from "./storage.ts";
+import { agentError, readRecord } from "./storage.ts";
 
 async function main(): Promise<void> {
 	const dir = process.argv[2];
 	if (!dir) throw new Error("Instance directory required");
 	const record = await readRecord(dir);
 	const pidFile = join(dir, "controller.pid");
-	await writeFile(pidFile, String(process.pid), { mode: 0o600 });
+	await writeFile(pidFile, JSON.stringify(await processIdentity(process.pid)), {
+		mode: 0o600,
+	});
 	const runtime = new SandboxRuntime(dir, record);
 	const intent = await readIntent(dir);
 	try {
-		await runtime.boot(intent.prepare, intent.fresh);
+		await runtime.boot(intent.prepare, intent.fresh, intent.setupError);
 	} catch (error) {
 		await runtime.fail(error);
 		await rm(pidFile, { force: true });
@@ -48,6 +51,7 @@ async function main(): Promise<void> {
 					}
 				} catch (error) {
 					console.error(error);
+					const failure = agentError(error);
 					if (runtime.retired) {
 						server.close();
 						await rm(socket, { force: true });
@@ -57,8 +61,8 @@ async function main(): Promise<void> {
 						JSON.stringify({
 							ok: false,
 							error:
-								error instanceof Error
-									? error.message
+								failure instanceof Error
+									? failure.message
 									: "Sandbox operation failed. Inspect its state and logs before retrying",
 						}),
 					);
@@ -90,7 +94,8 @@ async function main(): Promise<void> {
 	server.once("close", () => {
 		void readFile(pidFile, "utf8")
 			.then(async (pid) => {
-				if (Number(pid) === process.pid) await rm(pidFile, { force: true });
+				if (JSON.parse(pid).pid === process.pid)
+					await rm(pidFile, { force: true });
 			})
 			.catch((error: unknown) => {
 				if (
@@ -107,6 +112,7 @@ async function main(): Promise<void> {
 	const shutdown = () => {
 		if (ending) return;
 		ending = true;
+		runtime.beginShutdown();
 		queue = queue
 			.catch(() => {})
 			.then(async () => {
