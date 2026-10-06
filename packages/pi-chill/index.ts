@@ -2,15 +2,25 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { Container } from "@earendil-works/pi-tui";
 import registerPackageChangelog from "./changelog.js";
-import { ActivityTimeline, hasCodeModeError } from "./src/activity.js";
+import {
+	ActivityTimeline,
+	activityEntryTypes,
+	activityMessageTypes,
+	hasCodeModeError,
+} from "./src/activity.js";
+import {
+	activityEntryRenderer,
+	activityMessageRenderer,
+} from "./src/activity-messages.js";
 import { ActivityRenderers } from "./src/renderers.js";
 
 export default function (pi: ExtensionAPI) {
 	registerPackageChangelog(pi);
 	const timeline = new ActivityTimeline();
-	const renderers = new ActivityRenderers(timeline);
+	let enabled = true;
+	const renderers = new ActivityRenderers(timeline, () => enabled);
 	let tui = false;
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let outcome: "completed" | "interrupted" = "completed";
@@ -23,7 +33,7 @@ export default function (pi: ExtensionAPI) {
 	const restore = (ctx: ExtensionContext) => {
 		stopTimer();
 		tui = ctx.mode === "tui";
-		if (tui) ctx.ui.setHiddenThinkingLabel("");
+		if (tui) ctx.ui.setHiddenThinkingLabel(enabled ? "" : undefined);
 		promptDepth = 0;
 		renderers.clear();
 		timeline.restore(ctx.sessionManager.buildContextEntries());
@@ -31,43 +41,79 @@ export default function (pi: ExtensionAPI) {
 	const progress = () => {
 		const group = timeline.current;
 		if (!group) return;
-		group.calls[0]?.invalidate?.();
+		group.refresh();
 	};
 
-	pi.registerMarkdownTransformer((markdown, context) =>
-		tui && context.messageType === "assistant-thinking" ? "" : markdown,
-	);
+	pi.registerMarkdownTransformer((markdown, context) => {
+		if (!tui || !enabled) return markdown;
+		if (context.messageType === "assistant-thinking") return "";
+		if (
+			context.messageType === "user" &&
+			["Continue.", "Continue, unless awaiting for user approval."].includes(
+				markdown.trim(),
+			)
+		)
+			return "";
+		return markdown;
+	});
 	pi.registerToolRenderer((name, next) =>
 		tui ? renderers.resolve(name, next()) : next(),
 	);
-	// Only routine board notifications fold. Agent questions, failures and results keep their owner renderer.
-	pi.registerMessageRenderer(
-		"shepherdr-board-post",
-		(message, { expanded, outputPad }, theme) => {
-			if (!expanded) return new Container();
-			const content =
-				typeof message.content === "string"
-					? message.content
-					: message.content
-							.filter((block) => block.type === "text")
-							.map((block) => block.text)
-							.join("\n");
-			return new Text(theme.fg("dim", content), outputPad, 0);
+	const messageRenderer = activityMessageRenderer(timeline, () => enabled);
+	for (const type of activityMessageTypes)
+		pi.registerMessageRenderer(type, (message, options, theme) =>
+			tui ? messageRenderer(message, options, theme) : undefined,
+		);
+	const entryRenderer = activityEntryRenderer(timeline, () => enabled);
+	for (const type of activityEntryTypes)
+		pi.registerEntryRenderer(type, (entry, options, theme) =>
+			tui ? entryRenderer(entry, options, theme) : undefined,
+		);
+	pi.registerCommand("chill", {
+		description: "Toggle folded activity for this session",
+		handler: async (_args, ctx) => {
+			if (_args.trim()) {
+				ctx.ui.notify("Use /chill without arguments", "warning");
+				return;
+			}
+			enabled = !enabled;
+			if (tui) {
+				ctx.ui.setHiddenThinkingLabel(enabled ? "" : undefined);
+				// Markdown caches before transformation. Invalidate via the public TUI factory without leaving a widget.
+				const key = "@howaboua/pi-chill/redraw";
+				try {
+					ctx.ui.setWidget(key, (tui) => {
+						tui.invalidate();
+						tui.requestRender();
+						return new Container();
+					});
+				} finally {
+					ctx.ui.setWidget(key, undefined);
+				}
+			}
+			timeline.refresh();
 		},
-	);
-	pi.on("session_start", (_event, ctx) => restore(ctx));
+	});
+	pi.on("session_start", (_event, ctx) => {
+		enabled = true;
+		restore(ctx);
+	});
 	pi.on("session_tree", (_event, ctx) => restore(ctx));
+	pi.on("session_before_compact", (_event, ctx) => {
+		timeline.reconcileMessages(ctx.sessionManager.buildContextEntries());
+	});
 	pi.on("session_compact", (_event, ctx) => {
 		const ids = new Set<string>();
-		for (const entry of ctx.sessionManager.buildContextEntries()) {
+		const entries = ctx.sessionManager.buildContextEntries();
+		for (const entry of entries) {
 			if (entry.type !== "message" || entry.message.role !== "assistant")
 				continue;
 			for (const block of entry.message.content) {
 				if (block.type === "toolCall") ids.add(block.id);
 			}
 		}
-		// The first call may have been compacted away. Re-anchor without losing live timing.
-		timeline.retain(ids);
+		// The first member may have been compacted away. Re-anchor without losing live timing.
+		timeline.retain(ids, entries);
 		renderers.prune();
 	});
 	pi.on("agent_start", () => {
@@ -79,6 +125,16 @@ export default function (pi: ExtensionAPI) {
 		timer = setInterval(progress, 1000);
 	});
 	pi.on("message_start", (event) => {
+		const message = event.message;
+		if (
+			tui &&
+			message.role === "custom" &&
+			message.display &&
+			activityMessageTypes.some((type) => type === message.customType)
+		) {
+			timeline.addMessage(message, true);
+			progress();
+		}
 		if (!tui || !timeline.current || event.message.role !== "assistant") return;
 		timeline.current.stage.thinking("");
 		progress();
@@ -162,8 +218,9 @@ export default function (pi: ExtensionAPI) {
 			outcome = "interrupted";
 		}
 	});
-	pi.on("agent_settled", () => {
+	pi.on("agent_settled", (_event, ctx) => {
 		stopTimer();
+		timeline.reconcileMessages(ctx.sessionManager.buildContextEntries());
 		timeline.finish(Date.now(), outcome);
 	});
 	pi.on("session_shutdown", () => {

@@ -7,25 +7,68 @@ import {
 	Text,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
-import type { ActivityTimeline } from "./activity.js";
+import type { ActivityGroup, ActivityTimeline } from "./activity.js";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
 type RenderContext = Parameters<CallRenderer>[2];
 type RenderTheme = Parameters<CallRenderer>[1];
 
+export function renderActivityHeading(
+	group: ActivityGroup,
+	theme: RenderTheme,
+	outputPad = 1,
+): Component {
+	const container = new Container();
+	container.addChild(
+		new MouseRegion(
+			new Text(
+				theme.fg(
+					group.warning ? "warning" : "muted",
+					`${group.open ? "▾" : "▸"} ${group.label()}`,
+				),
+				outputPad,
+				0,
+			),
+			(event) => {
+				if (event.type !== "click" || event.button !== "left") return undefined;
+				group.open = !group.open;
+				group.refresh();
+				return { handled: true };
+			},
+		),
+	);
+	const detail =
+		group.endedAt === undefined ? group.stage.label() : group.stage.summary();
+	if (detail)
+		container.addChild({
+			invalidate() {},
+			render: (width) => [
+				truncateToWidth(theme.fg("muted", `    ${detail}`), width),
+			],
+		});
+	return container;
+}
+
 interface CallView {
 	detailsOpen: boolean | undefined;
 	nativeExpanded: boolean;
+	nativeState: RenderContext["state"] | undefined;
 	state: Record<string, unknown>;
 	callComponent: Component | undefined;
 	resultComponent: Component | undefined;
+	offShell: Box | undefined;
 }
 
 export class ActivityRenderers {
 	private readonly views = new Map<string, CallView>();
 	readonly timeline: ActivityTimeline;
-	constructor(timeline: ActivityTimeline) {
+	private readonly isEnabled: () => boolean;
+	constructor(
+		timeline: ActivityTimeline,
+		isEnabled: () => boolean = () => true,
+	) {
 		this.timeline = timeline;
+		this.isEnabled = isEnabled;
 	}
 
 	clear(): void {
@@ -44,9 +87,11 @@ export class ActivityRenderers {
 			view = {
 				detailsOpen: undefined,
 				nativeExpanded: false,
+				nativeState: undefined,
 				state: {},
 				callComponent: undefined,
 				resultComponent: undefined,
+				offShell: undefined,
 			};
 			this.views.set(id, view);
 		}
@@ -57,9 +102,24 @@ export class ActivityRenderers {
 		const rawVisible = (context: RenderContext) => {
 			const member = this.timeline.calls.get(context.toolCallId);
 			return (
-				member?.group.open &&
+				(!this.isEnabled() || member?.group.open) &&
 				(this.view(context.toolCallId).detailsOpen ?? context.expanded)
 			);
+		};
+		const box = (
+			theme: RenderTheme,
+			context: RenderContext,
+			paddingY: number,
+		) => {
+			const color =
+				context.isError ||
+				(this.isEnabled() &&
+					this.timeline.calls.get(context.toolCallId)?.call.status === "error")
+					? "toolErrorBg"
+					: context.isPartial
+						? "toolPendingBg"
+						: "toolSuccessBg";
+			return new Box(1, paddingY, (line) => theme.bg(color, line));
 		};
 		const frame = (
 			child: Component,
@@ -67,16 +127,9 @@ export class ActivityRenderers {
 			context: RenderContext,
 		): Component => {
 			if (original?.renderShell === "self") return child;
-			const color =
-				context.isError ||
-				this.timeline.calls.get(context.toolCallId)?.call.status === "error"
-					? "toolErrorBg"
-					: context.isPartial
-						? "toolPendingBg"
-						: "toolSuccessBg";
-			const box = new Box(1, 0, (line) => theme.bg(color, line));
-			box.addChild(child);
-			return box;
+			const shell = box(theme, context, 0);
+			shell.addChild(child);
+			return shell;
 		};
 		const toggleDetails = (child: Component, context: RenderContext) =>
 			new MouseRegion(child, (event) => {
@@ -85,7 +138,7 @@ export class ActivityRenderers {
 				view.detailsOpen = !rawVisible(context);
 				if (view.detailsOpen) {
 					const group = this.timeline.calls.get(context.toolCallId)?.group;
-					if (group && !group.open) {
+					if (this.isEnabled() && group && !group.open) {
 						group.open = true;
 						group.refresh();
 					}
@@ -99,47 +152,20 @@ export class ActivityRenderers {
 				const { group, call } = this.timeline.add(context.toolCallId, name);
 				call.invalidate = context.invalidate;
 				const view = this.view(call.id);
-				if (view.nativeExpanded !== context.expanded) {
+				if (view.nativeState !== context.state) {
+					view.nativeState = context.state;
+					view.nativeExpanded = context.expanded;
+				} else if (view.nativeExpanded !== context.expanded) {
 					view.nativeExpanded = context.expanded;
 					view.detailsOpen = undefined;
-				}
-				if (group.nativeExpanded !== context.expanded) {
-					group.nativeExpanded = context.expanded;
-					group.open = context.expanded;
+					group.nativeExpansion(context.expanded, call.id);
 				}
 				const container = new Container();
-				if (group.calls[0]?.id === call.id) {
-					const heading = new Text(
-						theme.fg(
-							group.attention ? "warning" : "muted",
-							`${group.open ? "▾" : "▸"} ${group.label()}`,
-						),
-						1,
-						0,
-					);
-					container.addChild(
-						new MouseRegion(heading, (event) => {
-							if (event.type !== "click" || event.button !== "left")
-								return undefined;
-							group.open = !group.open;
-							group.refresh();
-							return { handled: true };
-						}),
-					);
-					const detail =
-						group.endedAt === undefined
-							? group.stage.label()
-							: group.stage.summary();
-					if (detail) {
-						container.addChild({
-							invalidate() {},
-							render: (width) => [
-								truncateToWidth(theme.fg("muted", `    ${detail}`), width),
-							],
-						});
-					}
+				view.offShell = undefined;
+				if (this.isEnabled() && group.members.keys().next().value === call.id) {
+					container.addChild(renderActivityHeading(group, theme));
 				}
-				if (rawVisible(context)) {
+				if (!this.isEnabled() || rawVisible(context)) {
 					const rawContext = {
 						...context,
 						expanded: view.detailsOpen ?? context.expanded,
@@ -150,15 +176,15 @@ export class ActivityRenderers {
 						original?.renderCall?.(args, theme, rawContext) ??
 						new Text(`${name}\n${JSON.stringify(args, null, 2)}`, 0, 0);
 					view.callComponent = child;
+					if (!this.isEnabled() && original?.renderShell !== "self") {
+						view.offShell = box(theme, context, 1);
+						view.offShell.addChild(toggleDetails(child, context));
+						return view.offShell;
+					}
 					container.addChild(
 						toggleDetails(frame(child, theme, context), context),
 					);
-				} else if (
-					group.open ||
-					context.isError ||
-					call.status === "error" ||
-					call.status === "interrupted"
-				) {
+				} else if (group.open) {
 					const status = context.isError ? "error" : call.status;
 					container.addChild(
 						toggleDetails(
@@ -179,7 +205,7 @@ export class ActivityRenderers {
 				return container;
 			},
 			renderResult: (result, options, theme, context) => {
-				if (!rawVisible(context)) return new Container();
+				if (this.isEnabled() && !rawVisible(context)) return new Container();
 				const view = this.view(context.toolCallId);
 				const rawContext = {
 					...context,
@@ -203,6 +229,10 @@ export class ActivityRenderers {
 						0,
 					);
 				view.resultComponent = child;
+				if (!this.isEnabled() && view.offShell) {
+					view.offShell.addChild(toggleDetails(child, context));
+					return new Container();
+				}
 				return toggleDetails(frame(child, theme, context), context);
 			},
 		};

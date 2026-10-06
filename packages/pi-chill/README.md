@@ -10,23 +10,29 @@ pi install npm:@howaboua/pi-chill
 
 Requires Pi 1.0.4 or later. The extension takes effect in the interactive terminal.
 
+Chill starts on. `/chill` toggles the current session immediately, including while working. It does not reload or change saved preferences. Turning it back on folds existing activity again.
+
+Load Chill before Shepherdr, Subdir Agents and Codex Conversion to fold their notices too. Pi uses the first registered message and entry renderers. Earlier extensions keep their own notice presentation.
+
 ## Progress
 
 Routine tool calls share a muted block in the conversation: `Working · duration`, then `Worked · duration` when the response settles. Completed work shows up to two recent tool actions underneath. Interrupted work says `Stopped`. Nothing is added beside the composer.
 
 While working, an indented line shows the current tool action with its file or command, or a real reasoning heading when supplied. Nested Code and Notebook calls update the same line. There are no generic thinking or writing-status labels. Reasoning and tool activity never share a line. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
 
-The latest action or heading stays visible until another replaces it, including between tool calls. The block is anchored to the first tool call. Before that call, or in replies without tools, no work block appears.
+The latest action or heading stays visible until another replaces it, including between tool calls. The block is anchored to the first tool call or supported notice. Replies with neither keep native presentation.
 
 Click the row to show calls in their original order. Click a call to reveal or hide its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse. Work settling does not close details you opened.
 
-Errors and interrupted calls keep a compact indicator when activity is folded. They never force details open. Click the indicator or use `Ctrl+O` to inspect the original output. Blocking Pi dialogs stay visible and the activity row says `needs attention`. Inline images remain under their original calls when Pi's image display is enabled.
+Errors and interrupted calls appear in the shared heading when activity is folded, not as separate call rows. They never force details open. Open the block to inspect calls, or use `Ctrl+O` for their original output. Blocking Pi dialogs stay visible and the activity row says `needs attention`. Inline images remain under their original calls when Pi's image display is enabled.
 
-Routine Shepherdr board notices hide their bodies until `Ctrl+O` expands them. Pi still leaves a blank line for each notice. Agent questions, failures and completion reports stay visible.
+Shepherdr peer messages, worker questions, failures, completion reports, board notices and Subdir Agents instruction notices share the same disclosure. Codex developer messages, context-window notices, Notebook status, toolkit updates, note-save markers and native-compaction notices join it too. Sender identity and actionable worker states remain in the heading. Opening the block reveals notices at their original positions without peer routing envelopes. `Ctrl+O` reveals original content and entry data, including envelopes and complete loaded instructions. Unknown formats retain their full content. Pi still leaves a blank line for each custom notice. Host disconnection notifications and interactive approval dialogs keep native presentation.
 
-Reasoning bodies and collapsed thinking labels are hidden from chat. Real reasoning headings still update the work block. Pi may leave blank spacing where thinking blocks were. `Ctrl+T` does not reveal reasoning while Pi Chill is active. Your saved thinking preference and stored reasoning are unchanged.
+When Chill is on, reasoning bodies and collapsed thinking labels are hidden from chat. Real reasoning headings still update the work block. Pi may leave blank spacing where thinking blocks were. `Ctrl+T` does not reveal reasoning while Chill is on. Turning Chill off restores native reasoning and delegates tool details to their original renderers. Custom notices show full readable content rather than other extensions' compact cards. Activity keeps tracking while off. Your saved thinking preference and stored reasoning are unchanged.
 
-Assistant commentary, final answers, and user messages keep Pi's native presentation. Commentary does not fold into Worked.
+The exact kickoff text `Continue.` and `Continue, unless awaiting for user approval.` also hides when Chill is on. Pi's Markdown hook cannot identify its sender, so identical manually entered text hides too. A native spacer can remain. Other user text and image attachments are unchanged.
+
+Assistant commentary, final answers, and other user messages keep Pi's native presentation. Commentary does not fold into Worked.
 
 Restored sessions reconstruct groups from the active branch and mark estimated durations with `~`.
 

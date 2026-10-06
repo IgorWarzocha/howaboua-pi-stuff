@@ -1,5 +1,40 @@
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import type {
+	CustomEntry,
+	MessageRenderer,
+	SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import { CurrentStage } from "./current-stage.js";
+
+type CustomMessage = Parameters<MessageRenderer>[0];
+type ActivityMessage = Pick<
+	CustomMessage,
+	"customType" | "content" | "timestamp" | "details"
+>;
+
+export const activityMessageTypes = [
+	"herdr-agent-message",
+	"herdr-agent-event",
+	"shepherdr-board-post",
+	"subdir-agents-context",
+	"codex-developer-message",
+	"codex-context-window",
+	"codex-native-compaction-display",
+] as const;
+
+export const activityEntryTypes = [
+	"codex-notebook-status",
+	"codex-toolkit-update",
+	"codex-note-save-marker",
+	"codex-native-compaction-display",
+] as const;
+
+function messageKey(message: ActivityMessage): string {
+	return JSON.stringify([message.customType, message.content, message.details]);
+}
+
+function replayKey(message: ActivityMessage): string {
+	return JSON.stringify([message.timestamp, messageKey(message)]);
+}
 
 /** Code/Notebook Mode can report script and nested errors in successful outer results. */
 export function hasCodeModeError(details: unknown): boolean {
@@ -38,6 +73,9 @@ export interface ActivityCall {
 
 export class ActivityGroup {
 	readonly calls: ActivityCall[] = [];
+	readonly members = new Map<string, { invalidate?: () => void }>();
+	readonly notices = new Map<string, string>();
+	readonly noticeWarnings = new Set<string>();
 	open = false;
 	nativeExpanded = false;
 	attention = false;
@@ -57,11 +95,32 @@ export class ActivityGroup {
 		if (existing) return existing;
 		const call: ActivityCall = { id, name, status: "pending" };
 		this.calls.push(call);
+		this.members.set(id, call);
 		return call;
 	}
 
-	refresh(): void {
-		for (const call of this.calls) call.invalidate?.();
+	refresh(exceptId?: string): void {
+		for (const [id, member] of this.members)
+			if (id !== exceptId) member.invalidate?.();
+	}
+
+	nativeExpansion(expanded: boolean, memberId: string): void {
+		// Arrivals inherit the native preference, not ownership of a mouse-made choice.
+		if (this.nativeExpanded === expanded) return;
+		this.nativeExpanded = expanded;
+		this.open = expanded;
+		this.refresh(memberId);
+	}
+
+	get warning(): boolean {
+		return (
+			this.attention ||
+			this.noticeWarnings.size > 0 ||
+			this.outcome === "interrupted" ||
+			this.calls.some(
+				(call) => call.status === "error" || call.status === "interrupted",
+			)
+		);
 	}
 
 	finish(now: number, outcome: ActivityGroup["outcome"]): void {
@@ -92,19 +151,120 @@ export class ActivityGroup {
 				: this.outcome === "completed"
 					? "Worked"
 					: "Stopped";
-		return `${heading} · ${this.estimated ? "~" : ""}${duration}${this.attention ? " · needs attention" : ""}`;
+		const flags = [
+			this.attention ? "needs attention" : "",
+			this.calls.some((call) => call.status === "error") ? "error" : "",
+			this.calls.some((call) => call.status === "interrupted")
+				? "interrupted"
+				: "",
+			...new Set(this.notices.values()),
+		].filter(Boolean);
+		return `${heading} · ${this.estimated ? "~" : ""}${duration}${flags.length ? ` · ${flags.join(" · ")}` : ""}`;
 	}
 }
 
 export class ActivityTimeline {
+	// Pi can rebuild entry components around the same persisted object.
+	renderGeneration = 0;
+	readonly messages = new Map<string, ActivityGroup>();
+	readonly entries = new Map<string, ActivityGroup>();
 	readonly calls = new Map<
 		string,
 		{ group: ActivityGroup; call: ActivityCall }
 	>();
 	current: ActivityGroup | undefined;
+	private pendingMessageGroup: ActivityGroup | undefined;
+	private messageObjects = new WeakMap<object, string>();
+	private readonly messageSources = new Map<
+		string,
+		{ key: string; entryId?: string }
+	>();
+	private readonly replayMessages = new Map<string, string[]>();
+	private nextMessageId = 0;
+
+	refresh(): void {
+		const groups = new Set([
+			...this.messages.values(),
+			...this.entries.values(),
+			...[...this.calls.values()].map((member) => member.group),
+		]);
+		for (const group of groups) group.refresh();
+	}
+
+	addEntry(entry: CustomEntry): ActivityGroup {
+		const id = `entry:${entry.id}`;
+		const existing = this.entries.get(id);
+		if (existing) return existing;
+		const time = Date.parse(entry.timestamp);
+		const group =
+			this.current ?? this.pendingMessageGroup ?? new ActivityGroup(time);
+		group.members.set(id, {});
+		this.entries.set(id, group);
+		if (group !== this.current) {
+			group.finish(time, "completed");
+			this.pendingMessageGroup = group;
+		}
+		return group;
+	}
+
+	messageId(message: ActivityMessage, live = false): string {
+		const existing = this.messageObjects.get(message);
+		if (existing) return existing;
+		const replay = live
+			? undefined
+			: this.replayMessages.get(replayKey(message));
+		const id = replay?.shift() ?? `message:${++this.nextMessageId}`;
+		this.messageObjects.set(message, id);
+		if (!this.messageSources.has(id))
+			this.messageSources.set(id, { key: messageKey(message) });
+		return id;
+	}
+
+	/** Persistence restamps queued messages. Bind each occurrence to its actual branch entry. */
+	reconcileMessages(entries: readonly SessionEntry[]): void {
+		for (const entry of entries) {
+			if (
+				entry.type !== "custom_message" ||
+				!entry.display ||
+				!activityMessageTypes.some((type) => type === entry.customType)
+			)
+				continue;
+			const sources = [...this.messageSources.values()];
+			if (sources.some((source) => source.entryId === entry.id)) continue;
+			const key = messageKey({
+				...entry,
+				timestamp: Date.parse(entry.timestamp),
+			});
+			const source = sources.find(
+				(source) => source.entryId === undefined && source.key === key,
+			);
+			if (source) source.entryId = entry.id;
+		}
+	}
+
+	private prepareMessageReplay(entries: readonly SessionEntry[]): void {
+		this.replayMessages.clear();
+		for (const entry of entries) {
+			if (entry.type !== "custom_message") continue;
+			const id = [...this.messageSources].find(
+				([, source]) => source.entryId === entry.id,
+			)?.[0];
+			if (!id) continue;
+			const key = replayKey({
+				...entry,
+				timestamp: Date.parse(entry.timestamp),
+			});
+			const matches = this.replayMessages.get(key) ?? [];
+			matches.push(id);
+			this.replayMessages.set(key, matches);
+		}
+	}
 
 	start(now = Date.now()): ActivityGroup {
-		this.current ??= new ActivityGroup(now);
+		this.current ??= this.pendingMessageGroup ?? new ActivityGroup(now);
+		this.pendingMessageGroup = undefined;
+		this.current.endedAt = undefined;
+		this.current.outcome = "completed";
 		return this.current;
 	}
 
@@ -117,38 +277,120 @@ export class ActivityTimeline {
 		return entry;
 	}
 
+	addMessage(
+		message: ActivityMessage,
+		live = false,
+		entryId?: string,
+	): ActivityGroup {
+		const id = this.messageId(message, live);
+		const source = this.messageSources.get(id);
+		if (source && entryId) source.entryId = entryId;
+		const existing = this.messages.get(id);
+		if (existing) return existing;
+		const group =
+			this.current ??
+			(live
+				? this.start(message.timestamp)
+				: (this.pendingMessageGroup ?? new ActivityGroup(message.timestamp)));
+		group.members.set(id, {});
+		this.messages.set(id, group);
+		if (!live && group !== this.current) {
+			group.finish(message.timestamp, "completed");
+			this.pendingMessageGroup = group;
+		}
+		return group;
+	}
+
 	finish(
 		now = Date.now(),
 		outcome: ActivityGroup["outcome"] = "completed",
 	): void {
 		this.current?.finish(now, outcome);
 		this.current = undefined;
+		this.pendingMessageGroup = undefined;
 	}
 
-	retain(ids: ReadonlySet<string>): void {
+	retain(ids: ReadonlySet<string>, entries: readonly SessionEntry[]): void {
+		this.renderGeneration++;
+		this.reconcileMessages(entries);
+		const messageIds = new Set(
+			entries
+				.filter((entry) => entry.type === "custom_message")
+				.map((entry) => entry.id),
+		);
+		const entryIds = new Set(
+			entries
+				.filter((entry) => entry.type === "custom")
+				.map((entry) => `entry:${entry.id}`),
+		);
 		const changed = new Set<ActivityGroup>();
 		for (const [id, member] of this.calls) {
 			if (ids.has(id)) continue;
 			this.calls.delete(id);
+			member.group.members.delete(id);
 			member.group.calls.splice(member.group.calls.indexOf(member.call), 1);
 			changed.add(member.group);
 		}
+		for (const [id, group] of this.messages) {
+			const entryId = this.messageSources.get(id)?.entryId;
+			if (entryId && messageIds.has(entryId)) continue;
+			this.messages.delete(id);
+			this.messageSources.delete(id);
+			group.members.delete(id);
+			group.notices.delete(id);
+			group.noticeWarnings.delete(id);
+			changed.add(group);
+		}
+		for (const [id, group] of this.entries) {
+			if (entryIds.has(id)) continue;
+			this.entries.delete(id);
+			group.members.delete(id);
+			group.notices.delete(id);
+			group.noticeWarnings.delete(id);
+			changed.add(group);
+		}
+		this.prepareMessageReplay(entries);
 		for (const group of changed) group.refresh();
 	}
 
 	/** Rebuild only the active branch, never abandoned siblings. Durations are estimates. */
 	restore(entries: readonly SessionEntry[]): void {
+		this.renderGeneration++;
 		this.calls.clear();
+		this.messages.clear();
+		this.entries.clear();
+		this.messageObjects = new WeakMap();
+		this.messageSources.clear();
+		this.replayMessages.clear();
 		this.current = undefined;
+		this.pendingMessageGroup = undefined;
 		let startedAt: number | undefined;
 		let endedAt = 0;
 		for (const entry of entries) {
 			const time = Date.parse(entry.timestamp);
 			if (Number.isFinite(time)) endedAt = time;
+			if (
+				entry.type === "custom" &&
+				activityEntryTypes.some((type) => type === entry.customType)
+			) {
+				this.current ??= new ActivityGroup(startedAt ?? endedAt, true);
+				this.addEntry(entry);
+				continue;
+			}
+			if (
+				entry.type === "custom_message" &&
+				entry.display &&
+				activityMessageTypes.some((type) => type === entry.customType)
+			) {
+				this.current ??= new ActivityGroup(startedAt ?? endedAt, true);
+				this.addMessage({ ...entry, timestamp: endedAt }, true, entry.id);
+				continue;
+			}
 			if (entry.type !== "message") continue;
 			const message = entry.message;
 			if (message.role === "user") {
-				this.finish(endedAt, "interrupted");
+				// A staged peer arrival can precede its prepared user kickoff.
+				if (this.current?.calls.length) this.finish(endedAt, "interrupted");
 				startedAt = endedAt;
 			} else if (message.role === "assistant") {
 				const tools = message.content.filter(
@@ -190,6 +432,10 @@ export class ActivityTimeline {
 				}
 			}
 		}
-		this.finish(endedAt, "interrupted");
+		this.finish(
+			endedAt,
+			this.current?.calls.length ? "interrupted" : "completed",
+		);
+		this.prepareMessageReplay(entries);
 	}
 }
