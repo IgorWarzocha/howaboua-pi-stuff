@@ -5,6 +5,7 @@ import {
 	Container,
 	MouseRegion,
 	Text,
+	truncateToWidth,
 } from "@earendil-works/pi-tui";
 import type { ActivityTimeline } from "./activity.js";
 
@@ -96,7 +97,7 @@ export class ActivityRenderers {
 					group.open = context.expanded;
 				}
 				const container = new Container();
-				if (group.calls[0]?.id === call.id) {
+				if (group.calls[0]?.id === call.id && group.endedAt !== undefined) {
 					const heading = new Text(
 						theme.fg(
 							group.attention ? "warning" : "muted",
@@ -114,6 +115,17 @@ export class ActivityRenderers {
 							return { handled: true };
 						}),
 					);
+					if (group.stage.summary()) {
+						container.addChild({
+							invalidate() {},
+							render: (width) => [
+								truncateToWidth(
+									theme.fg("muted", `    ${group.stage.summary()}`),
+									width,
+								),
+							],
+						});
+					}
 				}
 				if (rawVisible(context)) {
 					const view = this.view(call.id);

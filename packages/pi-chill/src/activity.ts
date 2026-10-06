@@ -1,4 +1,5 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { CurrentStage } from "./current-stage.js";
 
 /** Code/Notebook Mode can report script and nested errors in successful outer results. */
 export function hasCodeModeError(details: unknown): boolean {
@@ -40,6 +41,7 @@ export class ActivityGroup {
 	open = false;
 	nativeExpanded = false;
 	attention = false;
+	readonly stage = new CurrentStage();
 	endedAt: number | undefined;
 	outcome: "completed" | "interrupted" = "completed";
 	readonly startedAt: number;
@@ -67,6 +69,7 @@ export class ActivityGroup {
 		this.outcome = outcome;
 		this.open = false;
 		this.attention = false;
+		this.stage.finish();
 		for (const call of this.calls) {
 			if (call.status === "pending" || call.status === "running") {
 				call.status = "interrupted";
@@ -86,7 +89,7 @@ export class ActivityGroup {
 				: `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 		const heading =
 			this.endedAt === undefined
-				? "Activity"
+				? "Working"
 				: this.outcome === "completed"
 					? "Worked"
 					: "Stopped";
@@ -154,7 +157,10 @@ export class ActivityTimeline {
 				);
 				if (tools.length) {
 					this.current ??= new ActivityGroup(startedAt ?? endedAt, true);
-					for (const tool of tools) this.add(tool.id, tool.name);
+					for (const tool of tools) {
+						this.add(tool.id, tool.name);
+						this.current.stage.start(tool.id, tool.name, tool.arguments);
+					}
 				}
 				const interrupted =
 					message.stopReason === "aborted" ||
@@ -172,11 +178,17 @@ export class ActivityTimeline {
 				}
 			} else if (message.role === "toolResult") {
 				const member = this.calls.get(message.toolCallId);
-				if (member)
+				if (member) {
 					member.call.status =
 						message.isError || hasCodeModeError(message.details)
 							? "error"
 							: "done";
+					member.group.stage.end(
+						message.toolCallId,
+						message,
+						member.call.status === "error",
+					);
+				}
 			}
 		}
 		this.finish(endedAt, "interrupted");
