@@ -4,6 +4,24 @@ import { hasFreshContextNotes } from "./saved-notes.ts";
 
 export const NOTE_SAVE_MARKER = "codex-note-save-marker";
 
+const latestMarkers = new WeakMap<ExtensionContext["sessionManager"], {
+	leafId: string | null;
+	markerId: string | undefined;
+}>();
+
+export function latestNoteSaveMarker(ctx: ExtensionContext): string | undefined {
+	const manager = ctx.sessionManager;
+	const leafId = manager.getLeafId();
+	const cached = latestMarkers.get(manager);
+	if (cached && cached.leafId === leafId) return cached.markerId;
+	// Appends, tree navigation and compaction change the public active leaf.
+	// Share one ancestry scan across every marker and redraw at that leaf.
+	const markerId = manager.getBranch().findLast(entry =>
+		entry.type === "custom" && entry.customType === NOTE_SAVE_MARKER)?.id;
+	latestMarkers.set(manager, { leafId, markerId });
+	return markerId;
+}
+
 export function recordNoteSaveMarker(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,

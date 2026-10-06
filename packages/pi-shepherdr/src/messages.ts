@@ -22,6 +22,42 @@ import type {
 } from "./types.js";
 
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
+const BOARD_POST_MARKER = "shepherdr-board-post-marker";
+
+export function recordBoardPostMarker(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	value: unknown,
+): void {
+	if (
+		!value ||
+		typeof value !== "object" ||
+		!("message_id" in value) ||
+		typeof value.message_id !== "string" ||
+		!("channel_name" in value) ||
+		typeof value.channel_name !== "string"
+	)
+		return;
+	if (
+		ctx.sessionManager
+			.getBranch()
+			.some(
+				(entry) =>
+					entry.type === "custom" &&
+					entry.customType === BOARD_POST_MARKER &&
+					entry.data &&
+					typeof entry.data === "object" &&
+					"messageId" in entry.data &&
+					entry.data.messageId === value.message_id,
+			)
+	)
+		return;
+	// Owner acknowledgements reach the sender here, never the subscription inbox.
+	pi.appendEntry(BOARD_POST_MARKER, {
+		messageId: value.message_id,
+		channelName: value.channel_name,
+	});
+}
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
@@ -512,6 +548,25 @@ export function injectAgentEvent(
 }
 
 export function registerAgentEventRenderer(pi: ExtensionAPI): void {
+	pi.registerEntryRenderer(BOARD_POST_MARKER, (entry, _options, theme) => {
+		const data = entry.data;
+		const name =
+			data &&
+			typeof data === "object" &&
+			"channelName" in data &&
+			typeof data.channelName === "string" &&
+			data.channelName.trim()
+				? data.channelName.replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
+				: "Board";
+		return new Text(
+			theme.style(`Posted to board · ${name}`, {
+				fg: "syntaxString",
+				dim: true,
+			}),
+			0,
+			0,
+		);
+	});
 	pi.registerMessageRenderer<AgentEventDetails>(
 		AGENT_EVENT_MESSAGE_TYPE,
 		(message, { expanded, outputPad }, theme) => {

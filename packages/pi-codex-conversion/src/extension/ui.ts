@@ -12,7 +12,7 @@ import {
 	type CodexContextManagementMessageDetails,
 	isCodexContextManagementMessageDetails,
 } from "../context-management/messages.ts";
-import { NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
+import { latestNoteSaveMarker, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -61,6 +61,11 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 
 	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
 	const renderNotice = createNoticeRenderer();
+	let noteSaveContext: ExtensionContext | undefined;
+	const restoreNoteSaveContext = (_event: unknown, ctx: ExtensionContext) => { noteSaveContext = ctx; };
+	pi.on("session_start", restoreNoteSaveContext);
+	pi.on("session_tree", restoreNoteSaveContext);
+	pi.on("session_compact", restoreNoteSaveContext);
 	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
 			typeof message.details?.title === "string" ? message.details.title : "Context update",
@@ -76,11 +81,22 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const status = readNotebookStatus(entry.data);
 		return renderNotice(entry, status.title, status.content, expanded, theme);
 	});
-	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (_entry, { expanded }, theme) => {
+	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, { expanded }, theme) => {
 		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.noteSaveMarkers) return undefined;
-		return new Text(theme.fg("success", "✓ Notes saved") + (expanded
+		const content = theme.fg("success", "✓ Notes saved") + (expanded
 			? theme.fg("dim", "\nReturn to this reply through /tree without a summary. In Notes and history, plain /compact opens a new window without another note-writing turn.")
-			: ""), 0, 0);
+			: "");
+		// Native entries retain their child between redraws. Check branch membership
+		// at render time so appending a marker also retires the cached older child.
+		// Pi owns the parent spacer, which an empty child cannot remove.
+		return new class extends Text {
+			override render(width: number): string[] {
+				const visible = noteSaveContext && latestNoteSaveMarker(noteSaveContext) === entry.id &&
+					!runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.noteSaveMarkers;
+				this.setText(visible ? content : "");
+				return visible ? super.render(width) : [];
+			}
+		}("", 0, 0);
 	});
 	const renderNativeCompaction = (
 		content: string,
@@ -140,6 +156,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		runtime.state.usageStatus = undefined;
 	};
 	const recordNoteSave = (ctx: ExtensionContext) => {
+		noteSaveContext = ctx;
 		const { state } = runtime;
 		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
