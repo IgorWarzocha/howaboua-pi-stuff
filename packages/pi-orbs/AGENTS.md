@@ -1,0 +1,6 @@
+- `src/daemon.ts` is a detached Node entry, not a Pi-session resource. Do not stop environments on Pi shutdown.
+- Use supported Gondolin APIs. Checkpoints are disk-only. Reapply resource/image/tmpfs options and restart declared services, never claim RAM resume.
+- SDK exec cancellation does not kill guest processes. `guest.ts` owns timeout process groups. Tracked foreground exec blocks SDK file RPC.
+- Close owned HTTP/WebSocket and SSH tunnels before checkpoint. Upstream ingress and SSH close can wait indefinitely on live clients.
+- Images and templates contain only public runtimes and setup. Fresh guest login belongs to the user, never import host auth.
+- Once lifecycle contracts are established, use focused static checks. VM probes are disposable, not routine gates.

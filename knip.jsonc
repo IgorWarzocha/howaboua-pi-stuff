@@ -50,6 +50,9 @@
 		"packages/pi-gippity-control": {
 			"entry": ["changelog.ts"]
 		},
+		"packages/pi-orbs": {
+			"entry": ["src/daemon.ts", "images/prepare.mjs"]
+		},
 		"packages/pi-pet": {
 			"ignoreDependencies": ["@howaboua/pi-gippity-control"],
 			"entry": [
