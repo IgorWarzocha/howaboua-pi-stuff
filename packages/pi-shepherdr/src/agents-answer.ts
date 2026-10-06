@@ -59,6 +59,27 @@ export async function answerAgent(
 		signal,
 		askId,
 	);
+	if (prepared.ask.delivery === "steer") {
+		await prepared.submit();
+		const current = await getAgent(runtime.client, panel.pane_id);
+		const result = sameAgentIdentity(panel, current)
+			? (await runtime.monitor.view(current)).askResults?.[askId]
+			: undefined;
+		const accepted =
+			result?.status === "accepted" && answersMatch(answers, result.responses);
+		return toolResult({
+			answered: accepted,
+			ask_id: askId,
+			machine: runtime.machine,
+			status:
+				result?.status === "rejected"
+					? "rejected"
+					: accepted
+						? "accepted"
+						: "unknown",
+			target: panel.pane_id,
+		});
+	}
 	const task = `Answer: ${prepared.ask.prompts
 		.map((prompt) => prompt.title)
 		.join(", ")}`;

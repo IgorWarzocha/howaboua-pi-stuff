@@ -97,6 +97,8 @@ describe("ask tool results", () => {
 		const userDeliveries: Array<{ message: string; options: unknown }> = [];
 		const deliveryWaiters: Array<() => void> = [];
 		const pendingUpdates: PendingAskUpdate[] = [];
+		const activeUpdates: Array<{ id: string; active: boolean }> = [];
+		const blockedUpdates: boolean[] = [];
 		let developerAvailable = true;
 		const deliverSteer = createSteerDelivery(
 			{
@@ -121,6 +123,9 @@ describe("ask tool results", () => {
 			},
 			deliverSteer,
 			onPendingChange: (update) => pendingUpdates.push(update),
+			onSteerActiveChange: (request, active) =>
+				activeUpdates.push({ id: request.id, active }),
+			onBlockedChange: ({ active }) => blockedUpdates.push(active),
 		});
 
 		const first = await tool.execute(
@@ -146,12 +151,14 @@ describe("ask tool results", () => {
 			content: [
 				{
 					type: "text",
-					text: "Question presented. Continue working; the response will arrive as steering.",
+					text: "Question queued. Continue working; the response will arrive as steering.",
 				},
 			],
 			details: { kind: "prompt", pending: true, id: "steer-1" },
 		});
 		expect(presentations).toEqual(["First"]);
+		expect(activeUpdates).toEqual([{ id: "steer-1", active: true }]);
+		expect(blockedUpdates).toEqual([]);
 
 		const firstDelivery = new Promise<void>((resolve) =>
 			deliveryWaiters.push(resolve),
@@ -191,6 +198,24 @@ describe("ask tool results", () => {
 			{ state: "closed", id: "steer-1" },
 			{ state: "closed", id: "steer-2" },
 		]);
+		expect(activeUpdates).toEqual([
+			{ id: "steer-1", active: true },
+			{ id: "steer-1", active: false },
+			{ id: "steer-2", active: true },
+			{ id: "steer-2", active: false },
+		]);
+		expect(pendingUpdates[2]).toEqual({
+			version: 1,
+			state: "closed",
+			id: "steer-1",
+			responses: [{ id: "p1", selections: ["Yes"], comment: "Proceed." }],
+		});
+		expect(pendingUpdates[3]).toEqual({
+			version: 1,
+			state: "closed",
+			id: "steer-2",
+			dismissed: true,
+		});
 		await expect(
 			tool.execute(
 				"steer-handoff",

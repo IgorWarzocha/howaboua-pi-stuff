@@ -162,12 +162,13 @@ interface AgentEventOptions {
 	operatorPrefix: string;
 	record: MonitoredAgent;
 	reply?: LatestAssistant;
-	status: SettledAgentStatus;
+	status: SettledAgentStatus | "question";
 }
 
 export function modelAsk(ask: PendingAsk) {
 	return {
 		ask_id: ask.toolCallId,
+		...(ask.delivery ? { delivery: ask.delivery } : {}),
 		handoff: ask.handoff,
 		prompts: ask.prompts,
 	};
@@ -182,7 +183,7 @@ interface AgentEventDetails {
 	name?: string;
 	paneId: string;
 	response?: string;
-	state: "blocked" | "failed" | "finished";
+	state: "blocked" | "failed" | "finished" | "question";
 	tab?: string;
 	task?: string;
 	workspace?: string;
@@ -231,6 +232,7 @@ function eventAsk(value: unknown): PendingAsk | undefined {
 	if (prompts.length === 0) return undefined;
 	return {
 		toolCallId: record["toolCallId"],
+		...(record["delivery"] === "steer" ? { delivery: "steer" as const } : {}),
 		handoff: record["handoff"],
 		prompts,
 	};
@@ -253,9 +255,11 @@ function agentVoicePrompt(details: AgentEventDetails): string {
 	];
 	if (details.task?.trim()) lines.push(`Task:\n${details.task.trim()}`);
 	let instruction: string;
-	if (details.state === "blocked") {
+	if (details.state === "blocked" || details.state === "question") {
 		instruction =
-			"Briefly tell the user why this monitored worker is blocked and what attention may be required.";
+			details.state === "question"
+				? "Briefly tell the user what this worker asks while it continues working."
+				: "Briefly tell the user why this monitored worker is blocked and what attention may be required.";
 		if (details.blockedOn?.trim())
 			lines.push(`Reason:\n${details.blockedOn.trim()}`);
 		if (details.ask) {
@@ -337,6 +341,7 @@ function eventDetails(value: unknown): AgentEventDetails | undefined {
 		(details["machine"] !== undefined &&
 			typeof details["machine"] !== "string") ||
 		(details["state"] !== "blocked" &&
+			details["state"] !== "question" &&
 			details["state"] !== "failed" &&
 			details["state"] !== "finished")
 	) {
@@ -383,13 +388,16 @@ function agentEvent(options: AgentEventOptions): {
 	} = options;
 	const task = activityTask(record.activity);
 	const blocked = status === "blocked";
+	const question = status === "question";
 	const failed = !blocked && reply?.stopReason === "error";
 	const cwd = agent.foreground_cwd ?? agent.cwd ?? record.cwd;
-	const tag = blocked
-		? "herdr_agent_blocked"
-		: failed
-			? "herdr_agent_failed"
-			: "herdr_agent_result";
+	const tag = question
+		? "herdr_agent_question"
+		: blocked
+			? "herdr_agent_blocked"
+			: failed
+				? "herdr_agent_failed"
+				: "herdr_agent_result";
 	const attributes = sourceAttributes({
 		machine,
 		machine_name: machineLabel !== machine ? machineLabel : undefined,
@@ -402,12 +410,17 @@ function agentEvent(options: AgentEventOptions): {
 	if (blockedMessage) {
 		lines.push(`<blocked_on>${xml(blockedMessage)}</blocked_on>`);
 	}
-	if (blocked && ask) {
+	if ((blocked || question) && ask) {
 		lines.push(`<ask>${xml(JSON.stringify(modelAsk(ask)))}</ask>`);
 	}
 	if (blocked) {
 		lines.push(
 			`<operator_hint>${xml(blockedOperatorHint(agentToolName, machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
+		);
+	}
+	if (question && ask) {
+		lines.push(
+			`<operator_hint>${xml(`Worker continues. Answer via ${agentToolName} action=answer machine=${JSON.stringify(machine)} target=${JSON.stringify(agent.pane_id)} ask_id=${JSON.stringify(ask.toolCallId)} answers=[...]`)}</operator_hint>`,
 		);
 	}
 	if (failed) {
@@ -424,8 +437,14 @@ function agentEvent(options: AgentEventOptions): {
 			machine,
 			machineLabel,
 			paneId: agent.pane_id,
-			state: blocked ? "blocked" : failed ? "failed" : "finished",
-			...(blocked && ask ? { ask } : {}),
+			state: question
+				? "question"
+				: blocked
+					? "blocked"
+					: failed
+						? "failed"
+						: "finished",
+			...((blocked || question) && ask ? { ask } : {}),
 			...(agent.name || record.name ? { name: agent.name || record.name } : {}),
 			...(cwd ? { cwd } : {}),
 			...(labels.workspace ? { workspace: labels.workspace } : {}),
@@ -487,13 +506,14 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			}
 			const blocked = details?.state === "blocked";
 			const failed = details?.state === "failed";
+			const question = details.state === "question";
 			const agentIdentity = details?.name
 				? `${details.name} (${details.paneId})`
 				: (details?.paneId ?? "unknown");
 			const identity = `${details.machineLabel ?? details.machine} / ${agentIdentity}`;
 			const title = theme.fg(
 				blocked || failed ? "error" : "success",
-				`Herdr agent ${identity} · ${blocked ? "blocked" : failed ? "failed" : "finished"}`,
+				`Herdr agent ${identity} · ${question ? "question pending, worker continues" : blocked ? "blocked" : failed ? "failed" : "finished"}`,
 			);
 			const location = [details?.workspace, details?.tab]
 				.filter(Boolean)
@@ -504,13 +524,16 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			);
 			box.addChild(new Text(title, 0, 0));
 			if (metadata) box.addChild(new Text(theme.fg("dim", metadata), 0, 0));
-			if (blocked) {
+			if (blocked || question) {
 				box.addChild(new Spacer(1));
 				box.addChild(
 					new Text(
 						theme.fg(
 							"warning",
-							details?.blockedOn ?? "Agent needs input or approval",
+							details?.blockedOn ??
+								(question
+									? "Question pending"
+									: "Agent needs input or approval"),
 						),
 						0,
 						0,

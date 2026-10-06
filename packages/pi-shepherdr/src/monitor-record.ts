@@ -104,11 +104,13 @@ export function parseMonitoredAgent(
 	}
 	const cwd = optionalString(record, "cwd");
 	const lastAssistantId = optionalString(record, "lastAssistantId");
+	const lastQuestionId = optionalString(record, "lastQuestionId");
 	const name = optionalString(record, "name");
 	const activity = parsedActivity(record["activity"]);
 	if (
 		cwd === false ||
 		lastAssistantId === false ||
+		lastQuestionId === false ||
 		name === false ||
 		!activity
 	) {
@@ -123,6 +125,7 @@ export function parseMonitoredAgent(
 		tabId: record["tabId"],
 		...(cwd ? { cwd } : {}),
 		...(lastAssistantId ? { lastAssistantId } : {}),
+		...(lastQuestionId ? { lastQuestionId } : {}),
 		...(name ? { name } : {}),
 	};
 }
@@ -132,6 +135,7 @@ export function recordForPanel(
 	activity: AgentActivity,
 	scope: MonitoredAgent["scope"],
 	lastAssistantId?: string,
+	lastQuestionId?: string,
 ): MonitoredAgent {
 	const cwd = panel.foreground_cwd ?? panel.cwd;
 	return {
@@ -144,6 +148,7 @@ export function recordForPanel(
 		...(panel.name ? { name: panel.name } : {}),
 		...(cwd ? { cwd } : {}),
 		...(lastAssistantId ? { lastAssistantId } : {}),
+		...(lastQuestionId ? { lastQuestionId } : {}),
 	};
 }
 
@@ -160,6 +165,7 @@ export function sameMonitorRecord(
 		left.cwd === right.cwd &&
 		left.name === right.name &&
 		left.lastAssistantId === right.lastAssistantId &&
+		left.lastQuestionId === right.lastQuestionId &&
 		sameAgentActivity(left.activity, right.activity)
 	);
 }

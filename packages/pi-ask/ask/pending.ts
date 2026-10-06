@@ -1,12 +1,18 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { AskPrompt, PendingAsk } from "./contracts.js";
+import type { AskPrompt, AskResponse, PendingAsk } from "./contracts.js";
 import { normalizeAskInput } from "./normalize.js";
 
 export const PENDING_ASK_ENTRY_TYPE = "pi-ask-pending";
 
 export type PendingAskUpdate =
 	| { version: 1; state: "pending"; id: string; prompts: AskPrompt[] }
-	| { version: 1; state: "closed"; id: string };
+	| {
+			version: 1;
+			state: "closed";
+			id: string;
+			responses?: AskResponse[];
+			dismissed?: boolean;
+	  };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;

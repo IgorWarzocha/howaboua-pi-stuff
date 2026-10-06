@@ -14,10 +14,11 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 13;
+const BRIDGE_VERSION = 14;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
+const REMOTE_SESSION_WATCH_HELPER = "~/.pi/agent/shepherdr-session-watch.mjs";
 const REMOTE_CHECKPOINT_HELPER = "~/.pi/agent/shepherdr-checkpoints.mjs";
 const REMOTE_CONTEXT_HELPER = "~/.pi/agent/shepherdr-context.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
@@ -202,34 +203,44 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		config: SshMachine,
 		onClose: (error: Error) => void,
 	): Promise<RemoteHerdrClient> {
-		const [source, peerSource, sessionSource, contextSource, checkpointSource] =
-			await Promise.all([
-				readFile(
-					fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
+		const [
+			source,
+			peerSource,
+			sessionSource,
+			contextSource,
+			checkpointSource,
+			sessionWatchSource,
+		] = await Promise.all([
+			readFile(
+				fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
+			),
+			readFile(
+				fileURLToPath(new URL("./remote/shepherdr-peer.mjs", import.meta.url)),
+			),
+			readFile(
+				fileURLToPath(
+					new URL("./remote/shepherdr-session.mjs", import.meta.url),
 				),
-				readFile(
-					fileURLToPath(
-						new URL("./remote/shepherdr-peer.mjs", import.meta.url),
-					),
+			),
+			readFile(
+				fileURLToPath(
+					new URL("./remote/shepherdr-context.mjs", import.meta.url),
 				),
-				readFile(
-					fileURLToPath(
-						new URL("./remote/shepherdr-session.mjs", import.meta.url),
-					),
+			),
+			readFile(
+				fileURLToPath(
+					new URL("./remote/shepherdr-checkpoints.mjs", import.meta.url),
 				),
-				readFile(
-					fileURLToPath(
-						new URL("./remote/shepherdr-context.mjs", import.meta.url),
-					),
+			),
+			readFile(
+				fileURLToPath(
+					new URL("./remote/shepherdr-session-watch.mjs", import.meta.url),
 				),
-				readFile(
-					fileURLToPath(
-						new URL("./remote/shepherdr-checkpoints.mjs", import.meta.url),
-					),
-				),
-			]);
+			),
+		]);
 		await deploy(config, peerSource, REMOTE_PEER_HELPER);
 		await deploy(config, sessionSource, REMOTE_SESSION_HELPER);
+		await deploy(config, sessionWatchSource, REMOTE_SESSION_WATCH_HELPER);
 		await deploy(config, checkpointSource, REMOTE_CHECKPOINT_HELPER);
 		await deploy(config, contextSource, REMOTE_CONTEXT_HELPER);
 		await deploy(config, source, REMOTE_HELPER);
@@ -307,6 +318,37 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		onDisconnect: (error?: Error) => void,
 		signal?: AbortSignal,
 	): Promise<() => void> {
+		return this.subscribeTo(
+			{ op: "subscribe", subscriptions },
+			onEvent,
+			onDisconnect,
+			signal,
+		);
+	}
+
+	async watch(
+		paths: string[],
+		onChange: (path: string) => void,
+		onError: (error: Error) => void,
+		signal: AbortSignal,
+	): Promise<() => void> {
+		return this.subscribeTo(
+			{ op: "session_subscribe", paths },
+			(event) => {
+				if (typeof event.data["path"] === "string")
+					onChange(event.data["path"]);
+			},
+			(error) => onError(error ?? new Error("Session activity stream closed")),
+			signal,
+		);
+	}
+
+	private async subscribeTo(
+		request: Record<string, unknown>,
+		onEvent: (event: HerdrEvent) => void,
+		onDisconnect: (error?: Error) => void,
+		signal?: AbortSignal,
+	): Promise<() => void> {
 		signal?.throwIfAborted();
 		const id = randomUUID();
 		this.subscriptions.set(id, { onEvent, onDisconnect });
@@ -318,7 +360,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			);
 		};
 		try {
-			const ready = this.call({ id, op: "subscribe", subscriptions }, 11_000);
+			const ready = this.call({ ...request, id }, 11_000);
 			signal?.addEventListener("abort", unsubscribe, { once: true });
 			if (signal?.aborted) unsubscribe();
 			await ready;

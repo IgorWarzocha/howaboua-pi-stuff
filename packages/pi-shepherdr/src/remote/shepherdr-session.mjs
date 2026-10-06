@@ -1,4 +1,5 @@
 // @howaboua/pi-shepherdr managed bridge
+
 import { open, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -105,6 +106,7 @@ function askFromInput(toolCallId, input) {
 	return {
 		toolCallId,
 		handoff: input.handoff === true,
+		...(input.delivery === "steer" ? { delivery: "steer" } : {}),
 		prompts,
 	};
 }
@@ -114,6 +116,7 @@ function askResult(message) {
 		return undefined;
 	const id = message.toolCallId ?? message.tool_call_id;
 	if (typeof id !== "string") return undefined;
+	if (message.details?.pending === true) return undefined;
 	if (message.isError === true) return [id, { status: "rejected" }];
 	if (message.isError !== false) return [id, { status: "unknown" }];
 	if (message.details?.dismissed === true) return [id, { status: "rejected" }];
@@ -147,7 +150,12 @@ function askResult(message) {
 	return [
 		id,
 		{
-			status: "accepted",
+			status:
+				responses &&
+				responses.length > 0 &&
+				responses.length === rawResponseCount
+					? "accepted"
+					: "unknown",
 			...(responses && responses.length === rawResponseCount
 				? { responses }
 				: {}),
@@ -203,6 +211,24 @@ async function sessionView(path, size) {
 				}
 			}
 		}
+		if (entry.type === "custom" && entry.customType === "pi-ask-pending") {
+			const update = entry.data;
+			if (
+				update?.version === 1 &&
+				update.state === "closed" &&
+				typeof update.id === "string"
+			) {
+				resolved.add(update.id);
+				const result = askResult({
+					role: "toolResult",
+					toolName: "ask",
+					toolCallId: update.id,
+					isError: false,
+					details: update,
+				});
+				if (result && !askResults.has(result[0])) askResults.set(...result);
+			}
+		}
 		if (
 			!input &&
 			entry.type === "custom_message" &&
@@ -219,6 +245,7 @@ async function sessionView(path, size) {
 			if (result && !askResults.has(result[0])) askResults.set(...result);
 			if (
 				(message.role === "toolResult" || message.role === "tool") &&
+				message.details?.pending !== true &&
 				typeof (message.toolCallId ?? message.tool_call_id) === "string"
 			)
 				resolved.add(message.toolCallId ?? message.tool_call_id);
@@ -239,7 +266,10 @@ async function sessionView(path, size) {
 					.reverse()
 					.map(askCall)
 					.find(
-						(candidate) => candidate && !resolved.has(candidate.toolCallId),
+						(candidate) =>
+							candidate &&
+							candidate.delivery !== "steer" &&
+							!resolved.has(candidate.toolCallId),
 					);
 		}
 		if (typeof entry.parentId !== "string") return true;

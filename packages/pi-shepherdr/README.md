@@ -63,15 +63,17 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 | `attach` | Share context or join a board with an existing idle agent |
 | `detach` | Leave selected membership and retain read-only counterpart checkpoints |
 | `read` | Read the latest assistant reply or bounded terminal output |
-| `answer` | Answer a worker blocked on Pi Ask |
+| `answer` | Answer a worker's blocking or asynchronous Pi Ask |
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
 `spawn` and `assign` block by default. Set `blocking: false` when the controller should continue other work immediately. A profile's `blocking` setting overrides the call for `spawn`. Task completion and blockage are then delivered automatically.
 
-`answer` requires the pending `ask_id` from `read` or a blocked report. It returns `accepted` only when that exact Ask persisted the supplied responses; an accepted retry sends no input.
+`answer` requires the pending `ask_id` from `read` or a question report. It handles both blocking and asynchronous Ask prompts. It returns `accepted` only when that exact Ask persisted the supplied responses; an accepted retry sends no input. Answering an asynchronous question does not wait for the worker's task to finish.
 
-Questions, status updates and replies use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages.
+Asynchronous Ask prompts notify the controller while the worker keeps working. Session-file events drive local and remote notifications without marking the worker blocked or settling its task. Duplicate notifications are suppressed across controller restoration. Update Pi Ask on workers together with Shepherdr on controllers.
+
+Needed input and work changes use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages. Close finished workers silently instead of waking them with completion acknowledgements or shutdown notices.
 
 Delegation and explicit `watch` keep reporting subsequent work until `unwatch` or the agent's pane closes. Finishing or failing a task clears that task, not its watch. Follow-up messages through `send` retain completion reporting without replacing the task.
 

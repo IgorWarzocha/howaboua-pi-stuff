@@ -10,8 +10,9 @@ import {
 } from "./shepherdr-context.mjs";
 import { sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
+import { watchSessions } from "./shepherdr-session-watch.mjs";
 
-const BRIDGE_VERSION = 13;
+const BRIDGE_VERSION = 14;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
@@ -342,6 +343,25 @@ async function handle(message) {
 	}
 	if (message.op === "subscribe") {
 		await subscribe(message.id, message.subscriptions ?? []);
+		return { subscribed: true };
+	}
+	if (message.op === "session_subscribe") {
+		const close = watchSessions(
+			message.paths ?? [],
+			(path) =>
+				send({
+					subscription: message.id,
+					event: { event: "session.changed", data: { path } },
+				}),
+			(error) => {
+				process.stderr.write(
+					`Session monitoring disconnected: ${error.message}\n`,
+				);
+				process.exitCode = 1;
+				setTimeout(() => process.exit(), 0);
+			},
+		);
+		subscriptions.set(message.id, close);
 		return { subscribed: true };
 	}
 	if (message.op === "unsubscribe") {

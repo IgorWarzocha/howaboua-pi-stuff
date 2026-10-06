@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { AskPrompt, PendingAsk } from "./contracts.js";
+import type { AskPrompt, AskResponse, PendingAsk } from "./contracts.js";
 import { normalizeResponses, summarizeResponses } from "./normalize.js";
 import type { PendingAskUpdate } from "./pending.js";
 import { askWithPiUi } from "./pi-ui.js";
@@ -14,6 +14,7 @@ export interface AskCoordinatorOptions {
 	askInComposer?: AskInComposer;
 	deliverSteer?: (message: string) => void;
 	onPendingChange?: (update: PendingAskUpdate) => void;
+	onSteerActiveChange?: (request: PendingAsk, active: boolean) => void;
 }
 
 interface PresentAskOptions {
@@ -34,11 +35,13 @@ export function createAskCoordinator({
 	askInComposer,
 	deliverSteer,
 	onPendingChange,
+	onSteerActiveChange,
 }: AskCoordinatorOptions = {}) {
 	let generation = 0;
 	let sessionAbort = new AbortController();
 	let presentationTail = Promise.resolve();
 	const activeSteers = new Set<string>();
+	let presentedSteer: PendingAsk | undefined;
 
 	const present = (
 		ctx: ExtensionContext,
@@ -95,10 +98,19 @@ export function createAskCoordinator({
 		}
 	};
 
-	const close = (ctx: ExtensionContext, id: string) => {
+	const close = (
+		ctx: ExtensionContext,
+		id: string,
+		responses?: AskResponse[],
+	) => {
 		activeSteers.delete(id);
 		try {
-			onPendingChange?.({ version: 1, state: "closed", id });
+			onPendingChange?.({
+				version: 1,
+				state: "closed",
+				id,
+				...(responses ? { responses } : { dismissed: true }),
+			});
 		} catch (error) {
 			notifyFailure(ctx, error);
 		}
@@ -123,12 +135,22 @@ export function createAskCoordinator({
 		void present(ctx, request.prompts, {
 			steering: true,
 			signal: sessionAbort.signal,
+			onActiveChange: (active) => {
+				if (requestGeneration === generation && !sessionAbort.signal.aborted) {
+					presentedSteer = active ? request : undefined;
+					onSteerActiveChange?.(request, active);
+				}
+			},
 		}).then(
 			(responses) => {
 				if (requestGeneration !== generation || sessionAbort.signal.aborted)
 					return;
 				if (deliver(ctx, steerResponse(request.prompts, responses)))
-					close(ctx, request.id);
+					close(
+						ctx,
+						request.id,
+						normalizeResponses(request.prompts, responses) ?? undefined,
+					);
 			},
 			(error: unknown) => {
 				if (requestGeneration !== generation || sessionAbort.signal.aborted)
@@ -153,6 +175,7 @@ export function createAskCoordinator({
 		},
 		restorePending(pending: readonly PendingAsk[], ctx: ExtensionContext) {
 			generation++;
+			presentedSteer = undefined;
 			sessionAbort.abort();
 			sessionAbort = new AbortController();
 			presentationTail = Promise.resolve();
@@ -161,9 +184,14 @@ export function createAskCoordinator({
 			for (const request of pending) startSteer(request, ctx, false);
 		},
 		shutdown() {
-			generation++;
-			sessionAbort.abort();
-			activeSteers.clear();
+			try {
+				if (presentedSteer) onSteerActiveChange?.(presentedSteer, false);
+			} finally {
+				presentedSteer = undefined;
+				generation++;
+				sessionAbort.abort();
+				activeSteers.clear();
+			}
 		},
 		get sessionSignal(): AbortSignal {
 			return sessionAbort.signal;

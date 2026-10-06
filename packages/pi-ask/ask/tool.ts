@@ -33,11 +33,13 @@ export function createAskRuntime({
 	deliverSteer,
 	onBlockedChange,
 	onPendingChange,
+	onSteerActiveChange,
 }: AskToolOptions = {}) {
 	const coordinator = createAskCoordinator({
 		...(askInComposer ? { askInComposer } : {}),
 		...(deliverSteer ? { deliverSteer } : {}),
 		...(onPendingChange ? { onPendingChange } : {}),
+		...(onSteerActiveChange ? { onSteerActiveChange } : {}),
 	});
 
 	const tool = defineTool({
@@ -70,7 +72,7 @@ export function createAskRuntime({
 				return {
 					content: [
 						textContent(
-							"Question presented. Continue working; the response will arrive as steering.",
+							"Question queued. Continue working; the response will arrive as steering.",
 						),
 					],
 					details: { kind: "prompt", pending: true, id: toolCallId },
