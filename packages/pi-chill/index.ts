@@ -23,6 +23,7 @@ export default function (pi: ExtensionAPI) {
 	const renderers = new ActivityRenderers(timeline, () => enabled);
 	let tui = false;
 	let timer: ReturnType<typeof setInterval> | undefined;
+	let redraw: ((invalidate?: boolean) => void) | undefined;
 	let outcome: "completed" | "interrupted" = "completed";
 	let promptDepth = 0;
 
@@ -30,10 +31,29 @@ export default function (pi: ExtensionAPI) {
 		if (timer !== undefined) clearInterval(timer);
 		timer = undefined;
 	};
+	const captureRedraw = (ctx: ExtensionContext) => {
+		// The public factory exposes TUI rendering. Remove the empty widget before any frame.
+		const key = "@howaboua/pi-chill/redraw";
+		try {
+			ctx.ui.setWidget(key, (tui) => {
+				redraw = (invalidate = false) => {
+					if (invalidate) tui.invalidate();
+					tui.requestRender();
+				};
+				return new Container();
+			});
+		} finally {
+			ctx.ui.setWidget(key, undefined);
+		}
+	};
 	const restore = (ctx: ExtensionContext) => {
 		stopTimer();
+		redraw = undefined;
 		tui = ctx.mode === "tui";
-		if (tui) ctx.ui.setHiddenThinkingLabel(enabled ? "" : undefined);
+		if (tui) {
+			captureRedraw(ctx);
+			ctx.ui.setHiddenThinkingLabel(enabled ? "" : undefined);
+		}
 		promptDepth = 0;
 		renderers.clear();
 		timeline.restore(ctx.sessionManager.buildContextEntries());
@@ -79,17 +99,8 @@ export default function (pi: ExtensionAPI) {
 			enabled = !enabled;
 			if (tui) {
 				ctx.ui.setHiddenThinkingLabel(enabled ? "" : undefined);
-				// Markdown caches before transformation. Invalidate via the public TUI factory without leaving a widget.
-				const key = "@howaboua/pi-chill/redraw";
-				try {
-					ctx.ui.setWidget(key, (tui) => {
-						tui.invalidate();
-						tui.requestRender();
-						return new Container();
-					});
-				} finally {
-					ctx.ui.setWidget(key, undefined);
-				}
+				// Markdown caches before transformation; toggles need full invalidation.
+				redraw?.(true);
 			}
 			timeline.refresh();
 		},
@@ -118,14 +129,19 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("agent_start", () => {
 		if (!tui) return;
-		timeline.start();
+		timeline.beginRun();
 		outcome = "completed";
 		stopTimer();
 		progress();
-		timer = setInterval(progress, 1000);
+		timer = setInterval(() => {
+			progress();
+			// Custom notice invalidation alone does not request a native frame.
+			redraw?.();
+		}, 1000);
 	});
 	pi.on("message_start", (event) => {
 		const message = event.message;
+		if (tui && message.role === "user") timeline.userStarted();
 		if (
 			tui &&
 			message.role === "custom" &&
@@ -225,5 +241,6 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("session_shutdown", () => {
 		stopTimer();
+		redraw = undefined;
 	});
 }

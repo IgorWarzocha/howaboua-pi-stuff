@@ -24,7 +24,6 @@ export const activityMessageTypes = [
 export const activityEntryTypes = [
 	"codex-notebook-status",
 	"codex-toolkit-update",
-	"codex-note-save-marker",
 	"codex-native-compaction-display",
 ] as const;
 
@@ -68,12 +67,14 @@ export interface ActivityCall {
 	id: string;
 	name: string;
 	status: "pending" | "running" | "done" | "error" | "interrupted";
-	invalidate?: () => void;
 }
 
 export class ActivityGroup {
 	readonly calls: ActivityCall[] = [];
-	readonly members = new Map<string, { invalidate?: () => void }>();
+	readonly members = new Map<
+		string,
+		{ invalidate?: () => void; anchorEligible: boolean }
+	>();
 	readonly notices = new Map<string, string>();
 	readonly noticeWarnings = new Set<string>();
 	open = false;
@@ -82,7 +83,7 @@ export class ActivityGroup {
 	readonly stage = new CurrentStage();
 	endedAt: number | undefined;
 	outcome: "completed" | "interrupted" = "completed";
-	readonly startedAt: number;
+	startedAt: number;
 	readonly estimated: boolean;
 
 	constructor(startedAt: number, estimated = false) {
@@ -95,8 +96,12 @@ export class ActivityGroup {
 		if (existing) return existing;
 		const call: ActivityCall = { id, name, status: "pending" };
 		this.calls.push(call);
-		this.members.set(id, call);
+		this.members.set(id, { anchorEligible: true });
 		return call;
+	}
+
+	get anchorId(): string | undefined {
+		return [...this.members].find(([, member]) => member.anchorEligible)?.[0];
 	}
 
 	refresh(exceptId?: string): void {
@@ -181,6 +186,19 @@ export class ActivityTimeline {
 	>();
 	private readonly replayMessages = new Map<string, string[]>();
 	private nextMessageId = 0;
+	private afterUser = false;
+
+	/** Anchor after the latest native user row, even for steering inside one run. */
+	userStarted(): void {
+		// Queued steering can emit another user row inside the same live run.
+		// Keep its duration/details, but only subsequent rows may anchor below it.
+		if (this.current) {
+			for (const member of this.current.members.values())
+				member.anchorEligible = false;
+			this.current.refresh();
+		}
+		this.afterUser = true;
+	}
 
 	refresh(): void {
 		const groups = new Set([
@@ -198,7 +216,7 @@ export class ActivityTimeline {
 		const time = Date.parse(entry.timestamp);
 		const group =
 			this.current ?? this.pendingMessageGroup ?? new ActivityGroup(time);
-		group.members.set(id, {});
+		group.members.set(id, { anchorEligible: this.afterUser });
 		this.entries.set(id, group);
 		if (group !== this.current) {
 			group.finish(time, "completed");
@@ -268,6 +286,16 @@ export class ActivityTimeline {
 		return this.current;
 	}
 
+	beginRun(now = Date.now()): ActivityGroup {
+		const continuing =
+			this.current !== undefined && this.current.endedAt === undefined;
+		const group = this.start(now);
+		// Idle/preparation notices may be old. Elapsed work starts at agent_start.
+		// Native continue() emits agent_start again before the SDK settles the run.
+		if (!continuing) group.startedAt = now;
+		return group;
+	}
+
 	add(id: string, name: string, now = Date.now()) {
 		const existing = this.calls.get(id);
 		if (existing) return existing;
@@ -289,12 +317,11 @@ export class ActivityTimeline {
 		if (existing) return existing;
 		const group =
 			this.current ??
-			(live
-				? this.start(message.timestamp)
-				: (this.pendingMessageGroup ?? new ActivityGroup(message.timestamp)));
-		group.members.set(id, {});
+			this.pendingMessageGroup ??
+			new ActivityGroup(message.timestamp);
+		group.members.set(id, { anchorEligible: this.afterUser });
 		this.messages.set(id, group);
-		if (!live && group !== this.current) {
+		if (group !== this.current) {
 			group.finish(message.timestamp, "completed");
 			this.pendingMessageGroup = group;
 		}
@@ -308,6 +335,7 @@ export class ActivityTimeline {
 		this.current?.finish(now, outcome);
 		this.current = undefined;
 		this.pendingMessageGroup = undefined;
+		this.afterUser = false;
 	}
 
 	retain(ids: ReadonlySet<string>, entries: readonly SessionEntry[]): void {
@@ -364,6 +392,7 @@ export class ActivityTimeline {
 		this.replayMessages.clear();
 		this.current = undefined;
 		this.pendingMessageGroup = undefined;
+		this.afterUser = false;
 		let startedAt: number | undefined;
 		let endedAt = 0;
 		for (const entry of entries) {
@@ -389,8 +418,7 @@ export class ActivityTimeline {
 			if (entry.type !== "message") continue;
 			const message = entry.message;
 			if (message.role === "user") {
-				// A staged peer arrival can precede its prepared user kickoff.
-				if (this.current?.calls.length) this.finish(endedAt, "interrupted");
+				this.userStarted();
 				startedAt = endedAt;
 			} else if (message.role === "assistant") {
 				const tools = message.content.filter(

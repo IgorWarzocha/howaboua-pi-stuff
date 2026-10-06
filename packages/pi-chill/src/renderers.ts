@@ -150,7 +150,8 @@ export class ActivityRenderers {
 			renderShell: "self",
 			renderCall: (args, theme, context) => {
 				const { group, call } = this.timeline.add(context.toolCallId, name);
-				call.invalidate = context.invalidate;
+				const member = group.members.get(call.id);
+				if (member) member.invalidate = context.invalidate;
 				const view = this.view(call.id);
 				if (view.nativeState !== context.state) {
 					view.nativeState = context.state;
@@ -162,7 +163,7 @@ export class ActivityRenderers {
 				}
 				const container = new Container();
 				view.offShell = undefined;
-				if (this.isEnabled() && group.members.keys().next().value === call.id) {
+				if (this.isEnabled() && group.anchorId === call.id) {
 					container.addChild(renderActivityHeading(group, theme));
 				}
 				if (!this.isEnabled() || rawVisible(context)) {

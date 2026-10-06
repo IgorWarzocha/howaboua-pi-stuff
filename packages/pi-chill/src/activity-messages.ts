@@ -149,9 +149,9 @@ export function activityMessageRenderer(
 					this.addChild(new Text(original, outputPad, 0));
 					return super.render(width);
 				}
-				if (group.members.keys().next().value === id)
+				if (group.anchorId === id)
 					this.addChild(renderActivityHeading(group, theme, outputPad));
-				if (group.open) {
+				if (group.open || (group.anchorId === undefined && expanded)) {
 					if (!expanded && label)
 						this.addChild(
 							new Text(
@@ -209,11 +209,7 @@ export function activityEntryRenderer(
 		const raw = JSON.stringify(entry.data, null, 2) ?? "";
 		const title = typeof data?.["title"] === "string" ? data["title"] : "";
 		const content =
-			typeof data?.["content"] === "string"
-				? data["content"]
-				: entry.customType === "codex-note-save-marker"
-					? "✓ Notes saved"
-					: raw;
+			typeof data?.["content"] === "string" ? data["content"] : raw;
 		if (
 			entry.customType === "codex-notebook-status" &&
 			title === "Notebook status unavailable"
@@ -229,9 +225,9 @@ export function activityEntryRenderer(
 						new Text([title, content].filter(Boolean).join("\n"), 1, 0),
 					);
 				else {
-					if (group.members.keys().next().value === id)
+					if (group.anchorId === id)
 						this.addChild(renderActivityHeading(group, theme));
-					if (group.open)
+					if (group.open || (group.anchorId === undefined && expanded))
 						this.addChild(
 							new Text(
 								expanded ? raw : [title, content].filter(Boolean).join("\n"),
