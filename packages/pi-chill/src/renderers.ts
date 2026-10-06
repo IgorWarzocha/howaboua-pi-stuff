@@ -1,4 +1,4 @@
-import type { ToolRenderers } from "@earendil-works/pi-coding-agent";
+import { keyHint, type ToolRenderers } from "@earendil-works/pi-coding-agent";
 import {
 	Box,
 	type Component,
@@ -12,6 +12,28 @@ import type { ActivityGroup, ActivityTimeline } from "./activity.js";
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
 type RenderContext = Parameters<CallRenderer>[2];
 type RenderTheme = Parameters<CallRenderer>[1];
+
+function renderResultFallback(
+	result: Parameters<NonNullable<ToolRenderers["renderResult"]>>[0],
+	expanded: boolean,
+	theme: RenderTheme,
+): Component {
+	const output = result.content
+		.filter((block) => block.type === "text")
+		.map((block) => block.text)
+		.join("\n");
+	if (!output) return new Container();
+	// Pi's generic fallback is private. Match its logical-line preview boundary
+	// with public Text and keyHint, leaving width wrapping to Text as native does.
+	const lines = output.split("\n");
+	const visible = expanded ? lines : lines.slice(0, 10);
+	const remaining = lines.length - visible.length;
+	let text = visible.map((line) => theme.fg("toolOutput", line)).join("\n");
+	if (remaining > 0) {
+		text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
+	}
+	return new Text(text, 0, 0);
+}
 
 export function renderActivityHeading(
 	group: ActivityGroup,
@@ -228,15 +250,7 @@ export class ActivityRenderers {
 						{ ...options, expanded: rawContext.expanded },
 						theme,
 						rawContext,
-					) ??
-					new Text(
-						result.content
-							.filter((block) => block.type === "text")
-							.map((block) => block.text)
-							.join("\n"),
-						0,
-						0,
-					);
+					) ?? renderResultFallback(result, rawContext.expanded, theme);
 				view.resultComponent = child;
 				if (!this.isEnabled() && view.offShell) {
 					view.offShell.addChild(toggleDetails(child, context));
