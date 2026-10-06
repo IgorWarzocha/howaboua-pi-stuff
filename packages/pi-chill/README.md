@@ -12,9 +12,11 @@ Requires Pi 1.0.4 or later. The extension takes effect in the interactive termin
 
 ## Progress
 
-While the agent works, a muted block above the editor shows `Working · duration` followed by one indented current stage. When the response settles, routine calls fold into a `Worked · duration` row in the conversation, with up to two recent completed tool actions underneath. Interrupted work says `Stopped`.
+Routine tool calls share a muted block in the conversation: `Working · duration`, then `Worked · duration` when the response settles. Completed work shows up to two recent tool actions underneath. Interrupted work says `Stopped`. Nothing is added beside the composer.
 
-The current stage is a readable tool action with its file or command, a real reasoning heading when supplied, or `Thinking`. Nested Code and Notebook calls update the same line. Reasoning and tool activity never share a stage label. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
+While working, an indented line shows the current tool action with its file or command, or a real reasoning heading when supplied. Nested Code and Notebook calls update the same line. There are no generic thinking or writing-status labels. Reasoning and tool activity never share a line. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
+
+The block is anchored to the first tool call. Before that call, or in replies without tools, Pi keeps its native presentation rather than adding a separate status display.
 
 Click the row to show calls in their original order. Click a call to reveal or hide its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse. Work settling does not close details you opened.
 

@@ -108,7 +108,7 @@ export class ActivityRenderers {
 					group.open = context.expanded;
 				}
 				const container = new Container();
-				if (group.calls[0]?.id === call.id && group.endedAt !== undefined) {
+				if (group.calls[0]?.id === call.id) {
 					const heading = new Text(
 						theme.fg(
 							group.attention ? "warning" : "muted",
@@ -126,14 +126,15 @@ export class ActivityRenderers {
 							return { handled: true };
 						}),
 					);
-					if (group.stage.summary()) {
+					const detail =
+						group.endedAt === undefined
+							? group.stage.label()
+							: group.stage.summary();
+					if (detail) {
 						container.addChild({
 							invalidate() {},
 							render: (width) => [
-								truncateToWidth(
-									theme.fg("muted", `    ${group.stage.summary()}`),
-									width,
-								),
+								truncateToWidth(theme.fg("muted", `    ${detail}`), width),
 							],
 						});
 					}

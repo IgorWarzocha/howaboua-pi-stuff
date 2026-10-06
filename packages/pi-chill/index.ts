@@ -2,12 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-	Container,
-	MouseRegion,
-	Text,
-	truncateToWidth,
-} from "@earendil-works/pi-tui";
+import { Container, Text } from "@earendil-works/pi-tui";
 import registerPackageChangelog from "./changelog.js";
 import { ActivityTimeline, hasCodeModeError } from "./src/activity.js";
 import { ActivityRenderers } from "./src/renderers.js";
@@ -17,7 +12,6 @@ export default function (pi: ExtensionAPI) {
 	const timeline = new ActivityTimeline();
 	const renderers = new ActivityRenderers(timeline);
 	let tui = false;
-	let redraw: (() => void) | undefined;
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let outcome: "completed" | "interrupted" = "completed";
 	let promptDepth = 0;
@@ -26,24 +20,16 @@ export default function (pi: ExtensionAPI) {
 		if (timer !== undefined) clearInterval(timer);
 		timer = undefined;
 	};
-	const clearWorking = (ctx: ExtensionContext) => {
-		redraw = undefined;
-		ctx.ui.setWidget("pi-chill-working", undefined);
-		ctx.ui.setWorkingMessage();
-		ctx.ui.setWorkingVisible(true);
-	};
 	const restore = (ctx: ExtensionContext) => {
 		stopTimer();
 		tui = ctx.mode === "tui";
 		promptDepth = 0;
 		renderers.clear();
 		timeline.restore(ctx.sessionManager.buildContextEntries());
-		if (tui) clearWorking(ctx);
 	};
 	const progress = () => {
 		const group = timeline.current;
 		if (!group) return;
-		redraw?.();
 		group.calls[0]?.invalidate?.();
 	};
 
@@ -80,44 +66,11 @@ export default function (pi: ExtensionAPI) {
 		timeline.retain(ids);
 		renderers.prune();
 	});
-	pi.on("agent_start", (_event, ctx) => {
+	pi.on("agent_start", () => {
 		if (!tui) return;
-		const group = timeline.start();
+		timeline.start();
 		outcome = "completed";
 		stopTimer();
-		ctx.ui.setWorkingVisible(false);
-		ctx.ui.setWidget("pi-chill-working", (ui, theme) => {
-			redraw = () => ui.requestRender();
-			return new MouseRegion(
-				{
-					invalidate() {},
-					render: (width) => [
-						truncateToWidth(
-							theme.fg(
-								group.attention ? "warning" : "muted",
-								`${group.open ? "▾" : "▸"} ${group.label()}`,
-							),
-							width,
-						),
-						truncateToWidth(
-							theme.fg(
-								"muted",
-								`   ${promptDepth ? "Needs attention" : group.stage.label()}`,
-							),
-							width,
-						),
-					],
-				},
-				(event) => {
-					if (event.type !== "click" || event.button !== "left")
-						return undefined;
-					group.open = !group.open;
-					group.refresh();
-					redraw?.();
-					return { handled: true };
-				},
-			);
-		});
 		progress();
 		timer = setInterval(progress, 1000);
 	});
@@ -142,12 +95,6 @@ export default function (pi: ExtensionAPI) {
 						? block.thinking
 						: "",
 			);
-		} else if (
-			update.type === "text_start" ||
-			update.type === "text_delta" ||
-			update.type === "text_end"
-		) {
-			timeline.current.stage.writing();
 		} else return;
 		progress();
 	});
@@ -211,13 +158,11 @@ export default function (pi: ExtensionAPI) {
 			outcome = "interrupted";
 		}
 	});
-	pi.on("agent_settled", (_event, ctx) => {
+	pi.on("agent_settled", () => {
 		stopTimer();
 		timeline.finish(Date.now(), outcome);
-		if (tui) clearWorking(ctx);
 	});
-	pi.on("session_shutdown", (_event, ctx) => {
+	pi.on("session_shutdown", () => {
 		stopTimer();
-		if (tui) clearWorking(ctx);
 	});
 }

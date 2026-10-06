@@ -153,10 +153,6 @@ export class CurrentStage {
 		};
 	}
 
-	writing(): void {
-		this.phase = { type: "activity", label: "Writing response" };
-	}
-
 	start(id: string, name: string, input: unknown, parent?: string): void {
 		this.running.set(id, {
 			name,
@@ -245,7 +241,7 @@ export class CurrentStage {
 
 	label(): string {
 		return this.phase.type === "thinking"
-			? this.phase.heading || "Thinking"
+			? this.phase.heading || ""
 			: this.phase.label;
 	}
 }
