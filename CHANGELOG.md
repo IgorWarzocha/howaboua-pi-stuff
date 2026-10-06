@@ -18,11 +18,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.10
+### @howaboua/pi-ask — 0.0.11
 
-- Requires Pi 1.0.0 or later.
-
-  Fixed Ask text cursor and input-method candidate window placement in Pi's fullscreen interface.
+- Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -46,11 +44,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.6
+### @howaboua/pi-browser — 0.0.7
 
-- Requires Pi 1.0.0 or later.
-
-  Browser now uses help-first discovery in ordinary Pi and Structured mode. Native calls accept help and single or batched JSON requests through `command`, matching Code and Notebook. Existing object calls remain supported.
+- Browser operations tolerate unused `response_length` hints. Page-length controls for `open` and `find` are unchanged.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -64,11 +60,31 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.45
+### @howaboua/pi-codex-conversion — 3.0.46
 
-- Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+- Improved context recovery and added Fast Mode controls for all models and individual families.
+
+  - Idle rollover now checkpoints stale notes before continuing in a new window, including after aborted or failed runs.
+  - Added optional **Note save markers** in `/codex display`. Use their `/tree` bookmarks to return to saved checkpoints. In **Notes and history**, plain `/compact` can reuse those notes.
+  - Added **All models Fast Mode** alongside independent Astra, Sol, Terra and Luna controls in `/codex`. Family choices apply across model versions. Existing preferences are preserved.
+  - Extension briefings survive compaction and context rollover. Context briefings expand in the UI, and recent-note previews flag that more notes may be available.
+  - Added Codex Guardian support for Code and Notebook tool calls.
+  - Inactive Codex conversion preserves other extensions' tool selections. Hidden tools no longer add standing prompt instructions.
+  - Notes listings accept `max_files` as an alias for `max_results`.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
+
+### @howaboua/pi-codex-guardian — 0.0.1
+
+- Initial release of Codex Guardian approval reviews for Pi.
+
+  - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default.
+  - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request.
+  - Use `/guardian` to inspect status, enable or disable protection, and reload rules.
+
+  Installed separately from the extension bundles. Review requests are not confirmed to be free.
+
+[Full changelog](./packages/pi-codex-guardian/CHANGELOG.md)
 
 ### @howaboua/pi-codex-imagegen — 0.0.9
 
@@ -98,11 +114,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.87
+### @howaboua/pi-extensions — 0.0.88
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+  - @howaboua/pi-ask: Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
+  - @howaboua/pi-codex-guardian: Initial release of Codex Guardian approval reviews for Pi. - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default. - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request. - Use `/guardian` to inspect status, enable or disable protection, and reload rules. Installed separately from the extension bundles. Review requests are not confirmed to be free.
+  - @howaboua/pi-gpt-switcher: Fixed model shortcuts rejecting configured context windows above their defaults.
+  - @howaboua/pi-shepherdr: Delegated agents keep reporting after task completion, including follow-up work. - Added shared-board awareness across native, Code and Notebook modes. - Preserves orchestration guidance across compaction and context rollover. - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation. - Parents receive and answer asynchronous Ask questions while workers continue. - Updated agent guidance to close finished workers without sending extra messages.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -114,9 +133,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
-### @howaboua/pi-gpt-switcher — 0.1.4
+### @howaboua/pi-gpt-switcher — 0.1.5
 
-- The `/sol` shortcut now selects GPT-6.1 Sol while preserving configured context and reasoning defaults.
+- Fixed model shortcuts rejecting configured context windows above their defaults.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
@@ -144,9 +163,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.13
+### @howaboua/pi-shepherdr — 0.2.14
 
-- Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
+- Delegated agents keep reporting after task completion, including follow-up work.
+
+  - Added shared-board awareness across native, Code and Notebook modes.
+  - Preserves orchestration guidance across compaction and context rollover.
+  - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation.
+  - Parents receive and answer asynchronous Ask questions while workers continue.
+  - Updated agent guidance to close finished workers without sending extra messages.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -170,9 +195,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
-### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.6
+### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.7
 
-- Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
+- Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
 
 [Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
@@ -182,11 +207,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.24
+### @howaboua/pi-skills — 0.0.25
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -202,12 +227,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.95
+### @howaboua/pi-stuff — 0.0.96
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.
+  - @howaboua/pi-ask: Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
+  - @howaboua/pi-codex-guardian: Initial release of Codex Guardian approval reviews for Pi. - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default. - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request. - Use `/guardian` to inspect status, enable or disable protection, and reload rules. Installed separately from the extension bundles. Review requests are not confirmed to be free.
+  - @howaboua/pi-gpt-switcher: Fixed model shortcuts rejecting configured context windows above their defaults.
+  - @howaboua/pi-shepherdr: Delegated agents keep reporting after task completion, including follow-up work. - Added shared-board awareness across native, Code and Notebook modes. - Preserves orchestration guidance across compaction and context rollover. - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation. - Parents receive and answer asynchronous Ask questions while workers continue. - Updated agent guidance to close finished workers without sending extra messages.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

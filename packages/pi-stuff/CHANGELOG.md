@@ -1,5 +1,15 @@
 # @howaboua/pi-stuff
 
+## 0.0.96
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
+  - @howaboua/pi-codex-guardian: Initial release of Codex Guardian approval reviews for Pi. - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default. - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request. - Use `/guardian` to inspect status, enable or disable protection, and reload rules. Installed separately from the extension bundles. Review requests are not confirmed to be free.
+  - @howaboua/pi-gpt-switcher: Fixed model shortcuts rejecting configured context windows above their defaults.
+  - @howaboua/pi-shepherdr: Delegated agents keep reporting after task completion, including follow-up work. - Added shared-board awareness across native, Code and Notebook modes. - Preserves orchestration guidance across compaction and context rollover. - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation. - Parents receive and answer asynchronous Ask questions while workers continue. - Updated agent guidance to close finished workers without sending extra messages.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
+
 ## 0.0.95
 
 - Include bundled package updates:
