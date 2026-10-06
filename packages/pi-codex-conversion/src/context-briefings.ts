@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 
 export const CODEX_CONTEXT_BRIEFING_TYPE = "codex-context-briefing";
@@ -12,16 +13,16 @@ export interface CodexContextBriefing {
 	content: string;
 }
 
-export type CodexContextBriefingHandler = (ctx: ExtensionContext, windowId: string | undefined) => Promise<void>;
+export type CodexContextBriefingHandler = (ctx: ExtensionContext, windowId: string | undefined, messages?: readonly AgentMessage[]) => Promise<void>;
 type Request = { protocol: 1; action: "available"; available?: boolean }
-	| { protocol: 1; action: "record"; ctx: ExtensionContext; windowId: string | undefined; pending: Promise<void>[] };
+	| { protocol: 1; action: "record"; ctx: ExtensionContext; windowId: string | undefined; messages?: readonly AgentMessage[] | undefined; pending: Promise<void>[] };
 
-/** Callbacks run at actual inference admission, before durable context projection. */
+/** Callbacks receive selected context at inference admission, before projecting their new entries. */
 export function registerCodexContextBriefing(pi: ExtensionAPI, handler: CodexContextBriefingHandler): () => void {
 	return pi.events.on(CHANNEL, (value) => {
 		const request = value as Request;
 		if (request?.protocol === 1 && request.action === "record")
-			request.pending.push(handler(request.ctx, request.windowId));
+			request.pending.push(handler(request.ctx, request.windowId, request.messages));
 	});
 }
 
@@ -38,8 +39,8 @@ export function registerCodexContextBriefingHost(pi: ExtensionAPI): () => void {
 	});
 }
 
-export async function recordCodexContextBriefings(pi: ExtensionAPI, ctx: ExtensionContext, windowId: string | undefined): Promise<void> {
-	const request: Request = { protocol: 1, action: "record", ctx, windowId, pending: [] };
+export async function recordCodexContextBriefings(pi: ExtensionAPI, ctx: ExtensionContext, windowId: string | undefined, messages?: readonly AgentMessage[]): Promise<void> {
+	const request: Request = { protocol: 1, action: "record", ctx, windowId, messages, pending: [] };
 	pi.events.emit(CHANNEL, request);
 	await Promise.all(request.pending);
 }

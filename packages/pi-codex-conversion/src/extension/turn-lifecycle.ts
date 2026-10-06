@@ -212,7 +212,8 @@ export function createCodexTurnLifecycle(
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			try {
 				const window = findLatestWindowBoundaryEntry(ctx.sessionManager.getBranch());
-				await recordCodexContextBriefings(pi, ctx, window?.details.contextManagement.currentWindowId);
+				await recordCodexContextBriefings(pi, ctx, window?.details.contextManagement.currentWindowId,
+					runtime.projectContextMessages(ctx, event.messages));
 			} catch (error) {
 				ctx.abort();
 				throw error;

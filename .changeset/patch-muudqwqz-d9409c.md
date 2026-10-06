@@ -8,6 +8,6 @@ Fixed the 25-minute idle rollover after aborted or failed runs. Stale notes now 
 - Fixed manual `/compact` checkpoint requests getting stuck after the idle deadline.
 - Added independent Fast Mode settings for Astra, Sol, Terra and Luna in `/codex`, shared across each family's model versions. Existing Fast Mode preferences are preserved.
 - Updated `change_reasoning` guidance to prompt use at task start and when the work changes. The user-selected floor and reset behavior are unchanged.
-- Added durable context briefings from extensions, including shared-board status, with replay and compaction support.
+- Added durable context briefings from extensions, including shared-board status, with replay and compaction support. Extensions can inspect selected context to avoid repeating notices that are still visible.
 - Fixed inactive Codex conversion restoring tools disabled by other extensions, including hashline editing.
 - Fixed hidden tools' guidelines remaining in the standing prompt with Pi 1.0.4.
