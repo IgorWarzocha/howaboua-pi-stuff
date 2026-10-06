@@ -357,6 +357,22 @@
         "@earendil-works/pi-tui": ">=1.0.0",
       },
     },
+    "packages/pi-notes-compaction": {
+      "name": "@howaboua/pi-notes-compaction",
+      "version": "0.0.0",
+      "dependencies": {
+        "better-sqlite3": "13.0.3",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "9.6.0",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-agent-core": ">=1.0.4",
+        "@earendil-works/pi-ai": ">=1.0.4",
+        "@earendil-works/pi-coding-agent": ">=1.0.4",
+        "typebox": "*",
+      },
+    },
     "packages/pi-pet": {
       "name": "@howaboua/pi-pet",
       "version": "0.1.4",
@@ -801,6 +817,8 @@
     "@howaboua/pi-gpt-switcher": ["@howaboua/pi-gpt-switcher@workspace:packages/pi-gpt-switcher"],
 
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
+
+    "@howaboua/pi-notes-compaction": ["@howaboua/pi-notes-compaction@workspace:packages/pi-notes-compaction"],
 
     "@howaboua/pi-pet": ["@howaboua/pi-pet@workspace:packages/pi-pet"],
 

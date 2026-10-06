@@ -84,7 +84,7 @@ function retiredPackageChanges() {
 			});
 			if (previous.status !== 0) return [];
 			const pkg = JSON.parse(previous.stdout);
-			if (aggregateExcludedNames.has(pkg.name)) return [];
+			if (pkg.private === true || aggregateExcludedNames.has(pkg.name)) return [];
 			return [
 				...(Array.isArray(pkg.pi?.extensions) && pkg.pi.extensions.length > 0
 					? [{
@@ -168,6 +168,7 @@ const changedSkills = [];
 
 for (const { pkg } of packageInfos) {
 	if (
+		pkg.private === true ||
 		!changesByPackage.has(pkg.name) ||
 		aggregateNames.has(pkg.name) ||
 		aggregateExcludedNames.has(pkg.name)

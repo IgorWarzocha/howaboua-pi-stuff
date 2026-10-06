@@ -2,7 +2,7 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
-import { PI_PEER_RANGE, pi1PeerDependencies } from "./pi-sdk-policy.mjs";
+import { PI_PEER_RANGE } from "./pi-sdk-policy.mjs";
 
 const root = process.cwd();
 const packagesDir = join(root, "packages");
@@ -14,7 +14,7 @@ for (const dir of listActivePackageDirs(root)) {
 	if (!existsSync(packagePath)) continue;
 	const packageText = readFileSync(packagePath, "utf8");
 	const pkg = JSON.parse(packageText);
-	if (!Array.isArray(pkg.pi?.extensions) || pkg.pi.extensions.length === 0)
+	if (pkg.private === true || !Array.isArray(pkg.pi?.extensions) || pkg.pi.extensions.length === 0)
 		continue;
 	if (!existsSync(join(packagesDir, dir, "CHANGELOG.md")))
 		throw new Error(`${pkg.name ?? dir} has no CHANGELOG.md`);
@@ -31,8 +31,8 @@ for (const dir of listActivePackageDirs(root)) {
 		? extensionEntries
 		: ["./changelog.ts", ...extensionEntries];
 	pkg.peerDependencies = {
-		...pi1PeerDependencies(pkg.peerDependencies),
-		"@earendil-works/pi-tui": PI_PEER_RANGE,
+		...pkg.peerDependencies,
+		"@earendil-works/pi-tui": pkg.peerDependencies?.["@earendil-works/pi-tui"] ?? PI_PEER_RANGE,
 	};
 	const indent = packageText.match(/\n([\t ]+)"/)?.[1] ?? "\t";
 	writeFileSync(packagePath, `${JSON.stringify(pkg, null, indent)}\n`);

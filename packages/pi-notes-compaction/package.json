@@ -1,0 +1,32 @@
+{
+	"name": "@howaboua/pi-notes-compaction",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Provider-neutral session notes and notes-guided context windows for Pi",
+	"license": "MIT",
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"main": "src/index.ts",
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"better-sqlite3": "13.0.3"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "9.6.0"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=1.0.4",
+		"@earendil-works/pi-agent-core": ">=1.0.4",
+		"@earendil-works/pi-ai": ">=1.0.4",
+		"typebox": "*"
+	}
+}
