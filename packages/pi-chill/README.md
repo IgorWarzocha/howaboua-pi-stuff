@@ -16,9 +16,9 @@ While the agent works, a muted block above the editor shows `Working · duration
 
 The current stage is a readable tool action with its file or command, a real reasoning heading when supplied, or `Thinking`. Nested Code and Notebook calls update the same line. Reasoning and tool activity never share a stage label. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
 
-Click the row to show calls in their original order. Click a call to reveal its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse.
+Click the row to show calls in their original order. Click a call to reveal or hide its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse. Work settling does not close details you opened.
 
-Errors remain visible even when activity is folded. Blocking Pi dialogs stay visible and the activity row says `needs attention`. Inline images remain under their original calls when Pi's image display is enabled.
+Errors and interrupted calls keep a compact indicator when activity is folded. They never force details open. Click the indicator or use `Ctrl+O` to inspect the original output. Blocking Pi dialogs stay visible and the activity row says `needs attention`. Inline images remain under their original calls when Pi's image display is enabled.
 
 Routine Shepherdr board notices hide their bodies until `Ctrl+O` expands them. Pi still leaves a blank line for each notice. Agent questions, failures and completion reports stay visible.
 

@@ -67,7 +67,6 @@ export class ActivityGroup {
 	finish(now: number, outcome: ActivityGroup["outcome"]): void {
 		this.endedAt = now;
 		this.outcome = outcome;
-		this.open = false;
 		this.attention = false;
 		this.stage.finish();
 		for (const call of this.calls) {
