@@ -190,7 +190,7 @@ export class ActivityTimeline {
 	private nextMessageId = 0;
 	private afterUser = false;
 	private beforeAssistant: Set<string> | undefined;
-	private retiredAssistantAnchors: string[] = [];
+	private retiredAnchors: string[] = [];
 
 	assistantStarted(): void {
 		// Native assistant rows precede their streamed text and any tool rows.
@@ -207,7 +207,7 @@ export class ActivityTimeline {
 		const anchors = [...this.beforeAssistant].filter(
 			(id) => this.current?.members.get(id)?.anchorEligible,
 		);
-		if (anchors.length) this.retiredAssistantAnchors = anchors;
+		if (anchors.length) this.retiredAnchors = anchors;
 		for (const id of this.beforeAssistant) {
 			const member = this.current?.members.get(id);
 			if (member) member.anchorEligible = false;
@@ -218,10 +218,15 @@ export class ActivityTimeline {
 
 	/** Anchor after the latest native user row, even for steering inside one run. */
 	userStarted(): void {
-		this.retiredAssistantAnchors = [];
 		// Queued steering can emit another user row inside the same live run.
 		// Keep its duration/details, but only subsequent rows may anchor below it.
 		if (this.current) {
+			const anchors = [...this.current.members].filter(
+				([, member]) => member.anchorEligible,
+			);
+			// A queued prompt can be followed only by an answer. Preserve the last
+			// native position for settlement, just as for streamed commentary.
+			if (anchors.length) this.retiredAnchors = anchors.map(([id]) => id);
 			for (const member of this.current.members.values())
 				member.anchorEligible = false;
 			this.current.refresh();
@@ -364,7 +369,7 @@ export class ActivityTimeline {
 		// A final reply has no successor activity row. Keep the disclosure at its
 		// last truthful native position, never fabricate a row below the answer.
 		if (this.current && !this.current.anchorId) {
-			for (const id of this.retiredAssistantAnchors) {
+			for (const id of this.retiredAnchors) {
 				const member = this.current.members.get(id);
 				if (member) member.anchorEligible = true;
 			}
@@ -374,7 +379,7 @@ export class ActivityTimeline {
 		this.pendingMessageGroup = undefined;
 		this.afterUser = false;
 		this.beforeAssistant = undefined;
-		this.retiredAssistantAnchors = [];
+		this.retiredAnchors = [];
 	}
 
 	retain(ids: ReadonlySet<string>, entries: readonly SessionEntry[]): void {
@@ -433,7 +438,7 @@ export class ActivityTimeline {
 		this.pendingMessageGroup = undefined;
 		this.afterUser = false;
 		this.beforeAssistant = undefined;
-		this.retiredAssistantAnchors = [];
+		this.retiredAnchors = [];
 		let startedAt: number | undefined;
 		let endedAt = 0;
 		for (const entry of entries) {
