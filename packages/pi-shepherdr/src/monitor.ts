@@ -205,6 +205,15 @@ export class AgentMonitor {
 		return this.settlements.view(panel);
 	}
 
+	submitAskAnswer(
+		panel: PaneInfo,
+		askId: string,
+		submit: (signal: AbortSignal) => Promise<void>,
+		signal: AbortSignal,
+	) {
+		return this.questions.submitAnswer(panel, askId, submit, signal);
+	}
+
 	acceptWork(attempt: WorkAttempt | undefined): void {
 		if (this.state.acceptWork(attempt)) this.persist();
 	}

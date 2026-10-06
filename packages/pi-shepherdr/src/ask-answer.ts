@@ -255,6 +255,7 @@ async function sendInput(
 	signal.throwIfAborted();
 	if (step.text !== undefined) {
 		await requireSameAgent(client, panel);
+		signal.throwIfAborted();
 		await client.request("pane.send_input", {
 			pane_id: panel.pane_id,
 			text: step.text,
@@ -262,6 +263,7 @@ async function sendInput(
 	}
 	if (step.keys) {
 		await requireSameAgent(client, panel);
+		signal.throwIfAborted();
 		await client.request("agent.send_keys", {
 			target: panel.pane_id,
 			keys: step.keys,
@@ -302,7 +304,7 @@ export async function prepareAskAnswer(
 	answers: AskAnswer[],
 	signal: AbortSignal,
 	expectedAskId: string,
-): Promise<{ ask: PendingAsk; submit(): Promise<void> }> {
+): Promise<{ ask: PendingAsk; submit(signal?: AbortSignal): Promise<void> }> {
 	const view = await monitor.view(panel);
 	if (!view.ask) {
 		throw new Error(`${panel.pane_id} has no live Ask on its active branch`);
@@ -359,7 +361,7 @@ export async function prepareAskAnswer(
 	}
 	return {
 		ask,
-		submit: async () => {
+		submit: async (submitSignal = signal) => {
 			await requireLiveAsk();
 			if (
 				inspectAskScreen(await screen(client, panel.pane_id), ask)
@@ -369,7 +371,7 @@ export async function prepareAskAnswer(
 					"ask UI is not ready to submit; stopped without retrying input",
 				);
 			}
-			await sendInput(client, panel, final, signal);
+			await sendInput(client, panel, final, submitSignal);
 		},
 	};
 }

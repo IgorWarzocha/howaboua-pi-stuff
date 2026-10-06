@@ -60,11 +60,12 @@ export async function answerAgent(
 		askId,
 	);
 	if (prepared.ask.delivery === "steer") {
-		await prepared.submit();
-		const current = await getAgent(runtime.client, panel.pane_id);
-		const result = sameAgentIdentity(panel, current)
-			? (await runtime.monitor.view(current)).askResults?.[askId]
-			: undefined;
+		const result = await runtime.monitor.submitAskAnswer(
+			panel,
+			askId,
+			prepared.submit,
+			signal,
+		);
 		const accepted =
 			result?.status === "accepted" && answersMatch(answers, result.responses);
 		return toolResult({
