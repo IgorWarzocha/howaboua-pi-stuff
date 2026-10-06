@@ -44,6 +44,9 @@
 			],
 			"ignoreDependencies": ["proxy-from-env"]
 		},
+		"packages/pi-codex-guardian": {
+			"entry": ["changelog.ts"]
+		},
 		"packages/pi-gippity-control": {
 			"entry": ["changelog.ts"]
 		},
