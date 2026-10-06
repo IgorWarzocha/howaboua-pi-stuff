@@ -21,7 +21,7 @@ import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
 import { recordNotebookStatus } from "../adapter/notebook-status.ts";
 import { hasFreshContextNotes } from "../context-management/saved-notes.ts";
 import { findLatestWindowBoundaryEntry } from "../context-management/window-manager.ts";
-import type { ExtensionHandler, TurnEndEvent, InputEvent, BeforeAgentStartEvent, AgentStartEvent, AgentBeforeSettleEvent, AgentSettledEvent, ContextWithSystemEvent, TurnEndEventResult, InputEventResult, BeforeAgentStartEventResult, ContextEventResult } from "@earendil-works/pi-coding-agent";
+import type { ExtensionHandler, TurnEndEvent, InputEvent, BeforeAgentStartEvent, AgentStartEvent, AgentSettledEvent, ContextWithSystemEvent, TurnEndEventResult, InputEventResult, BeforeAgentStartEventResult, ContextEventResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexTurnLifecycle(
 	pi: ExtensionAPI,
@@ -90,18 +90,16 @@ export function createCodexTurnLifecycle(
 		},
 		input: async (event, ctx) => {
 			const inputPlan = resolveCodexRuntimePlanForState(ctx, state);
-			const checkpointInput = state.contextKickoff.admitCheckpointInput(event)
-				|| state.contextWindows.admitPromptedCheckpointInput(event);
+			const checkpointInput = state.contextWindows.admitPromptedCheckpointInput(event);
+			const identity = state.contextWindows.currentIdentity();
 			if (!checkpointInput && (state.contextKickoff.hasIdleInput || (inputPlan.idleNotesRollover && event.streamingBehavior === undefined &&
 				!state.contextTree.rolloverPending && !state.contextTree.handoff.active && !state.contextKickoff.pending &&
-				state.contextWindows.isIdleRolloverDue(ctx)))) {
+				state.contextWindows.isIdleRolloverDue(ctx) && identity &&
+				hasFreshContextNotes(ctx.sessionManager.getBranch(), identity.currentWindowId, inputPlan.contextManagementMode, true)))) {
 				const result = await state.contextKickoff.prepareIdleInput(ctx, async () => {
 					if (!inputPlan.idleNotesRollover) throw new Error("Idle notes rollover is not active on this route");
-					const identity = state.contextWindows.currentIdentity();
-					if (!identity) throw new Error("No active context window can be checkpointed");
-					if (!hasFreshContextNotes(ctx.sessionManager.getBranch(), identity.currentWindowId, inputPlan.contextManagementMode, true))
-						await state.contextKickoff.prepareIdleCheckpoint(pi, ctx, inputPlan.contextManagementMode);
-					// The checkpoint run must settle successfully before any history is retired.
+					if (!identity) throw new Error("No active context window can roll over");
+					// Revalidate the selected completed run before retiring history.
 					if (!state.contextKickoff.hasIdleInput || !ctx.isIdle() || state.contextWindows.currentIdentity()?.currentWindowId !== identity.currentWindowId ||
 						!hasFreshContextNotes(ctx.sessionManager.getBranch(), identity.currentWindowId, inputPlan.contextManagementMode, true))
 						throw new Error("Fresh saved notes are required before idle rollover");
@@ -156,7 +154,6 @@ export function createCodexTurnLifecycle(
 		agentStarted: async (_event, ctx) => {
 			updateCodexPreparedIdleKickoff(pi, "agent_start");
 			state.contextWindows.beginPromptedManualCheckpointRun();
-			state.contextKickoff.observeCheckpointRun(ctx.signal);
 			state.contextTree.handoff.started(ctx);
 			runtime.autoReasoning.begin(ctx);
 			runtime.cancelCacheKeepalive();
@@ -164,9 +161,6 @@ export function createCodexTurnLifecycle(
 			runtime.prepareTurn(ctx);
 			runtime.voice.agentStarted();
 			runtime.lanVoice.agentStarted();
-		},
-		agentBeforeSettle: (event) => {
-			state.contextKickoff.recordCheckpointOutcome(event.outcome);
 		},
 		agentSettled: async (_event, ctx) => {
 			runtime.finishTurn();
@@ -181,7 +175,6 @@ export function createCodexTurnLifecycle(
 			const quotaExhausted = !continuingWork && !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
 			let rolled = false;
 			let continued = false;
-			let idleCheckpoint: "ready" | "missing" | undefined;
 			try {
 				session.flushToolRefresh(ctx);
 				state.codexTurnState.reset();
@@ -194,8 +187,7 @@ export function createCodexTurnLifecycle(
 				const plan = resolveCodexRuntimePlanForState(ctx, state);
 				const manualCheckpoint = state.contextWindows.finishPromptedManualCheckpoint(ctx,
 					plan.contextManagement && !plan.compactOnRollover);
-				if (state.contextKickoff.hasIdleCheckpoint) idleCheckpoint = manualCheckpoint;
-				else if (manualCheckpoint === "ready") rolled = await startManualNotesWindow(ctx) || rolled;
+				if (manualCheckpoint === "ready") rolled = await startManualNotesWindow(ctx) || rolled;
 				else if (manualCheckpoint === "missing")
 					ctx.ui.notify("Context rollover did not start: no note was saved in the completed run", "warning");
 				continued = state.contextKickoff.continue(pi, ctx);
@@ -206,7 +198,6 @@ export function createCodexTurnLifecycle(
 			if (!rolled && !continued && settledPlan.contextManagement && state.config.compaction.continuity === "notes")
 				state.contextWindows.recordSettlement(pi, ctx);
 			if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isRolloverCompactionRunning()) runtime.armCacheKeepalive(ctx);
-			state.contextKickoff.finishIdleCheckpoint(ctx, idleCheckpoint);
 		},
 		contextWithSystem: async (event, ctx) => {
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
@@ -252,7 +243,6 @@ export function createCodexTurnLifecycle(
 		input: ExtensionHandler<InputEvent, InputEventResult>;
 		beforeAgentStart: ExtensionHandler<BeforeAgentStartEvent, BeforeAgentStartEventResult>;
 		agentStarted: ExtensionHandler<AgentStartEvent>;
-		agentBeforeSettle: ExtensionHandler<AgentBeforeSettleEvent>;
 		agentSettled: ExtensionHandler<AgentSettledEvent>;
 		contextWithSystem: ExtensionHandler<ContextWithSystemEvent, ContextEventResult>;
 	};
