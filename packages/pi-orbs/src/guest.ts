@@ -76,6 +76,9 @@ export async function checked(
 		);
 	return result.output;
 }
+export async function guestExists(vm: VM, path: string): Promise<boolean> {
+	return (await execute(vm, `test -e ${q(path)}`, "/", 3000)).exitCode === 0;
+}
 export const serviceRoot = "/var/lib/pi-orbs/services";
 export async function serviceRunning(vm: VM, name: string): Promise<boolean> {
 	const result = await execute(

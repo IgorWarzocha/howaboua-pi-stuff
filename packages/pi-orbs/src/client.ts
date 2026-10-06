@@ -183,7 +183,7 @@ async function launch(dir: string, name: string): Promise<unknown> {
 			);
 		});
 		child.unref();
-		for (let attempt = 0; attempt < 2400; attempt++) {
+		for (let attempt = 0; attempt < 6000; attempt++) {
 			await new Promise((accept) => setTimeout(accept, 250));
 			const status = statusSchema.parse(
 				JSON.parse(await readFile(join(dir, "status.json"), "utf8")),
@@ -222,6 +222,15 @@ async function create(
 	const dir = directory(root, kind, action.name);
 	const template = action.action === "create" ? action.template : undefined;
 	const source = template ? directory(root, "templates", template) : undefined;
+	if (source) {
+		const status = statusSchema.parse(
+			JSON.parse(await readFile(join(source, "status.json"), "utf8")),
+		);
+		if (status.state !== "prepared")
+			throw new Error(
+				`Template ${template} is not prepared. Use list with kind templates to inspect preparation before creating an instance`,
+			);
+	}
 	const config = source
 		? (await readRecord(source)).config
 		: await loadConfig(resolve(cwd, action.config ?? ""));

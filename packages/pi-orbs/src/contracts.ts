@@ -5,6 +5,44 @@ const guestPath = z
 	.string()
 	.startsWith("/")
 	.refine((s) => !s.includes("\0"));
+const serviceName = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/);
+const cwd = z
+	.string()
+	.refine((s) => !s.includes("\0"))
+	.default(".");
+const portalUrl = z
+	.string()
+	.refine((s) => {
+		if (s.startsWith("/") && !s.startsWith("//")) return true;
+		try {
+			return ["http:", "https:"].includes(new URL(s).protocol);
+		} catch {
+			return false;
+		}
+	})
+	.refine(
+		(s) => !s.includes("$AMP_USER_EMAIL"),
+		"Amp identity placeholders are unavailable locally",
+	);
+const portalText = z
+	.string()
+	.refine(
+		(s) => !s.includes("$AMP_USER_EMAIL"),
+		"Amp identity placeholders are unavailable locally",
+	);
+const linkSchema = z.strictObject({
+	url: portalUrl,
+	title: portalText.min(1),
+	description: portalText.optional(),
+});
+const portalSchema = z.union([
+	z.boolean(),
+	z.strictObject({
+		url: portalUrl.default("/"),
+		title: portalText.optional(),
+		description: portalText.optional(),
+	}),
+]);
 export const profiles = {
 	tiny: { cpus: 1, memoryGiB: 2 },
 	small: { cpus: 2, memoryGiB: 4 },
@@ -14,17 +52,40 @@ export const profiles = {
 } as const;
 const serviceSchema = z.strictObject({
 	command: z.string().min(1),
-	cwd: guestPath.default("/workspace"),
-	port: z.number().int().min(1).max(65535),
+	cwd,
+	port: z.number().int().min(1).max(65535).optional(),
 	env: z
 		.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string())
 		.default({})
 		.refine(
-			(env) => !("PORT" in env || "PUBLIC_URL" in env),
-			"PORT and PUBLIC_URL are managed",
+			(env) =>
+				!("PORT" in env || "PUBLIC_URL" in env || "AMP_THREAD_ID" in env),
+			"PORT and PUBLIC_URL are managed; Amp identity is unavailable locally",
 		),
 	health: z.string().startsWith("/").optional(),
-	portal: z.boolean().default(false),
+	portal: portalSchema.default(false),
+	portals: z
+		.array(
+			z.union([
+				linkSchema,
+				z.strictObject({
+					folder: z.string().min(1),
+					links: z.array(linkSchema).min(1),
+				}),
+			]),
+		)
+		.default([])
+		.refine((links) => {
+			const folders = links
+				.filter((link) => "folder" in link)
+				.map((link) => link.folder);
+			return new Set(folders).size === folders.length;
+		}, "Portal folder names must be unique"),
+	platforms: z
+		.array(z.enum(["linux", "darwin"]))
+		.min(1)
+		.optional(),
+	review: z.literal(false).optional(),
 	timeoutMs: z.number().int().min(100).max(120000).default(30000),
 });
 export const configSchema = z
@@ -47,12 +108,13 @@ export const configSchema = z
 		network: z
 			.strictObject({ allowedHosts: z.array(z.string().min(1)).default([]) })
 			.default({ allowedHosts: [] }),
-		services: z.record(nameSchema, serviceSchema).default({}),
+		services: z.record(serviceName, serviceSchema).default({}),
 	})
 	.refine(
 		(c) =>
-			new Set(Object.values(c.services).map((s) => s.port)).size ===
-			Object.keys(c.services).length,
+			new Set(
+				Object.values(c.services).flatMap((s) => (s.port ? [s.port] : [])),
+			).size === Object.values(c.services).filter((s) => s.port).length,
 		"Service ports must be unique",
 	);
 export type OrbConfig = z.infer<typeof configSchema>;
@@ -62,6 +124,7 @@ export const commandOutcomeSchema = z.discriminatedUnion("state", [
 	z.strictObject({ state: z.literal("timed-out") }),
 ]);
 const identity = { name: nameSchema };
+const waitMs = z.number().int().min(0).max(60000).default(10000);
 export const actionSchema = z.discriminatedUnion("action", [
 	z.strictObject({
 		action: z.literal("list"),
@@ -102,8 +165,19 @@ export const actionSchema = z.discriminatedUnion("action", [
 		action: z.literal("exec"),
 		...identity,
 		cmd: z.string().min(1),
-		cwd: guestPath.optional(),
-		timeoutMs: z.number().int().min(100).max(120000).default(30000),
+		cwd: cwd.optional(),
+		timeoutMs: waitMs,
+	}),
+	z.strictObject({
+		action: z.literal("exec-status"),
+		...identity,
+		pid: z.number().int().positive(),
+		timeoutMs: waitMs,
+	}),
+	z.strictObject({
+		action: z.literal("exec-kill"),
+		...identity,
+		pid: z.number().int().positive(),
 	}),
 	z.strictObject({ action: z.literal("read"), ...identity, path: guestPath }),
 	z.strictObject({
@@ -119,12 +193,27 @@ export const actionSchema = z.discriminatedUnion("action", [
 		action: z.literal("services"),
 		...identity,
 		op: z.enum(["ensure", "status", "restart", "stop"]),
-		service: nameSchema.optional(),
+		service: serviceName.optional(),
+	}),
+	z.strictObject({
+		action: z.literal("service-start"),
+		...identity,
+		service: serviceName,
+		title: portalText.optional(),
+		description: portalText.optional(),
+		...serviceSchema.shape,
+	}),
+	z.strictObject({
+		action: z.literal("portal"),
+		...identity,
+		port: z.number().int().min(1).max(65535),
+		title: z.string().optional(),
+		description: z.string().optional(),
 	}),
 	z.strictObject({
 		action: z.literal("logs"),
 		...identity,
-		service: nameSchema.optional(),
+		service: serviceName.optional(),
 		lines: z.number().int().min(1).max(500).default(100),
 	}),
 ]);
@@ -154,6 +243,7 @@ export const statusSchema = z.strictObject({
 	portals: z.record(z.string(), z.string()).optional(),
 	persistence: z.literal("disk-only").optional(),
 	startupError: z.string().optional(),
+	resumePid: z.number().int().positive().optional(),
 	recovery: z.string().optional(),
 });
 export const inspectionSchema = z.object({
@@ -177,11 +267,18 @@ export const HELP = {
 		inspect: "name",
 		shell:
 			"name, user?: root. Fresh ephemeral localhost SSH command for the user. No forwarded host credentials. Requires guest sshd and host ssh-keygen",
-		exec: "name, cmd, cwd?, timeoutMs?: 30000 (max 120000). Guest shell, not host. Timeout cancels command",
+		exec: "name, cmd, cwd?: workspace-relative, timeoutMs?: 10000 (0..60000). Wait only, never kills. Running returns pid",
+		"exec-status":
+			"name, pid, timeoutMs?: 10000 (0..60000). Wait and return new output",
+		"exec-kill": "name, pid. Stop command process group",
 		read: "name, path: guest absolute path. Text up to 64 KiB",
 		write: "name, path: guest absolute path, content. Parent must exist",
 		services:
-			"name, op: ensure|status|restart|stop, service?: declared name (omit for all)",
+			"name, op: ensure|status|restart|stop, service?: name (omit for all)",
+		"service-start":
+			"name, service, command, cwd?, port?, env?, portal?, title?, description?, portals?, health?. Ad-hoc service, rejects declared name",
+		portal:
+			"name, port, title?, description?. Link an already-listening HTTP server without supervision",
 		logs: "name, service?: name (omit for controller log), lines?: 100 (max 500)",
 		destroy:
 			"name, confirm: same name, kind?: instances|templates. Irreversibly removes owned disk and logs",
@@ -199,8 +296,7 @@ export const HELP = {
 		services: {
 			web: {
 				command: "python3 -m http.server $PORT --bind 127.0.0.1",
-				cwd: "/workspace",
-				port: 8000,
+				cwd: ".",
 				portal: true,
 				health: "/",
 				env: {},
@@ -209,6 +305,8 @@ export const HELP = {
 		},
 	},
 	profiles,
+	serviceConfig:
+		"Guest workspace/.orbs.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health GET path. Portal true or {url?: /, title?: service, description?}; portals additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). review widget and Amp identity unavailable locally. Setup deadline 20min; resume waits 10s then continues in background",
 	boundaries:
-		"Linux KVM or macOS HVF with QEMU. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket portals, not public or remote-host links. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates must contain no secrets. Guest Pi requires compatible custom image, user completes fresh login. Empty network allowlist blocks outbound HTTP",
+		"Linux KVM or macOS HVF with QEMU. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket portals, not public or remote-host links. Guest HTTP responses need Content-Length or chunked framing. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates must contain no secrets. Guest Pi requires compatible custom image, user completes fresh login. Empty network allowlist blocks outbound HTTP",
 };

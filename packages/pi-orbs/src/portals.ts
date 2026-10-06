@@ -7,6 +7,7 @@ import type { Duplex } from "node:stream";
 export async function openPortal(
 	upstream: URL,
 	prefix: string,
+	port = 0,
 ): Promise<{ url: string; close(): Promise<void> }> {
 	const sockets = new Set<Duplex>();
 	const server = http.createServer((incoming, response) => {
@@ -61,7 +62,7 @@ export async function openPortal(
 	});
 	await new Promise<void>((accept, reject) => {
 		server.once("error", reject);
-		server.listen(0, "127.0.0.1", accept);
+		server.listen(port, "127.0.0.1", accept);
 	});
 	const address = server.address();
 	if (!address || typeof address === "string")

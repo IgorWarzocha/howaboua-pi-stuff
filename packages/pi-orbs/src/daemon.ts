@@ -64,11 +64,19 @@ async function main(): Promise<void> {
 					);
 				}
 			};
-			// Inspection is read-only and must remain available while an owned
-			// command or service health check waits. Mutations stay serialized.
+			// Process waits and cancellation must not occupy the lifecycle queue.
+			// SDK-tracked foreground commands are only short launch/control RPCs.
 			let inspect = false;
 			try {
-				inspect = actionSchema.parse(JSON.parse(body)).action === "inspect";
+				inspect = [
+					"inspect",
+					"exec",
+					"exec-status",
+					"exec-kill",
+					"read",
+					"write",
+					"logs",
+				].includes(actionSchema.parse(JSON.parse(body)).action);
 			} catch {}
 			if (inspect) void handle();
 			else queue = queue.catch(() => {}).then(handle);

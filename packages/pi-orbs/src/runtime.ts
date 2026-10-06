@@ -1,5 +1,5 @@
 import { access, readFile, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import {
 	createHttpHooks,
 	VM,
@@ -7,22 +7,18 @@ import {
 	VmCheckpoint,
 } from "@earendil-works/gondolin";
 import { type Action, type OrbRecord, profiles } from "./contracts.ts";
-import {
-	checked,
-	execute,
-	serviceRoot,
-	serviceRunning,
-	startService,
-	stopService,
-} from "./guest.ts";
-import { openPortal, openTerminal } from "./portals.ts";
+import { checked, execute, guestExists, serviceRoot } from "./guest.ts";
+import { openTerminal } from "./portals.ts";
+import { GuestProcesses } from "./processes.ts";
+import { GuestServices } from "./services.ts";
 import { existsError, shellQuote as q, saveJson } from "./storage.ts";
 
 export class OrbRuntime {
 	private vm: VM | undefined;
-	private portals = new Map<string, Awaited<ReturnType<typeof openPortal>>>();
-	private healthBase: string | undefined;
+	private processes: GuestProcesses | undefined;
+	private managed: GuestServices | undefined;
 	private startupError: string | undefined;
+	private resumePid: number | undefined;
 	private recovery: string | undefined;
 	private terminal:
 		| { user: string; command: string; close(): Promise<void> }
@@ -75,29 +71,76 @@ export class OrbRuntime {
 			: await VM.create(options);
 		this.vm = vm;
 		await vm.start();
+		this.processes = new GuestProcesses(vm);
 		// Disabling scratch tmpfs preserves HOME on disk. OCI images still need
 		// normal Unix temporary-directory permissions for unprivileged tools.
 		await checked(vm, "mkdir -p /tmp /var/tmp; chmod 1777 /tmp /var/tmp");
 		await checked(vm, `mkdir -p ${q(config.workspace)}`);
 		// A checkpoint restores filesystem files, not processes. Old service pid
 		// files must never be mistaken for newly booted unrelated processes.
-		await checked(vm, `rm -f ${serviceRoot}/*.pid`);
+		await checked(
+			vm,
+			`rm -f ${serviceRoot}/*.pid; rm -rf /var/lib/pi-orbs/commands`,
+		);
+		const configPath = posix.join(config.workspace, ".orbs.yaml");
+		if (!(await guestExists(vm, configPath)))
+			await vm.fs.writeFile(configPath, JSON.stringify(config, null, 2));
 		if (fresh || !resume) {
-			for (const cmd of config.setup)
-				await checked(vm, cmd, config.workspace, 120000);
+			const setup = [
+				...config.setup,
+				"if test -x .agents/setup; then .agents/setup; fi",
+			];
+			if (setup.length) {
+				const pid = await this.processes.launch(
+					setup.map((cmd) => `/bin/sh -lc ${q(cmd)} || exit $?`).join("\n"),
+					config.workspace,
+					true,
+					1200,
+				);
+				let result = await this.processes.status(pid, 60000);
+				while (result.running) {
+					console.log(result.output);
+					result = await this.processes.status(pid, 60000);
+				}
+				console.log(result.output);
+				if (result.exitCode !== 0) {
+					this.startupError = `Setup exited ${result.exitCode}. Read controller logs. No prepared template was published`;
+					if (prepare) throw new Error(this.startupError);
+				}
+			}
 			await saveJson(join(this.dir, "intent.json"), { prepare, fresh: false });
 		}
 		if (prepare) {
 			await this.stop(true);
 			return;
 		}
-		for (const cmd of config.resume)
-			await checked(vm, cmd, config.workspace, 120000);
-		await this.routes();
+		const hooks = [...config.resume];
+		if (await guestExists(vm, posix.join(config.workspace, ".agents/resume")))
+			hooks.push("if test -x .agents/resume; then .agents/resume; fi");
+		if (hooks.length) {
+			const pid = await this.processes.launch(
+				hooks.map((cmd) => `/bin/sh -lc ${q(cmd)} || exit $?`).join("\n"),
+				config.workspace,
+			);
+			const result = await this.processes.status(pid, 10000);
+			console.log(result.output);
+			if (result.running) {
+				this.resumePid = pid;
+				console.log(`Resume continues in background: ${pid}`);
+			} else if (result.exitCode !== 0)
+				console.error(`Resume exited ${result.exitCode}`);
+		}
+		this.managed = new GuestServices(
+			vm,
+			this.dir,
+			configPath,
+			config.workspace,
+		);
+		await this.managed.initialize();
 		this.state = "running";
 		await this.persistStatus();
 		try {
-			await this.services("ensure");
+			await this.managed.operate("ensure");
 		} catch (error) {
 			this.startupError =
 				error instanceof Error
@@ -106,29 +149,6 @@ export class OrbRuntime {
 			console.error(error);
 		}
 		await this.persistStatus();
-	}
-	private async routes(): Promise<void> {
-		const vm = this.requireVm();
-		const entries = Object.entries(this.record.config.services);
-		if (!entries.length) return;
-		vm.setIngressRoutes(
-			entries.map(([name, service]) => ({
-				prefix: `/${name}/`,
-				port: service.port,
-				stripPrefix: true,
-			})),
-		);
-		const ingress = await vm.enableIngress({
-			listenHost: "127.0.0.1",
-			listenPort: 0,
-		});
-		this.healthBase = ingress.url;
-		for (const [name, service] of entries)
-			if (service.portal)
-				this.portals.set(
-					name,
-					await openPortal(new URL(ingress.url), `/${name}`),
-				);
 	}
 	private requireVm(): VM {
 		if (!this.vm) throw new Error("Orb is not running. Use start first");
@@ -141,69 +161,15 @@ export class OrbRuntime {
 			resources:
 				this.record.config.resources ?? profiles[this.record.config.profile],
 			diskGiB: this.record.config.diskGiB,
-			portals: Object.fromEntries(
-				[...this.portals].map(([name, portal]) => [name, portal.url]),
-			),
+			portals: this.managed?.urls() ?? {},
 			persistence: "disk-only",
 			...(this.startupError ? { startupError: this.startupError } : {}),
+			...(this.resumePid ? { resumePid: this.resumePid } : {}),
 			...(this.recovery ? { recovery: this.recovery } : {}),
 		};
 	}
 	private async persistStatus(): Promise<void> {
 		await saveJson(join(this.dir, "status.json"), this.status());
-	}
-	private async health(name: string): Promise<boolean> {
-		const service = this.record.config.services[name];
-		if (!service || !this.healthBase) return false;
-		try {
-			const response = await fetch(
-				`${this.healthBase}/${name}${service.health ?? "/"}`,
-				{ signal: AbortSignal.timeout(2000), redirect: "manual" },
-			);
-			await response.body?.cancel();
-			return response.status >= 200 && response.status < 400;
-		} catch {
-			return false;
-		}
-	}
-	async services(
-		op: "ensure" | "status" | "restart" | "stop",
-		selected?: string,
-	): Promise<unknown> {
-		const vm = this.requireVm();
-		const configured = this.record.config.services;
-		if (selected && !configured[selected])
-			throw new Error(
-				`Unknown service ${selected}. Inspect declared services first`,
-			);
-		const names = selected ? [selected] : Object.keys(configured);
-		const result: unknown[] = [];
-		for (const name of names) {
-			const service = configured[name];
-			if (!service) continue;
-			if (op === "stop" || op === "restart") await stopService(vm, name);
-			if (op === "ensure" || op === "restart") {
-				await startService(vm, name, service, this.portals.get(name)?.url);
-				const deadline = Date.now() + service.timeoutMs;
-				while (!(await this.health(name))) {
-					if (Date.now() > deadline)
-						throw new Error(
-							`Service ${name} started but is not responding. Read its logs, then restart or stop it`,
-						);
-					await new Promise((accept) => setTimeout(accept, 200));
-				}
-			}
-			result.push({
-				name,
-				running: await serviceRunning(vm, name),
-				responding: op !== "stop" && (await this.health(name)),
-				port: service.port,
-				portal: this.portals.get(name)?.url,
-			});
-		}
-		if ((op === "ensure" || op === "restart") && !selected)
-			this.startupError = undefined;
-		return result;
 	}
 	async stop(prepare = false): Promise<unknown> {
 		if (this.state === "stopped" || this.state === "prepared")
@@ -212,8 +178,7 @@ export class OrbRuntime {
 		this.state = "stopping";
 		await this.persistStatus();
 		await this.closeAccess();
-		for (const name of Object.keys(this.record.config.services))
-			await stopService(vm, name);
+		await this.managed?.stopAll();
 		await checked(vm, "sync");
 		const next = join(this.dir, "disk.next.qcow2");
 		try {
@@ -248,9 +213,10 @@ export class OrbRuntime {
 				createdAt: this.record.createdAt,
 				template: this.record.template,
 				workspace: this.record.config.workspace,
+				configPath: posix.join(this.record.config.workspace, ".orbs.yaml"),
 				status: this.status(),
 				connected: true,
-				services: Object.keys(this.record.config.services),
+				services: this.managed?.names() ?? [],
 			};
 		if (action.action === "stop") return this.stop();
 		if (action.action === "destroy") {
@@ -262,6 +228,10 @@ export class OrbRuntime {
 			return { name: this.record.name, state: "destroyed" };
 		}
 		const vm = this.requireVm();
+		if (this.state !== "running")
+			throw new Error(
+				"Orb is stopping. Wait for stop to complete, then use start",
+			);
 		switch (action.action) {
 			case "shell": {
 				if (this.terminal && this.terminal.user !== action.user)
@@ -296,12 +266,17 @@ export class OrbRuntime {
 				};
 			}
 			case "exec":
-				return execute(
-					vm,
-					action.cmd,
-					action.cwd ?? this.record.config.workspace,
+				return this.processes!.status(
+					await this.processes!.launch(
+						action.cmd,
+						posix.resolve(this.record.config.workspace, action.cwd ?? "."),
+					),
 					action.timeoutMs,
 				);
+			case "exec-status":
+				return this.processes!.status(action.pid, action.timeoutMs);
+			case "exec-kill":
+				return this.processes!.kill(action.pid);
 			case "read": {
 				const result = await execute(
 					vm,
@@ -323,10 +298,35 @@ export class OrbRuntime {
 				});
 				return { path: action.path, bytes: Buffer.byteLength(action.content) };
 			case "services":
-				return this.services(action.op, action.service);
+				return this.managed!.operate(action.op, action.service);
+			case "service-start": {
+				const {
+					action: _action,
+					name: _name,
+					service,
+					title,
+					description,
+					...definition
+				} = action;
+				if (definition.portal && (title || description))
+					definition.portal = {
+						...(typeof definition.portal === "boolean"
+							? { url: "/" }
+							: definition.portal),
+						...(title ? { title } : {}),
+						...(description ? { description } : {}),
+					};
+				return this.managed!.adHoc(service, definition);
+			}
+			case "portal":
+				return this.managed!.attach(
+					action.port,
+					action.title,
+					action.description,
+				);
 			case "logs": {
-				if (!action.service || !this.record.config.services[action.service])
-					throw new Error("Choose a declared service for guest logs");
+				if (!action.service || !this.managed?.names().includes(action.service))
+					throw new Error("Choose a started service for guest logs");
 				return execute(
 					vm,
 					`tail -n ${action.lines} ${q(`${serviceRoot}/${action.service}.log`)}`,
@@ -348,8 +348,7 @@ export class OrbRuntime {
 	private async closeAccess(): Promise<void> {
 		await this.terminal?.close();
 		this.terminal = undefined;
-		for (const portal of this.portals.values()) await portal.close();
-		this.portals.clear();
+		await this.managed?.close();
 	}
 }
 

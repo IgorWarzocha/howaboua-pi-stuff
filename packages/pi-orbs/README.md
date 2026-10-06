@@ -24,8 +24,6 @@ setup:
 services:
   web:
     command: python3 -m http.server $PORT --bind 127.0.0.1
-    cwd: /workspace
-    port: 8000
     health: /
     portal: true
 ```
@@ -67,7 +65,7 @@ await tools.orbs('{"action":"create","name":"review-one","template":"web-base"}'
 await tools.orbs('{"action":"create","name":"review-two","template":"web-base"}')
 ```
 
-Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or setup commands. Perform fresh login in an instance after creation. YAML is validated strictly and captured at creation. Later edits do not change existing instances or templates.
+Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or setup commands. Perform fresh login in an instance after creation. YAML is validated strictly. Each disk receives an independent `.orbs.yaml` in its guest workspace. Edit that guest file with `write` or a guest terminal, then ensure or restart services. Editing the original host YAML does not change existing disks. Hardware, network, setup, and resume settings remain captured at creation.
 
 ## Resources and services
 
@@ -81,7 +79,9 @@ Templates are reusable prepared filesystems, not existing named instances. Never
 
 These are presets, not minimum-resource claims. Override them with `resources: { cpus: 2, memoryGiB: 3 }`. Disk capacity defaults independently to 60 GiB and is sparse. Written data and base images consume real host storage. This is not a physical storage quota. Unsupported resources fail rather than being silently reduced.
 
-`setup` and `resume` are lists of guest shell commands. Each command has a two-minute deadline. Workspace and service `cwd` values are absolute guest paths. An optional `image` points to a Gondolin assets directory, resolved relative to the YAML file.
+`setup` and `resume` are lists of guest login-shell commands. Executable `.agents/setup` and `.agents/resume` scripts in the workspace run after the corresponding YAML commands. Setup has one 20-minute deadline. Its descendants are stopped before activation, including detached children. Failure is reported but instance startup continues. Failed setup never publishes a prepared template. Resume waits up to 10 seconds, then continues in the background. Inspect returns a `resumePid` for following unfinished work through `exec-status`.
+
+`workspace` is an absolute guest path. Service and execution `cwd` default to the workspace root and accept workspace-relative paths. An optional `image` points to a Gondolin assets directory, resolved relative to the host YAML file.
 
 Outbound HTTP is blocked by default. Allow only the hosts required by your environment:
 
@@ -93,11 +93,29 @@ network:
 
 No host checkout, home, Docker socket, provider credentials, or SSH agent is mounted or forwarded. Guest commands and setup are administrative operations inside the VM, not host shell execution.
 
-Services require a foreground `command` and a unique explicit guest `port`. The package supplies `PORT` and, for a portaled service, `PUBLIC_URL`. Optional `env` entries cannot replace these variables. Services restart one second after exit, including successful exit. Use `services` with `ensure`, `status`, `restart`, or `stop`, optionally selecting one service. Ensure revives explicitly stopped services. Reopen starts all declared services.
+Services require a foreground login-shell `command`. Names contain 1 to 32 lowercase letters, digits, or hyphens and start with a letter or digit. Omit `port` to allocate a free guest port. Assigned ports remain unchanged on restart and reopen. Fixed ports must be unique. The package supplies `PORT` and, for a service with portal links, `PUBLIC_URL`. Optional `env` entries cannot replace these variables.
 
-Readiness sends an HTTP GET to `health`, defaulting to `/`, and accepts 2xx or 3xx. `timeoutMs` defaults to 30000. This differs from Amp's default TCP-listener check. A portal URL alone is not proof of readiness. A readiness failure leaves the instance running so you can read `logs` and repair or stop the service. Portals support HTTP and WebSockets. URLs can change after reopen, so use returned URLs rather than constructing them.
+Use `services` with `ensure`, `status`, `restart`, or `stop`, optionally selecting one service. Ensure reads the current guest YAML and starts missing services. Restart reads the latest command, working directory, environment, and health path while retaining the assigned port and existing portal configuration. Ensure updates link declarations without replacing live processes. Services restart one second after exit, including successful exit. In this local implementation, ensure revives explicitly stopped services and reopen starts all declared services. Amp's public contract does not settle those two policies or successful-exit restart behavior.
 
-`exec` has a bounded wait and stops its command process group on timeout. Long-lived applications belong in declared services. `read`, `write`, and `logs` provide guest text-file access and bounded output. Read and execution output stop at 64 KiB and mark truncation. Use `help` for the complete current arguments.
+Readiness checks TCP by default. Set `health: /path` for an HTTP GET that accepts 2xx or 3xx after the port opens. The local declared-service readiness deadline `timeoutMs` defaults to 30000. Ad-hoc `service-start` waits up to 60 seconds and rejects names declared in the current YAML. A portal URL alone is not proof of readiness. Failure leaves the instance running so you can read `logs` and repair or stop the service.
+
+Use `portal` with a guest `port`, optional `title`, and optional `description` to link an already-listening HTTP server without starting or supervising it. Gondolin's ingress accepts plain HTTP backends. HTTPS-only guest listeners require an HTTP-facing application proxy. This package does not implement Amp's authenticated domains or review interface.
+
+Guest HTTP responses must use `Content-Length` or chunked framing. Gondolin 0.13's transport can reset valid close-delimited responses before its gateway finishes forwarding them, producing an intermittent 502 even when the guest logged a response. Use explicit response framing in the application or its HTTP-facing proxy. TCP readiness alone cannot detect this failure.
+
+`portal: true` links to `/` with the service name. A mapping accepts `url`, `title`, and `description`, defaulting the first two to `/` and the service name. `portals` adds links to the same service, either `{url, title, description?}` or a one-level `{folder, links}` group. Folder names must be unique within a service. URLs accept application paths or absolute HTTP/HTTPS links. Entry paths do not remount the application. Results preserve link titles, descriptions, and folders. Local portals support HTTP and WebSockets. Their localhost ports are retained on reopen, but rebinding fails if another process has taken one. Always use returned URLs.
+
+Environment values may contain `${services.web.publicURL}`. The referenced declared service starts first and must have a portal. Missing references, cycles, and references to excluded services are rejected. `platforms: [linux]` or `[darwin]` filters by the guest OS, which is always Linux even on a macOS host. Empty platform lists are invalid. Amp review-widget injection and Amp identity placeholders are not available. `review: true`, `AMP_THREAD_ID` environment overrides, and `$AMP_USER_EMAIL` portal placeholders are rejected explicitly.
+
+`exec` waits up to `timeoutMs`, default 10000 and range 0 to 60000. **Timeout only ends the wait. The command keeps running.** A continuing command returns `pid` and `running: true`. Use `exec-status` with that handle to wait and retrieve new output, or `exec-kill` to request process-group termination. Status waits do not block file operations, other commands, or kill. Handles belong to the current controller and do not survive stop or restart. Long-lived applications belong in supervised services.
+
+```js
+const command = await tools.orbs('{"action":"exec","name":"demo","cmd":"sleep 30; echo done","timeoutMs":0}')
+await tools.orbs(JSON.stringify({action: 'exec-status', name: 'demo', pid: command.pid, timeoutMs: 1000}))
+await tools.orbs(JSON.stringify({action: 'exec-kill', name: 'demo', pid: command.pid}))
+```
+
+`read`, `write`, and `logs` provide guest text-file access and bounded output. Read and execution output are capped at 64 KiB and mark truncation. Execution status returns only output not previously consumed. Use `help` for current arguments.
 
 ## Run Pi in the guest
 
