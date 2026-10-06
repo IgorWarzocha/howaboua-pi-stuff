@@ -61,11 +61,13 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 
 	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
 	const renderNotice = createNoticeRenderer();
-	let noteSaveContext: ExtensionContext | undefined;
-	const restoreNoteSaveContext = (_event: unknown, ctx: ExtensionContext) => { noteSaveContext = ctx; };
+	let noteSaveSessionManager: ExtensionContext["sessionManager"] | undefined;
+	// Cached TUI children can redraw after Pi invalidates the old context.
+	const restoreNoteSaveContext = (_event: unknown, ctx: ExtensionContext) => { noteSaveSessionManager = ctx.sessionManager; };
 	pi.on("session_start", restoreNoteSaveContext);
 	pi.on("session_tree", restoreNoteSaveContext);
 	pi.on("session_compact", restoreNoteSaveContext);
+	pi.on("session_shutdown", () => { noteSaveSessionManager = undefined; });
 	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
 			typeof message.details?.title === "string" ? message.details.title : "Context update",
@@ -91,7 +93,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		// Pi owns the parent spacer, which an empty child cannot remove.
 		return new class extends Text {
 			override render(width: number): string[] {
-				const visible = noteSaveContext && latestNoteSaveMarker(noteSaveContext) === entry.id &&
+				const visible = noteSaveSessionManager && latestNoteSaveMarker(noteSaveSessionManager) === entry.id &&
 					!runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.noteSaveMarkers;
 				this.setText(visible ? content : "");
 				return visible ? super.render(width) : [];
@@ -156,7 +158,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		runtime.state.usageStatus = undefined;
 	};
 	const recordNoteSave = (ctx: ExtensionContext) => {
-		noteSaveContext = ctx;
+		noteSaveSessionManager = ctx.sessionManager;
 		const { state } = runtime;
 		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, state);

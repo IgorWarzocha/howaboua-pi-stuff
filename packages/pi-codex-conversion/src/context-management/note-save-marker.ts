@@ -9,8 +9,7 @@ const latestMarkers = new WeakMap<ExtensionContext["sessionManager"], {
 	markerId: string | undefined;
 }>();
 
-export function latestNoteSaveMarker(ctx: ExtensionContext): string | undefined {
-	const manager = ctx.sessionManager;
+export function latestNoteSaveMarker(manager: ExtensionContext["sessionManager"]): string | undefined {
 	const leafId = manager.getLeafId();
 	const cached = latestMarkers.get(manager);
 	if (cached && cached.leafId === leafId) return cached.markerId;
