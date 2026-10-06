@@ -20,6 +20,7 @@ const aggregateNames = new Set([
 ]);
 const aggregateExcludedNames = new Set([
 	"@howaboua/pi-browser",
+	"@howaboua/pi-chill",
 	"@howaboua/pi-codex-conversion",
 	"@howaboua/pi-codex-imagegen",
 	"@howaboua/pi-dynamic-tools",
