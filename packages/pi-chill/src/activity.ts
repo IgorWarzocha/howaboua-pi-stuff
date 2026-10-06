@@ -188,6 +188,7 @@ export class ActivityTimeline {
 	private nextMessageId = 0;
 	private afterUser = false;
 	private beforeAssistant: Set<string> | undefined;
+	private retiredAssistantAnchors: string[] = [];
 
 	assistantStarted(): void {
 		// Native assistant rows precede their streamed text and any tool rows.
@@ -201,6 +202,10 @@ export class ActivityTimeline {
 		)
 			return;
 		// Retire only rows above this reply. Tools already streamed below it stay eligible.
+		const anchors = [...this.beforeAssistant].filter(
+			(id) => this.current?.members.get(id)?.anchorEligible,
+		);
+		if (anchors.length) this.retiredAssistantAnchors = anchors;
 		for (const id of this.beforeAssistant) {
 			const member = this.current?.members.get(id);
 			if (member) member.anchorEligible = false;
@@ -211,6 +216,7 @@ export class ActivityTimeline {
 
 	/** Anchor after the latest native user row, even for steering inside one run. */
 	userStarted(): void {
+		this.retiredAssistantAnchors = [];
 		// Queued steering can emit another user row inside the same live run.
 		// Keep its duration/details, but only subsequent rows may anchor below it.
 		if (this.current) {
@@ -353,11 +359,20 @@ export class ActivityTimeline {
 		now = Date.now(),
 		outcome: ActivityGroup["outcome"] = "completed",
 	): void {
+		// A final reply has no successor activity row. Keep the disclosure at its
+		// last truthful native position, never fabricate a row below the answer.
+		if (this.current && !this.current.anchorId) {
+			for (const id of this.retiredAssistantAnchors) {
+				const member = this.current.members.get(id);
+				if (member) member.anchorEligible = true;
+			}
+		}
 		this.current?.finish(now, outcome);
 		this.current = undefined;
 		this.pendingMessageGroup = undefined;
 		this.afterUser = false;
 		this.beforeAssistant = undefined;
+		this.retiredAssistantAnchors = [];
 	}
 
 	retain(ids: ReadonlySet<string>, entries: readonly SessionEntry[]): void {
@@ -416,6 +431,7 @@ export class ActivityTimeline {
 		this.pendingMessageGroup = undefined;
 		this.afterUser = false;
 		this.beforeAssistant = undefined;
+		this.retiredAssistantAnchors = [];
 		let startedAt: number | undefined;
 		let endedAt = 0;
 		for (const entry of entries) {
