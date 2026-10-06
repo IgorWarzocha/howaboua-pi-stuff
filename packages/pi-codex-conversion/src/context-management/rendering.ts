@@ -1,12 +1,8 @@
-import { Container, Text } from "@earendil-works/pi-tui";
 import {
 	auxiliaryToolRenderers,
 	displayRecord,
 	inlineToolText,
 } from "../ui/tool-rendering/auxiliary-tool.ts";
-import { renderCodexToolCell } from "../ui/tool-rendering/codex-tool-cell.ts";
-import type { RenderTheme } from "../ui/tool-rendering/codex-rendering.ts";
-import type { CodexContextManagementMessageDetails } from "./messages.ts";
 
 const NOTE_TITLES: Record<string, { active: string; complete: string }> = {
 	list_files_by_prefix: { active: "Listing notes", complete: "Listed notes" },
@@ -78,16 +74,3 @@ export const contextRemainingRenderers = auxiliaryToolRenderers("Context check f
 		} : {}),
 	};
 });
-
-export function renderContextWindowBoundary(details: CodexContextManagementMessageDetails, expanded: boolean, theme: RenderTheme): Text | Container {
-	const window = details.contextManagement;
-	const cell = renderCodexToolCell(`Started context window ${window.windowNumber + 1}`, undefined, theme);
-	if (!expanded) return cell;
-	const expandedCell = new Container();
-	expandedCell.addChild(cell);
-	expandedCell.addChild(new Text([
-		theme.fg("dim", `    Current: ${window.currentWindowId}`),
-		...(window.previousWindowId ? [theme.fg("dim", `    Previous: ${window.previousWindowId}`)] : []),
-	].join("\n"), 0, 0));
-	return expandedCell;
-}

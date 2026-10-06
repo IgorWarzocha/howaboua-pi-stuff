@@ -12,7 +12,6 @@ import {
 	type CodexContextManagementMessageDetails,
 	isCodexContextManagementMessageDetails,
 } from "../context-management/messages.ts";
-import { renderContextWindowBoundary } from "../context-management/rendering.ts";
 import { NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
@@ -98,14 +97,16 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 	pi.registerMessageRenderer<CodexContextManagementMessageDetails>(
 		CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-		(message, { expanded }, theme) => {
+		(message, { expanded, outputPad }, theme) => {
 			if (
 				!isCodexContextManagementMessageDetails(message.details) ||
-				message.details.contextManagement.kind !== "window" ||
+				!["window", "identity"].includes(message.details.contextManagement.kind) ||
 				typeof message.content !== "string"
 			)
 				return undefined;
-			return renderContextWindowBoundary(message.details, expanded, theme);
+			return renderNotice(message,
+				`Context window ${message.details.contextManagement.windowNumber + 1} · Notes and history`,
+				message.content, expanded, theme, outputPad);
 		},
 	);
 	// Legacy sessions stored display-only compaction records as custom messages.

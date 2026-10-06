@@ -80,7 +80,7 @@ export function renderContextWindowMessage(
 	];
 	if (identity.previousWindowId)
 		lines.push(`Previous context window id: ${identity.previousWindowId}`);
-	if (threadHint) lines.push(threadHint);
+	if (threadHint) lines.push(threadHint, "More notes may be available; list or search notes");
 	lines.push("</context_window>");
 	return `${CONTEXT_WINDOW_GUIDANCE}\n\n${lines.join("\n")}`;
 }

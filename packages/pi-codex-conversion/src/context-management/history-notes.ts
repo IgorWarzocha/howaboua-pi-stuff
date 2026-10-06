@@ -222,6 +222,14 @@ export function createHistoryNotesTools(
 			parameters: NOTES_PARAMETERS,
 			...historyNotesRenderers("notes"),
 			executionMode: "sequential",
+			prepareArguments(args) {
+				if (args && typeof args === "object" && !Array.isArray(args) &&
+					"action" in args && args.action === "list_files_by_prefix" && "max_files" in args) {
+					const { max_files, ...rest } = args;
+					args = { ...rest, max_results: "max_results" in rest ? rest.max_results : max_files };
+				}
+				return args as Static<typeof NOTES_PARAMETERS>;
+			},
 			async execute(_id, params, signal, _update, ctx: ExtensionContext) {
 				const action = notesAction(params.action);
 				validateNotesArguments(action, params);

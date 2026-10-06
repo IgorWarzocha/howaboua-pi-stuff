@@ -13,3 +13,4 @@ Fixed the 25-minute idle rollover after aborted or failed runs. Stale notes now 
 - Fixed hidden tools' guidelines remaining in the standing prompt with Pi 1.0.4.
 - Added request-scoped fetch support and honored zero-retry requests for approval reviewers. Nested tool hooks now retain the original exec call ID across waits.
 - Nested approval hooks now inspect prepared arguments, so tool aliases and freeform inputs cannot bypass argument-based approval rules.
+- Notes listings now accept `max_files` as an alias for `max_results`. Context briefings flag that more notes may be available and expand in the UI like notebook state and available tools.
