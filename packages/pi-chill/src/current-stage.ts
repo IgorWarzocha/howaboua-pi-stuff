@@ -1,4 +1,8 @@
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import {
+	stripTerminalSequences,
+	truncateToWidth,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 
 /** Current activity is derived only from streamed message blocks and tool evidence. */
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -15,28 +19,15 @@ function compact(value: string): string {
 	return plain.length > 100 ? `${plain.slice(0, 97)}...` : plain;
 }
 
-function toolLabel(name: string, input: unknown, done = false): string {
+function toolLabel(
+	name: string,
+	input: unknown,
+	done = false,
+	warning?: "blocked" | "failed",
+): string {
 	const key = name.split(/[./]/).at(-1) ?? name;
-	const verbs: Record<string, [string, string]> = {
-		read: ["Reading", "Read"],
-		write: ["Writing", "Wrote"],
-		edit: ["Editing", "Edited"],
-		apply_patch: ["Applying patch", "Applied patch"],
-		bash: ["Running command", "Ran command"],
-		exec_command: ["Running command", "Ran command"],
-		write_stdin: ["Waiting for command", "Checked command"],
-		exec: ["Running code", "Ran code"],
-		wait: ["Waiting for code", "Waited for code"],
-		ls: ["Exploring", "Explored"],
-		find: ["Finding files", "Found files"],
-		grep: ["Searching files", "Searched files"],
-		view_image: ["Viewing image", "Viewed image"],
-	};
-	const title = key
-		.replace(/_/g, " ")
-		.replace(/^./, (letter) => letter.toUpperCase());
-	const friendly =
-		verbs[key]?.[done ? 1 : 0] ?? `${done ? "Used" : "Using"} ${title}`;
+	// Status belongs to the name, before the optional target can be shortened.
+	const friendly = `${warning === "blocked" ? "Needs attention" : warning === "failed" ? "Failed" : done ? "Used" : "Running"} ${key}`;
 	const args = record(input);
 	let target = args?.["path"] ?? args?.["file_path"];
 	if (key === "exec_command" || key === "bash")
@@ -52,7 +43,7 @@ function traceActivity(
 	name: string,
 	result: unknown,
 ):
-	| { active: string | undefined; completed: { id: string; label: string }[] }
+	| { active: string[]; completed: { id: string; label: string }[] }
 	| undefined {
 	// PCC trace updates omit codeMode. Restrict this boundary to its outer tools.
 	if (name !== "exec" && name !== "wait") return undefined;
@@ -67,19 +58,26 @@ function traceActivity(
 			? [trace]
 			: [];
 	});
-	const trace =
-		traces.findLast((item) => item["status"] === "blocked") ??
-		traces.findLast((item) => item["status"] === "running");
+	const active = traces.filter(
+		(item) => item["status"] === "blocked" || item["status"] === "running",
+	);
 	if (traces.length === 0) return undefined;
 	const labelFor = (item: Record<string, unknown>) =>
-		compact(
-			`${toolLabel(String(item["name"]), item["input"], item["status"] === "done")}${item["status"] === "blocked" ? " · needs attention" : item["status"] === "error" ? " · failed" : ""}`,
+		toolLabel(
+			String(item["name"]),
+			item["input"],
+			item["status"] === "done" || item["status"] === "error",
+			item["status"] === "blocked"
+				? "blocked"
+				: item["status"] === "error"
+					? "failed"
+					: undefined,
 		);
 	return {
-		active: trace ? labelFor(trace) : undefined,
+		active: active.map(labelFor),
 		completed: traces
 			.filter((item) => item["status"] === "done" || item["status"] === "error")
-			.slice(-2)
+			.slice(-8)
 			.map((item) => ({
 				id: `trace:${String(details["cellId"] ?? "")}:${String(item["id"])}`,
 				label: labelFor(item),
@@ -104,8 +102,11 @@ function nativeActivity(
 		return [
 			{
 				id: call["id"],
-				label: compact(
-					`${toolLabel(call["name"], call["arguments"], call["status"] === "ok")}${call["status"] === "error" ? " · failed" : ""}`,
+				label: toolLabel(
+					call["name"],
+					call["arguments"],
+					true,
+					call["status"] === "error" ? "failed" : undefined,
 				),
 			},
 		];
@@ -115,7 +116,7 @@ function nativeActivity(
 interface RunningTool {
 	name: string;
 	input: unknown;
-	activeTrace: string | undefined;
+	activeTrace: string[];
 	hasNested: boolean;
 	parent: string | undefined;
 }
@@ -126,7 +127,7 @@ export class CurrentStage {
 	private readonly seenCompletions = new Set<string>();
 	private phase:
 		| { type: "thinking"; heading?: string | undefined }
-		| { type: "activity"; label: string } = { type: "thinking" };
+		| { type: "activity"; labels: string[] } = { type: "thinking" };
 
 	thinking(content: string): void {
 		// Only new displayable evidence replaces the last label.
@@ -151,7 +152,7 @@ export class CurrentStage {
 		this.running.set(id, {
 			name,
 			input,
-			activeTrace: undefined,
+			activeTrace: [],
 			hasNested: false,
 			parent,
 		});
@@ -178,12 +179,17 @@ export class CurrentStage {
 		this.running.delete(id);
 		const nested = traceActivity(tool.name, result);
 		const native = nativeActivity(result);
-		const label = compact(
-			`${toolLabel(tool.name, tool.input, !error)}${error ? " · failed" : ""}`,
+		const label = toolLabel(
+			tool.name,
+			tool.input,
+			true,
+			error ? "failed" : undefined,
 		);
 		const parent = tool.parent ? this.running.get(tool.parent) : undefined;
-		if (parent?.activeTrace === toolLabel(tool.name, tool.input))
-			parent.activeTrace = undefined;
+		if (parent)
+			parent.activeTrace = parent.activeTrace.filter(
+				(label) => label !== toolLabel(tool.name, tool.input),
+			);
 		if (native) this.remember(native);
 		if (nested) this.remember(nested.completed);
 		if (
@@ -205,7 +211,7 @@ export class CurrentStage {
 			const prior = this.completed.indexOf(label);
 			if (prior >= 0) this.completed.splice(prior, 1);
 			this.completed.push(label);
-			if (this.completed.length > 2) this.completed.shift();
+			if (this.completed.length > 8) this.completed.shift();
 		}
 	}
 
@@ -215,26 +221,56 @@ export class CurrentStage {
 	}
 
 	private showRunning(): void {
-		// Prefer a live nested call over its outer executor, including parallel calls.
-		const tools = [...this.running.values()];
-		const active =
-			tools.findLast((tool) => tool.parent !== undefined) ??
-			tools.findLast((tool) => tool.activeTrace !== undefined) ??
-			tools.at(-1);
-		if (active)
-			this.phase = {
-				type: "activity",
-				label: active.activeTrace ?? toolLabel(active.name, active.input),
-			};
+		const labels = [...this.running.values()].flatMap((tool) =>
+			tool.activeTrace.length
+				? tool.activeTrace
+				: tool.hasNested
+					? []
+					: [toolLabel(tool.name, tool.input)],
+		);
+		this.phase = {
+			type: "activity",
+			labels: [...new Set([...labels, ...this.completed.slice().reverse()])],
+		};
 	}
 
-	summary(): string {
-		return this.completed.join(" · ");
+	summary(width = 100): string {
+		return this.fit(this.completed.slice().reverse(), width);
 	}
 
-	label(): string {
+	label(width = 100): string {
 		return this.phase.type === "thinking"
 			? this.phase.heading || ""
-			: this.phase.label;
+			: this.fit(this.phase.labels, width);
+	}
+
+	private fit(labels: string[], width: number): string {
+		const seen = new Set<string>();
+		labels = labels.filter((label) => {
+			const name =
+				label
+					.split(" · ")[0]
+					?.replace(/^(Running|Used|Failed|Needs attention) /, "") ?? label;
+			if (seen.has(name)) return false;
+			seen.add(name);
+			return true;
+		});
+		if (!labels.length || width <= 0) return "";
+		const full = labels.join(", ");
+		if (visibleWidth(full) <= width) return full;
+		const names = labels.map((label) => label.split(" · ")[0] ?? label);
+		for (let count = names.length; count > 0; count--) {
+			const suffix = count < names.length ? `, +${names.length - count}` : "";
+			const text = names.slice(0, count).join(", ") + suffix;
+			if (visibleWidth(text) <= width) return text;
+		}
+		const suffix = names.length > 1 ? ` +${names.length - 1}` : "";
+		return truncateToWidth(
+			truncateToWidth(
+				names[0] ?? "",
+				Math.max(0, width - visibleWidth(suffix)),
+			) + suffix,
+			width,
+		);
 	}
 }

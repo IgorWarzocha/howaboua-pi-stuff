@@ -37,15 +37,18 @@ export function renderActivityHeading(
 			},
 		),
 	);
-	const detail =
-		group.endedAt === undefined ? group.stage.label() : group.stage.summary();
-	if (detail)
-		container.addChild({
-			invalidate() {},
-			render: (width) => [
-				truncateToWidth(theme.fg("muted", `    ${detail}`), width),
-			],
-		});
+	container.addChild({
+		invalidate() {},
+		render: (width) => {
+			const detail =
+				group.endedAt === undefined
+					? group.stage.label(Math.max(0, width - 4))
+					: group.stage.summary(Math.max(0, width - 4));
+			return detail
+				? [truncateToWidth(theme.fg("muted", `    ${detail}`), width)]
+				: [];
+		},
+	});
 	return container;
 }
 
