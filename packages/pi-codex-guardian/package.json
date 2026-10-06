@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-codex-guardian",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Action-bound Codex Guardian approval for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
@@ -29,7 +29,8 @@
 		"LICENSE",
 		"CHANGELOG.md",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts"
 	],
 	"scripts": {
 		"check": "bun run lint && bun run typecheck",
@@ -39,9 +40,10 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=1.0.4",
-		"@earendil-works/pi-coding-agent": ">=1.0.4",
-		"@howaboua/pi-codex-conversion": ">=3.0.46"
+		"@earendil-works/pi-ai": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@howaboua/pi-codex-conversion": ">=3.0.46",
+		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {
@@ -52,12 +54,13 @@
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-ai": "1.0.4",
 		"@earendil-works/pi-coding-agent": "1.0.4",
-		"@howaboua/pi-codex-conversion": "3.0.45",
+		"@howaboua/pi-codex-conversion": "3.0.46",
 		"@types/node": "^26.2.0",
 		"typescript": "^7.0.2"
 	},
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},

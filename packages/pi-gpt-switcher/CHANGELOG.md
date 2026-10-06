@@ -1,5 +1,9 @@
 # @howaboua/pi-gpt-switcher
 
+## 0.1.5
+
+- Fixed model shortcuts rejecting configured context windows above their defaults.
+
 ## 0.1.4
 
 - The `/sol` shortcut now selects GPT-6.1 Sol while preserving configured context and reasoning defaults.

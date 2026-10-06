@@ -1,5 +1,9 @@
 # @howaboua/pi-browser
 
+## 0.0.7
+
+- Browser operations tolerate unused `response_length` hints. Page-length controls for `open` and `find` are unchanged.
+
 ## 0.0.6
 
 - Requires Pi 1.0.0 or later.

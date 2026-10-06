@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-harness-and-agent-engineering
 
+## 0.0.7
+
+- Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
+
 ## 0.0.6
 
 - Clarified outcome-focused tool errors and agent-appropriate recovery, overlapping tool avoidance, and cache-safe on-demand guidance.

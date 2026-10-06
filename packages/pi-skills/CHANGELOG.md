@@ -1,5 +1,11 @@
 # @howaboua/pi-skills
 
+## 0.0.25
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
+
 ## 0.0.24
 
 - Include bundled package updates:

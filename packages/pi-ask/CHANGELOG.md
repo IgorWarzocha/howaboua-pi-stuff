@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.11
+
+- Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
+
 ## 0.0.10
 
 - Requires Pi 1.0.0 or later.

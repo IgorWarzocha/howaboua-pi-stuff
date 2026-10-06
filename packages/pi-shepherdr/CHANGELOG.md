@@ -1,5 +1,15 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.14
+
+- Delegated agents keep reporting after task completion, including follow-up work.
+
+  - Added shared-board awareness across native, Code and Notebook modes.
+  - Preserves orchestration guidance across compaction and context rollover.
+  - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation.
+  - Parents receive and answer asynchronous Ask questions while workers continue.
+  - Updated agent guidance to close finished workers without sending extra messages.
+
 ## 0.2.13
 
 - Added Remote notes and history to existing-agent attachment, including mixed Local, Tree and Remote storage.
