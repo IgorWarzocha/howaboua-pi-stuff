@@ -35,6 +35,7 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	const promptTool = { ...proxy, deferLoading: false };
 	const promptOptions: PiSystemPromptOptions = {
 		selectedTools: ["exec", "wait", "notebook"],
+		hiddenTools: [],
 		toolSnippets: {},
 		toolGuidelines: { exec: ["Keep extension tool guidance"] },
 		promptGuidelines: ["Keep extension prompt guidance"],
@@ -133,6 +134,9 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	}
 	assert.doesNotMatch(heavyOptions.customPrompt!, /Be concise in your responses/);
 	assert.match(heavyOptions.sections!["runtime_guidelines"]!, /Keep extension tool guidance/);
+	assert.match(heavyOptions.sections!["runtime_guidelines"]!, /Keep extension prompt guidance/);
+	heavyOptions.hiddenTools = ["bash"];
+	assert.doesNotMatch(heavyOptions.sections!["runtime_guidelines"]!, /Keep extension tool guidance/);
 	assert.match(heavyOptions.sections!["runtime_guidelines"]!, /Keep extension prompt guidance/);
 	assert.match(heavyOptions.sections!["skills"]!, /review: Review code/);
 	assert.equal(heavyOptions.sections!["extension_context"], "Keep extension section");

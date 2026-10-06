@@ -10,3 +10,4 @@ Fixed the 25-minute idle rollover after aborted or failed runs. Stale notes now 
 - Updated `change_reasoning` guidance to prompt use at task start and when the work changes. The user-selected floor and reset behavior are unchanged.
 - Added durable context briefings from extensions, including shared-board status, with replay and compaction support.
 - Fixed inactive Codex conversion restoring tools disabled by other extensions, including hashline editing.
+- Fixed hidden tools' guidelines remaining in the standing prompt with Pi 1.0.4.
