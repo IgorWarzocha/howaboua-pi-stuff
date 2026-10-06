@@ -25,6 +25,7 @@
 		"index.ts",
 		"src",
 		"README.md",
+		"PROTOCOL.md",
 		"LICENSE",
 		"CHANGELOG.md",
 		"tsconfig.json",

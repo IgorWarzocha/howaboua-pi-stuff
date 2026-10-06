@@ -108,11 +108,11 @@ export class ParentBindings {
 					: {}),
 			};
 			delete metadata["guardian_credits_requested"];
+			delete metadata["parent_response_id"];
 			// Codex excludes Guardian's own basic/reviewer sessions from earning parent credits.
 			const reviewer =
 				payload["model"] === REVIEW_MODEL ||
 				metadata["x-openai-subagent"] === "guardian";
-			if (!reviewer) delete metadata["parent_response_id"];
 			payload["client_metadata"] = metadata;
 			if (reviewer || !supportsParent(ctx)) return;
 			metadata["guardian_credits_requested"] = "true";

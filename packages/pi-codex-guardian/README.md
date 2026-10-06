@@ -72,4 +72,6 @@ Guardian is an approval layer, not an operating-system sandbox. It reviews Pi to
 
 Extensions remain trusted host code. Guardian captures the prepared parent request at Pi's provider hook. Later extensions that replace that payload or change admitted arguments are outside its guarantee. Session, tree, compaction, model, authorization, and shutdown changes cancel pending reviews. Old replies cannot authorize a changed action or context.
 
-Reviewer requests always use the canonical ChatGPT Codex endpoint. Final headers set `originator=codex_cli_rs`, `x-codex-guardian=reviewer`, and `x-openai-subagent=guardian`, and remove the Codex routing hint. The body carries the genuine issuing parent response ID, not a fabricated link. Guardian leaves ordinary Pi identity headers unchanged.
+Reviewer requests use the canonical ChatGPT Codex endpoint and identify as `codex_cli_rs` Guardian reviews, with a truthful adapter User-Agent and a separate review session. Headers and body metadata share the review's identity and actual Pi parent session. The body carries the genuine issuing parent response ID. Stale parent routing, feature, attestation, and tracing claims are not reused. Ordinary Pi identity headers remain unchanged.
+
+See the [protocol mapping](PROTOCOL.md) for the complete eligibility, header, environment, metadata, and body contract, including deliberate differences from the Codex runtime.

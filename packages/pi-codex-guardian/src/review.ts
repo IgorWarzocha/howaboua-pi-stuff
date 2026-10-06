@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { zstdDecompressSync } from "node:zlib";
 import type { Api, FetchFunction, Model } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { reviewerWire } from "./wire.js";
 
 export const CODEX_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses";
 export const REVIEW_MODEL = "codex-auto-review";
@@ -127,6 +127,7 @@ interface ReviewRequest {
 	ctx: ExtensionContext;
 	fetch: FetchFunction;
 	model: Model<Api>;
+	parentThreadId: string;
 	parentResponseId: string;
 	context: unknown;
 	action: { toolName: string; input: unknown; toolCallId: string; cwd: string };
@@ -193,6 +194,7 @@ async function runReview(
 	signal: AbortSignal,
 ): Promise<Assessment> {
 	const limit = Math.min(MAX_REVIEW_BYTES, request.model.contextWindow - 2048);
+	const wire = reviewerWire(request.parentThreadId, request.parentResponseId);
 	const evidence = serializeReview(
 		{
 			parent_context: request.context,
@@ -223,17 +225,12 @@ async function runReview(
 			JSON.stringify(JSON.parse(decoded.toString("utf8"))) !== expectedBody
 		)
 			throw new ReviewFailure("unavailable");
-		const headers = new Headers(outgoing.headers);
+		const headers = wire.headers(outgoing.headers);
 		if (
 			!headers.get("authorization")?.startsWith("Bearer ") ||
 			!headers.has("chatgpt-account-id")
 		)
 			throw new ReviewFailure("unavailable");
-		headers.set("originator", "codex_cli_rs");
-		headers.set("x-codex-guardian", "reviewer");
-		headers.set("x-openai-subagent", "guardian");
-		headers.delete("x-codex-routing-hint");
-		// Keep the provider's truthful User-Agent, not an invented Codex binary version.
 		const response = await request.fetch(
 			new Request(outgoing, { headers, signal, redirect: "error" }),
 		);
@@ -262,14 +259,15 @@ async function runReview(
 			transport: "sse",
 			maxRetries: 0,
 			timeoutMs: REVIEW_TIMEOUT_MS,
-			sessionId: `guardian-${randomUUID()}`,
+			sessionId: wire.threadId,
 			reasoning: "low",
 			toolChoice: "none",
 			fetch: guardianFetch,
 			onPayload: (payload) => {
 				if (!isRecord(payload)) throw new ReviewFailure("unavailable");
+				// Own the entire reviewer body. Parent model defaults and provider
+				// features must not leak through a spread into this separate session.
 				const body = {
-					...payload,
 					model: REVIEW_MODEL,
 					instructions: POLICY,
 					input: [
@@ -280,10 +278,10 @@ async function runReview(
 					parallel_tool_calls: false,
 					stream: true,
 					store: false,
-					client_metadata: {
-						parent_response_id: request.parentResponseId,
-						"x-openai-subagent": "guardian",
-					},
+					reasoning: { effort: "low" },
+					include: ["reasoning.encrypted_content"],
+					prompt_cache_key: wire.promptCacheKey,
+					client_metadata: wire.clientMetadata,
 					text: {
 						format: {
 							type: "json_schema",
@@ -293,15 +291,6 @@ async function runReview(
 						},
 					},
 				};
-				for (const key of [
-					"previous_response_id",
-					"parent_response_id",
-					"prompt_cache_key",
-					"service_tier",
-					"max_output_tokens",
-					"max_tokens",
-				])
-					Reflect.deleteProperty(body, key);
 				try {
 					expectedBody = serializeReview(body, limit);
 				} catch {

@@ -4,7 +4,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { CodeModeToolPreflightRegistration } from "@howaboua/pi-codex-conversion/code-mode-preflight";
-import { loadScope, requiresReview, type ScopePolicy } from "./src/scope.js";
 import { ParentBindings } from "./src/parents.js";
 import {
 	type Assessment,
@@ -13,6 +12,7 @@ import {
 	reviewAction,
 	serializeAction,
 } from "./src/review.js";
+import { loadScope, requiresReview, type ScopePolicy } from "./src/scope.js";
 
 const SETTING_ENTRY = "codex-guardian-setting";
 const PARENT_REQUIRED =
@@ -180,6 +180,7 @@ export default async function guardian(
 				ctx,
 				fetch: networkFetch,
 				model: parent.model,
+				parentThreadId: parent.sessionId,
 				parentResponseId: parent.responseId,
 				context: JSON.parse(parent.context),
 				action: JSON.parse(exactAction),
