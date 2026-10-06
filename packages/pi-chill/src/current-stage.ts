@@ -124,17 +124,13 @@ export class CurrentStage {
 	private readonly running = new Map<string, RunningTool>();
 	private readonly completed: string[] = [];
 	private readonly seenCompletions = new Set<string>();
-	private reasoningHeading: string | undefined;
 	private phase:
 		| { type: "thinking"; heading?: string | undefined }
 		| { type: "activity"; label: string } = { type: "thinking" };
 
 	thinking(content: string): void {
-		// Empty stream starts and tool gaps carry no new reasoning evidence.
-		if (!content.trim()) {
-			this.phase = { type: "thinking", heading: this.reasoningHeading };
-			return;
-		}
+		// Only new displayable evidence replaces the last label.
+		if (!content.trim()) return;
 		// A real Markdown heading is evidence. Arbitrary reasoning prose is not a title.
 		const headings = [
 			...content
@@ -144,12 +140,10 @@ export class CurrentStage {
 				),
 		];
 		const heading = headings.at(-1);
-		this.reasoningHeading = heading
-			? compact(heading[1] ?? heading[2] ?? "")
-			: undefined;
+		if (!heading) return;
 		this.phase = {
 			type: "thinking",
-			heading: this.reasoningHeading,
+			heading: compact(heading[1] ?? heading[2] ?? ""),
 		};
 	}
 
@@ -227,12 +221,11 @@ export class CurrentStage {
 			tools.findLast((tool) => tool.parent !== undefined) ??
 			tools.findLast((tool) => tool.activeTrace !== undefined) ??
 			tools.at(-1);
-		this.phase = active
-			? {
-					type: "activity",
-					label: active.activeTrace ?? toolLabel(active.name, active.input),
-				}
-			: { type: "thinking", heading: this.reasoningHeading };
+		if (active)
+			this.phase = {
+				type: "activity",
+				label: active.activeTrace ?? toolLabel(active.name, active.input),
+			};
 	}
 
 	summary(): string {

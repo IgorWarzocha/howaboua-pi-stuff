@@ -16,7 +16,7 @@ Routine tool calls share a muted block in the conversation: `Working · duration
 
 While working, an indented line shows the current tool action with its file or command, or a real reasoning heading when supplied. Nested Code and Notebook calls update the same line. There are no generic thinking or writing-status labels. Reasoning and tool activity never share a line. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
 
-The block is anchored to the first tool call. Before that call, or in replies without tools, Pi keeps its native presentation rather than adding a separate status display.
+The latest action or heading stays visible until another replaces it, including between tool calls. The block is anchored to the first tool call. Before that call, or in replies without tools, Pi keeps its native presentation rather than adding a separate status display.
 
 Click the row to show calls in their original order. Click a call to reveal or hide its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse. Work settling does not close details you opened.
 
