@@ -2,7 +2,7 @@ import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { join } from "node:path";
 import { actionSchema } from "./contracts.ts";
-import { OrbRuntime, readIntent } from "./runtime.ts";
+import { readIntent, SandboxRuntime } from "./runtime.ts";
 import { readRecord } from "./storage.ts";
 
 async function main(): Promise<void> {
@@ -11,7 +11,7 @@ async function main(): Promise<void> {
 	const record = await readRecord(dir);
 	const pidFile = join(dir, "controller.pid");
 	await writeFile(pidFile, String(process.pid), { mode: 0o600 });
-	const runtime = new OrbRuntime(dir, record);
+	const runtime = new SandboxRuntime(dir, record);
 	const intent = await readIntent(dir);
 	try {
 		await runtime.boot(intent.prepare, intent.fresh);
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
 				try {
 					const action = actionSchema.parse(JSON.parse(body));
 					if (!("name" in action) || action.name !== record.name)
-						throw new Error("Orb name does not match this instance");
+						throw new Error("Sandbox name does not match this instance");
 					const result = await runtime.handle(action);
 					res.end(JSON.stringify({ ok: true, result }));
 					if (action.action === "stop" || action.action === "destroy") {
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
 							error:
 								error instanceof Error
 									? error.message
-									: "Orb operation failed. Inspect its state and logs before retrying",
+									: "Sandbox operation failed. Inspect its state and logs before retrying",
 						}),
 					);
 				}

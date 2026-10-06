@@ -49,7 +49,7 @@ function request(
 				res.on("data", (chunk: string) => {
 					body += chunk;
 					if (body.length > 2097152)
-						req.destroy(new Error("Orb response exceeds 2 MiB"));
+						req.destroy(new Error("Sandbox response exceeds 2 MiB"));
 				});
 				res.on("error", reject);
 				res.on("end", () => {
@@ -82,7 +82,7 @@ async function controllerAlive(dir: string): Promise<boolean> {
 		const pid = Number(await readFile(join(dir, "controller.pid"), "utf8"));
 		if (!Number.isSafeInteger(pid) || pid <= 0)
 			throw new Error(
-				"Orb controller identity is invalid. Inspect its logs before retrying",
+				"Sandbox controller identity is invalid. Inspect its logs before retrying",
 			);
 		try {
 			process.kill(pid, 0);
@@ -101,11 +101,11 @@ async function launch(dir: string, name: string): Promise<unknown> {
 		return request(dir, { action: "inspect", name });
 	if (await controllerAlive(dir))
 		throw new Error(
-			"Orb controller is still starting or unavailable. Read controller logs before retrying",
+			"Sandbox controller is still starting or unavailable. Read controller logs before retrying",
 		);
 	if (Buffer.byteLength(join(dir, "control.sock")) >= 104)
 		throw new Error(
-			"Orb state path is too long for a local control socket. Ask the user to choose a shorter private PI_ORBS_HOME path",
+			"Sandbox state path is too long for a local control socket. Ask the user to choose a shorter private PI_SANDBOX_HOME path",
 		);
 	let nodeVersion: string;
 	try {
@@ -115,7 +115,7 @@ async function launch(dir: string, name: string): Promise<unknown> {
 		}).trim();
 	} catch {
 		throw new Error(
-			"Starting an orb requires Node.js 24 or newer on PATH. Install Node.js, then retry start",
+			"Starting a sandbox requires Node.js 24 or newer on PATH. Install Node.js, then retry start",
 		);
 	}
 	if (Number(nodeVersion.match(/^v(\d+)\./)?.[1] ?? 0) < 24)
@@ -132,26 +132,26 @@ async function launch(dir: string, name: string): Promise<unknown> {
 			await mkdir(recovery, { mode: 0o700 });
 		} catch {
 			throw new Error(
-				"Orb start or recovery is already in progress. Retry inspect shortly",
+				"Sandbox start or recovery is already in progress. Retry inspect shortly",
 			);
 		}
 		try {
 			const owner = Number(await readFile(join(lock, "owner"), "utf8"));
 			if (!Number.isSafeInteger(owner) || owner <= 0)
 				throw new Error(
-					"Orb start ownership is unavailable. Read controller logs before retrying",
+					"Sandbox start ownership is unavailable. Read controller logs before retrying",
 				);
 			try {
 				process.kill(owner, 0);
 				throw new Error(
-					"Orb start is already in progress. Retry inspect shortly",
+					"Sandbox start is already in progress. Retry inspect shortly",
 				);
 			} catch (ownerError) {
 				if (!existsError(ownerError, "ESRCH")) throw ownerError;
 			}
 			if (await controllerAlive(dir))
 				throw new Error(
-					"Orb controller is still starting. Retry inspect shortly",
+					"Sandbox controller is still starting. Retry inspect shortly",
 				);
 			await rm(lock, { recursive: true });
 			await mkdir(lock, { mode: 0o700 });
@@ -179,7 +179,7 @@ async function launch(dir: string, name: string): Promise<unknown> {
 		});
 		child.on("exit", (code) => {
 			failure = new Error(
-				`Orb controller exited (${code}). Inspect controller logs before retrying`,
+				`Sandbox controller exited (${code}). Inspect controller logs before retrying`,
 			);
 		});
 		child.unref();
@@ -193,7 +193,7 @@ async function launch(dir: string, name: string): Promise<unknown> {
 				throw (
 					failure ??
 					new Error(
-						"Orb start failed. Read controller logs before retrying start",
+						"Sandbox start failed. Read controller logs before retrying start",
 					)
 				);
 			if (await reachable(dir, name)) {
@@ -207,7 +207,7 @@ async function launch(dir: string, name: string): Promise<unknown> {
 			}
 		}
 		throw new Error(
-			"Orb start has not completed. Use inspect or logs before retrying",
+			"Sandbox start has not completed. Use inspect or logs before retrying",
 		);
 	} finally {
 		await rm(lock, { recursive: true, force: true });
@@ -328,7 +328,7 @@ export async function run(
 		if (await reachable(dir, action.name)) await request(dir, action, signal);
 		else if (await controllerAlive(dir))
 			throw new Error(
-				"Orb controller is still starting or unavailable. Read its logs and wait before destroying it",
+				"Sandbox controller is still starting or unavailable. Read its logs and wait before destroying it",
 			);
 		await rm(dir, { recursive: true });
 		return { name: action.name, state: "destroyed" };

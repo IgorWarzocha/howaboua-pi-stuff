@@ -1,4 +1,4 @@
-# Pi Orbs
+# Pi Sandbox
 
 Named local environments for Pi, powered by [Gondolin](https://github.com/earendil-works/gondolin). Prepare a reusable environment, create independent instances, and keep a dashboard running after the controlling Pi session exits.
 
@@ -18,7 +18,7 @@ bun install --frozen-lockfile
 pi install ./packages/pi-orbs
 ```
 
-Create `orbs.yaml` in your project:
+Create `sandbox.yaml` in your project:
 
 ```yaml
 version: 1
@@ -34,16 +34,16 @@ services:
     preview: true
 ```
 
-Ask the agent to create an environment named `demo` from `orbs.yaml` and open its preview. The `sandbox` tool accepts `help` or a JSON action in its `input` field. In Code and Notebook modes, use the deferred entry point:
+Ask the agent to create an environment named `demo` from `sandbox.yaml` and open its preview. The `sandbox` tool accepts `help` or a JSON action in its `input` field. In Code and Notebook modes, use the deferred entry point:
 
 ```js
 await tools.sandbox('help')
-await tools.sandbox('{"action":"create","name":"demo","config":"orbs.yaml"}')
+await tools.sandbox('{"action":"create","name":"demo","config":"sandbox.yaml"}')
 ```
 
 The result includes a localhost preview URL. Open it in a browser on the VM host. Previews are unauthenticated and reachable by other processes on that host. A localhost URL from a remote host is not a browser-accessible remote link. Public exposure, remote authentication, and cloud hosting are deliberately outside this package.
 
-Stock Gondolin images support this dashboard example. Running the complete Pi agent with Pi Codex Conversion requires a compatible custom image. See below.
+Stock Gondolin images support this dashboard example. The optional image below includes Pi for interactive guest use. Choose an image and tools that suit your environment.
 
 ## Keep, reopen, or remove
 
@@ -59,19 +59,19 @@ await tools.sandbox('{"action":"destroy","name":"demo","confirm":"demo"}')
 
 Disk checkpoints are not crash-safe live storage. If the controller or host crashes before stop completes, only the last completed checkpoint is recoverable. `inspect` reports interrupted or unavailable controllers instead of treating a stale status file as a running VM. Keep the image assets available for later reopen.
 
-State lives under `$XDG_STATE_HOME/pi-orbs`, defaulting to `~/.local/state/pi-orbs`. Users can select a private, short state directory with `PI_ORBS_HOME` before starting Pi. Instances and prepared templates have separate names and storage.
+State lives under `$XDG_STATE_HOME/pi-sandbox`, defaulting to `~/.local/state/pi-sandbox`. Users can select a private, short state directory with `PI_SANDBOX_HOME` before starting Pi. Instances and prepared templates have separate names and storage.
 
 ## Prepare a template
 
 `prepare` runs the YAML's setup commands and saves a disk template without starting services. `create` with `template` copies that prepared disk into an independent instance. Setup does not run again. Resume hooks and declared services run on each instance start.
 
 ```js
-await tools.sandbox('{"action":"prepare","name":"web-base","config":"orbs.yaml"}')
+await tools.sandbox('{"action":"prepare","name":"web-base","config":"sandbox.yaml"}')
 await tools.sandbox('{"action":"create","name":"review-one","template":"web-base"}')
 await tools.sandbox('{"action":"create","name":"review-two","template":"web-base"}')
 ```
 
-Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or setup commands. Perform fresh login in an instance after creation. YAML is validated strictly. Each disk receives an independent `.orbs.yaml` in its guest workspace. Edit that guest file with `write` or a guest terminal, then ensure or restart services. Editing the original host YAML does not change existing disks. Hardware, network, setup, and resume settings remain captured at creation.
+Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or setup commands. Perform fresh login in an instance after creation. YAML is validated strictly. Each disk receives an independent `.sandbox.yaml` in its guest workspace. Edit that guest file with `write` or a guest terminal, then ensure or restart services. Editing the original host YAML does not change existing disks. Hardware, network, setup, and resume settings remain captured at creation.
 
 ## Resources and services
 
@@ -125,19 +125,19 @@ await tools.sandbox(JSON.stringify({action: 'exec-kill', name: 'demo', pid: comm
 
 ## Run Pi in the guest
 
-`images/Dockerfile` builds a Debian Trixie image with Node, Bun, Pi 1.0.4, Pi Codex Conversion 3.0.46, OpenSSH, and public Code and Notebook runtime caches. It contains no provider auth. Debian Trixie meets the current native executor's glibc requirement. Stock Alpine is not compatible with that executor.
+`images/Dockerfile` is an optional Debian Trixie image recipe with Node, Bun, Pi 1.0.4, and OpenSSH. It contains no Pi extensions, provider configuration, or credentials. Customize the recipe with the public tools you need, or select another compatible Gondolin image through the YAML's `image` setting.
 
 With Docker and Gondolin's documented image-build prerequisites installed, copy the package's `images` directory to a build directory. Build only that directory, not your project or home:
 
 ```sh
-docker build -t pi-orbs-guest:local images
+docker build -t pi-sandbox-guest:local images
 npx --yes --package=@earendil-works/gondolin@0.13.0 \
   gondolin build --config images/gondolin.json --output guest-assets
 ```
 
 The supplied image config targets `x86_64`. For an ARM host, select `aarch64` before building and use matching OCI images. The SDK image builder uses Alpine boot assets around the Debian OCI root filesystem.
 
-Set `image: ./guest-assets` in your environment YAML and create an instance. Run `/orbs <name> node` in Pi to get a temporary localhost SSH command. Run that command in a terminal on the VM host, start `pi` under `/workspace`, and complete your own fresh login. This runs the entire Pi process and its tools inside the guest. Host Pi tools remain host tools unless you explicitly operate through `sandbox`.
+Set `image: ./guest-assets` in your environment YAML and create an instance. Run `/sandbox <name> node` in Pi to get a temporary localhost SSH command. Run that command in a terminal on the VM host, start `pi` under `/workspace`, and complete your own fresh login. This runs the entire Pi process and its tools inside the guest. Host Pi tools remain host tools unless you explicitly operate through `sandbox`.
 
 The terminal uses a newly generated key, disables agent forwarding, and disconnects on stop. It does not import host provider auth. Allow the required authorization and API hosts in the YAML before creation, with the user's approval. Provider OAuth callback behavior has not been tested. The user must authorize any real login or provider request. A login saved inside an instance's home persists on reopen, but never enters the reusable template. Checkpoints are ordinary local files protected by directory permissions, not package-managed encryption.
 

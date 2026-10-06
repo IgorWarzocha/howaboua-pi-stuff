@@ -11,17 +11,17 @@ import { join, resolve } from "node:path";
 import { parseDocument } from "yaml";
 import {
 	configSchema,
-	type OrbConfig,
-	type OrbRecord,
 	recordSchema,
+	type SandboxConfig,
+	type SandboxRecord,
 } from "./contracts.ts";
 
 export function stateRoot(): string {
 	return resolve(
-		process.env["PI_ORBS_HOME"] ??
+		process.env["PI_SANDBOX_HOME"] ??
 			join(
 				process.env["XDG_STATE_HOME"] ?? join(homedir(), ".local", "state"),
-				"pi-orbs",
+				"pi-sandbox",
 			),
 	);
 }
@@ -39,12 +39,12 @@ export async function saveJson(path: string, value: unknown): Promise<void> {
 	});
 	await rename(temporary, path);
 }
-export async function readRecord(dir: string): Promise<OrbRecord> {
+export async function readRecord(dir: string): Promise<SandboxRecord> {
 	return recordSchema.parse(
 		JSON.parse(await readFile(join(dir, "record.json"), "utf8")),
 	);
 }
-export async function loadConfig(path: string): Promise<OrbConfig> {
+export async function loadConfig(path: string): Promise<SandboxConfig> {
 	if ((await stat(path)).size > 1048576)
 		throw new Error(
 			"Environment YAML exceeds 1 MiB. Use guest files for large setup scripts",
@@ -62,7 +62,7 @@ export async function privateDirectory(path: string): Promise<void> {
 	await mkdir(path, { recursive: true, mode: 0o700 });
 	if ((await stat(path)).mode & 0o077)
 		throw new Error(
-			"Orb state requires a private directory. Ask the user to choose a private PI_ORBS_HOME directory",
+			"Sandbox state requires a private directory. Ask the user to choose a private PI_SANDBOX_HOME directory",
 		);
 }
 

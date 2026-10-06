@@ -117,7 +117,7 @@ export const configSchema = z
 			).size === Object.values(c.services).filter((s) => s.port).length,
 		"Service ports must be unique",
 	);
-export type OrbConfig = z.infer<typeof configSchema>;
+export type SandboxConfig = z.infer<typeof configSchema>;
 export type Service = z.infer<typeof serviceSchema>;
 export const commandOutcomeSchema = z.discriminatedUnion("state", [
 	z.strictObject({ state: z.literal("exited"), exitCode: z.number().int() }),
@@ -225,7 +225,7 @@ export const recordSchema = z.strictObject({
 	createdAt: z.string(),
 	template: nameSchema.optional(),
 });
-export type OrbRecord = z.infer<typeof recordSchema>;
+export type SandboxRecord = z.infer<typeof recordSchema>;
 export const statusSchema = z.strictObject({
 	name: nameSchema,
 	state: z.enum([
@@ -306,7 +306,7 @@ export const HELP = {
 	},
 	profiles,
 	serviceConfig:
-		"Guest workspace/.orbs.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health GET path. Preview true or {url?: /, title?: service, description?}; previews additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits 10s then continues in background",
+		"Guest workspace/.sandbox.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health GET path. Preview true or {url?: /, title?: service, description?}; previews additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits 10s then continues in background",
 	boundaries:
 		"Linux KVM or macOS HVF with QEMU. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket previews, not public or remote-host links. Guest HTTP responses need Content-Length or chunked framing. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates must contain no secrets. Guest Pi requires compatible custom image, user completes fresh login. Empty network allowlist blocks outbound HTTP",
 };

@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import { ZodError } from "zod";
 import { HELP } from "./src/contracts.ts";
 
-export default async function orbs(pi: ExtensionAPI): Promise<void> {
+export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 	const tool = {
 		name: "sandbox",
 		label: "Sandbox",
@@ -51,13 +51,13 @@ export default async function orbs(pi: ExtensionAPI): Promise<void> {
 		},
 	};
 	pi.registerTool(tool);
-	pi.registerCommand("orbs", {
-		description: "Guest terminal handoff: /orbs <name> [user]",
+	pi.registerCommand("sandbox", {
+		description: "Guest terminal handoff: /sandbox <name> [user]",
 		handler: async (args, ctx) => {
 			const [name, user = "root", extra] = args.trim().split(/\s+/);
 			if (!name || extra) {
 				ctx.ui.notify(
-					"Usage: /orbs <name> [user]. Ask the agent to create or start an environment first",
+					"Usage: /sandbox <name> [user]. Ask the agent to create or start an environment first",
 					"info",
 				);
 				return;

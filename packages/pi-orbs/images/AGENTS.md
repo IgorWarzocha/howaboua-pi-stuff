@@ -1,2 +1,1 @@
-- Guest compatibility must cover the whole Pi tool stack, not only Pi startup. Codex Conversion's execution bridge requires glibc 2.39 or newer; the pinned Debian Trixie base satisfies it, stock Alpine does not.
 - Build only public runtimes and bootstrap assets into images. Never copy host homes, provider auth, SSH agents or private configuration; fresh login belongs in an instance, not a reusable image or template.

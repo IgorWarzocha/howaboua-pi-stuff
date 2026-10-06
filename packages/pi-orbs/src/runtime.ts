@@ -6,14 +6,14 @@ import {
 	type VMOptions,
 	VmCheckpoint,
 } from "@earendil-works/gondolin";
-import { type Action, type OrbRecord, profiles } from "./contracts.ts";
+import { type Action, profiles, type SandboxRecord } from "./contracts.ts";
 import { checked, execute, guestExists, serviceRoot } from "./guest.ts";
 import { openTerminal } from "./portals.ts";
 import { GuestProcesses } from "./processes.ts";
 import { GuestServices } from "./services.ts";
 import { existsError, shellQuote as q, saveJson } from "./storage.ts";
 
-export class OrbRuntime {
+export class SandboxRuntime {
 	private vm: VM | undefined;
 	private processes: GuestProcesses | undefined;
 	private managed: GuestServices | undefined;
@@ -32,8 +32,8 @@ export class OrbRuntime {
 		| "interrupted"
 		| "failed" = "starting";
 	private dir: string;
-	private record: OrbRecord;
-	constructor(dir: string, record: OrbRecord) {
+	private record: SandboxRecord;
+	constructor(dir: string, record: SandboxRecord) {
 		this.dir = dir;
 		this.record = record;
 	}
@@ -45,7 +45,7 @@ export class OrbRuntime {
 			memory: `${resources.memoryGiB}G`,
 			tmpfs: {},
 			rootfs: { mode: "cow", size: `${config.diskGiB}G` },
-			sessionLabel: `pi-orbs:${this.record.name}`,
+			sessionLabel: `pi-sandbox:${this.record.name}`,
 			sandbox: {
 				vmm: "qemu",
 				accel: process.platform === "darwin" ? "hvf" : "kvm",
@@ -80,9 +80,9 @@ export class OrbRuntime {
 		// files must never be mistaken for newly booted unrelated processes.
 		await checked(
 			vm,
-			`rm -f ${serviceRoot}/*.pid; rm -rf /var/lib/pi-orbs/commands`,
+			`rm -f ${serviceRoot}/*.pid; rm -rf /var/lib/pi-sandbox/commands`,
 		);
-		const configPath = posix.join(config.workspace, ".orbs.yaml");
+		const configPath = posix.join(config.workspace, ".sandbox.yaml");
 		if (!(await guestExists(vm, configPath)))
 			await vm.fs.writeFile(configPath, JSON.stringify(config, null, 2));
 		if (fresh || !resume) {
@@ -151,7 +151,7 @@ export class OrbRuntime {
 		await this.persistStatus();
 	}
 	private requireVm(): VM {
-		if (!this.vm) throw new Error("Orb is not running. Use start first");
+		if (!this.vm) throw new Error("Sandbox is not running. Use start first");
 		return this.vm;
 	}
 	private status() {
@@ -213,7 +213,7 @@ export class OrbRuntime {
 				createdAt: this.record.createdAt,
 				template: this.record.template,
 				workspace: this.record.config.workspace,
-				configPath: posix.join(this.record.config.workspace, ".orbs.yaml"),
+				configPath: posix.join(this.record.config.workspace, ".sandbox.yaml"),
 				status: this.status(),
 				connected: true,
 				services: this.managed?.names() ?? [],
@@ -230,7 +230,7 @@ export class OrbRuntime {
 		const vm = this.requireVm();
 		if (this.state !== "running")
 			throw new Error(
-				"Orb is stopping. Wait for stop to complete, then use start",
+				"Sandbox is stopping. Wait for stop to complete, then use start",
 			);
 		switch (action.action) {
 			case "shell": {

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { checked, guestExists } from "./guest.ts";
 import { shellQuote as q } from "./storage.ts";
 
-const root = "/var/lib/pi-orbs/commands";
+const root = "/var/lib/pi-sandbox/commands";
 const outcome = z.strictObject({
 	exitCode: z.number().int(),
 	truncated: z.boolean(),
