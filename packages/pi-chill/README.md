@@ -34,6 +34,8 @@ The exact kickoff text `Continue.` and `Continue, unless awaiting for user appro
 
 Assistant commentary, final answers, and other user messages keep Pi's native presentation. Commentary does not fold into Worked.
 
+`new_context` keeps its original call and result renderer outside the disclosure, including failures. Context rollover is a visible boundary. Activity before and after rollover remains in separate groups.
+
 Restored sessions reconstruct groups from the active branch and mark estimated durations with `~`.
 
 This is presentation only. It adds no model tools, prompt instructions, or model calls, and does not change stored messages. Non-interactive output keeps its original renderers.

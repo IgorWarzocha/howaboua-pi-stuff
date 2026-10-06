@@ -452,6 +452,7 @@ export class ActivityTimeline {
 				if (tools.length) {
 					this.current ??= new ActivityGroup(startedAt ?? endedAt, true);
 					for (const tool of tools) {
+						if (tool.name === "new_context") continue;
 						this.add(tool.id, tool.name);
 						this.current.stage.start(tool.id, tool.name, tool.arguments);
 					}

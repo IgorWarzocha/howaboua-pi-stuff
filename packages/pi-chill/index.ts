@@ -77,7 +77,7 @@ export default function (pi: ExtensionAPI) {
 		return markdown;
 	});
 	pi.registerToolRenderer((name, next) =>
-		tui ? renderers.resolve(name, next()) : next(),
+		tui && name !== "new_context" ? renderers.resolve(name, next()) : next(),
 	);
 	const messageRenderer = activityMessageRenderer(timeline, () => enabled);
 	for (const type of activityMessageTypes)
@@ -179,7 +179,7 @@ export default function (pi: ExtensionAPI) {
 		progress();
 	});
 	pi.on("tool_execution_start", (event) => {
-		if (!tui) return;
+		if (!tui || event.toolName === "new_context") return;
 		timeline.current?.stage.start(
 			event.toolCallId,
 			event.toolName,
@@ -193,12 +193,12 @@ export default function (pi: ExtensionAPI) {
 		group.refresh();
 	});
 	pi.on("tool_execution_update", (event) => {
-		if (!tui) return;
+		if (!tui || event.toolName === "new_context") return;
 		timeline.current?.stage.update(event.toolCallId, event.partialResult);
 		progress();
 	});
 	pi.on("tool_execution_end", (event) => {
-		if (!tui) return;
+		if (!tui || event.toolName === "new_context") return;
 		timeline.current?.stage.end(event.toolCallId, event.result, event.isError);
 		progress();
 		if (event.parentToolCallId) return;
