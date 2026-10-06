@@ -12,10 +12,12 @@ import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
 import type {
 	LatestAssistant,
+	MachineStatus,
 	MonitoredAgent,
 	PaneInfo,
 	PeerMessage,
 	PendingAsk,
+	ScopedMonitoredAgent,
 	SettledAgentStatus,
 } from "./types.js";
 
@@ -30,6 +32,31 @@ export function orchestrationGuidance(enabled: boolean, general: boolean) {
 	return general
 		? "Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks."
 		: "Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
+}
+export function activeAgentsBriefing(
+	agents: ScopedMonitoredAgent[],
+	machines: MachineStatus[],
+): string | undefined {
+	const active = agents.filter((agent) => agent.activity.phase !== "settled");
+	if (!active.length) return;
+	return [
+		"Existing agents after context rollover. Do not duplicate their work. Status is last observed; use these machine/target values for updates.",
+		JSON.stringify(
+			active.map((agent) => ({
+				machine: agent.machine,
+				target: agent.paneId,
+				...(agent.name ? { name: agent.name } : {}),
+				status: agent.activity.phase,
+				connection:
+					machines.find((machine) => machine.id === agent.machine)?.status ??
+					"unavailable",
+				...(agent.cwd ? { cwd: agent.cwd } : {}),
+				...(activityTask(agent.activity)
+					? { task: activityTask(agent.activity) }
+					: {}),
+			})),
+		),
+	].join("\n");
 }
 export function boardBriefing(
 	member: boolean,

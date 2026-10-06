@@ -5,13 +5,14 @@ import type {
 import type { AgentBoard } from "./board/host.js";
 import {
 	contextBriefingWindow,
+	hasContextRollover,
 	recordContextBriefing,
 	registerContextBriefing,
 } from "./context-briefing.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
-import { orchestrationGuidance } from "./messages.js";
+import { activeAgentsBriefing, orchestrationGuidance } from "./messages.js";
 import { loadAgentProfiles } from "./profiles.js";
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
@@ -101,6 +102,25 @@ export function registerAgentController(
 					ctx.signal?.throwIfAborted();
 					return content;
 				},
+			);
+		},
+	);
+	registerContextBriefing(
+		pi,
+		"active agents",
+		() => fleet.list().some((agent) => agent.activity.phase !== "settled"),
+		async (ctx, windowId) => {
+			if (!hasContextRollover(ctx)) return;
+			const key = JSON.stringify([
+				ctx.sessionManager.getSessionId(),
+				contextBriefingWindow(ctx, windowId),
+			]);
+			await recordContextBriefing(
+				pi,
+				ctx,
+				"shepherdr-active-agents",
+				key,
+				async () => activeAgentsBriefing(fleet.list(), fleet.statuses()),
 			);
 		},
 	);

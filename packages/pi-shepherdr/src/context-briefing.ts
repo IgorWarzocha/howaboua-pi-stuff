@@ -77,6 +77,30 @@ export function contextBriefingWindow(
 		: (windowId ?? ctx.sessionManager.getSessionId());
 }
 
+export function hasContextRollover(ctx: ExtensionContext): boolean {
+	return ctx.sessionManager.getBranch().some((entry) => {
+		if (entry.type === "compaction") return true;
+		if (
+			entry.type !== "custom_message" ||
+			entry.customType !== "codex-context-window" ||
+			!entry.details ||
+			typeof entry.details !== "object" ||
+			!("contextManagement" in entry.details)
+		)
+			return false;
+		const window = entry.details.contextManagement;
+		return Boolean(
+			window &&
+				typeof window === "object" &&
+				"kind" in window &&
+				window.kind === "window" &&
+				"windowNumber" in window &&
+				typeof window.windowNumber === "number" &&
+				window.windowNumber > 0,
+		);
+	});
+}
+
 export async function recordContextBriefing(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,

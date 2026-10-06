@@ -81,6 +81,8 @@ Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. Th
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
+After Pi compaction or Pi Codex context rollover, the controller receives its active agents' exact machine and target, full delegated task and last observed status. Existing work stays assigned instead of being delegated again. This reminder does not start a turn or bypass normal turn preparation.
+
 Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
 
 Messages sent through `agents` bypass the receiving Pi editor, preserving unsent drafts. Update and reload Shepherdr on receiving agents as well as controllers. If a receiver is unavailable, delivery fails without pasting into its terminal. Raw `herdr agent prompt` still uses terminal input and does not provide this protection.
