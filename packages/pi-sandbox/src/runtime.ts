@@ -262,7 +262,7 @@ export class SandboxRuntime {
 					name: this.record.name,
 					command: this.terminal.command,
 					handoff:
-						"Run this command in a terminal on this host. Start Pi in the guest and complete your own login. No host provider credentials were copied",
+						"Run this command in a terminal on this host to access the guest. No host credentials were copied",
 				};
 			}
 			case "exec":

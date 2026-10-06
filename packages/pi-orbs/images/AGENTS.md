@@ -1,1 +1,0 @@
-- Build only public runtimes and bootstrap assets into images. Never copy host homes, provider auth, SSH agents or private configuration; fresh login belongs in an instance, not a reusable image or template.

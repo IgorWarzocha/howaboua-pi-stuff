@@ -1,5 +1,5 @@
 {
-	"name": "@howaboua/pi-orbs",
+	"name": "@howaboua/pi-sandbox",
 	"private": true,
 	"version": "0.1.0",
 	"description": "Persistent local Gondolin environments and managed app previews for Pi",
@@ -11,12 +11,11 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-orbs"
+		"directory": "packages/pi-sandbox"
 	},
 	"files": [
 		"index.ts",
 		"src",
-		"images",
 		"README.md",
 		"LICENSE"
 	],

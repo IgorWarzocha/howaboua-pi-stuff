@@ -1,8 +1,8 @@
 # Pi Sandbox
 
-Named local environments for Pi, powered by [Gondolin](https://github.com/earendil-works/gondolin). Prepare a reusable environment, create independent instances, and keep a dashboard running after the controlling Pi session exits.
+Named local environments controlled from Pi, powered by [Gondolin](https://github.com/earendil-works/gondolin). Prepare a reusable environment, create independent instances, and keep a dashboard running after the controlling Pi session exits.
 
-If you want a managed coding agent with ready-to-use environments and app previews, you're probably better off using [Amp](https://ampcode.com). This exists because I like clanking on the machinery and need isolated environments to test Pi and the extensions in this monorepo. It's a local testing tool, not a claim to replace Amp. I may still end up using Amp myself.
+Use these environments for your own commands, tools, and applications. The package manages local environments and previews, not a preinstalled guest coding agent.
 
 Special thanks to the Amp team for the inspiration, and to [Earendil](https://github.com/earendil-works) for Pi and Gondolin, the toolkit that makes this possible.
 
@@ -15,8 +15,10 @@ Requires Node.js 24 or newer on `PATH`, QEMU and `qemu-img`, plus Linux KVM acce
 ```sh
 # From a checkout of this repository:
 bun install --frozen-lockfile
-pi install ./packages/pi-orbs
+pi install ./packages/pi-sandbox
 ```
+
+Guest command execution and service management require Python 3. The example below also uses Python 3 as its HTTP server. Choose Gondolin assets containing the tools your environment needs. This package ships no images or image recipes. Set `image` in the YAML to use your own Gondolin assets directory.
 
 Create `sandbox.yaml` in your project:
 
@@ -42,8 +44,6 @@ await tools.sandbox('{"action":"create","name":"demo","config":"sandbox.yaml"}')
 ```
 
 The result includes a localhost preview URL. Open it in a browser on the VM host. Previews are unauthenticated and reachable by other processes on that host. A localhost URL from a remote host is not a browser-accessible remote link. Public exposure, remote authentication, and cloud hosting are deliberately outside this package.
-
-Stock Gondolin images support this dashboard example. The optional image below includes Pi for interactive guest use. Choose an image and tools that suit your environment.
 
 ## Keep, reopen, or remove
 
@@ -123,26 +123,14 @@ await tools.sandbox(JSON.stringify({action: 'exec-kill', name: 'demo', pid: comm
 
 `read`, `write`, and `logs` provide guest text-file access and bounded output. Read and execution output are capped at 64 KiB and mark truncation. Execution status returns only output not previously consumed. Use `help` for current arguments.
 
-## Run Pi in the guest
+## Open a guest terminal
 
-`images/Dockerfile` is an optional Debian Trixie image recipe with Node, Bun, Pi 1.0.4, and OpenSSH. It contains no Pi extensions, provider configuration, or credentials. Customize the recipe with the public tools you need, or select another compatible Gondolin image through the YAML's `image` setting.
+Run `/sandbox <name> [user]` in Pi to get a temporary localhost SSH command. The user defaults to `root`. Run the returned command in a terminal on the VM host. The guest image must include an OpenSSH server and Gondolin's `sandboxssh` helper.
 
-With Docker and Gondolin's documented image-build prerequisites installed, copy the package's `images` directory to a build directory. Build only that directory, not your project or home:
-
-```sh
-docker build -t pi-sandbox-guest:local images
-npx --yes --package=@earendil-works/gondolin@0.13.0 \
-  gondolin build --config images/gondolin.json --output guest-assets
-```
-
-The supplied image config targets `x86_64`. For an ARM host, select `aarch64` before building and use matching OCI images. The SDK image builder uses Alpine boot assets around the Debian OCI root filesystem.
-
-Set `image: ./guest-assets` in your environment YAML and create an instance. Run `/sandbox <name> node` in Pi to get a temporary localhost SSH command. Run that command in a terminal on the VM host, start `pi` under `/workspace`, and complete your own fresh login. This runs the entire Pi process and its tools inside the guest. Host Pi tools remain host tools unless you explicitly operate through `sandbox`.
-
-The terminal uses a newly generated key, disables agent forwarding, and disconnects on stop. It does not import host provider auth. Allow the required authorization and API hosts in the YAML before creation, with the user's approval. Provider OAuth callback behavior has not been tested. The user must authorize any real login or provider request. A login saved inside an instance's home persists on reopen, but never enters the reusable template. Checkpoints are ordinary local files protected by directory permissions, not package-managed encryption.
+The terminal uses a newly generated key, disables agent forwarding, and disconnects on stop. It does not import host credentials. Install and run whichever tools you choose inside the guest. If a tool needs authentication, complete your own fresh login in the instance, not in a reusable template. Allow its required hosts in the YAML before creation. Credentials saved in the instance persist on reopen. Checkpoints are ordinary local files protected by directory permissions, not package-managed encryption.
 
 ## Recovery
 
-Readiness errors name the service and leave guest logs available. Start failures keep controller logs available through `logs` without a service name. Read those logs before retrying. Missing Python 3, OpenSSH, `resize2fs`, or Gondolin's SSH helper in a custom image requires rebuilding that image, not patching installed tools.
+Readiness errors name the service and leave guest logs available. Start failures keep controller logs available through `logs` without a service name. Read those logs before retrying. Missing guest tools require compatible user-provided Gondolin assets, not patches to installed host tools. Commands and services require Python 3. Guest terminals require OpenSSH and Gondolin's `sandboxssh` helper. Gondolin disk growth requires `resize2fs` in the guest.
 
 Removing the Pi package does not remove running environments or their data. Stop or destroy owned instances first.

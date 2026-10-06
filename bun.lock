@@ -373,31 +373,6 @@
         "typebox": "*",
       },
     },
-    "packages/pi-orbs": {
-      "name": "@howaboua/pi-orbs",
-      "version": "0.1.0",
-      "dependencies": {
-        "@earendil-works/gondolin": "0.13.0",
-        "yaml": "2.9.1",
-        "zod": "4.4.3",
-      },
-      "devDependencies": {
-        "@biomejs/biome": "^2.5.10",
-        "@earendil-works/pi-coding-agent": "1.0.4",
-        "@howaboua/pi-codex-conversion": "3.0.46",
-        "@types/node": "^26.2.0",
-        "typebox": "1.3.18",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": ">=1.0.4",
-        "@howaboua/pi-codex-conversion": ">=3.0.46",
-        "typebox": "*",
-      },
-      "optionalPeers": [
-        "@howaboua/pi-codex-conversion",
-      ],
-    },
     "packages/pi-pet": {
       "name": "@howaboua/pi-pet",
       "version": "0.1.4",
@@ -420,6 +395,31 @@
       },
       "optionalPeers": [
         "@howaboua/pi-gippity-control",
+      ],
+    },
+    "packages/pi-sandbox": {
+      "name": "@howaboua/pi-sandbox",
+      "version": "0.1.0",
+      "dependencies": {
+        "@earendil-works/gondolin": "0.13.0",
+        "yaml": "2.9.1",
+        "zod": "4.4.3",
+      },
+      "devDependencies": {
+        "@biomejs/biome": "^2.5.10",
+        "@earendil-works/pi-coding-agent": "1.0.4",
+        "@howaboua/pi-codex-conversion": "3.0.46",
+        "@types/node": "^26.2.0",
+        "typebox": "1.3.18",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=1.0.4",
+        "@howaboua/pi-codex-conversion": ">=3.0.46",
+        "typebox": "*",
+      },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
       ],
     },
     "packages/pi-semantic-grep": {
@@ -853,9 +853,9 @@
 
     "@howaboua/pi-notes-compaction": ["@howaboua/pi-notes-compaction@workspace:packages/pi-notes-compaction"],
 
-    "@howaboua/pi-orbs": ["@howaboua/pi-orbs@workspace:packages/pi-orbs"],
-
     "@howaboua/pi-pet": ["@howaboua/pi-pet@workspace:packages/pi-pet"],
+
+    "@howaboua/pi-sandbox": ["@howaboua/pi-sandbox@workspace:packages/pi-sandbox"],
 
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
 
@@ -1511,9 +1511,9 @@
 
     "@howaboua/pi-explore-subagents/typebox": ["typebox@1.3.18", "", {}, "sha512-/wYPoDqxWZSxV/XD8Eskzr3YluXC9CaWJOuUYMkj+lLVLkyeEIQKzHvMuS/IRc3OLTIBC32LAtHgXo/WFEOMHQ=="],
 
-    "@howaboua/pi-orbs/typebox": ["typebox@1.3.18", "", {}, "sha512-/wYPoDqxWZSxV/XD8Eskzr3YluXC9CaWJOuUYMkj+lLVLkyeEIQKzHvMuS/IRc3OLTIBC32LAtHgXo/WFEOMHQ=="],
-
     "@howaboua/pi-pet/typebox": ["typebox@1.3.18", "", {}, "sha512-/wYPoDqxWZSxV/XD8Eskzr3YluXC9CaWJOuUYMkj+lLVLkyeEIQKzHvMuS/IRc3OLTIBC32LAtHgXo/WFEOMHQ=="],
+
+    "@howaboua/pi-sandbox/typebox": ["typebox@1.3.18", "", {}, "sha512-/wYPoDqxWZSxV/XD8Eskzr3YluXC9CaWJOuUYMkj+lLVLkyeEIQKzHvMuS/IRc3OLTIBC32LAtHgXo/WFEOMHQ=="],
 
     "@howaboua/pi-semantic-grep/typebox": ["typebox@1.3.18", "", {}, "sha512-/wYPoDqxWZSxV/XD8Eskzr3YluXC9CaWJOuUYMkj+lLVLkyeEIQKzHvMuS/IRc3OLTIBC32LAtHgXo/WFEOMHQ=="],
 
