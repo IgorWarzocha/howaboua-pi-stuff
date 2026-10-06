@@ -105,7 +105,7 @@ Fast Mode has independent settings for Astra, Sol, Terra and Luna, shared across
 
 - **Heavy system prompt overwrite:** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. Off by default.
 - **Current time reminders:** choose 30 or 60 minutes under **General**. Active Responses adapters receive a persisted UTC developer message on the first inference in each context and when the interval has elapsed. No timer, extra turn or system-prompt change. Off by default.
-- **Auto reasoning (GPT-6):** lets Astra, Sol and Luna adjust effort through `change_reasoning` on Codex transport. Offers low, medium, high, xhigh and max, never below your selected level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
+- **Auto reasoning:** lets GPT-6 Astra, Sol and Luna, plus GPT-6.1 Sol, adjust effort through `change_reasoning` on Codex transport. Offers low, medium, high, xhigh and max, never below your selected level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
 
 On these GPT-6 models, auto reasoning and **Shift+Tab** use native configuration updates that preserve the request prefix and continuation eligibility. Cache hits still depend on the server. Updates survive resume and native compaction. Server-side automatic truncation and compaction are incompatible, but explicit Responses compaction V2 is supported. Other models retain Pi's usual reasoning selector.
 
