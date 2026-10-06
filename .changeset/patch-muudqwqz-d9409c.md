@@ -2,15 +2,12 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Fixed the 25-minute idle rollover after aborted or failed runs. Stale notes now trigger a checkpoint before the waiting input starts in a new context window.
+Improved context recovery and added Fast Mode controls for all models and individual families.
 
-- Added opt-in **Note save markers** in `/codex display`, with `/tree` bookmarks on completed replies that saved notes. In **Notes and history**, returning to a bookmarked reply and running `/compact` opens a window without another note-writing turn.
-- Fixed manual `/compact` checkpoint requests getting stuck after the idle deadline.
-- Added an **All models Fast Mode** control alongside independent Astra, Sol, Terra and Luna settings in `/codex`. Family settings apply across model versions. Existing preferences are preserved; turning All models off also clears priority requests for models outside those families.
-- Updated `change_reasoning` guidance to prompt use at task start and when the work changes. The user-selected floor and reset behavior are unchanged.
-- Added durable context briefings from extensions, including shared-board status, with replay and compaction support. Extensions can inspect selected context to avoid repeating notices that are still visible.
-- Fixed inactive Codex conversion restoring tools disabled by other extensions, including hashline editing.
-- Fixed hidden tools' guidelines remaining in the standing prompt with Pi 1.0.4.
-- Added request-scoped fetch support and honored zero-retry requests for approval reviewers. Nested tool hooks now retain the original exec call ID across waits.
-- Nested approval hooks now inspect prepared arguments, so tool aliases and freeform inputs cannot bypass argument-based approval rules.
-- Notes listings now accept `max_files` as an alias for `max_results`. Context briefings flag that more notes may be available and expand in the UI like notebook state and available tools.
+- Idle rollover now checkpoints stale notes before continuing in a new window, including after aborted or failed runs.
+- Added optional **Note save markers** in `/codex display`. Use their `/tree` bookmarks to return to saved checkpoints. In **Notes and history**, plain `/compact` can reuse those notes.
+- Added **All models Fast Mode** alongside independent Astra, Sol, Terra and Luna controls in `/codex`. Family choices apply across model versions. Existing preferences are preserved.
+- Extension briefings survive compaction and context rollover. Context briefings expand in the UI, and recent-note previews flag that more notes may be available.
+- Added Codex Guardian support for Code and Notebook tool calls.
+- Inactive Codex conversion preserves other extensions' tool selections. Hidden tools no longer add standing prompt instructions.
+- Notes listings accept `max_files` as an alias for `max_results`.
