@@ -68,8 +68,8 @@ Custom-tool contract changes and removals, including promoted tools, are announc
 | General | Settings scope, execution and extension modes, providers, heavy prompt overwrite, time reminders |
 | Context | Continuity, notes storage, subagent sharing, compaction, V2 retention |
 | Tools | Auto reasoning (GPT-6), image descriptions, standalone tools |
-| OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite |
-| Display | Statusline, tool rendering, Code Mode detail, background shells |
+| OpenAI | Per-family Fast Mode, verbosity, transport, cache diagnostics, Responses Lite |
+| Display | Statusline, tool rendering, Code Mode detail, note save markers, background shells |
 | Voice | LAN server, realtime behaviour, summarisation, dictation, shortcuts, prompt paths |
 | Usage | Spend by model and reset window, Codex limits, banked reset credits |
 | About | GitHub, changelog, Discord, issues |
@@ -97,7 +97,7 @@ The first setting chooses **Global** or **This project**:
 - Switching back to Global removes project overrides. Without a project file, all settings inherit globally.
 - GPT-5.6 Luna cache keepalive remains global. GPT-5.6 Sol and Terra keepalive follows the project.
 
-`PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` overrides Fast Mode for one Pi process. Run `/reload` after editing config files by hand.
+Fast Mode has independent settings for Astra, Sol, Terra and Luna, shared across each family's model versions. Existing boolean preferences still apply to all families. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` overrides every family for one Pi process. Run `/reload` after editing config files by hand.
 
 `tools.customRustBinariesDir` overrides bundled helpers by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build on the target machine, collect the binaries in one directory, set its path, then `/reload`.
 
@@ -105,7 +105,7 @@ The first setting chooses **Global** or **This project**:
 
 - **Heavy system prompt overwrite:** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. Off by default.
 - **Current time reminders:** choose 30 or 60 minutes under **General**. Active Responses adapters receive a persisted UTC developer message on the first inference in each context and when the interval has elapsed. No timer, extra turn or system-prompt change. Off by default.
-- **Auto reasoning (GPT-6):** lets Astra, Sol and Luna adjust effort through `change_reasoning` on Codex transport. Offers low, medium and high, never below your starting level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
+- **Auto reasoning (GPT-6):** lets Astra, Sol and Luna adjust effort through `change_reasoning` on Codex transport. Offers low, medium, high, xhigh and max, never below your selected level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
 
 On these GPT-6 models, auto reasoning and **Shift+Tab** use native configuration updates that preserve the request prefix and continuation eligibility. Cache hits still depend on the server. Updates survive resume and native compaction. Server-side automatic truncation and compaction are incompatible, but explicit Responses compaction V2 is supported. Other models retain Pi's usual reasoning selector.
 
@@ -168,7 +168,9 @@ Remote results remain tied to their original context family and Codex account. A
 
 With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, explicit `new_context` compacts before rollover.
 
-**New window after 25 minutes idle** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. After at least 25 minutes without a run, the next prompt opens a window first only if the last completed run saved fresh notes successfully. The original prompt and attachments then proceed normally. Resume uses the saved run's settlement time. Older runs without a recorded settlement do not trigger idle rollover. This is an idle rollover policy, not proof that the provider cache expired. If rollover fails, input and attachments stay queued for a retry when you submit another prompt.
+**Note save markers** in `/codex display` is off by default. When enabled, completed turns with confirmed saved notes get a **✓ Notes saved** marker and a bookmark on the reply in `/tree`. To discard a later conversation turn, return to the bookmarked reply with **No summary**, then run plain `/compact` in **Notes and history**. A new window opens without another note-writing turn. Tree navigation preserves that reply's original idle age. Existing user labels are preserved, and turning markers off keeps saved bookmarks.
+
+**New window after 25 minutes idle** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. After at least 25 minutes since a run settled, including an aborted or failed run, the next prompt opens a window first. If fresh saved notes are missing, a checkpoint turn saves the current state before rollover. The original prompt and attachments then proceed normally. Resume uses the recorded settlement time. Older runs without a recorded settlement do not trigger idle rollover. This policy does not prove that the provider cache expired. If checkpointing or rollover fails, input and attachments remain pending. Submit another prompt to retry, or reload to cancel pending input. Aborting the checkpoint turn cancels pending input and attachments instead of submitting them later.
 
 Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
 

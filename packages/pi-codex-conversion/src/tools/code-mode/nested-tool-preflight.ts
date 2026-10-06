@@ -124,6 +124,7 @@ export async function runCodeModeToolPreflight(
 		toolName,
 		input,
 		toolCallId: context.toolCallId,
+		originalExecCallId: context.originalExecCallId,
 		cwd: context.cwd,
 		extensionContext: context.extensionContext,
 		signal,

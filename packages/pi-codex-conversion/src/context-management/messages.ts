@@ -80,7 +80,7 @@ export function renderContextWindowMessage(
 	];
 	if (identity.previousWindowId)
 		lines.push(`Previous context window id: ${identity.previousWindowId}`);
-	if (threadHint) lines.push(threadHint);
+	if (threadHint) lines.push(threadHint, "More notes may be available; list or search notes");
 	lines.push("</context_window>");
 	return `${CONTEXT_WINDOW_GUIDANCE}\n\n${lines.join("\n")}`;
 }
@@ -93,7 +93,7 @@ ${urgent ? "Urgent: " : ""}${remainingPercent}% remaining. Checkpoint the active
 
 export function renderManualContextCheckpoint(customInstructions?: string): string {
 	return `<context_window_reminder>
-Manual context rollover requested. Save the current state with notes, then finish your response. The new window opens after this run settles. Do not call new_context. If saving fails, report the failure without rolling over.
+Context checkpoint requested. Save the current state with notes, then finish your response. The new window opens after this run settles. Do not call new_context. If saving fails, report the failure without rolling over.
 </context_window_reminder>${customInstructions?.trim() ? `\n\nCheckpoint guidance from /compact:\n${customInstructions}` : ""}`;
 }
 

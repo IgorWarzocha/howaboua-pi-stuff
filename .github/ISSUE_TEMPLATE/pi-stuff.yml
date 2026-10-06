@@ -1,18 +1,37 @@
 name: Pi Stuff issue
-description: Report a bug, rough edge, or small feature request.
+description: Describe the problem in plain English, then add any technical details.
 title: "[package]: "
 body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: "Start with 2 or 3 plain-English sentences: what you want to do, what gets in the way, and what should happen instead. Explain unfamiliar terms. Put implementation proposals in the technical details below."
+      placeholder: |
+        I want to ...
+        Currently ...
+        I'd like ...
+    validations:
+      required: true
+
   - type: dropdown
     id: package
     attributes:
       label: Which package is this about?
-      description: Pick the closest one. “Not sure” is fine.
+      description: Pick the closest one. If this is about a skill, include its name in your description.
       options:
         - Not sure / general
         - pi-ask
-        - pi-codex-conversion
         - pi-auto-trees
+        - pi-better-skills-tool
+        - pi-browser
         - pi-cache-hit-predictor
+        - pi-codex-conversion
+        - pi-codex-guardian
+        - pi-codex-imagegen
+        - pi-codex-web-run
+        - pi-dynamic-tools
+        - pi-explore-subagents
         - pi-gippity-control
         - pi-gpt-switcher
         - pi-memories
@@ -23,16 +42,10 @@ body:
         - pi-subagent-review
         - pi-subdir-agents
         - pi-unicode-charts
+        - pi-vent
         - A skill
     validations:
       required: true
-
-  - type: input
-    id: skill
-    attributes:
-      label: Skill name, if this is about a skill
-      description: "Optional. Example: anti-ai-copy, chrome-cdp, omarchy-help."
-      placeholder: anti-ai-copy
 
   - type: dropdown
     id: kind
@@ -48,22 +61,10 @@ body:
       required: true
 
   - type: textarea
-    id: problem
-    attributes:
-      label: What happened?
-      description: Say what you tried, what went wrong, and what you expected instead.
-      placeholder: |
-        I ran ...
-        Expected ...
-        Got ...
-    validations:
-      required: true
-
-  - type: textarea
     id: repro
     attributes:
-      label: Quick repro, if you have one
-      description: "Commands, prompts, config snippets, screenshots, or links are all useful. Leave blank if it is more of a vibe/request."
+      label: Steps to reproduce, if this is a bug
+      description: Give the shortest steps or prompt that reproduces the problem. Leave blank if you cannot reproduce it.
       placeholder: |
         1. Install ...
         2. Run ...
@@ -72,12 +73,12 @@ body:
   - type: input
     id: pi-version
     attributes:
-      label: Pi version
-      description: Optional, but useful for extension bugs.
-      placeholder: pi --version
+      label: Versions
+      description: For bugs, include Pi and affected package versions if known.
+      placeholder: "Pi 1.x, pi-shepherdr 0.x"
 
   - type: textarea
     id: extra
     attributes:
-      label: Anything else?
-      description: Logs, screenshots, rough ideas, or context that did not fit above.
+      label: Technical details
+      description: Optional logs, config, screenshots, or implementation ideas. The main request above should make sense without this section. Remove API keys, passwords, and other secrets.

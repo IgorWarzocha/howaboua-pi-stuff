@@ -5,10 +5,12 @@ import type {
 import { isSettledStatus } from "./activity.js";
 import { getSnapshot } from "./herdr.js";
 import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
+import { injectAgentEvent } from "./messages.js";
 import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
+import { MonitorQuestions } from "./monitor-questions.js";
 import { MonitorState, type WorkAttempt } from "./monitor-state.js";
-import type { AssistantReader } from "./session-reader.js";
+import { type AssistantReader, SessionReader } from "./session-reader.js";
 import {
 	type ClaimedSettlement,
 	SettlementReporter,
@@ -45,6 +47,7 @@ export class AgentMonitor {
 	private readonly state = new MonitorState();
 	private readonly events: MonitorEvents;
 	private readonly settlements: SettlementReporter;
+	private readonly questions: MonitorQuestions;
 	private context: ExtensionContext | undefined;
 	private activationGeneration = 0;
 
@@ -54,6 +57,26 @@ export class AgentMonitor {
 		this.onChange = options.onChange;
 		this.onRefresh = options.onRefresh;
 		this.selfPaneId = options.selfPaneId;
+		const reader = options.reader ?? new SessionReader();
+		this.questions = new MonitorQuestions({
+			client: this.client,
+			reader,
+			state: this.state,
+			notify: (ctx, record, agent, ask) => {
+				injectAgentEvent(pi, ctx, {
+					agent,
+					ask,
+					record,
+					status: "question",
+					labels: {},
+					agentToolName: "agents",
+					machine: this.machine,
+					machineLabel: options.machineLabel(),
+					operatorPrefix: options.operatorPrefix,
+				});
+			},
+			persist: () => this.persist(),
+		});
 		this.settlements = new SettlementReporter(
 			pi,
 			this.client,
@@ -62,7 +85,7 @@ export class AgentMonitor {
 				this.persist();
 				this.refreshAfterEvent();
 			},
-			options.reader,
+			reader,
 			{
 				machine: this.machine,
 				label: options.machineLabel,
@@ -87,6 +110,7 @@ export class AgentMonitor {
 		this.deactivate();
 		const generation = this.activationGeneration;
 		this.context = ctx;
+		this.questions.start(ctx);
 		const dropped = this.state.restore(restored, this.selfPaneId);
 		if (dropped > 0) {
 			ctx.ui.notify(
@@ -105,6 +129,7 @@ export class AgentMonitor {
 		this.activationGeneration += 1;
 		this.context = undefined;
 		this.events.stop();
+		this.questions.stop();
 		this.settlements.stop();
 	}
 
@@ -149,6 +174,7 @@ export class AgentMonitor {
 			new Error(`${paneId} was unwatched before its work settled`),
 		);
 		this.persist();
+		if (this.list().length === 0) await this.questions.refresh([]);
 		await this.events.refresh();
 		return true;
 	}
@@ -177,6 +203,15 @@ export class AgentMonitor {
 
 	view(panel: PaneInfo): Promise<SessionView> {
 		return this.settlements.view(panel);
+	}
+
+	submitAskAnswer(
+		panel: PaneInfo,
+		askId: string,
+		submit: (signal: AbortSignal) => Promise<void>,
+		signal: AbortSignal,
+	) {
+		return this.questions.submitAnswer(panel, askId, submit, signal);
 	}
 
 	acceptWork(attempt: WorkAttempt | undefined): void {
@@ -232,6 +267,7 @@ export class AgentMonitor {
 			return;
 		}
 		if (this.list().length === 0) {
+			await this.questions.refresh([]);
 			if (persistRestoration) this.persist();
 			else this.onRefresh();
 			return;
@@ -251,6 +287,7 @@ export class AgentMonitor {
 		}
 		if (changed || persistRestoration) this.persist();
 		else this.onRefresh();
+		await this.questions.refresh(snapshot.agents);
 		for (const completion of completions) {
 			void this.report(completion);
 		}
@@ -290,6 +327,7 @@ export class AgentMonitor {
 	}
 
 	private refreshAfterEvent(): void {
+		if (this.list().length === 0) void this.questions.refresh([]);
 		// MonitorEvents reports failures through onWarning before rejecting awaited updates.
 		void this.events.refresh().catch(() => undefined);
 	}

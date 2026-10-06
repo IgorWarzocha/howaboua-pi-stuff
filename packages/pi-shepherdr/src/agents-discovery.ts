@@ -48,7 +48,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
 			ask_id: "Exact pending Ask ID",
-			send: "Only for a needed answer or to change the recipient's current work. No courtesy updates, acknowledgements or completion echoes. Can wake idle agents; no wait/watch",
+			send: "Only needed input or work changes; wakes idle agents, no wait/watch. Never wake finished workers to acknowledge completion or announce closure; close finished panes silently with host controls",
 			assign: "Delegate a task to an existing agent",
 			attach:
 				"Idle target; context/board booleans choose shared access and board membership independently; no task/watch",
@@ -59,7 +59,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			share_context:
 				"Profile false isolates notes/history; otherwise follows controller sharing setting",
 			watch:
-				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
+				"Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			slash:

@@ -9,9 +9,6 @@ export function createBoardTool(board: AgentBoard) {
 		label: "Message board",
 		description:
 			"Shared discussions and saved board history; call help for actions",
-		promptGuidelines: [
-			"board is shared with your agent tree. Use it for plans, decisions and findings in substantial multi-agent work, not routine delegation. Use agents for task assignment and urgent messages",
-		],
 		parameters: BoardParameters,
 		executionMode: "sequential",
 		async execute(id, params, signal, _onUpdate, ctx) {

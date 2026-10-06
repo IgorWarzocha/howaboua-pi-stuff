@@ -62,6 +62,20 @@ export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 		onPendingChange: (update) => {
 			pi.appendEntry(PENDING_ASK_ENTRY_TYPE, update);
 		},
+		onSteerActiveChange: (request, active) => {
+			pi.appendEntry(
+				"pi-ask-active",
+				active
+					? {
+							version: 1,
+							state: "active",
+							id: request.id,
+							delivery: "steer",
+							prompts: request.prompts,
+						}
+					: { version: 1, state: "closed", id: request.id },
+			);
+		},
 	});
 	const ask = askRuntime.tool;
 	const restorePending = (ctx: ExtensionContext) => {

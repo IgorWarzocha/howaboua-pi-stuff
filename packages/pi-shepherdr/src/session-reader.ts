@@ -1,4 +1,5 @@
 import { open, stat } from "node:fs/promises";
+import { watchSessions } from "./remote/shepherdr-session-watch.mjs";
 import type {
 	AskResult,
 	LatestAssistant,
@@ -118,6 +119,7 @@ function askFromInput(
 	return {
 		toolCallId,
 		handoff: args["handoff"] === true,
+		...(args["delivery"] === "steer" ? { delivery: "steer" as const } : {}),
 		prompts,
 	};
 }
@@ -143,6 +145,7 @@ function askResult(
 	if (message["isError"] === true) return [id, { status: "rejected" }];
 	if (message["isError"] !== false) return [id, { status: "unknown" }];
 	const details = record(message["details"]);
+	if (details?.["pending"] === true) return undefined;
 	if (details?.["dismissed"] === true) return [id, { status: "rejected" }];
 	const rawResponses = details?.["responses"];
 	const rawResponseCount = Array.isArray(rawResponses)
@@ -175,7 +178,12 @@ function askResult(
 	return [
 		id,
 		{
-			status: "accepted",
+			status:
+				responses &&
+				responses.length > 0 &&
+				responses.length === rawResponseCount
+					? "accepted"
+					: "unknown",
 			...(responses && responses.length === rawResponseCount
 				? { responses }
 				: {}),
@@ -237,6 +245,27 @@ async function readSessionView(
 			}
 		}
 		if (
+			entry["type"] === "custom" &&
+			entry["customType"] === "pi-ask-pending"
+		) {
+			const update = record(entry["data"]);
+			if (
+				update?.["version"] === 1 &&
+				update["state"] === "closed" &&
+				typeof update["id"] === "string"
+			) {
+				resolved.add(update["id"]);
+				const result = askResult({
+					role: "toolResult",
+					toolName: "ask",
+					toolCallId: update["id"],
+					isError: false,
+					details: update,
+				});
+				if (result && !askResults.has(result[0])) askResults.set(...result);
+			}
+		}
+		if (
 			!input &&
 			entry["type"] === "custom_message" &&
 			entry["customType"] === "herdr-agent-message" &&
@@ -251,7 +280,8 @@ async function readSessionView(
 			const result = askResult(message);
 			if (result && !askResults.has(result[0])) askResults.set(...result);
 			const resolvedId = resolvedToolCallId(message);
-			if (resolvedId) resolved.add(resolvedId);
+			if (resolvedId && record(message["details"])?.["pending"] !== true)
+				resolved.add(resolvedId);
 			if (!assistant) {
 				assistant = assistantFromMessage(id, message);
 				if (assistant) assistantDepth = currentDepth;
@@ -270,7 +300,9 @@ async function readSessionView(
 					.map(askCall)
 					.find(
 						(candidate) =>
-							candidate !== undefined && !resolved.has(candidate.toolCallId),
+							candidate !== undefined &&
+							candidate.delivery !== "steer" &&
+							!resolved.has(candidate.toolCallId),
 					);
 			}
 		}
@@ -307,6 +339,14 @@ async function readSessionView(
 }
 
 export class SessionReader {
+	async watch(
+		paths: string[],
+		onChange: (path: string) => void,
+		onError: (error: Error) => void,
+		signal: AbortSignal,
+	): Promise<() => void> {
+		return watchSessions(paths, onChange, onError, signal);
+	}
 	private readonly cache = new Map<
 		string,
 		{ mtimeMs: number; result: SessionView; size: number }
@@ -340,6 +380,12 @@ export class SessionReader {
 }
 
 export interface AssistantReader {
+	watch(
+		paths: string[],
+		onChange: (path: string) => void,
+		onError: (error: Error) => void,
+		signal: AbortSignal,
+	): Promise<() => void>;
 	latest(path?: string): Promise<LatestAssistant | undefined>;
 	view(path?: string): Promise<SessionView>;
 }

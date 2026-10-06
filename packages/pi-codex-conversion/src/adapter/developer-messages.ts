@@ -12,6 +12,7 @@ import { CODEX_REASONING_UPDATE_TYPE, codexReasoningLane, normalizeCodexConfigur
 import { CODEX_CURRENT_TIME_REMINDER_TYPE } from "./current-time-reminder.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE } from "./code-mode/toolkit-updates.ts";
 import { CODEX_NOTEBOOK_STATUS_TYPE } from "./notebook-status.ts";
+import { CODEX_CONTEXT_BRIEFING_TYPE } from "../context-briefings.ts";
 import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER, readRemoteDelivery, remoteDeliveryItems, remoteDeliverySource, validateRemoteDelivery, type RemoteDelivery } from "../context-management/remote-delivery.ts";
 import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../context-management/remote-delivery-protocol.ts";
 import { normalizeResponsesId } from "../providers/openai-responses/shared.ts";
@@ -43,6 +44,7 @@ export class CodexDeveloperMessageBridge {
 					message.customType !== CODEX_CURRENT_TIME_REMINDER_TYPE &&
 					message.customType !== CODEX_TOOLKIT_UPDATE_TYPE &&
 					message.customType !== CODEX_NOTEBOOK_STATUS_TYPE &&
+					message.customType !== CODEX_CONTEXT_BRIEFING_TYPE &&
 					message.customType !== REMOTE_DELIVERY_MESSAGE &&
 					message.customType !== CODEX_REASONING_UPDATE_TYPE && customMetadata === undefined)
 			) {
@@ -50,7 +52,7 @@ export class CodexDeveloperMessageBridge {
 				continue;
 			}
 			if (!active) {
-				if (message.customType === CODEX_DEVELOPER_MESSAGE_TYPE || message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE || message.customType === CODEX_NOTEBOOK_STATUS_TYPE || customMetadata !== undefined)
+				if (message.customType === CODEX_DEVELOPER_MESSAGE_TYPE || message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE || message.customType === CODEX_NOTEBOOK_STATUS_TYPE || message.customType === CODEX_CONTEXT_BRIEFING_TYPE || customMetadata !== undefined)
 					projected.push(message);
 				continue;
 			}

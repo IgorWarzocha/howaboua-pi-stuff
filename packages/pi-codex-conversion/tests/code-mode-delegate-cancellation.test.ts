@@ -135,6 +135,7 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	const progress = new CodeModeDelegateRuntime(() => undefined);
 	progress.bindCell("cell-c", {
 		cwd: process.cwd(),
+		originalExecCallId: "progress-exec",
 		onUpdate: (update) => originalUpdates.push(JSON.stringify(update)),
 	}, new Map([["progress", {
 		name: "progress",
@@ -142,6 +143,7 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 		deferLoading: false,
 		kind: "function",
 		async invoke(_input, context) {
+			assert.equal(context.originalExecCallId, "progress-exec");
 			reportProgress = (text) => context.onUpdate?.({
 				content: [{ type: "text", text }],
 				details: {},
@@ -162,4 +164,5 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	await progressing;
 	assert.equal(originalUpdates.some((update) => update.includes("halfway")), false);
 	assert.equal(resumedUpdates.some((update) => update.includes("halfway")), true);
+	await progress.invokeDirect("cell-c", 2, "progress", {});
 });

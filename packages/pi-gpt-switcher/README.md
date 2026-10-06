@@ -27,8 +27,9 @@ agent directory:
 
 Edit the file to change a shortcut's session context window or default
 reasoning. Changes apply on the next shortcut invocation and do not alter the
-provider catalogue. Context windows may be lowered to 128k but not raised
-above the shortcut's shipped limit.
+provider catalogue. Context windows must be safe integers of at least 128k.
+Values above the shortcut's default are accepted. Set a window supported by
+your provider; this setting changes Pi's budget, not the provider's capacity.
 
 Existing config files need no migration: omitted shortcuts use their shipped defaults, and unknown entries are ignored.
 

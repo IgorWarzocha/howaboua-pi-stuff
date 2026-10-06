@@ -337,6 +337,7 @@ export class CodeModeDelegateRuntime {
 			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
+			originalExecCallId: this.originalExecCalls.get(cellId),
 			toolCallId: trace.id,
 			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
 				const pending = this.opaqueResults.get(cellId);
@@ -391,24 +392,21 @@ export class CodeModeDelegateRuntime {
 				this.setBlocked(cellId, trace.id, true);
 				emitTrace();
 			}
-			const result = await runCodeModeToolWithHooks(
-				tool.name,
-				input,
-				invocationContext,
-				controller.signal,
-				async (hookContext) => {
-					if (isCustomToolDefinition(tool)) emitTrace();
-					controller.signal.throwIfAborted();
-					const run = async (): Promise<unknown> => {
-						return isCustomToolDefinition(tool)
-							? await runCustomTool(tool, input, hookContext.cwd, controller.signal)
-							: await tool.invoke(input, hookContext, controller.signal);
-					};
-					return !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
-						? await this.invokeSequential(cellId, controller.signal, run)
-						: await run();
-				},
-			);
+			const invoke = async (hookContext: ToolExecutionContext) => {
+				if (isCustomToolDefinition(tool)) emitTrace();
+				controller.signal.throwIfAborted();
+				const run = async (): Promise<unknown> => {
+					return isCustomToolDefinition(tool)
+						? await runCustomTool(tool, input, hookContext.cwd, controller.signal)
+						: await tool.invoke(input, hookContext, controller.signal);
+				};
+				return !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
+					? await this.invokeSequential(cellId, controller.signal, run)
+					: await run();
+			};
+			const result = !isCustomToolDefinition(tool) && tool.executionPipeline === "adapter"
+				? await invoke(invocationContext)
+				: await runCodeModeToolWithHooks(tool.name, input, invocationContext, controller.signal, invoke);
 			if (contextNoteWrite) this.contextNoteWrites.set(cellId, this.contextNoteWrites.get(cellId) !== false);
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
-import { ALL_CODEX_ADAPTER_TOOL_NAMES, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../src/adapter/activation/runtime-plan.ts";
+import { ALL_CODEX_ADAPTER_TOOL_NAMES, hasCodexTransportConfigChanged, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../src/adapter/activation/runtime-plan.ts";
 import {
 	getCodeModeExtensionToolSnapshot,
 	registerCodeModeExtensionTools,
@@ -280,6 +280,13 @@ test("execution mode and Responses Lite transport resolve independently", () => 
 	const proxyWithoutLite = resolveCodexRuntimePlan(createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, config);
 
 	assert.deepEqual({ kind: proxyWithoutLite.kind, transport: proxyWithoutLite.transport }, { kind: "code", transport: "responses" });
+	assert.equal(hasCodexTransportConfigChanged(config, structuredClone(config)), false,
+		"normal config reloads must not invalidate transport merely because family settings were cloned");
+	for (const family of ["astra", "sol", "terra", "luna", "other"] as const) {
+		const next = structuredClone(config);
+		next.openai.fast[family] = !config.openai.fast[family];
+		assert.equal(hasCodexTransportConfigChanged(config, next), true, "each changed family invalidates prepared requests");
+	}
 });
 
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {

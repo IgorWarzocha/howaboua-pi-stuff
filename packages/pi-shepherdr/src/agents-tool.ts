@@ -125,7 +125,8 @@ export function createAgentsTool(
 					...(view.assistant
 						? { reply: view.assistant.text }
 						: { reply: null }),
-					...(panel.agent_status === "blocked" && view.ask
+					...(view.ask &&
+					(panel.agent_status === "blocked" || view.ask.delivery === "steer")
 						? {
 								ask: modelAsk(view.ask),
 							}

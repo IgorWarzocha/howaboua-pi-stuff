@@ -1,19 +1,40 @@
 import {
 	type CodexConversionConfig,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	FAST_MODE_FAMILIES,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	normalizeCodexVerbosity,
 } from "../../adapter/activation/config.ts";
+import { allModelsFastModeState, normalizeFastMode } from "../../adapter/activation/fast-mode.ts";
 import { type ConfigSetting, projectCacheKeepalive, setting, toggle } from "./config-items-shared.ts";
 
 export function buildOpenAISettings(
 	config: CodexConversionConfig,
 ): ConfigSetting[] {
 	return [
-		toggle("fast", "Fast mode", config.openai.fast, (enabled, current) => ({
-			...current,
-			openai: { ...current.openai, fast: enabled },
-		}), "Request priority processing where supported. May use more quota or cost more."),
+		setting(
+			{
+				id: "fast-all",
+				label: "All models Fast Mode",
+				currentValue: allModelsFastModeState(config.openai.fast),
+				values: ["off", "on"],
+				description: "Set Fast Mode for every model. Family controls can then be changed individually. May use more quota or cost more.",
+			},
+			(value, current) => ({
+				...current,
+				openai: { ...current.openai, fast: normalizeFastMode(value === "on") },
+			}),
+		),
+		...FAST_MODE_FAMILIES.map((family) => toggle(
+			`fast-${family}`,
+			`${family[0]!.toUpperCase()}${family.slice(1)} Fast Mode`,
+			config.openai.fast[family],
+			(enabled, current) => ({
+				...current,
+				openai: { ...current.openai, fast: { ...current.openai.fast, [family]: enabled } },
+			}),
+			"Request priority processing for this family across model versions. May use more quota or cost more.",
+		)),
 		{
 			item: {
 				id: "lunaCacheKeepaliveMinutes",

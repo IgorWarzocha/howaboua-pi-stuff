@@ -38,6 +38,7 @@ export function browserHelp(
 			read_result: "handle offset",
 			discard_result: "handle",
 		},
-		continue: "next_lineno/next_offset; response_length=short|medium|long",
+		continue:
+			"next_lineno/next_offset; open(ref_id)/find: response_length=short|medium|long",
 	};
 }

@@ -282,7 +282,11 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 		runtime.state.config = {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			executionMode: "code",
-			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, lunaCacheKeepaliveMinutes: 5 },
+			openai: {
+				...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+				fast: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai.fast, luna: true },
+				lunaCacheKeepaliveMinutes: 5,
+			},
 		};
 		const alias = {
 			...model,
@@ -318,6 +322,7 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 			socketReused: false,
 		});
 		assert.match(JSON.stringify(sentFrames()[0]), /mcp__records: Lookup/);
+		assert.equal(sentFrames()[0]?.service_tier, "priority", "renamed routes use the actual model family");
 		assert.doesNotMatch(JSON.stringify(sentFrames()[0]), /Call the tools of|\(codemode\)/);
 		assert.match(sections.mcp_servers, /\(codemode\)/, "prewarm never rewrites persisted MCP metadata");
 
@@ -327,9 +332,10 @@ test("compaction prewarm accepts renamed Codex routes and deliberately resets st
 		assert.equal((await runtime.startCompactionPrewarm(extensionContext))?.status, "ready");
 		assert.equal(sentFrames()[1]?.previous_response_id, "resp_cached");
 		assert.equal(sentFrames()[1]?.input?.length, 1, "history-aware warmup sends only the validated extension");
-		runtime.state.config.openai.verbosity = "high";
+		runtime.state.config.openai.fast.luna = false;
 		assert.equal((await runtime.startCompactionPrewarm(extensionContext))?.status, "ready");
 		assert.equal(sentFrames()[2]?.previous_response_id, undefined, "changed request settings require a full warmup");
+		assert.equal(sentFrames()[2]?.service_tier, undefined, "a disabled family never requests priority");
 		assert.ok(warmedSocket);
 		warmedSocket.close();
 		const repaired = await runtime.startCompactionPrewarm(extensionContext);

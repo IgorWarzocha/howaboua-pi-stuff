@@ -4,6 +4,7 @@ import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes } from "./config.ts";
 import { readCodexCacheEnvironment } from "./cache-environment.ts";
+import { normalizeFastMode } from "./fast-mode.ts";
 
 // Lite deliberately shares the original package's config so replacing either
 // package does not require a reset or a second settings file.
@@ -166,7 +167,7 @@ function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.Proces
 		...config,
 		openai: {
 			...config.openai,
-			...(fastOverride !== undefined ? { fast: fastOverride } : {}),
+			...(fastOverride !== undefined ? { fast: normalizeFastMode(fastOverride) } : {}),
 			...(cacheEnvironment.diagnostics !== undefined
 				? { cacheDiagnostics: cacheEnvironment.diagnostics }
 				: {}),

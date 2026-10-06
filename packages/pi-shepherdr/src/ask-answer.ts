@@ -255,6 +255,7 @@ async function sendInput(
 	signal.throwIfAborted();
 	if (step.text !== undefined) {
 		await requireSameAgent(client, panel);
+		signal.throwIfAborted();
 		await client.request("pane.send_input", {
 			pane_id: panel.pane_id,
 			text: step.text,
@@ -262,6 +263,7 @@ async function sendInput(
 	}
 	if (step.keys) {
 		await requireSameAgent(client, panel);
+		signal.throwIfAborted();
 		await client.request("agent.send_keys", {
 			target: panel.pane_id,
 			keys: step.keys,
@@ -302,22 +304,28 @@ export async function prepareAskAnswer(
 	answers: AskAnswer[],
 	signal: AbortSignal,
 	expectedAskId: string,
-): Promise<{ ask: PendingAsk; submit(): Promise<void> }> {
-	if (panel.agent_status !== "blocked") {
-		throw new Error(
-			`${panel.pane_id} is ${panel.agent_status}, not blocked on ask`,
-		);
-	}
+): Promise<{ ask: PendingAsk; submit(signal?: AbortSignal): Promise<void> }> {
 	const view = await monitor.view(panel);
 	if (!view.ask) {
-		throw new Error(
-			`${panel.pane_id} has no pending pi-ask call on its active branch`,
-		);
+		throw new Error(`${panel.pane_id} has no live Ask on its active branch`);
 	}
 	const ask = view.ask;
-	if (ask.toolCallId !== expectedAskId) {
-		throw new Error(`${panel.pane_id} is blocked on a different Ask call`);
+	if (panel.agent_status !== "blocked" && ask.delivery !== "steer") {
+		throw new Error(`${panel.pane_id} is not waiting on Ask`);
 	}
+	if (ask.toolCallId !== expectedAskId) {
+		throw new Error(`${panel.pane_id} has a different Ask call`);
+	}
+	const requireLiveAsk = async () => {
+		const current = await getAgent(client, panel.pane_id);
+		if (
+			!sameAgentIdentity(panel, current) ||
+			(ask.delivery !== "steer" && current.agent_status !== "blocked") ||
+			(await monitor.view(current)).ask?.toolCallId !== ask.toolCallId
+		) {
+			throw new Error("ask closed before all requested answers were entered");
+		}
+	};
 	const initial = inspectAskScreen(await screen(client, panel.pane_id), ask);
 	const first = ask.prompts[0];
 	const expectedSelection = first?.choices[0]?.label ?? "Other/rephrase";
@@ -339,15 +347,10 @@ export async function prepareAskAnswer(
 	const final = plan.pop();
 	if (!final?.final) throw new Error("ask answer plan has no final submission");
 	for (const step of plan) {
+		await requireLiveAsk();
 		await sendInput(client, panel, step, signal);
 		await new Promise((resolve) => setTimeout(resolve, 35));
-		const current = await getAgent(client, panel.pane_id);
-		if (
-			!sameAgentIdentity(panel, current) ||
-			current.agent_status !== "blocked"
-		) {
-			throw new Error("ask closed before all requested answers were entered");
-		}
+		await requireLiveAsk();
 		if (
 			!inspectAskScreen(await screen(client, panel.pane_id), ask).recognized
 		) {
@@ -358,6 +361,17 @@ export async function prepareAskAnswer(
 	}
 	return {
 		ask,
-		submit: () => sendInput(client, panel, final, signal),
+		submit: async (submitSignal = signal) => {
+			await requireLiveAsk();
+			if (
+				inspectAskScreen(await screen(client, panel.pane_id), ask)
+					.currentPrompt !== "Review"
+			) {
+				throw new Error(
+					"ask UI is not ready to submit; stopped without retrying input",
+				);
+			}
+			await sendInput(client, panel, final, submitSignal);
+		},
 	};
 }

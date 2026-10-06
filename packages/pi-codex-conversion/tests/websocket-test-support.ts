@@ -11,6 +11,7 @@ export type ResponseCreateFrame = {
 	type: "response.create";
 	input?: unknown[] | undefined;
 	previous_response_id?: string | undefined;
+	service_tier?: string | undefined;
 	client_metadata?: Record<string, string> | undefined;
 };
 

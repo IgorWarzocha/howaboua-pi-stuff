@@ -247,20 +247,29 @@ test("nested hooks preserve preflight, raw completion and compact return boundar
 	let fail = false;
 	const adapted = toNestedTool({
 		name: "edit", label: "Edit", description: "Edit", parameters: Type.Object({ path: Type.String() }),
-		async execute() { return raw; },
+		prepareArguments(input) {
+			assert.deepEqual(input, { path: "transformed" });
+			return { path: "prepared" };
+		},
+		async execute(_id, input) { assert.equal(input.path, "prepared"); return raw; },
 	}, "await tools.edit(input)", {}, {
 		prepareInput(input) {
-			(input as { path: string }).path = "prepared";
+			(input as { path: string }).path = "transformed";
 			return input;
 		},
 		resultValue: () => "compact",
 		resultError: () => fail ? "Edit failed" : undefined,
 	});
+	context.preflight = async (call) => {
+		preflightCalls++;
+		assert.deepEqual(call.input, { path: "prepared" });
+	};
 	const success = await invoke("cell-4", 4, adapted, { path: "original" });
+	assert.equal(preflightCalls, 3, "adapted arguments are admitted exactly once");
 	assert.deepEqual(success, { type: "delegate/response", id: 4, result: { status: "ok", value: { type: "tool/result", result: "compact" } } });
 	const completed = completions[3];
 	assert.equal(completed?.status, "success");
-	assert.deepEqual(completed?.input, { path: "original" });
+	assert.deepEqual(completed?.input, { path: "prepared" });
 	assert.deepEqual(completed?.result, raw);
 	assert.match(completed?.toolCallId ?? "", /cell-4:nested-4$/);
 	fail = true;

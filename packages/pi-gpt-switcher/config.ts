@@ -56,12 +56,11 @@ function normalizeContextWindow(
 	if (
 		typeof value === "number" &&
 		Number.isSafeInteger(value) &&
-		value >= MIN_CONTEXT_WINDOW &&
-		value <= fallback
+		value >= MIN_CONTEXT_WINDOW
 	)
 		return value;
 	configurationError(
-		`${alias}.contextWindow must be an integer from ${MIN_CONTEXT_WINDOW} to ${fallback}; using the default`,
+		`${alias}.contextWindow must be a safe integer of at least ${MIN_CONTEXT_WINDOW}; using the default`,
 	);
 	return fallback;
 }

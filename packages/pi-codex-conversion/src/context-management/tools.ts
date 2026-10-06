@@ -45,6 +45,10 @@ export function createContextWindowTools(
 			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
+				if (state.contextKickoff.hasIdleInput) return {
+					content: [{ type: "text", text: "A new window will open after this checkpoint. Save your notes and finish your reply." }],
+					details: { started: false },
+				};
 				const started = plan.compactOnRollover
 					? state.contextWindows.scheduleRolloverCompaction()
 					: plan.contextManagementMode === "tree"

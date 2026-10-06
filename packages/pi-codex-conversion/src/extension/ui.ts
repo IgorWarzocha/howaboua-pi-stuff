@@ -12,7 +12,7 @@ import {
 	type CodexContextManagementMessageDetails,
 	isCodexContextManagementMessageDetails,
 } from "../context-management/messages.ts";
-import { renderContextWindowBoundary } from "../context-management/rendering.ts";
+import { NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -24,6 +24,7 @@ export interface CodexUiController {
 	invalidateUsageStatus(): void;
 	applyConfig(config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig): void;
 	refreshUsageStatus(ctx: ExtensionContext): Promise<void>;
+	recordNoteSave(ctx: ExtensionContext): void;
 }
 
 export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
@@ -75,6 +76,12 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const status = readNotebookStatus(entry.data);
 		return renderNotice(entry, status.title, status.content, expanded, theme);
 	});
+	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (_entry, { expanded }, theme) => {
+		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.noteSaveMarkers) return undefined;
+		return new Text(theme.fg("success", "✓ Notes saved") + (expanded
+			? theme.fg("dim", "\nReturn to this reply through /tree without a summary. In Notes and history, plain /compact opens a new window without another note-writing turn.")
+			: ""), 0, 0);
+	});
 	const renderNativeCompaction = (
 		content: string,
 		kind: NativeCompactionDisplayEntry["kind"],
@@ -90,14 +97,16 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	};
 	pi.registerMessageRenderer<CodexContextManagementMessageDetails>(
 		CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-		(message, { expanded }, theme) => {
+		(message, { expanded, outputPad }, theme) => {
 			if (
 				!isCodexContextManagementMessageDetails(message.details) ||
-				message.details.contextManagement.kind !== "window" ||
+				!["window", "identity"].includes(message.details.contextManagement.kind) ||
 				typeof message.content !== "string"
 			)
 				return undefined;
-			return renderContextWindowBoundary(message.details, expanded, theme);
+			return renderNotice(message,
+				`Context window ${message.details.contextManagement.windowNumber + 1} · Notes and history`,
+				message.content, expanded, theme, outputPad);
 		},
 	);
 	// Legacy sessions stored display-only compaction records as custom messages.
@@ -130,6 +139,14 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		usageGeneration += 1;
 		runtime.state.usageStatus = undefined;
 	};
+	const recordNoteSave = (ctx: ExtensionContext) => {
+		const { state } = runtime;
+		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const identity = state.contextWindows.currentIdentity();
+		if (plan.contextManagement && identity)
+			recordNoteSaveMarker(pi, ctx, identity.currentWindowId, plan.contextManagementMode);
+	};
 	const refreshUsageStatus = async (ctx: ExtensionContext) => {
 		const generation = ++usageGeneration;
 		if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
@@ -156,7 +173,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		renderBackgroundWidget,
 		invalidateUsageStatus,
 		refreshUsageStatus,
+		recordNoteSave,
 		applyConfig(config, ctx, previousConfig) {
+			if (config.ui.noteSaveMarkers && !previousConfig.ui.noteSaveMarkers) recordNoteSave(ctx);
 			if (config.voiceFeaturesOnly || !config.ui.statusLine) {
 				invalidateUsageStatus();
 			} else if (

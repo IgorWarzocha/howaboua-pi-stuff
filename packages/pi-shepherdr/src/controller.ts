@@ -3,17 +3,19 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentBoard } from "./board/host.js";
+import {
+	contextBriefingWindow,
+	hasContextRollover,
+	recordContextBriefing,
+	registerContextBriefing,
+} from "./context-briefing.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
+import { activeAgentsBriefing, orchestrationGuidance } from "./messages.js";
 import { loadAgentProfiles } from "./profiles.js";
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
-const GENERAL_ORCHESTRATION_MESSAGE =
-	"Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks.";
-const ORCHESTRATION_MESSAGE =
-	"Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
-const NORMAL_MESSAGE = "Work normally. Delegate only when useful or requested.";
 
 export function registerAgentController(
 	pi: ExtensionAPI,
@@ -33,7 +35,7 @@ export function registerAgentController(
 		signal: AbortSignal,
 	) => {
 		const sessionId = ctx.sessionManager.getSessionId();
-		const content = enabled ? await orchestrationMessage() : NORMAL_MESSAGE;
+		const content = await orchestrationMessage(enabled);
 		signal.throwIfAborted();
 		if (ctx.sessionManager.getSessionId() !== sessionId)
 			throw new Error("Session changed; retry /herdr");
@@ -64,6 +66,64 @@ export function registerAgentController(
 		signal.throwIfAborted();
 		return fleet.connect(machine);
 	};
+	registerContextBriefing(
+		pi,
+		"orchestration",
+		(ctx) => restoreOrchestrationState(ctx).enabled,
+		async (ctx, windowId, messages) => {
+			const sessionId = ctx.sessionManager.getSessionId();
+			const state = restoreOrchestrationState(ctx);
+			const window = contextBriefingWindow(ctx, windowId);
+			// Initialization and compaction may keep earlier messages. Only actual
+			// selected context proves a toggle still supplies this window's guidance.
+			if (
+				state.visible &&
+				messages?.some(
+					(message) =>
+						message.role === "custom" &&
+						message.customType === ORCHESTRATION_STATE_TYPE &&
+						message.timestamp === state.timestamp,
+				)
+			)
+				return;
+			const key = JSON.stringify([sessionId, window, state.id]);
+			await recordContextBriefing(
+				pi,
+				ctx,
+				"shepherdr-orchestration",
+				key,
+				async () => {
+					const content = await orchestrationMessage(state.enabled);
+					if (
+						ctx.sessionManager.getSessionId() !== sessionId ||
+						restoreOrchestrationState(ctx).id !== state.id
+					)
+						throw new Error("Orchestration changed during its briefing");
+					ctx.signal?.throwIfAborted();
+					return content;
+				},
+			);
+		},
+	);
+	registerContextBriefing(
+		pi,
+		"active agents",
+		() => fleet.list().some((agent) => agent.activity.phase !== "settled"),
+		async (ctx, windowId) => {
+			if (!hasContextRollover(ctx)) return;
+			const key = JSON.stringify([
+				ctx.sessionManager.getSessionId(),
+				contextBriefingWindow(ctx, windowId),
+			]);
+			await recordContextBriefing(
+				pi,
+				ctx,
+				"shepherdr-active-agents",
+				key,
+				async () => activeAgentsBriefing(fleet.list(), fleet.statuses()),
+			);
+		},
+	);
 	pi.registerCommand("herdr", {
 		description: "Shepherdr settings, status and SSH setup",
 		handler: async (args, ctx) => {
@@ -86,7 +146,7 @@ export function registerAgentController(
 					reconnect(ctx, machine, signal),
 				signal: commandSignal,
 			};
-			orchestrationEnabled = restoreOrchestrationState(ctx);
+			orchestrationEnabled = restoreOrchestrationState(ctx).enabled;
 			try {
 				if (ctx.mode === "tui") {
 					const panel = openControlPanel(ctx, options);
@@ -105,7 +165,7 @@ export function registerAgentController(
 
 	pi.on("session_start", async (_event, ctx) => {
 		resetLifetime();
-		orchestrationEnabled = restoreOrchestrationState(ctx);
+		orchestrationEnabled = restoreOrchestrationState(ctx).enabled;
 		await activateController(fleet, ctx);
 	});
 
@@ -116,14 +176,18 @@ export function registerAgentController(
 	});
 }
 
-async function orchestrationMessage(): Promise<string> {
-	return (await loadAgentProfiles()).has("general")
-		? GENERAL_ORCHESTRATION_MESSAGE
-		: ORCHESTRATION_MESSAGE;
+async function orchestrationMessage(enabled: boolean): Promise<string> {
+	return orchestrationGuidance(
+		enabled,
+		enabled && (await loadAgentProfiles()).has("general"),
+	);
 }
 
-function restoreOrchestrationState(ctx: ExtensionContext): boolean {
+function restoreOrchestrationState(ctx: ExtensionContext) {
 	let enabled = false;
+	let timestamp: number | undefined;
+	let id = "normal";
+	let visible = false;
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (
 			(entry.type !== "custom" && entry.type !== "custom_message") ||
@@ -139,9 +203,12 @@ function restoreOrchestrationState(ctx: ExtensionContext): boolean {
 			typeof state.enabled === "boolean"
 		) {
 			enabled = state.enabled;
+			timestamp = Date.parse(entry.timestamp);
+			id = entry.id;
+			visible = entry.type === "custom_message";
 		}
 	}
-	return enabled;
+	return { enabled, timestamp, id, visible };
 }
 
 async function activateController(

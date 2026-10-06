@@ -18,6 +18,7 @@ function prepareCodexProviderRequest(payload: unknown, ctx: ExtensionContext, st
 	return {
 		plan,
 		configuredPayload: applyCodexRequestOptions(payload, state.config, {
+			modelId: ctx.model?.id,
 			serviceTier: plan.effectiveOpenAICodex,
 			verbosity: true,
 		}),

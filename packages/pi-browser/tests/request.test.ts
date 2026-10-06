@@ -31,6 +31,46 @@ test("browser requests share one validated single and batch contract", () => {
 	assert.deepEqual(parseBrowserRequest({ tabs: [{ owned_only: true }] }), {
 		operations: [{ action: "tabs", offset: 0, owned_only: true }],
 	});
+	for (const response_length of ["short", "unused", null, 42]) {
+		for (const request of [
+			{ action: "tabs", response_length },
+			{ tabs: [{}], response_length },
+			{ tabs: [{ response_length }] },
+		]) {
+			assert.deepEqual(parseBrowserRequest(request), {
+				operations: [{ action: "tabs", offset: 0 }],
+			});
+		}
+	}
+	for (const read of [
+		{ action: "open", ref_id: "ABCDEF12" },
+		{ action: "find", ref_id: "ABCDEF12", pattern: "text" },
+	]) {
+		const { action, ...fields } = read;
+		for (const request of [
+			{ ...read, response_length: "long" },
+			{ [action]: [fields], response_length: "long" },
+		]) {
+			assert.deepEqual(parseBrowserRequest(request), {
+				operations: [{ ...read, lineno: 1, response_length: "long" }],
+			});
+			assert.throws(
+				() => parseBrowserRequest({ ...request, response_length: "unused" }),
+				/response_length must be/,
+			);
+		}
+		assert.throws(
+			() =>
+				parseBrowserRequest({
+					[action]: [{ ...fields, response_length: "long" }],
+				}),
+			/top-level field/,
+		);
+	}
+	assert.throws(
+		() => parseBrowserRequest({ action: "tabs", selector: "a" }),
+		/unknown tabs field/,
+	);
 	assert.throws(
 		() =>
 			parseBrowserRequest({

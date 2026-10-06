@@ -1,0 +1,72 @@
+{
+	"name": "@howaboua/pi-codex-guardian",
+	"version": "0.0.0",
+	"description": "Action-bound Codex Guardian approval for Pi, Code Mode and Notebook Mode.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-guardian#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-codex-guardian"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"codex",
+		"approval",
+		"guardian"
+	],
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"PROTOCOL.md",
+		"LICENSE",
+		"CHANGELOG.md",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"prepack": "bun run check",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": ">=1.0.4",
+		"@earendil-works/pi-coding-agent": ">=1.0.4",
+		"@howaboua/pi-codex-conversion": ">=3.0.46"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-ai": "1.0.4",
+		"@earendil-works/pi-coding-agent": "1.0.4",
+		"@howaboua/pi-codex-conversion": "3.0.45",
+		"@types/node": "^26.2.0",
+		"typescript": "^7.0.2"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"publishConfig": {
+		"access": "public"
+	}
+}

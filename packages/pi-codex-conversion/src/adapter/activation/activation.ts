@@ -107,7 +107,8 @@ function disableAdapter(
 					false,
 				)
 			: pi.getActiveTools();
-		const previous = state.previousToolNames ?? DEFAULT_TOOL_NAMES;
+		// Registration cleanup has no prior loadout to restore, even after an earlier activation.
+		const previous = state.enabled ? state.previousToolNames ?? [] : [];
 		setActiveTools(pi, restoreTools(previous, currentTools, owned));
 	}
 	state.enabled = false;

@@ -59,6 +59,28 @@ export async function answerAgent(
 		signal,
 		askId,
 	);
+	if (prepared.ask.delivery === "steer") {
+		const result = await runtime.monitor.submitAskAnswer(
+			panel,
+			askId,
+			prepared.submit,
+			signal,
+		);
+		const accepted =
+			result?.status === "accepted" && answersMatch(answers, result.responses);
+		return toolResult({
+			answered: accepted,
+			ask_id: askId,
+			machine: runtime.machine,
+			status:
+				result?.status === "rejected"
+					? "rejected"
+					: accepted
+						? "accepted"
+						: "unknown",
+			target: panel.pane_id,
+		});
+	}
 	const task = `Answer: ${prepared.ask.prompts
 		.map((prompt) => prompt.title)
 		.join(", ")}`;

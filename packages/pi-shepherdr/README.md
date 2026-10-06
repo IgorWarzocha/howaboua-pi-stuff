@@ -34,7 +34,7 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 
 **Settings** contains orchestration and board preferences. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines through Herdr's setup flow. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
 
-`/herdr` is the only entry point; board, connect and orchestration subcommands are replaced by panel controls. Outside the TUI, it reports status without changing it. An orchestration change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
+`/herdr` is the only entry point; board, connect and orchestration subcommands are replaced by panel controls. Outside the TUI, it reports status without changing it. An orchestration change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. The current guidance returns when a new model context no longer contains it, including turns started by worker messages. Tool availability and monitoring do not depend on this mode.
 
 To add a machine, enter an SSH target or alias, a label and an optional remote session under **Connections**. Herdr performs setup in the terminal and asks before installing or replacing its remote server. OpenSSH owns authentication; Shepherdr does not store credentials. Profiles remain in Herdr's existing catalog, where they can also be renamed, disabled or removed.
 
@@ -63,21 +63,25 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 | `attach` | Share context or join a board with an existing idle agent |
 | `detach` | Leave selected membership and retain read-only counterpart checkpoints |
 | `read` | Read the latest assistant reply or bounded terminal output |
-| `answer` | Answer a worker blocked on Pi Ask |
+| `answer` | Answer a worker's blocking or asynchronous Pi Ask |
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
 `spawn` and `assign` block by default. Set `blocking: false` when the controller should continue other work immediately. A profile's `blocking` setting overrides the call for `spawn`. Task completion and blockage are then delivered automatically.
 
-`answer` requires the pending `ask_id` from `read` or a blocked report. It returns `accepted` only when that exact Ask persisted the supplied responses; an accepted retry sends no input.
+`answer` requires the pending `ask_id` from `read` or a question report. It handles both blocking and asynchronous Ask prompts. It returns `accepted` only when that exact Ask persisted the supplied responses; an accepted retry sends no input. Answering an asynchronous question does not wait for the worker's task to finish.
 
-Questions, status updates and replies use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages.
+Asynchronous Ask prompts notify the controller while the worker keeps working. Session-file events drive local and remote notifications without marking the worker blocked or settling its task. Duplicate notifications are suppressed across controller restoration. Update Pi Ask on workers together with Shepherdr on controllers.
 
-Automatic delegation watches end when the task finishes or fails. Blocked tasks stay watched until resolved. Only an explicit `watch` keeps reporting subsequent work until `unwatch`. Sending an update to your worker preserves its existing task watch without replacing the task.
+Needed input and work changes use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages. Close finished workers silently instead of waking them with completion acknowledgements or shutdown notices.
+
+Delegation and explicit `watch` keep reporting subsequent work until `unwatch` or the agent's pane closes. Finishing or failing a task clears that task, not its watch. Follow-up messages through `send` retain completion reporting without replacing the task.
 
 Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
+
+After Pi compaction or Pi Codex context rollover, the controller receives its active agents' exact machine and target, full delegated task and last observed status. Existing work stays assigned instead of being delegated again. This reminder does not start a turn or bypass normal turn preparation.
 
 Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
 
@@ -136,6 +140,8 @@ The agent directory defaults to `~/.pi/agent` and respects `PI_CODING_AGENT_DIR`
 If the global agent directory is the launch folder's `.pi` directory, that file is only global configuration. Use a session override instead of a folder default there.
 
 Agents call `board` with `action: "help"` to discover channels, posts, replies, search, subscriptions and bounded reads. Code and Notebook Mode use `tools.board`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
+
+Agents receive a board briefing once per context window, including after compaction. It distinguishes an empty board from existing posts, leaves setup to the main agent, and points members to relevant discussion. Joining or re-enabling a board adds a briefing at the next model request. Resuming the same window does not repeat it. Post text stays behind the board tool.
 
 Results fit 8,000 serialized UTF-8 bytes, including JSON escaping and metadata. Reads may return smaller pages or text slices than requested. Continue with the returned cursor or `next_offset_chars`. A search with `after_message_id` requires a post in the selected board, even before an archive exists.
 

@@ -81,6 +81,13 @@ export class MonitorState {
 		return this.agents.get(terminalId);
 	}
 
+	markQuestion(terminalId: string, id: string): boolean {
+		const record = this.byTerminal(terminalId);
+		if (!record || record.lastQuestionId === id) return false;
+		this.agents.set(terminalId, { ...record, lastQuestionId: id });
+		return true;
+	}
+
 	watch(
 		panel: PaneInfo,
 		lastAssistantId?: string,
@@ -102,6 +109,7 @@ export class MonitorState {
 			reportCurrent
 				? undefined
 				: (existing?.lastAssistantId ?? lastAssistantId),
+			existing?.lastQuestionId,
 		);
 		if (existing && existing.terminalId !== record.terminalId) {
 			this.agents.delete(existing.terminalId);
@@ -348,6 +356,7 @@ export class MonitorState {
 				activity,
 				record.scope,
 				record.lastAssistantId,
+				record.lastQuestionId,
 			);
 			if (!sameMonitorRecord(record, updated)) changed = true;
 			if (record.terminalId !== updated.terminalId) {
@@ -382,12 +391,9 @@ export class MonitorState {
 	): boolean {
 		const record = this.byTerminal(terminalId);
 		if (!record || activityTask(record.activity) !== task) return false;
-		if (record.scope === "task" && status !== "blocked") {
-			this.agents.delete(terminalId);
-			return true;
-		}
 		this.agents.set(terminalId, {
 			...record,
+			scope: "persistent",
 			activity: { phase: "settled", status },
 			...(lastAssistantId ? { lastAssistantId } : {}),
 		});

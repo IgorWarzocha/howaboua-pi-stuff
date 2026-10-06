@@ -206,7 +206,9 @@ function mergeCodexGuidelines(
 }
 
 function selectedToolGuidelines(options: PiSystemPromptOptions): string[] {
-	return (options.selectedTools ?? []).flatMap((name) => options.toolGuidelines?.[name] ?? []);
+	return (options.selectedTools ?? [])
+		.filter((name) => !options.hiddenTools?.includes(name))
+		.flatMap((name) => options.toolGuidelines?.[name] ?? []);
 }
 
 function formatGuidelines(guidelines: readonly string[], shell?: string, customization?: string): string {

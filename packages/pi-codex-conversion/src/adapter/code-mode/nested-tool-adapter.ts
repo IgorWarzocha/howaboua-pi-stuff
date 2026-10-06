@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import { Check } from "typebox/value";
+import { runCodeModeToolWithHooks } from "../../tools/code-mode/nested-tool-completion.ts";
 import type {
 	ProgrammaticCodeModeToolDefinition,
 	CodeModeToolIdentity,
@@ -63,61 +64,66 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		if (!Check(tool.parameters, prepared))
 			throw new Error(`Invalid ${tool.name} arguments`);
 		if (signal.aborted) throw new Error(`${tool.name} aborted`);
-		const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
-		lifecycle.start?.(toolCallId, prepared);
-		context.refreshTrace?.();
-		let acceptingUpdates = true;
-		try {
-			if (contract.opaqueResult && (!context.opaqueScope ||
-				!context.opaqueContextValid || !await context.opaqueContextValid()))
-				throw new Error("Remote context changed before dispatch; start a new exec cell");
-			const result = await tool.execute(
-				toolCallId,
-				prepared as never,
-				signal,
-				(update) => {
-					if (acceptingUpdates) forwardUpdate(update, context);
-				},
-				extensionContext,
-			);
-			acceptingUpdates = false;
-			const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown; attachment_hint?: unknown } } | undefined;
-			const encrypted = details?.codexHistoryNotes?.encrypted_output;
-			const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || encrypted !== undefined || contract.opaqueResultScope?.(result) !== undefined);
-			if (encrypted !== undefined && !contract.opaqueResult)
-				throw new Error("Protected result delivery is unavailable; start a new exec cell");
-			if (protectedResult) {
-				if (!context.opaqueScope || contract.opaqueResultScope?.(result) !== context.opaqueScope ||
-					!context.opaqueContextValid || !await context.opaqueContextValid())
-					throw new Error("Remote operation executed in a different context; verify note state before repeating a write");
-				if (typeof encrypted !== "string" || !encrypted.trim())
-					throw new Error("Remote operation executed but returned no protected output; verify its state before repeating a write");
-				const action = prepared && typeof prepared === "object" && "action" in prepared && typeof prepared.action === "string"
-					? `.${prepared.action}` : "";
-				const hint = details?.codexHistoryNotes?.attachment_hint;
-				context.captureOpaqueResult!({ resultId: toolCallId, name: tool.name + action + (typeof hint === "string" ? `; ${hint}` : ""), encryptedOutput: encrypted },
-					result.content.filter(item => item.type === "image").map(item => ({
-						type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
-						detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
-							? item.detail : "high",
-					})));
-				context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId}` }], details: {} });
-			} else context.captureResult?.(result);
-			const resultError = contract.resultError?.(result);
-			if (resultError) throw new Error(resultError);
-			if (protectedResult)
-				return { result_id: toolCallId };
-			return contract.resultValue?.(result) ??
-				(contract.modelVisibleResult
-					? modelVisibleNestedResult(result)
-					: compactNestedResult(result));
-		} finally {
-			acceptingUpdates = false;
-			lifecycle.end?.(toolCallId);
-		}
+		// Approval sees the canonical arguments that execute receives, including
+		// aliases and freeform adapters. Never transform input after admission.
+		return runCodeModeToolWithHooks(tool.name, prepared, context, signal, async (context) => {
+			const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
+			lifecycle.start?.(toolCallId, prepared);
+			context.refreshTrace?.();
+			let acceptingUpdates = true;
+			try {
+				if (contract.opaqueResult && (!context.opaqueScope ||
+					!context.opaqueContextValid || !await context.opaqueContextValid()))
+					throw new Error("Remote context changed before dispatch; start a new exec cell");
+				const result = await tool.execute(
+					toolCallId,
+					prepared as never,
+					signal,
+					(update) => {
+						if (acceptingUpdates) forwardUpdate(update, context);
+					},
+					extensionContext,
+				);
+				acceptingUpdates = false;
+				const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown; attachment_hint?: unknown } } | undefined;
+				const encrypted = details?.codexHistoryNotes?.encrypted_output;
+				const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || encrypted !== undefined || contract.opaqueResultScope?.(result) !== undefined);
+				if (encrypted !== undefined && !contract.opaqueResult)
+					throw new Error("Protected result delivery is unavailable; start a new exec cell");
+				if (protectedResult) {
+					if (!context.opaqueScope || contract.opaqueResultScope?.(result) !== context.opaqueScope ||
+						!context.opaqueContextValid || !await context.opaqueContextValid())
+						throw new Error("Remote operation executed in a different context; verify note state before repeating a write");
+					if (typeof encrypted !== "string" || !encrypted.trim())
+						throw new Error("Remote operation executed but returned no protected output; verify its state before repeating a write");
+					const action = prepared && typeof prepared === "object" && "action" in prepared && typeof prepared.action === "string"
+						? `.${prepared.action}` : "";
+					const hint = details?.codexHistoryNotes?.attachment_hint;
+					context.captureOpaqueResult!({ resultId: toolCallId, name: tool.name + action + (typeof hint === "string" ? `; ${hint}` : ""), encryptedOutput: encrypted },
+						result.content.filter(item => item.type === "image").map(item => ({
+							type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
+							detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
+								? item.detail : "high",
+						})));
+					context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId}` }], details: {} });
+				} else context.captureResult?.(result);
+				const resultError = contract.resultError?.(result);
+				if (resultError) throw new Error(resultError);
+				if (protectedResult)
+					return { result_id: toolCallId };
+				return contract.resultValue?.(result) ??
+					(contract.modelVisibleResult
+						? modelVisibleNestedResult(result)
+						: compactNestedResult(result));
+			} finally {
+				acceptingUpdates = false;
+				lifecycle.end?.(toolCallId);
+			}
+		});
 	};
 	return {
 		name: tool.name,
+		executionPipeline: "adapter",
 		usage,
 		description: tool.description,
 		...(contract.translatePromptMetadata && tool.promptSnippet

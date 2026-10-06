@@ -53,8 +53,8 @@ export interface ProgrammaticCodeModeToolDefinition
 	discovery?: "server" | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
-	/** Pi owns validation, permissions and completion hooks for these calls. */
-	executionPipeline?: "pi" | undefined;
+	/** Pi or the adapter owns argument preparation and admission hooks. */
+	executionPipeline?: "pi" | "adapter" | undefined;
 	/** Protected results reach the model, never JavaScript. */
 	opaqueResult?: boolean | undefined;
 	/** Forward owned handoff completion to the outer exec/wait result. */

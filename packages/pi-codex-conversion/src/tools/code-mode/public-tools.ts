@@ -263,16 +263,13 @@ async function continueExecSessionFromMistakenWait(
 	let value: unknown;
 	let invoked = false;
 	try {
-		value = await runCodeModeToolWithHooks(
-			writeStdin.name,
-			input,
-			context,
-			nestedSignal,
-			(hookContext) => {
-				invoked = true;
-				return writeStdin.invoke(input, hookContext, nestedSignal);
-			},
-		);
+		const invoke = (hookContext: ToolExecutionContext) => {
+			invoked = true;
+			return writeStdin.invoke(input, hookContext, nestedSignal);
+		};
+		value = writeStdin.executionPipeline === "adapter"
+			? await invoke(context)
+			: await runCodeModeToolWithHooks(writeStdin.name, input, context, nestedSignal, invoke);
 	} catch (fallbackError) {
 		const fallbackMessage =
 			fallbackError instanceof Error

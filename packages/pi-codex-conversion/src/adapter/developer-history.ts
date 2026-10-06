@@ -5,8 +5,10 @@ import { CODEX_CURRENT_TIME_REMINDER_TYPE, projectCurrentTimeReminder } from "./
 import { isCodexDeveloperMessageDetails } from "../developer-messages.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE, projectToolkitUpdate } from "./code-mode/toolkit-updates.ts";
 import { CODEX_NOTEBOOK_STATUS_TYPE, projectNotebookStatusEntry } from "./notebook-status.ts";
+import { CODEX_CONTEXT_BRIEFING_TYPE, projectCodexContextBriefing } from "../context-briefings.ts";
 
 export function projectCodexDeveloperEntry(entry: SessionEntry): SessionEntry {
+	if (entry.type === "custom" && entry.customType === CODEX_CONTEXT_BRIEFING_TYPE) return projectCodexContextBriefing(entry);
 	if (entry.type === "custom" && entry.customType === CODEX_NOTEBOOK_STATUS_TYPE) return projectNotebookStatusEntry(entry);
 	if (entry.type === "custom" && entry.customType === CODEX_TOOLKIT_UPDATE_TYPE) return projectToolkitUpdate(entry);
 	if (entry.type !== "custom" || entry.customType !== CODEX_REASONING_UPDATE_TYPE) return projectCurrentTimeReminder(entry);
@@ -92,6 +94,7 @@ function messageKey(message: AgentMessage): string {
 
 function isVirtualMessage(message: AgentMessage): message is Extract<AgentMessage, { role: "custom" }> {
 	return message.role === "custom" && (message.customType === CODEX_REASONING_UPDATE_TYPE
+		|| message.customType === CODEX_CONTEXT_BRIEFING_TYPE
 		|| message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE
 		|| message.customType === CODEX_NOTEBOOK_STATUS_TYPE);
 }

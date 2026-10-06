@@ -78,6 +78,7 @@ export interface MonitoredAgent {
 	readonly activity: AgentActivity;
 	readonly cwd?: string;
 	readonly lastAssistantId?: string;
+	readonly lastQuestionId?: string;
 	readonly name?: string;
 	readonly paneId: string;
 	readonly tabId: string;
@@ -119,6 +120,7 @@ export interface LatestInput {
 }
 
 export interface PendingAsk {
+	delivery?: "steer";
 	handoff: boolean;
 	prompts: Array<{
 		body?: string;

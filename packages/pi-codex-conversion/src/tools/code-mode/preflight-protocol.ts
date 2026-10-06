@@ -8,6 +8,8 @@ export interface CodeModeToolPreflightCall {
 	toolName: string;
 	input: unknown;
 	toolCallId: string;
+	/** Original Pi exec call that started this cell, preserved across waits. */
+	originalExecCallId?: string | undefined;
 	cwd: string;
 	extensionContext: ExtensionContext;
 	signal: AbortSignal;

@@ -30,6 +30,7 @@ import {
 	normalizeVoiceContextModel,
 } from "./config-values.ts";
 import { normalizeExecutionMode } from "./execution-mode.ts";
+import { normalizeFastMode } from "./fast-mode.ts";
 
 export function normalizeCodexConversionConfig(
 	value: unknown,
@@ -109,6 +110,10 @@ export function normalizeCodexConversionConfig(
 			backgroundShellWidget: normalizeBoolean(
 				ui["backgroundShellWidget"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
+			),
+			noteSaveMarkers: normalizeBoolean(
+				ui["noteSaveMarkers"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.ui.noteSaveMarkers,
 			),
 			backgroundShellToggleShortcut: normalizeString(
 				ui["backgroundShellToggleShortcut"],
@@ -214,10 +219,7 @@ export function normalizeCodexConversionConfig(
 			...(outputDevice ? { outputDevice } : {}),
 		},
 		openai: {
-			fast: normalizeBoolean(
-				openai["fast"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"],
-			),
+			fast: normalizeFastMode(openai["fast"]),
 			verbosity:
 				normalizeCodexVerbosity(openai["verbosity"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

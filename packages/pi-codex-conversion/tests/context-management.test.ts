@@ -7,6 +7,7 @@ import { CodexContextWindowManager } from "../src/context-management/window-mana
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { REMOTE_DELIVERY_MESSAGE } from "../src/context-management/remote-delivery.ts";
 import { hasFreshContextNotes } from "../src/context-management/saved-notes.ts";
+import { NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../src/context-management/note-save-marker.ts";
 import { createCodexCompactionLifecycle } from "../src/extension/compaction-lifecycle.ts";
 import { createCodexTurnLifecycle } from "../src/extension/turn-lifecycle.ts";
 import { createContextWindowTools } from "../src/context-management/tools.ts";
@@ -112,6 +113,7 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 		sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) =>
 			sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details),
 		appendEntry: (type: string, data: unknown) => sessionManager.appendCustomEntry(type, data),
+		setLabel: (id: string, label: string) => sessionManager.appendLabelChange(id, label),
 	} as never;
 	const windows = new CodexContextWindowManager(async () => undefined);
 	windows.ensureInitialized(pi, ctx, true);
@@ -138,6 +140,10 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 			contextNotesSaved: true, contextNotesSource: "remote" } });
 	sessionManager.appendCustomMessageEntry(REMOTE_DELIVERY_MESSAGE, "Remote results", false, { ...delivery,
 		id: lastId, sourceCallId: "wait", status: "result", contextNotesSaved: true, outputs: [] });
+	const mark = () => recordNoteSaveMarker(pi, ctx, windows.currentIdentity()!.currentWindowId, "remote");
+	const markers = () => sessionManager.getEntries().filter(entry => entry.type === "custom" && entry.customType === NOTE_SAVE_MARKER);
+	mark();
+	assert.equal(markers().length, 0, "a tool-result midpoint is not a completed checkpoint");
 	const final = sessionManager.appendMessage({ ...assistant, stopReason: "stop" });
 	const settledAt = Date.parse(sessionManager.getBranch().at(-1)!.timestamp);
 	const freshNotes = () => hasFreshContextNotes(sessionManager.getBranch(), windows.currentIdentity()!.currentWindowId, "remote", true);
@@ -146,10 +152,22 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 		fresh.ensureInitialized(pi, ctx, true);
 		return fresh;
 	};
-	assert.equal(restored().hasIdleNotesCheckpoint(ctx, "remote", settledAt + 26 * 60_000), false, "a final reply is not settlement");
-	windows.recordSettledCheckpoint(pi, ctx, "remote", settledAt);
-	assert.equal(restored().hasIdleNotesCheckpoint(ctx, "remote", settledAt + 25 * 60_000 - 1), false);
-	assert.equal(restored().hasIdleNotesCheckpoint(ctx, "remote", settledAt + 25 * 60_000), true, "idle age survives runtime replacement");
+	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 26 * 60_000), false, "a final reply is not settlement");
+	windows.recordSettlement(pi, ctx, settledAt);
+	const modelMessages = sessionManager.buildSessionProjection().messages;
+	mark();
+	assert.equal(sessionManager.getLabel(final), "Notes saved");
+	assert.deepEqual(sessionManager.buildSessionProjection().messages, modelMessages, "markers and bookmarks stay model-invisible");
+	sessionManager.branch(final);
+	mark();
+	assert.equal(markers().length, 1, "returning to the reply does not duplicate its marker");
+	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000 - 1), false);
+	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000), true, "idle age survives runtime replacement");
+	const signal = new AbortController().signal;
+	assert.deepEqual(windows.prepareCompaction({ reason: "manual", signal } as SessionBeforeCompactEvent, "remote"), { cancel: true });
+	assert.equal(windows.finishManualCheckpointRequest(pi, ctx, { type: "session_compact_failed", reason: "manual", aborted: true,
+		willRetry: false, fromExtension: true }, true), true,
+		"plain /compact at the bookmarked reply reuses notes without another checkpoint turn");
 	sessionManager.appendContextEdit(source, null);
 	assert.equal(freshNotes(), false, "an omitted source cannot grant checkpoint credit");
 	sessionManager.branch(receipt);
@@ -158,6 +176,17 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	sessionManager.branch(final);
 	sessionManager.appendCustomMessageEntry("peer-input", "More work", true);
 	assert.equal(freshNotes(), false, "new visible work invalidates saved notes");
+	mark();
+	assert.equal(markers().length, 1, "new work cannot mark old notes as a new checkpoint");
+	for (const stopReason of ["aborted", "error"] as const) {
+		sessionManager.branch(final);
+		sessionManager.appendMessage({ ...assistant, stopReason });
+		assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 26 * 60_000), false, "an old settlement cannot prove a new terminal run");
+		windows.recordSettlement(pi, ctx, settledAt);
+		assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000), true, "terminal inactivity does not depend on successful completion");
+		assert.equal(freshNotes(), false, "interruption cannot bless old notes as fresh");
+		assert.equal(restored().isIdleRolloverDue({ ...ctx, isIdle: () => false }, settledAt + 26 * 60_000), false);
+	}
 
 	const kickoff = new CodexContextWindowKickoff(windows);
 	let admitted = false;
@@ -167,6 +196,44 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	const retry = kickoff.prepareIdleInput(ctx, async () => true);
 	assert.deepEqual(await input, { action: "continue" });
 	assert.deepEqual(await retry, { action: "continue" }, "retry releases both original SDK admissions");
+	let checkpointPrompt = "";
+	const checkpointPi = { sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }) =>
+		sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details),
+		sendUserMessage: (prompt: string) => { checkpointPrompt = prompt; },
+		events: { emit() {} } } as never;
+	let rollovers = 0;
+	const held = kickoff.prepareIdleInput(ctx, async () => {
+		await kickoff.prepareIdleCheckpoint(checkpointPi, ctx, "remote");
+		rollovers++;
+		return true;
+	});
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(kickoff.admitCheckpointInput({ text: checkpointPrompt, source: "interactive" } as never), false);
+	assert.equal(kickoff.admitCheckpointInput({ text: checkpointPrompt, source: "extension" } as never), true);
+	assert.equal(kickoff.admitCheckpointInput({ text: checkpointPrompt, source: "extension" } as never), false);
+	windows.beginPromptedManualCheckpointRun();
+	const checkpointAbort = new AbortController();
+	kickoff.observeCheckpointRun(checkpointAbort.signal);
+	checkpointAbort.abort();
+	kickoff.finishIdleCheckpoint(ctx, windows.finishPromptedManualCheckpoint(ctx, true));
+	assert.deepEqual(await held, { action: "handled" }, "explicit abort cancels held input rather than replaying it");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(rollovers, 0);
+	assert.equal(kickoff.hasIdleInput, false);
+	windows.promptNotesCheckpoint(checkpointPi, ctx, "remote");
+	assert.equal(windows.admitPromptedCheckpointInput({ text: checkpointPrompt, source: "interactive" } as never), false);
+	assert.equal(windows.admitPromptedCheckpointInput({ text: "Unrelated kickoff", source: "extension" } as never), false);
+	assert.equal(windows.admitPromptedCheckpointInput({ text: checkpointPrompt, source: "extension" } as never), true,
+		"manual checkpoint kickoff must bypass idle interception");
+	assert.equal(windows.admitPromptedCheckpointInput({ text: checkpointPrompt, source: "extension" } as never), false);
+	windows.beginPromptedManualCheckpointRun();
+	windows.finishPromptedManualCheckpoint(ctx, true);
+	let cancelledRollover = false;
+	const cancelled = kickoff.prepareIdleInput(ctx, async () => { cancelledRollover = true; return true; });
+	kickoff.reset();
+	assert.deepEqual(await cancelled, { action: "handled" });
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(cancelledRollover, false, "reset cancels preparation before its first asynchronous step");
 	const state = { enabled: true, executionMode: "code", contextWindows: windows,
 		contextTree: { handoff: { active: false } }, config: { ...DEFAULT_CODEX_CONVERSION_CONFIG,
 			compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: "remote" } } };
