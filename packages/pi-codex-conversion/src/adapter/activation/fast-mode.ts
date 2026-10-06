@@ -23,6 +23,11 @@ function resolveFastModeFamily(modelId: string | undefined): FastModeFamily | un
 		? family : undefined;
 }
 
+export function allModelsFastModeState(fast: FastModeConfig): "on" | "off" | "mixed" {
+	const values = Object.values(fast);
+	return values.every(Boolean) ? "on" : values.some(Boolean) ? "mixed" : "off";
+}
+
 export function isFastModeEnabled(fast: FastModeConfig, modelId: string | undefined): boolean {
 	return fast[resolveFastModeFamily(modelId) ?? "other"];
 }
