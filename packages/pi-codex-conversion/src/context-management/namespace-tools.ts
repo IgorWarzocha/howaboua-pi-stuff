@@ -42,21 +42,15 @@ function nullableRole(): JsonSchema {
 	};
 }
 
-function string(description?: string, encrypted = false): JsonSchema {
+function encryptedString(description?: string): JsonSchema {
 	return {
 		type: "string",
 		...(description ? { description } : {}),
-		...(encrypted ? { encrypted: true } : {}),
+		encrypted: true,
 	};
 }
 
-function integer(minimum?: number): JsonSchema {
-	return {
-		type: "integer",
-		...(minimum === undefined ? {} : { minimum }),
-	};
-}
-
+// Reserved Remote schemas match Codex's serializer: open objects and no numeric bounds.
 function object(
 	properties: Record<string, JsonSchema>,
 	required?: string[],
@@ -65,7 +59,6 @@ function object(
 		type: "object",
 		properties,
 		...(required ? { required } : {}),
-		additionalProperties: false,
 	};
 }
 
@@ -77,7 +70,7 @@ function operation(
 	return { type: "function", name, description, strict: false, parameters };
 }
 
-function historyNamespace(encrypted: boolean) {
+function historyNamespace() {
 	return {
 		type: "namespace",
 		name: "history",
@@ -88,7 +81,7 @@ function historyNamespace(encrypted: boolean) {
 				"List context windows",
 				object({
 					agent_name: nullable("string"),
-					limit: integer(1),
+					limit: { type: "integer" },
 					recent_first: { type: "boolean" },
 				}),
 			),
@@ -97,8 +90,8 @@ function historyNamespace(encrypted: boolean) {
 				"List history items",
 				object({
 					agent_name: nullable("string"),
-					limit: integer(1),
-					max_chars_per_item: integer(1),
+					limit: { type: "integer" },
+					max_chars_per_item: { type: "integer" },
 					recent_first: { type: "boolean" },
 					role: nullableRole(),
 					tool_name: nullable("string"),
@@ -116,8 +109,8 @@ function historyNamespace(encrypted: boolean) {
 							type: "string",
 							description: "Suffix from the item's [id: …] marker.",
 						},
-						limit_chars: integer(1),
-						offset_chars: integer(0),
+						limit_chars: { type: "integer" },
+						offset_chars: { type: "integer" },
 						window_id: { type: "string" },
 					},
 					["item_id", "window_id"],
@@ -129,8 +122,8 @@ function historyNamespace(encrypted: boolean) {
 				object(
 					{
 						agent_name: nullable("string"),
-						limit: integer(1),
-						query: string("Case-sensitive", encrypted),
+						limit: { type: "integer" },
+						query: encryptedString("Case-sensitive"),
 						recent_first: { type: "boolean" },
 						role: nullableRole(),
 						tool_name: nullable("string"),
@@ -144,7 +137,7 @@ function historyNamespace(encrypted: boolean) {
 	};
 }
 
-function notesNamespace(encrypted: boolean) {
+function notesNamespace() {
 	return {
 		type: "namespace",
 		name: "notes",
@@ -162,7 +155,7 @@ function notesNamespace(encrypted: boolean) {
 						type: "string",
 						enum: ["name", "created_at", "updated_at"],
 					},
-					max_results: integer(1),
+					max_results: { type: "integer" },
 					prefix: nullable("string"),
 				}),
 			),
@@ -183,10 +176,10 @@ function notesNamespace(encrypted: boolean) {
 				"Search note lines by literal substring",
 				object(
 					{
-						max_files: integer(1),
-						max_matches_per_file: integer(1),
+						max_files: { type: "integer" },
+						max_matches_per_file: { type: "integer" },
 						path_prefix: nullable("string"),
-						query: string("Case-sensitive", encrypted),
+						query: encryptedString("Case-sensitive"),
 						recent_file_first: { type: "boolean" },
 					},
 					["query"],
@@ -198,7 +191,7 @@ function notesNamespace(encrypted: boolean) {
 				object(
 					{
 						path: { type: "string" },
-						text: string(undefined, encrypted),
+						text: encryptedString(),
 					},
 					["text", "path"],
 				),
@@ -209,34 +202,12 @@ function notesNamespace(encrypted: boolean) {
 				object(
 					{
 						path: { type: "string" },
-						text: string(undefined, encrypted),
+						text: encryptedString(),
 					},
 					["text", "path"],
 				),
 			),
 		],
-	};
-}
-
-function contextNamespace(
-	name: ContextNamespace,
-	encrypted: boolean,
-): Record<string, unknown> {
-	const namespace = name === "history"
-		? historyNamespace(encrypted)
-		: notesNamespace(encrypted);
-	// Codex validates reserved schemas against its serialized contract: open
-	// objects, with numeric bounds omitted by its JsonSchema serializer.
-	if (!encrypted) return namespace;
-	return {
-		...namespace,
-		tools: namespace.tools.map((tool) => {
-			const { additionalProperties: _additionalProperties, ...parameters } = tool.parameters;
-			for (const property of Object.values(parameters.properties)) {
-				delete property["minimum"];
-			}
-			return { ...tool, parameters };
-		}),
 	};
 }
 
@@ -255,28 +226,25 @@ function namespaceName(value: unknown): ContextNamespace | undefined {
 
 function rewriteTools(
 	tools: readonly unknown[],
-	encrypted: boolean,
 ): { tools: unknown[]; changed: boolean } {
 	let changed = false;
 	const rewritten = tools.map((tool) => {
 		const name = namespaceName(tool);
 		if (!name) return tool;
 		changed = true;
-		return contextNamespace(name, encrypted);
+		return name === "history" ? historyNamespace() : notesNamespace();
 	});
 	return { tools: rewritten, changed };
 }
 
-export function rewriteContextNamespaceTools(
+export function rewriteRemoteContextNamespaceTools(
 	payload: unknown,
-	options: { encrypted?: boolean } = {},
 ): unknown {
 	if (!isRecord(payload)) return payload;
-	const encrypted = options.encrypted === true;
 	let changed = false;
 	let tools = payload["tools"];
 	if (Array.isArray(tools)) {
-		const result = rewriteTools(tools, encrypted);
+		const result = rewriteTools(tools);
 		tools = result.tools;
 		changed ||= result.changed;
 	}
@@ -284,7 +252,7 @@ export function rewriteContextNamespaceTools(
 	if (Array.isArray(input)) {
 		input = input.map((item) => {
 			if (!isRecord(item) || !Array.isArray(item["tools"])) return item;
-			const result = rewriteTools(item["tools"], encrypted);
+			const result = rewriteTools(item["tools"]);
 			if (!result.changed) return item;
 			changed = true;
 			return { ...item, tools: result.tools };

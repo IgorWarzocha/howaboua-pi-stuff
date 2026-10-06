@@ -17,6 +17,8 @@ import { fakeJwt } from "./openai-codex-test-support.ts";
 import { registerContextManagementTools } from "../src/context-management/tools.ts";
 import { getCodeModeExtensionToolSnapshot } from "../src/code-mode-extension-tools.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
+import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import { resolveCodexToolProvider } from "../src/adapter/codex-tool-provider.ts";
 import { contextAgentIdentity } from "../src/context-management/agent-identity.ts";
 import { remoteContextScope, remoteBackendScope, readRemoteNoteReference, withRemoteContextScope } from "../src/context-management/remote-scope.ts";
@@ -92,6 +94,40 @@ function createContext(noteEntries: readonly Record<string, unknown>[]) {
 }
 
 test("remote context storage is exact while local storage stays in Pi", async () => {
+	const routers = createHistoryNotesTools().map(({ name, description, parameters }) => ({
+		type: "function", name, description, parameters, strict: false,
+	}));
+	const legacy = createContext([]);
+	const openai = { ...legacy, model: { ...legacy.model!, provider: "openai", api: "openai-responses" as const,
+		id: "gpt-6-astra", baseUrl: "https://api.openai.com/v1" } };
+	for (const ctx of [openai, legacy]) {
+		for (const historyStorage of ["local", "tree", "remote"] as const) {
+			if (historyStorage === "remote" && ctx === openai) continue;
+			const payload = { model: ctx.model!.id, tools: routers,
+				input: [{ type: "additional_tools", role: "developer", tools: routers }] };
+			const state = {
+				config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: {
+					...DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
+					continuity: "notes-and-compaction", historyStorage, method: "v2",
+				} },
+				executionMode: "normal",
+				developerMessages: new CodexDeveloperMessageBridge(),
+				contextWindows: new CodexContextWindowManager(),
+			};
+			const rewritten = await rewriteCodexProviderRequest(payload, ctx, state as never) as typeof payload;
+			if (historyStorage !== "remote") {
+				assert.deepEqual(rewritten.tools, routers, "Local and Tree retain ordinary router schemas on either login route");
+				assert.deepEqual(rewritten.input, payload.input, "tool additions must not introduce reserved namespaces either");
+			} else {
+				assert.deepEqual(rewritten.tools.map(({ type, name }) => ({ type, name })),
+					[{ type: "namespace", name: "history" }, { type: "namespace", name: "notes" }]);
+				assert.deepEqual(rewritten.input[0]!.tools, rewritten.tools);
+				assert.match(JSON.stringify(rewritten.tools), /"encrypted":true/);
+				assert.doesNotMatch(JSON.stringify(rewritten.tools), /"additionalProperties"|"minimum"/,
+					"Remote retains the exact native open-object, unbounded-number schemas");
+			}
+		}
+	}
 	const originalFetch = globalThis.fetch;
 	let request: { url: string; init: RequestInit } | undefined;
 	try {
