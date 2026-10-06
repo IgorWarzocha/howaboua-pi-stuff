@@ -3,7 +3,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Container } from "@earendil-works/pi-tui";
-import registerPackageChangelog from "./changelog.js";
 import {
 	ActivityTimeline,
 	activityEntryTypes,
@@ -17,7 +16,6 @@ import {
 import { ActivityRenderers } from "./src/renderers.js";
 
 export default function (pi: ExtensionAPI) {
-	registerPackageChangelog(pi);
 	const timeline = new ActivityTimeline();
 	let enabled = true;
 	const renderers = new ActivityRenderers(timeline, () => enabled);
@@ -76,6 +74,8 @@ export default function (pi: ExtensionAPI) {
 			return "";
 		return markdown;
 	});
+	// Pass-through tools also bypass execution tracking and restore membership.
+	// Exempting only their renderer would leave invisible calls inside the group.
 	pi.registerToolRenderer((name, next) =>
 		tui && name !== "new_context" ? renderers.resolve(name, next()) : next(),
 	);
@@ -225,6 +225,8 @@ export default function (pi: ExtensionAPI) {
 		}
 		if (tui) progress();
 	});
+	// Low-level agent_end can precede compaction or queued continuation. Record
+	// its outcome here, but keep the timer/group alive until the SDK settles.
 	pi.on("agent_end", (event) => {
 		const last = event.messages.findLast(
 			(message) => message.role === "assistant",

@@ -1,7 +1,5 @@
-- `src/daemon.ts` is a detached Node entry, not a Pi-session resource. Do not stop environments on Pi shutdown.
-- Use supported Gondolin APIs. Checkpoints are disk-only. Reapply resource/image/tmpfs options and restart declared services, never claim RAM resume.
-- SDK exec cancellation does not kill guest processes. Agent exec deadlines bound waits only. `processes.ts` owns detached handles and kill requests so waits never hold the SDK foreground-exec/file-RPC lock. Setup alone owns a 20-minute deadline and subreaper cleanup.
-- Hardware and bootstrap settings are captured. `services.ts` reloads independent guest workspace `.orbs.yaml` declarations and retains assigned guest and preview ports.
-- Close owned HTTP/WebSocket and SSH tunnels before checkpoint. Upstream ingress and SSH close can wait indefinitely on live clients.
-- Images and templates contain only public runtimes and setup. Fresh guest login belongs to the user, never import host auth.
-- Once lifecycle contracts are established, use focused static checks. VM probes are disposable, not routine gates.
+- Keep this package source-only and private until publication is explicitly requested; do not add release changesets or aggregate membership.
+- Prefer per-environment YAML for resource, network, setup and service customization. Host YAML seeds new disks; existing instances own their guest `.orbs.yaml`. Changing defaults does not migrate saved instances.
+- Keep the agent entry point `sandbox` help-backed and deferred in Code/Notebook. Change action validation and on-demand help together in `src/contracts.ts`; `/orbs` is a user terminal handoff, not an agent tool.
+- Use supported Gondolin APIs, not patches to its transport. Document backend limits rather than hiding them behind retries.
+- Once lifecycle contracts are established, use focused static checks. VM probes are disposable, not routine gates; source edits do not authorize starting or modifying a user's environments.

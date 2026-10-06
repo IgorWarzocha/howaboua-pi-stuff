@@ -1,0 +1,6 @@
+- `daemon.ts` outlives Pi sessions. Do not stop instances on Pi shutdown; lifecycle actions belong to the controller.
+- Checkpoints contain disk only. Reapply image/resource/tmpfs options and restart services on reopen; never imply process or RAM resume.
+- SDK cancellation ends the host wait, not the guest process. `processes.ts` owns detached handles and explicit kill requests; agent waits must not hold the foreground-exec/file-RPC lock or lifecycle queue. Only setup has a hard aggregate deadline and descendant cleanup.
+- `services.ts` owns editable guest declarations and sticky port assignments. Reconcile persisted ownership on reopen even when no live entries exist; raw preview links have separate ownership.
+- Close owned HTTP/WebSocket and SSH connections before checkpoint. Upstream close can wait indefinitely for live clients.
+- Runtime state and disk paths are durable contracts even while unpublished. Never silently recreate or discard an existing instance to accommodate a customization.

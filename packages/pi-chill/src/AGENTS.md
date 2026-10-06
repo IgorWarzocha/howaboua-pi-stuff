@@ -1,0 +1,6 @@
+- For a new folded notice, change the opt-in types in `activity.ts` and its projection in `activity-messages.ts` together. Unknown content must remain recoverable; never infer a successful result from an unfamiliar envelope.
+- For summary wording or density, start in `current-stage.ts`; for heading text, use `ActivityGroup.label`. Keep running, completed, failed and blocked evidence distinct. Nested tool evidence can replace an executor label, not invent activity it did not report.
+- For visual changes, use `renderers.ts` and `activity-messages.ts`. Fit at the current terminal width, preserve original renderer state and both levels of expansion. Native parent spacers cannot be removed by returning an empty child.
+- Timeline changes must cover live handlers in `../index.ts`, `restore` and compaction pruning. Only `agent_settled` completes a run; repeated starts and queued user input preserve its duration and open state.
+- Anchors select existing native rows, never move them. An assistant row precedes its streamed text and tools: retire only rows above it, once visible text arrives. A final answer may have no successor activity row; settlement must retain the completed disclosure at a surviving position.
+- Restore only the active branch. Do not fabricate archived tool rows to maintain visual continuity across context rollover.

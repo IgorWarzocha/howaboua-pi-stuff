@@ -1,11 +1,13 @@
 # @howaboua/pi-chill
 
-Keep the conversation readable without showing every routine tool call.
+A source-only starting point for customizing Pi's conversation display. Its folding choices are defaults to adapt, not a universal presentation policy. It is not published to npm.
 
 ## Install
 
 ```bash
-pi install npm:@howaboua/pi-chill
+# From a checkout of this repository:
+bun install --frozen-lockfile
+pi install ./packages/pi-chill
 ```
 
 Requires Pi 1.0.4 or later. The extension takes effect in the interactive terminal.
@@ -16,7 +18,7 @@ Load Chill before Shepherdr, Subdir Agents and Codex Conversion to fold their no
 
 ## Progress
 
-Routine tool calls share a muted block in the conversation: `Working · duration`, then `Worked · duration` when the response settles. Completed work shows up to two recent tool actions underneath. Interrupted work says `Stopped`. Nothing is added beside the composer.
+Routine tool calls share a muted block in the conversation: `Working · duration`, then `Worked · duration` when the response settles. A compact row shows current and recent tool names, preferring nested calls over their wrappers. Names fit the terminal width with `+N` for omitted names. Interrupted work says `Stopped`. Nothing is added beside the composer.
 
 While working, an indented line shows the current tool action with its file or command, or a real reasoning heading when supplied. Nested Code and Notebook calls update the same line. There are no generic thinking or writing-status labels. Reasoning and tool activity never share a line. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
 

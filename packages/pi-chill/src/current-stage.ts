@@ -221,6 +221,8 @@ export class CurrentStage {
 	}
 
 	private showRunning(): void {
+		// A wrapper with observed children is not an extra task. Keep completed
+		// child evidence during gaps rather than falling back to "Running exec".
 		const labels = [...this.running.values()].flatMap((tool) =>
 			tool.activeTrace.length
 				? tool.activeTrace

@@ -11,6 +11,8 @@ type ActivityMessage = Pick<
 	"customType" | "content" | "timestamp" | "details"
 >;
 
+// Opt-in display policy, not a protocol registry. Add a type only when its full
+// body remains recoverable; unknown notices should keep their native presentation.
 export const activityMessageTypes = [
 	"herdr-agent-message",
 	"herdr-agent-event",

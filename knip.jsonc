@@ -17,9 +17,6 @@
 				"tests/**/*.ts"
 			]
 		},
-		"packages/pi-chill": {
-			"entry": ["changelog.ts"]
-		},
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
 			"entry": [

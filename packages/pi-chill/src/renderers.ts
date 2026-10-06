@@ -37,6 +37,7 @@ export function renderActivityHeading(
 			},
 		),
 	);
+	// Fit at render time: the terminal can resize without a new activity event.
 	container.addChild({
 		invalidate() {},
 		render: (width) => {
@@ -156,6 +157,8 @@ export class ActivityRenderers {
 				const member = group.members.get(call.id);
 				if (member) member.invalidate = context.invalidate;
 				const view = this.view(call.id);
+				// Native Ctrl+O supersedes an individual click choice. Keep that choice
+				// only until the native expansion state actually changes.
 				if (view.nativeState !== context.state) {
 					view.nativeState = context.state;
 					view.nativeExpanded = context.expanded;
@@ -170,6 +173,8 @@ export class ActivityRenderers {
 					container.addChild(renderActivityHeading(group, theme));
 				}
 				if (!this.isEnabled() || rawVisible(context)) {
+					// The wrapped renderer owns its own mutable state and cached components.
+					// Passing Chill's container back as lastComponent would corrupt reuse.
 					const rawContext = {
 						...context,
 						expanded: view.detailsOpen ?? context.expanded,

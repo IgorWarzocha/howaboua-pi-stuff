@@ -1,5 +1,6 @@
 {
 	"name": "@howaboua/pi-chill",
+	"private": true,
 	"version": "0.0.0",
 	"description": "Fold routine Pi tool activity while keeping conversation and errors visible.",
 	"type": "module",
@@ -24,8 +25,6 @@
 	"files": [
 		"index.ts",
 		"src",
-		"changelog.ts",
-		"CHANGELOG.md",
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",
@@ -37,9 +36,6 @@
 		"extensions": [
 			"./index.ts"
 		]
-	},
-	"publishConfig": {
-		"access": "public"
 	},
 	"engines": {
 		"node": ">=20.6.0"

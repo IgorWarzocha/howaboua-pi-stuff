@@ -2,14 +2,20 @@
 
 Named local environments for Pi, powered by [Gondolin](https://github.com/earendil-works/gondolin). Prepare a reusable environment, create independent instances, and keep a dashboard running after the controlling Pi session exits.
 
-This is an optional package, not part of the aggregate Pi packages. It uses local QEMU microVMs, not Amp infrastructure. Stop saves disk state. Reopen boots a new VM and restarts services. Memory, running processes, and browser connections do not resume.
+If you want a managed coding agent with ready-to-use environments and app previews, you're probably better off using [Amp](https://ampcode.com). This exists because I like clanking on the machinery and need isolated environments to test Pi and the extensions in this monorepo. It's a local testing tool, not a claim to replace Amp. I may still end up using Amp myself.
+
+Special thanks to the Amp team for the inspiration, and to [Earendil](https://github.com/earendil-works) for Pi and Gondolin, the toolkit that makes this possible.
+
+This source-only package is not published to npm or included in the aggregate Pi packages. It uses local QEMU microVMs, not Amp infrastructure. Stop saves disk state. Reopen boots a new VM and restarts services. Memory, running processes, and browser connections do not resume.
 
 ## Start an environment
 
 Requires Node.js 24 or newer on `PATH`, QEMU and `qemu-img`, plus Linux KVM access or macOS HVF. Install those through your operating system's supported package manager. Linux x86_64 is integration-tested. macOS uses Gondolin's supported QEMU backend but has not been tested here.
 
 ```sh
-pi install npm:@howaboua/pi-orbs
+# From a checkout of this repository:
+bun install --frozen-lockfile
+pi install ./packages/pi-orbs
 ```
 
 Create `orbs.yaml` in your project:
