@@ -9,7 +9,7 @@ import { openPortal } from "./portals.ts";
 import { existsError, shellQuote as q, saveJson } from "./storage.ts";
 
 const reference = /\$\{services\.([a-z0-9][a-z0-9-]{0,31})\.publicURL\}/g;
-type Links = Service["portals"];
+type Links = Service["previews"];
 type Entry = {
 	service: Service;
 	declared: boolean;
@@ -120,10 +120,10 @@ export class GuestServices {
 					if (
 						!target ||
 						!this.declaredNames.has(dependency) ||
-						(!target.portal && !target.portals.length)
+						(!target.preview && !target.previews.length)
 					)
 						throw new Error(
-							`Service ${name} references ${dependency}, which must be declared with a portal`,
+							`Service ${name} references ${dependency}, which must be declared with a preview`,
 						);
 					visit(dependency);
 				}
@@ -143,8 +143,8 @@ export class GuestServices {
 		if (preserve && current)
 			service = {
 				...service,
-				portal: current.service.portal,
-				portals: current.service.portals,
+				preview: current.service.preview,
+				previews: current.service.previews,
 			};
 		let port = current?.port ?? this.assignments[name]?.port ?? service.port;
 		if (!port) {
@@ -166,7 +166,7 @@ export class GuestServices {
 			if (other !== name && assignment.port === port)
 				throw new Error(`Service port ${port} is already assigned to ${other}`);
 		let portal = current?.portal;
-		const hasLinks = !!service.portal || service.portals.length > 0;
+		const hasLinks = !!service.preview || service.previews.length > 0;
 		if (!this.base)
 			this.base = (
 				await this.vm.enableIngress({ listenHost: "127.0.0.1", listenPort: 0 })
@@ -182,14 +182,14 @@ export class GuestServices {
 			portal = undefined;
 		}
 		const links: Links = [
-			...(service.portal
+			...(service.preview
 				? [
-						typeof service.portal === "boolean"
+						typeof service.preview === "boolean"
 							? { url: "/", title: name }
-							: { ...service.portal, title: service.portal.title ?? name },
+							: { ...service.preview, title: service.preview.title ?? name },
 					]
 				: []),
-			...service.portals,
+			...service.previews,
 		];
 		const publicLinks = links.map((link) =>
 			"folder" in link
@@ -284,7 +284,7 @@ export class GuestServices {
 					const url = this.entries.get(dependency)?.portal?.url;
 					if (!url)
 						throw new Error(
-							`Service ${dependency} has no public URL. Ensure its portal first`,
+							`Service ${dependency} has no public URL. Ensure its preview first`,
 						);
 					return url;
 				}),
@@ -373,7 +373,7 @@ export class GuestServices {
 					responding:
 						op !== "stop" && !!entry && (await this.healthy(name, entry)),
 					port: entry?.port ?? config[name]?.port,
-					portal: entry?.portal?.url,
+					preview: entry?.portal?.url,
 					links: entry?.links ?? [],
 				};
 			}),

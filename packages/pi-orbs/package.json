@@ -1,7 +1,7 @@
 {
 	"name": "@howaboua/pi-orbs",
 	"version": "0.1.0",
-	"description": "Persistent local Gondolin environments and managed app portals for Pi",
+	"description": "Persistent local Gondolin environments and managed app previews for Pi",
 	"type": "module",
 	"license": "MIT",
 	"engines": {

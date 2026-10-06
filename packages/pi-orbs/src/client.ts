@@ -360,7 +360,7 @@ async function offline(dir: string): Promise<unknown> {
 		status = {
 			...status,
 			state: alive ? "unavailable" : "interrupted",
-			portals: {},
+			previews: {},
 			recovery: alive
 				? "Controller is starting or unavailable. Read controller logs and retry inspect"
 				: "Controller exited without completing stop. Start restores only the last completed disk checkpoint",

@@ -66,7 +66,7 @@ export async function openPortal(
 	});
 	const address = server.address();
 	if (!address || typeof address === "string")
-		throw new Error("Portal failed to bind localhost");
+		throw new Error("Preview failed to bind localhost");
 	let closing: Promise<void> | undefined;
 	return {
 		url: `http://127.0.0.1:${address.port}`,

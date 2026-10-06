@@ -5,11 +5,12 @@ import { HELP } from "./src/contracts.ts";
 
 export default async function orbs(pi: ExtensionAPI): Promise<void> {
 	const tool = {
-		name: "orbs",
-		label: "Orbs",
-		description:
-			"Local persistent environments and app portals. Send help for actions",
-		parameters: Type.Object({ input: Type.String() }),
+		name: "sandbox",
+		label: "Sandbox",
+		description: "Persistent local sandboxes and app previews",
+		parameters: Type.Object({
+			input: Type.String({ description: "help or JSON action" }),
+		}),
 		async execute(
 			_id: string,
 			{ input }: { input: string },
@@ -78,16 +79,16 @@ export default async function orbs(pi: ExtensionAPI): Promise<void> {
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: 'await tools.orbs("help")',
+				usage: 'await tools.sandbox("help")',
 				kind: "freeform",
 				prepareInput: (input) => {
 					if (typeof input !== "string")
-						throw new Error("Send help or JSON text to orbs");
+						throw new Error("Send help or JSON text to sandbox");
 					return { input };
 				},
 				resultValue: (result) => {
 					const content = result.content.find((item) => item.type === "text");
-					if (!content) throw new Error("Orb response has no text");
+					if (!content) throw new Error("Sandbox response has no text");
 					return JSON.parse(content.text);
 				},
 				deferLoading: true,

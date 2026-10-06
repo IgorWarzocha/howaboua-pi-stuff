@@ -10,7 +10,7 @@ const cwd = z
 	.string()
 	.refine((s) => !s.includes("\0"))
 	.default(".");
-const portalUrl = z
+const previewUrl = z
 	.string()
 	.refine((s) => {
 		if (s.startsWith("/") && !s.startsWith("//")) return true;
@@ -24,23 +24,23 @@ const portalUrl = z
 		(s) => !s.includes("$AMP_USER_EMAIL"),
 		"Amp identity placeholders are unavailable locally",
 	);
-const portalText = z
+const previewText = z
 	.string()
 	.refine(
 		(s) => !s.includes("$AMP_USER_EMAIL"),
 		"Amp identity placeholders are unavailable locally",
 	);
 const linkSchema = z.strictObject({
-	url: portalUrl,
-	title: portalText.min(1),
-	description: portalText.optional(),
+	url: previewUrl,
+	title: previewText.min(1),
+	description: previewText.optional(),
 });
-const portalSchema = z.union([
+const previewSchema = z.union([
 	z.boolean(),
 	z.strictObject({
-		url: portalUrl.default("/"),
-		title: portalText.optional(),
-		description: portalText.optional(),
+		url: previewUrl.default("/"),
+		title: previewText.optional(),
+		description: previewText.optional(),
 	}),
 ]);
 export const profiles = {
@@ -63,8 +63,8 @@ const serviceSchema = z.strictObject({
 			"PORT and PUBLIC_URL are managed; Amp identity is unavailable locally",
 		),
 	health: z.string().startsWith("/").optional(),
-	portal: portalSchema.default(false),
-	portals: z
+	preview: previewSchema.default(false),
+	previews: z
 		.array(
 			z.union([
 				linkSchema,
@@ -80,7 +80,7 @@ const serviceSchema = z.strictObject({
 				.filter((link) => "folder" in link)
 				.map((link) => link.folder);
 			return new Set(folders).size === folders.length;
-		}, "Portal folder names must be unique"),
+		}, "Preview folder names must be unique"),
 	platforms: z
 		.array(z.enum(["linux", "darwin"]))
 		.min(1)
@@ -199,12 +199,12 @@ export const actionSchema = z.discriminatedUnion("action", [
 		action: z.literal("service-start"),
 		...identity,
 		service: serviceName,
-		title: portalText.optional(),
-		description: portalText.optional(),
+		title: previewText.optional(),
+		description: previewText.optional(),
 		...serviceSchema.shape,
 	}),
 	z.strictObject({
-		action: z.literal("portal"),
+		action: z.literal("preview"),
 		...identity,
 		port: z.number().int().min(1).max(65535),
 		title: z.string().optional(),
@@ -240,7 +240,7 @@ export const statusSchema = z.strictObject({
 	]),
 	resources: z.unknown().optional(),
 	diskGiB: z.number().optional(),
-	portals: z.record(z.string(), z.string()).optional(),
+	previews: z.record(z.string(), z.string()).optional(),
 	persistence: z.literal("disk-only").optional(),
 	startupError: z.string().optional(),
 	resumePid: z.number().int().positive().optional(),
@@ -276,8 +276,8 @@ export const HELP = {
 		services:
 			"name, op: ensure|status|restart|stop, service?: name (omit for all)",
 		"service-start":
-			"name, service, command, cwd?, port?, env?, portal?, title?, description?, portals?, health?. Ad-hoc service, rejects declared name",
-		portal:
+			"name, service, command, cwd?, port?, env?, preview?, title?, description?, previews?, health?. Ad-hoc service, rejects declared name",
+		preview:
 			"name, port, title?, description?. Link an already-listening HTTP server without supervision",
 		logs: "name, service?: name (omit for controller log), lines?: 100 (max 500)",
 		destroy:
@@ -297,7 +297,7 @@ export const HELP = {
 			web: {
 				command: "python3 -m http.server $PORT --bind 127.0.0.1",
 				cwd: ".",
-				portal: true,
+				preview: true,
 				health: "/",
 				env: {},
 				timeoutMs: 30000,
@@ -306,7 +306,7 @@ export const HELP = {
 	},
 	profiles,
 	serviceConfig:
-		"Guest workspace/.orbs.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health GET path. Portal true or {url?: /, title?: service, description?}; portals additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). review widget and Amp identity unavailable locally. Setup deadline 20min; resume waits 10s then continues in background",
+		"Guest workspace/.orbs.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health GET path. Preview true or {url?: /, title?: service, description?}; previews additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits 10s then continues in background",
 	boundaries:
-		"Linux KVM or macOS HVF with QEMU. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket portals, not public or remote-host links. Guest HTTP responses need Content-Length or chunked framing. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates must contain no secrets. Guest Pi requires compatible custom image, user completes fresh login. Empty network allowlist blocks outbound HTTP",
+		"Linux KVM or macOS HVF with QEMU. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket previews, not public or remote-host links. Guest HTTP responses need Content-Length or chunked framing. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates must contain no secrets. Guest Pi requires compatible custom image, user completes fresh login. Empty network allowlist blocks outbound HTTP",
 };

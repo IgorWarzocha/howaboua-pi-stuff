@@ -161,7 +161,7 @@ export class OrbRuntime {
 			resources:
 				this.record.config.resources ?? profiles[this.record.config.profile],
 			diskGiB: this.record.config.diskGiB,
-			portals: this.managed?.urls() ?? {},
+			previews: this.managed?.urls() ?? {},
 			persistence: "disk-only",
 			...(this.startupError ? { startupError: this.startupError } : {}),
 			...(this.resumePid ? { resumePid: this.resumePid } : {}),
@@ -308,17 +308,17 @@ export class OrbRuntime {
 					description,
 					...definition
 				} = action;
-				if (definition.portal && (title || description))
-					definition.portal = {
-						...(typeof definition.portal === "boolean"
+				if (definition.preview && (title || description))
+					definition.preview = {
+						...(typeof definition.preview === "boolean"
 							? { url: "/" }
-							: definition.portal),
+							: definition.preview),
 						...(title ? { title } : {}),
 						...(description ? { description } : {}),
 					};
 				return this.managed!.adHoc(service, definition);
 			}
-			case "portal":
+			case "preview":
 				return this.managed!.attach(
 					action.port,
 					action.title,
