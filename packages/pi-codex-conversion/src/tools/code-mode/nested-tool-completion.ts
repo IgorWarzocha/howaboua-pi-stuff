@@ -20,6 +20,7 @@ export async function runCodeModeToolWithHooks(
 				toolName,
 				input: structuredClone(input),
 				toolCallId: context.toolCallId,
+				originalExecCallId: context.originalExecCallId,
 				cwd: context.cwd,
 				extensionContext: context.extensionContext,
 				signal,

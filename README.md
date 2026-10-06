@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 15 general extensions and 15 shareable skills | Browser, Codex conversion/web/image, retired standalone Code Mode, Omarchy support, and the standalone nested AGENTS loader |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 15 general extensions | Browser, Codex conversion/web/image, retired standalone Code Mode, and the standalone nested AGENTS loader |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 15 general extensions and 15 shareable skills | Browser, Codex conversion/web/image/Guardian, retired standalone Code Mode, Omarchy support, and the standalone nested AGENTS loader |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 15 general extensions | Browser, Codex conversion/web/image/Guardian, retired standalone Code Mode, and the standalone nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -25,6 +25,8 @@ pi install npm:@howaboua/pi-skills
 
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
+Install `pi-codex-guardian` separately for tool-call approval reviews. It requires a ChatGPT-backed Codex model and blocks tools when a review cannot complete.
+
 ## Extensions
 
 | Package | What it adds |
@@ -35,6 +37,7 @@ Install `pi-browser` separately for logged-in browser control. The standalone `p
 | [`pi-browser`](./packages/pi-browser) | Logged-in browser control with local CDP sessions and SSH host routing |
 | [`pi-cache-hit-predictor`](./packages/pi-cache-hit-predictor) | Inline prompt-cache hit predictions when switching models or reasoning levels |
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image inspection, and Code Mode tools for GPT/Codex models |
+| [`pi-codex-guardian`](./packages/pi-codex-guardian) | Guardian approval reviews before tool execution in native Pi, Code Mode, and Notebook Mode |
 | [`pi-dynamic-tools`](./packages/pi-dynamic-tools) | Unmaintained standalone Code Mode, superseded by `pi-codex-conversion` |
 | [`pi-explore-subagents`](./packages/pi-explore-subagents) | Isolated, discovery-only shallow and deep subagents |
 | [`pi-gippity-control`](./packages/pi-gippity-control) | Realtime voice and LAN remote control for any Pi model |

@@ -337,6 +337,7 @@ export class CodeModeDelegateRuntime {
 			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
+			originalExecCallId: this.originalExecCalls.get(cellId),
 			toolCallId: trace.id,
 			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
 				const pending = this.opaqueResults.get(cellId);

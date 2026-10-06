@@ -27,6 +27,7 @@ body:
         - pi-browser
         - pi-cache-hit-predictor
         - pi-codex-conversion
+        - pi-codex-guardian
         - pi-codex-imagegen
         - pi-codex-web-run
         - pi-dynamic-tools

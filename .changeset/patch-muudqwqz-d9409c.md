@@ -11,3 +11,4 @@ Fixed the 25-minute idle rollover after aborted or failed runs. Stale notes now 
 - Added durable context briefings from extensions, including shared-board status, with replay and compaction support. Extensions can inspect selected context to avoid repeating notices that are still visible.
 - Fixed inactive Codex conversion restoring tools disabled by other extensions, including hashline editing.
 - Fixed hidden tools' guidelines remaining in the standing prompt with Pi 1.0.4.
+- Added request-scoped fetch support and honored zero-retry requests for approval reviewers. Nested tool hooks now retain the original exec call ID across waits.

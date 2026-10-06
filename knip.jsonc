@@ -44,6 +44,9 @@
 		"packages/pi-gippity-control": {
 			"entry": ["changelog.ts"]
 		},
+		"packages/pi-codex-guardian": {
+			"entry": ["index.ts"]
+		},
 		"packages/pi-pet": {
 			"ignoreDependencies": ["@howaboua/pi-gippity-control"],
 			"entry": [

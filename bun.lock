@@ -158,6 +158,26 @@
         "typebox": "*",
       },
     },
+    "packages/pi-codex-guardian": {
+      "name": "@howaboua/pi-codex-guardian",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.5.10",
+        "@earendil-works/pi-ai": "1.0.4",
+        "@earendil-works/pi-coding-agent": "1.0.4",
+        "@howaboua/pi-codex-conversion": "3.0.45",
+        "@types/node": "^26.2.0",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": ">=1.0.4",
+        "@earendil-works/pi-coding-agent": ">=1.0.4",
+        "@howaboua/pi-codex-conversion": ">=3.0.46",
+      },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
+    },
     "packages/pi-codex-imagegen": {
       "name": "@howaboua/pi-codex-imagegen",
       "version": "0.0.9",
@@ -745,6 +765,8 @@
     "@howaboua/pi-cache-hit-predictor": ["@howaboua/pi-cache-hit-predictor@workspace:packages/pi-cache-hit-predictor"],
 
     "@howaboua/pi-codex-conversion": ["@howaboua/pi-codex-conversion@workspace:packages/pi-codex-conversion"],
+
+    "@howaboua/pi-codex-guardian": ["@howaboua/pi-codex-guardian@workspace:packages/pi-codex-guardian"],
 
     "@howaboua/pi-codex-imagegen": ["@howaboua/pi-codex-imagegen@workspace:packages/pi-codex-imagegen"],
 
