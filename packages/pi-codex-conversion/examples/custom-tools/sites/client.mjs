@@ -80,6 +80,16 @@ export class SitesClient {
     const sessionId = response.headers.get("mcp-session-id");
     if (sessionId) this.headers["mcp-session-id"] = sessionId;
     const body = await readCappedBody(response);
+    if (response.status === 401 || response.status === 403) {
+      if (response.status === 401 && this.authProvider === getSitesAuth) await getSitesAuth();
+      const message = response.status === 401
+        ? "Sites rejected the OpenAI Codex login. Ask the user to renew /login openai-codex (legacy OpenAI Codex)."
+        : "Sites access was denied (HTTP 403). Ask the user to check Sites access for that account and any network or browser challenge.";
+      throw Object.assign(new Error(message), {
+        code: "sites_access_denied",
+        status: response.status,
+      });
+    }
     if (notification && response.ok && !body) return undefined;
     const result = parseRpcBody(body, response.headers.get("content-type"));
     if (!response.ok || result?.error) {

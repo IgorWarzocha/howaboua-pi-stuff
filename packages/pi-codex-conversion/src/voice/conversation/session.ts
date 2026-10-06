@@ -109,6 +109,10 @@ export class CodexRealtimeConversation {
 				this.setupAbortController = undefined;
 		}
 		if (this.state !== "starting") return;
+		if (status === 401 && auth.officialCodex && auth.loginFailure)
+			throw auth.loginFailure();
+		if (status === 403 && auth.officialCodex)
+			throw new Error("Voice access was denied (HTTP 403). Check account access and any network or browser challenge.");
 		if (status !== 201)
 			throw new Error(
 				`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`,

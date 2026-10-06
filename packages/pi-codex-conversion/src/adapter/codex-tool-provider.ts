@@ -30,6 +30,7 @@ export const CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE =
 	"Codex-backed tool requires an OpenAI Codex-compatible Responses provider or /login openai-codex";
 
 export interface CodexToolProvider {
+	authProvider?: string;
 	route: "openai-codex" | "configured-responses";
 	baseUrl: string;
 	responsesUrl: string;
@@ -134,6 +135,7 @@ export async function resolveCodexToolProvider(
 		? resolveCodexResponsesUrl(baseUrl)
 		: resolveConfiguredResponsesUrl(baseUrl);
 	return {
+		authProvider: model.provider,
 		route: codexTransport ? "openai-codex" : "configured-responses",
 		baseUrl,
 		responsesUrl,

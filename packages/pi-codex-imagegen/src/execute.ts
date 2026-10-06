@@ -1,5 +1,9 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { saveGeneratedImages } from "./artifacts.js";
+import {
+	codexLoginDiagnostic,
+	codexProviderFailure,
+} from "./codex-runtime/auth-diagnostics.js";
 import type { CodexToolRouteConfig } from "./codex-runtime/config.js";
 import {
 	IMAGE_MODEL,
@@ -54,7 +58,18 @@ async function resolveProvider(
 			isConfiguredCodexTransport,
 		);
 	}
-	const hosted = await options.resolveProvider?.(ctx);
+	let hosted;
+	try {
+		hosted = await options.resolveProvider?.(ctx);
+	} catch (error) {
+		const legacy =
+			ctx.model?.provider === "openai-codex" ||
+			!(
+				ctx.model?.api === "openai-codex-responses" ||
+				options.allowConfiguredProvider?.(ctx.model)
+			);
+		throw codexProviderFailure(error, legacy);
+	}
 	if (hosted) return hosted;
 	const { resolveCodexToolProvider } = await import(
 		"./codex-runtime/resolve.js"
@@ -118,10 +133,20 @@ export async function executeCodexImageGeneration(
 		body: JSON.stringify(request.body),
 		...(signal ? { signal } : {}),
 	});
-	if (response.status < 200 || response.status >= 300)
-		throw new Error(
-			"image generation failed: HTTP " + response.status + " " + response.text,
-		);
+	if (response.status < 200 || response.status >= 300) {
+		if (
+			response.status === 401 ||
+			(response.status === 403 &&
+				/auth|token|credential|access_enforcement|oauth/i.test(response.text))
+		)
+			throw new Error(
+				provider.route === "openai-codex" &&
+					provider.authProvider === "openai-codex"
+					? codexLoginDiagnostic(true)
+					: "Image generation access was rejected. Ask the user to check access for their configured provider.",
+			);
+		throw new Error("Image generation failed: HTTP " + response.status);
+	}
 	return saveGeneratedImages(
 		ctx.cwd,
 		parseImageResponse(response.text),
