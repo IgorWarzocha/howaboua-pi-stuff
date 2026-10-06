@@ -89,12 +89,7 @@ export class GuestProcesses {
 		}
 	>();
 	private vm: VM;
-	private rpc: <T>(work: () => Promise<T>) => Promise<T>;
-	constructor(
-		vm: VM,
-		rpc: <T>(work: () => Promise<T>) => Promise<T> = (work) => work(),
-	) {
-		this.rpc = rpc;
+	constructor(vm: VM) {
 		this.vm = vm;
 	}
 	async launch(
@@ -102,14 +97,6 @@ export class GuestProcesses {
 		cwd: string,
 		cleanup = false,
 		deadlineSeconds = 0,
-	): Promise<string> {
-		return this.rpc(() => this.start(cmd, cwd, cleanup, deadlineSeconds));
-	}
-	private async start(
-		cmd: string,
-		cwd: string,
-		cleanup: boolean,
-		deadlineSeconds: number,
 	): Promise<string> {
 		const handle = randomUUID();
 		const path = `${root}/${handle}`;
@@ -192,12 +179,10 @@ export class GuestProcesses {
 				);
 			const probe = command.cursor
 				.catch(() => {})
-				.then(() =>
-					this.rpc(
-						async () =>
-							command.final ||
-							(await guestExists(this.vm, `${command.path}/done`)),
-					),
+				.then(
+					async () =>
+						command.final ||
+						(await guestExists(this.vm, `${command.path}/done`)),
 				);
 			command.cursor = probe;
 			if ((await probe) || Date.now() >= deadline) break;
@@ -205,55 +190,53 @@ export class GuestProcesses {
 		}
 		const consume = command.cursor
 			.catch(() => {})
-			.then(() =>
-				this.rpc(async () => {
-					if (this.commands.get(pid) !== command)
-						throw new Error(
-							"Command status expired. Completed handles retain status for 128 commands",
-						);
-					if (command.final)
-						return { pid, running: false, output: "", ...command.final };
-					const done = (await guestExists(this.vm, `${command.path}/done`))
-						? outcome.parse(
-								JSON.parse(
-									await this.vm.fs.readFile(`${command.path}/done`, {
-										encoding: "utf8",
-									}),
-								),
-							)
-						: undefined;
-					const bytes = (await guestExists(this.vm, `${command.path}/output`))
-						? Buffer.from(await this.vm.fs.readFile(`${command.path}/output`))
-						: Buffer.alloc(0);
-					let output =
-						bytes.length > command.offset
-							? command.decoder.write(bytes.subarray(command.offset))
-							: "";
-					command.offset = Math.max(command.offset, bytes.length);
-					if (done) {
-						output += command.decoder.end();
-						await checked(this.vm, `rm -rf ${q(command.path)}`);
-						command.final = done;
-						const completed = [...this.commands].filter(
-							([, value]) => value.final,
-						);
-						for (const [handle] of completed.slice(
-							0,
-							Math.max(0, completed.length - completedLimit),
-						))
-							this.commands.delete(handle);
-					}
-					return {
-						pid,
-						running: !done,
-						output,
-						truncated:
-							done?.truncated ??
-							(await guestExists(this.vm, `${command.path}/truncated`)),
-						...(done ?? {}),
-					};
-				}),
-			);
+			.then(async () => {
+				if (this.commands.get(pid) !== command)
+					throw new Error(
+						"Command status expired. Completed handles retain status for 128 commands",
+					);
+				if (command.final)
+					return { pid, running: false, output: "", ...command.final };
+				const done = (await guestExists(this.vm, `${command.path}/done`))
+					? outcome.parse(
+							JSON.parse(
+								await this.vm.fs.readFile(`${command.path}/done`, {
+									encoding: "utf8",
+								}),
+							),
+						)
+					: undefined;
+				const bytes = (await guestExists(this.vm, `${command.path}/output`))
+					? Buffer.from(await this.vm.fs.readFile(`${command.path}/output`))
+					: Buffer.alloc(0);
+				let output =
+					bytes.length > command.offset
+						? command.decoder.write(bytes.subarray(command.offset))
+						: "";
+				command.offset = Math.max(command.offset, bytes.length);
+				if (done) {
+					output += command.decoder.end();
+					await checked(this.vm, `rm -rf ${q(command.path)}`);
+					command.final = done;
+					const completed = [...this.commands].filter(
+						([, value]) => value.final,
+					);
+					for (const [handle] of completed.slice(
+						0,
+						Math.max(0, completed.length - completedLimit),
+					))
+						this.commands.delete(handle);
+				}
+				return {
+					pid,
+					running: !done,
+					output,
+					truncated:
+						done?.truncated ??
+						(await guestExists(this.vm, `${command.path}/truncated`)),
+					...(done ?? {}),
+				};
+			});
 		command.cursor = consume;
 		return consume;
 	}
@@ -264,14 +247,11 @@ export class GuestProcesses {
 		// The cursor contains only short RPCs, never the status wait.
 		const kill = command.cursor
 			.catch(() => {})
-			.then(() =>
-				this.rpc(async () => {
-					if (command.final)
-						return { pid, killRequested: false, running: false };
-					await this.vm.fs.writeFile(`${command.path}/kill`, "kill\n");
-					return { pid, killRequested: true };
-				}),
-			);
+			.then(async () => {
+				if (command.final) return { pid, killRequested: false, running: false };
+				await this.vm.fs.writeFile(`${command.path}/kill`, "kill\n");
+				return { pid, killRequested: true };
+			});
 		command.cursor = kill;
 		return kill;
 	}

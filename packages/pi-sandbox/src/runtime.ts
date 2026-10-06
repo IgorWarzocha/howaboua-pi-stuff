@@ -76,7 +76,7 @@ export class SandboxRuntime {
 			: await VM.create(options);
 		this.vm = vm;
 		await vm.start();
-		this.processes = new GuestProcesses(vm, (work) => this.rpc(work));
+		this.processes = new GuestProcesses(vm);
 		// Disabling scratch tmpfs preserves HOME on disk. OCI images still need
 		// normal Unix temporary-directory permissions for unprivileged tools.
 		await checked(vm, "mkdir -p /tmp /var/tmp; chmod 1777 /tmp /var/tmp");
@@ -164,19 +164,6 @@ export class SandboxRuntime {
 		}
 		await this.persistStatus();
 	}
-	private active = new Set<Promise<unknown>>();
-	private rpc<T>(work: () => Promise<T>): Promise<T> {
-		if (this.state !== "running" && this.state !== "starting")
-			return Promise.reject(
-				new Error(
-					"Sandbox is stopping. Wait for stop to complete, then use start",
-				),
-			);
-		const task = work();
-		this.active.add(task);
-		void task.finally(() => this.active.delete(task)).catch(() => {});
-		return task;
-	}
 	private requireVm(): VM {
 		if (!this.vm) throw new Error("Sandbox is not running. Use start first");
 		return this.vm;
@@ -206,7 +193,6 @@ export class SandboxRuntime {
 			return this.status();
 		const vm = this.requireVm();
 		this.state = "stopping";
-		await Promise.allSettled([...this.active]);
 		await this.persistStatus();
 		await this.closeAccess();
 		await this.managed?.stopAll();
@@ -238,20 +224,6 @@ export class SandboxRuntime {
 		return this.state === "interrupted";
 	}
 	async handle(action: Action): Promise<unknown> {
-		if (
-			[
-				"inspect",
-				"stop",
-				"destroy",
-				"exec",
-				"exec-status",
-				"exec-kill",
-			].includes(action.action)
-		)
-			return this.dispatch(action);
-		return this.rpc(() => this.dispatch(action));
-	}
-	private async dispatch(action: Action): Promise<unknown> {
 		if (action.action === "inspect")
 			return {
 				name: this.record.name,
@@ -268,7 +240,6 @@ export class SandboxRuntime {
 			if (action.confirm !== this.record.name)
 				throw new Error("confirm must match name");
 			this.state = "stopping";
-			await Promise.allSettled([...this.active]);
 			await this.closeAccess();
 			await this.vm?.close();
 			this.vm = undefined;

@@ -19,7 +19,6 @@ import {
 	replySchema,
 	statusSchema,
 } from "./contracts.ts";
-import { processIdentity } from "./identity.ts";
 import {
 	directory,
 	existsError,
@@ -92,31 +91,23 @@ async function reachable(
 async function controllerAlive(dir: string): Promise<boolean> {
 	try {
 		const raw = await readFile(join(dir, "controller.pid"), "utf8");
-		let identity: { pid: number; start: string } | number;
+		let pid: number;
 		try {
-			identity = JSON.parse(raw);
-			if (
-				typeof identity !== "number" &&
-				(!identity || typeof identity.start !== "string" || !identity.start)
-			)
-				throw new Error("Invalid identity");
+			const saved = JSON.parse(raw);
+			// Also accept PID records written by the unpublished identity experiment.
+			pid = typeof saved === "number" ? saved : saved?.pid;
 		} catch {
 			throw new Error(
 				"Sandbox controller identity is invalid. Inspect its logs before retrying",
 			);
 		}
-		const pid = typeof identity === "number" ? identity : identity.pid;
 		if (!Number.isSafeInteger(pid) || pid <= 0)
 			throw new Error(
 				"Sandbox controller identity is invalid. Inspect its logs before retrying",
 			);
 		try {
 			process.kill(pid, 0);
-			if (typeof identity === "number")
-				throw new Error(
-					"Sandbox controller ownership is from an older version. Ask the user to verify its process before removing controller.pid",
-				);
-			return identity.start === (await processIdentity(pid)).start;
+			return true;
 		} catch (error) {
 			if (existsError(error, "ESRCH")) return false;
 			throw error;

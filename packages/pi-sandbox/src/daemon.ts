@@ -2,7 +2,6 @@ import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { join } from "node:path";
 import { actionSchema } from "./contracts.ts";
-import { processIdentity } from "./identity.ts";
 import { readIntent, SandboxRuntime } from "./runtime.ts";
 import { agentError, readRecord } from "./storage.ts";
 
@@ -11,7 +10,7 @@ async function main(): Promise<void> {
 	if (!dir) throw new Error("Instance directory required");
 	const record = await readRecord(dir);
 	const pidFile = join(dir, "controller.pid");
-	await writeFile(pidFile, JSON.stringify(await processIdentity(process.pid)), {
+	await writeFile(pidFile, String(process.pid), {
 		mode: 0o600,
 	});
 	const runtime = new SandboxRuntime(dir, record);
@@ -69,7 +68,6 @@ async function main(): Promise<void> {
 				}
 			};
 			// Process waits and cancellation must not occupy the lifecycle queue.
-			// SDK-tracked foreground commands are only short launch/control RPCs.
 			let inspect = false;
 			try {
 				inspect = [
@@ -94,8 +92,7 @@ async function main(): Promise<void> {
 	server.once("close", () => {
 		void readFile(pidFile, "utf8")
 			.then(async (pid) => {
-				if (JSON.parse(pid).pid === process.pid)
-					await rm(pidFile, { force: true });
+				if (Number(pid) === process.pid) await rm(pidFile, { force: true });
 			})
 			.catch((error: unknown) => {
 				if (
