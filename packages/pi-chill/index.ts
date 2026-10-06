@@ -23,6 +23,7 @@ export default function (pi: ExtensionAPI) {
 	const restore = (ctx: ExtensionContext) => {
 		stopTimer();
 		tui = ctx.mode === "tui";
+		if (tui) ctx.ui.setHiddenThinkingLabel("");
 		promptDepth = 0;
 		renderers.clear();
 		timeline.restore(ctx.sessionManager.buildContextEntries());
@@ -33,6 +34,9 @@ export default function (pi: ExtensionAPI) {
 		group.calls[0]?.invalidate?.();
 	};
 
+	pi.registerMarkdownTransformer((markdown, context) =>
+		tui && context.messageType === "assistant-thinking" ? "" : markdown,
+	);
 	pi.registerToolRenderer((name, next) =>
 		tui ? renderers.resolve(name, next()) : next(),
 	);

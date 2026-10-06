@@ -16,7 +16,7 @@ Routine tool calls share a muted block in the conversation: `Working · duration
 
 While working, an indented line shows the current tool action with its file or command, or a real reasoning heading when supplied. Nested Code and Notebook calls update the same line. There are no generic thinking or writing-status labels. Reasoning and tool activity never share a line. Running tool actions use present tense. Completed actions appear in past tense under `Worked`.
 
-The latest action or heading stays visible until another replaces it, including between tool calls. The block is anchored to the first tool call. Before that call, or in replies without tools, Pi keeps its native presentation rather than adding a separate status display.
+The latest action or heading stays visible until another replaces it, including between tool calls. The block is anchored to the first tool call. Before that call, or in replies without tools, no work block appears.
 
 Click the row to show calls in their original order. Click a call to reveal or hide its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse. Work settling does not close details you opened.
 
@@ -24,9 +24,9 @@ Errors and interrupted calls keep a compact indicator when activity is folded. T
 
 Routine Shepherdr board notices hide their bodies until `Ctrl+O` expands them. Pi still leaves a blank line for each notice. Agent questions, failures and completion reports stay visible.
 
-Assistant commentary, thinking, final answers, and user messages keep Pi's native presentation. **Commentary and thinking do not fold into Worked.** Pi does not expose the rendering control needed to do that cleanly.
+Reasoning bodies and collapsed thinking labels are hidden from chat. Real reasoning headings still update the work block. Pi may leave blank spacing where thinking blocks were. `Ctrl+T` does not reveal reasoning while Pi Chill is active. Your saved thinking preference and stored reasoning are unchanged.
 
-Click an individual thinking block to collapse it without changing the default. Pi's `Ctrl+T` toggles all thinking blocks and saves that preference. Collapsed blocks still leave a thinking label. Pi Chill does not change your thinking display setting or hide commentary.
+Assistant commentary, final answers, and user messages keep Pi's native presentation. Commentary does not fold into Worked.
 
 Restored sessions reconstruct groups from the active branch and mark estimated durations with `~`.
 
