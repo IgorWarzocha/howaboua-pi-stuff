@@ -4,7 +4,7 @@ import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime
 import { PiToolCallScope } from "../src/tools/code-mode/pi-tool-call-scope.ts";
 import { createPiCodeModeBridge } from "../src/adapter/code-mode/pi-tools.ts";
 
-test("nested cell lifecycle preserves cancellation, blockers, and resumed progress", async () => {
+test("nested cell lifecycle preserves cancellation, blockers, and resumed progress", async (t) => {
 	const runtime = new CodeModeDelegateRuntime(() => undefined);
 	let started!: () => void;
 	const active = new Promise<void>((resolve) => { started = resolve; });
@@ -165,4 +165,26 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 	assert.equal(originalUpdates.some((update) => update.includes("halfway")), false);
 	assert.equal(resumedUpdates.some((update) => update.includes("halfway")), true);
 	await progress.invokeDirect("cell-c", 2, "progress", {});
+
+	t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+	const remote = new CodeModeDelegateRuntime(() => undefined);
+	t.after(() => remote.clear());
+	const output = { resultId: "note", name: "notes.read_file", encryptedOutput: "encrypted" };
+	remote.bindCell("remote", {
+		cwd: process.cwd(), opaqueScope: "scope", opaqueContextGeneration: 1,
+		opaqueContextValid: async () => true,
+	}, new Map([["notes", {
+		name: "notes", usage: "notes({})", deferLoading: false, kind: "function",
+		opaqueResult: true,
+		async invoke(_input, context) {
+			t.mock.timers.tick(16 * 60_000);
+			context.captureOpaqueResult?.(output, []);
+		},
+	}]]));
+	for (let call = 0; call < 40; call++) {
+		await remote.invokeDirect("remote", call, "notes", {});
+		t.mock.timers.tick(16 * 60_000);
+		assert.deepEqual(remote.attach({ kind: "yielded", cellId: "remote", contentItems: [] }).opaqueOutputs, [output]);
+	}
+	assert.equal(remote.attach({ kind: "result", cellId: "remote", contentItems: [] }).opaqueOutputs, undefined);
 });

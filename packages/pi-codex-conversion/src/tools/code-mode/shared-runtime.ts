@@ -63,7 +63,7 @@ export class SharedCodeModeRuntime {
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
 	private opaqueGeneration = 0;
 	// Completed status only. Protected contents live in persisted host events, never a second delivery queue.
-	private readonly completedCells = new Map<string, { response: RuntimeResponse; owner: string; expires: number }>();
+	private readonly completedCells = new Map<string, { response: RuntimeResponse; owner: string }>();
 
 	async opaqueContextGuard(ctx: ExtensionContext): Promise<OpaqueContextGuard> {
 		const generation = this.opaqueGeneration;
@@ -96,11 +96,10 @@ export class SharedCodeModeRuntime {
 			throw new Error("Remote delivery is unavailable after execution; verify note state before repeating a write");
 		const opaqueDeliveryId = hasDelivery && guard ? guard.deliver(response, callId) : undefined;
 		if (guard && response.kind !== "yielded" && !response.missingCell) {
-			this.expireCompletedCells();
 			this.completedCells.delete(response.cellId);
 			const oldest = this.completedCells.keys().next().value;
 			if (this.completedCells.size >= 32 && oldest !== undefined) this.completedCells.delete(oldest);
-			this.completedCells.set(response.cellId, { owner: guard.owner, expires: Date.now() + 15 * 60_000,
+			this.completedCells.set(response.cellId, { owner: guard.owner,
 				response: { kind: response.kind, cellId: response.cellId, contentItems: [{ type: "input_text",
 					text: "Execution already complete; termination does not undo completed operations" }],
 					...(response.kind === "result" && response.errorText ? { errorText: response.errorText.slice(0, 4096) } : {}) } });
@@ -114,9 +113,9 @@ export class SharedCodeModeRuntime {
 		const entry = this.completedCells.get(cellId);
 		if (!entry) return undefined;
 		const guard = await this.opaqueContextGuard(ctx);
-		if (this.completedCells.get(cellId) !== entry || entry.expires <= Date.now() || entry.owner !== guard.owner) {
+		if (this.completedCells.get(cellId) !== entry || entry.owner !== guard.owner) {
 			if (this.completedCells.get(cellId) === entry) this.completedCells.delete(cellId);
-			throw new Error("Remote result expired or context changed after execution; verify note state before repeating a write");
+			throw new Error("Remote context changed after execution; verify note state before repeating a write");
 		}
 		return entry.response;
 	}
@@ -132,11 +131,6 @@ export class SharedCodeModeRuntime {
 		return JSON.stringify([ctx.sessionManager.getSessionId(), ctx.model?.api, ctx.model?.provider,
 			ctx.model?.id, ctx.model?.baseUrl, this.executionKind(ctx),
 			this.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)]);
-	}
-
-	private expireCompletedCells(): void {
-		for (const [cellId, entry] of this.completedCells)
-			if (entry.expires <= Date.now()) this.completedCells.delete(cellId);
 	}
 
 	addProvider(provider: CodeModeToolProvider): object {
