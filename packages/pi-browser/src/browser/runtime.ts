@@ -50,10 +50,10 @@ export class BrowserRuntime {
 				: this.lifetime.signal,
 		};
 		options.signal?.throwIfAborted();
+		if ("help" in request) return browserHelp(this.hosts);
 		await waitForTurn(this.pruneLocalSessions(), options.signal);
 		await pruneArtifacts();
 		options.signal?.throwIfAborted();
-		if ("help" in request) return browserHelp(this.hosts);
 		const ownerId = options.ownerId ?? this.defaultOwnerId;
 		if (request.host) {
 			const route = this.routes.resolve(request.host);

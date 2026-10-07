@@ -104,6 +104,15 @@ test("Code Mode nested tools preserve public and namespaced extension results", 
 		},
 	);
 	assert.equal(freeform.kind, "freeform");
+	const discovery = adaptToolForCodeMode({
+		name: "discovery", label: "Discovery", description: "Discovery",
+		parameters: Type.Object({ input: Type.Optional(Type.String()) }),
+		async execute(_id, params) {
+			return { content: [{ type: "text" as const, text: params.input ?? "help" }], details: {} };
+		},
+	}, { usage: "await tools.discovery()" });
+	assert.equal(await discovery.invoke(undefined, { cwd: process.cwd(), extensionContext: {} as ExtensionContext }, new AbortController().signal), "help");
+	await assert.rejects(adapted.invoke(undefined, startup, new AbortController().signal), /Invalid structured arguments/);
 	assert.equal("inputSchema" in freeform, false);
 	assert.equal(
 		await freeform.invoke(

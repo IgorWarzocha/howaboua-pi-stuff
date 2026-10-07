@@ -99,7 +99,9 @@ const AgentsRequest = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const AgentsParameters = Type.Object({ action: StringEnum(ACTIONS) });
+export const AgentsParameters = Type.Object({
+	action: Type.Optional(StringEnum(ACTIONS)),
+});
 
 export type AgentsParams = Static<typeof AgentsRequest>;
 export type AgentsToolParams = Static<typeof AgentsParameters>;
@@ -113,6 +115,7 @@ export function requiredAgentField(
 }
 
 export function parseAgentsRequest(input: unknown): AgentsParams {
+	if (input === undefined) return { action: "help" };
 	let value = input;
 	if (typeof input === "string") {
 		const text = input.trim();
@@ -130,6 +133,7 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		throw new Error("agents request must be a JSON object");
 	}
+	if (Object.keys(value).length === 0) return { action: "help" };
 	const action = "action" in value ? value.action : undefined;
 	if (typeof action !== "string" || !Object.hasOwn(ACTION_FIELDS, action)) {
 		throw new Error(`agents action must be one of: ${ACTIONS.join(", ")}`);

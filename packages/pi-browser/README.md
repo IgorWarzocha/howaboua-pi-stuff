@@ -16,10 +16,10 @@ Pi Codex 3.0.25 or newer is optional. Without it, Browser remains a normal top-l
 
 ## Use
 
-In normal Pi, call `browser` with `command: "help"` before first use, then send JSON request strings in `command`. Existing object requests remain accepted. In Code or Notebook Mode, start with:
+In normal Pi, call `browser` with `{}` for help, then send JSON request strings in `command`. Explicit `command: "help"` and existing object requests remain accepted. In Code or Notebook Mode, start with:
 
 ```js
-await tools.browser("help")
+await tools.browser()
 ```
 
 All modes accept single-action and batched requests described by help. A common route is `tabs`, then `open`, then `click` or `type` with the returned `ref_id` and element ID.

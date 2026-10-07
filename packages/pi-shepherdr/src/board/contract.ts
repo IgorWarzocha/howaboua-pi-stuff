@@ -16,7 +16,7 @@ const BOARD_ACTIONS = [
 	"unsubscribe",
 ] as const;
 export const BoardParameters = Type.Object({
-	action: StringEnum(BOARD_ACTIONS),
+	action: Type.Optional(StringEnum(BOARD_ACTIONS)),
 });
 const positive = Type.Optional(
 	Type.Integer({ minimum: 1, maximum: 0xffffffff }),
@@ -103,6 +103,14 @@ const requiredFields: Partial<Record<BoardAction, string[]>> = {
 	read_post: ["message_id"],
 };
 export function parseBoardRequest(value: unknown): BoardParams {
+	if (
+		value === undefined ||
+		(typeof value === "object" &&
+			value !== null &&
+			!Array.isArray(value) &&
+			Object.keys(value).length === 0)
+	)
+		return { action: "help" };
 	if (!Check(Request, value))
 		throw new Error("Invalid board request; call board help");
 	const request = { ...(value as BoardParams) };

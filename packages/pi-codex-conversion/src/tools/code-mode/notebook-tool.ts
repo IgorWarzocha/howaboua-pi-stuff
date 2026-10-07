@@ -43,12 +43,16 @@ const NOTEBOOK_ACTION_PARAMETERS = Type.Union([
 ]);
 
 export const NOTEBOOK_PARAMETERS = Type.Object({
-	input: Type.String({ description: "help or JSON action object" }),
+	input: Type.Optional(Type.String({ description: "help or JSON action object" })),
 }, { additionalProperties: false });
 
-const NOTEBOOK_DESCRIPTION = "Control persistent notebook state; status queries memory/bindings by glob; prune removes unpinned matches; list/save/load manage profiles";
+const NOTEBOOK_DISCOVERY_PARAMETERS = Type.Object({
+	action: Type.Optional(Type.Literal("help")),
+}, { additionalProperties: false });
 
-const NOTEBOOK_HELP = `Call notebook with {"input":"help"} or {"input":"<JSON action object>"}.
+const NOTEBOOK_DESCRIPTION = "Manage persistent notebook state";
+
+const NOTEBOOK_HELP = `notebook({}) returns help; {"input":"help"} also supported. Actions use {"input":"<JSON action object>"}.
 Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 Action objects accept only the fields shown below; ? means optional.
 
@@ -90,7 +94,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 		...notebookRenderers,
 		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
-			if (params.input === "help") return {
+			if (params.input === undefined || params.input === "help") return {
 				content: [{ type: "text", text: NOTEBOOK_HELP }],
 				details: { action: "help" },
 			};
@@ -98,10 +102,10 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 			try {
 				action = JSON.parse(params.input);
 			} catch (error) {
-				throw new Error('notebook input must be help or a JSON action object; call notebook with {"input":"help"}', { cause: error });
+				throw new Error('notebook input must be help or a JSON action object; call notebook({})', { cause: error });
 			}
 			if (!Check(NOTEBOOK_ACTION_PARAMETERS, action)) {
-				throw new Error('Invalid notebook action arguments; call notebook with {"input":"help"}');
+				throw new Error('Invalid notebook action arguments; call notebook({})');
 			}
 			const result = await executeNotebookControl(runtime, action, {
 				cwd: ctx.cwd,
@@ -120,13 +124,16 @@ export function createNotebookControlProxy(
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
-		usage: "await tools.notebook({ action, query?, name?, names?, hook? })",
+		usage: "await tools.notebook() // help; or { action, query?, name?, names?, hook? }",
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
-		inputSchema: NOTEBOOK_ACTION_PARAMETERS,
-		invoke: (input, context, signal) =>
-			executeNotebookExecControl(runtime, input as NotebookToolParameters, context, signal),
+		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, NOTEBOOK_ACTION_PARAMETERS]),
+		invoke: (input, context, signal) => {
+			if (input === undefined || Check(NOTEBOOK_DISCOVERY_PARAMETERS, input))
+				return Promise.resolve({ message: NOTEBOOK_HELP, details: { action: "help" } });
+			return executeNotebookExecControl(runtime, input as NotebookToolParameters, context, signal);
+		},
 	};
 }
 

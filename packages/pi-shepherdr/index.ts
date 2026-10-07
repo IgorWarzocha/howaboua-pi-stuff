@@ -48,17 +48,17 @@ async function registerAgentsInCodeMode(
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
+				prepareInput: (input) => (input === undefined ? {} : input),
 				blocking: isBlockingAgentsCall,
-				usage:
-					'await tools.agents({ action: "help" }) // Persistent agents; first call alone',
+				usage: "await tools.agents() // Persistent agents; first call alone",
 			}),
 		]);
 		const boardRegistration = registerCodeModeExtensionTools(
 			pi,
 			() => [
 				adaptToolForCodeMode(boardTool, {
-					usage:
-						'await tools.board({ action: "help" }) // Shared discussion archive',
+					prepareInput: (input) => (input === undefined ? {} : input),
+					usage: "await tools.board() // Shared discussion archive",
 				}),
 			],
 			{ isActive: (ctx) => board.enabled(ctx) },

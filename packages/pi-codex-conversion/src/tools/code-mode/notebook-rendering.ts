@@ -21,6 +21,7 @@ const TITLES: Record<string, { active: string; complete: string }> = {
 };
 
 export const notebookRenderers = auxiliaryToolRenderers("Notebook operation failed", (args, result) => {
+	if (Object.keys(args).length === 0) args = { action: "help" };
 	if (typeof args["input"] === "string") {
 		if (args["input"] === "help") args = { action: "help" };
 		else {

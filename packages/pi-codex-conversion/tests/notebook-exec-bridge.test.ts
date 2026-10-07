@@ -27,6 +27,10 @@ test("Notebook exec preserves prompt integration and control routing", async () 
 	const proxy = createNotebookControlProxy(runtime);
 	const context: ToolExecutionContext = { cwd: "/project", toolCallId: "nested-notebook" };
 	const controller = new AbortController();
+	const help = await proxy.invoke(undefined, context, controller.signal);
+	assert.deepEqual(await proxy.invoke({}, context, controller.signal), help);
+	assert.deepEqual(await proxy.invoke({ action: "help" }, context, controller.signal), help);
+	assert.equal(calls.length, 0);
 	const modes = new SharedCodeModeRuntime();
 	modes.addProvider({
 		getTools: () => [],

@@ -7,8 +7,7 @@ export function createBoardTool(board: AgentBoard) {
 	return defineTool({
 		name: "board",
 		label: "Message board",
-		description:
-			"Shared discussions and saved board history; call help for actions",
+		description: "Shared discussions and saved board history",
 		parameters: BoardParameters,
 		executionMode: "sequential",
 		async execute(id, params, signal, _onUpdate, ctx) {

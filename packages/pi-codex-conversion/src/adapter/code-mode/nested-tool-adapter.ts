@@ -46,8 +46,10 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 	contract: NestedToolContract = {},
 ): ProgrammaticCodeModeToolDefinition {
 	const kind = contract.kind ?? "function";
-	const prepareInput = (input: unknown) =>
-		contract.prepareInput ? contract.prepareInput(input) : input;
+	const prepareInput = (input: unknown) => {
+		const prepared = contract.prepareInput ? contract.prepareInput(input) : input;
+		return prepared === undefined && Check(tool.parameters, {}) ? {} : prepared;
+	};
 	const invoke = async (
 		input: unknown,
 		context: ToolExecutionContext,

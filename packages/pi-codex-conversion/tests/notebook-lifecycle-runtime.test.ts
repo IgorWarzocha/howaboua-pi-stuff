@@ -41,6 +41,7 @@ test("notebook request validation preserves action routing and rejects mismatche
 	const native = tool;
 	const call = (input: string) => native.execute("call", { input }, controller.signal, undefined, context as never);
 	const help = await call("help");
+	assert.deepEqual(await native.execute("call", {}, controller.signal, undefined, context as never), help);
 	assert.equal(requests.length, 0);
 	const example = help.content[0];
 	assert.ok(example?.type === "text");

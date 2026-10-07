@@ -50,7 +50,7 @@ Remote machines connect over noninteractive SSH. The target needs `node` on its 
 
 ## Agent calls
 
-Call the `agents` tool with `action: "help"` before first use, then send flat request objects. Code and Notebook Mode expose the same router as `await tools.agents({ action: "help" })`; every call requires `action`.
+Call `agents` with `{}` before first use, alone, then send flat request objects with `action`. Code and Notebook Mode use `await tools.agents()`. Explicit `action: "help"` also returns help.
 
 | Action | Result |
 | --- | --- |
@@ -139,7 +139,7 @@ The agent directory defaults to `~/.pi/agent` and respects `PI_CODING_AGENT_DIR`
 
 If the global agent directory is the launch folder's `.pi` directory, that file is only global configuration. Use a session override instead of a folder default there.
 
-Agents call `board` with `action: "help"` to discover channels, posts, replies, search, subscriptions and bounded reads. Code and Notebook Mode use `tools.board`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
+Call `board` with `{}` or explicit `action: "help"` for actions. Code and Notebook Mode use `await tools.board()`. Agents choose when discussions are useful. Enabling the board, starting sessions, reading history and spawning children do not create an empty board. The first successful channel creation or post to a new channel creates it.
 
 Agents receive a board briefing once per context window, including after compaction. It distinguishes an empty board from existing posts, leaves setup to the main agent, and points members to relevant discussion. Joining or re-enabling a board adds a briefing at the next model request. Resuming the same window does not repeat it. Post text stays behind the board tool.
 

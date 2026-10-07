@@ -16,6 +16,7 @@ export function browserHelp(
 		batch:
 			"{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
 		actions: {
+			help: "",
 			tabs: "query? offset? owned_only? -> ref_id title url owned",
 			open: "ref_id lineno? | url; new tabs open in background",
 			show: "ref_id; bring tab to foreground",

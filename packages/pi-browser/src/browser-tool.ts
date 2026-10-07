@@ -5,6 +5,7 @@ import { parseBrowserRequest } from "./browser/request.js";
 import { BrowserRuntime } from "./browser/runtime.js";
 
 export function prepareBrowserInput(input: unknown): { command: string } {
+	if (input === undefined) return { command: "help" };
 	if (typeof input === "string") return { command: input };
 	if (!isRecordValue(input)) {
 		throw new Error("browser input must be a command envelope or JSON request");
@@ -18,6 +19,7 @@ export function prepareBrowserInput(input: unknown): { command: string } {
 		return { ...input, command: input["command"] };
 	}
 	// Resume old object calls without changing their stored history representation.
+	parseBrowserRequest(input);
 	return { command: JSON.stringify(input) };
 }
 
@@ -25,9 +27,13 @@ export function createBrowserTool(runtime: BrowserRuntime) {
 	return defineTool({
 		name: "browser",
 		label: "Browser",
-		description: "Control logged-in browser; call help before other actions",
+		description: "Control logged-in browser",
 		parameters: Type.Object(
-			{ command: Type.String({ description: "help or JSON request" }) },
+			{
+				command: Type.Optional(
+					Type.String({ description: "help or JSON request" }),
+				),
+			},
 			{ additionalProperties: false },
 		),
 		prepareArguments: prepareBrowserInput,

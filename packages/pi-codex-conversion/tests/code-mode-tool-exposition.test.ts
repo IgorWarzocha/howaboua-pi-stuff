@@ -156,6 +156,13 @@ test("tool discovery follows Pi callable admission and preserves deferred contra
 		},
 	} as never, new AbortController().signal), { id: "record-1" });
 	assert.deepEqual(invoked, [{ name: native.name, input: { id: "record-1" } }]);
+	await piTools.getTools()[0]!.invoke(undefined, {
+		cwd: "/project",
+		executeTool: async (_name: string, input: unknown) => {
+			assert.deepEqual(input, {});
+			return { isError: false, result: { content: [], structuredContent: {} } };
+		},
+	} as never, new AbortController().signal);
 	const oldInventory = readToolkitUpdate(inventory.details);
 	const legacy = { ...inventory, details: { ...oldInventory,
 		tools: [...oldInventory.tools, { name: native.name, description: native.description,

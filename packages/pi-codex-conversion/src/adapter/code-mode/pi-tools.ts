@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ToolLoadout, ToolLoadoutChanges } from "@earendil-works/pi-coding-agent";
+import { Check } from "typebox/value";
 import { missingMcpToolMessage } from "../../tools/code-mode/mcp-tool-recovery.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "../../tools/code-mode/types.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES } from "../activation/runtime-plan.ts";
@@ -34,7 +35,8 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 					output: tool.outputSchema ? JSON.stringify(tool.outputSchema) : undefined,
 					async invoke(input, context, signal) {
 						if (!context.executeTool) throw new Error("Pi nested tool executor is unavailable");
-						const outcome = await context.executeTool(tool.name, input, { signal, ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}) });
+						const args = input === undefined && Check(tool.parameters, {}) ? {} : input;
+						const outcome = await context.executeTool(tool.name, args, { signal, ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}) });
 						const { result } = outcome;
 						const text = result.content.filter((block) => block.type === "text").map((block) => block.text).join("\n");
 						// Pi's missing-tool outcome has no MCP payload. Server errors retain their result contract.

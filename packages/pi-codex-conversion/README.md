@@ -231,7 +231,7 @@ const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool accepts `{ input: "help" }` for state-management guidance, then JSON action objects in `input`. The first turn receives status and retained bindings automatically.
+**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Call `notebook({})` for state-management guidance, then send JSON action objects in `input`. Explicit `{ input: "help" }` also returns guidance. The first turn receives status and retained bindings automatically.
 
 ### Pi extension and MCP tools
 

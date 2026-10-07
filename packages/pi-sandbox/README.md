@@ -36,10 +36,10 @@ services:
     preview: true
 ```
 
-Ask the agent to create an environment named `demo` from `sandbox.yaml` and open its preview. The `sandbox` tool accepts `help` or a JSON action in its `input` field. In Code and Notebook modes, use the deferred entry point:
+Ask the agent to create an environment named `demo` from `sandbox.yaml` and open its preview. The `sandbox` tool returns help for `{}` and accepts explicit `help` or a JSON action in its `input` field. In Code and Notebook modes, use the deferred entry point:
 
 ```js
-await tools.sandbox('help')
+await tools.sandbox()
 await tools.sandbox('{"action":"create","name":"demo","config":"sandbox.yaml"}')
 ```
 
