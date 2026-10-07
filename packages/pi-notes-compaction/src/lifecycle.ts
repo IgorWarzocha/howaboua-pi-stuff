@@ -28,11 +28,10 @@ interface Checkpoint {
 	outcome: "completed" | "aborted" | "error" | undefined;
 	aborted: boolean;
 	stopObserving: (() => void) | undefined;
-	purpose: "manual" | "idle";
 }
 interface HeldInput {
 	sessionId: string;
-	phase: "saving" | "failed" | "rolling" | "releasing" | "draining";
+	phase: "failed" | "rolling" | "releasing" | "draining";
 	releasePrompt: string;
 	admissions: ((result: InputEventResult) => void)[];
 }
@@ -208,11 +207,7 @@ export class NotesLifecycle {
 			});
 		});
 	}
-	private startCheckpoint(
-		ctx: ExtensionContext,
-		purpose: "manual" | "idle",
-		instructions?: string,
-	): void {
+	private startCheckpoint(ctx: ExtensionContext, instructions?: string): void {
 		if (!ctx.isIdle() || !this.windows.current || this.checkpoint)
 			throw new Error("A checkpoint cannot start until the session settles");
 		const prompt = `Save the requested context checkpoint. Checkpoint request: ${randomUUID()}`;
@@ -225,7 +220,6 @@ export class NotesLifecycle {
 			outcome: undefined,
 			aborted: false,
 			stopObserving: undefined,
-			purpose,
 		};
 		try {
 			this.pi.sendMessage(
@@ -309,7 +303,7 @@ export class NotesLifecycle {
 			checkpoint.admitted = true;
 			return;
 		}
-		if (!this.held && !this.idleDue(ctx)) return;
+		if (!this.held && (!this.idleDue(ctx) || !this.fresh(ctx))) return;
 		const held =
 			this.held ??
 			({
@@ -323,7 +317,7 @@ export class NotesLifecycle {
 			held.admissions.push(resolve),
 		);
 		if (held.phase !== "failed") return admission;
-		held.phase = "saving";
+		held.phase = "rolling";
 		void Promise.resolve().then(async () => {
 			try {
 				if (
@@ -331,14 +325,7 @@ export class NotesLifecycle {
 					held.sessionId !== ctx.sessionManager.getSessionId()
 				)
 					return;
-				if (this.fresh(ctx)) await this.finishHeld(ctx, held);
-				else {
-					ctx.ui.notify(
-						"Saving notes before idle rollover. Your input and attachments are pending.",
-						"info",
-					);
-					this.startCheckpoint(ctx, "idle");
-				}
+				await this.finishHeld(ctx, held);
 			} catch (error) {
 				this.failHeld(ctx, held, error);
 			}
@@ -407,7 +394,7 @@ export class NotesLifecycle {
 			return;
 		if (!pending.instructions?.trim() && this.fresh(ctx))
 			await this.roll(ctx, true);
-		else this.startCheckpoint(ctx, "manual", pending.instructions);
+		else this.startCheckpoint(ctx, pending.instructions);
 	}
 	async settled(ctx: ExtensionContext): Promise<void> {
 		const checkpoint = this.checkpoint;
@@ -436,11 +423,8 @@ export class NotesLifecycle {
 					checkpoint.outcome === "aborted" ||
 					checkpoint.outcome === undefined)
 			) {
-				for (const admit of this.held?.admissions ?? [])
-					admit({ action: "handled" });
-				this.held = undefined;
 				ctx.ui.notify(
-					"Checkpoint cancelled. Pending input was not submitted.",
+					"Checkpoint cancelled. The old context remains.",
 					"warning",
 				);
 			} else if (this.held) this.failHeld(ctx, this.held, error);
@@ -456,11 +440,8 @@ export class NotesLifecycle {
 				checkpoint.outcome === "aborted" ||
 				checkpoint.outcome === undefined;
 			if (!valid || aborted) {
-				for (const admit of this.held?.admissions ?? [])
-					admit({ action: "handled" });
-				this.held = undefined;
 				ctx.ui.notify(
-					"Checkpoint cancelled. The old context remains. Resubmit pending input and attachments to continue.",
+					"Checkpoint cancelled. The old context remains.",
 					"warning",
 				);
 				return;
@@ -470,27 +451,13 @@ export class NotesLifecycle {
 				!checkpoint.runId ||
 				!this.fresh(ctx, checkpoint.runId)
 			) {
-				if (this.held)
-					this.failHeld(
-						ctx,
-						this.held,
-						new Error("The checkpoint ended without fresh saved notes"),
-					);
-				else
-					ctx.ui.notify(
-						"Rollover did not start. No fresh note was saved in the completed checkpoint. The old context remains.",
-						"warning",
-					);
+				ctx.ui.notify(
+					"Rollover did not start. No fresh note was saved in the completed checkpoint. The old context remains.",
+					"warning",
+				);
 				return;
 			}
-			try {
-				if (checkpoint.purpose === "idle" && this.held)
-					await this.finishHeld(ctx, this.held);
-				else await this.roll(ctx, true);
-			} catch (error) {
-				if (this.held) this.failHeld(ctx, this.held, error);
-				else throw error;
-			}
+			await this.roll(ctx, true);
 			return;
 		}
 		if (this.held?.phase === "draining") {

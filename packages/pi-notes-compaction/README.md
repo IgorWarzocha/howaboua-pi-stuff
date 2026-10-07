@@ -18,7 +18,7 @@ By default, `new_context` retires the preceding conversation from the next model
 
 Reminders arrive at 85% and 90% context use. `/compact` requests a notes checkpoint and opens a new window only after a completed run with fresh saved notes. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
 
-After 25 idle minutes, the next input waits for a checkpoint and rollover. Its original text, attachments and SDK options are retained. A cancelled checkpoint cancels pending input. Resubmit it to continue. A failed checkpoint keeps input pending. Submit another prompt to retry, or reload to cancel it.
+After 25 idle minutes, the next input waits for rollover only if the latest completed turn saved fresh notes. Otherwise it proceeds in the current window without requesting a checkpoint. Held input retains its original text, attachments and SDK options. A failed rollover keeps input pending. Submit another prompt to retry, or reload to cancel it.
 
 ## Management
 
