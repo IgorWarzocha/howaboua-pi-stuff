@@ -41,8 +41,14 @@
 			],
 			"ignoreDependencies": ["proxy-from-env"]
 		},
+		"packages/pi-codex-guardian": {
+			"entry": ["changelog.ts"]
+		},
 		"packages/pi-gippity-control": {
 			"entry": ["changelog.ts"]
+		},
+		"packages/pi-sandbox": {
+			"entry": ["src/daemon.ts"]
 		},
 		"packages/pi-pet": {
 			"ignoreDependencies": ["@howaboua/pi-gippity-control"],

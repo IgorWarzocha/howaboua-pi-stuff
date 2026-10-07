@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentFleet, ConnectedMachine } from "../fleet.js";
 import { sessionPath } from "../herdr.js";
+import { recordBoardPostMarker } from "../messages.js";
 import {
 	requestContext,
 	sessionContextPath,
@@ -195,7 +196,7 @@ export class AgentBoard {
 			throw new Error(
 				"Board is off; the user can enable it in /herdr → Settings",
 			);
-		return this.toOwner(
+		const value = await this.toOwner(
 			ctx,
 			{
 				operation: "board-call",
@@ -205,6 +206,18 @@ export class AgentBoard {
 			},
 			ctx.signal,
 		);
+		if (params.action === "post") {
+			try {
+				recordBoardPostMarker(this.pi, ctx, value);
+			} catch {
+				// Presentation failure must not turn a committed post into a retry.
+				ctx.ui.notify(
+					"Posted to board. Its history notice is unavailable. Read the board to check the post; do not repost.",
+					"warning",
+				);
+			}
+		}
+		return value;
 	}
 	async prepare(
 		ctx: ExtensionContext,

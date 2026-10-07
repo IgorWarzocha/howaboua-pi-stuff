@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
-import { getSupportedThinkingLevels, normalizeContext } from "@earendil-works/pi-ai";
-import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
+import { buildSessionContext, convertToLlm, ModelRegistry, ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
+import { getSupportedThinkingLevels, InMemoryCredentialStore, normalizeContext } from "@earendil-works/pi-ai";
+import { buildCachedWebSocketRequestBody, buildRequestBody, registerOpenAICodexCustomProvider, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
 import type { OpenAICodexStreamOptions } from "../src/providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { codexReasoningUpdates, flushCodexReasoningUpdates, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
@@ -18,6 +18,7 @@ import { createNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY } from ".
 import { buildNativeCompactionInput } from "../src/adapter/compaction/compaction.ts";
 import { resolveLatestNativeCompactionEntry } from "../src/adapter/compaction/details-store.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { registerCodeModeProxyProvider } from "../src/providers/code-mode-proxy-provider.ts";
 import {
 	ScriptedWebSocket,
 	collectStream,
@@ -88,9 +89,20 @@ test("request reasoning must match; persisted GPT-6 updates extend the input ins
 		model: freshModel, branchEntries: freshEntries, allEntries: freshEntries,
 		latestNativeCompaction: resolveLatestNativeCompactionEntry(freshEntries),
 	})?.input, firstBody.input);
-	const registeredModels = openAICodexProviderModels();
+	const registry = new ModelRegistry(await ModelRuntime.create({
+		modelsPath: null, credentials: new InMemoryCredentialStore(), allowModelNetwork: false,
+	}));
+	const catalogPi = {
+		registerProvider: registry.registerProvider.bind(registry),
+		unregisterProvider: registry.unregisterProvider.bind(registry),
+	} as never;
+	registerOpenAICodexCustomProvider(catalogPi, {});
+	const contextConfig = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+	contextConfig.compaction.continuity = "notes";
+	contextConfig.compaction.historyStorage = "remote";
+	registerCodeModeProxyProvider(catalogPi, () => contextConfig).applyConfig(contextConfig, registry);
 	for (const id of ["gpt-6-sol", "gpt-6-luna"]) {
-		const registeredModel = registeredModels.find((candidate) => candidate.id === id);
+		const registeredModel = registry.find("openai-codex", id);
 		assert.ok(registeredModel);
 		assert.equal(registeredModel.thinkingLevelMap?.off, null);
 		assert.equal(getSupportedThinkingLevels(registeredModel).includes("off"), false);

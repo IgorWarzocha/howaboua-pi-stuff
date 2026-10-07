@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -28,11 +28,9 @@ if (diff.status !== 0) {
 const files = diff.stdout.split("\n").filter(Boolean);
 const packageChanged = files.some((file) => {
 	const dir = /^packages\/([^/]+)\//.exec(file)?.[1];
-	return (
-		dir &&
-		!aggregatePackageDirs.has(dir) &&
-		existsSync(join(root, "packages", dir, "package.json"))
-	);
+	if (!dir || aggregatePackageDirs.has(dir)) return false;
+	const manifest = join(root, "packages", dir, "package.json");
+	return existsSync(manifest) && JSON.parse(readFileSync(manifest, "utf8")).private !== true;
 });
 if (!packageChanged) process.exit(0);
 

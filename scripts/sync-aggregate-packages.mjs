@@ -9,6 +9,8 @@ const packagesDir = join(root, "packages");
 const aggregateDirs = new Set(["pi-stuff", "pi-skills", "pi-extensions"]);
 const bundleExcludedPackages = new Set([
 	"@howaboua/pi-browser",
+	"@howaboua/pi-chill",
+	"@howaboua/pi-sandbox",
 	"@howaboua/pi-codex-conversion",
 	"@howaboua/pi-codex-guardian",
 	"@howaboua/pi-codex-imagegen",
@@ -21,7 +23,7 @@ const bundleExcludedPackages = new Set([
 const packages = listActivePackageDirs(root)
   .filter((dir) => !aggregateDirs.has(dir))
   .map((dir) => ({ dir, pkg: JSON.parse(readFileSync(join(packagesDir, dir, "package.json"), "utf8")) }))
-  .filter((entry) => !bundleExcludedPackages.has(entry.pkg.name))
+  .filter((entry) => entry.pkg.private !== true && !bundleExcludedPackages.has(entry.pkg.name))
   .sort((a, b) => a.pkg.name.localeCompare(b.pkg.name));
 
 function has(kind, entry) {

@@ -57,6 +57,7 @@ test("Codex requests preserve configured routing and bounded HTTP state", async 
 			(model) => isCodexToolRoute(routes, model),
 		),
 		{
+			authProvider: "company-codex",
 			route: "openai-codex",
 			baseUrl: "https://proxy.example/api/codex",
 			responsesUrl: "https://proxy.example/api/codex/responses",

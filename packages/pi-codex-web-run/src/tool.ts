@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
+import { codexLoginDiagnostic } from "./codex-runtime/auth-diagnostics.js";
 import {
 	WEB_SEARCH_PARAMETERS,
 	WEB_SEARCH_TOOL_NAME,
-	WEB_SEARCH_UNSUPPORTED_MESSAGE,
 	type WebSearchToolOptions,
 } from "./contract.js";
 import {
@@ -62,7 +62,7 @@ export function createWebSearchTool(
 			args && typeof args === "object" ? (args as Record<string, unknown>) : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model, toolOptions))
-				throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
+				throw new Error(codexLoginDiagnostic());
 			const output = await executeCodexWebSearch(
 				params,
 				ctx,

@@ -1,8 +1,11 @@
 import type { Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
+	codexLoginDiagnostic,
+	codexProviderFailure,
+} from "./auth-diagnostics.js";
+import {
 	type AllowConfiguredCodexToolProvider,
-	CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE,
 	type CodexToolProvider,
 	OPENAI_CODEX_PROVIDER,
 } from "./types.js";
@@ -56,7 +59,7 @@ function headerValue(
 	return undefined;
 }
 
-function extractAccountId(token: string): string {
+function extractAccountId(token: string, legacy: boolean): string {
 	try {
 		const payload = token.split(".")[1];
 		if (!payload) throw new Error("Invalid token");
@@ -72,7 +75,11 @@ function extractAccountId(token: string): string {
 			throw new Error("No account ID in token");
 		return accountId;
 	} catch {
-		throw new Error("Failed to extract accountId from token");
+		throw new Error(
+			legacy
+				? codexLoginDiagnostic(true)
+				: "Account identity unavailable. Ask the user to check their provider access.",
+		);
 	}
 }
 
@@ -112,10 +119,7 @@ export function resolveAuthModel(
 		return ctx.model as Model<any>;
 	const fallback = resolveOpenAICodexAuthModel(ctx);
 	if (fallback) return fallback;
-	throw new Error(
-		CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE +
-			"; run /login openai-codex or select an OpenAI Codex-compatible provider",
-	);
+	throw new Error(codexLoginDiagnostic());
 }
 
 function resolveConfiguredResponsesUrl(
@@ -137,8 +141,17 @@ export async function resolveCodexToolProvider(
 		allowConfiguredProvider,
 		isConfiguredCodexTransport,
 	);
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	if (!auth.ok) throw new Error(auth.error);
+	const auth = await ctx.modelRegistry
+		.getApiKeyAndHeaders(model)
+		.catch((error) => {
+			throw codexProviderFailure(error, isOpenAICodexModel(model));
+		});
+	if (!auth.ok) {
+		throw codexProviderFailure(
+			new Error(auth.error),
+			isOpenAICodexModel(model),
+		);
+	}
 	const resolvedBaseUrl = auth.baseUrl ?? model.baseUrl;
 	const codexTransport = isCodexTransportModel(
 		model,
@@ -150,7 +163,12 @@ export async function resolveCodexToolProvider(
 	const token = codexTransport
 		? (auth.apiKey ?? authorization)
 		: (authorization ?? auth.apiKey);
-	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
+	if (!token)
+		throw new Error(
+			isOpenAICodexModel(model)
+				? codexLoginDiagnostic()
+				: "Provider authentication unavailable. Ask the user to check their configured provider access.",
+		);
 	const baseUrl = codexTransport
 		? resolveCodexApiProviderBaseUrl(resolvedBaseUrl)
 		: resolvedBaseUrl?.trim().replace(/\/+$/, "");
@@ -160,6 +178,7 @@ export async function resolveCodexToolProvider(
 		? resolveCodexResponsesUrl(baseUrl)
 		: resolveConfiguredResponsesUrl(baseUrl);
 	return {
+		authProvider: model.provider,
 		route: codexTransport ? "openai-codex" : "configured-responses",
 		baseUrl,
 		responsesUrl,
@@ -168,6 +187,8 @@ export async function resolveCodexToolProvider(
 		token,
 		accountId:
 			headerValue(auth.headers, "chatgpt-account-id") ??
-			(codexTransport ? extractAccountId(token) : ""),
+			(codexTransport
+				? extractAccountId(token, isOpenAICodexModel(model))
+				: ""),
 	};
 }

@@ -1,11 +1,8 @@
-import { randomUUID } from "node:crypto";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
-	InputEvent,
 	InputEventResult,
 } from "@earendil-works/pi-coding-agent";
-import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import {
 	type StartContextWindowOptions,
 	CodexContextWindowManager,
@@ -27,23 +24,11 @@ interface PendingIdleInput {
 	preparation?: Promise<void>;
 }
 
-interface IdleCheckpoint {
-	sessionId: string;
-	prompt: string;
-	admitted: boolean;
-	aborted: boolean;
-	settlementReached: boolean;
-	stopObserving?: () => void;
-	resolve: () => void;
-	reject: (error: Error) => void;
-}
-
 export class CodexContextWindowKickoff {
 	private readonly windows: CodexContextWindowManager;
 	private readonly onContinue: ((input: Parameters<ExtensionAPI["sendUserMessage"]>[0]) => void) | undefined;
 	private continuation: PendingContinuation | undefined;
 	private idleInput: PendingIdleInput | undefined;
-	private idleCheckpoint: IdleCheckpoint | undefined;
 
 	constructor(
 		windows: CodexContextWindowManager,
@@ -57,9 +42,6 @@ export class CodexContextWindowKickoff {
 		this.continuation = undefined;
 		for (const admit of this.idleInput?.admissions ?? []) admit({ action: "handled" });
 		this.idleInput = undefined;
-		this.idleCheckpoint?.stopObserving?.();
-		this.idleCheckpoint?.reject(new Error("Idle context checkpoint was cancelled"));
-		this.idleCheckpoint = undefined;
 	}
 
 	get pending(): boolean {
@@ -68,69 +50,6 @@ export class CodexContextWindowKickoff {
 
 	get hasIdleInput(): boolean {
 		return this.idleInput !== undefined;
-	}
-
-	get hasIdleCheckpoint(): boolean {
-		return this.idleCheckpoint !== undefined;
-	}
-
-	/** Only our distinct checkpoint kickoff bypasses held user admissions. */
-	admitCheckpointInput(event: InputEvent): boolean {
-		const pending = this.idleCheckpoint;
-		if (!pending || pending.admitted || event.source !== "extension" || event.text !== pending.prompt) return false;
-		pending.admitted = true;
-		return true;
-	}
-
-	async prepareIdleCheckpoint(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode): Promise<void> {
-		if (!this.idleInput || this.idleCheckpoint || !ctx.isIdle())
-			throw new Error("The session must be idle before saving a context checkpoint");
-		let pending!: IdleCheckpoint;
-		const completed = new Promise<void>((resolve, reject) => {
-			pending = { sessionId: ctx.sessionManager.getSessionId(),
-				prompt: `Save the requested context checkpoint. Checkpoint request: ${randomUUID()}`,
-				admitted: false, aborted: false, settlementReached: false, resolve, reject };
-		});
-		this.idleCheckpoint = pending;
-		try {
-			ctx.ui.notify("Saving notes before idle rollover. Your input and attachments are pending. If no turn starts, reload the session to cancel pending input.", "info");
-			this.windows.promptNotesCheckpoint(pi, ctx, mode, undefined, pending.prompt);
-			await completed;
-		} finally {
-			pending.stopObserving?.();
-			if (this.idleCheckpoint === pending) this.idleCheckpoint = undefined;
-		}
-	}
-
-	finishIdleCheckpoint(ctx: ExtensionContext, result: "ready" | "missing" | undefined): void {
-		const pending = this.idleCheckpoint;
-		if (!pending) return;
-		const terminal = ctx.sessionManager.getBranch().findLast(entry => entry.type === "message" && entry.message.role === "assistant");
-		// Pi skips before-settle on explicit abort, including cancellation between retries
-		// when there is no active core signal and the last reply still says error.
-		if (!pending.settlementReached || pending.aborted || terminal?.type === "message" && terminal.message.role === "assistant" && terminal.message.stopReason === "aborted") {
-			this.reset();
-			ctx.ui.notify("Idle checkpoint cancelled. Pending input and attachments were not submitted. Resubmit them to continue.", "warning");
-			return;
-		}
-		if (pending.sessionId === ctx.sessionManager.getSessionId() && ctx.isIdle() && result === "ready") pending.resolve();
-		else pending.reject(new Error("The checkpoint run ended without fresh saved notes"));
-	}
-
-	observeCheckpointRun(signal: AbortSignal | undefined): void {
-		const pending = this.idleCheckpoint;
-		if (!pending || !signal) return;
-		pending.stopObserving?.();
-		const aborted = () => { pending.aborted = true; };
-		if (signal.aborted) aborted();
-		else signal.addEventListener("abort", aborted, { once: true });
-		pending.stopObserving = () => signal.removeEventListener("abort", aborted);
-	}
-
-	recordCheckpointOutcome(outcome: "completed" | "aborted" | "error"): void {
-		if (!this.idleCheckpoint) return;
-		this.idleCheckpoint.settlementReached = true;
-		if (outcome === "aborted") this.idleCheckpoint.aborted = true;
 	}
 
 	/** Hold the original SDK prompt at input, before expansion and preparation. */

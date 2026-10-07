@@ -1,0 +1,62 @@
+{
+	"name": "@howaboua/pi-chill",
+	"private": true,
+	"version": "0.0.0",
+	"description": "Fold routine Pi tool activity while keeping conversation and errors visible.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-chill"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-chill#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi",
+		"activity",
+		"tui"
+	],
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"engines": {
+		"node": ">=20.6.0"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=1.0.4",
+		"@earendil-works/pi-tui": ">=1.0.4"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-coding-agent": "1.0.4",
+		"@earendil-works/pi-tui": "1.0.4",
+		"@types/node": "^26.2.0",
+		"typescript": "^7.0.2"
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "tsgo --noEmit",
+		"pack:dry": "npm pack --dry-run",
+		"prepack": "bun run check"
+	}
+}

@@ -26,7 +26,7 @@ import { prepareResponsesLiteConversationInput } from "../../providers/openai-co
 import { projectPiCompactionEvent, runPortablePiCompaction } from "./portable-summary.ts";
 import { codexReasoningUpdates } from "../reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../developer-history.ts";
-import { rewriteContextNamespaceTools } from "../../context-management/namespace-tools.ts";
+import { rewriteRemoteContextNamespaceTools } from "../../context-management/namespace-tools.ts";
 import { projectTreeCheckpointBranch } from "../../context-management/tree-checkpoint.ts";
 import { hasTreeArchives } from "../../context-management/tree-archive.ts";
 import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
@@ -426,11 +426,9 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		promptInputSource: compactionDiagnostic.inputSource,
 		compactionDiagnostic,
 		requestOptions,
-		...(plan.contextManagement ? {
+		...(plan.contextManagementRemote ? {
 			rewritePayload: (payload: unknown) => {
-				const rewritten = plan.contextManagementRemote || !plan.codexTransport
-					? rewriteContextNamespaceTools(payload, { encrypted: plan.contextManagementRemote }) : payload;
-				return plan.contextManagementRemote ? state.contextWindows.rewritePayload(rewritten, ctx) : rewritten;
+				return state.contextWindows.rewritePayload(rewriteRemoteContextNamespaceTools(payload), ctx);
 			},
 		} : {}),
 		tokensBefore: event.preparation.tokensBefore,

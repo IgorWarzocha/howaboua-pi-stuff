@@ -46,7 +46,8 @@ export function buildContextSettings(
 			{
 				id: "historyStorage",
 				label: "History and notes storage",
-				description: "Local: Pi session files. Tree: archived Pi branches. Remote: encrypted Codex service. Changing storage does not copy saved notes or change continuity.",
+				description: "Local: Pi session files. Tree: archived Pi branches. Remote: encrypted Codex service. Changing storage does not copy saved notes or change continuity." +
+					(historyStorage === "remote" ? "\nRemote does not support Sign in with ChatGPT under openai. Use the legacy openai-codex provider or a compatible Codex route, or choose Local or Tree." : ""),
 				currentValue: historyStorage === "local" ? "Local" : historyStorage === "tree" ? "Tree" : "Remote",
 				values: plan.codexTransport ? ["Local", "Tree", "Remote"] : ["Local", "Tree"],
 			},

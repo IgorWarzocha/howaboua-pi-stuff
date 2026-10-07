@@ -8,22 +8,25 @@ export async function getSitesAuth() {
     "auth.json",
   );
   let credential;
+  let stored;
   try {
-    const stored = JSON.parse(await readFile(authPath, "utf8"));
+    stored = JSON.parse(await readFile(authPath, "utf8"));
     credential = stored?.["openai-codex"];
   } catch (error) {
     throw new Error(`Could not read Pi authentication from ${authPath}: ${error.message}`);
   }
   if (typeof credential?.access !== "string" || !credential.access) {
-    throw new Error("OpenAI Codex OAuth is not configured in Pi");
+    throw new Error(stored?.openai?.type === "oauth"
+      ? "Sites requires legacy OpenAI Codex, not Sign in with ChatGPT. Ask the user to run /login openai-codex."
+      : "Sites requires an OpenAI Codex login. Ask the user to run /login openai-codex (legacy OpenAI Codex).");
   }
   if (Number.isFinite(credential.expires) && credential.expires <= Date.now()) {
-    throw new Error("Pi's OpenAI Codex OAuth token is expired; run a Codex prompt in Pi to refresh it, then retry");
+    throw new Error("The OpenAI Codex login expired. Ask the user to renew it with /login openai-codex (legacy OpenAI Codex).");
   }
 
   const accountId = credential.accountId || accountIdFromJwt(credential.access);
   if (typeof accountId !== "string" || !accountId) {
-    throw new Error("The Pi Codex OAuth token has no ChatGPT account ID");
+    throw new Error("The OpenAI Codex login is invalid. Ask the user to renew it with /login openai-codex (legacy OpenAI Codex).");
   }
   return { token: credential.access, accountId };
 }

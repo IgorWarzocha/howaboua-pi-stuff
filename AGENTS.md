@@ -10,6 +10,9 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Do not repeat self-evident contracts across names, descriptions, schemas, `promptSnippet`, or `promptGuidelines`; use the latter two only for concrete failures. Never rewrite prior tool calls/results to integrate a tool.
 - Agent-facing prose need not perform grammatical polish; optimize semantic signal per token and omit cosmetic punctuation when it saves tokens. Preserve syntax, structural delimiters, meaning, evidence, caveats, and recovery instructions.
 - Contract spine, not feature museum: feature-existence and regression-tour tests die; retain only independent protocol, routing, migration, or model-visible contracts.
+- Review against actual supported workflows. Identify who triggers the failure and how execution reaches it. A possible interleaving or synthetic reproducer alone does not establish practical exposure.
+- Weigh consequence and realistic exposure against correction complexity. Rare but severe failures can warrant fixes; hypothetical edge cases do not automatically justify coordination, recovery, or compatibility machinery.
+- Respect explicit product tradeoffs. Do not present optional capabilities as defects or escalate severity using unsupported worst-case assumptions.
 - When review questions test scope, cull first: delete whole cases or narrow to the minimum independent contract. Never increase permanent test count unless the user explicitly requests more coverage.
 - Never encode agent tool-call mistakes or prompt-following failures as programmatic tests. Discover them in real use and fix the model-facing contract; tests may cover only deterministic parser, executor, result, or routing boundaries independently of model compliance.
 - Skills and extensions must work for any user. Never ship local paths, personal names, machine assumptions, or private workflow details.

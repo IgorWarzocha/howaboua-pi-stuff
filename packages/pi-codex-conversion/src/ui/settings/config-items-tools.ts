@@ -7,10 +7,10 @@ export function buildToolsSettings(
 	return [
 		toggle(
 			"autoReasoning",
-			"Auto reasoning (GPT-6)",
+			"Auto reasoning",
 			config.tools.autoReasoning,
 			(enabled, current) => ({ ...current, tools: { ...current.tools, autoReasoning: enabled } }),
-			"Let GPT-6 Astra, Sol and Luna adjust reasoning during a task, never below your starting level, then restore it when finished.",
+			"Let supported GPT-6 models, including GPT-6.1 Sol, adjust reasoning during a task, never below your starting level, then restore it when finished.",
 		),
 		toggle(
 			"viewImageFallback",

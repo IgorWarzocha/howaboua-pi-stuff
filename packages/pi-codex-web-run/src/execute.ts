@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	codexLoginDiagnostic,
+	codexProviderFailure,
+} from "./codex-runtime/auth-diagnostics.js";
 import type { CodexToolRouteConfig } from "./codex-runtime/config.js";
 import {
 	DEFAULT_WEB_SEARCH_MODEL,
@@ -58,7 +62,18 @@ async function resolveProvider(
 			isConfiguredCodexTransport,
 		);
 	}
-	const hosted = await options.resolveProvider?.(ctx);
+	let hosted;
+	try {
+		hosted = await options.resolveProvider?.(ctx);
+	} catch (error) {
+		const legacy =
+			ctx.model?.provider === "openai-codex" ||
+			!(
+				ctx.model?.api === "openai-codex-responses" ||
+				options.allowConfiguredProvider?.(ctx.model)
+			);
+		throw codexProviderFailure(error, legacy);
+	}
 	if (hosted) return hosted;
 	const { resolveCodexToolProvider } = await import(
 		"./codex-runtime/resolve.js"
@@ -115,24 +130,22 @@ export async function executeCodexWebSearch(
 				response.text.toLowerCase().includes("cloudflare"))
 		)
 			throw new Error(
-				"web_run search failed for " +
-					provider.searchUrl +
-					": HTTP 403 Cloudflare challenge",
+				"Web search was blocked by an access challenge. Try again later.",
 			);
 		if (response.status === 404 && response.text.includes('"Not Found"'))
+			throw new Error("Web search is unavailable on this route.");
+		if (
+			response.status === 401 ||
+			(response.status === 403 &&
+				/auth|token|credential|access_enforcement|oauth/i.test(response.text))
+		)
 			throw new Error(
-				"web_run search failed for " +
-					provider.searchUrl +
-					": HTTP 404 Not Found (Codex endpoint unavailable for this account/backend)",
+				provider.route === "openai-codex" &&
+					provider.authProvider === "openai-codex"
+					? codexLoginDiagnostic(true)
+					: "Web search access was rejected. Ask the user to check access for their configured provider.",
 			);
-		throw new Error(
-			"web_run search failed for " +
-				provider.searchUrl +
-				": HTTP " +
-				response.status +
-				" " +
-				response.text,
-		);
+		throw new Error("Web search failed: HTTP " + response.status);
 	}
 	let parsed: unknown;
 	try {

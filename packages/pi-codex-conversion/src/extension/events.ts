@@ -94,7 +94,6 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", turn.agentSettled);
-	pi.on("agent_before_settle", turn.agentBeforeSettle);
 	pi.on("cache_warming_decision", (_event, ctx) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		// These routes cannot honor Pi's one-token cap and must not advance the live response chain.

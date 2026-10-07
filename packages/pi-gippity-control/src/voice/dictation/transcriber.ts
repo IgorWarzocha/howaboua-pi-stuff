@@ -76,7 +76,20 @@ export class CodexDictationTranscriber {
 			this.state = "recording";
 			this.callbacks.onStatus("listening");
 		} catch (error) {
-			const failure = error instanceof Error ? error : new Error(String(error));
+			const original =
+				error instanceof Error ? error : new Error(String(error));
+			const status =
+				/^(?:WebSocket error: )?Unexpected server response: (401|403)$/.exec(
+					original.message,
+				)?.[1];
+			const failure =
+				status === "401" && auth.loginFailure
+					? auth.loginFailure()
+					: status === "403"
+						? new Error(
+								"Dictation access was denied (HTTP 403). Check account access and any network or browser challenge.",
+							)
+						: original;
 			this.fail(failure);
 			throw failure;
 		} finally {

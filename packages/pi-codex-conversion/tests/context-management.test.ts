@@ -201,25 +201,32 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 		sessionManager.appendCustomMessageEntry(message.customType, message.content, message.display, message.details),
 		sendUserMessage: (prompt: string) => { checkpointPrompt = prompt; },
 		events: { emit() {} } } as never;
-	let rollovers = 0;
-	const held = kickoff.prepareIdleInput(ctx, async () => {
-		await kickoff.prepareIdleCheckpoint(checkpointPi, ctx, "remote");
-		rollovers++;
-		return true;
-	});
-	await new Promise<void>((resolve) => setImmediate(resolve));
-	assert.equal(kickoff.admitCheckpointInput({ text: checkpointPrompt, source: "interactive" } as never), false);
-	assert.equal(kickoff.admitCheckpointInput({ text: checkpointPrompt, source: "extension" } as never), true);
-	assert.equal(kickoff.admitCheckpointInput({ text: checkpointPrompt, source: "extension" } as never), false);
-	windows.beginPromptedManualCheckpointRun();
-	const checkpointAbort = new AbortController();
-	kickoff.observeCheckpointRun(checkpointAbort.signal);
-	checkpointAbort.abort();
-	kickoff.finishIdleCheckpoint(ctx, windows.finishPromptedManualCheckpoint(ctx, true));
-	assert.deepEqual(await held, { action: "handled" }, "explicit abort cancels held input rather than replaying it");
-	await new Promise<void>((resolve) => setImmediate(resolve));
-	assert.equal(rollovers, 0);
-	assert.equal(kickoff.hasIdleInput, false);
+	// Exercise the input boundary without running adapter preparation. The next
+	// input owner observes the same event only after any rollover has completed.
+	for (const fresh of [false, true]) {
+		sessionManager.branch(final);
+		if (!fresh) sessionManager.appendMessage({ ...assistant, stopReason: "stop" });
+		windows.recordSettlement(pi, ctx, Date.now() - 26 * 60_000);
+		const identity = windows.currentIdentity();
+		let transportResets = 0;
+		const event = { type: "input", text: "Original prompt", images: [{ type: "image", data: "attachment", mimeType: "image/png" }],
+			source: "interactive" } as const;
+		const admissionState = { enabled: true, executionMode: "code", contextWindows: windows, contextKickoff: kickoff,
+			contextTree: { handoff: { active: false }, interceptInput: (received: unknown) => {
+				assert.equal(received, event, "the original input and attachments reach later owners unchanged");
+				assert.equal(windows.currentIdentity()?.windowNumber, identity!.windowNumber + (fresh ? 1 : 0));
+				return { action: "handled" };
+			} }, config: { ...DEFAULT_CODEX_CONVERSION_CONFIG,
+				compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes",
+					historyStorage: "remote", idleNotesRollover: true } } };
+		const lifecycle = createCodexTurnLifecycle({ ...(pi as object), sendUserMessage: () => assert.fail("idle admission cannot start a synthetic turn") } as never,
+			{ state: admissionState, resetTransportAfterCompaction: () => { transportResets++; } } as never,
+			{} as never, {} as never, {} as never, {} as never);
+		assert.deepEqual(await lifecycle.input(event as never, ctx), { action: "handled" });
+		assert.equal(transportResets, fresh ? 1 : 0);
+		assert.equal(kickoff.hasIdleInput, false);
+		windows.project(sessionManager.buildSessionProjection().messages, "remote", sessionManager.getBranch());
+	}
 	windows.promptNotesCheckpoint(checkpointPi, ctx, "remote");
 	assert.equal(windows.admitPromptedCheckpointInput({ text: checkpointPrompt, source: "interactive" } as never), false);
 	assert.equal(windows.admitPromptedCheckpointInput({ text: "Unrelated kickoff", source: "extension" } as never), false);
@@ -234,6 +241,7 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	assert.deepEqual(await cancelled, { action: "handled" });
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	assert.equal(cancelledRollover, false, "reset cancels preparation before its first asynchronous step");
+	sessionManager.appendMessage({ role: "user", content: "Continue work", timestamp: 5 });
 	const state = { enabled: true, executionMode: "code", contextWindows: windows,
 		contextTree: { handoff: { active: false } }, config: { ...DEFAULT_CODEX_CONVERSION_CONFIG,
 			compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, continuity: "notes", historyStorage: "remote" } } };
