@@ -245,12 +245,11 @@ export class HerdrClient implements HerdrConnection {
 						socket.destroy();
 						return;
 					}
+					if (value["id"] === id && value["error"] !== undefined) {
+						disconnect(errorFromResponse(value["error"]));
+						return;
+					}
 					if (!acknowledged && value["id"] === id) {
-						if (value["error"] !== undefined) {
-							disconnect(errorFromResponse(value["error"]));
-							socket.destroy();
-							return;
-						}
 						const result = value["result"];
 						if (
 							typeof result !== "object" ||

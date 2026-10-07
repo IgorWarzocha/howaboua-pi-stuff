@@ -232,12 +232,11 @@ function subscribe(id, requested) {
 			},
 			(value) => {
 				if (ended) return;
+				if (value.id === requestId && value.error !== undefined) {
+					disconnected(errorFromResponse(value.error));
+					return;
+				}
 				if (!acknowledged && value.id === requestId) {
-					if (value.error !== undefined) {
-						disconnected(errorFromResponse(value.error));
-						socket.destroy();
-						return;
-					}
 					if (value.result?.type !== "subscription_started") {
 						disconnected(
 							new Error(
