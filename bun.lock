@@ -146,7 +146,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "3.0.46",
+      "version": "3.0.47",
       "dependencies": {
         "openai": "7.10.0",
         "proxy-from-env": "2.1.0",
@@ -196,7 +196,7 @@
     },
     "packages/pi-codex-imagegen": {
       "name": "@howaboua/pi-codex-imagegen",
-      "version": "0.0.9",
+      "version": "0.0.10",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.10.2",
@@ -218,7 +218,7 @@
     },
     "packages/pi-codex-web-run": {
       "name": "@howaboua/pi-codex-web-run",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.10.2",
@@ -279,7 +279,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.88",
+      "version": "0.0.89",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.11",
         "@howaboua/pi-auto-trees": "0.1.16",
@@ -306,7 +306,7 @@
     },
     "packages/pi-gippity-control": {
       "name": "@howaboua/pi-gippity-control",
-      "version": "0.0.24",
+      "version": "0.0.25",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "selfsigned": "^5.5.0",
@@ -449,7 +449,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.14",
+      "version": "0.2.15",
       "dependencies": {
         "unicode-case-folding": "1.1.2",
       },
@@ -525,7 +525,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.96",
+      "version": "0.0.97",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.11",
         "@howaboua/pi-auto-trees": "0.1.16",

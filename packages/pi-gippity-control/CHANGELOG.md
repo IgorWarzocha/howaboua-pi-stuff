@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.25
+
+- Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+
 ## 0.0.24
 
 - Requires Pi 1.0.0 or later.

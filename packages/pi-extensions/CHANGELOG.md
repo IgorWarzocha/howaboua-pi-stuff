@@ -1,5 +1,12 @@
 # @howaboua/pi-extensions
 
+## 0.0.89
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+  - @howaboua/pi-shepherdr: Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
+
 ## 0.0.88
 
 - Include bundled package updates:
