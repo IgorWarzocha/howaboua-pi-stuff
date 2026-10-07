@@ -60,17 +60,21 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.46
+### @howaboua/pi-codex-conversion — 3.0.47
 
-- Improved context recovery and added Fast Mode controls for all models and individual families.
+- Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
 
-  - Idle rollover now checkpoints stale notes before continuing in a new window, including after aborted or failed runs.
-  - Added optional **Note save markers** in `/codex display`. Use their `/tree` bookmarks to return to saved checkpoints. In **Notes and history**, plain `/compact` can reuse those notes.
-  - Added **All models Fast Mode** alongside independent Astra, Sol, Terra and Luna controls in `/codex`. Family choices apply across model versions. Existing preferences are preserved.
-  - Extension briefings survive compaction and context rollover. Context briefings expand in the UI, and recent-note previews flag that more notes may be available.
-  - Added Codex Guardian support for Code and Notebook tool calls.
-  - Inactive Codex conversion preserves other extensions' tool selections. Hidden tools no longer add standing prompt instructions.
-  - Notes listings accept `max_files` as an alias for `max_results`.
+- Fixed HTTP 400 errors when using Local or Tree history with Pi's OpenAI ChatGPT sign-in.
+
+  Show only the latest Notes saved notice on the active branch while preserving earlier checkpoints in session history.
+
+- Preserve supported reasoning levels when context-history tools are enabled, preventing unsupported "none" errors when cycling GPT-6 Sol or Luna.
+
+  Clarified that Auto reasoning supports GPT-6.1 Sol in its settings description.
+
+  Updated `change_reasoning` guidance to call before beginning work and reassess when difficulty or uncertainty changes.
+
+- Idle window rollover now requires fresh notes from the latest completed turn. Without fresh notes, the incoming prompt runs normally instead of triggering a checkpoint request.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -86,19 +90,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-guardian/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.9
+### @howaboua/pi-codex-imagegen — 0.0.10
 
-- Requires Pi 1.0.0 or later.
-
-  Updated Undici to 8.10.2 with security fixes.
+- Explain when image generation and web search need a separate legacy OpenAI Codex login rather than ChatGPT sign-in. Access failures now give concise guidance without exposing backend responses or addresses. Existing provider routing is unchanged.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
-### @howaboua/pi-codex-web-run — 0.0.6
+### @howaboua/pi-codex-web-run — 0.0.7
 
-- Requires Pi 1.0.0 or later.
-
-  Updated Undici to 8.10.2 with security fixes.
+- Explain when image generation and web search need a separate legacy OpenAI Codex login rather than ChatGPT sign-in. Access failures now give concise guidance without exposing backend responses or addresses. Existing provider routing is unchanged.
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
@@ -114,22 +114,18 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.88
+### @howaboua/pi-extensions — 0.0.89
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
-  - @howaboua/pi-codex-guardian: Initial release of Codex Guardian approval reviews for Pi. - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default. - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request. - Use `/guardian` to inspect status, enable or disable protection, and reload rules. Installed separately from the extension bundles. Review requests are not confirmed to be free.
-  - @howaboua/pi-gpt-switcher: Fixed model shortcuts rejecting configured context windows above their defaults.
-  - @howaboua/pi-shepherdr: Delegated agents keep reporting after task completion, including follow-up work. - Added shared-board awareness across native, Code and Notebook modes. - Preserves orchestration guidance across compaction and context rollover. - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation. - Parents receive and answer asynchronous Ask questions while workers continue. - Updated agent guidance to close finished workers without sending extra messages.
+  - @howaboua/pi-gippity-control: Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+  - @howaboua/pi-shepherdr: Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.24
+### @howaboua/pi-gippity-control — 0.0.25
 
-- Requires Pi 1.0.0 or later.
-
-  Updated Undici to 8.10.2 with security fixes.
+- Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -163,15 +159,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.14
+### @howaboua/pi-shepherdr — 0.2.15
 
-- Delegated agents keep reporting after task completion, including follow-up work.
-
-  - Added shared-board awareness across native, Code and Notebook modes.
-  - Preserves orchestration guidance across compaction and context rollover.
-  - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation.
-  - Parents receive and answer asynchronous Ask questions while workers continue.
-  - Updated agent guidance to close finished workers without sending extra messages.
+- Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -227,15 +217,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.96
+### @howaboua/pi-stuff — 0.0.97
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
-  - @howaboua/pi-codex-guardian: Initial release of Codex Guardian approval reviews for Pi. - Select exact tools and optional argument regexes for AI review or local blocking in native Pi, Code Mode and Notebook Mode. Global and trusted project rules combine. No rules are configured by default. - AI reviews use the active ChatGPT-backed Codex session. Denials and review failures block execution. Local blocking needs no model request. - Use `/guardian` to inspect status, enable or disable protection, and reload rules. Installed separately from the extension bundles. Review requests are not confirmed to be free.
-  - @howaboua/pi-gpt-switcher: Fixed model shortcuts rejecting configured context windows above their defaults.
-  - @howaboua/pi-shepherdr: Delegated agents keep reporting after task completion, including follow-up work. - Added shared-board awareness across native, Code and Notebook modes. - Preserves orchestration guidance across compaction and context rollover. - Restores running workers' targets and full tasks after compaction or context rollover to prevent duplicate delegation. - Parents receive and answer asynchronous Ask questions while workers continue. - Updated agent guidance to close finished workers without sending extra messages.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.
+  - @howaboua/pi-gippity-control: Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+  - @howaboua/pi-shepherdr: Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

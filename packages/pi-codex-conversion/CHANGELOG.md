@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.47
+
+- Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+
+- Fixed HTTP 400 errors when using Local or Tree history with Pi's OpenAI ChatGPT sign-in.
+
+  Show only the latest Notes saved notice on the active branch while preserving earlier checkpoints in session history.
+
+- Preserve supported reasoning levels when context-history tools are enabled, preventing unsupported "none" errors when cycling GPT-6 Sol or Luna.
+
+  Clarified that Auto reasoning supports GPT-6.1 Sol in its settings description.
+
+  Updated `change_reasoning` guidance to call before beginning work and reassess when difficulty or uncertainty changes.
+
+- Idle window rollover now requires fresh notes from the latest completed turn. Without fresh notes, the incoming prompt runs normally instead of triggering a checkpoint request.
+
 ## 3.0.46
 
 - Improved context recovery and added Fast Mode controls for all models and individual families.
