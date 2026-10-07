@@ -21,6 +21,7 @@ import {
 import type { NotesStore } from "./store.js";
 
 const NOTES_ACTIONS = [
+	"help",
 	"list_files_by_prefix",
 	"read_file",
 	"search_contents",
@@ -28,20 +29,19 @@ const NOTES_ACTIONS = [
 	"write_file",
 ] as const;
 const HISTORY_ACTIONS = [
+	"help",
 	"list_windows",
 	"list_items",
 	"read_item",
 	"search_contents",
 ] as const;
-export const NOTES_USAGE =
-	"await tools.notes({ action, ...args }) // list_files_by_prefix(); read_file(path); search_contents(query); append_to_file(path,text); write_file(path,text)";
-export const HISTORY_USAGE =
-	"await tools.history({ action, ...args }) // list_windows(); list_items(); read_item(item_id,window_id); search_contents(query)";
+export const NOTES_USAGE = "await tools.notes() // help";
+export const HISTORY_USAGE = "await tools.history() // help";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const NOTES_SCHEMA = Type.Object(
 	{
-		action: StringEnum(NOTES_ACTIONS),
+		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
 		path: STRING,
 		text: STRING,
 		prefix: STRING,
@@ -62,7 +62,7 @@ const NOTES_SCHEMA = Type.Object(
 );
 const HISTORY_SCHEMA = Type.Object(
 	{
-		action: StringEnum(HISTORY_ACTIONS),
+		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 		item_id: STRING,
 		window_id: Type.Optional(Type.Union([Type.String(), Type.Null()])),
@@ -154,6 +154,42 @@ function result(payload: unknown): AgentToolResult<unknown> {
 		content: [{ type: "text", text: JSON.stringify(payload) }],
 		details: {},
 	};
+}
+
+function discovery(
+	namespace: LookupQuery["namespace"],
+	input: unknown,
+): AgentToolResult<unknown> | undefined {
+	const params = input === undefined ? {} : input;
+	if (!params || typeof params !== "object" || Array.isArray(params))
+		throw new Error("Supply an action object, or omit arguments for help");
+	const entries = Object.entries(params);
+	if (
+		!entries.length ||
+		(params as Record<string, unknown>)["action"] === "help"
+	) {
+		if (entries.some(([key]) => key !== "action"))
+			throw new Error("Help accepts only action: help");
+		const actions = namespace === "notes" ? NOTES_ACTIONS : HISTORY_ACTIONS;
+		return result({
+			actions: Object.fromEntries(
+				actions.map((action) => [
+					action,
+					action === "help"
+						? ""
+						: FIELDS[
+								action === "search_contents" ? `search_${namespace}` : action
+							]!.map((field) =>
+								["path", "text", "query", "item_id"].includes(field) ||
+								(action === "read_item" && field === "window_id")
+									? field
+									: `${field}?`,
+							).join(" "),
+				]),
+			),
+		});
+	}
+	return undefined;
 }
 
 async function hybrid(
@@ -263,7 +299,9 @@ export function createTools(
 			parameters: NOTES_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments(args) {
-				if (!args || typeof args !== "object") return args;
+				if (args === undefined) return {};
+				if (!args || typeof args !== "object" || Array.isArray(args))
+					return args;
 				const params = { ...args } as Record<string, unknown>;
 				if (
 					params["action"] === "list_files_by_prefix" &&
@@ -275,6 +313,8 @@ export function createTools(
 				return params;
 			},
 			async execute(callId, input, signal, _update, ctx) {
+				const help = discovery("notes", input);
+				if (help) return help;
 				assertActive();
 				const raw = relevant("notes", input);
 				const routed = await lifecycle.bridge?.route?.(
@@ -356,7 +396,12 @@ export function createTools(
 			description:
 				"Prior-window detail. Pass IDs unchanged. Search, never browse",
 			parameters: HISTORY_SCHEMA,
+			prepareArguments(args) {
+				return args === undefined ? {} : args;
+			},
 			async execute(callId, input, signal, _update, ctx) {
+				const help = discovery("history", input);
+				if (help) return help;
 				assertActive();
 				const params = relevant("history", input);
 				const query = { namespace: "history", params } as const;

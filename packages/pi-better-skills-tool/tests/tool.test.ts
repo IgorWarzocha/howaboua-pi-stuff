@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createSkillsTool } from "../src/tool.js";
+import { createSkillsTool, prepareSkillsCodeModeInput } from "../src/tool.js";
 
 test("resolves cwd skills and returns lossless bounded UTF-8 continuations", async (t) => {
 	const globalRoot = mkdtempSync(join(tmpdir(), "skills-global-"));
@@ -20,10 +20,10 @@ test("resolves cwd skills and returns lossless bounded UTF-8 continuations", asy
 	);
 
 	const tool = createSkillsTool({ globalRoot });
-	const read = async (command: string) => {
+	const read = async (command?: string) => {
 		const result = await tool.execute(
 			"call",
-			{ command },
+			command === undefined ? {} : { command },
 			new AbortController().signal,
 			undefined,
 			{ cwd } as never,
@@ -32,6 +32,15 @@ test("resolves cwd skills and returns lossless bounded UTF-8 continuations", asy
 		assert.equal(content?.type, "text");
 		return content?.type === "text" ? content.text : "";
 	};
+	assert.deepEqual(prepareSkillsCodeModeInput(undefined), {});
+	assert.deepEqual(prepareSkillsCodeModeInput("help"), { command: "help" });
+	assert.throws(() => prepareSkillsCodeModeInput({}), /string command/);
+	const discovery = await read();
+	assert.match(discovery, /handoff: Session handoff/);
+	assert.match(discovery, /Commands: list.*read.*help/);
+	assert.equal(await read(""), discovery);
+	assert.equal(await read("help"), discovery);
+	assert.doesNotMatch(await read("list"), /Commands:/);
 	const small = await read("read handoff");
 	assert.match(small, /^Session body/);
 	const bulkDirectory = join(cwd, ".pi", "skills", "bulk");

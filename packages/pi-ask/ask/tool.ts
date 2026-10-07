@@ -6,6 +6,7 @@ import {
 	createAskCoordinator,
 } from "./coordinator.js";
 import {
+	isAskHelpInput,
 	isSteeringAskInput,
 	normalizeAskInput,
 	normalizeResponses,
@@ -45,15 +46,26 @@ export function createAskRuntime({
 	const tool = defineTool({
 		name: "ask",
 		label: "Ask",
-		description: "Request user input or action",
+		description: "Request user input or action; {} for help",
 		parameters: AskParameters,
-		promptGuidelines: [
-			"ask: Omit delivery to wait; steer only while reversible work can continue. Handoffs wait for user action; state the completion signal",
-			"ask: For reviews, make each finding a prompt with disposition choices; do not report first.",
-			"ask: Other/rephrase is automatic; omit choices for free text",
-		],
 		executionMode: "sequential",
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
+			if (isAskHelpInput(params)) {
+				return {
+					content: [
+						textContent(
+							[
+								"ask({}) or ask({ help: true }) returns help",
+								'ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], delivery?: "wait"|"steer", handoff? })',
+								"Omit delivery to wait; steer only while reversible work can continue. Handoffs wait for user action; state the completion signal",
+								"For reviews, make each finding a prompt with disposition choices; do not report first",
+								"Other/rephrase is automatic; omit choices for free text. Blank Other/rephrase means rephrase or follow up",
+							].join("\n"),
+						),
+					],
+					details: { kind: "help" },
+				};
+			}
 			const { delivery, handoff, prompts } = normalizeAskInput(params);
 			if (prompts.length === 0) {
 				throw new Error(
@@ -115,6 +127,8 @@ export function createAskRuntime({
 			};
 		},
 		renderCall(args, theme, context) {
+			if (isAskHelpInput(args))
+				return new Text(theme.fg("toolTitle", theme.bold("ask help")), 0, 0);
 			const count = Array.isArray(args.prompts) ? args.prompts.length : 0;
 			const label =
 				args.handoff === true

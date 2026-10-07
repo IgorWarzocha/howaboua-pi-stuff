@@ -1,7 +1,9 @@
 ---
+"@howaboua/pi-ask": patch
+"@howaboua/pi-better-skills-tool": patch
 "@howaboua/pi-browser": patch
 "@howaboua/pi-codex-conversion": patch
 "@howaboua/pi-shepherdr": patch
 ---
 
-Browser, Notebook, agents and board now return help when called without arguments, including empty objects in structured mode. Explicit help remains supported.
+Browser, Notebook, agents, board and ask now return help when called without arguments, including empty objects in structured mode. Skills returns its catalog with command guidance. Explicit help remains supported.

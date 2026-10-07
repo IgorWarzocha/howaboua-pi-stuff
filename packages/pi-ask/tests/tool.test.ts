@@ -7,6 +7,52 @@ const context = { hasUI: false, mode: "print" } as never;
 
 describe("ask tool results", () => {
 	test("returns waiting responses and keeps handoff dismissal distinct", async () => {
+		const discovery = createAskTool({
+			onBlockedChange: () => {
+				throw new Error("Help must not block");
+			},
+			onPendingChange: () => {
+				throw new Error("Help must not persist");
+			},
+			onSteerActiveChange: () => {
+				throw new Error("Help must not activate");
+			},
+		});
+		for (const input of [{}, { help: true }] as const) {
+			const help = await discovery.execute(
+				"help",
+				input,
+				undefined,
+				undefined,
+				context,
+			);
+			expect(help.details).toEqual({ kind: "help" });
+			expect(help.content[0]).toMatchObject({
+				type: "text",
+				text: expect.stringContaining("help: true"),
+			});
+		}
+		for (const input of [
+			{ prompts: [] },
+			{ delivery: "steer" },
+			{ prompts: [{ title: " " }] },
+		] as const) {
+			await expect(
+				discovery.execute("invalid", input, undefined, undefined, context),
+			).rejects.toThrow(
+				"ask requires at least one prompt with a non-empty title.",
+			);
+		}
+		await expect(
+			discovery.execute(
+				"no-ui",
+				{ prompts: [{ title: "Input" }] },
+				undefined,
+				undefined,
+				context,
+			),
+		).rejects.toThrow("ask requires an interactive UI.");
+
 		const blocked: Array<{
 			id: string;
 			active: boolean;

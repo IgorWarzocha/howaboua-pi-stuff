@@ -10,10 +10,7 @@ import {
 
 const SkillsParameters = Type.Object(
 	{
-		command: Type.String({
-			description:
-				"list [category...] | read <skill> [skill-or-reference...]; separate commands with ;",
-		}),
+		command: Type.Optional(Type.String({ description: "Omit for discovery" })),
 	},
 	{ additionalProperties: false },
 );
@@ -26,6 +23,7 @@ export interface SkillsToolOptions {
 }
 
 export function prepareSkillsCodeModeInput(input: unknown): SkillsParameters {
+	if (input === undefined) return {};
 	if (typeof input !== "string")
 		throw new Error("skills expects a string command");
 	return { command: input };
@@ -42,7 +40,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const output = runSkills(
-				params.command,
+				params.command ?? "",
 				options.globalRoot ?? defaultSkillsDir(),
 				defaultSessionSkillsDir(ctx.cwd),
 				options.getLoadedSkills?.() ?? [],

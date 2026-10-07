@@ -9,7 +9,7 @@ import {
 	createSteerDelivery,
 	type TryCodexDeveloperMessage,
 } from "./ask/delivery.js";
-import { isSteeringAskInput } from "./ask/normalize.js";
+import { isAskHelpInput, isSteeringAskInput } from "./ask/normalize.js";
 import { PENDING_ASK_ENTRY_TYPE, readPendingAsks } from "./ask/pending.js";
 import { createAskRuntime, createAskTool } from "./ask/tool.js";
 import registerPackageChangelog from "./changelog.js";
@@ -127,9 +127,9 @@ async function registerAskInCodeMode(
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(ask, {
-				blocking: (input) => !isSteeringAskInput(input),
-				usage:
-					'await tools.ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], delivery?: "wait"|"steer", handoff? })',
+				blocking: (input) =>
+					!isAskHelpInput(input) && !isSteeringAskInput(input),
+				usage: "await tools.ask() // help",
 			}),
 		]);
 		pi.on("session_shutdown", () => registration.unregister());
