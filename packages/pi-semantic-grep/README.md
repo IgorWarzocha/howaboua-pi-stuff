@@ -2,11 +2,7 @@
 
 Adds an agent-callable `semantic_grep` tool for finding code and documentation by meaning rather than exact text. Each repository gets a local SQLite index under `.pi/`; embeddings come from an OpenAI-compatible endpoint you control.
 
-## Install
-
-```bash
-pi install npm:@howaboua/pi-semantic-grep
-```
+This package is no longer maintained and will receive no further releases. Source is retained for reference and adaptation.
 
 The package depends on the native `better-sqlite3` module and requires an environment where npm can install or load its binary.
 

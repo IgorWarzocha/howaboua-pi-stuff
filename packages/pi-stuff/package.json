@@ -19,9 +19,7 @@
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-gippity-control": "0.0.25",
 		"@howaboua/pi-gpt-switcher": "0.1.5",
-		"@howaboua/pi-memories": "0.1.5",
 		"@howaboua/pi-pet": "0.1.4",
-		"@howaboua/pi-semantic-grep": "0.1.19",
 		"@howaboua/pi-shepherdr": "0.2.15",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.5",
 		"@howaboua/pi-skill-code": "0.0.3",
@@ -29,8 +27,7 @@
 		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.7",
 		"@howaboua/pi-smart-btw": "0.2.8",
 		"@howaboua/pi-subagent-review": "0.2.25",
-		"@howaboua/pi-unicode-charts": "0.1.0",
-		"@howaboua/pi-vent": "0.2.11"
+		"@howaboua/pi-unicode-charts": "0.1.0"
 	},
 	"files": [
 		"README.md",
