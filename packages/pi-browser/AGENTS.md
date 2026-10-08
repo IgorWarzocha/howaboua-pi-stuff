@@ -1,0 +1,2 @@
+- Recheck backend hit targets after mouse movement; hover can cover or move the original target.
+- Release dispatched keys/buttons even after cancellation; cleanup dispatch must not reuse the aborted signal.

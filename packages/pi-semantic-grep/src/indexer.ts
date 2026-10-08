@@ -37,7 +37,7 @@ function canonical(value: unknown): unknown {
 	);
 }
 
-export function indexFingerprint(config: SemanticGrepConfig): string {
+function indexFingerprint(config: SemanticGrepConfig): string {
 	const payload = canonical({
 		schema: 5,
 		model: config.embeddings.model,

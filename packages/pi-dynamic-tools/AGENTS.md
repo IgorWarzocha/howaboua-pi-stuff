@@ -1,3 +1,4 @@
 - Keep this unmaintained package independent from `pi-codex-conversion`.
 - Vendored Codex runtime sources track `vendor/code-mode-src/UPSTREAM`; keep Pi-owned changes outside upstream `src` trees.
 - Keep `examples/spawn-agent/reviewer.prompt.md` aligned with `packages/pi-subagent-review/review.prompt.md`.
+- Yielded cells retain their execution-time tool set and context; rediscovery must not retarget their delegates.

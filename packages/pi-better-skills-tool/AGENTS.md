@@ -1,0 +1,2 @@
+- Pi-loaded skills are authoritative; hiding prompt catalogs must not break native slash expansion or expose disableModelInvocation skills through fallback discovery.
+- Resolve reference symlinks within the skill root; reference-only reads must not expand the whole skill body.

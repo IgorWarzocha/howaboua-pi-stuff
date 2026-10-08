@@ -14,7 +14,7 @@ export interface DesktopWindowBounds {
   height: number;
 }
 
-export function hyprlandCursorSocket(env: NodeJS.ProcessEnv): string | undefined {
+function hyprlandCursorSocket(env: NodeJS.ProcessEnv): string | undefined {
   const runtime = env["XDG_RUNTIME_DIR"];
   const signature = env["HYPRLAND_INSTANCE_SIGNATURE"];
   if (!(runtime && signature && runtime.startsWith("/") && HYPRLAND_SIGNATURE_PATTERN.test(signature)))
@@ -111,7 +111,7 @@ async function readHyprlandCommand<T>(
   });
 }
 
-export async function readHyprlandCursor(path: string): Promise<DesktopCursorPosition> {
+async function readHyprlandCursor(path: string): Promise<DesktopCursorPosition> {
   return await readHyprlandCommand(
     path,
     "j/cursorpos",

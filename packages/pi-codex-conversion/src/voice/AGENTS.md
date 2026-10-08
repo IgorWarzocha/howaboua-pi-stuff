@@ -25,4 +25,4 @@
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
 - `REALTIME-SYSTEM-PROMPT.md` owns template/schema. Users own identity/tone/presentation; routing owns one-assistant continuity/delegation/immediacy. Log schema changes; never overwrite user prompts; check only when engaged and direct agent migration.
 - Normal Codex Responses has no usable output-audio channel; keep voice on Realtime transport rather than teaching the provider stream speculative audio events.
-- Live network and hardware checks stay opt-in; deterministic tests own parsing, state, framing, resampling, and cleanup.
+- Live network and hardware checks stay opt-in; keep helper framing bounded and cleanup owned by the process lifecycle.

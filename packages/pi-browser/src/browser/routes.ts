@@ -1,9 +1,5 @@
 import { hostname } from "node:os";
-import {
-	type BrowserRouteConfig,
-	normalizeBrowserRouteConfig,
-	readBrowserRouteConfig,
-} from "./config.js";
+import { type BrowserRouteConfig, readBrowserRouteConfig } from "./config.js";
 
 export interface BrowserRemoteCommand {
 	nodePath: string;
@@ -52,13 +48,6 @@ function routesFromConfig(
 		routes.set(name, local ? { name, local } : { name, local, remote });
 	}
 	return new BrowserRoutes(routes);
-}
-
-export function parseBrowserRoutes(
-	value: unknown,
-	currentHostname = hostname(),
-): BrowserRoutes {
-	return routesFromConfig(normalizeBrowserRouteConfig(value), currentHostname);
 }
 
 export function loadBrowserRoutes(

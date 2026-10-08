@@ -9,11 +9,7 @@ import {
 import { readSkillPackage } from "./skill-package.js";
 
 export type { LoadedSkill } from "./discovery.js";
-export {
-	defaultSessionSkillsDir,
-	defaultSkillsDir,
-	discoverSkills,
-} from "./discovery.js";
+export { defaultSessionSkillsDir, defaultSkillsDir } from "./discovery.js";
 
 const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
@@ -29,7 +25,7 @@ interface SkillsRequest {
 	offset: number;
 }
 
-export function parseRequest(input: unknown): SkillsRequest {
+function parseRequest(input: unknown): SkillsRequest {
 	if (typeof input !== "string")
 		throw new Error("skills expects a string command");
 	const offsetMatch = input.match(/\s+--offset\s+(\d+)\s*$/);

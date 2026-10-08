@@ -44,8 +44,8 @@ export interface SemanticGrepConfig {
 	};
 }
 
-export const CONFIG_PATH = path.join(getAgentDir(), "semantic-grep.json");
-export const PROJECT_CONFIG_BASENAME = path.join(
+const CONFIG_PATH = path.join(getAgentDir(), "semantic-grep.json");
+const PROJECT_CONFIG_BASENAME = path.join(
 	CONFIG_DIR_NAME,
 	"semantic-grep.json",
 );
@@ -68,7 +68,7 @@ export const STANDARD_EXCLUDE_DIRS = [
 	"out",
 ];
 
-export const DEFAULT_CONFIG: SemanticGrepConfig = {
+const DEFAULT_CONFIG: SemanticGrepConfig = {
 	toolRegistration: true,
 	embeddings: {
 		url: "http://127.0.0.1:1234/v1/embeddings",

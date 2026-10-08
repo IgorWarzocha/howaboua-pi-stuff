@@ -27,8 +27,6 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export { scopeAllToolsToDiscoverable } from "./tool-source.js";
-
 type HostClientOptions = {
 	binary: string;
 	tools: CodeModeToolDefinition[];

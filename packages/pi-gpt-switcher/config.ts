@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-export const SHORTCUT_ALIASES = ["sol", "luna", "astra"] as const;
+const SHORTCUT_ALIASES = ["sol", "luna", "astra"] as const;
 export type ShortcutAlias = (typeof SHORTCUT_ALIASES)[number];
 export type ThinkingLevel =
 	| "off"
@@ -23,14 +23,14 @@ export const THINKING_LEVELS = new Set<ThinkingLevel>([
 	"max",
 ]);
 
-export type ShortcutDefaults = {
+type ShortcutDefaults = {
 	contextWindow: number;
 	reasoning: ThinkingLevel;
 };
 
 export type GptSwitcherConfig = Record<ShortcutAlias, ShortcutDefaults>;
 
-export const DEFAULT_GPT_SWITCHER_CONFIG: GptSwitcherConfig = {
+const DEFAULT_GPT_SWITCHER_CONFIG: GptSwitcherConfig = {
 	sol: { contextWindow: 272_000, reasoning: "high" },
 	luna: { contextWindow: 472_000, reasoning: "xhigh" },
 	astra: { contextWindow: 272_000, reasoning: "low" },
@@ -82,7 +82,7 @@ function normalizeReasoning(
 	return fallback;
 }
 
-export function normalizeGptSwitcherConfig(value: unknown): GptSwitcherConfig {
+function normalizeGptSwitcherConfig(value: unknown): GptSwitcherConfig {
 	if (!isObject(value)) {
 		configurationError("configuration must be a JSON object; using defaults");
 		return structuredClone(DEFAULT_GPT_SWITCHER_CONFIG);
@@ -116,9 +116,7 @@ export function normalizeGptSwitcherConfig(value: unknown): GptSwitcherConfig {
 	) as GptSwitcherConfig;
 }
 
-export function getGptSwitcherConfigPath(
-	agentDir: string = getAgentDir(),
-): string {
+function getGptSwitcherConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CONFIG_BASENAME);
 }
 

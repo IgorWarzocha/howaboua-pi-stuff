@@ -8,13 +8,11 @@
 			"entry": [
 				"changelog.ts",
 				"index.ts",
-				"remote-worker.ts",
-				"tests/**/*.test.ts"
+				"remote-worker.ts"
 			],
 			"project": [
 				"*.ts",
-				"src/**/*.ts",
-				"tests/**/*.ts"
+				"src/**/*.ts"
 			]
 		},
 		"packages/pi-codex-conversion": {
@@ -26,6 +24,7 @@
 				"src/code-mode-hooks.ts",
 				"src/context-sharing.ts",
 				"src/developer-messages.ts",
+				"src/apply-patch-display.ts",
 				"src/realtime-voice.ts",
 				"src/codex-usage/analyse.ts",
 				"scripts/**/*.mjs",
@@ -74,8 +73,8 @@
 			"entry": ["changelog.ts"]
 		},
 		"packages/pi-subagent-review": {
-			"entry": ["changelog.ts", "tests/**/*.test.ts"],
-			"project": ["src/**/*.ts", "tests/**/*.ts"]
+			"entry": ["changelog.ts"],
+			"project": ["src/**/*.ts"]
 		}
 	}
 }

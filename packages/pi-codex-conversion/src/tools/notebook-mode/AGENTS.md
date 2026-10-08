@@ -1,5 +1,8 @@
 - Keep this optional runtime cold: import it only after Notebook Code Mode is selected; download Deno only on first execution/prepare.
 - Keep host persistence/validation separate from injected kernel source; session checkpoint payloads are deltas against project generations
+- Merge against each session's observed baseline; conflicts retain current project bytes and save the candidate separately. Stale checkpoint restore excludes both current project names and names deleted since its baseline.
+- Validate persisted identifiers and payload basenames before injecting restore source or deleting files; never follow manifest paths outside their state directory.
+- Jupyter authenticates the four JSON frames, not the routing envelope; preserve empty/multipart and 64-bit ZMTP frames across arbitrary TCP chunk boundaries, bounding lengths before allocation.
 - Saved runtime versions are provenance, not restore or write gates; let deserialization report actual incompatibility
 - `journal.ts` appends cell events and rotates at the heap-derived persistence budget, retaining one previous `.ipynb`; `journal-document.ts` materializes standard notebooks
 - Running sessions are private forks; new `globalThis` properties and explicitly pinned bindings merge into project state, never another live kernel

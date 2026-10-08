@@ -8,8 +8,6 @@ import type { BrowserRoute } from "./routes.js";
 
 const SAFE_REMOTE_FILE = /^\/[A-Za-z0-9_./-]+$/;
 
-export { remoteNodeCommand } from "./remote-helper.js";
-
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }

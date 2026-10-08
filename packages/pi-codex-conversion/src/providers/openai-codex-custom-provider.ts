@@ -39,9 +39,6 @@ import {
 	routeContextNamespaceToolStream,
 } from "../context-management/namespace-tools.ts";
 
-export { buildRequestBody } from "./openai-codex/request-body.ts";
-export { parseSSE } from "./openai-codex/sse.ts";
-export { buildCachedWebSocketRequestBody } from "./openai-codex/websocket-continuation.ts";
 export { closeOpenAICodexWebSocketSessions };
 export type { ResponsesBody } from "./openai-codex/types.ts";
 

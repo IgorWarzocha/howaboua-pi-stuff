@@ -184,7 +184,7 @@ function isReviewLoopIncrementEntry(entry: SessionEntry): boolean {
 	);
 }
 
-export function hasReviewLoopIncrement(
+function hasReviewLoopIncrement(
 	ctx: ExtensionCommandContext,
 	markerId: string,
 ): boolean {

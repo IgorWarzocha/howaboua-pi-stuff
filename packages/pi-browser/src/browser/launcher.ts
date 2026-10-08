@@ -17,7 +17,7 @@ function abortReason(signal: AbortSignal): Error {
 		: new Error("Browser launch aborted");
 }
 
-export function runProcess(
+function runProcess(
 	command: string,
 	args: string[],
 	signal?: AbortSignal,

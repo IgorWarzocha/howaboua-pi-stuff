@@ -19,7 +19,7 @@ function getFinalOutput(messages: any[]): string {
 	return "";
 }
 
-export function reduceAssistantMessageUpdate(
+function reduceAssistantMessageUpdate(
 	current: string,
 	event: {
 		assistantMessageEvent?: {
