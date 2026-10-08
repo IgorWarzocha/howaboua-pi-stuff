@@ -116,6 +116,9 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 		setLabel: (id: string, label: string) => sessionManager.appendLabelChange(id, label),
 	} as never;
 	const windows = new CodexContextWindowManager(async () => undefined);
+	windows.ensureInitialized(pi, ctx, true, { createIfMissing: false });
+	assert.equal(windows.currentIdentity(), undefined);
+	assert.equal(sessionManager.getEntries().length, 0, "model selection must not create conversation history");
 	windows.ensureInitialized(pi, ctx, true);
 	sessionManager.appendMessage({ role: "user", content: "Save progress", timestamp: 1 });
 	const assistant: AssistantMessage = {

@@ -121,11 +121,8 @@ export function createCodexSessionLifecycle(
 				return;
 			}
 			const plan = syncAdapter(pi, ctx, state);
-			state.contextWindows.ensureInitialized(
-				pi,
-				ctx,
-				plan.contextManagement,
-			);
+			// Keep existing window state, but leave initial creation to the first prepared turn.
+			state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement, { createIfMissing: false });
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);
 			prepareCodeModeHost(codeMode, ctx);
@@ -152,11 +149,7 @@ export function createCodexSessionLifecycle(
 			await codeMode.shutdownHost();
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			const plan = syncAdapter(pi, ctx, state);
-			state.contextWindows.ensureInitialized(
-				pi,
-				ctx,
-				plan.contextManagement,
-			);
+			state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement, { createIfMissing: false });
 			prepareCodeModeHost(codeMode, ctx);
 			if (previousMode === "notebook" || state.executionMode === "notebook") {
 				ctx.ui.notify("Notebook state reset after conversation-tree navigation", "info");

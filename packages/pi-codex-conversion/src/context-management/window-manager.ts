@@ -157,6 +157,7 @@ export class CodexContextWindowManager {
 		pi: ExtensionAPI,
 		ctx: ExtensionContext,
 		active: boolean,
+		{ createIfMissing = true }: { createIfMissing?: boolean } = {},
 	): void {
 		if (!active) return;
 		const pending = this.promptedManualCheckpoint;
@@ -178,6 +179,7 @@ export class CodexContextWindowManager {
 			}
 			return;
 		}
+		if (!createIfMissing) return;
 		const windowId = randomUUID();
 		this.sendWindowMessage(
 			pi,
