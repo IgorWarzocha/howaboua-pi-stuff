@@ -35,6 +35,22 @@ export function recordNoteSaveMarker(
 	if (ctx.sessionManager.getEntries().some(entry => entry.type === "custom" && entry.customType === NOTE_SAVE_MARKER &&
 		entry.data && typeof entry.data === "object" && "completedEntryId" in entry.data && entry.data.completedEntryId === completed.id)) return;
 	pi.appendEntry(NOTE_SAVE_MARKER, { completedEntryId: completed.id });
-	// Labels are user-owned. Never replace a user's bookmark.
-	if (!ctx.sessionManager.getLabel(completed.id)) pi.setLabel(completed.id, "Notes saved");
+}
+
+/** Context preparation runs after Pi persists the user prompt, unlike message hooks. */
+export function bookmarkNotesContinuation(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	windowId: string,
+	mode: ContextManagementMode,
+): void {
+	const branch = ctx.sessionManager.getBranch();
+	const markerIndex = branch.findLastIndex(entry => entry.type === "custom" && entry.customType === NOTE_SAVE_MARKER);
+	if (markerIndex < 0) return;
+	const promptIndex = branch.findIndex((entry, index) => index > markerIndex && entry.type === "message" && entry.message.role === "user");
+	const prompt = branch[promptIndex];
+	if (!prompt || ctx.sessionManager.getLabel(prompt.id)) return;
+	if (!hasFreshContextNotes(branch.slice(0, promptIndex), windowId, mode, true)) return;
+	// Selecting a user entry in /tree restores its prompt and returns to its parent.
+	pi.setLabel(prompt.id, "Continue from notes");
 }

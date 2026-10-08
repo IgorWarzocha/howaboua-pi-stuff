@@ -12,7 +12,7 @@ import {
 	type CodexContextManagementMessageDetails,
 	isCodexContextManagementMessageDetails,
 } from "../context-management/messages.ts";
-import { latestNoteSaveMarker, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
+import { bookmarkNotesContinuation, latestNoteSaveMarker, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -68,6 +68,14 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	pi.on("session_tree", restoreNoteSaveContext);
 	pi.on("session_compact", restoreNoteSaveContext);
 	pi.on("session_shutdown", () => { noteSaveSessionManager = undefined; });
+	pi.on("context_with_system", (_event, ctx) => {
+		const { state } = runtime;
+		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const identity = state.contextWindows.currentIdentity();
+		if (plan.contextManagement && identity)
+			bookmarkNotesContinuation(pi, ctx, identity.currentWindowId, plan.contextManagementMode);
+	});
 	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
 			typeof message.details?.title === "string" ? message.details.title : "Context update",
@@ -86,7 +94,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, { expanded }, theme) => {
 		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.noteSaveMarkers) return undefined;
 		const content = theme.fg("success", "✓ Notes saved") + (expanded
-			? theme.fg("dim", "\nReturn to this reply through /tree without a summary. In Notes and history, plain /compact opens a new window without another note-writing turn.")
+			? theme.fg("dim", "\nThe next user prompt gets a Continue from notes bookmark in /tree. Select it with No summary, then run /compact in Notes and history before resubmitting.")
 			: "");
 		// Native entries retain their child between redraws. Check branch membership
 		// at render time so appending a marker also retires the cached older child.

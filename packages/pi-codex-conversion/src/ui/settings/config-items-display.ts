@@ -56,7 +56,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, noteSaveMarkers: enabled },
 			}),
-			"Mark completed turns with saved notes and bookmark them in /tree. In Notes and history, /compact there opens a window without another note-writing turn. Existing bookmarks are kept when switched off.",
+			"Mark saved notes and bookmark the next user prompt in /tree. Select it with No summary, then /compact in Notes and history before resubmitting. Existing bookmarks are kept when switched off.",
 		),
 		toggle(
 			"backgroundShellWidget",

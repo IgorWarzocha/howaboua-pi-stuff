@@ -7,7 +7,7 @@ import { CodexContextWindowManager } from "../src/context-management/window-mana
 import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { REMOTE_DELIVERY_MESSAGE } from "../src/context-management/remote-delivery.ts";
 import { hasFreshContextNotes } from "../src/context-management/saved-notes.ts";
-import { NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../src/context-management/note-save-marker.ts";
+import { bookmarkNotesContinuation, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../src/context-management/note-save-marker.ts";
 import { createCodexCompactionLifecycle } from "../src/extension/compaction-lifecycle.ts";
 import { createCodexTurnLifecycle } from "../src/extension/turn-lifecycle.ts";
 import { createContextWindowTools } from "../src/context-management/tools.ts";
@@ -156,8 +156,33 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	windows.recordSettlement(pi, ctx, false, settledAt);
 	const modelMessages = sessionManager.buildSessionProjection().messages;
 	mark();
-	assert.equal(sessionManager.getLabel(final), "Notes saved");
+	assert.equal(sessionManager.getLabel(final), undefined, "the completed reply gets a marker, not the continuation bookmark");
 	assert.deepEqual(sessionManager.buildSessionProjection().messages, modelMessages, "markers and bookmarks stay model-invisible");
+	const bookmark = () => bookmarkNotesContinuation(pi, ctx, windows.currentIdentity()!.currentWindowId, "remote");
+	const checkpointLeaf = sessionManager.getLeafId()!;
+	const beforePrompt = sessionManager.getEntries().length;
+	bookmark();
+	assert.equal(sessionManager.getEntries().length, beforePrompt, "no future prompt or label is fabricated");
+	const prompt = sessionManager.appendMessage({ role: "user", content: "Carry on here", timestamp: 5 });
+	const promptMessages = sessionManager.buildSessionProjection().messages;
+	bookmark();
+	assert.equal(sessionManager.getLabel(prompt), "Continue from notes");
+	assert.deepEqual(sessionManager.buildSessionProjection().messages, promptMessages);
+	const labelledEntries = sessionManager.getEntries().length;
+	bookmark();
+	assert.equal(sessionManager.getEntries().length, labelledEntries, "repeated preparation does not duplicate a bookmark");
+	sessionManager.appendMessage({ ...assistant, stopReason: "stop" });
+	const laterPrompt = sessionManager.appendMessage({ role: "user", content: "Later work", timestamp: 6 });
+	bookmark();
+	assert.equal(sessionManager.getLabel(laterPrompt), undefined, "only the first prompt after saved notes is bookmarked");
+	sessionManager.branch(checkpointLeaf);
+	const ownPrompt = sessionManager.appendMessage({ role: "user", content: "My branch", timestamp: 7 });
+	sessionManager.appendLabelChange(ownPrompt, "My bookmark");
+	bookmark();
+	assert.equal(sessionManager.getLabel(ownPrompt), "My bookmark", "user labels survive on another continuation branch");
+	// Pi's user-target navigation selects the parent and restores prompt text to the editor.
+	sessionManager.branch(sessionManager.getEntry(prompt)!.parentId);
+	assert.equal(freshNotes(), true, "the bookmarked prompt's parent retains the completed notes checkpoint");
 	sessionManager.branch(final);
 	mark();
 	assert.equal(markers().length, 1, "returning to the reply does not duplicate its marker");
@@ -171,7 +196,7 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	assert.deepEqual(windows.prepareCompaction({ reason: "manual", signal } as SessionBeforeCompactEvent, "remote"), { cancel: true });
 	assert.equal(windows.finishManualCheckpointRequest(pi, ctx, { type: "session_compact_failed", reason: "manual", aborted: true,
 		willRetry: false, fromExtension: true }, true), true,
-		"plain /compact at the bookmarked reply reuses notes without another checkpoint turn");
+		"plain /compact at the restored checkpoint reuses notes without another checkpoint turn");
 	sessionManager.appendContextEdit(source, null);
 	assert.equal(freshNotes(), false, "an omitted source cannot grant checkpoint credit");
 	sessionManager.branch(receipt);
