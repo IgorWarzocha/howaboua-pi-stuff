@@ -10,7 +10,7 @@ bun install --frozen-lockfile
 pi install ./packages/pi-chill
 ```
 
-Requires Pi 1.0.4 or later. The extension takes effect in the interactive terminal.
+Requires Pi 1.1.0 or later. The extension takes effect in the interactive terminal.
 
 Chill starts on. `/chill` toggles the current session immediately, including while working. It does not reload or change saved preferences. Turning it back on folds existing activity again.
 
@@ -26,7 +26,7 @@ The latest action or heading stays visible until another replaces it, including 
 
 Click the row to show calls in their original order. Click a call to reveal or hide its arguments and original result renderer, including nested Code Mode activity. Pi's tool-expansion shortcut, `Ctrl+O` by default, opens the raw details without needing a mouse. Work settling does not close details you opened.
 
-Errors and interrupted calls appear in the shared heading when activity is folded, not as separate call rows. They never force details open. Open the block to inspect calls, or use `Ctrl+O` for their original output. Blocking Pi dialogs stay visible and the activity row says `needs attention`. Inline images remain under their original calls when Pi's image display is enabled.
+Tool failures are colored on their activity and detail rows, not on the shared heading. They never force details open. Open the block to inspect calls, or use `Ctrl+O` for their original output. Interrupted runs say `Stopped`. Blocking Pi dialogs stay visible and the activity row says `needs attention`. Inline images remain under their original calls when Pi's image display is enabled.
 
 Shepherdr peer messages, worker questions, failures, completion reports, board notices and Subdir Agents instruction notices share the same disclosure. Codex developer messages, context-window notices, Notebook status, toolkit updates and native-compaction notices join it too. Sender identity and actionable worker states remain in the heading. Opening the block reveals notices at their original positions without peer routing envelopes. `Ctrl+O` reveals original content and entry data, including envelopes and complete loaded instructions. Unknown formats retain their full content. Pi still leaves a blank line for each custom notice. Notes-saved notices, host disconnection notifications and interactive approval dialogs keep native presentation outside the disclosure.
 

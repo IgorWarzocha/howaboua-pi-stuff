@@ -85,19 +85,16 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	pi.on("before_agent_start", (_event, ctx) => {
 		if (lifecycle.active) lifecycle.beforeStart(ctx);
 	});
-	pi.on("agent_start", (_event, ctx) => {
-		if (lifecycle.active) lifecycle.observeRun(ctx);
-	});
 	pi.on("input", (event, ctx) =>
 		lifecycle.active ? lifecycle.input(event, ctx) : undefined,
 	);
 	pi.on("agent_before_settle", (event) => {
 		if (lifecycle.active) lifecycle.outcome(event.outcome);
 	});
-	pi.on("agent_settled", async (_event, ctx) => {
+	pi.on("agent_settled", async (event, ctx) => {
 		if (!lifecycle.active) return;
 		try {
-			await lifecycle.settled(ctx);
+			await lifecycle.settled(event, ctx);
 		} catch (error) {
 			ctx.ui.notify(
 				`Context rollover failed: ${error instanceof Error ? error.message : String(error)}`,

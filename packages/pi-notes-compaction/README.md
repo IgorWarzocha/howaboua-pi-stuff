@@ -2,7 +2,7 @@
 
 Local checkpoint notes and notes-guided context windows for any Pi model. This is a private development package, not an npm release.
 
-Standalone use needs Pi 1.0.4 or newer. Run an isolated session from this checkout:
+Standalone use needs Pi 1.1.0 or newer. Run an isolated session from this checkout:
 
 ```sh
 pi --no-extensions -e ./packages/pi-notes-compaction/src/index.ts

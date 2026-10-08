@@ -123,10 +123,7 @@ export class ActivityGroup {
 		return (
 			this.attention ||
 			this.noticeWarnings.size > 0 ||
-			this.outcome === "interrupted" ||
-			this.calls.some(
-				(call) => call.status === "error" || call.status === "interrupted",
-			)
+			this.outcome === "interrupted"
 		);
 	}
 
@@ -160,10 +157,6 @@ export class ActivityGroup {
 					: "Stopped";
 		const flags = [
 			this.attention ? "needs attention" : "",
-			this.calls.some((call) => call.status === "error") ? "error" : "",
-			this.calls.some((call) => call.status === "interrupted")
-				? "interrupted"
-				: "",
 			...new Set(this.notices.values()),
 		].filter(Boolean);
 		return `${heading} · ${this.estimated ? "~" : ""}${duration}${flags.length ? ` · ${flags.join(" · ")}` : ""}`;

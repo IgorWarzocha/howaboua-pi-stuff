@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+	AgentSettledEvent,
 	ExtensionAPI,
 	ExtensionContext,
 	InputEvent,
@@ -26,8 +27,6 @@ interface Checkpoint {
 	admitted: boolean;
 	runId: string | undefined;
 	outcome: "completed" | "aborted" | "error" | undefined;
-	aborted: boolean;
-	stopObserving: (() => void) | undefined;
 }
 interface HeldInput {
 	sessionId: string;
@@ -68,7 +67,6 @@ export class NotesLifecycle {
 		return this.bridge?.agentName?.(ctx) ?? "/root";
 	}
 	reset(ctx?: ExtensionContext): void {
-		this.checkpoint?.stopObserving?.();
 		this.checkpoint = undefined;
 		this.rollover = undefined;
 		this.cancelledCompact = undefined;
@@ -122,17 +120,6 @@ export class NotesLifecycle {
 		this.initialize(ctx);
 		this.runId = randomUUID();
 		if (this.checkpoint?.admitted) this.checkpoint.runId = this.runId;
-	}
-	observeRun(ctx: ExtensionContext): void {
-		const checkpoint = this.checkpoint;
-		if (!checkpoint || !ctx.signal) return;
-		const signal = ctx.signal;
-		const abort = () => {
-			checkpoint.aborted = true;
-		};
-		if (signal.aborted) abort();
-		else signal.addEventListener("abort", abort, { once: true });
-		checkpoint.stopObserving = () => signal.removeEventListener("abort", abort);
 	}
 	outcome(outcome: "completed" | "aborted" | "error"): void {
 		if (this.checkpoint) this.checkpoint.outcome = outcome;
@@ -218,8 +205,6 @@ export class NotesLifecycle {
 			admitted: false,
 			runId: undefined,
 			outcome: undefined,
-			aborted: false,
-			stopObserving: undefined,
 		};
 		try {
 			this.pi.sendMessage(
@@ -269,6 +254,7 @@ export class NotesLifecycle {
 			return false;
 		const data = settlement.data;
 		return (
+			!("aborted" in data && data.aborted === true) &&
 			"windowId" in data &&
 			data.windowId === this.windows.current.currentWindowId &&
 			"settledAt" in data &&
@@ -396,10 +382,12 @@ export class NotesLifecycle {
 			await this.roll(ctx, true);
 		else this.startCheckpoint(ctx, pending.instructions);
 	}
-	async settled(ctx: ExtensionContext): Promise<void> {
+	async settled(
+		event: AgentSettledEvent,
+		ctx: ExtensionContext,
+	): Promise<void> {
 		const checkpoint = this.checkpoint;
 		this.checkpoint = undefined;
-		checkpoint?.stopObserving?.();
 		try {
 			this.store.updateFile(sessionRef(ctx));
 			const terminal = ctx.sessionManager
@@ -414,12 +402,13 @@ export class NotesLifecycle {
 					windowId: this.windows.current.currentWindowId,
 					completedEntryId: terminal.id,
 					settledAt: Date.now(),
+					aborted: event.aborted,
 				});
 		} catch (error) {
 			this.rollover = undefined;
 			if (
 				checkpoint &&
-				(checkpoint.aborted ||
+				(event.aborted ||
 					checkpoint.outcome === "aborted" ||
 					checkpoint.outcome === undefined)
 			) {
@@ -436,7 +425,7 @@ export class NotesLifecycle {
 				checkpoint.sessionId === ctx.sessionManager.getSessionId() &&
 				checkpoint.windowId === this.windows.current?.currentWindowId;
 			const aborted =
-				checkpoint.aborted ||
+				event.aborted ||
 				checkpoint.outcome === "aborted" ||
 				checkpoint.outcome === undefined;
 			if (!valid || aborted) {

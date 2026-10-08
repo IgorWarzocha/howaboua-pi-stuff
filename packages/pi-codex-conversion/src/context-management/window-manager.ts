@@ -98,13 +98,13 @@ export class CodexContextWindowManager {
 		return this.identity ? { ...this.identity } : undefined;
 	}
 
-	recordSettlement(pi: ExtensionAPI, ctx: ExtensionContext, now = Date.now()): void {
+	recordSettlement(pi: ExtensionAPI, ctx: ExtensionContext, aborted: boolean, now = Date.now()): void {
 		if (!ctx.isIdle() || !this.identity) return;
 		const branch = ctx.sessionManager.getBranch();
 		const completed = branch.findLast((entry) => entry.type === "message" && entry.message.role !== "system");
 		if (!completed) return;
 		pi.appendEntry(IDLE_CHECKPOINT_ENTRY_TYPE, {
-			protocol: 1, windowId: this.identity.currentWindowId, completedEntryId: completed.id, settledAt: now,
+			protocol: 1, windowId: this.identity.currentWindowId, completedEntryId: completed.id, settledAt: now, aborted,
 		});
 	}
 
@@ -121,6 +121,8 @@ export class CodexContextWindowManager {
 			entry.data && typeof entry.data === "object" && "completedEntryId" in entry.data && entry.data.completedEntryId === completed.id);
 		if (checkpoint?.type !== "custom" || !checkpoint.data || typeof checkpoint.data !== "object") return false;
 		const data = checkpoint.data;
+		// Escape can arrive after a successful final reply, during before-settle hooks.
+		if ("aborted" in data && data.aborted === true) return false;
 		return "protocol" in data && data.protocol === 1 && "windowId" in data && data.windowId === this.identity.currentWindowId &&
 			"completedEntryId" in data && data.completedEntryId === completed.id && "settledAt" in data &&
 			typeof data.settledAt === "number" && Number.isFinite(data.settledAt) && now - data.settledAt >= 25 * 60_000;

@@ -162,11 +162,11 @@ export function createCodexTurnLifecycle(
 			runtime.voice.agentStarted();
 			runtime.lanVoice.agentStarted();
 		},
-		agentSettled: async (_event, ctx) => {
+		agentSettled: async (event, ctx) => {
 			runtime.finishTurn();
 			updateCodexPreparedIdleKickoff(pi, "agent_settled");
 			flushCodexReasoningUpdates(pi, ctx);
-			ui.recordNoteSave(ctx);
+			if (!event.aborted) ui.recordNoteSave(ctx);
 			// Rollover compaction aborts this run before its successor exists.
 			const continuingWork = state.contextWindows.isRolloverCompactionRunning()
 				|| state.contextTree.rolloverPending || state.contextKickoff.pending;
@@ -186,7 +186,7 @@ export function createCodexTurnLifecycle(
 				state.contextTree.handoff.settled(ctx);
 				const plan = resolveCodexRuntimePlanForState(ctx, state);
 				const manualCheckpoint = state.contextWindows.finishPromptedManualCheckpoint(ctx,
-					plan.contextManagement && !plan.compactOnRollover);
+					!event.aborted && plan.contextManagement && !plan.compactOnRollover);
 				if (manualCheckpoint === "ready") rolled = await startManualNotesWindow(ctx) || rolled;
 				else if (manualCheckpoint === "missing")
 					ctx.ui.notify("Context rollover did not start: no note was saved in the completed run", "warning");
@@ -196,7 +196,7 @@ export function createCodexTurnLifecycle(
 			}
 			const settledPlan = resolveCodexRuntimePlanForState(ctx, state);
 			if (!rolled && !continued && settledPlan.contextManagement && state.config.compaction.continuity === "notes")
-				state.contextWindows.recordSettlement(pi, ctx);
+				state.contextWindows.recordSettlement(pi, ctx, event.aborted);
 			if (!rolled && !continued && !quotaExhausted && !state.contextWindows.isRolloverCompactionRunning()) runtime.armCacheKeepalive(ctx);
 		},
 		contextWithSystem: async (event, ctx) => {

@@ -153,7 +153,7 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 		return fresh;
 	};
 	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 26 * 60_000), false, "a final reply is not settlement");
-	windows.recordSettlement(pi, ctx, settledAt);
+	windows.recordSettlement(pi, ctx, false, settledAt);
 	const modelMessages = sessionManager.buildSessionProjection().messages;
 	mark();
 	assert.equal(sessionManager.getLabel(final), "Notes saved");
@@ -163,6 +163,10 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	assert.equal(markers().length, 1, "returning to the reply does not duplicate its marker");
 	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000 - 1), false);
 	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000), true, "idle age survives runtime replacement");
+	windows.recordSettlement(pi, ctx, true, settledAt);
+	assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 26 * 60_000), false,
+		"cancellation after a successful final reply cannot grant idle rollover, including after restore");
+	windows.recordSettlement(pi, ctx, false, settledAt);
 	const signal = new AbortController().signal;
 	assert.deepEqual(windows.prepareCompaction({ reason: "manual", signal } as SessionBeforeCompactEvent, "remote"), { cancel: true });
 	assert.equal(windows.finishManualCheckpointRequest(pi, ctx, { type: "session_compact_failed", reason: "manual", aborted: true,
@@ -182,8 +186,8 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 		sessionManager.branch(final);
 		sessionManager.appendMessage({ ...assistant, stopReason });
 		assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 26 * 60_000), false, "an old settlement cannot prove a new terminal run");
-		windows.recordSettlement(pi, ctx, settledAt);
-		assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000), true, "terminal inactivity does not depend on successful completion");
+		windows.recordSettlement(pi, ctx, stopReason === "aborted", settledAt);
+		assert.equal(restored().isIdleRolloverDue(ctx, settledAt + 25 * 60_000), stopReason !== "aborted", "aborted settlement cannot grant idle rollover");
 		assert.equal(freshNotes(), false, "interruption cannot bless old notes as fresh");
 		assert.equal(restored().isIdleRolloverDue({ ...ctx, isIdle: () => false }, settledAt + 26 * 60_000), false);
 	}
@@ -206,7 +210,7 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	for (const fresh of [false, true]) {
 		sessionManager.branch(final);
 		if (!fresh) sessionManager.appendMessage({ ...assistant, stopReason: "stop" });
-		windows.recordSettlement(pi, ctx, Date.now() - 26 * 60_000);
+		windows.recordSettlement(pi, ctx, false, Date.now() - 26 * 60_000);
 		const identity = windows.currentIdentity();
 		let transportResets = 0;
 		const event = { type: "input", text: "Original prompt", images: [{ type: "image", data: "attachment", mimeType: "image/png" }],

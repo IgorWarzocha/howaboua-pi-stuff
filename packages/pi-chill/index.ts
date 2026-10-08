@@ -240,10 +240,10 @@ export default function (pi: ExtensionAPI) {
 			outcome = "interrupted";
 		}
 	});
-	pi.on("agent_settled", (_event, ctx) => {
+	pi.on("agent_settled", (event, ctx) => {
 		stopTimer();
 		timeline.reconcileMessages(ctx.sessionManager.buildContextEntries());
-		timeline.finish(Date.now(), outcome);
+		timeline.finish(Date.now(), event.aborted ? "interrupted" : outcome);
 	});
 	pi.on("session_shutdown", () => {
 		stopTimer();
