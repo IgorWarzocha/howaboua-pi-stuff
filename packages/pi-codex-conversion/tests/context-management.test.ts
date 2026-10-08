@@ -181,7 +181,9 @@ test("notes maintenance respects selected checkpoint evidence and Pi turn admiss
 	bookmark();
 	assert.equal(sessionManager.getLabel(ownPrompt), "My bookmark", "user labels survive on another continuation branch");
 	// Pi's user-target navigation selects the parent and restores prompt text to the editor.
-	sessionManager.branch(sessionManager.getEntry(prompt)!.parentId);
+	const checkpointParent = sessionManager.getEntry(prompt)?.parentId;
+	assert.ok(checkpointParent);
+	sessionManager.branch(checkpointParent);
 	assert.equal(freshNotes(), true, "the bookmarked prompt's parent retains the completed notes checkpoint");
 	sessionManager.branch(final);
 	mark();
