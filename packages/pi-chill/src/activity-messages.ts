@@ -139,8 +139,11 @@ export function activityMessageRenderer(
 					? "agent message"
 					: message.customType === "herdr-agent-event"
 						? "agent update"
-						: undefined));
-		if (label) group.notices.set(id, label);
+						: message.customType === "shepherdr-board-post"
+							? "board notice received"
+							: undefined));
+		if (label && message.customType !== "shepherdr-board-post")
+			group.notices.set(id, label);
 		if (event?.warning) group.noticeWarnings.add(id);
 		const component = new (class extends Container {
 			override render(width: number): string[] {
@@ -210,6 +213,14 @@ export function activityEntryRenderer(
 		const title = typeof data?.["title"] === "string" ? data["title"] : "";
 		const content =
 			typeof data?.["content"] === "string" ? data["content"] : raw;
+		const boardPost = entry.customType === "shepherdr-board-post-marker";
+		const channel =
+			typeof data?.["channelName"] === "string"
+				? data["channelName"].replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
+				: "";
+		const readable = boardPost
+			? `Posted to board${channel ? ` · ${channel}` : ""}\n${raw}`
+			: [title, content].filter(Boolean).join("\n");
 		if (
 			entry.customType === "codex-notebook-status" &&
 			title === "Notebook status unavailable"
@@ -220,21 +231,12 @@ export function activityEntryRenderer(
 		const component = new (class extends Container {
 			override render(width: number): string[] {
 				this.clear();
-				if (!isEnabled())
-					this.addChild(
-						new Text([title, content].filter(Boolean).join("\n"), 1, 0),
-					);
+				if (!isEnabled()) this.addChild(new Text(readable, 1, 0));
 				else {
 					if (group.anchorId === id)
 						this.addChild(renderActivityHeading(group, theme));
 					if (group.open || (group.anchorId === undefined && expanded))
-						this.addChild(
-							new Text(
-								expanded ? raw : [title, content].filter(Boolean).join("\n"),
-								1,
-								0,
-							),
-						);
+						this.addChild(new Text(expanded ? raw : readable, 1, 0));
 				}
 				return super.render(width);
 			}

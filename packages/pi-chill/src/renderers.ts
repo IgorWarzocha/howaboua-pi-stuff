@@ -43,14 +43,21 @@ export function renderActivityHeading(
 	const container = new Container();
 	container.addChild(
 		new MouseRegion(
-			new Text(
-				theme.fg(
-					group.warning ? "warning" : "muted",
-					`${group.open ? "▾" : "▸"} ${group.label()}`,
-				),
-				outputPad,
-				0,
-			),
+			{
+				invalidate() {},
+				render: (width) =>
+					new Text(
+						theme.fg(
+							group.warning ? "warning" : "muted",
+							truncateToWidth(
+								`${group.open ? "▾" : "▸"} ${group.label()}`,
+								Math.max(0, width - outputPad * 2),
+							),
+						),
+						outputPad,
+						0,
+					).render(width),
+			},
 			(event) => {
 				if (event.type !== "click" || event.button !== "left") return undefined;
 				group.open = !group.open;

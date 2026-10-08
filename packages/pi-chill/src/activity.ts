@@ -24,6 +24,7 @@ export const activityMessageTypes = [
 ] as const;
 
 export const activityEntryTypes = [
+	"shepherdr-board-post-marker",
 	"codex-notebook-status",
 	"codex-toolkit-update",
 	"codex-native-compaction-display",
@@ -78,6 +79,7 @@ export class ActivityGroup {
 		{ invalidate?: () => void; anchorEligible: boolean }
 	>();
 	readonly notices = new Map<string, string>();
+	readonly boardActivity = new Map<string, "posted" | "received">();
 	readonly noticeWarnings = new Set<string>();
 	open = false;
 	nativeExpanded = false;
@@ -157,6 +159,16 @@ export class ActivityGroup {
 					: "Stopped";
 		const flags = [
 			this.attention ? "needs attention" : "",
+			...(["posted", "received"] as const).map((direction) => {
+				const count = [...this.boardActivity.values()].filter(
+					(value) => value === direction,
+				).length;
+				return count
+					? direction === "posted"
+						? `${count} board ${count === 1 ? "post" : "posts"} sent`
+						: `${count} board ${count === 1 ? "notice" : "notices"} received`
+					: "";
+			}),
 			...new Set(this.notices.values()),
 		].filter(Boolean);
 		return `${heading} · ${this.estimated ? "~" : ""}${duration}${flags.length ? ` · ${flags.join(" · ")}` : ""}`;
@@ -244,6 +256,8 @@ export class ActivityTimeline {
 		const group =
 			this.current ?? this.pendingMessageGroup ?? new ActivityGroup(time);
 		group.members.set(id, { anchorEligible: this.afterUser });
+		if (entry.customType === "shepherdr-board-post-marker")
+			group.boardActivity.set(id, "posted");
 		this.entries.set(id, group);
 		if (group !== this.current) {
 			group.finish(time, "completed");
@@ -347,6 +361,8 @@ export class ActivityTimeline {
 			this.pendingMessageGroup ??
 			new ActivityGroup(message.timestamp);
 		group.members.set(id, { anchorEligible: this.afterUser });
+		if (message.customType === "shepherdr-board-post")
+			group.boardActivity.set(id, "received");
 		this.messages.set(id, group);
 		if (group !== this.current) {
 			group.finish(message.timestamp, "completed");
@@ -403,6 +419,7 @@ export class ActivityTimeline {
 			this.messageSources.delete(id);
 			group.members.delete(id);
 			group.notices.delete(id);
+			group.boardActivity.delete(id);
 			group.noticeWarnings.delete(id);
 			changed.add(group);
 		}
@@ -411,6 +428,7 @@ export class ActivityTimeline {
 			this.entries.delete(id);
 			group.members.delete(id);
 			group.notices.delete(id);
+			group.boardActivity.delete(id);
 			group.noticeWarnings.delete(id);
 			changed.add(group);
 		}

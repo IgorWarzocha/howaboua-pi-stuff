@@ -557,7 +557,7 @@ export function injectAgentEvent(
 }
 
 export function registerAgentEventRenderer(pi: ExtensionAPI): void {
-	pi.registerEntryRenderer(BOARD_POST_MARKER, (entry, _options, theme) => {
+	pi.registerEntryRenderer(BOARD_POST_MARKER, (entry, { expanded }, theme) => {
 		const data = entry.data;
 		const name =
 			data &&
@@ -567,7 +567,7 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			data.channelName.trim()
 				? data.channelName.replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
 				: "Board";
-		return new Text(
+		const summary = new Text(
 			theme.style(`Posted to board · ${name}`, {
 				fg: "syntaxString",
 				dim: true,
@@ -575,6 +575,11 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			0,
 			0,
 		);
+		if (!expanded) return summary;
+		const details = new Box(0, 0);
+		details.addChild(summary);
+		details.addChild(new Text(JSON.stringify(data, null, 2) ?? "", 0, 0));
+		return details;
 	});
 	pi.registerMessageRenderer<AgentEventDetails>(
 		AGENT_EVENT_MESSAGE_TYPE,
