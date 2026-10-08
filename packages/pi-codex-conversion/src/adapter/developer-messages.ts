@@ -117,7 +117,7 @@ export class CodexDeveloperMessageBridge {
 				return [{ type: "configuration_update", reasoning: { effort: carrier.effort } }];
 			}
 			return [toDeveloperMessage(item, this.contextWindowCarriers.has(marker)
-				? rewriteContextWindowGuidance(carrier, supportsCodexReasoningUpdates(model))
+				? rewriteContextWindowGuidance(carrier)
 				: carrier)];
 		});
 		if (containsCarrier(input, this.carriers))

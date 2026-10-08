@@ -20,7 +20,7 @@ export const HISTORY_DESCRIPTION =
 	"Prior-window detail. Pass IDs unchanged. Search, never browse.";
 
 export const NOTES_DESCRIPTION =
-	"Cross-window checkpoints on virtual paths. Relative uses current agent; cross-agent uses <agent>/notes[/path].";
+	"Cross-window notes. write_file replaces; append_to_file adds. Virtual paths: relative uses current agent; cross-agent uses <agent>/notes[/path].";
 
 export const HISTORY_NESTED_USAGE =
 	"await tools.history({ action, ...args }) // actions(required args): list_windows(); list_items(); read_item(item_id,window_id); search_contents(query)";
