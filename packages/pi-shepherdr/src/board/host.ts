@@ -5,11 +5,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentFleet, ConnectedMachine } from "../fleet.js";
 import { sessionPath } from "../herdr.js";
-import { recordBoardActivityMarker } from "../messages.js";
 import {
 	requestContext,
 	sessionContextPath,
 } from "../remote/shepherdr-context.mjs";
+import { recordBoardActivityMarker } from "./activity.js";
 import { executeArchive } from "./archive.js";
 import { BoardAwareness } from "./awareness.js";
 import {

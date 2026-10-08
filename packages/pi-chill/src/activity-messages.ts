@@ -139,11 +139,8 @@ export function activityMessageRenderer(
 					? "agent message"
 					: message.customType === "herdr-agent-event"
 						? "agent update"
-						: message.customType === "shepherdr-board-post"
-							? "board notice received"
-							: undefined));
-		if (label && message.customType !== "shepherdr-board-post")
-			group.notices.set(id, label);
+						: undefined));
+		if (label) group.notices.set(id, label);
 		if (event?.warning) group.noticeWarnings.add(id);
 		const component = new (class extends Container {
 			override render(width: number): string[] {
@@ -213,14 +210,7 @@ export function activityEntryRenderer(
 		const title = typeof data?.["title"] === "string" ? data["title"] : "";
 		const content =
 			typeof data?.["content"] === "string" ? data["content"] : raw;
-		const boardPost = entry.customType === "shepherdr-board-post-marker";
-		const channel =
-			typeof data?.["channelName"] === "string"
-				? data["channelName"].replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
-				: "";
-		const readable = boardPost
-			? `${typeof data?.["label"] === "string" ? data["label"] : "Posted to board"}${channel ? ` · ${channel}` : ""}\n${raw}`
-			: [title, content].filter(Boolean).join("\n");
+		const readable = [title, content].filter(Boolean).join("\n");
 		if (
 			entry.customType === "codex-notebook-status" &&
 			title === "Notebook status unavailable"

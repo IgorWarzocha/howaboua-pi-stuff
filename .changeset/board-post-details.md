@@ -2,4 +2,4 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-Show board channel creation, new threads, replies and reads in session history, with expandable operation and available channel, thread and post IDs.
+Show board actions and incoming notices in one compact line per run, independent of Chill, with expandable activity details and available channel, thread and post IDs.
