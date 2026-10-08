@@ -219,7 +219,7 @@ export function activityEntryRenderer(
 				? data["channelName"].replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
 				: "";
 		const readable = boardPost
-			? `Posted to board${channel ? ` · ${channel}` : ""}\n${raw}`
+			? `${typeof data?.["label"] === "string" ? data["label"] : "Posted to board"}${channel ? ` · ${channel}` : ""}\n${raw}`
 			: [title, content].filter(Boolean).join("\n");
 		if (
 			entry.customType === "codex-notebook-status" &&

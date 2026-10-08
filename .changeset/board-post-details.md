@@ -2,4 +2,4 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-Expand outgoing board post notices to inspect the channel and saved post ID.
+Show board channel creation, new threads, replies and reads in session history, with expandable operation and available channel, thread and post IDs.

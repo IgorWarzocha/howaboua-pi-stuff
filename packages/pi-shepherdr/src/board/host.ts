@@ -5,7 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentFleet, ConnectedMachine } from "../fleet.js";
 import { sessionPath } from "../herdr.js";
-import { recordBoardPostMarker } from "../messages.js";
+import { recordBoardActivityMarker } from "../messages.js";
 import {
 	requestContext,
 	sessionContextPath,
@@ -206,16 +206,14 @@ export class AgentBoard {
 			},
 			ctx.signal,
 		);
-		if (params.action === "post") {
-			try {
-				recordBoardPostMarker(this.pi, ctx, value);
-			} catch {
-				// Presentation failure must not turn a committed post into a retry.
-				ctx.ui.notify(
-					"Posted to board. Its history notice is unavailable. Read the board to check the post; do not repost.",
-					"warning",
-				);
-			}
+		try {
+			recordBoardActivityMarker(this.pi, ctx, params, value, requestId);
+		} catch {
+			// Presentation failure must not turn a successful operation into a retry.
+			ctx.ui.notify(
+				"Board action succeeded. Its history notice is unavailable. Do not repeat writes just to restore the notice.",
+				"warning",
+			);
 		}
 		return value;
 	}

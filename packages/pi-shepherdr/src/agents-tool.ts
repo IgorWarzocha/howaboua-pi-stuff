@@ -42,7 +42,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help") {
-				return toolResult(await agentsHelp());
+				return toolResult(await agentsHelp(board.enabled(ctx)));
 			}
 			if (params.action === "list") {
 				return toolResult(await listFleetAgents(fleet, params));

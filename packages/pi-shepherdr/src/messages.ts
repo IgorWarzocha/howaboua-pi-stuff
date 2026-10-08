@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
+import type { BoardParams } from "./board/contract.js";
 import type { BoardBinding } from "./board/identity.js";
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
@@ -24,20 +25,33 @@ import type {
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
 const BOARD_POST_MARKER = "shepherdr-board-post-marker";
 
-export function recordBoardPostMarker(
+export function recordBoardActivityMarker(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
+	params: BoardParams,
 	value: unknown,
+	requestId: string,
 ): void {
-	if (
-		!value ||
-		typeof value !== "object" ||
-		!("message_id" in value) ||
-		typeof value.message_id !== "string" ||
-		!("channel_name" in value) ||
-		typeof value.channel_name !== "string"
-	)
-		return;
+	const labels: Partial<Record<BoardParams["action"], string>> = {
+		create_channel: "Created board channel",
+		post: params.thread_id ? "Posted board reply" : "Created board thread",
+		read_thread: "Read board thread",
+		read_post: "Read board post",
+		list_boards: "Read board list",
+		get_channels: "Read board channels",
+		list_threads: "Read board threads",
+		search_posts: "Searched board posts",
+	};
+	const label = labels[params.action];
+	if (!label || !value || typeof value !== "object") return;
+	const result = value as Record<string, unknown>;
+	const root = result["root_post"];
+	const metadata =
+		root && typeof root === "object"
+			? (root as Record<string, unknown>)
+			: result;
+	const field = (key: string) =>
+		typeof metadata[key] === "string" ? metadata[key] : undefined;
 	if (
 		ctx.sessionManager
 			.getBranch()
@@ -47,15 +61,21 @@ export function recordBoardPostMarker(
 					entry.customType === BOARD_POST_MARKER &&
 					entry.data &&
 					typeof entry.data === "object" &&
-					"messageId" in entry.data &&
-					entry.data.messageId === value.message_id,
+					"requestId" in entry.data &&
+					entry.data.requestId === requestId,
 			)
 	)
 		return;
 	// Owner acknowledgements reach the sender here, never the subscription inbox.
 	pi.appendEntry(BOARD_POST_MARKER, {
-		messageId: value.message_id,
-		channelName: value.channel_name,
+		operation: params.action,
+		label,
+		requestId,
+		boardId: params.board_id,
+		messageId: field("message_id") ?? params.message_id,
+		threadId: field("thread_id") ?? params.thread_id,
+		channelName:
+			field("channel_name") ?? params.channel_name ?? params.new_channel_name,
 	});
 }
 const REALTIME_VOICE_PROMPT_CHANNEL =
@@ -567,8 +587,15 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			data.channelName.trim()
 				? data.channelName.replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
 				: "Board";
+		const label =
+			data &&
+			typeof data === "object" &&
+			"label" in data &&
+			typeof data.label === "string"
+				? data.label
+				: "Posted to board";
 		const summary = new Text(
-			theme.style(`Posted to board · ${name}`, {
+			theme.style(`${label} · ${name}`, {
 				fg: "syntaxString",
 				dim: true,
 			}),

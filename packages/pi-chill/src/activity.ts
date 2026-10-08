@@ -79,7 +79,7 @@ export class ActivityGroup {
 		{ invalidate?: () => void; anchorEligible: boolean }
 	>();
 	readonly notices = new Map<string, string>();
-	readonly boardActivity = new Map<string, "posted" | "received">();
+	readonly boardActivity = new Map<string, string>();
 	readonly noticeWarnings = new Set<string>();
 	open = false;
 	nativeExpanded = false;
@@ -159,14 +159,16 @@ export class ActivityGroup {
 					: "Stopped";
 		const flags = [
 			this.attention ? "needs attention" : "",
-			...(["posted", "received"] as const).map((direction) => {
+			...[...new Set(this.boardActivity.values())].map((direction) => {
 				const count = [...this.boardActivity.values()].filter(
 					(value) => value === direction,
 				).length;
 				return count
 					? direction === "posted"
 						? `${count} board ${count === 1 ? "post" : "posts"} sent`
-						: `${count} board ${count === 1 ? "notice" : "notices"} received`
+						: direction === "received"
+							? `${count} board ${count === 1 ? "notice" : "notices"} received`
+							: `${direction}${count > 1 ? ` ×${count}` : ""}`
 					: "";
 			}),
 			...new Set(this.notices.values()),
@@ -256,8 +258,18 @@ export class ActivityTimeline {
 		const group =
 			this.current ?? this.pendingMessageGroup ?? new ActivityGroup(time);
 		group.members.set(id, { anchorEligible: this.afterUser });
-		if (entry.customType === "shepherdr-board-post-marker")
-			group.boardActivity.set(id, "posted");
+		if (entry.customType === "shepherdr-board-post-marker") {
+			const data = entry.data;
+			group.boardActivity.set(
+				id,
+				data &&
+					typeof data === "object" &&
+					"label" in data &&
+					typeof data.label === "string"
+					? data.label
+					: "posted",
+			);
+		}
 		this.entries.set(id, group);
 		if (group !== this.current) {
 			group.finish(time, "completed");
