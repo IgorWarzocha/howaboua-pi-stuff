@@ -63,7 +63,7 @@ export function voiceFocusReport(
 }
 
 export function orchestrationGuidance(enabled: boolean, general: boolean) {
-	const ownership = "Own the work or delegate it; don't do both.";
+	const ownership = "Own a scope or delegate it; don't do both.";
 	if (!enabled)
 		return `Work normally. Delegate only when useful or requested. ${ownership}`;
 	const guidance = general
