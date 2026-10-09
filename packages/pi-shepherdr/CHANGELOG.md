@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.17
+
+- Added slash-command discovery with configured descriptions for the current session or another agent, without executing commands or interrupting its work.
+
 ## 0.2.16
 
 - ### Breaking changes

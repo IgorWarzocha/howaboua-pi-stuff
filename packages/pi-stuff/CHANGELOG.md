@@ -1,5 +1,11 @@
 # @howaboua/pi-stuff
 
+## 0.0.99
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Added slash-command discovery with configured descriptions for the current session or another agent, without executing commands or interrupting its work.
+
 ## 0.0.98
 
 - Include bundled package updates:
