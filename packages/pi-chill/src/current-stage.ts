@@ -236,17 +236,21 @@ export class CurrentStage {
 		};
 	}
 
-	summary(width = 100): string {
-		return this.fit(this.completed.slice().reverse(), width);
+	summary(width = 100, format = (label: string) => label): string {
+		return this.fit(this.completed.slice().reverse(), width, format);
 	}
 
-	label(width = 100): string {
+	label(width = 100, format = (label: string) => label): string {
 		return this.phase.type === "thinking"
 			? this.phase.heading || ""
-			: this.fit(this.phase.labels, width);
+			: this.fit(this.phase.labels, width, format);
 	}
 
-	private fit(labels: string[], width: number): string {
+	private fit(
+		labels: string[],
+		width: number,
+		format: (label: string) => string,
+	): string {
 		const seen = new Set<string>();
 		labels = labels.filter((label) => {
 			const name =
@@ -259,17 +263,18 @@ export class CurrentStage {
 		});
 		if (!labels.length || width <= 0) return "";
 		const full = labels.join(", ");
-		if (visibleWidth(full) <= width) return full;
+		if (visibleWidth(full) <= width) return labels.map(format).join(", ");
 		const names = labels.map((label) => label.split(" · ")[0] ?? label);
 		for (let count = names.length; count > 0; count--) {
 			const suffix = count < names.length ? `, +${names.length - count}` : "";
 			const text = names.slice(0, count).join(", ") + suffix;
-			if (visibleWidth(text) <= width) return text;
+			if (visibleWidth(text) <= width)
+				return names.slice(0, count).map(format).join(", ") + suffix;
 		}
 		const suffix = names.length > 1 ? ` +${names.length - 1}` : "";
 		return truncateToWidth(
 			truncateToWidth(
-				names[0] ?? "",
+				format(names[0] ?? ""),
 				Math.max(0, width - visibleWidth(suffix)),
 			) + suffix,
 			width,

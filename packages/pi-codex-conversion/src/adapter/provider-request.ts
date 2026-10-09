@@ -51,8 +51,8 @@ export function rewriteCodexProviderHeaders(
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
 	if (
-		plan.contextManagementRemote &&
-		usesRemoteHistoryNotes(ctx, plan.contextManagementMode)
+		state.externalNotes || (plan.contextManagementRemote &&
+		usesRemoteHistoryNotes(ctx, plan.contextManagementMode))
 	)
 		state.contextWindows.rewriteHeaders(headers, ctx);
 }
@@ -62,6 +62,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 	if (!prepared) return undefined;
 	const { plan, configuredPayload } = prepared;
 	let rewrittenPayload = state.developerMessages.rewritePayload(configuredPayload, ctx.model, blockImages);
+	if (state.externalNotes) rewrittenPayload = state.contextWindows.rewritePayload(rewrittenPayload, ctx);
 	if (plan.contextManagementRemote && usesRemoteHistoryNotes(ctx, plan.contextManagementMode)) {
 		rewrittenPayload = rewriteRemoteContextNamespaceTools(rewrittenPayload);
 		rewrittenPayload = state.contextWindows.rewritePayload(rewrittenPayload, ctx);

@@ -1,4 +1,4 @@
-export type TextSignaturePhase = "commentary" | "final_answer";
+export type TextSignaturePhase = "commentary" | "partial_answer" | "final_answer";
 
 export function shortHash(str: string): string {
 	let h1 = 0xdeadbeef;
@@ -25,7 +25,7 @@ export function parseTextSignature(signature: string | undefined): { id: string;
 		try {
 			const parsed = JSON.parse(signature) as { v?: number | undefined; id?: string | undefined; phase?: TextSignaturePhase | string | undefined };
 			if (parsed.v === 1 && typeof parsed.id === "string") {
-				return parsed.phase === "commentary" || parsed.phase === "final_answer" ? { id: parsed.id, phase: parsed.phase } : { id: parsed.id };
+				return parsed.phase === "commentary" || parsed.phase === "partial_answer" || parsed.phase === "final_answer" ? { id: parsed.id, phase: parsed.phase } : { id: parsed.id };
 			}
 		} catch {
 			// Fall through to legacy plain-string handling.

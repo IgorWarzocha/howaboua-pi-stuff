@@ -16,17 +16,17 @@ Pi Codex 3.0.25 or newer is optional. Without it, Browser remains a normal top-l
 
 ## Use
 
-In normal Pi, call `browser` with `command: "help"` before first use, then send JSON request strings in `command`. Existing object requests remain accepted. In Code or Notebook Mode, start with:
+In normal Pi, call `browser` with `{}` for help, then send JSON request strings in `command`. Explicit `command: "help"` and existing object requests remain accepted. In Code or Notebook Mode, start with:
 
 ```js
-await tools.browser("help")
+await tools.browser()
 ```
 
 All modes accept single-action and batched requests described by help. A common route is `tabs`, then `open`, then `click` or `type` with the returned `ref_id` and element ID.
 
 Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancellation stops pending CDP work, though an already dispatched browser mutation may still take effect.
 
-New tabs open in the background and belong to the current Pi session. Owned tabs keep rendering during control without being brought forward. The agent can filter the tab list to its own tabs, show a tab when you want to see it, and close any tab by reference. Existing tabs remain accessible through their refs and are not silently claimed.
+New tabs open in the background and belong to the current Pi session. Owned tabs keep rendering during control without being brought forward, except screenshots bring their target tab to the foreground for capture. The agent can filter the tab list to its own tabs, show a tab when you want to see it, and close any tab by reference. Existing tabs remain accessible through their refs and are not silently claimed.
 
 Ownership survives extension reloads and managed-worker restarts while the browser and local runtime state remain. Restarting the browser makes restored tabs shared again. Popups inherit ownership through Chrome's opener metadata, but can still take focus. This tool does not install a Chrome extension or create Chrome tab groups.
 

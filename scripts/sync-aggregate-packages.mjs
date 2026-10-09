@@ -8,7 +8,9 @@ const root = process.cwd();
 const packagesDir = join(root, "packages");
 const aggregateDirs = new Set(["pi-stuff", "pi-skills", "pi-extensions"]);
 const bundleExcludedPackages = new Set([
+	"@howaboua/pi-agent-board",
 	"@howaboua/pi-browser",
+	"@howaboua/pi-chatgpt-sites",
 	"@howaboua/pi-chill",
 	"@howaboua/pi-sandbox",
 	"@howaboua/pi-codex-conversion",

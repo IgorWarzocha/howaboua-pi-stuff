@@ -16,6 +16,7 @@ export function browserHelp(
 		batch:
 			"{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
 		actions: {
+			help: "",
 			tabs: "query? offset? owned_only? -> ref_id title url owned",
 			open: "ref_id lineno? | url; new tabs open in background",
 			show: "ref_id; bring tab to foreground",
@@ -26,7 +27,7 @@ export function browserHelp(
 			fill: "ref_id id|selector value; replace/clear text, select option value/label, boolean checks/unchecks",
 			press: "ref_id key; focused element, e.g. Enter or Control+a",
 			wait: "ref_id selector|text|url_includes timeout_ms?; DOM presence or substring, default 10000ms",
-			screenshot: "ref_id id?|selector? -> file",
+			screenshot: "ref_id id?|selector?; brings tab to foreground -> file",
 			navigate: "ref_id url",
 			html: "ref_id id?|selector?",
 			evaluate: "ref_id expression",

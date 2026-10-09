@@ -4,6 +4,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { binding } from "@howaboua/pi-agent-board/integration";
 import type { ContextSharingService } from "@howaboua/pi-codex-conversion/context-sharing";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
@@ -19,7 +20,6 @@ import {
 import { AttachmentRouting } from "./attachment-routing.js";
 import { AttachmentTarget } from "./attachment-target.js";
 import type { AgentBoard } from "./board/host.js";
-import { binding } from "./board/identity.js";
 import type { ConnectedMachine } from "./fleet.js";
 import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
@@ -50,6 +50,7 @@ export class AgentAttachment {
 		params: AgentsParams,
 		signal: AbortSignal,
 	) {
+		if (params.board) this.board.requireAvailable();
 		const sessionFile = sessionPath(panel);
 		const controllerFile = ctx.sessionManager.getSessionFile();
 		const controllerSessionId = ctx.sessionManager.getSessionId();
@@ -213,6 +214,7 @@ export class AgentAttachment {
 		params: AgentsParams,
 		signal: AbortSignal,
 	) {
+		if (params.board) this.board.requireAvailable();
 		const route = attachmentRoutes(ctx).find(
 			(entry) =>
 				entry.machine === runtime.machine &&

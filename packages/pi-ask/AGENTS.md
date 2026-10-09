@@ -7,3 +7,4 @@
 - Keep response state in named objects, not parallel arrays.
 - When changing TUI behavior, check pi extension/TUI docs and examples first.
 - Keep TUI lifecycle composition in `tui.ts`, drawing in `tui-render.ts`, and key-driven transitions in `tui-input.ts`.
+- Session restoration/shutdown must invalidate old panel completions; persist a steering ask as closed only after its response is delivered.

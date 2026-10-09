@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { ConnectedMachine } from "../fleet.js";
+import type { BoardEnvelope } from "@howaboua/pi-agent-board/integration";
 import {
 	type BoardBinding,
 	binding,
@@ -13,8 +13,8 @@ import {
 	saveBinding,
 	saveChild,
 	saveMember,
-} from "./identity.js";
-import type { BoardEnvelope } from "./protocol.js";
+} from "@howaboua/pi-agent-board/integration";
+import type { ConnectedMachine } from "../fleet.js";
 
 function sameMembership(left: BoardBinding, right: BoardBinding) {
 	return isDeepStrictEqual(
@@ -30,26 +30,28 @@ export class BoardMembership {
 		ctx: ExtensionContext,
 		request: BoardEnvelope,
 	) => Promise<unknown>;
-	private readonly active: Map<string, unknown>;
+	private readonly getActive: () => Map<string, unknown>;
 	constructor(
 		pi: ExtensionAPI,
 		toOwner: (
 			ctx: ExtensionContext,
 			request: BoardEnvelope,
 		) => Promise<unknown>,
-		active: Map<string, unknown>,
+		getActive: () => Map<string, unknown>,
 	) {
 		this.pi = pi;
 		this.toOwner = toOwner;
-		this.active = active;
+		this.getActive = getActive;
 	}
 	inspectAttachment(ctx: ExtensionContext) {
+		this.getActive();
 		const own = binding(ctx);
 		if (own.upstream || children(ctx).length || members(ctx).length > 1)
 			throw new Error("Target already owns or belongs to a board family");
 		return own;
 	}
 	prepareAttachment(ctx: ExtensionContext, upstream: string, name: string) {
+		this.getActive();
 		const own = binding(ctx);
 		if (!own.enabled)
 			throw new Error(
@@ -64,6 +66,7 @@ export class BoardMembership {
 		expected: BoardBinding,
 		desired: BoardBinding,
 	) {
+		this.getActive();
 		if (!ctx.isIdle())
 			throw new Error("Attach a board only after the target settles");
 		const own = binding(ctx);
@@ -83,6 +86,7 @@ export class BoardMembership {
 		adopted: BoardBinding,
 		expected: BoardBinding,
 	) {
+		this.getActive();
 		if (!isDeepStrictEqual(binding(ctx), expected))
 			throw new Error("Controller board changed during attachment");
 		saveBinding(this.pi, expected);
@@ -105,6 +109,7 @@ export class BoardMembership {
 		desired: BoardBinding,
 		previous: BoardBinding,
 	) {
+		this.getActive();
 		if (children(ctx).length)
 			throw new Error(
 				"Detach a board member only when it has no board children",
@@ -117,9 +122,10 @@ export class BoardMembership {
 		)
 			throw new Error("Target board changed before detach");
 		saveBinding(this.pi, previous);
-		this.active.clear();
+		this.getActive().clear();
 	}
 	async unregisterAttachment(ctx: ExtensionContext, member: BoardBinding) {
+		this.getActive();
 		const own = binding(ctx);
 		await this.toOwner(ctx, {
 			operation: "board-unregister",
@@ -161,7 +167,7 @@ export class BoardMembership {
 			if (existing && !sameMembership(existing, member))
 				throw new Error("Board member changed before detach");
 			removeMember(this.pi, member);
-			this.active.delete(member.agentName);
+			this.getActive().delete(member.agentName);
 			return true;
 		}
 		if (request.operation === "board-register") {

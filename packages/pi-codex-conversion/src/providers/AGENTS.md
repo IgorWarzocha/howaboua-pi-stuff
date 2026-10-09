@@ -8,3 +8,4 @@
 - `functions` grouping belongs to Responses Lite. Local/Tree retain flat context routers on every route; only Remote emits reserved native context namespaces. Stream and replay adapters preserve recorded namespace contracts.
 - Configured-provider compaction uses its registered plan-aware stream; Code Mode compaction/replay carries the owned `exec` grammar contract.
 - Honor declared Responses contracts; never compensate incomplete providers with backend-specific heuristics.
+- Execute tool calls only after unambiguous item finalization; interrupted streams discard partial inputs. Finalized custom input must remain byte-identical in execution and continuation.

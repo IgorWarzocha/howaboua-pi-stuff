@@ -1,4 +1,4 @@
-import type { HerdrConnection } from "./herdr-client.js";
+import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type { HerdrEvent, MonitoringIssue } from "./types.js";
 
 interface SubscriptionAttempt {
@@ -147,7 +147,29 @@ export class MonitorEvents {
 				attempt?.controller.signal.aborted
 			)
 				return;
-			const failure = error instanceof Error ? error : new Error(String(error));
+			let failure = error instanceof Error ? error : new Error(String(error));
+			if (attempt && isHerdrErrorCode(error, "pane_not_found")) {
+				try {
+					// A closed or moved pane can disappear before its lifecycle event arrives.
+					await this.options.reconcile();
+					if (!this.active || epoch !== this.epoch) return;
+					if (attempt.key !== this.targetKey()) {
+						this.dirty = true;
+						return;
+					}
+				} catch (reconcileError) {
+					failure =
+						reconcileError instanceof Error
+							? reconcileError
+							: new Error(String(reconcileError));
+				}
+				if (
+					!this.active ||
+					epoch !== this.epoch ||
+					attempt.controller.signal.aborted
+				)
+					return;
+			}
 			this.warn(failure.message);
 			if (this.options.reconnect === false) throw failure;
 			this.scheduleReconnect();

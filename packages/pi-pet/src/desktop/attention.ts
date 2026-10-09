@@ -28,7 +28,7 @@ function parsePetSize(value: unknown): PetSize {
   return petSize;
 }
 
-export function parseAttentionPreferences(value: unknown): AttentionPreferences {
+function parseAttentionPreferences(value: unknown): AttentionPreferences {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Desktop attention preferences must be an object.");
   }

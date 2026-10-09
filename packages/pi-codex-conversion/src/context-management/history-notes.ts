@@ -12,6 +12,7 @@ import type { ContextRouter, SharedContextRequest, RemoteNoteReference } from ".
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
 import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 import { historyNotesRenderers } from "./rendering.ts";
+import { projectSharedNotesResult } from "./notes-response-projection.ts";
 import { codexToolProviderHeaders } from "../adapter/codex-tool-provider.ts";
 import {
 	getPiSessionHistoryRecoveryHint,
@@ -212,6 +213,7 @@ export function createHistoryNotesTools(
 					resolveMode(ctx),
 					pi,
 					route,
+					_id,
 				);
 			},
 		},
@@ -246,6 +248,7 @@ export function createHistoryNotesTools(
 					resolveMode(ctx),
 					pi,
 					route,
+					_id,
 				);
 				return finishNoteWrite?.()
 					? { ...result, terminate: true }
@@ -313,7 +316,8 @@ async function callHistoryNotesTool(
 	signal: AbortSignal | undefined,
 	mode: ContextManagementMode,
 	pi: Pick<ExtensionAPI, "appendEntry"> | undefined,
-	route?: ContextRouter,
+	route: ContextRouter | undefined,
+	callId: string,
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
 	const identity = contextAgentIdentity(ctx);
 	if (identity.storage && identity.storage !== (mode === "remote" ? "remote" : "session"))
@@ -324,7 +328,7 @@ async function callHistoryNotesTool(
 			params: namespace === "history" ? { ...params, agent_name: target } : params,
 			encryptedArguments: mode === "remote" && ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx),
 		}, signal);
-		if (routed) return routed;
+		if (routed) return projectSharedNotesResult(routed, callId, ctx, signal);
 	}
 	let result: Record<string, unknown>;
 	if (mode === "remote") {
@@ -374,6 +378,8 @@ async function callHistoryNotesBackend(
 	signal: AbortSignal | undefined,
 	truncationPolicy: { mode: "bytes" | "tokens"; limit: number },
 	target?: RemoteNoteReference,
+	ordinaryArguments = false,
+	capture?: (bytes: Uint8Array, encoding: string, scope: string) => void,
 ): Promise<Record<string, unknown>> {
 	const before = JSON.stringify(contextAgentIdentity(ctx));
 	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
@@ -395,7 +401,7 @@ async function callHistoryNotesBackend(
 		"x-openai-tool-output-truncation-policy",
 		JSON.stringify(truncationPolicy),
 	);
-	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx))
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx) && !ordinaryArguments)
 		headers.set("x-openai-encrypted-tool-arguments", "true");
 	const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
 	const response = await fetch(
@@ -417,13 +423,32 @@ async function callHistoryNotesBackend(
 	);
 	if (!response.ok)
 		throw new Error(`History and notes backend failed (${response.status})`);
-	const result: unknown = JSON.parse(await response.text());
+	const bytes = new Uint8Array(await response.arrayBuffer());
+	const result: unknown = JSON.parse(new TextDecoder().decode(bytes));
 	if (!result || typeof result !== "object" || Array.isArray(result))
 		throw new Error("History and notes backend returned invalid data");
 	if (before !== JSON.stringify(contextAgentIdentity(ctx)) || model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
 		throw new Error("Context changed after Remote execution; verify note state before repeating a write");
 	bindRemoteBackendScope(result, scope);
+	capture?.(bytes, response.headers.get("content-type") ?? "application/json", scope);
 	return result as Record<string, unknown>;
+}
+
+/** Read-only bridge access captures the wire body before envelope decoding. */
+export async function lookupRemoteHistoryNotes(
+	namespace: "history" | "notes", params: Record<string, unknown>, ctx: ExtensionContext, signal?: AbortSignal,
+): Promise<{ bytes: Uint8Array; encoding: string; source: string }> {
+	const action = namespace === "history" ? historyAction(params["action"]) : notesAction(params["action"]);
+	if (action === "write_file" || action === "append_to_file") throw new Error("Remote lookup is read-only");
+	if (namespace === "history") validateHistoryArguments(action as HistoryAction, params);
+	else validateNotesArguments(action as NotesAction, params);
+	const endpoint = namespace === "history" ? HISTORY_ENDPOINTS[action as HistoryAction] : NOTES_ENDPOINTS[action as NotesAction];
+	let captured: { bytes: Uint8Array; encoding: string; source: string } | undefined;
+	await callHistoryNotesBackend(endpoint, stripAction(params), ctx, signal,
+		{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT }, undefined, true,
+		(bytes, encoding, source) => { captured = { bytes, encoding, source }; });
+	if (!captured) throw new Error("Remote lookup returned no response");
+	return captured;
 }
 
 /** The caller authenticates and owns protected delivery; the reference owns backend addressing. */

@@ -23,15 +23,19 @@ function describeProfiles(profiles: Map<string, AgentProfile>) {
 	);
 }
 
-export async function agentsHelp(): Promise<Record<string, unknown>> {
+export async function agentsHelp(
+	boardAvailable = false,
+): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
 		actions: {
 			help: "",
 			list: "machine?",
 			find: "query? status? machine?",
+			focus: "target machine? voice? handoff?",
 			spawn:
-				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?",
+				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?" +
+				(boardAvailable ? " board_thread_id?" : ""),
 			watch: "target machine?",
 			unwatch: "target machine?",
 			send: "target message machine?",
@@ -44,14 +48,24 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 		rules: {
 			machine:
 				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
-			target: "Use spawn/find target exactly",
+			target:
+				"Use spawn/find target exactly; /root selects this family's live root",
 			label: "2-3 words; tab/session",
+			...(boardAvailable
+				? {
+						board_thread_id:
+							"Existing shared-board thread; child receives a read reference",
+					}
+				: {}),
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
 			ask_id: "Exact pending Ask ID",
-			send: "Only needed input or work changes; wakes idle agents, no wait/watch. Never wake finished workers to acknowledge completion or announce closure; close finished panes silently with host controls",
+			send: "Only needed input or work changes; wakes idle agents, no wait/watch. Close finished workers with /quit, not acknowledgement messages",
 			assign: "Delegate a task to an existing agent",
-			attach:
-				"Idle target; context/board booleans choose shared access and board membership independently; no task/watch",
+			focus:
+				"Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
+			attach: boardAvailable
+				? "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
+				: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
 			detach:
 				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking:
@@ -63,7 +77,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			slash:
-				"Leading / uses target Pi commands/skills/templates; extension commands are submission-only, even with assign/spawn; TUI-only commands unavailable",
+				"Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
 			reuse:
 				"Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")

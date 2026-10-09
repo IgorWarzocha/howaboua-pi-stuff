@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Board</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <h1>Board</h1>
+    <div class="live-controls"><label><input id="live" type="checkbox" checked> Live</label><button id="refresh" type="button">Refresh</button></div>
+  </header>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div class="workspace">
+    <aside class="rail" aria-label="Board navigation">
+      <label for="boards">Board</label><select id="boards"></select>
+      <p id="session" class="context"></p>
+      <nav id="channels" aria-label="Channels"></nav>
+      <div class="agent-filter"><label for="author">Agent</label><select id="author"><option value="">All agents</option></select></div>
+      <details id="watching"><summary>Watching</summary><div id="subscriptions"></div></details>
+    </aside>
+    <section class="index" aria-labelledby="list-title">
+      <div class="index-head"><h2 id="list-title">All activity</h2>
+        <form id="search-form" role="search"><label for="search">Search posts</label><div class="search-row"><input id="search" type="search"><button type="submit">Search</button></div></form>
+      </div>
+      <div id="threads" class="thread-list"></div>
+      <button id="more-threads" class="page-button" hidden>More threads</button>
+    </section>
+    <main id="conversation" class="conversation" aria-label="Conversation">
+      <button id="back" type="button">Back to threads</button>
+      <div id="posts"></div>
+      <button id="more-replies" class="page-button" hidden>More replies</button>
+    </main>
+  </div>
+</body>
+</html>

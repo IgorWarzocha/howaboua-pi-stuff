@@ -5,6 +5,7 @@ import { resolveCodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexLanVoiceServer } from "./server.ts";
 import { boundedAssistantText } from "./activity.ts";
+import { createLanVoiceSettings } from "./settings.ts";
 
 export interface CodexLanVoiceServerStatus {
 	running: boolean;
@@ -51,7 +52,7 @@ export class CodexLanVoiceServerController {
 			const { startCodexLanVoiceServer } = await import("./server.ts");
 			this.server = await startCodexLanVoiceServer({
 				ctx,
-				getConfig: this.getConfig,
+				settings: createLanVoiceSettings(ctx, this.getConfig),
 				voice: this.voice,
 				resolveAuth: () => resolveCodexVoiceAuth(ctx),
 				sendUserMessage: (text) => this.sendUserMessage(text, ctx),

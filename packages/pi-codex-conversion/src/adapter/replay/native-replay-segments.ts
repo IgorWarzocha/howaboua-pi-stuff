@@ -260,16 +260,6 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	};
 }
 
-export function buildNativeReplaySegments<TApi extends Api>(args: {
-	model: Model<TApi>;
-	payload: ResponsesCompatibleRequestPayload;
-	branchEntries: readonly SessionEntry[];
-	compactionEntry: NativeCompactionEntry;
-	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
-}): NativeReplayPayloadRewriteResult {
-	return buildNativeReplaySegmentsInternal(args);
-}
-
 export function rewriteResponsesPayloadWithNativeReplay<TApi extends Api>(args: {
 	model: Model<TApi>;
 	payload: ResponsesCompatibleRequestPayload;

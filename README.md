@@ -25,33 +25,33 @@ pi install npm:@howaboua/pi-skills
 
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
+Install `pi-agent-board` separately for message boards and the `/board` browser viewer. Shepherdr connects its agents to boards when that extension is loaded.
+
 Install `pi-codex-guardian` separately for tool-call approval reviews. It requires a ChatGPT-backed Codex model and blocks tools when a review cannot complete.
 
 ## Extensions
 
 | Package | What it adds |
 |---|---|
+| [`pi-agent-board`](./packages/pi-agent-board) | Standalone agent boards and the read-only `/board` browser viewer |
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-browser`](./packages/pi-browser) | Logged-in browser control with local CDP sessions and SSH host routing |
 | [`pi-cache-hit-predictor`](./packages/pi-cache-hit-predictor) | Inline prompt-cache hit predictions when switching models or reasoning levels |
+| [`pi-chatgpt-sites`](./packages/pi-chatgpt-sites) | ChatGPT Sites management, committed-source saves and deployment |
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image inspection, and Code Mode tools for GPT/Codex models |
 | [`pi-codex-guardian`](./packages/pi-codex-guardian) | Guardian approval reviews before tool execution in native Pi, Code Mode, and Notebook Mode |
-| [`pi-dynamic-tools`](./packages/pi-dynamic-tools) | Unmaintained standalone Code Mode, superseded by `pi-codex-conversion` |
-| [`pi-explore-subagents`](./packages/pi-explore-subagents) | Isolated, discovery-only shallow and deep subagents |
 | [`pi-gippity-control`](./packages/pi-gippity-control) | Realtime voice and LAN remote control for any Pi model |
+| [`pi-grok-realtime`](./packages/pi-grok-realtime) | Grok voice with Pi doing the work, local and browser dictation, and custom voice tools |
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/terra`, and `/luna` commands for GPT-5.6 Codex models |
 | [`pi-codex-imagegen`](./packages/pi-codex-imagegen) | Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode |
-| [`pi-memories`](./packages/pi-memories) | Shutdown memory candidates in a plain Markdown inbox |
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
-| [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
 | [`pi-shepherdr`](./packages/pi-shepherdr) | Herdr-native multi-agent orchestration |
 | [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
 | [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |
 | [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |
 | [`pi-unicode-charts`](./packages/pi-unicode-charts) | Terminal-native Unicode charts for Pi Markdown |
-| [`pi-vent`](./packages/pi-vent) | Batched notes about repeated workflow friction in `VENT.md` |
 | [`pi-codex-web-run`](./packages/pi-codex-web-run) | Codex web search and navigation in normal Pi, Code Mode, and Notebook Mode |
 
 ## Skills
@@ -65,6 +65,16 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-skill-omarchy-help`](./packages/pi-skill-omarchy-help) | User-level maintenance for Arch desktops configured with Omarchy |
 
 Pi discovers installed skills automatically and loads them when a task matches. Use `/skill:<name>` when you want to invoke one explicitly.
+
+## Retired packages
+
+These packages are no longer maintained or published. Their source remains available, and existing npm versions are not removed. They are excluded from the bundles.
+
+- [`pi-dynamic-tools`](./packages/pi-dynamic-tools): standalone Code Mode, superseded by `pi-codex-conversion`.
+- [`pi-explore-subagents`](./packages/pi-explore-subagents): discovery-only subagents. Use `pi-shepherdr` for maintained agent tooling.
+- [`pi-vent`](./packages/pi-vent): workflow-friction logging, now available as a Pi Codex custom-tool example.
+- [`pi-memories`](./packages/pi-memories): shutdown memory distillation.
+- [`pi-semantic-grep`](./packages/pi-semantic-grep): embedding-based indexing and search.
 
 ## How I use it
 

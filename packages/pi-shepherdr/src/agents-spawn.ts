@@ -49,6 +49,22 @@ export async function spawnAgent(
 	ctx: ExtensionContext,
 	board: AgentBoard,
 ) {
+	const boardThreadId =
+		params.board_thread_id === undefined
+			? undefined
+			: required(params.board_thread_id, "board_thread_id");
+	if (boardThreadId !== undefined) {
+		await board.execute(
+			ctx,
+			{
+				action: "read_thread",
+				thread_id: boardThreadId,
+				limit: 1,
+				max_chars_per_post: 1,
+			},
+			crypto.randomUUID(),
+		);
+	}
 	const profiles = await loadAgentProfiles();
 	const profileName = required(params.agent_type, "agent_type");
 	const profile = profiles.get(profileName);
@@ -100,6 +116,13 @@ export async function spawnAgent(
 	);
 	if (input.startsWith("/") && message !== input)
 		attributedMessage.context = [attributedMessage.context, message]
+			.filter(Boolean)
+			.join("\n\n");
+	if (boardThreadId !== undefined)
+		attributedMessage.context = [
+			attributedMessage.context,
+			`Read shared board thread with board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}) for task context`,
+		]
 			.filter(Boolean)
 			.join("\n\n");
 	reportProgress(onUpdate, `Spawning ${label}`, {

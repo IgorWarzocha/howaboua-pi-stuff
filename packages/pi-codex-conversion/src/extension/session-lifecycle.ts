@@ -12,6 +12,7 @@ import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
 import { appendNotebookTreeEpoch } from "../tools/notebook-mode/session-identity.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
+import { discoverExternalNotesOwner } from "../context-management/external-notes-bridge.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
 import { registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
@@ -64,6 +65,7 @@ export function createCodexSessionLifecycle(
 
 	return {
 		start: async (event, ctx) => {
+			discoverExternalNotesOwner(pi, state);
 			updateCodexPreparedIdleKickoff(pi, "session_reset");
 			activate(ctx);
 			state.notebookStatusMessageId = undefined;
@@ -76,7 +78,7 @@ export function createCodexSessionLifecycle(
 			state.developerMessages.clear();
 			state.contextWindows.reset();
 			state.contextKickoff.reset();
-			state.contextTree.beginSession(pi);
+			if (!state.externalNotes) state.contextTree.beginSession(pi);
 			runtime.backgroundWidget.ctx = ctx;
 			state.cwd = ctx.cwd;
 			state.config = readEffectiveCodexConversionConfig({
@@ -99,14 +101,14 @@ export function createCodexSessionLifecycle(
 			ui.renderBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			// A fresh worker may adopt its family before its first prepared turn.
-			state.contextWindows.restore(ctx.sessionManager.getBranch());
+			if (!state.externalNotes) state.contextWindows.restore(ctx.sessionManager.getBranch());
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);
 			prepareCodeModeHost(codeMode, ctx);
 			if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 		},
 		modelSelected: async (_event, ctx) => {
-			state.contextTree.handoff.reset();
+			if (!state.externalNotes) state.contextTree.handoff.reset();
 			modelSelected(ctx);
 			activate(ctx);
 			ui.invalidateUsageStatus();
@@ -121,18 +123,16 @@ export function createCodexSessionLifecycle(
 				return;
 			}
 			const plan = syncAdapter(pi, ctx, state);
-			state.contextWindows.ensureInitialized(
-				pi,
-				ctx,
-				plan.contextManagement,
-			);
+			// Keep existing window state, but leave initial creation to the first prepared turn.
+			if (!state.externalNotes) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement, { createIfMissing: false });
 			await runtime.configureDiagnostics(ctx);
 			void ui.refreshUsageStatus(ctx);
 			prepareCodeModeHost(codeMode, ctx);
 		},
-		beforeSwitch: () => state.contextTree.handoff.active || state.contextKickoff.hasIdleInput ? { cancel: true } : undefined,
-		beforeFork: () => state.contextTree.handoff.active || state.contextKickoff.hasIdleInput ? { cancel: true } : undefined,
+		beforeSwitch: () => !state.externalNotes && (state.contextTree.handoff.active || state.contextKickoff.hasIdleInput) ? { cancel: true } : undefined,
+		beforeFork: () => !state.externalNotes && (state.contextTree.handoff.active || state.contextKickoff.hasIdleInput) ? { cancel: true } : undefined,
 		beforeTree: (event, ctx) => {
+			if (state.externalNotes) return;
 			if (state.contextTree.handoff.active) return { cancel: true };
 			if (state.contextTree.archiving) return;
 			if (state.contextKickoff.hasIdleInput) return { cancel: true };
@@ -145,18 +145,14 @@ export function createCodexSessionLifecycle(
 			const previousMode = state.executionMode;
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover is still preparing the same claimed user kickoff.
-			if (state.contextTree.handleSessionTree(event)) return;
+			if (!state.externalNotes && state.contextTree.handleSessionTree(event)) return;
 			updateCodexPreparedIdleKickoff(pi, "session_reset");
 			state.notebookStatusMessageId = undefined;
 			if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			const plan = syncAdapter(pi, ctx, state);
-			state.contextWindows.ensureInitialized(
-				pi,
-				ctx,
-				plan.contextManagement,
-			);
+			if (!state.externalNotes) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement, { createIfMissing: false });
 			prepareCodeModeHost(codeMode, ctx);
 			if (previousMode === "notebook" || state.executionMode === "notebook") {
 				ctx.ui.notify("Notebook state reset after conversation-tree navigation", "info");

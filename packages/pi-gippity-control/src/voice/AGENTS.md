@@ -18,3 +18,4 @@
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
 - `REALTIME-SYSTEM-PROMPT.md` is the shipped template and schema source. Record every schema change cumulatively in its adjacent changelog. Never rewrite an existing user prompt; check its marker only when realtime voice is engaged and direct the user's agent to migrate it.
 - Every async resource has one cleanup owner; session shutdown stops LAN before voice.
+- After handoff, source controls still own the microphone. `transferred` is not a local conversation and must not block return arrival. Peer refresh preserves the LAN session binding. Change the handoff protocol in both voice packages and Shepherdr together.

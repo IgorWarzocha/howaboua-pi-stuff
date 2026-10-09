@@ -4,13 +4,9 @@ import type { PanelTab as Tab } from "./control-panel-items.js";
 import { PanelView } from "./control-panel-view.js";
 import { addSshConnection, type SshSetupDraft } from "./ssh-setup.js";
 
-export function controlPanelStatus(
-	ctx: ExtensionContext,
-	options: PanelOptions,
-): string {
+export function controlPanelStatus(options: PanelOptions): string {
 	return [
 		`Orchestration ${options.orchestration() ? "on" : "off"}.`,
-		options.board.status(ctx),
 		...options.fleet
 			.statuses()
 			.map(
@@ -94,7 +90,6 @@ async function showControlPanel(
 			if (!current()) throw new Error("Session changed; reopen /herdr");
 		};
 		const actions = new PanelActions(
-			ctx,
 			options,
 			signal,
 			state.message,
@@ -105,7 +100,6 @@ async function showControlPanel(
 			finish,
 		);
 		const view = new PanelView(
-			ctx,
 			options,
 			tui,
 			theme,
@@ -125,10 +119,7 @@ async function showControlPanel(
 			cleanup();
 			done(result);
 		}
-		const subscriptions = [
-			options.fleet.subscribe(() => view.rebuild()),
-			options.board.subscribe(() => view.rebuild()),
-		];
+		const subscriptions = [options.fleet.subscribe(() => view.rebuild())];
 		function cleanup() {
 			disposed = true;
 			signal.removeEventListener("abort", close);

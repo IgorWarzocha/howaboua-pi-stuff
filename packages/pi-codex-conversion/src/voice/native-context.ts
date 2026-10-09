@@ -12,6 +12,7 @@ import {
 	type NativeCompactionEntry,
 } from "../adapter/compaction/types.ts";
 import { serializeLiveTailToResponsesInput } from "../adapter/replay/payload-rewrite.ts";
+import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
 
 interface VoiceContextModelSelection {
 	provider: string;
@@ -80,7 +81,7 @@ export async function createNativeVoiceContextSummary(
 	let completed:
 		| { content: Array<{ type: string; text?: string }>; errorMessage?: string }
 		| undefined;
-	for await (const event of provider.streamSimple(requestModel, normalizeContext(context), {
+	const streamOptions = {
 		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
 		...(auth.headers ? { headers: auth.headers } : {}),
 		...(auth.env ? { env: auth.env } : {}),
@@ -88,6 +89,7 @@ export async function createNativeVoiceContextSummary(
 		maxTokens: requestModel.maxTokens,
 		cacheRetention: "none",
 		sessionId: uuidv7(),
+		remoteDeliveryContext: request.ctx,
 		...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
 		onPayload(payload) {
 			if (!isRecord(payload) || !Array.isArray(payload["input"]))
@@ -104,7 +106,8 @@ export async function createNativeVoiceContextSummary(
 				input,
 			};
 		},
-	})) {
+	} satisfies OpenAICodexStreamOptions;
+	for await (const event of provider.streamSimple(requestModel, normalizeContext(context), streamOptions)) {
 		if (event.type === "done") completed = event.message;
 		if (event.type === "error")
 			throw new Error(event.error.errorMessage || "Voice context model failed");

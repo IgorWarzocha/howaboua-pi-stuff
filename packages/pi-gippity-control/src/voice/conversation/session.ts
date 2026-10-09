@@ -213,6 +213,41 @@ export class CodexRealtimeConversation {
 		if (!this.speakableResponsePending) this.callbacks.onStatus("listening");
 	}
 
+	/** Used only after the transferring Pi turn settles; never gates ordinary speech. */
+	waitForPlaybackEnd(signal: AbortSignal): Promise<void> {
+		signal.throwIfAborted();
+		return new Promise((resolve, reject) => {
+			let quiet: ReturnType<typeof setTimeout> | undefined;
+			const finish = (error?: Error) => {
+				clearTimeout(timeout);
+				clearTimeout(quiet);
+				removeEvent();
+				removeExit();
+				signal.removeEventListener("abort", aborted);
+				if (error) reject(error);
+				else resolve();
+			};
+			const check = () => {
+				clearTimeout(quiet);
+				if (this.state !== "active") {
+					finish(new Error("The source voice call ended before transfer"));
+					return;
+				}
+				if (!this.speakableResponsePending)
+					quiet = setTimeout(() => finish(), 500);
+			};
+			const aborted = () => finish(new Error("Voice transfer cancelled"));
+			const timeout = setTimeout(
+				() => finish(new Error("Source speech did not finish before transfer")),
+				30_000,
+			);
+			const removeEvent = this.peer.onEvent(check);
+			const removeExit = this.peer.onExit(finish);
+			signal.addEventListener("abort", aborted, { once: true });
+			check();
+		});
+	}
+
 	async close(): Promise<void> {
 		this.closePromise ??= this.closeSession();
 		return this.closePromise;

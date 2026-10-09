@@ -44,9 +44,9 @@
 	},
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=3.0.47",
-		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
-		"@earendil-works/pi-tui": ">=1.0.0",
+		"@earendil-works/pi-ai": ">=1.1.0",
+		"@earendil-works/pi-coding-agent": ">=1.1.0",
+		"@earendil-works/pi-tui": ">=1.1.0",
 		"typebox": "*"
 	},
 	"peerDependenciesMeta": {
@@ -55,14 +55,14 @@
 		}
 	},
 	"dependencies": {
-		"unicode-case-folding": "1.1.2"
+		"@howaboua/pi-agent-board": "0.0.0"
 	},
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "3.0.47",
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-ai": "1.0.4",
-		"@earendil-works/pi-coding-agent": "1.0.4",
-		"@earendil-works/pi-tui": "1.0.4",
+		"@earendil-works/pi-ai": "1.1.0",
+		"@earendil-works/pi-coding-agent": "1.1.0",
+		"@earendil-works/pi-tui": "1.1.0",
 		"@types/node": "^26.2.0",
 		"typebox": "1.3.18",
 		"typescript": "^7.0.2"
@@ -73,7 +73,7 @@
 		]
 	},
 	"engines": {
-		"node": ">=20.6.0"
+		"node": ">=22.18.0"
 	},
 	"main": "index.ts",
 	"exports": "./index.ts",

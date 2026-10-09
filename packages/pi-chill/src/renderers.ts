@@ -43,14 +43,21 @@ export function renderActivityHeading(
 	const container = new Container();
 	container.addChild(
 		new MouseRegion(
-			new Text(
-				theme.fg(
-					group.warning ? "warning" : "muted",
-					`${group.open ? "▾" : "▸"} ${group.label()}`,
-				),
-				outputPad,
-				0,
-			),
+			{
+				invalidate() {},
+				render: (width) =>
+					new Text(
+						theme.fg(
+							group.warning ? "warning" : "muted",
+							truncateToWidth(
+								`${group.open ? "▾" : "▸"} ${group.label()}`,
+								Math.max(0, width - outputPad * 2),
+							),
+						),
+						outputPad,
+						0,
+					).render(width),
+			},
 			(event) => {
 				if (event.type !== "click" || event.button !== "left") return undefined;
 				group.open = !group.open;
@@ -63,12 +70,20 @@ export function renderActivityHeading(
 	container.addChild({
 		invalidate() {},
 		render: (width) => {
+			const indent = " ".repeat(outputPad + 3);
+			const format = (label: string) =>
+				theme.fg(
+					label.startsWith("Failed ") || label.startsWith("Needs attention ")
+						? "warning"
+						: "muted",
+					label,
+				);
 			const detail =
 				group.endedAt === undefined
-					? group.stage.label(Math.max(0, width - 4))
-					: group.stage.summary(Math.max(0, width - 4));
+					? group.stage.label(Math.max(0, width - indent.length), format)
+					: group.stage.summary(Math.max(0, width - indent.length), format);
 			return detail
-				? [truncateToWidth(theme.fg("muted", `    ${detail}`), width)]
+				? [truncateToWidth(theme.fg("muted", `${indent}${detail}`), width)]
 				: [];
 		},
 	});
@@ -145,7 +160,9 @@ export class ActivityRenderers {
 					: context.isPartial
 						? "toolPendingBg"
 						: "toolSuccessBg";
-			return new Box(1, paddingY, (line) => theme.bg(color, line));
+			return new Box(context.outputPad, paddingY, (line) =>
+				theme.bg(color, line),
+			);
 		};
 		const frame = (
 			child: Component,
@@ -192,7 +209,9 @@ export class ActivityRenderers {
 				const container = new Container();
 				view.offShell = undefined;
 				if (this.isEnabled() && group.anchorId === call.id) {
-					container.addChild(renderActivityHeading(group, theme));
+					container.addChild(
+						renderActivityHeading(group, theme, context.outputPad),
+					);
 				}
 				if (!this.isEnabled() || rawVisible(context)) {
 					// The wrapped renderer owns its own mutable state and cached components.
@@ -226,7 +245,7 @@ export class ActivityRenderers {
 										: "muted",
 									`  ▸ ${name} · ${status}`,
 								),
-								1,
+								context.outputPad,
 								0,
 							),
 							context,

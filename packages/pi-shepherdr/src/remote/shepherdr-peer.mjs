@@ -6,6 +6,7 @@ import { createConnection } from "node:net";
 import { basename, dirname } from "node:path";
 
 export const MAX_PEER_FRAME_BYTES = 8 * 1024 * 1024;
+export const PEER_PROTOCOL = 3;
 
 /** @param {string} sessionFile @param {string} terminalId */
 export function peerInboxPath(sessionFile, terminalId) {
@@ -84,9 +85,47 @@ export async function readReceiver(path) {
  * @param {(method: string, params: object) => Promise<unknown>} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").PeerMessage} message
+ * @param {import("../types.js").FocusRequest} [focus]
  * @returns {Promise<import("../types.js").PeerDelivery>}
  */
-export async function sendPeerMessage(request, expected, message) {
+export async function sendPeerMessage(request, expected, message, focus) {
+	const { descriptor, sessionFile, agent } = await resolvePeerReceiver(
+		request,
+		expected,
+		Boolean(focus),
+	);
+	const id = randomUUID();
+	const frame =
+		JSON.stringify({
+			protocol: PEER_PROTOCOL,
+			kind: focus ? "focus" : "message",
+			focus,
+			id,
+			token: descriptor.token,
+			sessionFile,
+			terminalId: agent.terminal_id,
+			text: message.text,
+			sender: message.sender,
+			context: message.context,
+		}) + "\n";
+	return deliverPeerFrame(
+		request,
+		expected,
+		message,
+		focus,
+		descriptor,
+		sessionFile,
+		id,
+		frame,
+	);
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {boolean} allowBlocked
+ */
+export async function resolvePeerReceiver(request, expected, allowBlocked) {
 	const result = await request("agent.get", { target: expected.pane_id });
 	const agent =
 		result &&
@@ -121,7 +160,11 @@ export async function sendPeerMessage(request, expected, message) {
 			true,
 		);
 	}
-	if ("agent_status" in agent && agent.agent_status === "blocked") {
+	if (
+		!allowBlocked &&
+		"agent_status" in agent &&
+		agent.agent_status === "blocked"
+	) {
 		throw deliveryError(
 			"Target is blocked; answer its pending question first",
 			true,
@@ -141,7 +184,7 @@ export async function sendPeerMessage(request, expected, message) {
 		);
 	}
 	if (
-		descriptor?.protocol !== 1 ||
+		descriptor?.protocol !== PEER_PROTOCOL ||
 		!Number.isInteger(descriptor.port) ||
 		descriptor.port < 1 ||
 		descriptor.port > 65535 ||
@@ -153,18 +196,30 @@ export async function sendPeerMessage(request, expected, message) {
 			true,
 		);
 	}
-	const id = randomUUID();
-	const frame =
-		JSON.stringify({
-			protocol: 1,
-			id,
-			token: descriptor.token,
-			sessionFile,
-			terminalId: agent.terminal_id,
-			text: message.text,
-			sender: message.sender,
-			context: message.context,
-		}) + "\n";
+	return { descriptor, sessionFile, agent };
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {import("../types.js").PeerMessage} message
+ * @param {import("../types.js").FocusRequest | undefined} focus
+ * @param {{port:number,token:string}} descriptor
+ * @param {string} sessionFile
+ * @param {string} id
+ * @param {string} frame
+ * @returns {Promise<import("../types.js").PeerDelivery>}
+ */
+function deliverPeerFrame(
+	request,
+	expected,
+	message,
+	focus,
+	descriptor,
+	sessionFile,
+	id,
+	frame,
+) {
 	if (Buffer.byteLength(frame) > MAX_PEER_FRAME_BYTES) {
 		throw deliveryError("Peer message is too large", true);
 	}
@@ -172,6 +227,7 @@ export async function sendPeerMessage(request, expected, message) {
 		let attempted = false;
 		let settled = false;
 		let buffer = "";
+		let closing = false;
 		const socket = createConnection({
 			host: "127.0.0.1",
 			port: descriptor.port,
@@ -194,12 +250,28 @@ export async function sendPeerMessage(request, expected, message) {
 					!attempted,
 				),
 			);
-		const timer = setTimeout(failed, 10_000);
+		const timer = setTimeout(failed, focus ? 55_000 : 10_000);
 		timer.unref();
 		socket.setEncoding("utf8");
 		socket.on("error", failed);
-		socket.on("end", failed);
-		socket.on("close", failed);
+		socket.on("end", () => {
+			if (settled) return;
+			if (!closing) return failed();
+			clearTimeout(timer);
+			void closeExitedPane(request, expected, sessionFile).then(
+				() => finish(undefined, { command: true }),
+				(error) =>
+					finish(
+						deliveryError(
+							`Pi shut down, but its pane could not be closed: ${error instanceof Error ? error.message : String(error)}`,
+							false,
+						),
+					),
+			);
+		});
+		socket.on("close", () => {
+			if (!closing) failed();
+		});
 		socket.on("connect", () => {
 			attempted = true;
 			socket.write(frame);
@@ -211,10 +283,20 @@ export async function sendPeerMessage(request, expected, message) {
 			if (newline < 0) return;
 			try {
 				const reply = JSON.parse(buffer.slice(0, newline));
-				if (reply.protocol !== 1 || reply.id !== id) return failed();
-				if (reply.ok === true && typeof reply.command === "boolean")
-					finish(undefined, { command: reply.command });
-				else if (reply.ok === false && typeof reply.error === "string")
+				if (reply.protocol !== PEER_PROTOCOL || reply.id !== id)
+					return failed();
+				if (reply.ok === true && typeof reply.command === "boolean") {
+					if (
+						reply.closing === true &&
+						reply.command &&
+						message.text.trim() === "/quit"
+					) {
+						closing = true;
+						// The receiver retains this socket through session_shutdown.
+						// Only process exit ends it; never close a pane on a timeout.
+						clearTimeout(timer);
+					} else finish(undefined, { command: reply.command });
+				} else if (reply.ok === false && typeof reply.error === "string")
 					finish(deliveryError(reply.error, reply.rejected === true));
 				else failed();
 			} catch {
@@ -222,4 +304,51 @@ export async function sendPeerMessage(request, expected, message) {
 			}
 		});
 	});
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {import("../types.js").FocusRequest} focus
+ */
+export function sendPeerFocus(request, expected, focus) {
+	return sendPeerMessage(
+		request,
+		expected,
+		{ text: "focus", sender: "" },
+		focus,
+	);
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {string} sessionFile
+ */
+async function closeExitedPane(request, expected, sessionFile) {
+	const result = await request("pane.current", {
+		caller_pane_id: expected.pane_id,
+	});
+	const pane =
+		result && typeof result === "object" && "pane" in result
+			? result.pane
+			: undefined;
+	if (
+		!pane ||
+		typeof pane !== "object" ||
+		!("pane_id" in pane) ||
+		typeof pane.pane_id !== "string" ||
+		!("terminal_id" in pane) ||
+		pane.terminal_id !== expected.terminal_id
+	)
+		throw new Error("Target pane changed; resolve it again");
+	if (
+		"agent_session" in pane &&
+		pane.agent_session &&
+		typeof pane.agent_session === "object" &&
+		"value" in pane.agent_session &&
+		pane.agent_session.value !== sessionFile
+	)
+		throw new Error("Target session changed; resolve it again");
+	await request("pane.close", { pane_id: pane.pane_id });
 }

@@ -174,7 +174,7 @@ export class AgentMonitor {
 			new Error(`${paneId} was unwatched before its work settled`),
 		);
 		this.persist();
-		if (this.list().length === 0) await this.questions.refresh([]);
+		await this.questions.refresh();
 		await this.events.refresh();
 		return true;
 	}
@@ -327,7 +327,7 @@ export class AgentMonitor {
 	}
 
 	private refreshAfterEvent(): void {
-		if (this.list().length === 0) void this.questions.refresh([]);
+		void this.questions.refresh();
 		// MonitorEvents reports failures through onWarning before rejecting awaited updates.
 		void this.events.refresh().catch(() => undefined);
 	}

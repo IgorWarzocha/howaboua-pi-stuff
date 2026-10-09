@@ -10,13 +10,14 @@ export class LanVoiceDraftConflictError extends LanVoiceDraftError {}
 
 export class LanVoiceDraft {
 	private readonly publish: (message: unknown) => void;
-	private readonly sendMessage: (text: string) => void;
+	private readonly sendMessage: (text: string) => void | Promise<void>;
 	private text = "";
 	private revision = 0;
+	private sending = false;
 
 	constructor(options: {
 		publish(message: unknown): void;
-		sendMessage(text: string): void;
+		sendMessage(text: string): void | Promise<void>;
 	}) {
 		this.publish = options.publish;
 		this.sendMessage = options.sendMessage;
@@ -54,13 +55,20 @@ export class LanVoiceDraft {
 		this.publish(this.snapshot(clientId, "transcript"));
 	}
 
-	send(clientId: string, value: unknown, expectedRevision: unknown): void {
+	async send(clientId: string, value: unknown, expectedRevision: unknown): Promise<void> {
 		this.assertRevision(expectedRevision);
+		if (this.sending) throw new LanVoiceDraftConflictError("A message is already being sent");
 		const text = validatedDraft(value);
 		if (!text.trim()) throw new LanVoiceDraftError("A message is required");
 		this.text = text;
-		this.sendMessage(text);
-		if (this.text === text) this.text = "";
+		const revision = this.revision;
+		this.sending = true;
+		try {
+			await this.sendMessage(text);
+		} finally {
+			this.sending = false;
+		}
+		if (this.revision === revision && this.text === text) this.text = "";
 		this.revision += 1;
 		this.publish({ type: "sent" });
 		this.publish(this.snapshot(clientId, "sent"));

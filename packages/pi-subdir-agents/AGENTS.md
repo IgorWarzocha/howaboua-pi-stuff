@@ -1,0 +1,2 @@
+- Mark guidance loaded only after delivery succeeds. Reconstruct deduplication from the active branch, not discarded history.
+- Developer-message routing and tool-result appendices are alternatives, never duplicate deliveries. Preserve nested-tool traces even when the outer Code call fails.

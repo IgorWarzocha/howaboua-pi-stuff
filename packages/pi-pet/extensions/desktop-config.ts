@@ -85,7 +85,7 @@ function parseLegacyRegistry(input: Record<string, unknown>): DeviceRegistryConf
   return { schemaVersion: 1, devices, defaultDevices: Object.keys(devices) };
 }
 
-export function parseDeviceRegistry(value: unknown): DeviceRegistryConfig {
+function parseDeviceRegistry(value: unknown): DeviceRegistryConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Pi Pet device registry must be an object.");
   }

@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+export function prepareSandboxInput(value: unknown): { input: string } {
+	if (value === undefined) return { input: "help" };
+	if (typeof value === "string") return { input: value };
+	if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+		if (Object.keys(value).length === 0) return { input: "help" };
+		if ("input" in value && typeof value.input === "string")
+			return { ...value, input: value.input };
+	}
+	throw new Error("Send help or JSON text to sandbox");
+}
+
 const nameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);
 const guestPath = z
 	.string()
@@ -262,6 +273,7 @@ export const replySchema = z.discriminatedUnion("ok", [
 ]);
 export const HELP = {
 	actions: {
+		help: "",
 		list: "kind?: instances|templates",
 		prepare:
 			"name, config: host YAML path. Run setup and save reusable disk template, without services or credentials",

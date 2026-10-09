@@ -37,12 +37,16 @@ function mergeConfigDocument(existing: Record<string, unknown>, owned: Record<st
 	return merged;
 }
 
-function clearAbsentOwnedOptionals(document: Record<string, unknown>, owned: Record<string, unknown>): void {
+function clearAbsentOwnedOptionals(document: Record<string, unknown>, owned: Record<string, unknown>, folderScope: boolean): void {
 	const voice = isRecord(document["voice"]) ? document["voice"] : undefined;
 	const ownedVoice = isRecord(owned["voice"]) ? owned["voice"] : undefined;
 	if (!voice || !ownedVoice) return;
 	for (const key of ["contextModel", "inputDevice", "outputDevice"])
-		if (!(key in ownedVoice)) delete voice[key];
+		if (!(key in ownedVoice)) {
+			// A project-level Off must override a globally selected summary model.
+			if (folderScope && key === "contextModel") voice[key] = null;
+			else delete voice[key];
+		}
 }
 
 function writeConfigDocumentAtomic(configPath: string, document: Record<string, unknown>): void {
@@ -289,7 +293,7 @@ export function writeCodexConversionConfig(
 		document = folderScope
 			? withoutDisabledProjectCacheKeepalive(withoutGlobalOnlyDocument(document))
 			: withoutProjectOnlyDocument(document);
-		clearAbsentOwnedOptionals(document, normalized);
+		clearAbsentOwnedOptionals(document, normalized, folderScope);
 		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
 		const compaction = document["compaction"];
 		if (isRecord(compaction))

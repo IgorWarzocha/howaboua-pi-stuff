@@ -4,7 +4,6 @@ import { resolveVoiceHelperBinary } from "./binary.ts";
 import { BoundedJsonlReader, parseVoiceHelperEvent, type VoiceHelperCommand, type VoiceHelperEvent } from "./helper-protocol.ts";
 
 export type { VoiceHelperCommand, VoiceHelperEvent } from "./helper-protocol.ts";
-export { BoundedJsonlReader, parseVoiceHelperEvent } from "./helper-protocol.ts";
 
 const MAX_HELPER_LINE_BYTES = 512 * 1024;
 const READY_TIMEOUT_MS = 5_000;

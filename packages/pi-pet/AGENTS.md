@@ -1,5 +1,6 @@
 - GipPity owns network, session, prompt, voice, and browser transport; Pi Pet registers one static miniapp and reaction snapshot only.
 - Pet manifests and assets are untrusted data: validate at build boundaries, bound sizes, and never execute pet-provided code.
+- Resolve pet and asset realpaths before containment checks; lexical path validation alone permits symlink escapes. Check frame bounds against the decoded asset dimensions.
 - Keep pet/catalog and reaction contracts in `src/protocol/`; renderer and extension must not duplicate them.
 - `bun run ai:check:strict` MUST pass before packaging or launching Electron.
 - Generated `dist/` is distributable output, never source. Build it before packaging; keep it untracked.

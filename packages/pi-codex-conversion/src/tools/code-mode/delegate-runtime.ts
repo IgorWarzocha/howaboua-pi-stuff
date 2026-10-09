@@ -17,9 +17,7 @@ import type {
 const MAX_TRACE_ERROR_CHARS = 16_384;
 const MAX_NOTIFICATION_CHARS = 16_384;
 const MAX_NOTIFICATIONS_PER_CELL = 100;
-const MAX_OPAQUE_CALLS_PER_CELL = 32;
 const MAX_OPAQUE_BYTES = 32 * 1024 * 1024;
-const OPAQUE_TTL_MS = 15 * 60_000;
 
 interface DelegateController {
 	cellId?: string | undefined;
@@ -34,10 +32,7 @@ interface Deferred {
 interface PendingOpaqueResults {
 	outputs: OpaqueToolOutput[];
 	images: RuntimeContentItem[];
-	calls: number;
 	bytes: number;
-	expires: number;
-	timer?: ReturnType<typeof setTimeout>;
 }
 
 type SendMessage = (message: unknown) => void;
@@ -55,6 +50,7 @@ export class CodeModeDelegateRuntime {
 	private readonly execSessions = new Map<string, Set<number>>();
 	private readonly terminatingCells = new Set<string>();
 	private readonly contextNoteWrites = new Map<string, boolean>();
+	private readonly remoteNoteWrites = new Set<string>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
@@ -106,13 +102,12 @@ export class CodeModeDelegateRuntime {
 		this.cleanupTimers.set(cellId, setTimeout(() => {
 			this.cleanupTimers.delete(cellId);
 			this.notifications.delete(cellId);
-			const opaque = this.opaqueResults.get(cellId);
-			if (opaque?.timer) clearTimeout(opaque.timer);
 			this.opaqueResults.delete(cellId);
 			this.originalExecCalls.delete(cellId);
 			this.execSessions.delete(cellId);
 			this.terminatingCells.delete(cellId);
 			this.contextNoteWrites.delete(cellId);
+			this.remoteNoteWrites.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -132,6 +127,7 @@ export class CodeModeDelegateRuntime {
 		this.execSessions.clear();
 		this.terminatingCells.clear();
 		this.contextNoteWrites.clear();
+		this.remoteNoteWrites.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
 		this.blockerChanges.clear();
@@ -141,9 +137,8 @@ export class CodeModeDelegateRuntime {
 	}
 
 	clearOpaqueResults(): void {
-		for (const [cellId, entry] of this.opaqueResults) {
+		for (const cellId of this.opaqueResults.keys()) {
 			this.cancelCell(cellId);
-			if (entry.timer) clearTimeout(entry.timer);
 		}
 		this.opaqueResults.clear();
 	}
@@ -232,20 +227,19 @@ export class CodeModeDelegateRuntime {
 		const opaqueOutputs = opaque?.outputs;
 		const opaqueImages = opaque?.images;
 		if (opaque) {
-			if (opaque.expires <= Date.now())
-				throw new Error("Remote results expired after execution; verify note state before repeating a write");
 			if (response.kind === "yielded") {
 				opaque.outputs = [];
 				opaque.images = [];
 				opaque.bytes = 0;
 			} else {
-				if (opaque.timer) clearTimeout(opaque.timer);
 				this.opaqueResults.delete(response.cellId);
 			}
 		}
 		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
 		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
 		const noteWrites = this.contextNoteWrites.get(response.cellId);
+		const remoteNoteWrite = this.remoteNoteWrites.has(response.cellId);
+		if (response.kind !== "yielded") this.remoteNoteWrites.delete(response.cellId);
 		const terminate = response.kind === "result" && !response.errorText && noteWrites !== false && this.terminatingCells.has(response.cellId);
 		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
 		if (response.kind !== "yielded") this.contextNoteWrites.delete(response.cellId);
@@ -258,7 +252,7 @@ export class CodeModeDelegateRuntime {
 			...(noteWrites !== undefined && response.kind !== "yielded"
 				? { contextNotesSaved: response.kind === "result" && !response.errorText && noteWrites }
 				: {}),
-			...(noteWrites !== undefined && opaque && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
+			...(noteWrites !== undefined && remoteNoteWrite && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
 			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
@@ -340,11 +334,13 @@ export class CodeModeDelegateRuntime {
 			originalExecCallId: this.originalExecCalls.get(cellId),
 			toolCallId: trace.id,
 			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
+				this.reserveOpaqueCall(cellId);
+				if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
 				const pending = this.opaqueResults.get(cellId);
-				if (!pending || pending.expires <= Date.now() || controller.signal.aborted ||
+				if (!pending || controller.signal.aborted ||
 					this.cellContexts.get(cellId)?.opaqueScope !== context.opaqueScope ||
 					this.cellContexts.get(cellId)?.opaqueContextGeneration !== context.opaqueContextGeneration)
-					throw new Error("Remote operation executed but result delivery was cancelled or expired; verify note state before repeating a write");
+					throw new Error("Remote operation executed but result delivery was cancelled; verify note state before repeating a write");
 				const bytes = Buffer.byteLength(output.encryptedOutput, "utf8") + images.reduce((sum, image) => sum + (image.image_url?.length ?? 0), 0);
 				const total = [...this.opaqueResults.values()].reduce((sum, entry) => sum + entry.bytes, 0);
 				if (total + bytes > MAX_OPAQUE_BYTES)
@@ -381,7 +377,10 @@ export class CodeModeDelegateRuntime {
 			if (opaqueResult) {
 				if (!context.opaqueContextValid || !await context.opaqueContextValid())
 					throw new Error("Remote context changed; start a new exec cell");
-				this.reserveOpaqueCall(cellId);
+				if (!context.resolveOpaqueScope) {
+					this.reserveOpaqueCall(cellId);
+					if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
+				}
 			}
 			blocking =
 				!isCustomToolDefinition(tool) &&
@@ -469,23 +468,9 @@ export class CodeModeDelegateRuntime {
 	}
 
 	private reserveOpaqueCall(cellId: string): void {
-		for (const [id, entry] of this.opaqueResults) {
-			if (entry.expires > Date.now()) continue;
-			this.cancelCell(id);
-			if (entry.timer) clearTimeout(entry.timer);
-			this.opaqueResults.delete(id);
-		}
-		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? { outputs: [], images: [], calls: 0, bytes: 0, expires: Date.now() + OPAQUE_TTL_MS };
-		if (pending.calls >= MAX_OPAQUE_CALLS_PER_CELL || (!this.opaqueResults.has(cellId) && this.opaqueResults.size >= 32))
+		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? { outputs: [], images: [], bytes: 0 };
+		if (!this.opaqueResults.has(cellId) && this.opaqueResults.size >= 32)
 			throw new Error("Remote batch capacity reached; finish pending cells, then start a new exec cell");
-		pending.calls++;
-		if (!pending.timer) {
-			pending.timer = setTimeout(() => {
-				this.cancelCell(cellId);
-				this.opaqueResults.delete(cellId);
-			}, Math.max(1, pending.expires - Date.now()));
-			pending.timer.unref();
-		}
 		this.opaqueResults.set(cellId, pending);
 	}
 

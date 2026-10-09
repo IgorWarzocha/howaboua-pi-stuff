@@ -97,10 +97,12 @@ function createExecTool(
 				const response = await (await runtime.getClient(ctx)).execute(
 					params.code,
 					{ cwd: ctx.cwd, toolCallId: id, originalExecCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate,
-						opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid },
+						opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid,
+						resolveOpaqueScope: guard?.lazy ? guard.resolveScope : undefined },
 					signal,
 					tools,
 				);
+				if (guard?.lazy && (response.opaqueOutputs?.length || response.contextNotesSource === "remote")) await guard.resolveScope();
 				if (guard && !await guard.valid())
 					throw new Error("Remote context changed after execution; verify note state before repeating a write");
 				const visible = runtime.deliverOpaqueResponse(response, id, guard);
@@ -163,7 +165,8 @@ function createWaitTool(
 				const guard = runtime.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)
 					? await runtime.opaqueContextGuard(ctx) : undefined;
 				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, piToolScope, ...hooks, onUpdate,
-					opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid };
+					opaqueScope: guard?.scope, opaqueContextGeneration: guard?.generation, opaqueContextValid: guard?.valid,
+					resolveOpaqueScope: guard?.lazy ? guard.resolveScope : undefined };
 				const attempt = waitAttempts.get(params.cell_id) ?? 0;
 				const resumed = params.terminate
 					? await client.terminate(params.cell_id, context, signal)
@@ -173,6 +176,7 @@ function createWaitTool(
 							context,
 							signal,
 						);
+				if (guard?.lazy && (resumed.opaqueOutputs?.length || resumed.contextNotesSource === "remote")) await guard.resolveScope();
 				if (guard && !await guard.valid())
 					throw new Error("Remote context changed after execution; verify note state before repeating a write");
 				if (resumed.missingCell && guard)

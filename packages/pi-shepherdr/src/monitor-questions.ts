@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { sameAgentIdentity } from "./ask-answer.js";
 import { getAgent, sessionPath } from "./herdr.js";
-import type { HerdrConnection } from "./herdr-client.js";
+import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type { MonitorState } from "./monitor-state.js";
 import type { AssistantReader } from "./session-reader.js";
 import type {
@@ -144,7 +144,7 @@ export class MonitorQuestions {
 		});
 	}
 
-	refresh(panels: PaneInfo[]): Promise<void> {
+	refresh(panels: PaneInfo[] = this.panels): Promise<void> {
 		this.panels = panels.filter(
 			(panel) =>
 				this.options.state.byTerminal(panel.terminal_id) && sessionPath(panel),
@@ -209,7 +209,16 @@ export class MonitorQuestions {
 				for (const panel of this.panels.filter(
 					(panel) => sessionPath(panel) === path,
 				)) {
-					const current = await getAgent(this.options.client, panel.pane_id);
+					if (!this.options.state.byTerminal(panel.terminal_id)) continue;
+					const current = await getAgent(
+						this.options.client,
+						panel.pane_id,
+					).catch((error: unknown) => {
+						// Pane closure can precede its lifecycle event or finish an in-flight read.
+						if (isHerdrErrorCode(error, "agent_not_found")) return undefined;
+						throw error;
+					});
+					if (!current) continue;
 					if (!sameAgentIdentity(panel, current)) continue;
 					const view = await this.options.reader.view(path);
 					if (generation !== this.generation || !this.context) return;

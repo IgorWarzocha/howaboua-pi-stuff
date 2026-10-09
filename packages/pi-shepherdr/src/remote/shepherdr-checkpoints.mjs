@@ -65,9 +65,11 @@ export async function readPersistedNoteEntries(path, identity) {
 			if (entry.id !== target) continue;
 			if (
 				(entry.type === "custom" &&
-					["codex-context-note", "codex-context-note-snapshot"].includes(
-						entry.customType,
-					)) ||
+					[
+						"codex-context-note",
+						"codex-context-note-snapshot",
+						"notes-compaction:note:v1",
+					].includes(entry.customType)) ||
 				(entry.type === "branch_summary" &&
 					entry.details?.codexContextNoteHandoff)
 			) {

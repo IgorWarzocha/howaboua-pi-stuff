@@ -1,4 +1,8 @@
-import { defineTool, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import {
+	defineTool,
+	type ExtensionAPI,
+	getMarkdownTheme,
+} from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { answerAgent } from "./agents-answer.js";
 import {
@@ -14,6 +18,7 @@ import {
 	listFleetAgents,
 	readAgentTerminal,
 } from "./agents-discovery.js";
+import { focusAgent } from "./agents-focus.js";
 import { spawnAgent } from "./agents-spawn.js";
 import {
 	dispatchAgentWork,
@@ -30,11 +35,12 @@ export function createAgentsTool(
 	fleet: AgentFleet,
 	sharedContext: SharedAgentContext,
 	board: AgentBoard,
+	pi: ExtensionAPI,
 ) {
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description: "Delegate to persistent agents; call help first, alone",
+		description: "Delegate to persistent agents; discover first, alone",
 		parameters: AgentsParameters,
 		executionMode: "sequential",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {
@@ -42,7 +48,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help") {
-				return toolResult(await agentsHelp());
+				return toolResult(await agentsHelp(board.enabled(ctx)));
 			}
 			if (params.action === "list") {
 				return toolResult(await listFleetAgents(fleet, params));
@@ -51,7 +57,7 @@ export function createAgentsTool(
 				return toolResult(await findFleetAgents(fleet, params));
 			}
 
-			const runtime = fleet.connected(params.machine);
+			let runtime = fleet.connected(params.machine);
 			if (params.action === "spawn") {
 				return spawnAgent(
 					fleet,
@@ -65,7 +71,30 @@ export function createAgentsTool(
 				);
 			}
 
-			const target = required(params.target, "target");
+			let target = required(params.target, "target");
+			if (target === "/root") {
+				const root = await sharedContext.resolveRoot(
+					ctx,
+					params.machine,
+					executionSignal,
+				);
+				runtime = root.runtime;
+				target = root.target;
+			}
+			if (params.action === "focus") {
+				executionSignal.throwIfAborted();
+				return toolResult(
+					await focusAgent(
+						pi,
+						ctx,
+						fleet,
+						runtime,
+						target,
+						params.voice ?? false,
+						params.handoff,
+					),
+				);
+			}
 			if (params.action === "unwatch") {
 				const record = runtime.monitor
 					.list()

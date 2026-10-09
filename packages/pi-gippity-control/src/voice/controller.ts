@@ -8,6 +8,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../config.ts";
+import { ActiveVoiceGuard } from "./active-owner.ts";
 import { RealtimeCompactionRefresh } from "./controller-compaction.ts";
 import {
 	markRealtimePeerInactive,
@@ -28,12 +29,15 @@ import {
 	voiceModeForState,
 } from "./controller-support.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { TransferredVoiceControls } from "./handoff-contract.ts";
+import type { CapturedHandoffAudio } from "./handoff-peer.ts";
 import { completedVoiceReasoningSummary } from "./reasoning-summary.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
 export class CodexVoiceController {
+	private readonly ownership: ActiveVoiceGuard;
 	private readonly runtime: VoiceControllerRuntime = {
 		state: { type: "idle" },
 		startGeneration: 0,
@@ -44,8 +48,17 @@ export class CodexVoiceController {
 	private readonly compactionRefresh: RealtimeCompactionRefresh;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
 	private readonly activePrompts = new Map<string, string>();
+	private handoffReservation: AbortController | undefined;
+	private forwardedAudio: TransferredVoiceControls | undefined;
+	private departingSession: CodexRealtimeConversation | undefined;
+	private removeForwardedEvents: (() => void) | undefined;
 
 	constructor(pi: ExtensionAPI) {
+		this.ownership = new ActiveVoiceGuard(
+			pi,
+			"GipPity",
+			() => this.active || Boolean(this.handoffReservation),
+		);
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
 			onDelegation: (id) => {
@@ -87,27 +100,44 @@ export class CodexVoiceController {
 	}
 
 	get status(): string {
-		return this.runtime.state.type;
+		return this.forwardedAudio &&
+			(this.runtime.state.type === "idle" ||
+				this.runtime.state.type === "failed")
+			? "transferred"
+			: this.runtime.state.type;
 	}
 	get active(): boolean {
 		return (
-			this.runtime.state.type !== "idle" && this.runtime.state.type !== "failed"
+			Boolean(this.forwardedAudio) ||
+			(this.runtime.state.type !== "idle" &&
+				this.runtime.state.type !== "failed")
 		);
 	}
 	get activeMode(): CodexVoiceMode | undefined {
-		return this.runtime.announcedMode;
+		return (
+			this.runtime.announcedMode ??
+			(this.forwardedAudio ? "realtime" : undefined)
+		);
 	}
 	get inputMuted(): boolean {
-		return (
-			this.runtime.state.type === "conversation" &&
-			this.runtime.state.session.microphoneMuted
-		);
+		return this.runtime.state.type === "conversation" &&
+			this.runtime.state.session !== this.departingSession
+			? this.runtime.state.session.microphoneMuted
+			: (this.forwardedAudio?.inputMuted ?? false);
 	}
 	onInputMuteChange(listener: (muted: boolean) => void): () => void {
 		this.inputMuteListeners.add(listener);
 		return () => this.inputMuteListeners.delete(listener);
 	}
 	setInputMuted(muted: boolean): boolean {
+		if (
+			(this.runtime.state.type !== "conversation" ||
+				this.runtime.state.session === this.departingSession) &&
+			this.forwardedAudio
+		) {
+			this.forwardedAudio.setInputMuted(muted);
+			return true;
+		}
 		if (
 			this.runtime.state.type !== "conversation" ||
 			this.runtime.announcedMode !== "realtime"
@@ -151,6 +181,14 @@ export class CodexVoiceController {
 		config: GippityControlConfig,
 		mode: CodexVoiceMode,
 	): Promise<void> {
+		if (this.handoffReservation)
+			throw new Error(
+				"A voice transfer is preparing; stop it before starting another call",
+			);
+		if (this.forwardedAudio)
+			throw new Error(
+				"Voice is connected to another session; stop it before starting another call",
+			);
 		await this.startMode(ctx, config, mode);
 	}
 
@@ -159,8 +197,143 @@ export class CodexVoiceController {
 		config: GippityControlConfig,
 		plan: RealtimePeerPlan,
 		signal?: AbortSignal,
+		preparedRealtimeContext?: PreparedRealtimeContext,
+		inputMuted = false,
 	): Promise<CodexRealtimeConversation | undefined> {
-		return this.startMode(ctx, config, "realtime", plan, signal);
+		if (this.handoffReservation)
+			throw new Error(
+				"A voice transfer is preparing; stop it before starting another call",
+			);
+		if (this.forwardedAudio && !preparedRealtimeContext)
+			throw new Error(
+				"Voice is connected to another session; stop it before starting another call",
+			);
+		return this.startMode(
+			ctx,
+			config,
+			"realtime",
+			plan,
+			signal,
+			false,
+			inputMuted,
+			preparedRealtimeContext,
+		);
+	}
+
+	reserveHandoffArrival(): { signal: AbortSignal; release(): void } {
+		this.ownership.assertAvailable();
+		if (
+			(this.active && this.status !== "transferred") ||
+			this.handoffReservation
+		)
+			throw new Error(
+				"The target already has an active or preparing voice call",
+			);
+		const reservation = new AbortController();
+		this.handoffReservation = reservation;
+		return {
+			signal: reservation.signal,
+			release: () => {
+				if (this.handoffReservation === reservation)
+					this.handoffReservation = undefined;
+			},
+		};
+	}
+
+	captureHandoffAudio(): CapturedHandoffAudio {
+		const state = this.runtime.state;
+		const config = this.runtime.config;
+		if (state.type !== "conversation" || !config)
+			throw new Error(
+				"Start realtime voice before transferring its microphone",
+			);
+		const { session } = state;
+		const plan = this.runtime.realtimePeerPlan;
+		const inputMuted = this.inputMuted;
+		let released = false;
+		let transferredControls: TransferredVoiceControls | undefined;
+		const bindControls = (controls: TransferredVoiceControls) => {
+			transferredControls = controls;
+			if (this.forwardedAudio !== controls) {
+				this.removeForwardedEvents?.();
+				this.forwardedAudio = controls;
+				this.removeForwardedEvents = controls.onSessionEvent((event, value) => {
+					if (
+						this.runtime.state.type !== "idle" &&
+						this.runtime.state.type !== "failed"
+					)
+						return;
+					if (event === "voice_mute" && typeof value === "boolean") {
+						for (const listener of this.inputMuteListeners) listener(value);
+						this.renderCurrentStatus();
+					}
+				});
+			}
+			if (
+				this.runtime.state.type === "idle" ||
+				this.runtime.state.type === "failed"
+			)
+				this.renderStatus("connected to another session");
+		};
+		return {
+			inputMuted,
+			sourceActive: () =>
+				this.currentSession() === session &&
+				this.runtime.state.type === "conversation",
+			release: async (signal) => {
+				if (this.currentSession() !== session)
+					throw new Error("Source voice changed before transfer");
+				transferredControls?.setInputMuted(this.inputMuted);
+				this.departingSession = session;
+				session.setInputMuted(true);
+				await session.waitForPlaybackEnd(signal);
+				signal.throwIfAborted();
+				if (this.currentSession() !== session)
+					throw new Error("Source voice changed before transfer");
+				released = true;
+				await this.stop({ announce: true, transferring: true });
+			},
+			createPeer: async () => {
+				if (!released)
+					throw new Error("Source voice has not released its audio");
+				return (
+					plan?.createPeer() ??
+					new (
+						await import("./conversation/native-peer.ts")
+					).NativeCodexRealtimePeer()
+				);
+			},
+			start: (peer) => peer.start(config),
+			bindControls,
+			transferred: (peer, controls) => {
+				bindControls(controls);
+				plan?.onTransferred?.(peer, controls);
+			},
+			finished: (peer, error) => {
+				if (this.departingSession === session) {
+					this.departingSession = undefined;
+					if (!released && this.currentSession() === session)
+						this.setInputMuted(transferredControls?.inputMuted ?? inputMuted);
+				}
+				if (
+					this.forwardedAudio === transferredControls &&
+					transferredControls
+				) {
+					this.removeForwardedEvents?.();
+					this.removeForwardedEvents = undefined;
+					this.forwardedAudio = undefined;
+					if (
+						this.runtime.state.type === "idle" ||
+						this.runtime.state.type === "failed"
+					)
+						this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
+				}
+				if (!released) return;
+				if (peer) plan?.onTransferEnded?.(peer, error);
+				else plan?.onInactive?.(session, error, false);
+				plan?.onStopped?.();
+			},
+		};
 	}
 
 	async refreshRealtimeAfterCompaction(
@@ -214,30 +387,43 @@ export class CodexVoiceController {
 		inputMuted = false,
 		preparedRealtimeContext?: PreparedRealtimeContext,
 	): Promise<CodexRealtimeConversation | undefined> {
-		const session = await startControllerMode({
-			runtime: this.runtime,
-			messages: this.messages,
-			ctx,
-			config,
-			mode,
-			realtimePeerPlan,
-			signal,
-			resume,
-			inputMuted,
-			...(preparedRealtimeContext ? { preparedRealtimeContext } : {}),
-			prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
-			stopCurrent: () => this.stop({ announce: true }),
-			finishCurrentDictation: () => this.finishDictation({ announce: true }),
-			onError: (error, session) => this.fail(error, session),
-			onDrop: (session, error) => this.drop(session, error),
-			onStatus: (status) => this.renderStatus(status),
+		return this.ownership.start(async () => {
+			const session = await startControllerMode({
+				runtime: this.runtime,
+				messages: this.messages,
+				ctx,
+				config,
+				mode,
+				realtimePeerPlan,
+				signal,
+				resume,
+				inputMuted,
+				...(preparedRealtimeContext ? { preparedRealtimeContext } : {}),
+				prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
+				stopCurrent: () =>
+					this.stop({
+						announce: true,
+						transferring: Boolean(
+							preparedRealtimeContext && this.forwardedAudio,
+						),
+					}),
+				finishCurrentDictation: () => this.finishDictation({ announce: true }),
+				onError: (error, session) => this.fail(error, session),
+				onDrop: (session, error) => this.drop(session, error),
+				onStatus: (status) => this.renderStatus(status),
+			});
+			const activePrompt = Array.from(this.activePrompts.values()).at(-1);
+			if (session && activePrompt) session.announcePrompt(activePrompt);
+			return session;
 		});
-		const activePrompt = Array.from(this.activePrompts.values()).at(-1);
-		if (session && activePrompt) session.announcePrompt(activePrompt);
-		return session;
 	}
 
-	async stop(options?: { announce?: boolean }): Promise<void> {
+	async stop(options?: {
+		announce?: boolean;
+		transferring?: boolean;
+	}): Promise<void> {
+		this.handoffReservation?.abort();
+		this.handoffReservation = undefined;
 		this.compactionRefresh.cancel();
 		this.runtime.startAbortController?.abort();
 		this.runtime.startAbortController = undefined;
@@ -247,7 +433,18 @@ export class CodexVoiceController {
 			? this.runtime.announcedMode
 			: undefined;
 		const session = this.currentSession();
-		const closePromise = session?.close();
+		const stoppedPlan = options?.transferring
+			? undefined
+			: this.runtime.realtimePeerPlan;
+		const forwarded = options?.transferring ? undefined : this.forwardedAudio;
+		if (forwarded) {
+			this.removeForwardedEvents?.();
+			this.removeForwardedEvents = undefined;
+			this.forwardedAudio = undefined;
+		}
+		const closePromise = this.ownership.hold(async () => {
+			await session?.close();
+		});
 		this.runtime.state = { type: "idle" };
 		this.runtime.announcedMode = undefined;
 		this.runtime.config = undefined;
@@ -255,7 +452,16 @@ export class CodexVoiceController {
 		this.runtime.voiceStatus = "";
 		this.runtime.inputTooQuiet = false;
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
-		await closePromise;
+		try {
+			await Promise.all([
+				closePromise,
+				this.ownership.hold(async () => {
+					await forwarded?.stop();
+				}),
+			]);
+		} finally {
+			stoppedPlan?.onStopped?.();
+		}
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
 		this.messages.voiceStopped(endedMode);
@@ -275,7 +481,7 @@ export class CodexVoiceController {
 			await this.stop(options);
 			return;
 		}
-		await session.finish();
+		await this.ownership.hold(() => session.finish());
 		if (this.currentSession() !== session) return;
 		const endedMode = options?.announce
 			? this.runtime.announcedMode
@@ -424,7 +630,9 @@ export class CodexVoiceController {
 		const session = this.currentSession();
 		if (failedSession)
 			markRealtimePeerInactive(this.runtime, failedSession, error, false);
-		const closePromise = session?.close();
+		const closePromise = this.ownership.hold(async () => {
+			await session?.close();
+		});
 		this.runtime.state = { type: "failed", message };
 		this.runtime.announcedMode = undefined;
 		this.runtime.config = undefined;

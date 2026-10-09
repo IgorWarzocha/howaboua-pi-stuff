@@ -16,6 +16,7 @@ function requestHost(value: unknown): string | undefined {
 }
 
 export function parseBrowserRequest(input: unknown): BrowserRequest {
+	if (input === undefined) return { help: true };
 	let value = input;
 	if (typeof input === "string") {
 		const text = input.trim();
@@ -33,6 +34,7 @@ export function parseBrowserRequest(input: unknown): BrowserRequest {
 	if (!isRecordValue(value)) {
 		throw new Error("input must be a JSON object");
 	}
+	if (Object.keys(value).length === 0) return { help: true };
 	if (Object.hasOwn(value, "action")) {
 		const host = requestHost(value["host"]);
 		const { host: _host, ...actionValue } = value;

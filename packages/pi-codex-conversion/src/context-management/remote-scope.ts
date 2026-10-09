@@ -6,6 +6,7 @@ import { contextAccountScope, contextAgentIdentity, type ContextAgentIdentity } 
 import type { RemoteNoteReference } from "../context-sharing.ts";
 
 const BACKEND_SCOPE = Symbol("Remote context backend scope");
+const DELIVERY_SCOPE = Symbol("Authenticated reader delivery scope");
 const EXPECTED_SCOPE = Symbol("Remote context expected scope");
 
 export const REMOTE_ACCOUNT_MISMATCH = "Account mismatch. Shared notes are unavailable. Use messages to exchange the context you need.";
@@ -66,13 +67,13 @@ export function assertRemoteBackendScope(ctx: ExtensionContext, scope: string): 
 
 export async function resolveRemoteContextScope(ctx: ExtensionContext, state: AdapterState): Promise<string> {
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (!plan.contextManagementNested)
+	if (!plan.contextManagementNested && !(state.externalNotes && (plan.kind === "code" || plan.kind === "notebook")))
 		throw new Error("Protected context requires Code or Notebook");
 	const identity = contextAgentIdentity(ctx);
 	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
 	const provider = await resolveRemoteContextProvider(ctx);
 	const latest = resolveCodexRuntimePlanForState(ctx, state);
-	if (!latest.contextManagementNested || latest.contextManagementMode !== plan.contextManagementMode || latest.kind !== plan.kind ||
+	if ((!latest.contextManagementNested && !state.externalNotes) || latest.contextManagementMode !== plan.contextManagementMode || latest.kind !== plan.kind ||
 		JSON.stringify(identity) !== JSON.stringify(contextAgentIdentity(ctx)) ||
 		model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
 		throw new Error("Remote context changed during authentication; start a new exec cell");
@@ -84,8 +85,15 @@ export async function resolveRemoteContextScope(ctx: ExtensionContext, state: Ad
 }
 
 /** Host-only provenance, never part of Normal's JSON details or backend payload. */
-export function bindRemoteBackendScope(result: object, scope: string): void {
+export function bindRemoteBackendScope(result: object, scope: string, readerScope?: string): void {
 	Object.defineProperty(result, BACKEND_SCOPE, { value: scope });
+	if (readerScope) Object.defineProperty(result, DELIVERY_SCOPE, { value: readerScope });
+}
+
+/** Reader-host authenticated relay authorization; original backend provenance remains untouched. */
+export function remoteDeliveryScope(result: unknown): string | undefined {
+	if (result && typeof result === "object" && DELIVERY_SCOPE in result && typeof result[DELIVERY_SCOPE] === "string") return result[DELIVERY_SCOPE];
+	return remoteBackendScope(result);
 }
 
 export function remoteBackendScope(result: unknown): string | undefined {

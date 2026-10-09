@@ -10,6 +10,37 @@ interface HistoryItem {
 	content: string;
 }
 
+function customHistoryRole(
+	entry: Extract<SessionEntry, { type: "custom_message" }>,
+): string {
+	// Persisted developer metadata is a wire contract, not a package dependency.
+	const details = entry.details;
+	const metadata =
+		details &&
+		typeof details === "object" &&
+		"@howaboua/pi-codex-conversion/developer-message" in details
+			? details["@howaboua/pi-codex-conversion/developer-message"]
+			: [
+						"codex-developer-message",
+						"codex-context-window",
+						"codex-current-time-reminder",
+						"codex-toolkit-update",
+						"codex-notebook-status",
+						"codex-context-briefing",
+					].includes(entry.customType)
+				? details
+				: undefined;
+	return metadata &&
+		typeof metadata === "object" &&
+		"protocol" in metadata &&
+		metadata.protocol === 1 &&
+		"id" in metadata &&
+		typeof metadata.id === "string" &&
+		metadata.id.trim() !== ""
+		? "developer"
+		: "user";
+}
+
 /** Pi's selected JSONL branch is the archive. No transcript database or Tree backend. */
 export function useHistory(
 	entries: readonly SessionEntry[],
@@ -73,7 +104,7 @@ export function useHistory(
 			windows.get(windowId)!.push({
 				window_id: windowId,
 				item_id: entry.id,
-				role: "developer",
+				role: customHistoryRole(entry),
 				content:
 					typeof entry.content === "string"
 						? entry.content

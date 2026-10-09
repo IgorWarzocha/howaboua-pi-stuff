@@ -5,12 +5,13 @@ import {
 	getMarkdownTheme,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import type { BoardBinding } from "@howaboua/pi-agent-board/integration";
 import { activityTask } from "./activity.js";
-import type { BoardBinding } from "./board/identity.js";
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
 import type {
+	FocusRequest,
 	LatestAssistant,
 	MachineStatus,
 	MonitoredAgent,
@@ -22,52 +23,57 @@ import type {
 } from "./types.js";
 
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
-const BOARD_POST_MARKER = "shepherdr-board-post-marker";
-
-export function recordBoardPostMarker(
-	pi: ExtensionAPI,
-	ctx: ExtensionContext,
-	value: unknown,
-): void {
-	if (
-		!value ||
-		typeof value !== "object" ||
-		!("message_id" in value) ||
-		typeof value.message_id !== "string" ||
-		!("channel_name" in value) ||
-		typeof value.channel_name !== "string"
-	)
-		return;
-	if (
-		ctx.sessionManager
-			.getBranch()
-			.some(
-				(entry) =>
-					entry.type === "custom" &&
-					entry.customType === BOARD_POST_MARKER &&
-					entry.data &&
-					typeof entry.data === "object" &&
-					"messageId" in entry.data &&
-					entry.data.messageId === value.message_id,
-			)
-	)
-		return;
-	// Owner acknowledgements reach the sender here, never the subscription inbox.
-	pi.appendEntry(BOARD_POST_MARKER, {
-		messageId: value.message_id,
-		channelName: value.channel_name,
-	});
-}
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+
+function focusOrigin({ source }: FocusRequest) {
+	return { host: source.host, session: source.session, pane: source.pane };
+}
+
+export function focusArrivalContent(
+	request: FocusRequest,
+	machine: string,
+	codeMode: boolean,
+) {
+	const returnFocus = {
+		action: "focus",
+		target: request.source.pane,
+		machine,
+		voice: request.voice === true,
+	};
+	const args = JSON.stringify(returnFocus);
+	const callable = codeMode ? `await tools.agents(${args})` : `agents ${args}`;
+	return {
+		returnFocus,
+		content: `User arrived from ${JSON.stringify({ ...focusOrigin(request), machine })}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`,
+	};
+}
+
+export function voiceFocusContinuity(request: FocusRequest): string {
+	return `User transferring voice from ${JSON.stringify(focusOrigin(request))}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`;
+}
+
+export function voiceFocusReport(
+	side: "source" | "destination",
+	target: string,
+	error?: unknown,
+): string {
+	return error === undefined
+		? `Voice transfer complete (${side}, ${target}); replacement call active`
+		: `Voice transfer failed (${side}, ${target}): ${error instanceof Error ? error.message : String(error)}. Voice availability is not confirmed; inspect the session before retrying`;
+}
+
 export function orchestrationGuidance(enabled: boolean, general: boolean) {
-	if (!enabled) return "Work normally. Delegate only when useful or requested.";
-	return general
+	const ownership = "Own a scope or delegate it; don't do both.";
+	if (!enabled)
+		return `Work normally. Delegate only when useful or requested. ${ownership}`;
+	const guidance = general
 		? "Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks."
 		: "Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
+	return `${guidance} ${ownership}`;
 }
 export function activeAgentsBriefing(
 	agents: ScopedMonitoredAgent[],
@@ -94,20 +100,33 @@ export function activeAgentsBriefing(
 		),
 	].join("\n");
 }
+export function boardMigrationWarning() {
+	return "Boards moved to Pi Agent Board. Install @howaboua/pi-agent-board for the same features as a separate extension. Your saved boards are preserved.";
+}
+
 export function boardBriefing(
 	member: boolean,
 	population: "empty" | "populated" | "unavailable",
 ) {
 	const state =
 		population === "populated"
-			? "Your shared board has posts. Read relevant threads and contribute useful plans, decisions and findings."
+			? "Read relevant board threads."
 			: population === "empty"
 				? "Shared board available; no posts yet."
 				: "Shared board status unavailable. Check board help and retry reading when available.";
 	const setup = member
 		? "The root agent owns setup; follow your assigned task."
-		: "You own setup. Before delegating, consider posting shared context if useful.";
-	return `${state} ${setup} Use agents for assignments and urgent messages.`;
+		: "";
+	return (
+		[
+			state,
+			setup,
+			"Post only new information that changes another agent's work: ownership, decisions, findings or blockers. Reply in existing threads; link rather than repeat. Keep personal checkpoints in notes. Skip acknowledgements, routine status and duplicated completion reports. Use agents for assignments and urgent messages.",
+		]
+			.filter(Boolean)
+			.join(" ") +
+		"\n\nChannels group shared workstreams; threads group topics. Reuse a relevant channel, not a catch-all. Create a channel only for a distinct coordination need, never just to announce a task or result."
+	);
 }
 
 export function attachmentMessage(
@@ -548,25 +567,6 @@ export function injectAgentEvent(
 }
 
 export function registerAgentEventRenderer(pi: ExtensionAPI): void {
-	pi.registerEntryRenderer(BOARD_POST_MARKER, (entry, _options, theme) => {
-		const data = entry.data;
-		const name =
-			data &&
-			typeof data === "object" &&
-			"channelName" in data &&
-			typeof data.channelName === "string" &&
-			data.channelName.trim()
-				? data.channelName.replace(/[\r\n\t\x00-\x1f\x7f]/g, " ")
-				: "Board";
-		return new Text(
-			theme.style(`Posted to board · ${name}`, {
-				fg: "syntaxString",
-				dim: true,
-			}),
-			0,
-			0,
-		);
-	});
 	pi.registerMessageRenderer<AgentEventDetails>(
 		AGENT_EVENT_MESSAGE_TYPE,
 		(message, { expanded, outputPad }, theme) => {

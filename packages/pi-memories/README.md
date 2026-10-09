@@ -2,11 +2,7 @@
 
 Writes a small set of memory candidates when Pi exits, then leaves the final decision to you. There is no database, vector store, or hidden profile: candidates go to a plain Markdown inbox for manual review.
 
-## Install
-
-```bash
-pi install npm:@howaboua/pi-memories
-```
+This package is no longer maintained and will receive no further releases. Source is retained for reference and adaptation.
 
 ## How it works
 

@@ -26,6 +26,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       opening:'Opening microphone…', connecting:'Connecting…', summarizing:'Summarizing conversation…',
       listening:'Listening', recording:'Recording', muted:'Microphone muted', transcribing:'Transcribing…',
       replaced:'Moved to another device', error:'Could not start',
+      'transfer-ended':'Transferred session ended',
     };
     setStatus(labels[audio.state] || audio.state, audio.detail || (audio.state === 'recording' ? 'Tap to finish' : audio.state === 'listening' ? 'Tap to stop' : ''));
   };

@@ -12,7 +12,7 @@ import {
 	type CodexContextManagementMessageDetails,
 	isCodexContextManagementMessageDetails,
 } from "../context-management/messages.ts";
-import { latestNoteSaveMarker, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
+import { bookmarkNotesContinuation, latestNoteSaveMarker, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -67,7 +67,18 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	pi.on("session_start", restoreNoteSaveContext);
 	pi.on("session_tree", restoreNoteSaveContext);
 	pi.on("session_compact", restoreNoteSaveContext);
-	pi.on("session_shutdown", () => { noteSaveSessionManager = undefined; });
+	pi.on("session_shutdown", () => {
+		invalidateUsageStatus();
+		noteSaveSessionManager = undefined;
+	});
+	pi.on("context_with_system", (_event, ctx) => {
+		const { state } = runtime;
+		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const identity = state.externalNotes ? state.externalNotes.owner.identity(ctx) : state.contextWindows.currentIdentity();
+		if ((plan.contextManagement || plan.contextManagementExternal) && identity)
+			bookmarkNotesContinuation(pi, ctx, identity.currentWindowId, plan.contextManagementExternal ? "local" : plan.contextManagementMode);
+	});
 	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
 			typeof message.details?.title === "string" ? message.details.title : "Context update",
@@ -83,11 +94,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const status = readNotebookStatus(entry.data);
 		return renderNotice(entry, status.title, status.content, expanded, theme);
 	});
-	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, { expanded }, theme) => {
+	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, _options, theme) => {
 		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.noteSaveMarkers) return undefined;
-		const content = theme.fg("success", "✓ Notes saved") + (expanded
-			? theme.fg("dim", "\nReturn to this reply through /tree without a summary. In Notes and history, plain /compact opens a new window without another note-writing turn.")
-			: "");
+		const content = theme.fg("success", "✓ Notes saved");
 		// Native entries retain their child between redraws. Check branch membership
 		// at render time so appending a marker also retires the cached older child.
 		// Pi owns the parent spacer, which an empty child cannot remove.
@@ -162,9 +171,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const { state } = runtime;
 		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const identity = state.contextWindows.currentIdentity();
-		if (plan.contextManagement && identity)
-			recordNoteSaveMarker(pi, ctx, identity.currentWindowId, plan.contextManagementMode);
+		const identity = state.externalNotes ? state.externalNotes.owner.identity(ctx) : state.contextWindows.currentIdentity();
+		if ((plan.contextManagement || plan.contextManagementExternal) && identity)
+			recordNoteSaveMarker(pi, ctx, identity.currentWindowId, plan.contextManagementExternal ? "local" : plan.contextManagementMode);
 	};
 	const refreshUsageStatus = async (ctx: ExtensionContext) => {
 		const generation = ++usageGeneration;
@@ -174,9 +183,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		}
 		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state))) return;
 		const usageStatus = await fetchCodexUsageStatus(ctx);
+		if (generation !== usageGeneration) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
 		if (
-			generation !== usageGeneration ||
 			!ctx.hasUI ||
 			runtime.state.config.voiceFeaturesOnly ||
 			!runtime.state.config.ui.statusLine ||

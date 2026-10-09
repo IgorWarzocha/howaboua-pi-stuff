@@ -56,8 +56,7 @@ async function registerSkillsInCodeMode(
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareSkillsCodeModeInput,
-				usage:
-					'await tools.skills("list") // list [category...] | read <skill> [skill-or-reference...]; join commands with ;',
+				usage: "await tools.skills() // discovery",
 			}),
 		]);
 	} catch (error) {

@@ -25,6 +25,7 @@ export function hasFreshNotes(
 		.filter(
 			(receipt) =>
 				receipt &&
+				receipt.origin !== "routed" &&
 				receipt.windowId === windowId &&
 				(!runId || receipt.runId === runId),
 		);
@@ -57,6 +58,13 @@ export function hasFreshNotes(
 			(result) =>
 				result.toolCallId === call.id && result.toolName === call.name,
 		);
+		if (
+			result?.details &&
+			typeof result.details === "object" &&
+			"notesCompactionRouted" in result.details &&
+			result.details["notesCompactionRouted"] === true
+		)
+			continue;
 		if (
 			!result ||
 			result.isError ||

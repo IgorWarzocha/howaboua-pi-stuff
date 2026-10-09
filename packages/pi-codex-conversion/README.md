@@ -12,7 +12,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 1.0.0 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
+Requires Pi 1.1.0 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
 Open `/codex` after installation. Codex-like GPT models use the structured adapter by default.
 
@@ -168,7 +168,7 @@ Remote results remain tied to their original context family and Codex account. A
 
 With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, explicit `new_context` compacts before rollover.
 
-**Note save markers** in `/codex display` is off by default. When enabled, completed turns with confirmed saved notes get a **✓ Notes saved** marker and a bookmark on the reply in `/tree`. To discard a later conversation turn, return to the bookmarked reply with **No summary**, then run plain `/compact` in **Notes and history**. A new window opens without another note-writing turn. Tree navigation preserves that reply's original idle age. Existing user labels are preserved, and turning markers off keeps saved bookmarks.
+**Note save markers** in `/codex display` is off by default. When enabled, completed turns with confirmed saved notes get a **✓ Notes saved** marker. The next user prompt gets a **Notes** bookmark in `/tree` once it arrives. Select that prompt with **No summary** to return to the saved-notes boundary with your prompt back in the editor. Run plain `/compact` in **Notes and history**, then resubmit the prompt. A new window opens without another note-writing turn. Tree navigation preserves the checkpoint's original idle age. Existing user labels are preserved, and turning markers off keeps saved bookmarks.
 
 **New window after 25 minutes idle** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. After at least 25 minutes since a run settled, the next prompt opens a window first only if the latest completed run saved fresh notes. Otherwise the prompt starts normally in the current window, without a checkpoint request. The original prompt and attachments proceed through normal preparation. Resume uses the recorded settlement time. Older runs without a recorded settlement do not trigger idle rollover. This is a cache optimization, not a cache-expiry check. If rollover fails, input and attachments remain pending. Submit another prompt to retry, or reload to cancel pending input.
 
@@ -231,7 +231,7 @@ const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Its top-level `notebook` tool accepts `{ input: "help" }` for state-management guidance, then JSON action objects in `input`. The first turn receives status and retained bindings automatically.
+**Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Call `notebook({})` for state-management guidance, then send JSON action objects in `input`. Explicit `{ input: "help" }` also returns guidance. The first turn receives status and retained bindings automatically.
 
 ### Pi extension and MCP tools
 

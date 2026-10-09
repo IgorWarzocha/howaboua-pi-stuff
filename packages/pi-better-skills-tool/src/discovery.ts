@@ -173,10 +173,6 @@ function discoverDirectoryCatalog(root: string): DirectoryCatalog {
 	return { skills: sortSkills(skills), hiddenNames };
 }
 
-export function discoverSkills(root = defaultSkillsDir()): CatalogSkill[] {
-	return discoverDirectoryCatalog(root).skills;
-}
-
 function loadedSkillCategory(
 	skill: LoadedSkill,
 	globalRoot: string,

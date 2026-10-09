@@ -23,12 +23,16 @@ export const COMPACTION_METHOD_LABELS = {
 export function buildContextSettings(
 	config: CodexConversionConfig,
 	ctx: Pick<ExtensionContext, "model">,
+	externalNotes = false,
 ): ConfigSetting[] {
-	const plan = resolveCodexRuntimePlan(ctx, config);
+	const plan = resolveCodexRuntimePlan(ctx, config, undefined, externalNotes);
 	const supportsV2 = isAdapterRuntime(plan) && plan.effectiveOpenAICodex;
 	const { continuity, historyStorage, method, v2UserMessageRetention } = config.compaction;
 	return [
-		setting(
+		...(externalNotes ? [{ item: {
+			id: "externalNotes", label: "Notes continuity", currentValue: "Externally managed",
+			description: "The notes extension owns notes, history and window rollover. Saved PCC continuity settings are retained for sessions without it.",
+		} }] : [setting(
 			{
 				id: "continuity",
 				label: "Continuity strategy",
@@ -41,8 +45,8 @@ export function buildContextSettings(
 				compaction: { ...current.compaction,
 					continuity: value === CONTINUITY_LABELS.notes ? "notes" : value === CONTINUITY_LABELS["notes-and-compaction"] ? "notes-and-compaction" : "compaction" },
 			}),
-		),
-		...(continuity === "compaction" ? [] : [setting(
+		)]),
+		...(externalNotes || continuity === "compaction" ? [] : [setting(
 			{
 				id: "historyStorage",
 				label: "History and notes storage",
@@ -64,7 +68,8 @@ export function buildContextSettings(
 				compaction: { ...current.compaction, notesTreeHandoff: enabled },
 			}),
 			"On: save a handoff note before a summarized tree jump. Off: use Pi's branch summary without a note-writing run. Notes and history tools and window rollover stay unchanged.",
-		), toggle(
+		)]),
+		...(externalNotes || continuity !== "compaction" ? [toggle(
 			"shareSubagentContext",
 			"Share subagent context",
 			config.compaction.shareSubagentContext,
@@ -73,8 +78,8 @@ export function buildContextSettings(
 				compaction: { ...current.compaction, shareSubagentContext: enabled },
 			}),
 			"Share notes and history with new subagents through a compatible integration. Existing agents keep their identity.",
-		)]),
-		...(continuity === "notes" ? [] : [setting(
+		)] : []),
+		...(!externalNotes && continuity === "notes" ? [] : [setting(
 			{
 				id: "compactionMethod",
 				label: "Compaction method",
@@ -89,7 +94,7 @@ export function buildContextSettings(
 				compaction: { ...current.compaction, method: value === "Both" ? "both" : value === "Codex V2" ? "v2" : "pi" },
 			}),
 		)]),
-		...(continuity === "notes" && plan.contextManagement ? [toggle(
+		...(!externalNotes && continuity === "notes" && plan.contextManagement ? [toggle(
 			"idleNotesRollover",
 			"New window after 25 minutes idle",
 			config.compaction.idleNotesRollover,
@@ -99,7 +104,7 @@ export function buildContextSettings(
 			}),
 			"Before the next prompt, open a window only if the last completed run saved fresh notes. Off by default. This is an idle policy, not a cache-expiry check.",
 		)] : []),
-		...(continuity !== "notes" && method !== "pi" ? [setting(
+		...((externalNotes || continuity !== "notes") && method !== "pi" ? [setting(
 			{
 				id: "v2UserMessageRetention",
 				label: "Preserved user messages (V2 only)",

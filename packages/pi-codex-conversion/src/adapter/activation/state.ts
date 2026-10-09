@@ -1,4 +1,6 @@
 import type { PromptSkill } from "../../prompt/build-system-prompt.ts";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { NotesOwner, NotesBridge } from "../../context-management/external-notes-protocol.ts";
 import type { SystemMessage } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "./config.ts";
 import type { ResponsesInputItem } from "../compaction/serializer.ts";
@@ -20,6 +22,12 @@ export interface PendingPiCompactionNativeWindow {
 }
 
 export interface AdapterState {
+	externalNotes?: {
+		owner: NotesOwner;
+		tools?: readonly ToolDefinition[] | undefined;
+		contracts?: Readonly<Record<"notes" | "history", string>> | undefined;
+	} | undefined;
+	externalNotesBridge?: NotesBridge | undefined;
 	enabled: boolean;
 	availableToolNames?: string[] | undefined;
 	cwd: string;

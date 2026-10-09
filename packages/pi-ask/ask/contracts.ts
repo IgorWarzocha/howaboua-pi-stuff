@@ -16,8 +16,9 @@ const PromptSchema = Type.Object({
 });
 
 export const AskParameters = Type.Object({
+	help: Type.Optional(Type.Literal(true)),
 	handoff: Type.Optional(Type.Boolean()),
-	prompts: Type.Array(PromptSchema),
+	prompts: Type.Optional(Type.Array(PromptSchema)),
 	delivery: Type.Optional(StringEnum(ASK_DELIVERIES)),
 });
 

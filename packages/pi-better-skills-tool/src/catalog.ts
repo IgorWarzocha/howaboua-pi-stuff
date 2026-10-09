@@ -9,17 +9,14 @@ import {
 import { readSkillPackage } from "./skill-package.js";
 
 export type { LoadedSkill } from "./discovery.js";
-export {
-	defaultSessionSkillsDir,
-	defaultSkillsDir,
-	discoverSkills,
-} from "./discovery.js";
+export { defaultSessionSkillsDir, defaultSkillsDir } from "./discovery.js";
 
 const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
 const MAX_COMMAND_BYTES = 4 * 1024;
 
 type SkillRequest =
+	| { action: "help" }
 	| { action: "list"; categories: string[] }
 	| { action: "read"; name: string; selectors: string[] };
 
@@ -28,7 +25,7 @@ interface SkillsRequest {
 	offset: number;
 }
 
-export function parseRequest(input: unknown): SkillsRequest {
+function parseRequest(input: unknown): SkillsRequest {
 	if (typeof input !== "string")
 		throw new Error("skills expects a string command");
 	const offsetMatch = input.match(/\s+--offset\s+(\d+)\s*$/);
@@ -50,7 +47,10 @@ export function parseRequest(input: unknown): SkillsRequest {
 function parseCommand(input: string): SkillRequest {
 	const parts = input.trim().split(/\s+/).filter(Boolean);
 	const [action, ...arguments_] = parts;
-	if (!action || action === "list") {
+	if (!action || (action === "help" && arguments_.length === 0)) {
+		return { action: "help" };
+	}
+	if (action === "list") {
 		return { action: "list", categories: [...new Set(arguments_)] };
 	}
 	if (action === "read" && arguments_.length >= 1) {
@@ -73,9 +73,11 @@ function parseCommand(input: string): SkillRequest {
 function formatCommand(commands: SkillRequest[]): string {
 	return commands
 		.map((group) =>
-			group.action === "list"
-				? ["list", ...group.categories].join(" ")
-				: ["read", group.name, ...group.selectors].join(" "),
+			group.action === "help"
+				? "help"
+				: group.action === "list"
+					? ["list", ...group.categories].join(" ")
+					: ["read", group.name, ...group.selectors].join(" "),
 		)
 		.join("; ");
 }
@@ -163,9 +165,11 @@ export function runSkills(
 	return boundedOutput(
 		request.commands
 			.map((command) =>
-				command.action === "list"
-					? formatSkillList(skills, command.categories)
-					: readSkillPackage(skills, command.name, command.selectors),
+				command.action === "help"
+					? `Commands: list [category...] | read <skill> [skill-or-reference...] | help. Join commands with ;\n\n${formatSkillList(skills)}`
+					: command.action === "list"
+						? formatSkillList(skills, command.categories)
+						: readSkillPackage(skills, command.name, command.selectors),
 			)
 			.join("\n\n"),
 		request,

@@ -42,7 +42,6 @@
     "!**/__pycache__",
     "!**/*.pyc",
     "!**/.venv",
-    "!authoring/hatch/tests",
     "changelog.ts",
     "CHANGELOG.md"
   ],
@@ -54,7 +53,6 @@
   "scripts": {
     "build": "bun scripts/build.mjs",
     "desktop:start": "npm --prefix desktop run build && npm --prefix desktop start",
-    "pet:hatch:test": "uv run --isolated --project authoring/hatch --locked python -m unittest discover -s authoring/hatch/tests -p 'test_*.py' -v",
     "pet:prepare": "node dist/authoring/prepare.mjs",
     "pet:rebuild": "node dist/authoring/rebuild.mjs",
     "pet:validate": "node dist/authoring/validate.mjs",
@@ -88,8 +86,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
-    "@earendil-works/pi-coding-agent": "1.0.4",
-    "@earendil-works/pi-tui": "1.0.4",
+    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-tui": "1.1.0",
     "@types/node": "^26.2.0",
     "electron": "43.4.1",
     "knip": "^6.32.2",

@@ -12,13 +12,9 @@ export function hasFreshContextNotes(
 	requireFinalReply: boolean,
 ): boolean {
 	if (mode === "off") return false;
-	const boundary = branch.findLastIndex((entry) => entry.type === "custom_message" &&
-		entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
-		isCodexContextManagementMessageDetails(entry.details) &&
-		entry.details.contextManagement.kind === "window");
+	const boundary = branch.findLastIndex((entry) => savedNotesWindowId(entry) !== undefined);
 	const entry = branch[boundary];
-	if (entry?.type !== "custom_message" || !isCodexContextManagementMessageDetails(entry.details) ||
-		entry.details.contextManagement.currentWindowId !== windowId) return false;
+	if (!entry || savedNotesWindowId(entry) !== windowId) return false;
 	// Pi owns context edits and compaction selection. Metadata never counts as new work.
 	const messages = buildSessionProjection(branch.slice(boundary + 1)).messages;
 	const results = new Map<string, Extract<AgentMessage, { role: "toolResult" }>>();
@@ -55,6 +51,11 @@ export function hasFreshContextNotes(
 				if (call.name !== "notes") return nestedNoteWrite(result) === true &&
 					(mode !== "remote" || remoteNoteWrite(result, deliveries.get(call.id), messages, index, branch));
 				const details = result.details;
+				if (details && typeof details === "object" && "notesCompaction" in details) {
+					const note = details["notesCompaction"];
+					return !!note && typeof note === "object" && "protocol" in note && note["protocol"] === 1 &&
+						"saved" in note && note["saved"] === true && "runId" in note && typeof note["runId"] === "string" && Boolean(note["runId"]);
+				}
 				if (!details || typeof details !== "object" || !("codexHistoryNotes" in details)) return false;
 				const note = details["codexHistoryNotes"];
 				return !!note && typeof note === "object" &&
@@ -70,6 +71,20 @@ export function hasFreshContextNotes(
 		results.set(message.toolCallId, message);
 	}
 	return false;
+}
+
+/** Presentation also recognizes the external owner's persisted window boundary. */
+function savedNotesWindowId(entry: SessionEntry): string | undefined {
+	if (entry.type !== "custom_message") return;
+	if (entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE && isCodexContextManagementMessageDetails(entry.details) &&
+		entry.details.contextManagement.kind === "window") return entry.details.contextManagement.currentWindowId;
+	if (entry.customType !== "notes-compaction:window:v1") return;
+	const details = entry.details;
+	if (!details || typeof details !== "object" || !("protocol" in details) || details.protocol !== 1 ||
+		!("kind" in details) || details.kind !== "window" || !("identity" in details)) return;
+	const identity = details.identity;
+	return identity && typeof identity === "object" && "currentWindowId" in identity &&
+		typeof identity.currentWindowId === "string" ? identity.currentWindowId : undefined;
 }
 
 function remoteNoteWrite(result: Extract<AgentMessage, { role: "toolResult" }>, delivery: RemoteDelivery | undefined,

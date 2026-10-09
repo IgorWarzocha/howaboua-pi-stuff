@@ -29,6 +29,8 @@ interface NoteEntryData {
 	path: string;
 	text: string;
 	timestamp: number;
+	createdAt?: number;
+	operation?: "local_append_overlay" | "local_replacement";
 }
 
 export interface NoteSnapshotData {
@@ -39,10 +41,12 @@ export interface NoteSnapshotData {
 		text: string;
 		createdAt: number;
 		updatedAt: number;
+		operation?: "local_append_overlay" | "local_replacement";
 	}>;
 }
 
 interface LocalNote {
+	operation?: "local_append_overlay" | "local_replacement";
 	path: string;
 	text: string;
 	createdAt: number;
@@ -73,7 +77,28 @@ export function createPiSessionNotesSnapshot(
 	entries: readonly SessionEntry[],
 	path?: string,
 	strict = false,
+	agentName?: string,
 ): NoteSnapshotData {
+	// Standalone owners persist complete revisions, not append deltas. Read the saved
+	// format independently of the owner installed on the reader host.
+	if (agentName) entries = entries.map((entry) => {
+		if (entry.type !== "custom" || entry.customType !== "notes-compaction:note:v1") return entry;
+		const data = entry.data as { protocol?: unknown; sessionId?: unknown; windowId?: unknown; runId?: unknown; origin?: unknown;
+			revision?: { id?: unknown; path?: unknown; text?: unknown; mode?: unknown; createdAt?: unknown; updatedAt?: unknown } } | undefined;
+		const revision = data?.revision;
+		if (data?.protocol !== 1 || typeof data.sessionId !== "string" || typeof data.windowId !== "string" ||
+			typeof data.runId !== "string" || (data.origin !== undefined && data.origin !== "routed") || !revision ||
+			typeof revision.id !== "string" || typeof revision.path !== "string" || typeof revision.text !== "string" ||
+			(revision.mode !== "replace" && revision.mode !== "append") || !Number.isFinite(revision.createdAt) || !Number.isFinite(revision.updatedAt))
+			throw new Error("Invalid persisted note receipt; resume an intact owner branch to recover notes");
+		const root = `${agentName}/notes/`;
+		const savedPath = revision.path.startsWith(root) ? revision.path : `${root}${revision.path}`;
+		if (revision.path.startsWith("/") && !revision.path.startsWith(root)) throw new Error("Saved note belongs to a different agent");
+		const file = { path: normalizeFilePath(savedPath), text: revision.text, createdAt: revision.createdAt as number,
+			updatedAt: revision.updatedAt as number, operation: revision.mode === "append" ? "local_append_overlay" as const : "local_replacement" as const };
+		if (!isNoteSnapshotData({ protocol: 1, timestamp: file.updatedAt, files: [file] })) throw new Error("Invalid persisted note receipt");
+		return { ...entry, customType: CONTEXT_NOTE_ENTRY_TYPE, data: { protocol: 1, action: "write", ...file, timestamp: file.updatedAt } };
+	});
 	if (strict) for (const entry of entries) {
 		if (entry.type === "custom" && entry.customType === CONTEXT_NOTE_ENTRY_TYPE && !isNoteEntryData(entry.data)) throw new Error("Invalid persisted note entry");
 		if (entry.type === "custom" && entry.customType === CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE && !isNoteSnapshotData(entry.data)) throw new Error("Invalid persisted note snapshot");
@@ -87,6 +112,7 @@ export function createPiSessionNotesSnapshot(
 			text: note.text,
 			createdAt: note.createdAt,
 			updatedAt: note.updatedAt,
+			...(note.operation ? { operation: note.operation } : {}),
 		}));
 	const snapshot: NoteSnapshotData = {
 		protocol: NOTE_PROTOCOL,
@@ -159,7 +185,8 @@ function collectNotes(entries: readonly SessionEntry[]): Map<string, LocalNote> 
 		notes.set(entry.data.path, {
 			path: entry.data.path,
 			text,
-			createdAt: previous?.createdAt ?? entry.data.timestamp,
+			...(entry.data.operation ? { operation: entry.data.operation } : {}),
+			createdAt: entry.data.createdAt ?? previous?.createdAt ?? entry.data.timestamp,
 			updatedAt: entry.data.timestamp,
 		});
 	}
@@ -239,7 +266,7 @@ function searchNotes(
 			.filter(({ line }) => line.includes(query))
 			.slice(0, matchLimit);
 		if (matches.length === 0) continue;
-		files.push({ path: note.path, matches });
+		files.push({ path: note.path, matches, ...(note.operation ? { operation: note.operation } : {}) });
 		if (files.length >= fileLimit) break;
 	}
 	return { source: "pi-session", files };
@@ -312,6 +339,7 @@ function normalizePrefix(value: unknown): string {
 
 function noteMetadata(note: LocalNote): Record<string, unknown> {
 	return {
+		...(note.operation ? { operation: note.operation } : {}),
 		path: note.path,
 		bytes: Buffer.byteLength(note.text, "utf8"),
 		created_at: new Date(note.createdAt).toISOString(),
@@ -357,6 +385,8 @@ function isNoteEntryData(value: unknown): value is NoteEntryData {
 		(entry["action"] === "append" || entry["action"] === "write") &&
 		typeof entry["path"] === "string" &&
 		typeof entry["text"] === "string" &&
+		(entry["createdAt"] === undefined || (typeof entry["createdAt"] === "number" && Number.isFinite(entry["createdAt"]))) &&
+		(entry["operation"] === undefined || entry["operation"] === "local_append_overlay" || entry["operation"] === "local_replacement") &&
 		typeof entry["timestamp"] === "number";
 }
 
@@ -370,6 +400,7 @@ function isNoteSnapshotData(value: unknown): value is NoteSnapshotData {
 			if (!file || typeof file !== "object" || Array.isArray(file)) return false;
 			const record = file as Record<string, unknown>;
 			return typeof record["path"] === "string" &&
+				(record["operation"] === undefined || record["operation"] === "local_append_overlay" || record["operation"] === "local_replacement") &&
 				typeof record["text"] === "string" &&
 				Buffer.byteLength(record["text"], "utf8") <= MAX_FILE_BYTES &&
 				typeof record["createdAt"] === "number" &&

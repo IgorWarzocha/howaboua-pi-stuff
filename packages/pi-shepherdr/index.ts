@@ -1,17 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import { isBlockingAgentsCall } from "./src/agents-contract.js";
+import { acceptFocus, registerFocusArrivals } from "./src/agents-focus.js";
 import { createAgentsTool } from "./src/agents-tool.js";
-import { ensureBoardConfig } from "./src/board/config.js";
 import { AgentBoard } from "./src/board/host.js";
-import { createBoardTool } from "./src/board/tool.js";
 import { registerAgentController } from "./src/controller.js";
 import { registerDeveloperDelivery } from "./src/delivery.js";
 import { AgentFleet } from "./src/fleet.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
+import { createPeerCommands } from "./src/peer-commands.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context.js";
+import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
@@ -20,53 +21,42 @@ export default async function shepherdrExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
 	registerPackageChangelog(pi);
-	ensureBoardConfig();
+
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
-	registerPeerInbox(pi);
+	const peerCommands = createPeerCommands(pi);
 	const fleet = new AgentFleet(pi);
-	const board = new AgentBoard(pi, fleet);
+	registerFocusArrivals(pi);
+	registerVoiceFocusReceiver(pi, (ctx, pane, request) =>
+		acceptFocus(pi, ctx, fleet, pane, request),
+	);
+	const board = AgentBoard.create(pi, fleet);
+	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
-	const tool = createAgentsTool(fleet, sharedContext, board);
-	const boardTool = createBoardTool(board);
+	const tool = createAgentsTool(fleet, sharedContext, board, pi);
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
-	pi.registerTool(boardTool);
-	await registerAgentsInCodeMode(pi, tool, boardTool, board);
-	registerAgentController(pi, fleet, board);
+	await registerAgentsInCodeMode(pi, tool);
+	registerAgentController(pi, fleet, peerCommands);
 }
 
 async function registerAgentsInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createAgentsTool>,
-	boardTool: ReturnType<typeof createBoardTool>,
-	board: AgentBoard,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
+				prepareInput: (input) => (input === undefined ? {} : input),
 				blocking: isBlockingAgentsCall,
-				usage:
-					'await tools.agents({ action: "help" }) // Persistent agents; first call alone',
+				usage: "await tools.agents() // Persistent agents; first call alone",
 			}),
 		]);
-		const boardRegistration = registerCodeModeExtensionTools(
-			pi,
-			() => [
-				adaptToolForCodeMode(boardTool, {
-					usage:
-						'await tools.board({ action: "help" }) // Shared discussion archive',
-				}),
-			],
-			{ isActive: (ctx) => board.enabled(ctx) },
-		);
-		board.setToolRefresh(() => boardRegistration.refresh());
 		pi.on("session_shutdown", () => {
 			registration.unregister();
-			boardRegistration.unregister();
 		});
 		return registration;
 	} catch (error) {

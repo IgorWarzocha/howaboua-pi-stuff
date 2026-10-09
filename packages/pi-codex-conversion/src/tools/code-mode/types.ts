@@ -99,6 +99,7 @@ export interface ToolExecutionContext {
 	opaqueScope?: string | undefined;
 	opaqueContextGeneration?: number | undefined;
 	opaqueContextValid?: (() => Promise<boolean>) | undefined;
+	resolveOpaqueScope?: (() => Promise<string>) | undefined;
 	refreshTrace?: (() => void) | undefined;
 	setBlocked?: ((blockerId: string, active: boolean) => void) | undefined;
 }

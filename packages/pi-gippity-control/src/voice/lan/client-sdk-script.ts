@@ -99,7 +99,8 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       if (notify) void client._post('/api/stop', { terminateConversation: mode === 'conversation' }).catch(() => {});
       current?.close(1000, reason);
       closeHardware();
-      publish(reason === 'replaced' ? 'replaced' : 'idle', reason === 'replaced' ? 'Moved to another device' : '');
+      publish(reason === 'replaced' ? 'replaced' : reason === 'transfer-ended' ? 'transfer-ended' : 'idle',
+        reason === 'replaced' ? 'Moved to another device' : reason === 'transfer-ended' ? 'Start voice to return to this session' : '');
     };
     const stop = (draftSnapshot, notify = true, reason = 'user') => {
       generation += 1;

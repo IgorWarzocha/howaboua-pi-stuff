@@ -1,5 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { LAN_VOICE_BROWSER_SCRIPT } from "./browser-script.ts";
+import { LAN_VOICE_BROWSER_SETTINGS_SCRIPT } from "./browser-settings-script.ts";
 import { LAN_REMOTE_CLIENT_PATH } from "./discovery.ts";
 import { resolveLanVoiceWebTheme } from "./theme.ts";
 
@@ -75,6 +76,18 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
     @media (orientation:landscape) and (max-height:520px) and (min-width:600px) { main { width:min(100%,720px); grid-template-columns:280px 1fr; align-items:start; } .app-header { grid-column:1/-1; } .voice-control { grid-column:1; grid-row:2 / span 2; } .activity,.composer { grid-column:2; } #voice { width:112px; height:112px; } }
     @keyframes spin { to { transform:rotate(360deg); } }
     @media (prefers-reduced-motion:reduce) { #voice { transition:none; } #voice[aria-busy="true"]::after { animation:none; border-color:var(--pi-accent); } }
+    #voice-settings { border-top:1px solid var(--pi-border-muted); padding-top:20px; min-width:0; }
+    #voice-settings summary { cursor:pointer; min-height:44px; line-height:44px; }
+    #voice-settings p,#voice-settings small { color:var(--pi-muted); font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+    #settings-fields { border:0; margin:0; padding:0; display:grid; gap:12px; min-width:0; }
+    #settings-fields select { width:100%; min-width:0; min-height:44px; padding:8px; color:var(--pi-text); background:var(--pi-tool-pending-bg); border:1px solid var(--pi-border-muted); border-radius:8px; font:inherit; }
+    .setting-switch { display:flex; align-items:center; gap:10px; min-height:44px; font-size:14px; }
+    .setting-switch input { width:18px; height:18px; flex-shrink:0; }
+    #save-settings,#reload-settings { min-height:44px; padding:10px 14px; border:1px solid var(--pi-border-muted); border-radius:8px; color:var(--pi-accent); background:var(--pi-selected-bg); cursor:pointer; }
+    #settings-status:empty,#settings-scope:empty { display:none; }
+    #settings-fields:disabled,#reload-settings:disabled { opacity:.6; }
+    #voice-settings :focus-visible { outline:2px solid var(--pi-accent); outline-offset:3px; }
+    @media (orientation:landscape) and (max-height:520px) and (min-width:600px) { #voice-settings { grid-column:1/-1; } }
   </style>
 </head>
 <body>
@@ -103,9 +116,32 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
       <p id="composer-status" aria-live="polite"></p>
       <div class="composer-actions"><div id="connection" class="connection" role="status"><span class="dot"></span><span>Connecting</span></div><button id="send" type="button" disabled>Send</button></div>
     </section>
+    <details id="voice-settings">
+      <summary>Voice settings</summary>
+      <p>Saved settings apply on the next Start. Saving does not restart or change the current call.</p>
+      <p id="settings-scope"></p>
+      <form id="settings-form" aria-describedby="settings-status">
+        <fieldset id="settings-fields" disabled>
+          <label for="setting-voice">Voice</label><select id="setting-voice" name="v3Voice"></select>
+          <label for="setting-context-model">Context summary model</label><select id="setting-context-model" name="contextModel"></select>
+          <small>Off starts without a Pi context summary. Models use their own account's pricing or subscription allowance.</small>
+          <label for="setting-context-reasoning">Context summary reasoning</label><select id="setting-context-reasoning" name="contextReasoning"></select>
+          <label class="setting-switch"><input type="checkbox" name="autoResumeRealtime">Resume dropped calls automatically</label>
+          <label class="setting-switch"><input type="checkbox" name="refreshRealtimeAfterCompaction">Refresh voice context after compaction</label>
+          <label class="setting-switch"><input type="checkbox" name="delegationAcknowledgements">Acknowledge delegated work</label>
+          <label class="setting-switch"><input type="checkbox" name="forwardReasoningSummaries">Speak Pi reasoning summaries</label>
+          <button id="save-settings" type="submit">Save settings</button>
+        </fieldset>
+        <p id="settings-status" role="status"></p>
+        <button id="reload-settings" type="button">Reload settings</button>
+      </form>
+      <p>This browser uses its own microphone and speaker. Choose browser devices in your browser or system settings; native host device choices stay in Pi settings.</p>
+      <p>Credentials and account selection stay in Pi. Closing this page leaves the host call running; Stop ends it.</p>
+    </details>
   </main>
   <script src="${LAN_REMOTE_CLIENT_PATH}"></script>
   <script>${LAN_VOICE_BROWSER_SCRIPT}</script>
+  <script>${LAN_VOICE_BROWSER_SETTINGS_SCRIPT}</script>
 </body>
 </html>`;
 }

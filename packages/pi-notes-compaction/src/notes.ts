@@ -3,6 +3,7 @@ import type {
 	ExtensionContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import type { NoteSnapshotData } from "./bridge.js";
 import { type NoteRevision, NotesStore, type SessionRef } from "./store.js";
 
 export const NOTE_RECEIPT = "notes-compaction:note:v1";
@@ -12,6 +13,7 @@ export interface NoteReceipt {
 	sessionId: string;
 	windowId: string;
 	runId: string;
+	origin?: "routed";
 	/** Model-invisible recovery snapshot follows native fork and branch projections. */
 	revision: NoteRevision;
 }
@@ -55,6 +57,7 @@ export function noteReceipt(data: unknown): NoteReceipt | undefined {
 		typeof record.sessionId !== "string" ||
 		typeof record.windowId !== "string" ||
 		typeof record.runId !== "string" ||
+		(record.origin !== undefined && record.origin !== "routed") ||
 		!revision ||
 		typeof revision.id !== "string" ||
 		typeof revision.path !== "string" ||
@@ -68,7 +71,12 @@ export function noteReceipt(data: unknown): NoteReceipt | undefined {
 }
 
 function relativeLegacyPath(path: string): string {
-	return path.replace(/^\/root(?:\/[a-zA-Z0-9_-]+)*\/notes\/?/, "");
+	// Legacy canonical paths use the first notes component as the agent-root boundary.
+	const components = path.split("/");
+	const boundary = components.indexOf("notes");
+	return components[0] === "" && components[1] === "root" && boundary > 1
+		? components.slice(boundary + 1).join("/")
+		: path;
 }
 
 function snapshotNotes(data: unknown, id: string): NoteRevision[] | undefined {
@@ -96,7 +104,7 @@ function snapshotNotes(data: unknown, id: string): NoteRevision[] | undefined {
 			id,
 			path: relativeLegacyPath(file.path),
 			text: file.text,
-			mode: "replace",
+			mode: file.operation === "local_append_overlay" ? "append" : "replace",
 			createdAt: file.createdAt,
 			updatedAt: file.updatedAt,
 		});
@@ -106,7 +114,7 @@ function snapshotNotes(data: unknown, id: string): NoteRevision[] | undefined {
 
 /** Only selected-branch receipts choose visible revisions. Sibling writes never leak. */
 export function collectNotes(
-	store: NotesStore,
+	store: Pick<NotesStore, "read">,
 	entries: readonly SessionEntry[],
 ): Map<string, NoteRevision> {
 	const notes = new Map<string, NoteRevision>();
@@ -175,6 +183,38 @@ export function collectNotes(
 	return notes;
 }
 
+/** Receipts carry recovery text, so detached reads need neither a database nor another process. */
+export function exportNotesSnapshot(
+	entries: readonly SessionEntry[],
+	agentName: string,
+): NoteSnapshotData {
+	if (!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(agentName))
+		throw new Error("Invalid notes agent identity");
+	const notes = collectNotes({ read: () => undefined }, entries);
+	const snapshot: NoteSnapshotData = {
+		protocol: 1,
+		timestamp: Date.now(),
+		files: [...notes.values()]
+			.sort((a, b) => a.path.localeCompare(b.path))
+			.map((note) => ({
+				path: `${agentName}/notes/${canonicalPath(note.path, agentName)}`,
+				text: note.text,
+				createdAt: note.createdAt,
+				updatedAt: note.updatedAt,
+				operation:
+					note.mode === "append" ? "local_append_overlay" : "local_replacement",
+			})),
+	};
+	if (
+		snapshot.files.some((file) => Buffer.byteLength(file.text) > 1_000_000) ||
+		Buffer.byteLength(JSON.stringify(snapshot)) > 10_000_000
+	)
+		throw new Error(
+			"Notes snapshot exceeds the retained checkpoint size limit",
+		);
+	return snapshot;
+}
+
 function canonicalPath(path: unknown, agent: string, required = true): string {
 	if (typeof path !== "string" || !path.trim()) {
 		if (required) throw new Error("Supply a note path");
@@ -237,6 +277,7 @@ export function useNotes(
 	agent: string,
 	windowId: string,
 	runId: string,
+	routed = false,
 ): Record<string, unknown> {
 	const notes = collectNotes(store, ctx.sessionManager.getBranch());
 	const action = params["action"];
@@ -274,6 +315,7 @@ export function useNotes(
 				sessionId: ctx.sessionManager.getSessionId(),
 				windowId,
 				runId,
+				...(routed ? { origin: "routed" as const } : {}),
 				revision,
 			} satisfies NoteReceipt);
 		} catch {

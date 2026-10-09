@@ -52,6 +52,13 @@ export function isSteeringAskInput(input: unknown): boolean {
 	);
 }
 
+export function isAskHelpInput(input: unknown): boolean {
+	if (input === undefined) return true;
+	if (!isRecord(input) || Array.isArray(input)) return false;
+	const keys = Object.keys(input);
+	return keys.length === 0 || (keys.length === 1 && input["help"] === true);
+}
+
 export function normalizeAskInput(params: unknown): {
 	delivery: "wait" | "steer";
 	handoff: boolean;

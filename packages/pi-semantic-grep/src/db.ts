@@ -165,10 +165,7 @@ export function openSearchDb(root: string): Database.Database {
 	return db;
 }
 
-export function getMeta(
-	db: Database.Database,
-	key: string,
-): string | undefined {
+function getMeta(db: Database.Database, key: string): string | undefined {
 	return (
 		db.prepare("select value from meta where key = ?").get(key) as
 			| { value: string }
@@ -176,11 +173,7 @@ export function getMeta(
 	)?.value;
 }
 
-export function setMeta(
-	db: Database.Database,
-	key: string,
-	value: string,
-): void {
+function setMeta(db: Database.Database, key: string, value: string): void {
 	db.prepare(
 		"insert into meta (key, value) values (?, ?) on conflict(key) do update set value = excluded.value",
 	).run(key, value);

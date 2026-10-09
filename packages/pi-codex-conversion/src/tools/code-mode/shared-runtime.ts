@@ -15,11 +15,13 @@ import type {
 export type CodeModeExecutionKind = "code" | "notebook";
 
 export interface OpaqueContextGuard {
+	lazy: boolean;
 	scope: string;
 	owner: string;
 	generation: number;
 	deliver(response: RuntimeResponse, callId: string): string;
 	valid(): Promise<boolean>;
+	resolveScope(): Promise<string>;
 }
 
 export interface NotebookRuntimeOptions {
@@ -49,6 +51,7 @@ export interface CodeModeToolProvider {
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
+	lazyOpaqueResultScope?(): boolean;
 	deliverOpaqueResponse?(response: RuntimeResponse, callId: string, scope: string, ctx: ExtensionContext): string;
 }
 
@@ -63,7 +66,7 @@ export class SharedCodeModeRuntime {
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
 	private opaqueGeneration = 0;
 	// Completed status only. Protected contents live in persisted host events, never a second delivery queue.
-	private readonly completedCells = new Map<string, { response: RuntimeResponse; owner: string; expires: number }>();
+	private readonly completedCells = new Map<string, { response: RuntimeResponse; owner: string }>();
 
 	async opaqueContextGuard(ctx: ExtensionContext): Promise<OpaqueContextGuard> {
 		const generation = this.opaqueGeneration;
@@ -75,18 +78,31 @@ export class SharedCodeModeRuntime {
 		const resolver = provider.opaqueResultScope;
 		const deliver = provider.deliverOpaqueResponse;
 		const resolveScope = () => resolver.call(provider, ctx);
-		const scope = await resolveScope();
+		const lazy = provider.lazyOpaqueResultScope?.() === true;
+		let backendScope = lazy ? undefined : await resolveScope();
+		// Lazy cells use host identity for admission; only authenticated backend scope is persisted.
+		const scope = backendScope ?? JSON.stringify({ hostContext: baseOwner, generation });
 		const unchanged = () => generation === this.opaqueGeneration && baseOwner === this.opaqueOwner(ctx) &&
 			this.activeProviders(ctx).includes(provider);
 		if (!unchanged()) throw new Error("Remote context changed during authentication; start a new exec cell");
-		return { scope, generation, owner: JSON.stringify([baseOwner, scope]),
+		const authenticate = async () => {
+			const latest = await resolveScope();
+			if (!unchanged() || (backendScope !== undefined && latest !== backendScope))
+				throw new Error("Remote context changed; start a new exec cell");
+			backendScope = latest;
+			return latest;
+		};
+		return { scope, generation, lazy, get owner() { return JSON.stringify([baseOwner, backendScope ?? scope]); },
+			resolveScope: authenticate,
 			deliver: (response, callId) => {
 				if (!unchanged()) throw new Error("Remote context changed after execution; verify note state before repeating a write");
-				return deliver.call(provider, response, callId, scope, ctx);
+				if (!backendScope) throw new Error("Protected delivery is not authenticated");
+				return deliver.call(provider, response, callId, backendScope, ctx);
 			}, valid: async () => {
 			if (!unchanged()) return false;
+			if (backendScope === undefined) return true;
 			const latest = await resolveScope();
-			return unchanged() && latest === scope;
+			return unchanged() && latest === backendScope;
 		} };
 	}
 
@@ -95,12 +111,11 @@ export class SharedCodeModeRuntime {
 		if (hasDelivery && !guard)
 			throw new Error("Remote delivery is unavailable after execution; verify note state before repeating a write");
 		const opaqueDeliveryId = hasDelivery && guard ? guard.deliver(response, callId) : undefined;
-		if (guard && response.kind !== "yielded" && !response.missingCell) {
-			this.expireCompletedCells();
+		if (guard && (!guard.lazy || hasDelivery) && response.kind !== "yielded" && !response.missingCell) {
 			this.completedCells.delete(response.cellId);
 			const oldest = this.completedCells.keys().next().value;
 			if (this.completedCells.size >= 32 && oldest !== undefined) this.completedCells.delete(oldest);
-			this.completedCells.set(response.cellId, { owner: guard.owner, expires: Date.now() + 15 * 60_000,
+			this.completedCells.set(response.cellId, { owner: guard.owner,
 				response: { kind: response.kind, cellId: response.cellId, contentItems: [{ type: "input_text",
 					text: "Execution already complete; termination does not undo completed operations" }],
 					...(response.kind === "result" && response.errorText ? { errorText: response.errorText.slice(0, 4096) } : {}) } });
@@ -114,9 +129,10 @@ export class SharedCodeModeRuntime {
 		const entry = this.completedCells.get(cellId);
 		if (!entry) return undefined;
 		const guard = await this.opaqueContextGuard(ctx);
-		if (this.completedCells.get(cellId) !== entry || entry.expires <= Date.now() || entry.owner !== guard.owner) {
+		if (guard.lazy) await guard.resolveScope();
+		if (this.completedCells.get(cellId) !== entry || entry.owner !== guard.owner) {
 			if (this.completedCells.get(cellId) === entry) this.completedCells.delete(cellId);
-			throw new Error("Remote result expired or context changed after execution; verify note state before repeating a write");
+			throw new Error("Remote context changed after execution; verify note state before repeating a write");
 		}
 		return entry.response;
 	}
@@ -132,11 +148,6 @@ export class SharedCodeModeRuntime {
 		return JSON.stringify([ctx.sessionManager.getSessionId(), ctx.model?.api, ctx.model?.provider,
 			ctx.model?.id, ctx.model?.baseUrl, this.executionKind(ctx),
 			this.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)]);
-	}
-
-	private expireCompletedCells(): void {
-		for (const [cellId, entry] of this.completedCells)
-			if (entry.expires <= Date.now()) this.completedCells.delete(cellId);
 	}
 
 	addProvider(provider: CodeModeToolProvider): object {

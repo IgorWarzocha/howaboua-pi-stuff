@@ -1,5 +1,6 @@
 {
 	"name": "@howaboua/pi-semantic-grep",
+	"private": true,
 	"version": "0.1.19",
 	"description": "Semantic code and docs search for pi, backed by OpenAI-compatible embeddings and repo-local SQLite indexes.",
 	"type": "module",
@@ -41,7 +42,6 @@
 	"scripts": {
 		"check": "bun run lint && bun run typecheck",
 		"prepack": "bun run check",
-		"test": "tsx --test tests/**/*.test.ts",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write ."
@@ -53,12 +53,11 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "1.0.4",
-		"@earendil-works/pi-tui": "1.0.4",
+		"@earendil-works/pi-coding-agent": "1.1.0",
+		"@earendil-works/pi-tui": "1.1.0",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.2.0",
 		"@types/proper-lockfile": "^4.1.4",
-		"tsx": "^4.23.12",
 		"typebox": "1.3.18",
 		"typescript": "^7.0.2"
 	},

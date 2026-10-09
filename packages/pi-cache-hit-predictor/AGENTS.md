@@ -1,0 +1,1 @@
+- Cache history is lane-specific (provider/API/model/reasoning); compaction and branch summaries invalidate all old prefix snapshots.

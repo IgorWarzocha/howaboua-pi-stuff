@@ -241,35 +241,40 @@ export class BrowserOperationExecutor {
 		signal?: AbortSignal,
 	): Promise<Record<string, unknown>> {
 		const file = await screenshotPath(operation);
-		return this.cdp.withTab(operation.ref_id, signal, async (tab) => {
-			const capture =
-				operation.id !== undefined
-					? await captureRef(
-							tab.cdp,
-							tab.sessionId,
-							tab.elementRefs,
-							operation.id,
-							file,
-							signal,
-						)
-					: operation.selector
-						? await captureSelector(
+		return this.cdp.withTab(
+			operation.ref_id,
+			signal,
+			async (tab) => {
+				const capture =
+					operation.id !== undefined
+						? await captureRef(
 								tab.cdp,
 								tab.sessionId,
-								operation.selector,
+								tab.elementRefs,
+								operation.id,
 								file,
 								signal,
 							)
-						: await captureViewport(tab.cdp, tab.sessionId, file, signal);
-			return {
-				ref_id: tab.refId,
-				...(operation.id === undefined ? {} : { id: operation.id }),
-				...(operation.selector ? { selector: operation.selector } : {}),
-				file: capture.file,
-				dpr: capture.dpr,
-				coordinates: "CSS pixels; screenshot pixels / DPR",
-			};
-		});
+						: operation.selector
+							? await captureSelector(
+									tab.cdp,
+									tab.sessionId,
+									operation.selector,
+									file,
+									signal,
+								)
+							: await captureViewport(tab.cdp, tab.sessionId, file, signal);
+				return {
+					ref_id: tab.refId,
+					...(operation.id === undefined ? {} : { id: operation.id }),
+					...(operation.selector ? { selector: operation.selector } : {}),
+					file: capture.file,
+					dpr: capture.dpr,
+					coordinates: "CSS pixels; screenshot pixels / DPR",
+				};
+			},
+			"foreground",
+		);
 	}
 
 	private async tabResult(

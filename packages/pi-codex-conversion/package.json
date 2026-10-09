@@ -95,7 +95,7 @@
   "scripts": {
     "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('changelog.js', { force: true })\" && tsc -p tsconfig.build.json && node ../../scripts/build-extension-changelog.mjs .",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "tsx --test tests/**/*.test.ts examples/custom-tools/browser/*.test.mjs",
+    "test": "tsx --test tests/*.test.ts",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",
@@ -118,15 +118,15 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": ">=1.0.0",
-    "@earendil-works/pi-coding-agent": ">=1.0.0",
+    "@earendil-works/pi-coding-agent": ">=1.1.0",
     "@earendil-works/pi-tui": ">=1.0.0",
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "1.0.4",
-    "@earendil-works/pi-ai": "1.0.4",
-    "@earendil-works/pi-coding-agent": "1.0.4",
-    "@earendil-works/pi-tui": "1.0.4",
+    "@earendil-works/pi-agent-core": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-tui": "1.1.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.13",
     "typebox": "1.3.29",

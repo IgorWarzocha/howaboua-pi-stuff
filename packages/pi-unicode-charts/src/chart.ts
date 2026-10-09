@@ -1,19 +1,13 @@
-export const CHART_TYPES = [
-	"bar",
-	"line",
-	"scatter",
-	"sparkline",
-	"heatmap",
-] as const;
+const CHART_TYPES = ["bar", "line", "scatter", "sparkline", "heatmap"] as const;
 
 export type ChartType = (typeof CHART_TYPES)[number];
 
-export interface ChartPoint {
+interface ChartPoint {
 	label: string;
 	value: number;
 }
 
-export interface HeatmapRow {
+interface HeatmapRow {
 	label: string;
 	values: number[];
 }
@@ -92,7 +86,7 @@ export function transformChartMarkdown(
 	return output.join(newline);
 }
 
-export function parseChartSource(source: string): ChartSpec | undefined {
+function parseChartSource(source: string): ChartSpec | undefined {
 	if (source.length > MAX_SOURCE_LENGTH) return undefined;
 	const sourceLines = source.split(/\r?\n/u);
 	let type: ChartType | undefined;

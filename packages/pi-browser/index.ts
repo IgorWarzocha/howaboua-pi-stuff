@@ -47,8 +47,7 @@ async function registerBrowserInCodeMode(
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareBrowserInput,
-				usage:
-					'await tools.browser("help") // Logged-in browser; help before other actions',
+				usage: "await tools.browser() // Logged-in browser help",
 			}),
 		]);
 	} catch (error) {

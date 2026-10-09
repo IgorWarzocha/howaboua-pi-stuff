@@ -2,7 +2,7 @@
 
 Exposes command-line programs to Pi through Codex-style JavaScript Code Mode. Tools are small TOML definitions; the model composes them inside one isolated `exec` environment.
 
-This package is no longer maintained. Pi Codex includes the integrated implementation. Clone and adapt this package if you need an independent variant.
+This package is no longer maintained and will receive no further releases. Source is retained for reference and adaptation. Use [Pi Codex Conversion](../pi-codex-conversion/) for custom tools in Code and Notebook Mode.
 
 Definitions live globally in `~/.pi/agent/dynamic-tools/` (or `$PI_CODING_AGENT_DIR/dynamic-tools/`) and in trusted projects at `<launch-directory>/.pi/dynamic-tools/`. Only the directory where Pi was launched is checked; project-local definitions override same-named global definitions. Installing the package does not enable the bundled examples.
 
@@ -30,7 +30,7 @@ Definitions are rediscovered before each `exec`, so additions and edits take eff
 
 Use dynamic tools for command-backed capabilities. Use a full Pi extension when the capability needs lifecycle hooks, UI, session state, provider integration, or a provider-visible schema.
 
-Disabled examples cover `herdr_agent`, `more_skills`, `port_info`, `semantic_grep`, `sites`, `sites_documentation`, `spawn_agent`, `vent`, and `workflows_create`. See [`DYNAMIC-TOOLS.md`](./DYNAMIC-TOOLS.md) for setup and troubleshooting.
+Disabled examples cover `herdr_agent`, `more_skills`, `port_info`, `semantic_grep`, `spawn_agent`, `vent`, and `workflows_create`. See [`DYNAMIC-TOOLS.md`](./DYNAMIC-TOOLS.md) for setup and troubleshooting.
 
 ## Runtime boundary
 

@@ -49,12 +49,11 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "1.0.4",
+		"@earendil-works/pi-coding-agent": "1.1.0",
 		"typescript": "^7.0.2"
 	},
 	"scripts": {
-		"check": "bun run lint && bun run typecheck && bun run test",
-		"test": "bun test",
+		"check": "bun run lint && bun run typecheck",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write .",

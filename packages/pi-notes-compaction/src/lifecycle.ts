@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+	AgentSettledEvent,
 	ExtensionAPI,
 	ExtensionContext,
 	InputEvent,
@@ -7,9 +8,14 @@ import type {
 	SessionBeforeCompactEvent,
 	SessionCompactFailedEvent,
 } from "@earendil-works/pi-coding-agent";
+import {
+	buildSessionProjection,
+	prepareBranchEntries,
+} from "@earendil-works/pi-coding-agent";
 import type { NotesBridge } from "./bridge.js";
 import { hasFreshNotes } from "./fresh-notes.js";
 import { noteHints, sessionRef } from "./notes.js";
+import type { IdleMinutes } from "./settings.js";
 import type { NotesStore } from "./store.js";
 import {
 	SETTLEMENT_ENTRY,
@@ -26,8 +32,6 @@ interface Checkpoint {
 	admitted: boolean;
 	runId: string | undefined;
 	outcome: "completed" | "aborted" | "error" | undefined;
-	aborted: boolean;
-	stopObserving: (() => void) | undefined;
 }
 interface HeldInput {
 	sessionId: string;
@@ -45,6 +49,7 @@ export class NotesLifecycle {
 	readonly windows = new Windows();
 	active = false;
 	normalCompaction = false;
+	idleMinutes: IdleMinutes = 0;
 	bridge: NotesBridge | undefined;
 	runId = "";
 	private checkpoint: Checkpoint | undefined;
@@ -68,7 +73,6 @@ export class NotesLifecycle {
 		return this.bridge?.agentName?.(ctx) ?? "/root";
 	}
 	reset(ctx?: ExtensionContext): void {
-		this.checkpoint?.stopObserving?.();
 		this.checkpoint = undefined;
 		this.rollover = undefined;
 		this.cancelledCompact = undefined;
@@ -122,17 +126,6 @@ export class NotesLifecycle {
 		this.initialize(ctx);
 		this.runId = randomUUID();
 		if (this.checkpoint?.admitted) this.checkpoint.runId = this.runId;
-	}
-	observeRun(ctx: ExtensionContext): void {
-		const checkpoint = this.checkpoint;
-		if (!checkpoint || !ctx.signal) return;
-		const signal = ctx.signal;
-		const abort = () => {
-			checkpoint.aborted = true;
-		};
-		if (signal.aborted) abort();
-		else signal.addEventListener("abort", abort, { once: true });
-		checkpoint.stopObserving = () => signal.removeEventListener("abort", abort);
 	}
 	outcome(outcome: "completed" | "aborted" | "error"): void {
 		if (this.checkpoint) this.checkpoint.outcome = outcome;
@@ -218,8 +211,6 @@ export class NotesLifecycle {
 			admitted: false,
 			runId: undefined,
 			outcome: undefined,
-			aborted: false,
-			stopObserving: undefined,
 		};
 		try {
 			this.pi.sendMessage(
@@ -239,6 +230,7 @@ export class NotesLifecycle {
 	}
 	private idleDue(ctx: ExtensionContext): boolean {
 		if (
+			this.idleMinutes === 0 ||
 			!ctx.isIdle() ||
 			!this.windows.current ||
 			this.rollover ||
@@ -269,12 +261,13 @@ export class NotesLifecycle {
 			return false;
 		const data = settlement.data;
 		return (
+			!("aborted" in data && data.aborted === true) &&
 			"windowId" in data &&
 			data.windowId === this.windows.current.currentWindowId &&
 			"settledAt" in data &&
 			typeof data.settledAt === "number" &&
 			Number.isFinite(data.settledAt) &&
-			Date.now() - data.settledAt >= 25 * 60_000
+			Date.now() - data.settledAt >= this.idleMinutes * 60_000
 		);
 	}
 	async input(
@@ -368,8 +361,72 @@ export class NotesLifecycle {
 			this.normalCompaction ||
 			this.rollover?.phase === "compacting" ||
 			event.reason === "overflow"
-		)
+		) {
+			// PCC owns preparation when bridged, including native checkpoint routes.
+			if (this.bridge) return;
+			try {
+				const branch = this.windows.projectBranch(event.branchEntries);
+				if (branch.length === event.branchEntries.length) return;
+				const physicalCut = event.branchEntries.findIndex(
+					(entry) => entry.id === event.preparation.firstKeptEntryId,
+				);
+				if (physicalCut < 0)
+					throw new Error("Compaction kept boundary is missing");
+				const keptIds = new Set(
+					event.branchEntries.slice(physicalCut).map((entry) => entry.id),
+				);
+				const projection = buildSessionProjection(branch);
+				const projected = projection.entries;
+				const summary = projection.messages.find(
+					(message) => message.role === "compactionSummary",
+				);
+				const cut = projected.findIndex((entry) =>
+					keptIds.has(entry.sourceEntry.id),
+				);
+				if (cut < 0)
+					throw new Error("Current context kept boundary is missing");
+				const summarized = projected.slice(0, cut);
+				const messages = summarized
+					.flatMap((entry) => entry.messages)
+					.filter(
+						(message) =>
+							message.role !== "system" && message.role !== "compactionSummary",
+					);
+				if (!messages.length) {
+					ctx.ui.notify(
+						"Nothing to compact in the current context window. The existing context remains.",
+						"warning",
+					);
+					return { cancel: true };
+				}
+				// Pi retains this object for its default summarizer after every hook.
+				// Keep that route's auth, provider hooks and retries, and physical kept IDs.
+				delete event.preparation.previousSummary;
+				Object.assign(event.preparation, {
+					firstKeptEntryId: projected[cut]!.sourceEntry.id,
+					...(summary ? { previousSummary: summary.summary } : {}),
+					messagesToSummarize: messages,
+					turnPrefixMessages: [],
+					isSplitTurn: false,
+					fileOps: prepareBranchEntries(
+						summarized.flatMap((entry) =>
+							entry.messages.map((message) => ({
+								...entry.sourceEntry,
+								type: "message" as const,
+								message,
+							})),
+						),
+					).fileOps,
+				});
+			} catch (error) {
+				ctx.ui.notify(
+					`Compaction failed: ${error instanceof Error ? error.message : String(error)}. The existing context remains.`,
+					"error",
+				);
+				return { cancel: true };
+			}
 			return;
+		}
 		if (event.reason === "manual")
 			this.cancelledCompact = {
 				sessionId: ctx.sessionManager.getSessionId(),
@@ -396,10 +453,12 @@ export class NotesLifecycle {
 			await this.roll(ctx, true);
 		else this.startCheckpoint(ctx, pending.instructions);
 	}
-	async settled(ctx: ExtensionContext): Promise<void> {
+	async settled(
+		event: AgentSettledEvent,
+		ctx: ExtensionContext,
+	): Promise<void> {
 		const checkpoint = this.checkpoint;
 		this.checkpoint = undefined;
-		checkpoint?.stopObserving?.();
 		try {
 			this.store.updateFile(sessionRef(ctx));
 			const terminal = ctx.sessionManager
@@ -414,12 +473,13 @@ export class NotesLifecycle {
 					windowId: this.windows.current.currentWindowId,
 					completedEntryId: terminal.id,
 					settledAt: Date.now(),
+					aborted: event.aborted,
 				});
 		} catch (error) {
 			this.rollover = undefined;
 			if (
 				checkpoint &&
-				(checkpoint.aborted ||
+				(event.aborted ||
 					checkpoint.outcome === "aborted" ||
 					checkpoint.outcome === undefined)
 			) {
@@ -436,7 +496,7 @@ export class NotesLifecycle {
 				checkpoint.sessionId === ctx.sessionManager.getSessionId() &&
 				checkpoint.windowId === this.windows.current?.currentWindowId;
 			const aborted =
-				checkpoint.aborted ||
+				event.aborted ||
 				checkpoint.outcome === "aborted" ||
 				checkpoint.outcome === undefined;
 			if (!valid || aborted) {

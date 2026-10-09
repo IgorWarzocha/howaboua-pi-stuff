@@ -1,4 +1,4 @@
-export const SUBDIR_CONTEXT_DETAILS_KEY = "subdirContextAutoload";
+const SUBDIR_CONTEXT_DETAILS_KEY = "subdirContextAutoload";
 
 export type PersistedContextFile = { path: string; content: string };
 

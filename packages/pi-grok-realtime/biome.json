@@ -1,0 +1,6 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
+	"files": { "includes": ["**", "!src/audio/bin", "!src/audio/rust/target"] },
+	"formatter": { "enabled": true, "indentStyle": "tab" },
+	"linter": { "enabled": false }
+}

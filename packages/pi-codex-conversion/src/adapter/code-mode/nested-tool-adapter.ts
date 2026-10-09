@@ -7,6 +7,7 @@ import type {
 import type { TSchema } from "typebox";
 import { Check } from "typebox/value";
 import { runCodeModeToolWithHooks } from "../../tools/code-mode/nested-tool-completion.ts";
+import { opaqueToolOutputsFromDetails } from "../../providers/openai-responses/native-items.ts";
 import type {
 	ProgrammaticCodeModeToolDefinition,
 	CodeModeToolIdentity,
@@ -46,8 +47,10 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 	contract: NestedToolContract = {},
 ): ProgrammaticCodeModeToolDefinition {
 	const kind = contract.kind ?? "function";
-	const prepareInput = (input: unknown) =>
-		contract.prepareInput ? contract.prepareInput(input) : input;
+	const prepareInput = (input: unknown) => {
+		const prepared = contract.prepareInput ? contract.prepareInput(input) : input;
+		return prepared === undefined && Check(tool.parameters, {}) ? {} : prepared;
+	};
 	const invoke = async (
 		input: unknown,
 		context: ToolExecutionContext,
@@ -72,7 +75,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 			context.refreshTrace?.();
 			let acceptingUpdates = true;
 			try {
-				if (contract.opaqueResult && (!context.opaqueScope ||
+				if (contract.opaqueResult && !contract.allowPlainResult && (!context.opaqueScope ||
 					!context.opaqueContextValid || !await context.opaqueContextValid()))
 					throw new Error("Remote context changed before dispatch; start a new exec cell");
 				const result = await tool.execute(
@@ -87,24 +90,30 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				acceptingUpdates = false;
 				const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown; attachment_hint?: unknown } } | undefined;
 				const encrypted = details?.codexHistoryNotes?.encrypted_output;
-				const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || encrypted !== undefined || contract.opaqueResultScope?.(result) !== undefined);
-				if (encrypted !== undefined && !contract.opaqueResult)
+				const cachedOutputs = opaqueToolOutputsFromDetails(result.details);
+				const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || encrypted !== undefined || cachedOutputs.length > 0 || contract.opaqueResultScope?.(result) !== undefined);
+				if ((encrypted !== undefined || cachedOutputs.length) && !contract.opaqueResult)
 					throw new Error("Protected result delivery is unavailable; start a new exec cell");
 				if (protectedResult) {
-					if (!context.opaqueScope || contract.opaqueResultScope?.(result) !== context.opaqueScope ||
+					const scope = context.resolveOpaqueScope ? await context.resolveOpaqueScope() : context.opaqueScope;
+					if (!scope || contract.opaqueResultScope?.(result) !== scope ||
 						!context.opaqueContextValid || !await context.opaqueContextValid())
 						throw new Error("Remote operation executed in a different context; verify note state before repeating a write");
-					if (typeof encrypted !== "string" || !encrypted.trim())
+					if (!cachedOutputs.length && (typeof encrypted !== "string" || !encrypted.trim()))
 						throw new Error("Remote operation executed but returned no protected output; verify its state before repeating a write");
 					const action = prepared && typeof prepared === "object" && "action" in prepared && typeof prepared.action === "string"
 						? `.${prepared.action}` : "";
 					const hint = details?.codexHistoryNotes?.attachment_hint;
-					context.captureOpaqueResult!({ resultId: toolCallId, name: tool.name + action + (typeof hint === "string" ? `; ${hint}` : ""), encryptedOutput: encrypted },
-						result.content.filter(item => item.type === "image").map(item => ({
+					const outputs = cachedOutputs.length ? cachedOutputs : [{ resultId: toolCallId,
+						name: tool.name + action + (typeof hint === "string" ? `; ${hint}` : ""), encryptedOutput: encrypted as string }];
+					const localText = cachedOutputs.length ? result.content.filter(item => item.type === "text").map(item => item.text).join("\n") : "";
+					outputs.forEach((output, index) => context.captureOpaqueResult!({ ...output,
+						name: output.name + (index === 0 && localText ? `; ${localText}` : "") },
+						index === 0 ? result.content.filter(item => item.type === "image").map(item => ({
 							type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
 							detail: "detail" in item && (item.detail === "auto" || item.detail === "high" || item.detail === "original")
 								? item.detail : "high",
-						})));
+						})) : []));
 					context.captureResult?.({ ...result, content: [{ type: "text", text: `Result ${toolCallId}` }], details: {} });
 				} else context.captureResult?.(result);
 				const resultError = contract.resultError?.(result);

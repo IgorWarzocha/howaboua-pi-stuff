@@ -1,4 +1,3 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { PanelOwners } from "./control-panel-items.js";
 import { type SshSetupDraft, sshSetupArgs } from "./ssh-setup.js";
 
@@ -16,7 +15,6 @@ export class PanelActions {
 	busy = false;
 	message: string;
 
-	private readonly ctx: ExtensionContext;
 	private readonly options: PanelOptions;
 	private readonly signal: AbortSignal;
 	private readonly current: () => boolean;
@@ -26,7 +24,6 @@ export class PanelActions {
 	private readonly finish: (result: "add" | undefined) => void;
 
 	constructor(
-		ctx: ExtensionContext,
 		options: PanelOptions,
 		signal: AbortSignal,
 		message: string,
@@ -36,7 +33,6 @@ export class PanelActions {
 		requestRender: () => void,
 		finish: (result: "add" | undefined) => void,
 	) {
-		this.ctx = ctx;
 		this.options = options;
 		this.signal = signal;
 		this.current = current;
@@ -62,22 +58,6 @@ export class PanelActions {
 			if (id === "orchestration") {
 				await this.options.setOrchestration(value === "on", this.signal);
 				this.message = "Guidance saved for this session.";
-			} else if (
-				id === "board:session" ||
-				id === "board:folder" ||
-				id === "board:global"
-			) {
-				await this.options.board.setSetting(
-					this.ctx,
-					id === "board:session"
-						? "session"
-						: id === "board:folder"
-							? "folder"
-							: "global",
-					value === "inherit" ? undefined : value === "on",
-				);
-				this.check();
-				this.message = "Board setting saved.";
 			} else if (id === "connect" || id.startsWith("machine:"))
 				this.message = await this.options.reconnect(
 					id === "connect" ? undefined : id.slice(8),

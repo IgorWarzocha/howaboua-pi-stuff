@@ -1,19 +1,29 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ZodError } from "zod";
-import { agentActionSchema, HELP } from "./src/contracts.ts";
+import {
+	agentActionSchema,
+	HELP,
+	prepareSandboxInput,
+} from "./src/contracts.ts";
 
 export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 	const tool = {
 		name: "sandbox",
 		label: "Sandbox",
 		description: "Persistent local sandboxes and app previews",
-		parameters: Type.Object({
-			input: Type.String({ description: "help or JSON action" }),
-		}),
+		parameters: Type.Object(
+			{
+				input: Type.Optional(
+					Type.String({ description: "help or JSON action" }),
+				),
+			},
+			{ additionalProperties: false },
+		),
+		prepareArguments: prepareSandboxInput,
 		async execute(
 			_id: string,
-			{ input }: { input: string },
+			{ input = "help" }: { input?: string },
 			signal: AbortSignal | undefined,
 			_update: unknown,
 			ctx: { cwd: string },
@@ -27,6 +37,16 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 				} catch {
 					throw new Error("Send help or a JSON action object");
 				}
+				if (
+					action !== null &&
+					typeof action === "object" &&
+					!Array.isArray(action) &&
+					Object.keys(action).length === 0
+				)
+					return {
+						content: [{ type: "text" as const, text: JSON.stringify(HELP) }],
+						details: {},
+					};
 				const { run } = await import("./src/client.ts");
 				const { agentError } = await import("./src/storage.ts");
 				try {
@@ -80,13 +100,9 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: 'await tools.sandbox("help")',
+				usage: "await tools.sandbox()",
 				kind: "freeform",
-				prepareInput: (input) => {
-					if (typeof input !== "string")
-						throw new Error("Send help or JSON text to sandbox");
-					return { input };
-				},
+				prepareInput: prepareSandboxInput,
 				resultValue: (result) => {
 					const content = result.content.find((item) => item.type === "text");
 					if (!content) throw new Error("Sandbox response has no text");

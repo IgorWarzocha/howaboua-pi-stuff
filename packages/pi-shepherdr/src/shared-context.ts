@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { binding, isBoardEnvelope } from "@howaboua/pi-agent-board/integration";
 import type {
 	ContextSharingService,
 	SharedContextRequest,
@@ -16,7 +17,6 @@ import {
 	Identity,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
-import { isBoardEnvelope } from "./board/protocol.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { sessionPath } from "./herdr.js";
 import {
@@ -76,6 +76,58 @@ export class SharedAgentContext {
 		value: unknown,
 		signal?: AbortSignal,
 	): Promise<unknown> {
+		if (
+			value &&
+			typeof value === "object" &&
+			"operation" in value &&
+			value.operation === "agent-root"
+		) {
+			const own = binding(ctx);
+			const identity = this.getService()?.describe(ctx);
+			if (
+				!("scope" in value) ||
+				(value.scope !== "board" && value.scope !== "context")
+			)
+				throw new Error("Invalid /root family");
+			const family =
+				value.scope === "board" ? own.rootSessionId : identity?.sessionId;
+			if (
+				!("family" in value) ||
+				value.family !== family ||
+				!("visited" in value) ||
+				!Array.isArray(value.visited) ||
+				value.visited.some((item) => typeof item !== "string") ||
+				value.visited.length >= 64 ||
+				value.visited.includes(ctx.sessionManager.getSessionId())
+			)
+				throw new Error("No live /root in this agent family");
+			const routing = identity?.routing as Partial<Routing> | undefined;
+			const upstream =
+				value.scope === "board"
+					? own.upstream
+					: identity?.agentName !== "/root" &&
+							routing?.transport === "shepherdr"
+						? routing.parent
+						: undefined;
+			if (upstream)
+				return requestContext(
+					upstream,
+					{
+						...value,
+						visited: [...value.visited, ctx.sessionManager.getSessionId()],
+					},
+					signal,
+				);
+			if (
+				(value.scope === "board" ? own.agentName : identity?.agentName) !==
+				"/root"
+			)
+				throw new Error("No live /root in this agent family");
+			return {
+				...(await this.fleet.connected().client.machineIdentity()),
+				sessionFile: ctx.sessionManager.getSessionFile(),
+			};
+		}
 		if (isBoardEnvelope(value)) return this.board.handle(ctx, value, signal);
 		if (!value || typeof value !== "object")
 			throw new Error("Invalid shared context request");
@@ -185,6 +237,57 @@ export class SharedAgentContext {
 		throw new Error(
 			`No shared context agent ${request.agentName} in this session family`,
 		);
+	}
+
+	async resolveRoot(
+		ctx: ExtensionContext,
+		machine?: string,
+		signal?: AbortSignal,
+	) {
+		const own = binding(ctx);
+		const identity = this.getService()?.describe(ctx);
+		const scope = own.upstream || !identity ? "board" : "context";
+		const family = scope === "board" ? own.rootSessionId : identity?.sessionId;
+		let result: unknown;
+		try {
+			result = await this.handle(
+				ctx,
+				{ operation: "agent-root", scope, family, visited: [] },
+				signal,
+			);
+		} catch (error) {
+			signal?.throwIfAborted();
+			throw new Error(
+				"No live /root in this agent family; use find for an exact target",
+				{ cause: error },
+			);
+		}
+		if (
+			!result ||
+			typeof result !== "object" ||
+			!("host" in result) ||
+			!("session" in result) ||
+			!("sessionFile" in result) ||
+			typeof result.sessionFile !== "string"
+		)
+			throw new Error("No live /root in this agent family");
+		const matches = [];
+		for (const entry of await this.fleet.snapshots(machine)) {
+			if (!entry.snapshot) continue;
+			const runtime = this.fleet.connected(entry.id);
+			const identity = await runtime.client.machineIdentity();
+			if (identity.host !== result.host || identity.session !== result.session)
+				continue;
+			for (const agent of entry.snapshot.agents) {
+				if (agent.agent === "pi" && sessionPath(agent) === result.sessionFile)
+					matches.push({ runtime, target: agent.pane_id });
+			}
+		}
+		if (matches.length !== 1)
+			throw new Error(
+				"No unique live /root in this agent family; use find for an exact target",
+			);
+		return matches[0]!;
 	}
 
 	async prepare(
