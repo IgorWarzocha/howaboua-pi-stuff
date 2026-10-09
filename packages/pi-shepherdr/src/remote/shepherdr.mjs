@@ -9,11 +9,15 @@ import {
 	relayContextPath,
 	requestContext,
 } from "./shepherdr-context.mjs";
-import { sendPeerFocus, sendPeerMessage } from "./shepherdr-peer.mjs";
+import {
+	sendPeerCommands,
+	sendPeerFocus,
+	sendPeerMessage,
+} from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 import { watchSessions } from "./shepherdr-session-watch.mjs";
 
-const BRIDGE_VERSION = 18;
+const BRIDGE_VERSION = 19;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
@@ -328,6 +332,9 @@ async function handle(message) {
 	}
 	if (message.op === "focus") {
 		return sendPeerFocus(request, message.agent, message.request);
+	}
+	if (message.op === "commands") {
+		return sendPeerCommands(request, message.agent);
 	}
 	if (message.op === "channel_open") {
 		const channel = await openPeerChannel(

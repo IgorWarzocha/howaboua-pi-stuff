@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { HerdrConnection } from "./herdr-client.js";
 import type { SshMachine } from "./machine-catalog.js";
 import { createBufferedChannel } from "./remote/shepherdr-channel.mjs";
+import { readPeerCommands } from "./remote/shepherdr-peer.mjs";
 import type { AssistantReader } from "./session-reader.js";
 import type {
 	HerdrEvent,
@@ -16,7 +17,7 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 18;
+const BRIDGE_VERSION = 19;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_CHANNEL_HELPER = "~/.pi/agent/shepherdr-channel.mjs";
@@ -307,6 +308,11 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 				"Shared context relay is unavailable; open /herdr → Status to retry",
 			);
 		return this.relayPath;
+	}
+
+	async commands(agent: PaneInfo): Promise<import("./types.js").PeerCommand[]> {
+		const result = await this.call({ op: "commands", agent }, 26_000);
+		return readPeerCommands(result);
 	}
 
 	async sendMessage(

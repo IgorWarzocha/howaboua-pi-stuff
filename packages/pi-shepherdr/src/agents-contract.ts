@@ -24,7 +24,7 @@ export const READ_SOURCES = ["latest", "visible", "recent"] as const;
 const STATUSES = ["idle", "working", "blocked", "done", "unknown"] as const;
 
 const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
-	help: new Set(["action"]),
+	help: new Set(["action", "commands", "target", "machine"]),
 	list: new Set(["action", "machine"]),
 	find: new Set(["action", "machine", "query", "status"]),
 	focus: new Set(["action", "machine", "target", "voice", "handoff"]),
@@ -65,6 +65,7 @@ const AskAnswerParameters = Type.Object(
 const AgentsRequest = Type.Object(
 	{
 		action: StringEnum(ACTIONS),
+		commands: Type.Optional(Type.Literal(true)),
 		machine: Type.Optional(Type.String()),
 		voice: Type.Optional(Type.Boolean()),
 		handoff: Type.Optional(Type.String()),
@@ -107,6 +108,9 @@ const AgentsRequest = Type.Object(
 
 export const AgentsParameters = Type.Object({
 	action: Type.Optional(StringEnum(ACTIONS)),
+	commands: Type.Optional(Type.Literal(true)),
+	target: Type.Optional(Type.String()),
+	machine: Type.Optional(Type.String()),
 });
 
 export type AgentsParams = Static<typeof AgentsRequest>;
@@ -140,16 +144,30 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		throw new Error("agents request must be a JSON object");
 	}
 	if (Object.keys(value).length === 0) return { action: "help" };
-	const action = "action" in value ? value.action : undefined;
+	let request = value as Record<string, unknown>;
+	if (!("action" in request) && request["commands"] === true)
+		request = { ...request, action: "help" };
+	const action = request["action"];
 	if (typeof action !== "string" || !Object.hasOwn(ACTION_FIELDS, action)) {
 		throw new Error(`agents action must be one of: ${ACTIONS.join(", ")}`);
 	}
-	if (action === "send" && "blocking" in value) {
+	if (action === "send" && "blocking" in request) {
 		throw new Error(
 			"send is message-only; omit blocking. Use assign to delegate work",
 		);
 	}
-	const request = value as Record<string, unknown>;
+	if ("commands" in request && action !== "help")
+		throw new Error("commands requires action=help or no action");
+	if (
+		action === "help" &&
+		request["commands"] !== true &&
+		("target" in request || "machine" in request)
+	)
+		throw new Error("target and machine require commands:true for help");
+	if (action === "help" && "machine" in request && !("target" in request))
+		throw new Error(
+			"machine requires target for command discovery; omit both for this session",
+		);
 	if (
 		(action === "attach" || action === "detach") &&
 		(typeof request["context"] !== "boolean" ||
@@ -166,18 +184,18 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 	if (action === "answer" && !Array.isArray(request["answers"])) {
 		throw new Error("answers is required for answer");
 	}
-	const unknown = Object.keys(value).filter(
+	const unknown = Object.keys(request).filter(
 		(key) => !ACTION_FIELDS[action as keyof typeof ACTION_FIELDS].has(key),
 	);
 	if (unknown.length > 0) {
 		throw new Error(`unknown ${action} field(s): ${unknown.join(", ")}`);
 	}
-	if (!Check(AgentsRequest, value)) {
+	if (!Check(AgentsRequest, request)) {
 		throw new Error(
 			`invalid ${action} request; call agents help for its contract`,
 		);
 	}
-	return value as AgentsParams;
+	return request as AgentsParams;
 }
 
 export function isBlockingAgentsCall(input: unknown): boolean {

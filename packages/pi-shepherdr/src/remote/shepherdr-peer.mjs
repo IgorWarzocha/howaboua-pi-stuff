@@ -6,7 +6,7 @@ import { createConnection } from "node:net";
 import { basename, dirname } from "node:path";
 
 export const MAX_PEER_FRAME_BYTES = 8 * 1024 * 1024;
-export const PEER_PROTOCOL = 3;
+export const PEER_PROTOCOL = 4;
 
 /** @param {string} sessionFile @param {string} terminalId */
 export function peerInboxPath(sessionFile, terminalId) {
@@ -86,19 +86,26 @@ export async function readReceiver(path) {
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").PeerMessage} message
  * @param {import("../types.js").FocusRequest} [focus]
+ * @param {boolean} [commands]
  * @returns {Promise<import("../types.js").PeerDelivery>}
  */
-export async function sendPeerMessage(request, expected, message, focus) {
+export async function sendPeerMessage(
+	request,
+	expected,
+	message,
+	focus,
+	commands = false,
+) {
 	const { descriptor, sessionFile, agent } = await resolvePeerReceiver(
 		request,
 		expected,
-		Boolean(focus),
+		Boolean(focus) || commands,
 	);
 	const id = randomUUID();
 	const frame =
 		JSON.stringify({
 			protocol: PEER_PROTOCOL,
-			kind: focus ? "focus" : "message",
+			kind: commands ? "commands" : focus ? "focus" : "message",
 			focus,
 			id,
 			token: descriptor.token,
@@ -295,7 +302,13 @@ function deliverPeerFrame(
 						// The receiver retains this socket through session_shutdown.
 						// Only process exit ends it; never close a pane on a timeout.
 						clearTimeout(timer);
-					} else finish(undefined, { command: reply.command });
+					} else
+						finish(undefined, {
+							command: reply.command,
+							...(reply.commands === undefined
+								? {}
+								: { commands: reply.commands }),
+						});
 				} else if (reply.ok === false && typeof reply.error === "string")
 					finish(deliveryError(reply.error, reply.rejected === true));
 				else failed();
@@ -318,6 +331,40 @@ export function sendPeerFocus(request, expected, focus) {
 		{ text: "focus", sender: "" },
 		focus,
 	);
+}
+
+/** @param {unknown} value @returns {import("../types.js").PeerCommand[]} */
+export function readPeerCommands(value) {
+	if (
+		!Array.isArray(value) ||
+		!value.every(
+			(entry) =>
+				entry &&
+				typeof entry === "object" &&
+				typeof entry.name === "string" &&
+				typeof entry.description === "string",
+		)
+	)
+		throw new Error(
+			"Command discovery returned an invalid list; ask the user to update and reload Shepherdr in the target session",
+		);
+	return value.map(({ name, description }) => ({ name, description }));
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @returns {Promise<import("../types.js").PeerCommand[]>}
+ */
+export async function sendPeerCommands(request, expected) {
+	const receipt = await sendPeerMessage(
+		request,
+		expected,
+		{ text: "", sender: "" },
+		undefined,
+		true,
+	);
+	return readPeerCommands(receipt.commands);
 }
 
 /**

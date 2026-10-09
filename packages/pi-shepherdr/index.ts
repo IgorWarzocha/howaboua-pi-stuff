@@ -33,7 +33,7 @@ export default async function shepherdrExtension(
 	const board = AgentBoard.create(pi, fleet);
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
-	const tool = createAgentsTool(fleet, sharedContext, board, pi);
+	const tool = createAgentsTool(fleet, sharedContext, board, pi, peerCommands);
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);

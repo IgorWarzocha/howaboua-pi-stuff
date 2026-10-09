@@ -91,6 +91,8 @@ Messages beginning with `/` use the target Pi session's command, skill and promp
 
 ### Agent commands
 
+Call `agents` with `{ commands: true }` to list this session's available slash commands and descriptions without executing them. Add `target` and optionally `machine` to inspect another session, including a busy one. Current-session discovery also works outside Herdr. `machine` alone is rejected because it does not identify a session. Skills and prompt templates are not included.
+
 These built-in commands are available through agent messages without an allowlist:
 
 | Command | Result |

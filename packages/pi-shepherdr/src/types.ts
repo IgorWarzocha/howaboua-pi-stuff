@@ -8,6 +8,12 @@ export interface PeerMessage {
 
 export interface PeerDelivery {
 	command: boolean;
+	commands?: PeerCommand[];
+}
+
+export interface PeerCommand {
+	name: string;
+	description: string;
 }
 
 export interface MachineIdentity {

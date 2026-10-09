@@ -26,7 +26,31 @@ export function createPeerCommands(pi: ExtensionAPI) {
 		}
 	>();
 	pi.on("session_shutdown", () => pending.clear());
+	const available = (configured?: Record<string, string>) => {
+		let allowed: Record<string, string>;
+		try {
+			allowed = configured ?? readExtensionCommands();
+		} catch {
+			throw new Error(
+				"Command permissions could not be read; built-in commands remain available. Ask the user to check Shepherdr's Agent commands settings",
+			);
+		}
+		return Object.entries(builtins)
+			.map(([name, description]) => ({ name, description }))
+			.concat(
+				pi.getCommands().flatMap((entry) => {
+					const description = allowed[entry.name];
+					return entry.source === "extension" &&
+						Object.hasOwn(allowed, entry.name) &&
+						description !== undefined &&
+						!Object.hasOwn(builtins, entry.name)
+						? [{ name: entry.name, description }]
+						: [];
+				}),
+			);
+	};
 	return {
+		available,
 		async handle(args: string, ctx: ExtensionCommandContext): Promise<boolean> {
 			const intent = pending.get(args);
 			if (!intent) return false;
@@ -73,22 +97,12 @@ export function createPeerCommands(pi: ExtensionAPI) {
 				!entry ||
 				(entry.source === "extension" && !Object.hasOwn(allowed, name))
 			) {
-				const available = Object.entries(builtins).concat(
-					commands
-						.filter(
-							(entry) =>
-								entry.source === "extension" &&
-								Object.hasOwn(allowed, entry.name),
-						)
-						.flatMap((entry): [string, string][] => {
-							const description = allowed[entry.name];
-							return description === undefined
-								? []
-								: [[entry.name, description]];
-						}),
-				);
 				throw new Error(
-					`Command /${name} is unavailable. Available commands:\n${available.map(([name, description]) => `/${name}: ${description}`).join("\n")}`,
+					`Command /${name} is unavailable. Available commands:\n${available(
+						allowed,
+					)
+						.map(({ name, description }) => `/${name}: ${description}`)
+						.join("\n")}`,
 				);
 			}
 			return {

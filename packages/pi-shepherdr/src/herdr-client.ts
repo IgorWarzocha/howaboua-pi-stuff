@@ -2,13 +2,18 @@ import { createConnection } from "node:net";
 import { hostname } from "node:os";
 import { openPeerChannel } from "./remote/shepherdr-channel.mjs";
 import { requestContext } from "./remote/shepherdr-context.mjs";
-import { sendPeerFocus, sendPeerMessage } from "./remote/shepherdr-peer.mjs";
+import {
+	sendPeerCommands,
+	sendPeerFocus,
+	sendPeerMessage,
+} from "./remote/shepherdr-peer.mjs";
 import type {
 	FocusRequest,
 	HerdrEvent,
 	MachineIdentity,
 	PaneInfo,
 	PeerChannel,
+	PeerCommand,
 	PeerDelivery,
 	PeerMessage,
 } from "./types.js";
@@ -75,6 +80,7 @@ export interface HerdrConnection {
 	contextRelayPath(): string;
 	request<T>(method: string, params?: object, timeoutMs?: number): Promise<T>;
 	sendMessage(agent: PaneInfo, message: PeerMessage): Promise<PeerDelivery>;
+	commands(agent: PaneInfo): Promise<PeerCommand[]>;
 	subscribe(
 		subscriptions: object[],
 		onEvent: (event: HerdrEvent) => void,
@@ -133,6 +139,13 @@ export class HerdrClient implements HerdrConnection {
 			(method, params) => this.request(method, params),
 			agent,
 			message,
+		);
+	}
+
+	commands(agent: PaneInfo): Promise<PeerCommand[]> {
+		return sendPeerCommands(
+			(method, params) => this.request(method, params),
+			agent,
 		);
 	}
 
