@@ -9,7 +9,6 @@ Read when a user asks to configure one of these disabled examples. Do not enable
 | `skills` | Pi was launched with `--no-skills` and the agent needs on-demand global or project skills |
 | `port_info` | A process or listener needs identifying |
 | `semantic_grep` | An installed Pi Semantic Grep index needs querying |
-| `sites` | The user asks to manage a ChatGPT Site |
 | `spawn_agent` | The user wants an isolated one-shot explorer or reviewer |
 | `vent` | Repeated workflow friction belongs in `VENT.md` |
 | `workflows_create` | The user confirms a repeatable repository procedure |
@@ -24,4 +23,4 @@ Do not use it in a session where Pi loaded native skills at startup. The tool wo
 
 ## Sensitive examples
 
-`browser` controls an existing logged-in browser. `agents` affects other Pi sessions. `sites` can create production deployments and change access, environment, or domains. Follow its verification and repair loop in `sites/README.md`, then follow user intent and ask before consequential external actions.
+`browser` controls an existing logged-in browser. `agents` affects other Pi sessions. Follow user intent and ask before consequential external actions.

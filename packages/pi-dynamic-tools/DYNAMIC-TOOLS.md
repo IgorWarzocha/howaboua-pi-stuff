@@ -143,10 +143,6 @@ Examples are documentation and working reference code. Installing the package do
 
 `more_skills.toml` and `more-skills/more-skills.mjs` list additional skill names or return one skill's Markdown body. When copied into a global definitions directory it reads the Pi agent directory's `more-skills/`; from a project-local definitions directory it reads `<launch-directory>/.pi/more-skills/`.
 
-### `sites` and `sites_documentation`
-
-Keep `sites.toml`, `sites_documentation.toml`, and the shared `sites/` directory together. These deferred tools provide a curated private-API bridge to the ChatGPT Sites beta and bounded local/backend documentation. They use Pi's configured OpenAI Codex OAuth, keep credentials and secret values out of output, and require explicit user intent for production effects such as deployment, access, environment, or domain changes.
-
 ### `spawn_agent`
 
 The package directory containing this file also contains:

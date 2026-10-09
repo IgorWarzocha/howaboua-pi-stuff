@@ -2,7 +2,7 @@
 
 Private beta API. Read `workflow`, then the relevant topic. `resource.action` returns that guide and a compact live parameter schema.
 
-Call `sites` with `JSON.stringify({resource, action, params})`. Omitted `project_id` uses `.openai/hosting.json`. `project_dir` selects another project root. Copy IDs and cursors unchanged.
+Call `sites` with `{resource, action, params}`. Omitted `project_id` uses `.openai/hosting.json`. `params.project_dir` selects another project root. Copy IDs and cursors unchanged.
 
 | Topic | Resource actions |
 |---|---|

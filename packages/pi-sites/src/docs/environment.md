@@ -11,7 +11,7 @@ Get configured production runtime entries and their revision. The facade recursi
 Pass `set_values` and optional `remove`:
 
 ```js
-await tools.sites(JSON.stringify({
+await tools.sites({
   resource: "environment",
   action: "update",
   params: {
@@ -21,11 +21,11 @@ await tools.sites(JSON.stringify({
     ],
     remove: []
   }
-}))
+})
 ```
 
 Keys are case-sensitive. Do not repeat a key or put it in both lists. Only listed keys change. Mark sensitive values with `is_secret: true` and do not echo them in prose or logs. The tool deliberately cannot read values from arbitrary environment variables or files. For secrets that should never enter model context, use the Sites settings UI instead.
 
-Calling this action changes production runtime configuration immediately; Pi custom tools have no separate approval callback.
+Calling this action changes production runtime configuration immediately.
 
 Environment changes do not alter an existing deployment. Redeploy an approved saved version when the new revision should become active.

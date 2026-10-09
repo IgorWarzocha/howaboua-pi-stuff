@@ -54,7 +54,6 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 - `skills`: lists Pi's standard global and session skill catalog, reads one exact skill or reads its references by name.
 - `port_info`: cross-platform listener and process diagnostics.
 - `semantic_grep`: queries an existing index owned by an installed and configured `@howaboua/pi-semantic-grep`.
-- `sites` and `sites_documentation`: a curated, private-API bridge to the ChatGPT Sites beta using Pi's OpenAI Codex OAuth; keep both definitions together.
 - `spawn_agent`: launches isolated explorer or reviewer Pi processes.
 - `vent`: appends batched workflow-friction notes to `VENT.md`.
 - `workflows_create`: creates or updates repo-local workflow skills.

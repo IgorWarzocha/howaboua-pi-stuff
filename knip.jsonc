@@ -1,6 +1,10 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
+		"packages/pi-sites": {
+			"entry": ["src/git-askpass.mjs"],
+			"project": ["src/**/*.ts", "src/**/*.mjs"]
+		},
 		"packages/pi-auto-trees": {
 			"entry": ["changelog.ts"]
 		},

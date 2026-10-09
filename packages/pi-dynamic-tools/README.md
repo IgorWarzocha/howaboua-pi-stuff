@@ -30,7 +30,7 @@ Definitions are rediscovered before each `exec`, so additions and edits take eff
 
 Use dynamic tools for command-backed capabilities. Use a full Pi extension when the capability needs lifecycle hooks, UI, session state, provider integration, or a provider-visible schema.
 
-Disabled examples cover `herdr_agent`, `more_skills`, `port_info`, `semantic_grep`, `sites`, `sites_documentation`, `spawn_agent`, `vent`, and `workflows_create`. See [`DYNAMIC-TOOLS.md`](./DYNAMIC-TOOLS.md) for setup and troubleshooting.
+Disabled examples cover `herdr_agent`, `more_skills`, `port_info`, `semantic_grep`, `spawn_agent`, `vent`, and `workflows_create`. See [`DYNAMIC-TOOLS.md`](./DYNAMIC-TOOLS.md) for setup and troubleshooting.
 
 ## Runtime boundary
 

@@ -9,6 +9,7 @@ const packagesDir = join(root, "packages");
 const aggregateDirs = new Set(["pi-stuff", "pi-skills", "pi-extensions"]);
 const bundleExcludedPackages = new Set([
 	"@howaboua/pi-browser",
+	"@howaboua/pi-sites",
 	"@howaboua/pi-chill",
 	"@howaboua/pi-sandbox",
 	"@howaboua/pi-codex-conversion",

@@ -1,12 +1,12 @@
-import { getSitesAuth } from "./auth.mjs";
-
 const ENDPOINT = "https://chatgpt.com/backend-api/wham/apps";
 const CONNECTOR_ID = "connector_20205bf7d4e99a89d7154bb849718324";
 
 export class SitesClient {
-	constructor({ fetchImpl = fetch, authProvider = getSitesAuth } = {}) {
+	/** @param {{fetchImpl?: typeof fetch, authProvider: () => Promise<{token: string, accountId: string}>, signal?: AbortSignal | undefined}} options */
+	constructor({ fetchImpl = fetch, authProvider, signal } = {}) {
 		this.fetchImpl = fetchImpl;
 		this.authProvider = authProvider;
+		this.signal = signal;
 		this.requestId = 0;
 		this.tools = undefined;
 		this.headers = undefined;
@@ -68,7 +68,8 @@ export class SitesClient {
 				.map(normalizeToolName);
 			return names.includes(expected);
 		});
-		if (!tool) throw new Error(`Sites backend no longer exposes ${toolSuffix}`);
+		if (!tool)
+			throw new Error("This Sites operation is unavailable for the account");
 		return tool;
 	}
 
@@ -79,11 +80,23 @@ export class SitesClient {
 			method: "POST",
 			headers: this.headers,
 			body: JSON.stringify(payload),
-			signal: AbortSignal.timeout(45_000),
+			signal: this.signal
+				? AbortSignal.any([this.signal, AbortSignal.timeout(45_000)])
+				: AbortSignal.timeout(45_000),
 		});
 		const sessionId = response.headers.get("mcp-session-id");
 		if (sessionId) this.headers["mcp-session-id"] = sessionId;
 		const body = await readCappedBody(response);
+		if (response.status === 401 || response.status === 403) {
+			const message =
+				response.status === 401
+					? "Sites rejected the OpenAI Codex login. Ask the user to renew /login openai-codex (legacy OpenAI Codex)."
+					: "Sites access was denied (HTTP 403). Ask the user to check Sites access for that account and any network or browser challenge.";
+			throw Object.assign(new Error(message), {
+				code: "sites_access_denied",
+				status: response.status,
+			});
+		}
 		if (notification && response.ok && !body) return undefined;
 		const result = parseRpcBody(body, response.headers.get("content-type"));
 		if (!response.ok || result?.error) {
@@ -169,14 +182,54 @@ function backendError(status, payload) {
 	const terms = serialized.match(
 		/sites_publication_terms_required:\s*(https?:\/\/[^\s"}]+)/i,
 	);
+	const recovery = errorRecovery(payload);
 	const message = terms
 		? "ChatGPT Sites publication terms must be accepted before this operation can continue"
-		: `Sites backend request failed${status ? ` (HTTP ${status})` : ""}`;
+		: recovery.saved_version_id
+			? "Sites saved a version but deployment failed; reuse saved_version_id with deployment.deploy after resolving the cause"
+			: recovery.code === "site_not_owner_only"
+				? "Site is not verified owner-private; reread access before deployment"
+				: `Sites backend request failed${status ? ` (HTTP ${status})` : ""}`;
 	return Object.assign(new Error(message), {
-		code: terms ? "terms_required" : "backend_error",
+		code: terms ? "terms_required" : recovery.code || "backend_error",
 		status,
 		termsUrl: terms?.[1],
+		details: recovery.saved_version_id
+			? { saved_version_id: recovery.saved_version_id }
+			: undefined,
+		topic: recovery.saved_version_id
+			? "deployment"
+			: recovery.code
+				? "access"
+				: undefined,
 	});
+}
+
+// Keep partial-save recovery from JSON error envelopes, never arbitrary server prose.
+function errorRecovery(payload, depth = 0) {
+	if (depth > 8 || payload == null) return {};
+	if (typeof payload === "string") {
+		try {
+			return errorRecovery(JSON.parse(payload), depth + 1);
+		} catch {
+			return {};
+		}
+	}
+	if (typeof payload !== "object") return {};
+	const found = {};
+	if (payload.code === "site_not_owner_only") found.code = payload.code;
+	if (
+		typeof payload.saved_version_id === "string" &&
+		payload.saved_version_id
+	) {
+		found.saved_version_id = payload.saved_version_id;
+	}
+	for (const value of Object.values(payload)) {
+		const nested = errorRecovery(value, depth + 1);
+		found.code ||= nested.code;
+		found.saved_version_id ||= nested.saved_version_id;
+	}
+	return found;
 }
 
 function safeStringify(value) {

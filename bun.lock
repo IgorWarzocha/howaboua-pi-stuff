@@ -466,6 +466,14 @@
         "@howaboua/pi-codex-conversion",
       ],
     },
+    "packages/pi-sites": {
+      "name": "@howaboua/pi-sites",
+      "version": "0.0.0",
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=1.1.0",
+        "typebox": "*",
+      },
+    },
     "packages/pi-skill-chrome-cdp": {
       "name": "@howaboua/pi-skill-chrome-cdp",
       "version": "0.0.5",
@@ -848,6 +856,8 @@
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
 
     "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
+
+    "@howaboua/pi-sites": ["@howaboua/pi-sites@workspace:packages/pi-sites"],
 
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
 

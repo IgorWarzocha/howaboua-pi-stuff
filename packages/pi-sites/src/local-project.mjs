@@ -18,8 +18,8 @@ const askPass = join(
 	"git-askpass.mjs",
 );
 
-export async function projectContext(projectDir) {
-	const requested = projectDir ? resolve(projectDir) : process.cwd();
+export async function projectContext(projectDir, cwd = process.cwd()) {
+	const requested = projectDir ? resolve(cwd, projectDir) : cwd;
 	const requestedStat = await stat(requested);
 	if (!requestedStat.isDirectory())
 		throw new Error("project_dir must name a directory");
@@ -106,26 +106,39 @@ export async function resolveProjectId(params, context) {
 	return projectId;
 }
 
-export async function inspectCleanCommit(context) {
+export async function inspectCleanCommit(context, signal) {
 	const root = (
-		await git(context.root, ["rev-parse", "--show-toplevel"])
+		await git(
+			context.root,
+			["rev-parse", "--show-toplevel"],
+			process.env,
+			signal,
+		)
 	).trim();
-	const status = await git(root, [
-		"status",
-		"--porcelain=v1",
-		"--untracked-files=all",
-	]);
+	const status = await git(
+		root,
+		["status", "--porcelain=v1", "--untracked-files=all"],
+		process.env,
+		signal,
+	);
 	if (status.trim())
-		throw new Error("version.save requires a clean Git worktree");
+		throw new Error("Source save requires a clean Git worktree");
 	const manifestRelative = ".openai/hosting.json";
-	await git(root, ["ls-files", "--error-unmatch", manifestRelative]);
-	const commitSha = (await git(root, ["rev-parse", "HEAD"])).trim();
+	await git(
+		root,
+		["ls-files", "--error-unmatch", manifestRelative],
+		process.env,
+		signal,
+	);
+	const commitSha = (
+		await git(root, ["rev-parse", "HEAD"], process.env, signal)
+	).trim();
 	if (!/^[0-9a-f]{40,64}$/i.test(commitSha))
 		throw new Error("Could not resolve the current Git commit");
 	return { root, commitSha };
 }
 
-export async function pushCommit({ root, commitSha, credential }) {
+export async function pushCommit({ root, commitSha, credential, signal }) {
 	const remoteUrl = credential?.remote_url;
 	const branch = credential?.branch;
 	const token = credential?.token;
@@ -174,10 +187,11 @@ export async function pushCommit({ root, commitSha, credential }) {
 			`${commitSha}:refs/heads/${branch}`,
 		],
 		env,
+		signal,
 	);
 }
 
-async function git(cwd, args, env = process.env) {
+async function git(cwd, args, env = process.env, signal) {
 	if (!isAbsolute(cwd))
 		throw new Error("Git working directory must be absolute");
 	try {
@@ -187,6 +201,7 @@ async function git(cwd, args, env = process.env) {
 			encoding: "utf8",
 			maxBuffer: 1024 * 1024,
 			timeout: 120_000,
+			signal,
 		});
 		return result.stdout;
 	} catch (error) {
