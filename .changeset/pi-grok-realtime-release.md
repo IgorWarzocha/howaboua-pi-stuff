@@ -2,6 +2,8 @@
 "@howaboua/pi-grok-realtime": patch
 ---
 
+### Features
+
 Added Grok realtime voice with the current Pi agent doing the work.
 
 - Experimental local audio on Linux, macOS and Windows, plus trusted-LAN browser control with live Pi activity.
@@ -11,3 +13,4 @@ Added Grok realtime voice with the current Pi agent doing the work.
 - Custom voice tools and optional xAI web search.
 
 Uses the matching OAuth or API-key credential configured in Pi. Voice quota and billing depend on the account.
+
