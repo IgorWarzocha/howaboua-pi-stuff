@@ -2,19 +2,17 @@
 
 Keep working across fresh context windows with local checkpoint notes, searchable session history and optional remote lookup. Works with any Pi model.
 
-This is a private development package, not an npm release.
+## Install
 
-## Try it
-
-Standalone use needs Pi 1.1.0 or newer. Run an isolated session from this checkout:
+Requires Pi 1.1.0 or newer and Node.js 22.18 or newer.
 
 ```sh
-pi --no-extensions -e ./packages/pi-notes-compaction/src/index.ts
+pi install npm:@howaboua/pi-notes-compaction
 ```
 
-Ask the agent to save a checkpoint and start a new context window. It can read those notes and search earlier session history to continue.
+Reload Pi, then ask the agent to save a checkpoint and start a new context window. It can read those notes and search earlier session history to continue.
 
-With Pi Codex Conversion from this checkout, local notes work alongside Codex tools, Code Mode, Notebook and normal compaction. Older PCC versions without this integration leave the extension inactive. Run `/notes status` to check activation and available capabilities. Extension authors can read the [integration contract](PCC-INTEGRATION.md).
+With Pi Codex Conversion 3.0.48 or newer, local notes work alongside Codex tools, Code Mode, Notebook and normal compaction. Older PCC versions without this integration leave the extension inactive. Run `/notes status` to check activation and available capabilities. Extension authors can read the [integration contract](PCC-INTEGRATION.md).
 
 ## Notes and windows
 

@@ -1,7 +1,22 @@
 {
 	"name": "@howaboua/pi-notes-compaction",
 	"version": "0.0.0",
-	"private": true,
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-notes-compaction"
+	},
+	"files": [
+		"src",
+		"README.md",
+		"PCC-INTEGRATION.md"
+	],
+	"engines": {
+		"node": ">=22.18.0"
+	},
 	"type": "module",
 	"description": "Provider-neutral session notes and notes-guided context windows for Pi",
 	"license": "MIT",
