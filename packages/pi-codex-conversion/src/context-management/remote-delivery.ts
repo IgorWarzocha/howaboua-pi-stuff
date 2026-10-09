@@ -110,12 +110,13 @@ export function remoteDeliverySource(delivery: RemoteDelivery, ctx: {
 		(result.message.toolName !== "exec" && result.message.toolName !== "wait"))
 		throw new Error("Remote delivery is missing its original exec or wait result");
 	const details = result.message.details;
+	// A mixed cell can save local notes and return protected reads. Remote write
+	// provenance is checked separately by the saved-notes ledger.
 	if (!details || typeof details !== "object" || !("codeMode" in details) || details["codeMode"] !== true ||
 		!("opaqueDeliveryId" in details) || details["opaqueDeliveryId"] !== delivery.id ||
 		!("cellId" in details) || details["cellId"] !== delivery.cellId ||
 		!("status" in details) || details["status"] !== delivery.status ||
 		("contextNotesSaved" in details ? details["contextNotesSaved"] : undefined) !== delivery.contextNotesSaved ||
-		(delivery.contextNotesSaved !== undefined && (!("contextNotesSource" in details) || details["contextNotesSource"] !== "remote")) ||
 		(delivery.errorText ? !("scriptError" in details) || typeof details["scriptError"] !== "string" ||
 			!details["scriptError"].startsWith(delivery.errorText) : "scriptError" in details))
 		throw new Error("Remote delivery does not match its original result");

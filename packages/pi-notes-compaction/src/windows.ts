@@ -3,9 +3,12 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import type {
 	CustomMessageEntryDraft,
+	ExtensionAPI,
 	ExtensionContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { keyHint } from "@earendil-works/pi-coding-agent";
+import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { WindowIdentity } from "./bridge.js";
 
 export const WINDOW_MESSAGE = "notes-compaction:window:v1";
@@ -21,6 +24,42 @@ Checkpoint the active request, known history IDs, decisions, progress, learnings
 After substantial work, save useful findings, decisions and resumable state in notes as your last tool calls before replying. Skip brief clarifications, routine lookups, acknowledgements and unchanged state. Explicit checkpoints and reminders still apply. Include note paths in agent handoffs.
 Include useful deferred ideas and tasks when checkpointing. Recording is not permission to implement.
 </context_window_guidance>`;
+
+export function registerWindowRenderer(pi: ExtensionAPI): void {
+	pi.registerMessageRenderer(
+		WINDOW_MESSAGE,
+		(message, { expanded, outputPad }, theme) => {
+			const details = parseWindowDetails(message.details);
+			if (!details || typeof message.content !== "string") return undefined;
+			const title =
+				details.kind === "urgent"
+					? "Context nearly full · Save notes and start a new window now"
+					: details.kind === "reminder"
+						? "Context checkpoint reminder · Save notes and start a new window"
+						: `Context window ${details.identity.windowNumber + 1} · Notes and history`;
+			const box = new Box(outputPad, 1, (text) =>
+				theme.bg("customMessageBg", text),
+			);
+			box.addChild(
+				expanded
+					? new Text(theme.fg("customMessageText", message.content), 0, 0)
+					: new TruncatedText(
+							theme.fg(
+								details.kind === "urgent" ? "warning" : "customMessageLabel",
+								title,
+							) +
+								theme.fg(
+									"dim",
+									` (${keyHint("app.tools.expand", "to expand")})`,
+								),
+							0,
+							0,
+						),
+			);
+			return box;
+		},
+	);
+}
 
 function identity(value: unknown): WindowIdentity | undefined {
 	if (!value || typeof value !== "object") return;

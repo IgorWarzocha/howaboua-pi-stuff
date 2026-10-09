@@ -48,7 +48,8 @@ export async function agentsHelp(
 		rules: {
 			machine:
 				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
-			target: "Use spawn/find target exactly",
+			target:
+				"Use spawn/find target exactly; /root selects this family's live root",
 			label: "2-3 words; tab/session",
 			...(boardAvailable
 				? {

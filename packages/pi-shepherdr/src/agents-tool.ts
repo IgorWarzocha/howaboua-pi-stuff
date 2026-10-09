@@ -57,7 +57,7 @@ export function createAgentsTool(
 				return toolResult(await findFleetAgents(fleet, params));
 			}
 
-			const runtime = fleet.connected(params.machine);
+			let runtime = fleet.connected(params.machine);
 			if (params.action === "spawn") {
 				return spawnAgent(
 					fleet,
@@ -71,7 +71,16 @@ export function createAgentsTool(
 				);
 			}
 
-			const target = required(params.target, "target");
+			let target = required(params.target, "target");
+			if (target === "/root") {
+				const root = await sharedContext.resolveRoot(
+					ctx,
+					params.machine,
+					executionSignal,
+				);
+				runtime = root.runtime;
+				target = root.target;
+			}
 			if (params.action === "focus") {
 				executionSignal.throwIfAborted();
 				return toolResult(

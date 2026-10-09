@@ -20,12 +20,17 @@ import {
 	HISTORY_USAGE,
 	NOTES_USAGE,
 } from "./tools.js";
-import { WINDOW_MESSAGE, windowDetails } from "./windows.js";
+import {
+	registerWindowRenderer,
+	WINDOW_MESSAGE,
+	windowDetails,
+} from "./windows.js";
 
 const HELP =
 	"Use /notes status, /notes prune, or /notes compact on|off. Compaction is off by default. When enabled, new_context also runs the normal installed Pi/PCC compaction flow.";
 
 export default function notesCompaction(pi: ExtensionAPI): void {
+	registerWindowRenderer(pi);
 	const dir = join(getAgentDir(), "notes-compaction");
 	const settingsPath = join(dir, "settings.json");
 	const store = new NotesStore(join(dir, "notes.sqlite"));
@@ -44,6 +49,31 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			lifecycle.active &&
 			ctx.isIdle() &&
 			ctx.sessionManager.getEntries().every((entry) => {
+				// Herdr activation persists its empty registry before first task delivery.
+				if (
+					entry.type === "custom" &&
+					entry.customType === "herdr-agents-monitor-state"
+				) {
+					const data = entry.data as
+						| { version?: unknown; agents?: unknown }
+						| undefined;
+					return Boolean(
+						data?.version === 2 &&
+							Array.isArray(data.agents) &&
+							data.agents.length === 0,
+					);
+				}
+				// Board adoption precedes context binding on a fresh spawn. These
+				// metadata records are preparation, not evidence of a first turn.
+				if (
+					entry.type === "custom" &&
+					[
+						"shepherdr-board-binding",
+						"shepherdr-board-awareness",
+						"codex-context-briefing",
+					].includes(entry.customType)
+				)
+					return true;
 				if (
 					["model_change", "thinking_level_change", "session_info"].includes(
 						entry.type,
