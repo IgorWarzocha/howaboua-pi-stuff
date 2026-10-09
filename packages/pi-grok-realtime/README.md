@@ -77,5 +77,3 @@ Choose a microphone and speaker under Voice → Audio devices, or use system def
 Build the helper from this package with `bun run build:audio-helper`. Building requires Rust and the platform's compiler toolchain; Linux also needs `pkg-config` and ALSA development headers. The helper has no credentials or network transport. It captures and plays 24 kHz mono PCM, with echo processing and mute boundaries.
 
 Release builds require all six OS and architecture binaries from the audio build workflow. Building locally produces only the current platform's helper.
-
-Cross-platform support is experimental. Compilation and device-free checks do not establish real-device compatibility or acoustic quality. Please report issues with your OS, architecture, audio device and error message. Live audio and provider protocol compatibility still need validation.
