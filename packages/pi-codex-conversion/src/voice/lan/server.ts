@@ -2,7 +2,6 @@ import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
-import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { RealtimePeerPlan } from "../controller-start.ts";
@@ -18,7 +17,7 @@ import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest, isLanVoiceOriginAllowed } from "./http-handler.ts";
 import { collectFailures, configureServer, lanVoiceUrls, listen } from "./server-runtime.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
-import { createLanVoiceSettings } from "./settings.ts";
+import type { LanVoiceSettings } from "./settings-contract.ts";
 
 const PORT = 43_120;
 const HEARTBEAT_MS = 15_000;
@@ -35,7 +34,7 @@ export interface CodexLanVoiceServer {
 
 export async function startCodexLanVoiceServer(options: {
 	ctx: ExtensionContext;
-	getConfig: () => CodexConversionConfig;
+	settings: LanVoiceSettings;
 	voice: CodexVoiceController;
 	resolveAuth(): Promise<CodexVoiceAuth>;
 	sendUserMessage(text: string): void;
@@ -43,7 +42,7 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
-	const settings = createLanVoiceSettings(options.ctx, options.getConfig);
+	const { settings } = options;
 	const certificate = await resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let activeConversation: { peer: LanHostRealtimePeer; conversation?: CodexRealtimeConversation } | undefined;

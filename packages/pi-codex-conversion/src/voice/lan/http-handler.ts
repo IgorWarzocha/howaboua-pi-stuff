@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { LanVoiceSettingsError } from "./settings.ts";
+import { LanVoiceSettingsError } from "./settings-contract.ts";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceActivity } from "./activity.ts";
 import { getLanVoiceAppAsset } from "./app-assets.ts";

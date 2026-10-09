@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { getCodexConversionConfigPath, getProjectCodexConversionConfigPath, hasFolderCodexConversionConfig, readLayeredCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
 import { REALTIME_V3_VOICES, VOICE_CONTEXT_REASONING_LEVELS, normalizeRealtimeV3Voice, normalizeVoiceContextReasoning, type VoiceContextModel, type RealtimeV3Voice, type VoiceContextReasoning } from "../../adapter/activation/config.ts";
+import { LanVoiceSettingsError, type LanVoiceSettings } from "./settings-contract.ts";
 
 const BOOLEAN_SETTINGS = ["autoResumeRealtime", "refreshRealtimeAfterCompaction", "delegationAcknowledgements", "forwardReasoningSummaries"] as const;
 interface VoiceSettings {
@@ -14,9 +15,7 @@ interface VoiceSettings {
 	forwardReasoningSummaries: boolean;
 }
 
-export class LanVoiceSettingsError extends Error {}
-
-export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => CodexConversionConfig) {
+export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => CodexConversionConfig): LanVoiceSettings {
 	const folderScope = () => hasFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted());
 	const readConfig = () => readLayeredCodexConversionConfig({ cwd: ctx.cwd, projectTrusted: ctx.isProjectTrusted() });
 	const scope = () => folderScope() ? "This project" : "Global";
