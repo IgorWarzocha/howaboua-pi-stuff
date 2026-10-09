@@ -29,6 +29,7 @@ import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
 import { attributeAgentPrompt, modelAsk } from "./messages.js";
+import type { createPeerCommands } from "./peer-commands.js";
 import type { SharedAgentContext } from "./shared-context.js";
 
 export function createAgentsTool(
@@ -36,6 +37,7 @@ export function createAgentsTool(
 	sharedContext: SharedAgentContext,
 	board: AgentBoard,
 	pi: ExtensionAPI,
+	commands: ReturnType<typeof createPeerCommands>,
 ) {
 	return defineTool({
 		name: "agents",
@@ -47,9 +49,11 @@ export function createAgentsTool(
 			const params = parseAgentsRequest(input);
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
-			if (params.action === "help") {
+			if (params.action === "help" && !params.commands) {
 				return toolResult(await agentsHelp(board.enabled(ctx)));
 			}
+			if (params.commands && params.target === undefined)
+				return toolResult({ commands: commands.available() });
 			if (params.action === "list") {
 				return toolResult(await listFleetAgents(fleet, params));
 			}
@@ -119,6 +123,13 @@ export function createAgentsTool(
 				target,
 				runtime.local ? process.env["HERDR_PANE_ID"] : "",
 			);
+			if (params.commands) {
+				return toolResult({
+					machine: runtime.machine,
+					target: panel.pane_id,
+					commands: await runtime.client.commands(panel),
+				});
+			}
 			if (params.action === "attach" || params.action === "detach") {
 				return toolResult(
 					await sharedContext.attachment[params.action](

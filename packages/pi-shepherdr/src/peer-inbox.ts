@@ -116,9 +116,11 @@ async function openInbox(
 				ctx.sessionManager.getSessionFile() !== sessionFile ||
 				typeof request["id"] !== "string" ||
 				(request["kind"] !== "focus" &&
+					request["kind"] !== "commands" &&
 					request["kind"] !== "message" &&
 					request["kind"] !== "channel") ||
 				(request["kind"] !== "focus" &&
+					request["kind"] !== "commands" &&
 					request["kind"] !== "channel" &&
 					(typeof request["text"] !== "string" ||
 						!request["text"].trim() ||
@@ -132,6 +134,18 @@ async function openInbox(
 					rejected: true,
 					error: "Peer delivery rejected: stale session or invalid request",
 				});
+				return;
+			}
+			if (request["kind"] === "commands") {
+				try {
+					reply({ ok: true, command: false, commands: commands.available() });
+				} catch (error) {
+					reply({
+						ok: false,
+						rejected: true,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
 				return;
 			}
 			if (request["kind"] === "channel") {

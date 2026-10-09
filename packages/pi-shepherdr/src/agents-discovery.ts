@@ -28,6 +28,8 @@ export async function agentsHelp(
 ): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
+		commands:
+			"commands: true lists available slash commands with descriptions; defaults to this session, target and machine optionally select another session; does not execute commands",
 		actions: {
 			help: "",
 			list: "machine?",
