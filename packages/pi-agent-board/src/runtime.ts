@@ -84,18 +84,16 @@ export class BoardRuntime {
 				}
 			}
 			await this.refresh(ctx);
-			if (!this.adapter) {
-				const catchup = await this.promptCatchup(ctx);
-				catchup.accepted();
-				if (catchup.content)
-					return {
-						message: {
-							customType: "shepherdr-board-catchup",
-							content: catchup.content.trim(),
-							display: false,
-						},
-					};
-			}
+			const catchup = await this.promptCatchup(ctx);
+			catchup.accepted();
+			if (catchup.content)
+				return {
+					message: {
+						customType: "shepherdr-board-catchup",
+						content: catchup.content.trim(),
+						display: false,
+					},
+				};
 		});
 	}
 	private reportAvailability(ctx: ExtensionContext, error?: unknown): void {
@@ -188,7 +186,7 @@ export class BoardRuntime {
 				.some((tool) => ["exec", "code", "notebook"].includes(tool));
 			return {
 				content: result.length
-					? `\n\nBoard updates: ${[
+					? `\n\nUnread board updates available; read if relevant to the current task: ${[
 							...new Set(result.map((post) => post.thread_id)),
 						]
 							.map((thread_id) => {
