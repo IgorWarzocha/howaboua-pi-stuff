@@ -18,6 +18,11 @@ const NoticeSchema = Type.Object(
 );
 const Protocol = Type.Union([
 	Type.Object({
+		operation: Type.Literal("board-catchup"),
+		caller: BindingSchema,
+		seen: Type.Array(Type.String()),
+	}),
+	Type.Object({
 		operation: Type.Literal("board-bind"),
 		binding: BindingSchema,
 	}),

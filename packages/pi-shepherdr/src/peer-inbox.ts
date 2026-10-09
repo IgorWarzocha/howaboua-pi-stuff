@@ -27,6 +27,9 @@ export function registerPeerInbox(
 	pi: ExtensionAPI,
 	commands: ReturnType<typeof createPeerCommands>,
 	fleet: AgentFleet,
+	catchup: (
+		ctx: ExtensionContext,
+	) => Promise<{ content: string; accepted: () => void }>,
 ): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
@@ -42,7 +45,7 @@ export function registerPeerInbox(
 		running = false;
 		if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
 			return;
-		close = await openInbox(pi, ctx, () => running, commands, fleet);
+		close = await openInbox(pi, ctx, () => running, commands, fleet, catchup);
 	});
 	pi.on("session_shutdown", async () => {
 		await close?.();
@@ -57,6 +60,9 @@ async function openInbox(
 	isRunning: () => boolean,
 	commands: ReturnType<typeof createPeerCommands>,
 	fleet: AgentFleet,
+	catchup: (
+		ctx: ExtensionContext,
+	) => Promise<{ content: string; accepted: () => void }>,
 ): Promise<() => Promise<void>> {
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
@@ -67,6 +73,7 @@ async function openInbox(
 	const temporary = `${path}.${token}.tmp`;
 	const sockets = new Set<Socket>();
 	let state: "open" | "quitting" | "closed" = "open";
+	let promptDelivery = Promise.resolve();
 	const server = createServer((socket) => {
 		sockets.add(socket);
 		socket.setEncoding("utf8");
@@ -75,7 +82,7 @@ async function openInbox(
 		socket.on("close", () => sockets.delete(socket));
 		let buffer = "";
 		let received = false;
-		socket.on("data", (chunk: string) => {
+		socket.on("data", async (chunk: string) => {
 			if (received) return;
 			buffer += chunk;
 			if (Buffer.byteLength(buffer) > MAX_PEER_FRAME_BYTES) {
@@ -279,34 +286,61 @@ async function openInbox(
 					reply({ ok: true, command });
 					return;
 				}
-				submitted = true;
-				sendPolicyMessage(
-					pi,
-					{
-						customType: "herdr-agent-message",
-						content: `${sender}\n${text}`,
-						display: true,
-					},
-					idle
-						? { triggerTurn: false, deliverAs: "nextTurn" }
-						: { deliverAs: "steer" },
-				);
-				// Keep arrivals out of history until idle rollover and preparation
-				// finish. The shared kickoff coalesces arrivals during preparation.
-				if (idle) startPreparedIdleTurn(pi, ctx);
-				// Voice failure must not turn accepted delivery into a retry.
+				// Catch-up sampling and acceptance form one prompt boundary, including
+				// bursts arriving on separate authenticated sockets.
+				const previous = promptDelivery;
+				let release!: () => void;
+				promptDelivery = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				await previous;
 				try {
-					announcePeerMessage(pi, {
-						sender: request["sender"] as string,
-						text,
-					});
-				} catch (error) {
-					ctx.ui.notify(
-						`Peer voice update failed: ${String(error)}`,
-						"warning",
+					const notice = await catchup(ctx);
+					if (
+						state !== "open" ||
+						ctx.sessionManager.getSessionFile() !== sessionFile ||
+						(!ctx.isIdle() && !isRunning())
+					) {
+						reply({
+							ok: false,
+							rejected: true,
+							error: "Target changed context; retry after it settles",
+						});
+						return;
+					}
+					const promptIdle = ctx.isIdle();
+					submitted = true;
+					sendPolicyMessage(
+						pi,
+						{
+							customType: "herdr-agent-message",
+							content: `${sender}\n${text}${notice.content}`,
+							display: true,
+						},
+						promptIdle
+							? { triggerTurn: false, deliverAs: "nextTurn" }
+							: { deliverAs: "steer" },
 					);
+					notice.accepted();
+					// Keep arrivals out of history until idle rollover and preparation
+					// finish. The shared kickoff coalesces arrivals during preparation.
+					if (promptIdle) startPreparedIdleTurn(pi, ctx);
+					// Voice failure must not turn accepted delivery into a retry.
+					try {
+						announcePeerMessage(pi, {
+							sender: request["sender"] as string,
+							text,
+						});
+					} catch (error) {
+						ctx.ui.notify(
+							`Peer voice update failed: ${String(error)}`,
+							"warning",
+						);
+					}
+					reply({ ok: true, command: false });
+				} finally {
+					release();
 				}
-				reply({ ok: true, command: false });
 			} catch (error) {
 				reply({
 					ok: false,

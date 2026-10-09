@@ -63,10 +63,13 @@ export function voiceFocusReport(
 }
 
 export function orchestrationGuidance(enabled: boolean, general: boolean) {
-	if (!enabled) return "Work normally. Delegate only when useful or requested.";
-	return general
+	const ownership = "Own the work or delegate it; don't do both.";
+	if (!enabled)
+		return `Work normally. Delegate only when useful or requested. ${ownership}`;
+	const guidance = general
 		? "Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks."
 		: "Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
+	return `${guidance} ${ownership}`;
 }
 export function activeAgentsBriefing(
 	agents: ScopedMonitoredAgent[],

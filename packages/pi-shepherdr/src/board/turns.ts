@@ -20,6 +20,8 @@ export class BoardTurns {
 			ctx: ExtensionContext,
 			request: ActiveEnvelope,
 		) => Promise<unknown>,
+		availability: (ctx: ExtensionContext, error?: unknown) => void,
+		seen: (ctx: ExtensionContext, ids: string[]) => void,
 	) {
 		pi.on("session_start", () => {
 			this.current = undefined;
@@ -32,11 +34,9 @@ export class BoardTurns {
 			this.current = { ctx, turnId };
 			try {
 				await register(ctx, { operation: "board-active", caller: own, turnId });
+				availability(ctx);
 			} catch (error) {
-				ctx.ui.notify(
-					`Board notifications unavailable: ${String(error)}`,
-					"warning",
-				);
+				availability(ctx, error);
 			}
 		});
 		const stop = async () => {
@@ -82,6 +82,7 @@ export class BoardTurns {
 				},
 				{ deliverAs: "steer" },
 			);
+			seen(current.ctx, [request.notice.message_id]);
 			return true;
 		};
 	}

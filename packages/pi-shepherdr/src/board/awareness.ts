@@ -23,12 +23,18 @@ interface AwarenessState {
 export class BoardAwareness {
 	private readonly pi: ExtensionAPI;
 	private readonly read: (ctx: ExtensionContext) => Promise<unknown>;
+	private readonly availability: (
+		ctx: ExtensionContext,
+		error?: unknown,
+	) => void;
 	constructor(
 		pi: ExtensionAPI,
 		read: (ctx: ExtensionContext) => Promise<unknown>,
+		availability: (ctx: ExtensionContext, error?: unknown) => void,
 	) {
 		this.pi = pi;
 		this.read = read;
+		this.availability = availability;
 		registerContextBriefing(
 			pi,
 			"board",
@@ -62,6 +68,59 @@ export class BoardAwareness {
 		this.pi.appendEntry(STATE, state);
 		return state;
 	}
+	seen(ctx: ExtensionContext): string[] {
+		const own = binding(ctx);
+		return ctx.sessionManager.getEntries().flatMap((entry) => {
+			if (
+				entry.type !== "custom" ||
+				entry.customType !== "shepherdr-board-seen"
+			)
+				return [];
+			const data = entry.data as {
+				boardId?: string;
+				agentName?: string;
+				ids?: unknown;
+			};
+			return data?.boardId === own.boardId &&
+				data.agentName === own.agentName &&
+				Array.isArray(data.ids)
+				? data.ids.filter((id): id is string => typeof id === "string")
+				: [];
+		});
+	}
+	markSeen(ctx: ExtensionContext, ids: string[]) {
+		if (!ids.length) return;
+		const own = binding(ctx);
+		this.pi.appendEntry("shepherdr-board-seen", {
+			boardId: own.boardId,
+			agentName: own.agentName,
+			ids,
+		});
+	}
+	markRead(ctx: ExtensionContext, value: unknown) {
+		if (!value || typeof value !== "object") return;
+		const record = value as {
+			message_id?: unknown;
+			root_post?: unknown;
+			results?: unknown;
+		};
+		const posts = [
+			record,
+			record.root_post,
+			...(Array.isArray(record.results) ? record.results : []),
+		];
+		this.markSeen(
+			ctx,
+			posts.flatMap((post) =>
+				post &&
+				typeof post === "object" &&
+				"message_id" in post &&
+				typeof post.message_id === "string"
+					? [post.message_id]
+					: [],
+			),
+		);
+	}
 
 	private async record(ctx: ExtensionContext, windowId?: string) {
 		const own = binding(ctx);
@@ -82,10 +141,11 @@ export class BoardAwareness {
 				)
 					throw new Error("Invalid board population response");
 				population = value.results.length ? "populated" : "empty";
+				this.availability(ctx);
 			} catch (error) {
 				ctx.signal?.throwIfAborted();
 				population = "unavailable";
-				ctx.ui.notify(`Board status unavailable: ${String(error)}`, "warning");
+				this.availability(ctx, error);
 			}
 			ctx.signal?.throwIfAborted();
 			if (!binding(ctx).enabled) return;

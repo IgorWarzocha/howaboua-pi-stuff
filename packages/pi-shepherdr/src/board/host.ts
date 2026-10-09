@@ -10,7 +10,7 @@ import {
 	sessionContextPath,
 } from "../remote/shepherdr-context.mjs";
 import { recordBoardActivityMarker } from "./activity.js";
-import { executeArchive } from "./archive.js";
+import { executeArchive, readSubscribedUpdates } from "./archive.js";
 import { BoardAwareness } from "./awareness.js";
 import {
 	type BoardScope,
@@ -57,19 +57,32 @@ export class AgentBoard {
 	private refreshTools: (() => void) | undefined;
 	private lastSetting: { sessionId: string; enabled: boolean } | undefined;
 	private configError: string | undefined;
+	private availabilityWarning: string | undefined;
 	constructor(pi: ExtensionAPI, fleet: AgentFleet) {
 		this.pi = pi;
 		this.fleet = fleet;
-		this.awareness = new BoardAwareness(pi, (ctx) => this.population(ctx));
-		this.turns = new BoardTurns(pi, (ctx, request) =>
-			this.toOwner(ctx, request),
+		const availability = (ctx: ExtensionContext, error?: unknown) =>
+			this.reportAvailability(ctx, error);
+		this.awareness = new BoardAwareness(
+			pi,
+			(ctx) => this.population(ctx),
+			availability,
+		);
+		this.turns = new BoardTurns(
+			pi,
+			(ctx, request) => this.toOwner(ctx, request),
+			availability,
+			(ctx, ids) => this.awareness.markSeen(ctx, ids),
 		);
 		this.membership = new BoardMembership(
 			pi,
 			(ctx, request) => this.toOwner(ctx, request),
 			this.turns.active,
 		);
-		pi.on("session_start", (_event, ctx) => this.refresh(ctx));
+		pi.on("session_start", (_event, ctx) => {
+			this.availabilityWarning = undefined;
+			return this.refresh(ctx);
+		});
 		pi.on("before_agent_start", async (_event, ctx) => {
 			// Reconcile resumed/offline children before tool/prompt preparation.
 			const own = binding(ctx);
@@ -81,6 +94,7 @@ export class AgentBoard {
 						params: { action: "help" },
 						requestId: "status",
 					});
+					availability(ctx);
 					if (
 						typeof result === "object" &&
 						result !== null &&
@@ -90,15 +104,28 @@ export class AgentBoard {
 					)
 						saveBinding(pi, { ...own, enabled: result.enabled });
 				} catch (error) {
-					if (own.enabled)
-						ctx.ui.notify(
-							`Board owner unavailable: ${String(error)}`,
-							"warning",
-						);
+					if (own.enabled) availability(ctx, error);
 				}
 			}
 			await this.refresh(ctx);
 		});
+	}
+	private reportAvailability(ctx: ExtensionContext, error?: unknown): void {
+		const own = binding(ctx);
+		if (error === undefined || !own.enabled) {
+			this.availabilityWarning = undefined;
+			return;
+		}
+		const message = error instanceof Error ? error.message : String(error);
+		const key = JSON.stringify([
+			own.sessionId,
+			own.boardId,
+			own.upstream,
+			message,
+		]);
+		if (this.availabilityWarning === key) return;
+		this.availabilityWarning = key;
+		ctx.ui.notify(`Board unavailable: ${message}`, "warning");
 	}
 	setToolRefresh(refresh: () => void) {
 		this.refreshTools = refresh;
@@ -137,6 +164,64 @@ export class AgentBoard {
 	}
 	enabled(ctx: ExtensionContext | undefined) {
 		return ctx ? binding(ctx).enabled : false;
+	}
+	async promptCatchup(
+		ctx: ExtensionContext,
+	): Promise<{ content: string; accepted: () => void }> {
+		const empty = { content: "", accepted: () => {} };
+		const own = binding(ctx);
+		if (!own.enabled) return empty;
+		try {
+			const result = await this.toOwner(ctx, {
+				operation: "board-catchup",
+				caller: own,
+				seen: this.awareness.seen(ctx),
+			});
+			if (
+				!Array.isArray(result) ||
+				!result.every(
+					(post) =>
+						post &&
+						typeof post.message_id === "string" &&
+						typeof post.thread_id === "string",
+				)
+			)
+				throw new Error("Invalid board catch-up response");
+			if (
+				!binding(ctx).enabled ||
+				binding(ctx).sessionId !== own.sessionId ||
+				binding(ctx).boardId !== own.boardId ||
+				binding(ctx).agentName !== own.agentName
+			)
+				return empty;
+			this.reportAvailability(ctx);
+			const nested = this.pi
+				.getActiveTools()
+				.some((tool) => ["exec", "code", "notebook"].includes(tool));
+			return {
+				content: result.length
+					? `\n\nBoard updates: ${[
+							...new Set(result.map((post) => post.thread_id)),
+						]
+							.map((thread_id) => {
+								const args = JSON.stringify({
+									action: "read_thread",
+									thread_id,
+								});
+								return nested ? `await tools.board(${args})` : `board ${args}`;
+							})
+							.join("; ")}`
+					: "",
+				accepted: () =>
+					this.awareness.markSeen(
+						ctx,
+						result.map((post) => post.message_id),
+					),
+			};
+		} catch (error) {
+			this.reportAvailability(ctx, error);
+			return empty;
+		}
 	}
 	async refresh(ctx: ExtensionContext) {
 		const own = binding(ctx);
@@ -206,6 +291,8 @@ export class AgentBoard {
 			},
 			ctx.signal,
 		);
+		if (params.action === "read_thread" || params.action === "read_post")
+			this.awareness.markRead(ctx, value);
 		try {
 			recordBoardActivityMarker(this.pi, ctx, params, value, requestId);
 		} catch {
@@ -336,7 +423,9 @@ export class AgentBoard {
 		const own = binding(ctx);
 		if (own.upstream) {
 			try {
-				return await requestContext(own.upstream, request, signal);
+				const result = await requestContext(own.upstream, request, signal);
+				this.reportAvailability(ctx);
+				return result;
 			} catch (error) {
 				if (
 					error instanceof Error &&
@@ -379,6 +468,8 @@ export class AgentBoard {
 			if (own.enabled) this.turns.register(caller, request);
 			return true;
 		}
+		if (request.operation === "board-catchup")
+			return own.enabled ? readSubscribedUpdates(caller, request.seen) : [];
 		if (request.operation !== "board-call")
 			throw new Error("Invalid board owner operation");
 		const params = parseBoardRequest(request.params);

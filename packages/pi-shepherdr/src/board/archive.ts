@@ -5,6 +5,32 @@ import type { BoardBinding } from "./identity.js";
 import { page } from "./paging.js";
 import { boundedBoardRead, checkMutationBudget } from "./response.js";
 
+export async function readSubscribedUpdates(
+	caller: BoardBinding,
+	seen: string[],
+) {
+	if (!existsSync(caller.databasePath)) return [];
+	const { BoardStore } = await import("./store.js");
+	const store = new BoardStore(caller.databasePath, false);
+	try {
+		return store.all<{ message_id: string; thread_id: string }>(
+			`SELECT p.id AS message_id,p.root AS thread_id FROM posts p
+			WHERE p.board_id=? AND p.author<>? AND NOT EXISTS
+			(SELECT 1 FROM json_each(?) WHERE value=p.id) AND EXISTS
+			(SELECT 1 FROM subscriptions s WHERE s.board_id=p.board_id
+			AND s.agent=? AND s.enabled=1 AND s.target=CASE WHEN p.id=p.root
+			THEN 'channel:'||p.channel ELSE 'thread:'||p.root END)
+			ORDER BY p.seq ASC LIMIT 50`,
+			caller.boardId,
+			caller.agentName,
+			JSON.stringify(seen),
+			caller.agentName,
+		);
+	} finally {
+		store.close();
+	}
+}
+
 export async function executeArchive(
 	caller: BoardBinding,
 	memberNames: readonly string[],
