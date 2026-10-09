@@ -107,6 +107,7 @@ export function buildRequestBody<TApi extends Api>(
 	if (serviceTier !== undefined) {
 		body.service_tier = serviceTier;
 	}
+	if (options?.accessPrograms) body.access_programs = options.accessPrograms;
 
 	if (transcriptTools.requestTools.length > 0) {
 		body.tools = convertResponsesTools(transcriptTools.requestTools, {

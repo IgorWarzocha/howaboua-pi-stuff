@@ -1,16 +1,20 @@
 import type { FastModeConfig, FastModeFamily } from "./config-contract.ts";
 import { isObject, normalizeBoolean } from "./config-values.ts";
 
+function normalizeFastModeValue(value: unknown, fallback: boolean | "ultrafast"): boolean | "ultrafast" {
+	return value === "ultrafast" ? value : normalizeBoolean(value, fallback === "ultrafast" ? false : fallback);
+}
+
 export function normalizeFastMode(value: unknown): FastModeConfig {
 	// Booleans applied to every model, including families we do not recognize.
-	const fallback = typeof value === "boolean" ? value : false;
+	const fallback = typeof value === "boolean" || value === "ultrafast" ? value : false;
 	const families = isObject(value) ? value : {};
 	return {
-		astra: normalizeBoolean(families["astra"], fallback),
-		sol: normalizeBoolean(families["sol"], fallback),
-		terra: normalizeBoolean(families["terra"], fallback),
-		luna: normalizeBoolean(families["luna"], fallback),
-		other: normalizeBoolean(families["other"], fallback),
+		astra: normalizeFastModeValue(families["astra"] ?? fallback, fallback),
+		sol: normalizeFastModeValue(families["sol"] ?? fallback, fallback),
+		terra: normalizeFastModeValue(families["terra"] ?? fallback, fallback),
+		luna: normalizeFastModeValue(families["luna"] ?? fallback, fallback),
+		other: normalizeFastModeValue(families["other"] ?? fallback, fallback),
 	};
 }
 
@@ -23,11 +27,14 @@ function resolveFastModeFamily(modelId: string | undefined): FastModeFamily | un
 		? family : undefined;
 }
 
-export function allModelsFastModeState(fast: FastModeConfig): "on" | "off" | "mixed" {
+export function allModelsFastModeState(fast: FastModeConfig): "on" | "off" | "ultrafast" | "mixed" {
 	const values = Object.values(fast);
-	return values.every(Boolean) ? "on" : values.some(Boolean) ? "mixed" : "off";
+	return values.every((value) => value === "ultrafast") ? "ultrafast"
+		: values.every((value) => value === true) ? "on"
+		: values.every((value) => value === false) ? "off" : "mixed";
 }
 
-export function isFastModeEnabled(fast: FastModeConfig, modelId: string | undefined): boolean {
-	return fast[resolveFastModeFamily(modelId) ?? "other"];
+export function resolveFastModeServiceTier(fast: FastModeConfig, modelId: string | undefined): "priority" | "ultrafast" | undefined {
+	const value = fast[resolveFastModeFamily(modelId) ?? "other"];
+	return value === "ultrafast" ? "ultrafast" : value ? "priority" : undefined;
 }

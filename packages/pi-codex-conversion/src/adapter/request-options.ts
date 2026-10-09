@@ -1,5 +1,5 @@
 import { isObject, type CodexConversionConfig } from "./activation/config.ts";
-import { isFastModeEnabled } from "./activation/fast-mode.ts";
+import { resolveFastModeServiceTier } from "./activation/fast-mode.ts";
 
 export function applyCodexRequestOptions(
 	payload: unknown,
@@ -9,9 +9,10 @@ export function applyCodexRequestOptions(
 	if (!isObject(payload)) return payload;
 	const text = isObject(payload["text"]!) ? payload["text"]! : {};
 	const modelId = typeof payload["model"] === "string" ? payload["model"] : options.modelId;
+	const serviceTier = options.serviceTier ? resolveFastModeServiceTier(config.openai.fast, modelId) : undefined;
 	return {
 		...payload,
-		...(options.serviceTier && isFastModeEnabled(config.openai.fast, modelId) ? { service_tier: "priority" } : {}),
+		...(serviceTier ? { service_tier: serviceTier } : {}),
 		...(options.verbosity ? { text: { ...text, verbosity: config.openai.verbosity } } : {}),
 	};
 }

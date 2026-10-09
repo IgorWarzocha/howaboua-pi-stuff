@@ -12,7 +12,6 @@ import {
 	type Usage,
 } from "@earendil-works/pi-ai";
 import type {
-	ResponseCreateParamsStreaming,
 	ResponseInput as OpenAIResponseInput,
 	ResponseOutputMessage,
 	ResponseInputItem,
@@ -30,6 +29,7 @@ import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
 import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, recordedResponsesNamespace, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
+import type { ServiceTier } from "../openai-codex/types.ts";
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
 type ImageContentWithDetail = { type: "image"; data: string; mimeType: string; detail?: ImageDetail | undefined };
@@ -39,13 +39,13 @@ type ResponseInput = Array<Exclude<OpenAIResponseInput[number], ResponseOutputMe
 	(Omit<ResponseOutputMessage, "phase"> & { phase?: TextSignaturePhase | null })>;
 
 export interface OpenAIResponsesStreamOptions {
-	serviceTier?: ResponseCreateParamsStreaming["service_tier"] | undefined;
+	serviceTier?: ServiceTier;
 	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 	resolveServiceTier?: (
-		responseServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
-		requestServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
-	) => ResponseCreateParamsStreaming["service_tier"] | undefined;
-	applyServiceTierPricing?: (usage: Usage, serviceTier: ResponseCreateParamsStreaming["service_tier"] | undefined) => void;
+		responseServiceTier: ServiceTier,
+		requestServiceTier: ServiceTier,
+	) => ServiceTier;
+	applyServiceTierPricing?: (usage: Usage, serviceTier: ServiceTier) => void;
 	onOutputItemDone?: (item: unknown) => void;
 }
 

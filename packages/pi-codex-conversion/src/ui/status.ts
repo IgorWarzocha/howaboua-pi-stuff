@@ -3,7 +3,7 @@ import type { AdapterState } from "../adapter/activation/state.ts";
 import type { CodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { STATUS_KEY, buildStatusText } from "../adapter/activation/tool-set.ts";
 import { isResponsesContext } from "../adapter/prompt/codex-model.ts";
-import { isFastModeEnabled } from "../adapter/activation/fast-mode.ts";
+import { resolveFastModeServiceTier } from "../adapter/activation/fast-mode.ts";
 
 export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" }>): void {
 	if (!ctx.hasUI) return;
@@ -12,11 +12,14 @@ export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, pl
 		return;
 	}
 	const config = state.config;
+	const fast = plan.effectiveOpenAICodex ? resolveFastModeServiceTier(config.openai.fast, ctx.model?.id) : undefined;
 	ctx.ui.setStatus(STATUS_KEY, buildStatusText({
 		mode: plan.kind,
 		useOnAllModels: config.scope.allProviders === "on",
 		additionalProvider: plan.configuredProvider,
-		fast: plan.effectiveOpenAICodex && isFastModeEnabled(config.openai.fast, ctx.model?.id),
+		fast,
+		baseTierEstimate: fast === "ultrafast" && ctx.model?.id !== "gpt-6-astra" && ctx.model?.id !== "gpt-6.1-sol",
+		daybreak: plan.codexTransport ? config.openai.daybreak : undefined,
 		contextManagement: plan.contextManagementMode,
 		compaction: plan.nativeCompaction,
 		usageStatus: state.usageStatus,

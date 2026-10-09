@@ -3,7 +3,7 @@ import type { ExecutionMode } from "./execution-mode.ts";
 export type CodexVerbosity = "low" | "medium" | "high";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
 export type FastModeFamily = (typeof FAST_MODE_FAMILIES)[number];
-export type FastModeConfig = Record<FastModeFamily | "other", boolean>;
+export type FastModeConfig = Record<FastModeFamily | "other", boolean | "ultrafast">;
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type CompactToolsMode = "off" | "on" | "minimal";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
@@ -106,6 +106,7 @@ export interface CodexConversionConfig {
 	};
 	openai: {
 		fast: FastModeConfig;
+		daybreak: boolean;
 		verbosity: CodexVerbosity;
 		lunaCacheKeepaliveMinutes: LunaCacheKeepaliveMinutes;
 		cacheKeepalive: boolean;
@@ -171,6 +172,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	openai: {
 		fast: { astra: false, sol: false, terra: false, luna: false, other: false },
+		daybreak: false,
 		verbosity: "low",
 		lunaCacheKeepaliveMinutes: 0,
 		cacheKeepalive: false,

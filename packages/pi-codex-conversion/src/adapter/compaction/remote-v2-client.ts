@@ -99,6 +99,7 @@ function withCurrentCompactionControls(
 	const {
 		client_metadata: _canonicalMetadata,
 		service_tier: _canonicalServiceTier,
+		access_programs: _canonicalAccessPrograms,
 		temperature: _canonicalTemperature,
 		text: _canonicalText,
 		...historyBody
@@ -107,6 +108,7 @@ function withCurrentCompactionControls(
 		...historyBody,
 		text: structuredClone(currentBody.text),
 		...(currentBody.service_tier !== undefined ? { service_tier: currentBody.service_tier } : {}),
+		...(currentBody.access_programs ? { access_programs: structuredClone(currentBody.access_programs) } : {}),
 		...(currentBody.temperature !== undefined ? { temperature: currentBody.temperature } : {}),
 		...(currentBody.client_metadata ? { client_metadata: structuredClone(currentBody.client_metadata) } : {}),
 	};
@@ -142,7 +144,8 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		...(options.runtime.codexTransport ? { canonicalCompaction: true } : {}),
 		compactionDiagnostics: compactionDiagnostic,
 		maxRetries: options.runtime.codexTransport ? MAX_STREAM_RETRIES : 0,
-		...(typeof options.requestOptions.service_tier === "string" ? { serviceTier: options.requestOptions.service_tier as never } : {}),
+		...(options.requestOptions.service_tier ? { serviceTier: options.requestOptions.service_tier } : {}),
+		...(options.requestOptions.access_programs ? { accessPrograms: options.requestOptions.access_programs } : {}),
 		...(options.requestOptions.text?.verbosity ? { textVerbosity: options.requestOptions.text.verbosity } : {}),
 		onOutputItemDone: (item) => outputItems.push(item),
 		onResponse: (response) => { responseStatus = response.status; },

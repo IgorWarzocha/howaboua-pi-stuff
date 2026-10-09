@@ -130,6 +130,7 @@ export function hasCodexTransportConfigChanged(previous: CodexConversionConfig, 
 		|| next.executionMode !== previous.executionMode
 		|| next.prompt.heavySystemPromptOverwrite !== previous.prompt.heavySystemPromptOverwrite
 		|| [...FAST_MODE_FAMILIES, "other" as const].some((family) => next.openai.fast[family] !== previous.openai.fast[family])
+		|| next.openai.daybreak !== previous.openai.daybreak
 		|| next.openai.harnessIdentifierHeader !== previous.openai.harnessIdentifierHeader
 		|| nativeCompactionConfigured(next.compaction) !== nativeCompactionConfigured(previous.compaction)
 		|| next.compaction.continuity !== previous.compaction.continuity

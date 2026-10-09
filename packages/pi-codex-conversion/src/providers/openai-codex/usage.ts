@@ -1,8 +1,16 @@
 import { calculateCost, type Api, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
 import type { CodexPrewarmUsage, ServiceTier } from "./types.ts";
 
+export function readServiceTier(value: unknown): ServiceTier {
+	return value === "auto" || value === "default" || value === "flex" || value === "scale"
+		|| value === "priority" || value === "fast" || value === "ultrafast" ? value : undefined;
+}
+
 function getServiceTierCostMultiplier(model: Model<Api>, serviceTier: ServiceTier): number {
 	switch (serviceTier) {
+		case "ultrafast":
+			// Published Ultrafast prices are six times Standard for these models only.
+			return model.id === "gpt-6-astra" || model.id === "gpt-6.1-sol" ? 6 : 1;
 		case "flex":
 			return 0.5;
 		case "priority":
@@ -24,7 +32,7 @@ export function applyServiceTierPricing(usage: AssistantMessage["usage"], servic
 }
 
 export function resolveCodexServiceTier(responseServiceTier: ServiceTier, requestServiceTier: ServiceTier): ServiceTier {
-	if (responseServiceTier === "default" && (requestServiceTier === "flex" || requestServiceTier === "priority")) {
+	if (responseServiceTier === "default" && (requestServiceTier === "flex" || requestServiceTier === "priority" || requestServiceTier === "ultrafast")) {
 		return requestServiceTier;
 	}
 	return responseServiceTier ?? requestServiceTier;

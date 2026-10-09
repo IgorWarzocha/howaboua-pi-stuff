@@ -78,6 +78,7 @@ export function migrateCodexConversionConfigIfNeeded(
 		},
 		openai: {
 			fast: normalizeFastMode(value["fast"]),
+			daybreak: DEFAULT_CODEX_CONVERSION_CONFIG.openai.daybreak,
 			verbosity: normalizeCodexVerbosity(value["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			lunaCacheKeepaliveMinutes: DEFAULT_CODEX_CONVERSION_CONFIG.openai.lunaCacheKeepaliveMinutes,
 			cacheKeepalive: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheKeepalive,

@@ -158,7 +158,7 @@ export function hasFolderCodexConversionConfig(cwd: string, projectTrusted: bool
 function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.ProcessEnv): CodexConversionConfig {
 	const cacheEnvironment = readCodexCacheEnvironment(env);
 	const fast = env["PI_CODEX_FAST"]?.trim().toLowerCase();
-	const fastOverride = fast === "1" || fast === "true"
+	const fastOverride = fast === "ultrafast" ? "ultrafast" : fast === "1" || fast === "true"
 		? true
 		: fast === "0" || fast === "false"
 			? false

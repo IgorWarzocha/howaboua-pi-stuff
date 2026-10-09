@@ -12,28 +12,38 @@ export function buildOpenAISettings(
 	config: CodexConversionConfig,
 ): ConfigSetting[] {
 	return [
+		toggle(
+			"daybreak",
+			"Daybreak",
+			config.openai.daybreak,
+			(enabled, current) => ({ ...current, openai: { ...current.openai, daybreak: enabled } }),
+			"Use the connected Codex account's advertised Daybreak access without changing the model. Turn off to continue if support cannot be confirmed.",
+		),
 		setting(
 			{
 				id: "fast-all",
 				label: "All models Fast Mode",
 				currentValue: allModelsFastModeState(config.openai.fast),
-				values: ["off", "on"],
-				description: "Set Fast Mode for every model. Family controls can then be changed individually. May use more quota or cost more.",
+				values: ["off", "on", "ultrafast"],
+				description: "Set speed for every model, then override families individually. Ultrafast requires access; prices are estimated at base rates where unpublished.",
 			},
 			(value, current) => ({
 				...current,
-				openai: { ...current.openai, fast: normalizeFastMode(value === "on") },
+				openai: { ...current.openai, fast: normalizeFastMode(value === "ultrafast" ? value : value === "on") },
 			}),
 		),
-		...FAST_MODE_FAMILIES.map((family) => toggle(
-			`fast-${family}`,
-			`${family[0]!.toUpperCase()}${family.slice(1)} Fast Mode`,
-			config.openai.fast[family],
-			(enabled, current) => ({
+		...FAST_MODE_FAMILIES.map((family) => setting(
+			{
+				id: `fast-${family}`,
+				label: `${family[0]!.toUpperCase()}${family.slice(1)} Fast Mode`,
+				currentValue: config.openai.fast[family] === "ultrafast" ? "ultrafast" : config.openai.fast[family] ? "on" : "off",
+				values: ["off", "on", "ultrafast"],
+				description: "Request priority (on) or ultrafast across versions. Requires access; unpublished ultrafast prices use base estimates.",
+			},
+			(value, current) => ({
 				...current,
-				openai: { ...current.openai, fast: { ...current.openai.fast, [family]: enabled } },
+				openai: { ...current.openai, fast: { ...current.openai.fast, [family]: value === "ultrafast" ? value : value === "on" } },
 			}),
-			"Request priority processing for this family across model versions. May use more quota or cost more.",
 		)),
 		{
 			item: {
