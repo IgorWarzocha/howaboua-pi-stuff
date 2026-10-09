@@ -1,5 +1,10 @@
 # @howaboua/pi-ask
 
+## 0.0.12
+
+- ### Improvements
+  - Ask returns help when called without arguments, including an empty structured object. Explicit help remains supported.
+
 ## 0.0.11
 
 - Parents can receive and answer asynchronous questions through Shepherdr while workers continue.

@@ -1,5 +1,13 @@
 # @howaboua/pi-browser
 
+## 0.0.8
+
+- ### Improvements
+  - Browser returns help when called without arguments, including an empty structured object. Explicit help remains supported.
+
+  ### Fixes
+  - Screenshots bring the target tab to the foreground, avoiding capture timeouts caused by background focus emulation.
+
 ## 0.0.7
 
 - Browser operations tolerate unused `response_length` hints. Page-length controls for `open` and `find` are unchanged.

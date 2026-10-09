@@ -1,5 +1,10 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.8
+
+- ### Improvements
+  - Skills returns its catalog with command guidance when called without arguments. Explicit help remains supported.
+
 ## 0.0.7
 
 - Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands.

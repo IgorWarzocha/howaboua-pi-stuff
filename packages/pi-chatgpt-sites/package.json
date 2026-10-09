@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-chatgpt-sites",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "ChatGPT Sites management for Pi, Code Mode and Notebook",
 	"type": "module",
 	"license": "MIT",
@@ -12,7 +12,9 @@
 	"files": [
 		"dist",
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -24,6 +26,7 @@
 	},
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./dist/index.js"
 		]
 	},
@@ -40,7 +43,8 @@
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.1.0",
-		"typebox": "*"
+		"typebox": "*",
+		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"publishConfig": {
 		"access": "public"
