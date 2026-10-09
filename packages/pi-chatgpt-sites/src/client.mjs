@@ -26,7 +26,7 @@ export class SitesClient {
 		const initialized = await this.rpc("initialize", {
 			protocolVersion: "2025-03-26",
 			capabilities: {},
-			clientInfo: { name: "pi-sites", version: "0.1.0" },
+			clientInfo: { name: "pi-chatgpt-sites", version: "0.1.0" },
 		});
 		this.headers["mcp-protocol-version"] =
 			initialized?.protocolVersion ?? "2025-03-26";

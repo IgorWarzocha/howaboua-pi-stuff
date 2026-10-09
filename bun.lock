@@ -466,8 +466,8 @@
         "@howaboua/pi-codex-conversion",
       ],
     },
-    "packages/pi-sites": {
-      "name": "@howaboua/pi-sites",
+    "packages/pi-chatgpt-sites": {
+      "name": "@howaboua/pi-chatgpt-sites",
       "version": "0.0.0",
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.1.0",
@@ -857,7 +857,7 @@
 
     "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
 
-    "@howaboua/pi-sites": ["@howaboua/pi-sites@workspace:packages/pi-sites"],
+    "@howaboua/pi-chatgpt-sites": ["@howaboua/pi-chatgpt-sites@workspace:packages/pi-chatgpt-sites"],
 
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
 

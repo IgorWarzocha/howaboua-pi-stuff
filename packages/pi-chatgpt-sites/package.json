@@ -1,5 +1,5 @@
 {
-	"name": "@howaboua/pi-sites",
+	"name": "@howaboua/pi-chatgpt-sites",
 	"version": "0.0.0",
 	"description": "ChatGPT Sites management for Pi, Code Mode and Notebook",
 	"type": "module",
@@ -7,7 +7,7 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-sites"
+		"directory": "packages/pi-chatgpt-sites"
 	},
 	"files": [
 		"index.ts",

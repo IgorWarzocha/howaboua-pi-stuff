@@ -1,9 +1,9 @@
-# Pi Sites
+# Pi ChatGPT Sites
 
 Manage ChatGPT Sites from Pi: inspect sites, save committed source, deploy saved versions, and read access, environment, domains, analytics, logs, database tables, and schedules.
 
 ```sh
-pi install npm:@howaboua/pi-sites
+pi install npm:@howaboua/pi-chatgpt-sites
 ```
 
 Sign in with `/login openai-codex` using the legacy OpenAI Codex provider. The account must have Sites access. The extension uses Pi's authentication and refresh, not a separate token file.
