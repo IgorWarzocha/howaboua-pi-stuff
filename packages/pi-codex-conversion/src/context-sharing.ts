@@ -1,6 +1,7 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ContextAgentBinding, ContextAgentIdentity } from "./context-management/agent-identity.js";
 import type { NoteSnapshotData } from "./context-management/local-notes.js";
+import type { SerializedNotesResponse } from "./context-management/external-notes-protocol.js";
 export type { NoteSnapshotData } from "./context-management/local-notes.js";
 
 export type { ContextAgentBinding, ContextAgentIdentity } from "./context-management/agent-identity.js";
@@ -14,7 +15,10 @@ export interface SharedContextRequest {
 	encryptedArguments?: boolean;
 }
 
-export type SharedContextResult = AgentToolResult<{ codexHistoryNotes: Record<string, unknown> }>;
+export type SharedContextResult = AgentToolResult<{
+	codexHistoryNotes: Record<string, unknown>;
+	externalNotesResponses?: SerializedNotesResponse[];
+}>;
 
 export type ContextRouter = ((ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => Promise<SharedContextResult | undefined>) & {
 	requiresRemoteScope?(ctx: ExtensionContext): boolean;

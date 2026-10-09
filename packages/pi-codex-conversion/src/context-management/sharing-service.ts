@@ -10,6 +10,7 @@ import { CONTEXT_AGENT_ENTRY, CONTEXT_BACKEND_ENTRY, contextAccountScope, contex
 import { createPiSessionNotesSnapshot, readPiSessionNotesSnapshot } from "./local-notes.ts";
 import { executeRemoteAttachment } from "./history-notes.ts";
 import { readRemoteNoteReference, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
+import type { NotesOwner } from "./external-notes-protocol.ts";
 
 async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string, backendUrl?: string): Promise<string> {
 	const provider = await resolveRemoteContextProvider(ctx);
@@ -23,6 +24,7 @@ export function registerContextSharingService(
 	pi: ExtensionAPI,
 	plan: (ctx: ExtensionContext) => Pick<CodexRuntimePlan, "contextManagementMode" | "shareSubagentContext">,
 	execute: (ctx: ExtensionContext, request: SharedContextRequest, signal?: AbortSignal) => Promise<SharedContextResult>,
+	externalOwner: () => NotesOwner | undefined = () => undefined,
 ): ContextRouter {
 	let router: ContextRouter | undefined;
 	const preparedAttachments = new WeakMap<ExtensionContext, { native: ReturnType<ContextSharingService["describe"]>; identity: NonNullable<ReturnType<ContextSharingService["describe"]>>; model: string }>();
@@ -105,9 +107,10 @@ export function registerContextSharingService(
 					if (!isDeepStrictEqual(current, identity)) throw new Error("An existing context identity cannot be rebound");
 					return true;
 				}
-				if (!ctx.isIdle() || ctx.sessionManager.getEntries().some((entry) =>
+				const owner = externalOwner();
+				if (!ctx.isIdle() || (owner ? !owner.canBind?.(ctx) : ctx.sessionManager.getEntries().some((entry) =>
 					entry.type === "message" || entry.type === "custom_message" || entry.type === "compaction" || entry.type === "branch_summary" ||
-					(entry.type === "custom" && entry.customType.startsWith("codex-context-"))))
+					(entry.type === "custom" && entry.customType.startsWith("codex-context-")))))
 					throw new Error("Shared context can bind only a fresh, idle Pi session before its first turn");
 				if (binding.storage === "session" && !router) throw new Error("Local and Tree sharing require a registered context router");
 				return false;
@@ -151,7 +154,10 @@ export function registerContextSharingService(
 			if (!identity) throw new Error("Checkpoint export requires notes-based continuity");
 			if (identity.storage === "remote") return Promise.resolve(inspectAttachment(ctx, false)).then(verified =>
 				({ protocol: 1 as const, storage: "remote" as const, timestamp: Date.now(), identity: verified, baseUrl: verified.backendUrl! }));
-			const snapshot = createPiSessionNotesSnapshot(ctx.sessionManager.getBranch());
+			const owner = externalOwner();
+			if (owner && !owner.snapshotNotes) throw new Error("Checkpoint export is unavailable for this notes owner");
+			const snapshot = owner ? owner.snapshotNotes!(ctx.sessionManager.getBranch(), identity.agentName)
+				: createPiSessionNotesSnapshot(ctx.sessionManager.getBranch());
 			return { ...snapshot, files: snapshot.files.filter((file) => contextTargetAgent("notes", { path: file.path }, identity.agentName) === identity.agentName) };
 		},
 		validateAttachmentNotes(snapshot, identity) {
@@ -181,7 +187,10 @@ export function registerContextSharingService(
 					(entry.type === "branch_summary" && "details" in entry))) throw new Error("Invalid persisted checkpoint entry");
 				return entry as SessionEntry;
 			});
-			const snapshot = createPiSessionNotesSnapshot(entries, undefined, true);
+			const owner = externalOwner();
+			if (owner && !owner.snapshotNotes) throw new Error("Saved checkpoints are unavailable for this notes owner");
+			const snapshot = owner ? owner.snapshotNotes!(entries, identity.agentName)
+				: createPiSessionNotesSnapshot(entries, undefined, true);
 			return { ...snapshot, files: snapshot.files.filter((file) => contextTargetAgent("notes", { path: file.path }, identity.agentName) === identity.agentName) };
 		},
 		readAttachmentNotes(snapshot, params) {

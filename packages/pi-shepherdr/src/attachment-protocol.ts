@@ -112,7 +112,11 @@ export function remapResult(
 	to: string,
 ): SharedContextResult {
 	if (
-		typeof result.details.codexHistoryNotes["encrypted_output"] === "string"
+		typeof result.details.codexHistoryNotes["encrypted_output"] === "string" ||
+		("externalNotesResponses" in result.details &&
+			Array.isArray(result.details.externalNotesResponses) &&
+			result.details.externalNotesResponses.length > 0) ||
+		Object.keys(result.details.codexHistoryNotes).length === 0
 	) {
 		const hint = `Source ${from}, access through ${to}. Use ${to}/notes for note paths and ${to} for history agent_name`;
 		// Ciphertext paths cannot be remapped. Preserve host-only provenance on the original details.
@@ -132,7 +136,7 @@ export function remapResult(
 	return {
 		...result,
 		content: [{ type: "text", text: JSON.stringify(details) }],
-		details: { codexHistoryNotes: details },
+		details: { ...result.details, codexHistoryNotes: details },
 	};
 }
 

@@ -11,10 +11,16 @@ import {
 	TOOL_NAMES,
 } from "./bridge.js";
 import { NotesLifecycle } from "./lifecycle.js";
-import { sessionRef } from "./notes.js";
+import { exportNotesSnapshot, sessionRef } from "./notes.js";
 import { readNormalCompaction, writeNormalCompaction } from "./settings.js";
 import { NotesStore } from "./store.js";
-import { createTools, HISTORY_USAGE, NOTES_USAGE } from "./tools.js";
+import {
+	createSharedExecutor,
+	createTools,
+	HISTORY_USAGE,
+	NOTES_USAGE,
+} from "./tools.js";
+import { WINDOW_MESSAGE, windowDetails } from "./windows.js";
 
 const HELP =
 	"Use /notes status, /notes prune, or /notes compact on|off. Compaction is off by default. When enabled, new_context also runs the normal installed Pi/PCC compaction flow.";
@@ -34,6 +40,31 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			lifecycle.windows.current ? { ...lifecycle.windows.current } : undefined,
 		projectMessages: (messages) => lifecycle.windows.projectMessages(messages),
 		projectBranch: (entries) => lifecycle.windows.projectBranch(entries),
+		canBind: (ctx) =>
+			lifecycle.active &&
+			ctx.isIdle() &&
+			ctx.sessionManager.getEntries().every((entry) => {
+				if (
+					["model_change", "thinking_level_change", "session_info"].includes(
+						entry.type,
+					)
+				)
+					return true;
+				if (
+					entry.type !== "custom_message" ||
+					entry.customType !== WINDOW_MESSAGE
+				)
+					return false;
+				const details = windowDetails(entry);
+				return Boolean(
+					details &&
+						details.identity.windowNumber === 0 &&
+						!details.trim &&
+						(details.kind === "window" || details.kind === "identity"),
+				);
+			}),
+		snapshotNotes: exportNotesSnapshot,
+		executeShared: createSharedExecutor(pi, store, lifecycle),
 	};
 	const stopOwner = pi.events.on(OWNER_CHANNEL, (data) => {
 		if (!data || typeof data !== "object") return;

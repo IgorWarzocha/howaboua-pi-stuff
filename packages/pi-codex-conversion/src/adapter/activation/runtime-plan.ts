@@ -262,6 +262,7 @@ export function resolveCodexRuntimePlanForState(
 	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames" | "externalNotes">,
 ): CodexRuntimePlan {
 	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode, Boolean(state.externalNotes));
+	if (state.externalNotes) plan.shareSubagentContext = state.config.compaction.shareSubagentContext;
 	if (state.externalNotes && (plan.kind === "inactive" || plan.kind === "extras"))
 		plan.ownedToolNames = plan.ownedToolNames.filter(name => !CONTEXT_MANAGEMENT_TOOL_NAMES.includes(name));
 	if (state.externalNotes && plan.kind === "extras")

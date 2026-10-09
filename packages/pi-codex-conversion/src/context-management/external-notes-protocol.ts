@@ -43,6 +43,15 @@ export interface NotesOwner {
 	identity(ctx: ExtensionContext): WindowIdentity | undefined;
 	projectMessages(messages: readonly AgentMessage[]): AgentMessage[];
 	projectBranch(entries: readonly SessionEntry[]): SessionEntry[];
+	/** Only this owner's pristine initialization may precede a family binding. */
+	canBind?(ctx: ExtensionContext): boolean;
+	snapshotNotes?(entries: readonly SessionEntry[], agentName: string): import("./local-notes.ts").NoteSnapshotData;
+	/** Executes with live write accounting; protected responses remain transport-safe until reader delivery. */
+	executeShared?(query: LookupQuery, callId: string, ctx: ExtensionContext, signal?: AbortSignal): Promise<import("../context-sharing.ts").SharedContextResult>;
+}
+
+export interface SerializedNotesResponse extends Omit<CachedResponse, "bytes"> {
+	bytesBase64: string;
 }
 
 export interface NotesBridge {

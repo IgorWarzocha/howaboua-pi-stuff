@@ -6,7 +6,12 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import type { CachedResponse, LookupQuery } from "./bridge.js";
+import type {
+	CachedResponse,
+	LookupQuery,
+	SerializedCachedResponse,
+	SharedNotesDetails,
+} from "./bridge.js";
 import { queryKey } from "./bridge.js";
 import { useHistory } from "./history.js";
 import type { NotesLifecycle } from "./lifecycle.js";
@@ -201,6 +206,7 @@ async function hybrid(
 	callId: string,
 	ctx: ExtensionContext,
 	signal?: AbortSignal,
+	shared = false,
 ): Promise<AgentToolResult<unknown>> {
 	let responses: readonly CachedResponse[] = store.cached(
 		sourceSessionIds(ctx),
@@ -241,7 +247,8 @@ async function hybrid(
 		}
 	}
 	const canProject =
-		Boolean(bridge?.projectResult) && bridge?.canProject?.(ctx) !== false;
+		shared ||
+		(Boolean(bridge?.projectResult) && bridge?.canProject?.(ctx) !== false);
 	if (responses.length && !canProject) state = "incompatible";
 	const remote = {
 		state,
@@ -269,6 +276,19 @@ async function hybrid(
 			: {}),
 	};
 	const output = result({ source: "local", local, remote });
+	if (shared)
+		return {
+			...output,
+			details: {
+				codexHistoryNotes: {},
+				externalNotesResponses: responses.map(
+					({ bytes, ...response }): SerializedCachedResponse => ({
+						...response,
+						bytesBase64: Buffer.from(bytes).toString("base64"),
+					}),
+				),
+			},
+		};
 	if (responses.length && canProject && bridge?.projectResult) {
 		try {
 			return await bridge.projectResult(output, responses, callId, ctx, signal);
@@ -281,6 +301,168 @@ async function hybrid(
 	return output;
 }
 
+function createQueryExecutor(
+	pi: ExtensionAPI,
+	store: NotesStore,
+	lifecycle: NotesLifecycle,
+	shared = false,
+) {
+	const assertActive = () => {
+		if (!lifecycle.active)
+			throw new Error("Notes continuity is unavailable in this session");
+	};
+	async function notes(
+		callId: string,
+		input: unknown,
+		signal: AbortSignal | undefined,
+		ctx: ExtensionContext,
+	): Promise<AgentToolResult<unknown>> {
+		const help = discovery("notes", input);
+		if (help) return help;
+		assertActive();
+		const raw = relevant("notes", input);
+		const routed =
+			!shared &&
+			(await lifecycle.bridge?.route?.(
+				{ namespace: "notes", params: raw },
+				callId,
+				ctx,
+				signal,
+			));
+		if (routed) return routed;
+		const params = relevant(
+			"notes",
+			normalizeNoteParams(raw, lifecycle.agent(ctx)),
+		);
+		if (signal?.aborted) throw new Error("Note operation cancelled");
+		const local = useNotes(
+			pi,
+			store,
+			params,
+			ctx,
+			lifecycle.agent(ctx),
+			lifecycle.windows.current?.currentWindowId ?? "",
+			lifecycle.runId,
+			shared,
+		);
+		if (
+			params["action"] === "write_file" ||
+			params["action"] === "append_to_file"
+		)
+			return {
+				...result(local),
+				details: {
+					...(shared
+						? { codexHistoryNotes: {}, notesCompactionRouted: true }
+						: {
+								notesCompaction: {
+									protocol: 1,
+									saved: true,
+									runId: lifecycle.runId,
+								},
+							}),
+				},
+			};
+		const notes = collectNotes(store, ctx.sessionManager.getBranch());
+		if (
+			params["action"] === "read_file" &&
+			notes.get(params["path"] as string)?.mode === "replace"
+		)
+			return result({
+				source: "local",
+				local,
+				remote: { state: "superseded_by_local_replacement" },
+			});
+		const replacements = [...notes.values()]
+			.filter((note) => note.mode === "replace")
+			.map((note) => `${lifecycle.agent(ctx)}/notes/${note.path}`);
+		const remoteParams = { ...params };
+		for (const field of ["path", "prefix", "path_prefix"])
+			if (typeof remoteParams[field] === "string")
+				remoteParams[field] =
+					`${lifecycle.agent(ctx)}/notes${remoteParams[field] ? `/${remoteParams[field]}` : ""}`;
+		return hybrid(
+			pi,
+			store,
+			lifecycle,
+			{ namespace: "notes", params: remoteParams },
+			{
+				...local,
+				...(replacements.length
+					? {
+							local_replacements_authoritative: replacements.slice(0, 100),
+							replacements_truncated: replacements.length > 100,
+						}
+					: {}),
+			},
+			callId,
+			ctx,
+			signal,
+			shared,
+		);
+	}
+	async function history(
+		callId: string,
+		input: unknown,
+		signal: AbortSignal | undefined,
+		ctx: ExtensionContext,
+	): Promise<AgentToolResult<unknown>> {
+		const help = discovery("history", input);
+		if (help) return help;
+		assertActive();
+		const params = relevant("history", input);
+		const query = { namespace: "history", params } as const;
+		const routed =
+			!shared && (await lifecycle.bridge?.route?.(query, callId, ctx, signal));
+		if (routed) return routed;
+		if (params["agent_name"] && params["agent_name"] !== lifecycle.agent(ctx))
+			throw new Error(
+				"That agent's history is not available here. Omit agent_name to search this session.",
+			);
+		return hybrid(
+			pi,
+			store,
+			lifecycle,
+			query,
+			useHistory(
+				ctx.sessionManager.getBranch(),
+				params,
+				ctx.sessionManager.getSessionId(),
+			),
+			callId,
+			ctx,
+			signal,
+			shared,
+		);
+	}
+	return { notes, history };
+}
+
+export function createSharedExecutor(
+	pi: ExtensionAPI,
+	store: NotesStore,
+	lifecycle: NotesLifecycle,
+) {
+	const queries = createQueryExecutor(pi, store, lifecycle, true);
+	return async (
+		query: LookupQuery,
+		callId: string,
+		ctx: ExtensionContext,
+		signal?: AbortSignal,
+	): Promise<AgentToolResult<SharedNotesDetails>> => {
+		const output = await queries[query.namespace](
+			callId,
+			query.params,
+			signal,
+			ctx,
+		);
+		return {
+			...output,
+			details: { codexHistoryNotes: {}, ...(output.details as object) },
+		};
+	};
+}
+
 export function createTools(
 	pi: ExtensionAPI,
 	store: NotesStore,
@@ -290,6 +472,7 @@ export function createTools(
 		if (!lifecycle.active)
 			throw new Error("Notes continuity is unavailable in this session");
 	};
+	const queries = createQueryExecutor(pi, store, lifecycle);
 	return [
 		{
 			name: "notes",
@@ -312,83 +495,8 @@ export function createTools(
 				}
 				return params;
 			},
-			async execute(callId, input, signal, _update, ctx) {
-				const help = discovery("notes", input);
-				if (help) return help;
-				assertActive();
-				const raw = relevant("notes", input);
-				const routed = await lifecycle.bridge?.route?.(
-					{ namespace: "notes", params: raw },
-					callId,
-					ctx,
-					signal,
-				);
-				if (routed) return routed;
-				const params = relevant(
-					"notes",
-					normalizeNoteParams(raw, lifecycle.agent(ctx)),
-				);
-				if (signal?.aborted) throw new Error("Note operation cancelled");
-				const local = useNotes(
-					pi,
-					store,
-					params,
-					ctx,
-					lifecycle.agent(ctx),
-					lifecycle.windows.current?.currentWindowId ?? "",
-					lifecycle.runId,
-				);
-				if (
-					params["action"] === "write_file" ||
-					params["action"] === "append_to_file"
-				)
-					return {
-						...result(local),
-						details: {
-							notesCompaction: {
-								protocol: 1,
-								saved: true,
-								runId: lifecycle.runId,
-							},
-						},
-					};
-				const notes = collectNotes(store, ctx.sessionManager.getBranch());
-				if (
-					params["action"] === "read_file" &&
-					notes.get(params["path"] as string)?.mode === "replace"
-				)
-					return result({
-						source: "local",
-						local,
-						remote: { state: "superseded_by_local_replacement" },
-					});
-				const replacements = [...notes.values()]
-					.filter((note) => note.mode === "replace")
-					.map((note) => `${lifecycle.agent(ctx)}/notes/${note.path}`);
-				const remoteParams = { ...params };
-				for (const field of ["path", "prefix", "path_prefix"])
-					if (typeof remoteParams[field] === "string")
-						remoteParams[field] =
-							`${lifecycle.agent(ctx)}/notes${remoteParams[field] ? `/${remoteParams[field]}` : ""}`;
-				return hybrid(
-					pi,
-					store,
-					lifecycle,
-					{ namespace: "notes", params: remoteParams },
-					{
-						...local,
-						...(replacements.length
-							? {
-									local_replacements_authoritative: replacements.slice(0, 100),
-									replacements_truncated: replacements.length > 100,
-								}
-							: {}),
-					},
-					callId,
-					ctx,
-					signal,
-				);
-			},
+			execute: (callId, input, signal, _update, ctx) =>
+				queries.notes(callId, input, signal, ctx),
 		},
 		{
 			name: "history",
@@ -399,41 +507,8 @@ export function createTools(
 			prepareArguments(args) {
 				return args === undefined ? {} : args;
 			},
-			async execute(callId, input, signal, _update, ctx) {
-				const help = discovery("history", input);
-				if (help) return help;
-				assertActive();
-				const params = relevant("history", input);
-				const query = { namespace: "history", params } as const;
-				const routed = await lifecycle.bridge?.route?.(
-					query,
-					callId,
-					ctx,
-					signal,
-				);
-				if (routed) return routed;
-				if (
-					params["agent_name"] &&
-					params["agent_name"] !== lifecycle.agent(ctx)
-				)
-					throw new Error(
-						"That agent's history is not available here. Omit agent_name to search this session.",
-					);
-				return hybrid(
-					pi,
-					store,
-					lifecycle,
-					query,
-					useHistory(
-						ctx.sessionManager.getBranch(),
-						params,
-						ctx.sessionManager.getSessionId(),
-					),
-					callId,
-					ctx,
-					signal,
-				);
-			},
+			execute: (callId, input, signal, _update, ctx) =>
+				queries.history(callId, input, signal, ctx),
 		},
 		{
 			name: "new_context",

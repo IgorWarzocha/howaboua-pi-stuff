@@ -38,12 +38,47 @@ export interface WindowIdentity {
 	windowNumber: number;
 }
 
+export interface NoteSnapshotData {
+	protocol: 1;
+	timestamp: number;
+	files: Array<{
+		path: string;
+		text: string;
+		createdAt: number;
+		updatedAt: number;
+		operation: "local_append_overlay" | "local_replacement";
+	}>;
+}
+
+/** JSON-safe raw provenance. Projection belongs to the requesting runtime. */
+export interface SerializedCachedResponse
+	extends Omit<CachedResponse, "bytes"> {
+	bytesBase64: string;
+}
+
+export interface SharedNotesDetails {
+	codexHistoryNotes: Record<string, unknown>;
+	externalNotesResponses?: SerializedCachedResponse[];
+	notesCompactionRouted?: true;
+}
+
 export interface NotesOwner {
 	protocol: 1;
 	owner: "pi-notes-compaction";
 	identity(ctx: ExtensionContext): WindowIdentity | undefined;
 	projectMessages(messages: readonly AgentMessage[]): AgentMessage[];
 	projectBranch(entries: readonly SessionEntry[]): SessionEntry[];
+	canBind?(ctx: ExtensionContext): boolean;
+	snapshotNotes?(
+		entries: readonly SessionEntry[],
+		agentName: string,
+	): NoteSnapshotData;
+	executeShared?(
+		query: LookupQuery,
+		callId: string,
+		ctx: ExtensionContext,
+		signal?: AbortSignal,
+	): Promise<AgentToolResult<SharedNotesDetails>>;
 }
 
 export interface NotesBridge {

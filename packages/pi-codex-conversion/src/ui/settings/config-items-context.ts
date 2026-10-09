@@ -68,7 +68,8 @@ export function buildContextSettings(
 				compaction: { ...current.compaction, notesTreeHandoff: enabled },
 			}),
 			"On: save a handoff note before a summarized tree jump. Off: use Pi's branch summary without a note-writing run. Notes and history tools and window rollover stay unchanged.",
-		), toggle(
+		)]),
+		...(externalNotes || continuity !== "compaction" ? [toggle(
 			"shareSubagentContext",
 			"Share subagent context",
 			config.compaction.shareSubagentContext,
@@ -77,7 +78,7 @@ export function buildContextSettings(
 				compaction: { ...current.compaction, shareSubagentContext: enabled },
 			}),
 			"Share notes and history with new subagents through a compatible integration. Existing agents keep their identity.",
-		)]),
+		)] : []),
 		...(!externalNotes && continuity === "notes" ? [] : [setting(
 			{
 				id: "compactionMethod",

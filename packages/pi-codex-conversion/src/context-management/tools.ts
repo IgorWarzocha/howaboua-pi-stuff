@@ -10,11 +10,13 @@ import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
 import { registerCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
 import { toNestedTool } from "../adapter/code-mode/nested-tool-adapter.ts";
-import { remoteBackendScope, withRemoteContextScope } from "./remote-scope.ts";
+import { remoteDeliveryScope, withRemoteContextScope } from "./remote-scope.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 import { HISTORY_NESTED_USAGE, NOTES_NESTED_USAGE } from "./tool-contract.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
+import type { ContextRouter } from "../context-sharing.ts";
+import { contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
 
@@ -107,15 +109,24 @@ export function createContextWindowTools(
 export function registerContextManagementTools(
 	pi: ExtensionAPI,
 	state: AdapterState,
-): void {
+): ContextRouter {
 	const [newContext, getContextRemaining] = createContextWindowTools(pi, state);
-	const plan = (ctx: ExtensionContext) => resolveCodexRuntimePlanForState(ctx, state);
+	const plan = (ctx: ExtensionContext) => {
+		const resolved = resolveCodexRuntimePlanForState(ctx, state);
+		return state.externalNotes ? { ...resolved, contextManagementMode: "local" as const,
+			shareSubagentContext: state.config.compaction.shareSubagentContext } : resolved;
+	};
 	const mode = (ctx: ExtensionContext) => plan(ctx).contextManagementMode;
 	const route = registerContextSharingService(pi, plan, async (ctx, request, signal) => {
+		if (state.externalNotes) {
+			const owner = state.externalNotes.owner;
+			if (!owner.executeShared) throw new Error("Shared notes owner is unavailable");
+			return owner.executeShared({ namespace: request.namespace, params: request.params }, "shared-context", ctx, signal);
+		}
 		return request.namespace === "history"
 			? history.execute("shared-context", request.params as Parameters<typeof history.execute>[1], signal, undefined, ctx)
 			: notes.execute("shared-context", request.params as Parameters<typeof notes.execute>[1], signal, undefined, ctx);
-	});
+	}, () => state.externalNotes?.owner);
 	const [history, notes] = createHistoryNotesTools(
 		pi,
 		mode,
@@ -130,7 +141,7 @@ export function registerContextManagementTools(
 	const contract = { deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
 		opaqueResultScope: (result: AgentToolResult<unknown>) => {
 			const details = result.details;
-			return remoteBackendScope(details && typeof details === "object" && "codexHistoryNotes" in details
+			return remoteDeliveryScope(details && typeof details === "object" && "codexHistoryNotes" in details
 				? details.codexHistoryNotes : undefined);
 		} };
 	const nestedTools = (remote: boolean, protectedResults = remote) => [
@@ -169,6 +180,7 @@ export function registerContextManagementTools(
 			? plan(ctx).contextManagementRemote ? remoteNested : route.requiresRemoteScope?.(ctx) ? mixedNested : nested
 			: [];
 	});
+	return route;
 }
 
 export function configureExternalNotesTools(
@@ -194,10 +206,11 @@ function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
 			opaqueResult: protectedResults, allowPlainResult: true,
 			opaqueResultScope: result => {
 				const details = result.details;
-				return remoteBackendScope(details && typeof details === "object" && "codexHistoryNotes" in details ? details.codexHistoryNotes : undefined);
+				return remoteDeliveryScope(details && typeof details === "object" && "codexHistoryNotes" in details ? details.codexHistoryNotes : undefined);
 			},
 			isContextNoteWrite: input => tool.name === "notes" && Boolean(input && typeof input === "object" && "action" in input &&
-				(input.action === "write_file" || input.action === "append_to_file")),
+				(input.action === "write_file" || input.action === "append_to_file") &&
+				contextTargetAgent("notes", input as Record<string, unknown>, contextAgentIdentity(ctx).agentName) === contextAgentIdentity(ctx).agentName),
 		});
 		return { ...nested,
 			discoveryUsage: external.contracts?.[tool.name === "notes" ? "notes" : "history"],

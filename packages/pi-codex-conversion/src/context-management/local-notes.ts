@@ -39,10 +39,12 @@ export interface NoteSnapshotData {
 		text: string;
 		createdAt: number;
 		updatedAt: number;
+		operation?: "local_append_overlay" | "local_replacement";
 	}>;
 }
 
 interface LocalNote {
+	operation?: "local_append_overlay" | "local_replacement";
 	path: string;
 	text: string;
 	createdAt: number;
@@ -239,7 +241,7 @@ function searchNotes(
 			.filter(({ line }) => line.includes(query))
 			.slice(0, matchLimit);
 		if (matches.length === 0) continue;
-		files.push({ path: note.path, matches });
+		files.push({ path: note.path, matches, ...(note.operation ? { operation: note.operation } : {}) });
 		if (files.length >= fileLimit) break;
 	}
 	return { source: "pi-session", files };
@@ -312,6 +314,7 @@ function normalizePrefix(value: unknown): string {
 
 function noteMetadata(note: LocalNote): Record<string, unknown> {
 	return {
+		...(note.operation ? { operation: note.operation } : {}),
 		path: note.path,
 		bytes: Buffer.byteLength(note.text, "utf8"),
 		created_at: new Date(note.createdAt).toISOString(),
@@ -370,6 +373,7 @@ function isNoteSnapshotData(value: unknown): value is NoteSnapshotData {
 			if (!file || typeof file !== "object" || Array.isArray(file)) return false;
 			const record = file as Record<string, unknown>;
 			return typeof record["path"] === "string" &&
+				(record["operation"] === undefined || record["operation"] === "local_append_overlay" || record["operation"] === "local_replacement") &&
 				typeof record["text"] === "string" &&
 				Buffer.byteLength(record["text"], "utf8") <= MAX_FILE_BYTES &&
 				typeof record["createdAt"] === "number" &&
