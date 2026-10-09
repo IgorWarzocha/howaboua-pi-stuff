@@ -65,6 +65,7 @@ export function recordBoardActivityMarker(
 }
 
 const BOARD_NOTICE = "shepherdr-board-post";
+const BOARD_CATCHUP = "shepherdr-board-catchup";
 
 interface BoardRow {
 	id: string;
@@ -73,7 +74,10 @@ interface BoardRow {
 }
 
 function boardRow(entry: SessionEntry): BoardRow | undefined {
-	if (entry.type === "custom_message" && entry.customType === BOARD_NOTICE) {
+	if (
+		entry.type === "custom_message" &&
+		(entry.customType === BOARD_NOTICE || entry.customType === BOARD_CATCHUP)
+	) {
 		return {
 			id: entry.id,
 			label: "Board notice received",
@@ -104,7 +108,8 @@ function boardRow(entry: SessionEntry): BoardRow | undefined {
 	if (
 		entry.type === "message" &&
 		entry.message.role === "custom" &&
-		entry.message.customType === BOARD_NOTICE
+		(entry.message.customType === BOARD_NOTICE ||
+			entry.message.customType === BOARD_CATCHUP)
 	) {
 		const content = entry.message.content;
 		return {
@@ -264,4 +269,5 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 				: JSON.stringify(message.content),
 		);
 	pi.registerMessageRenderer(BOARD_NOTICE, incoming);
+	pi.registerMessageRenderer(BOARD_CATCHUP, incoming);
 }

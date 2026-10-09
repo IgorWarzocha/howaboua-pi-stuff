@@ -91,7 +91,7 @@ export class BoardRuntime {
 					message: {
 						customType: "shepherdr-board-catchup",
 						content: catchup.content.trim(),
-						display: false,
+						display: true,
 					},
 				};
 		});
