@@ -207,6 +207,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
 
+### @howaboua/pi-notes-compaction — 0.0.1
+
+- Added Notes Compaction: local checkpoint notes, searchable session history and notes-guided context windows for any Pi model, with optional Codex Conversion integration and cached remote lookup.
+
+[Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
+
 ### @howaboua/pi-pet — 0.1.4
 
 - Remove obsolete test-only helper exports without changing tool behavior.
