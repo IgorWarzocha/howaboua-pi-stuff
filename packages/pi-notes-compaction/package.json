@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-notes-compaction",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"publishConfig": {
 		"access": "public"
 	},
@@ -12,7 +12,9 @@
 	"files": [
 		"src",
 		"README.md",
-		"PCC-INTEGRATION.md"
+		"PCC-INTEGRATION.md",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"engines": {
 		"node": ">=22.18.0"
@@ -22,6 +24,7 @@
 	"license": "MIT",
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./src/index.ts"
 		]
 	},
