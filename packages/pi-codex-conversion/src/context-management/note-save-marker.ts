@@ -52,5 +52,5 @@ export function bookmarkNotesContinuation(
 	if (!prompt || ctx.sessionManager.getLabel(prompt.id)) return;
 	if (!hasFreshContextNotes(branch.slice(0, promptIndex), windowId, mode, true)) return;
 	// Selecting a user entry in /tree restores its prompt and returns to its parent.
-	pi.setLabel(prompt.id, "Continue from notes");
+	pi.setLabel(prompt.id, "Notes");
 }
