@@ -8,12 +8,22 @@ export async function getSitesAuth(ctx: ExtensionContext) {
 	try {
 		const part = token.split(".")[1];
 		if (!part) throw new Error(message);
-		const claims = JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
-		const accountId: unknown =
-			claims["https://api.openai.com/auth"]?.chatgpt_account_id;
+		const claims: unknown = JSON.parse(
+			Buffer.from(part, "base64url").toString("utf8"),
+		);
+		const identity = isRecord(claims)
+			? claims["https://api.openai.com/auth"]
+			: undefined;
+		const accountId = isRecord(identity)
+			? identity["chatgpt_account_id"]
+			: undefined;
 		if (typeof accountId !== "string" || !accountId) throw new Error(message);
 		return { token, accountId };
 	} catch {
 		throw new Error(message);
 	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
 }

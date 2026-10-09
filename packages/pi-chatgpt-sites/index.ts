@@ -1,44 +1,46 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { getSitesAuth } from "./src/auth.js";
-import { SitesClient } from "./src/client.mjs";
-import { call, documentation } from "./src/facade.mjs";
-import { boundedJson } from "./src/redact.mjs";
+import { SitesClient } from "./src/client.js";
+import { call, documentation } from "./src/facade.js";
+import { boundedJson } from "./src/redact.js";
 
 async function result(run: () => Promise<unknown>) {
 	try {
 		const value = await run();
 		const text = typeof value === "string" ? value : boundedJson(value);
 		if (text.startsWith("{")) {
-			const parsed = JSON.parse(text);
-			if (parsed.ok === false) {
-				throw Object.assign(new Error(parsed.error.message), parsed.error);
+			const parsed: unknown = JSON.parse(text);
+			if (
+				isRecord(parsed) &&
+				parsed["ok"] === false &&
+				isRecord(parsed["error"])
+			) {
+				const info = parsed["error"];
+				throw Object.assign(new Error(String(info["message"])), info);
 			}
 		}
 		return { content: [{ type: "text" as const, text }], details: undefined };
 	} catch (error) {
 		const info = error instanceof Error ? error : new Error(String(error));
-		const fields = info as Error & {
-			code?: string;
-			topic?: string;
-			termsUrl?: string;
-			status?: number;
-			details?: unknown;
-		};
 		throw new Error(
 			boundedJson({
 				ok: false,
 				error: {
-					code: fields.code ?? "sites_error",
+					code: "code" in info ? (info.code ?? "sites_error") : "sites_error",
 					message: info.message,
-					topic: fields.topic,
-					terms_url: fields.termsUrl,
-					status: fields.status,
-					details: fields.details,
+					topic: "topic" in info ? info.topic : undefined,
+					terms_url: "termsUrl" in info ? info.termsUrl : undefined,
+					status: "status" in info ? info.status : undefined,
+					details: "details" in info ? info.details : undefined,
 				},
 			}),
 		);
 	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export default function sitesExtension(pi: ExtensionAPI) {

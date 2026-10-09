@@ -15,11 +15,11 @@ const SENSITIVE_KEYS = new Set([
 	"source_repository_credential",
 ]);
 
-export function redact(value) {
+export function redact(value: unknown): unknown {
 	return redactValue(value, new WeakSet());
 }
 
-function redactValue(value, seen) {
+function redactValue(value: unknown, seen: WeakSet<object>): unknown {
 	if (typeof value === "string") return redactString(value);
 	if (value === null || typeof value !== "object") return value;
 	if (seen.has(value)) return "[circular]";
@@ -27,8 +27,9 @@ function redactValue(value, seen) {
 	if (Array.isArray(value))
 		return value.map((entry) => redactValue(entry, seen));
 
-	const output = {};
-	const secretEnvironmentEntry = value.is_secret === true;
+	const output: Record<string, unknown> = {};
+	const secretEnvironmentEntry =
+		"is_secret" in value && value.is_secret === true;
 	for (const [key, entry] of Object.entries(value)) {
 		if (
 			SENSITIVE_KEYS.has(key.toLowerCase()) ||
@@ -42,7 +43,7 @@ function redactValue(value, seen) {
 	return output;
 }
 
-function redactString(value) {
+function redactString(value: string) {
 	return value
 		.replace(/(https?:\/\/)[^/@\s:]+:[^/@\s]+@/gi, "$1[redacted]@")
 		.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/-]+=*/gi, "$1 [redacted]")
@@ -52,8 +53,19 @@ function redactString(value) {
 		);
 }
 
-export function boundedJson(value, maxBytes = 32_000) {
+export function boundedJson(value: unknown, maxBytes = 32_000) {
 	const serialized = JSON.stringify(redact(value), null, 2);
+	if (serialized === undefined) {
+		// Preserve the Buffer.byteLength rejection for non-JSON top-level values.
+		throw Object.assign(
+			new TypeError(
+				'The "string" argument must be of type string or an instance of Buffer or ArrayBuffer. Received undefined',
+			),
+			{
+				code: "ERR_INVALID_ARG_TYPE",
+			},
+		);
+	}
 	if (Buffer.byteLength(serialized) <= maxBytes) return serialized;
 	return JSON.stringify(
 		{

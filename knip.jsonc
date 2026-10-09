@@ -2,8 +2,8 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
 		"packages/pi-chatgpt-sites": {
-			"entry": ["src/git-askpass.mjs"],
-			"project": ["src/**/*.ts", "src/**/*.mjs"]
+			"entry": ["index.ts", "src/git-askpass.ts", "scripts/*.mjs"],
+			"project": ["src/**/*.ts", "scripts/*.mjs"]
 		},
 		"packages/pi-auto-trees": {
 			"entry": ["changelog.ts"]

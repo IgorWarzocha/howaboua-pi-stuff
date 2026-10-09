@@ -1,9 +1,52 @@
 const ENDPOINT = "https://chatgpt.com/backend-api/wham/apps";
 const CONNECTOR_ID = "connector_20205bf7d4e99a89d7154bb849718324";
 
+export interface JsonSchema {
+	[key: string]: unknown;
+	properties?: Record<string, unknown>;
+	required?: string[];
+}
+
+export interface SitesClientOptions {
+	fetchImpl?: typeof fetch;
+	authProvider: () => Promise<{ token: string; accountId: string }>;
+	signal?: AbortSignal | undefined;
+}
+
+interface SitesTool {
+	name: string;
+	inputSchema?: JsonSchema;
+	_meta: Record<string, unknown>;
+}
+
+interface Recovery {
+	code?: string;
+	saved_version_id?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isJsonSchema(value: unknown): value is JsonSchema {
+	return (
+		isRecord(value) &&
+		(value["properties"] === undefined || isRecord(value["properties"])) &&
+		(value["required"] === undefined ||
+			(Array.isArray(value["required"]) &&
+				value["required"].every((key: unknown) => typeof key === "string")))
+	);
+}
+
 export class SitesClient {
-	/** @param {{fetchImpl?: typeof fetch, authProvider: () => Promise<{token: string, accountId: string}>, signal?: AbortSignal | undefined}} options */
-	constructor({ fetchImpl = fetch, authProvider, signal } = {}) {
+	private fetchImpl: typeof fetch;
+	private authProvider: SitesClientOptions["authProvider"];
+	private signal: AbortSignal | undefined;
+	private requestId: number;
+	private tools: SitesTool[] | undefined;
+	private headers: Record<string, string> | undefined;
+
+	constructor({ fetchImpl = fetch, authProvider, signal }: SitesClientOptions) {
 		this.fetchImpl = fetchImpl;
 		this.authProvider = authProvider;
 		this.signal = signal;
@@ -29,7 +72,10 @@ export class SitesClient {
 			clientInfo: { name: "pi-chatgpt-sites", version: "0.1.0" },
 		});
 		this.headers["mcp-protocol-version"] =
-			initialized?.protocolVersion ?? "2025-03-26";
+			isRecord(initialized) &&
+			typeof initialized["protocolVersion"] === "string"
+				? initialized["protocolVersion"]
+				: "2025-03-26";
 		await this.rpc("notifications/initialized", {}, { notification: true });
 	}
 
@@ -37,7 +83,10 @@ export class SitesClient {
 		if (this.tools) return this.tools;
 		await this.initialize();
 		const response = await this.rpc("tools/list", {});
-		const tools = Array.isArray(response?.tools) ? response.tools : [];
+		const tools: unknown[] =
+			isRecord(response) && Array.isArray(response["tools"])
+				? response["tools"]
+				: [];
 		this.tools = tools.filter((tool) => isSitesTool(tool));
 		if (this.tools.length === 0) {
 			throw new Error("The ChatGPT account did not expose the Sites connector");
@@ -45,12 +94,12 @@ export class SitesClient {
 		return this.tools;
 	}
 
-	async schema(toolSuffix) {
+	async schema(toolSuffix: string) {
 		const tool = await this.findTool(toolSuffix);
 		return tool.inputSchema;
 	}
 
-	async call(toolSuffix, args) {
+	async call(toolSuffix: string, args: unknown) {
 		const tool = await this.findTool(toolSuffix);
 		const response = await this.rpc("tools/call", {
 			name: tool.name,
@@ -59,11 +108,11 @@ export class SitesClient {
 		return decodeToolResult(response);
 	}
 
-	async findTool(toolSuffix) {
+	async findTool(toolSuffix: string) {
 		const expected = `sites_${toolSuffix}`.toLowerCase();
 		const tools = await this.listSitesTools();
 		const tool = tools.find((candidate) => {
-			const names = [candidate.name, candidate._meta?.resource_name]
+			const names = [candidate.name, candidate._meta["resource_name"]]
 				.filter((value) => typeof value === "string")
 				.map(normalizeToolName);
 			return names.includes(expected);
@@ -73,19 +122,28 @@ export class SitesClient {
 		return tool;
 	}
 
-	async rpc(method, params, { notification = false } = {}) {
-		const payload = { jsonrpc: "2.0", method, params };
+	async rpc(
+		method: string,
+		params: unknown,
+		{ notification = false }: { notification?: boolean } = {},
+	): Promise<unknown> {
+		const payload: {
+			jsonrpc: string;
+			method: string;
+			params: unknown;
+			id?: number;
+		} = { jsonrpc: "2.0", method, params };
 		if (!notification) payload.id = ++this.requestId;
 		const response = await this.fetchImpl(ENDPOINT, {
 			method: "POST",
-			headers: this.headers,
+			...(this.headers ? { headers: this.headers } : {}),
 			body: JSON.stringify(payload),
 			signal: this.signal
 				? AbortSignal.any([this.signal, AbortSignal.timeout(45_000)])
 				: AbortSignal.timeout(45_000),
 		});
 		const sessionId = response.headers.get("mcp-session-id");
-		if (sessionId) this.headers["mcp-session-id"] = sessionId;
+		if (sessionId && this.headers) this.headers["mcp-session-id"] = sessionId;
 		const body = await readCappedBody(response);
 		if (response.status === 401 || response.status === 403) {
 			const message =
@@ -99,22 +157,32 @@ export class SitesClient {
 		}
 		if (notification && response.ok && !body) return undefined;
 		const result = parseRpcBody(body, response.headers.get("content-type"));
-		if (!response.ok || result?.error) {
-			throw backendError(response.status, result?.error ?? result ?? body);
+		const envelope = isRecord(result) ? result : undefined;
+		if (!response.ok || envelope?.["error"]) {
+			throw backendError(
+				response.status,
+				envelope?.["error"] ?? result ?? body,
+			);
 		}
-		return result?.result;
+		return envelope?.["result"];
 	}
 }
 
-function isSitesTool(tool) {
-	return tool?._meta?.connector_id === CONNECTOR_ID;
+function isSitesTool(tool: unknown): tool is SitesTool {
+	return (
+		isRecord(tool) &&
+		typeof tool["name"] === "string" &&
+		isRecord(tool["_meta"]) &&
+		tool["_meta"]["connector_id"] === CONNECTOR_ID &&
+		(tool["inputSchema"] === undefined || isJsonSchema(tool["inputSchema"]))
+	);
 }
 
-function normalizeToolName(name) {
+function normalizeToolName(name: string) {
 	return name.toLowerCase().replaceAll(".", "_");
 }
 
-function parseRpcBody(body, contentType = "") {
+function parseRpcBody(body: string, contentType: string | null = ""): unknown {
 	if (contentType?.includes("text/event-stream")) {
 		const messages = body
 			.split(/\r?\n/)
@@ -123,7 +191,7 @@ function parseRpcBody(body, contentType = "") {
 			.filter((line) => line && line !== "[DONE]");
 		if (messages.length === 0)
 			throw new Error("Sites backend returned an empty event stream");
-		return JSON.parse(messages.at(-1));
+		return JSON.parse(messages.at(-1) ?? "");
 	}
 	try {
 		return JSON.parse(body);
@@ -132,10 +200,10 @@ function parseRpcBody(body, contentType = "") {
 	}
 }
 
-async function readCappedBody(response, maxBytes = 4 * 1024 * 1024) {
+async function readCappedBody(response: Response, maxBytes = 4 * 1024 * 1024) {
 	if (!response.body) return "";
 	const reader = response.body.getReader();
-	const chunks = [];
+	const chunks: Uint8Array[] = [];
 	let total = 0;
 	try {
 		while (true) {
@@ -159,17 +227,19 @@ async function readCappedBody(response, maxBytes = 4 * 1024 * 1024) {
 	).toString("utf8");
 }
 
-function decodeToolResult(result) {
-	if (result?.isError) throw backendError(200, result);
-	if (result?.structuredContent !== undefined) return result.structuredContent;
-	const texts = Array.isArray(result?.content)
-		? result.content
-				.filter((item) => item?.type === "text")
-				.map((item) => item.text)
+function decodeToolResult(result: unknown): unknown {
+	const envelope = isRecord(result) ? result : undefined;
+	if (envelope?.["isError"]) throw backendError(200, result);
+	if (envelope?.["structuredContent"] !== undefined)
+		return envelope["structuredContent"];
+	const texts: unknown[] = Array.isArray(envelope?.["content"])
+		? envelope["content"]
+				.filter((item: unknown) => isRecord(item) && item["type"] === "text")
+				.map((item: Record<string, unknown>) => item["text"])
 		: [];
 	if (texts.length === 1) {
 		try {
-			return JSON.parse(texts[0]);
+			return JSON.parse(String(texts[0]));
 		} catch {
 			return { message: texts[0] };
 		}
@@ -177,7 +247,7 @@ function decodeToolResult(result) {
 	return texts.length > 0 ? { messages: texts } : result;
 }
 
-function backendError(status, payload) {
+function backendError(status: number, payload: unknown) {
 	const serialized = safeStringify(payload);
 	const terms = serialized.match(
 		/sites_publication_terms_required:\s*(https?:\/\/[^\s"}]+)/i,
@@ -206,7 +276,7 @@ function backendError(status, payload) {
 }
 
 // Keep partial-save recovery from JSON error envelopes, never arbitrary server prose.
-function errorRecovery(payload, depth = 0) {
+function errorRecovery(payload: unknown, depth = 0): Recovery {
 	if (depth > 8 || payload == null) return {};
 	if (typeof payload === "string") {
 		try {
@@ -216,25 +286,28 @@ function errorRecovery(payload, depth = 0) {
 		}
 	}
 	if (typeof payload !== "object") return {};
-	const found = {};
-	if (payload.code === "site_not_owner_only") found.code = payload.code;
-	if (
-		typeof payload.saved_version_id === "string" &&
-		payload.saved_version_id
-	) {
-		found.saved_version_id = payload.saved_version_id;
+	const found: Recovery = {};
+	const code: unknown = "code" in payload ? payload.code : undefined;
+	const savedVersionId: unknown =
+		"saved_version_id" in payload ? payload.saved_version_id : undefined;
+	if (code === "site_not_owner_only") found.code = code;
+	if (typeof savedVersionId === "string" && savedVersionId) {
+		found.saved_version_id = savedVersionId;
 	}
 	for (const value of Object.values(payload)) {
 		const nested = errorRecovery(value, depth + 1);
-		found.code ||= nested.code;
-		found.saved_version_id ||= nested.saved_version_id;
+		if (!found.code && nested.code) found.code = nested.code;
+		if (!found.saved_version_id && nested.saved_version_id)
+			found.saved_version_id = nested.saved_version_id;
 	}
 	return found;
 }
 
-function safeStringify(value) {
+function safeStringify(value: unknown): string {
 	try {
-		return typeof value === "string" ? value : JSON.stringify(value);
+		return typeof value === "string"
+			? value
+			: (JSON.stringify(value) ?? String(value));
 	} catch {
 		return String(value);
 	}

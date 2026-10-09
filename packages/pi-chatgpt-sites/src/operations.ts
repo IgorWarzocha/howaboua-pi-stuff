@@ -1,4 +1,17 @@
-const OPERATIONS = Object.freeze({
+interface Operation {
+	tool: string;
+	topic: string;
+	local?: "create" | "save" | "deploy";
+	select?: "access";
+}
+export interface ResolvedOperation extends Operation {
+	resource: string;
+	action: string;
+	key: string;
+}
+const OPERATIONS: Readonly<
+	Record<string, Readonly<Record<string, Operation>>>
+> = Object.freeze({
 	site: Object.freeze({
 		list: operation("list_sites", "site"),
 		get: operation("get_site", "site"),
@@ -50,11 +63,18 @@ const OPERATIONS = Object.freeze({
 	}),
 });
 
-function operation(tool, topic, options = {}) {
+function operation(
+	tool: string,
+	topic: string,
+	options: Pick<Operation, "local" | "select"> = {},
+): Operation {
 	return Object.freeze({ tool, topic, ...options });
 }
 
-export function resolveOperation(resource, action) {
+export function resolveOperation(
+	resource: unknown,
+	action: unknown,
+): ResolvedOperation {
 	if (typeof resource !== "string" || typeof action !== "string") {
 		throw facadeError(
 			"invalid_operation",
@@ -87,11 +107,18 @@ export function resolveOperation(resource, action) {
 	return { resource, action, key: `${resource}.${action}`, ...resolved };
 }
 
-export function facadeError(code, message, topic, details) {
+export function facadeError(
+	code: string,
+	message: string,
+	topic: string,
+	details?: unknown,
+) {
 	return Object.assign(new Error(message), { code, topic, details });
 }
 
-export function operationForTopic(topic) {
+export function operationForTopic(
+	topic: string,
+): ResolvedOperation | undefined {
 	if (typeof topic !== "string" || !topic.includes(".")) return undefined;
 	const [resource, action, ...rest] = topic.split(".");
 	if (rest.length > 0) return undefined;

@@ -10,28 +10,32 @@
 		"directory": "packages/pi-chatgpt-sites"
 	},
 	"files": [
-		"index.ts",
-		"src",
+		"dist",
 		"README.md",
-		"LICENSE",
-		"tsconfig.json",
-		"biome.json"
+		"LICENSE"
 	],
-	"main": "index.ts",
-	"exports": "./index.ts",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"pi": {
 		"extensions": [
-			"./index.ts"
+			"./dist/index.js"
 		]
 	},
 	"engines": {
 		"node": ">=22.19.0"
 	},
 	"scripts": {
+		"build": "node scripts/build.mjs",
 		"check": "bun run lint && bun run typecheck",
 		"lint": "biome check .",
 		"typecheck": "tsgo --noEmit",
-		"prepack": "bun run check",
+		"prepack": "bun run check && bun run build",
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {

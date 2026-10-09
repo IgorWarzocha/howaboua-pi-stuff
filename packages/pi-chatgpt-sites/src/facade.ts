@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { JsonSchema, SitesClient } from "./client.js";
 import {
 	acquireHostingLock,
 	inspectCleanCommit,
@@ -9,26 +10,32 @@ import {
 	pushCommit,
 	readHosting,
 	resolveProjectId,
-} from "./local-project.mjs";
+} from "./local-project.js";
+import type { ResolvedOperation } from "./operations.js";
 import {
 	facadeError,
 	operationForTopic,
 	resolveOperation,
-} from "./operations.mjs";
-import { redact } from "./redact.mjs";
+} from "./operations.js";
+import { redact } from "./redact.js";
 
 const docsDir = join(dirname(fileURLToPath(import.meta.url)), "docs");
-export async function call(request, client, cwd, signal) {
-	if (!request || typeof request !== "object" || Array.isArray(request)) {
+export async function call(
+	request: unknown,
+	client: Pick<SitesClient, "schema" | "call">,
+	cwd: string,
+	signal?: AbortSignal,
+) {
+	if (!isRecord(request)) {
 		throw facadeError(
 			"invalid_request",
 			"sites expects one JSON object",
 			"index",
 		);
 	}
-	const operation = resolveOperation(request.resource, request.action);
-	const params = request.params === undefined ? {} : request.params;
-	if (!params || typeof params !== "object" || Array.isArray(params)) {
+	const operation = resolveOperation(request["resource"], request["action"]);
+	const params = request["params"] === undefined ? {} : request["params"];
+	if (!isRecord(params)) {
 		throw facadeError(
 			"invalid_params",
 			"params must be an object",
@@ -60,19 +67,25 @@ export async function call(request, client, cwd, signal) {
 	}
 }
 
-async function prepare(operation, params, client, cwd, signal) {
-	const project = await projectContext(params.project_dir, cwd);
-	delete params.project_dir;
+async function prepare(
+	operation: ResolvedOperation,
+	params: Record<string, unknown>,
+	client: Pick<SitesClient, "schema" | "call">,
+	cwd: string,
+	signal?: AbortSignal,
+) {
+	const project = await projectContext(params["project_dir"], cwd);
+	delete params["project_dir"];
 	let tool = operation.tool;
-	let after = async (value) => value;
+	let after = async (value: unknown) => value;
 	let cleanup = async () => {};
-	const allowedExtra = [];
+	const allowedExtra: string[] = [];
 
 	if (operation.local === "create") {
 		cleanup = await acquireHostingLock(project);
 		try {
 			const manifest = await readHosting(project);
-			if (manifest.project_id) {
+			if (manifest["project_id"]) {
 				throw facadeError(
 					"site_already_linked",
 					".openai/hosting.json already has project_id; reuse that site",
@@ -83,8 +96,8 @@ async function prepare(operation, params, client, cwd, signal) {
 			await cleanup();
 			throw error;
 		}
-		after = async (value) => {
-			const projectId = unwrapResult(value)?.id;
+		after = async (value: unknown) => {
+			const projectId = recordResult(value)?.["id"];
 			if (typeof projectId !== "string" || !projectId) {
 				throw new Error("Sites created a site but returned no project ID");
 			}
@@ -93,7 +106,7 @@ async function prepare(operation, params, client, cwd, signal) {
 			} catch (error) {
 				throw facadeError(
 					"manifest_persist_failed",
-					`Site was created as ${projectId}, but ${project.manifestPath} could not be updated: ${error.message}`,
+					`Site was created as ${projectId}, but ${project.manifestPath} could not be updated: ${error instanceof Error ? error.message : String(error)}`,
 					"site",
 					{ project_id: projectId, manifest_path: project.manifestPath },
 				);
@@ -107,26 +120,26 @@ async function prepare(operation, params, client, cwd, signal) {
 			"Source save derives commit_sha and does not accept archives",
 		);
 		const manifest = await readHosting(project);
-		if (typeof manifest.project_id !== "string" || !manifest.project_id) {
+		if (typeof manifest["project_id"] !== "string" || !manifest["project_id"]) {
 			throw facadeError(
 				"unbound_repository",
 				"Source save requires project_id in the repository's .openai/hosting.json",
 				"version",
 			);
 		}
-		params.project_id = await resolveProjectId(params, project);
+		params["project_id"] = await resolveProjectId(params, project);
 		const { root, commitSha } = await inspectCleanCommit(project, signal);
-		params.commit_sha = commitSha;
+		params["commit_sha"] = commitSha;
 		// Reject invalid inputs before a source push. Both save routes share this owner.
 		validateAgainstSchema(params, await client.schema(tool));
 		const credentialResponse = await client.call(
 			"create_source_repository_write_credential",
 			{
-				project_id: params.project_id,
+				project_id: params["project_id"],
 			},
 		);
 		const credential = unwrapResult(credentialResponse);
-		if (credential?.publish_on_push_accepted === true) {
+		if (recordResult(credential)?.["publish_on_push_accepted"] === true) {
 			throw facadeError(
 				"automatic_publication_unsupported",
 				"Sites returned an auto-publishing credential; source was not pushed",
@@ -136,13 +149,13 @@ async function prepare(operation, params, client, cwd, signal) {
 		await pushCommit({ root, commitSha, credential, signal });
 	} else {
 		const schema = await client.schema(tool);
-		if (schema?.properties?.project_id && !params.project_id) {
-			params.project_id = await resolveProjectId(params, project);
+		if (schema?.properties?.["project_id"] && !params["project_id"]) {
+			params["project_id"] = await resolveProjectId(params, project);
 		}
 	}
 
 	if (operation.local === "deploy") {
-		const visibility = params.visibility;
+		const visibility = params["visibility"];
 		if (visibility !== "private" && visibility !== "shared") {
 			throw facadeError(
 				"visibility_required",
@@ -154,21 +167,29 @@ async function prepare(operation, params, client, cwd, signal) {
 			visibility === "private"
 				? "deploy_private_site_version"
 				: "deploy_site_version";
-		delete params.visibility;
+		delete params["visibility"];
 	}
 
-	if (operation.tool === "list_sites" && params.limit === undefined)
-		params.limit = 20;
-	if (operation.tool === "list_site_versions" && params.limit === undefined)
-		params.limit = 20;
+	if (operation.tool === "list_sites" && params["limit"] === undefined)
+		params["limit"] = 20;
+	if (operation.tool === "list_site_versions" && params["limit"] === undefined)
+		params["limit"] = 20;
 	return { tool, args: params, after, cleanup, allowedExtra };
 }
 
-function rejectKeys(params, keys, message) {
+function rejectKeys(
+	params: Record<string, unknown>,
+	keys: string[],
+	message: string,
+) {
 	if (keys.some((key) => key in params)) throw new Error(message);
 }
 
-function validateAgainstSchema(params, schema, allowedExtra = []) {
+function validateAgainstSchema(
+	params: Record<string, unknown>,
+	schema: JsonSchema | undefined,
+	allowedExtra: string[] = [],
+) {
 	const properties = schema?.properties ?? {};
 	const unknown = Object.keys(params).filter(
 		(key) => !Object.hasOwn(properties, key) && !allowedExtra.includes(key),
@@ -188,26 +209,36 @@ function validateAgainstSchema(params, schema, allowedExtra = []) {
 	}
 }
 
-function selectResult(operation, value) {
+function selectResult(operation: ResolvedOperation, value: unknown) {
 	if (operation.select !== "access") return value;
-	const site = unwrapResult(value);
+	const site = recordResult(value);
 	return {
 		result: {
-			id: site?.id,
-			title: site?.title,
-			current_live_url: site?.current_live_url,
-			access_mode: site?.access_mode,
-			access_policy: site?.access_policy,
-			available_access_modes: site?.available_access_modes,
+			id: site?.["id"],
+			title: site?.["title"],
+			current_live_url: site?.["current_live_url"],
+			access_mode: site?.["access_mode"],
+			access_policy: site?.["access_policy"],
+			available_access_modes: site?.["available_access_modes"],
 		},
 	};
 }
 
-function unwrapResult(value) {
-	return value?.result ?? value;
+function unwrapResult(value: unknown): unknown {
+	return isRecord(value) ? (value["result"] ?? value) : value;
+}
+function recordResult(value: unknown): Record<string, unknown> | undefined {
+	const result = unwrapResult(value);
+	return isRecord(result) ? result : undefined;
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export async function documentation(input = "index", client) {
+export async function documentation(
+	input = "index",
+	client: Pick<SitesClient, "schema">,
+) {
 	const requested = input.trim() || "index";
 	const topic = requested.replace(/^['"]|['"]$/g, "");
 	const operation = operationForTopic(topic);
@@ -250,7 +281,7 @@ export async function documentation(input = "index", client) {
 	return readTopic(known.has(topic) ? topic : "index");
 }
 
-function operationSchemaNote(operation) {
+function operationSchemaNote(operation: ResolvedOperation) {
 	if (operation.local === "save") {
 		return "The facade derives and pushes `commit_sha`; archives are unsupported. `project_dir` selects the clean bound repository.";
 	}
@@ -260,8 +291,11 @@ function operationSchemaNote(operation) {
 	return "Pass the backend fields inside `params`. `project_id` may be omitted when `.openai/hosting.json` supplies it.";
 }
 
-function documentationSchema(schema, operation) {
-	const projected = JSON.parse(
+function documentationSchema(
+	schema: JsonSchema | undefined,
+	operation: ResolvedOperation,
+) {
+	const projected: JsonSchema = JSON.parse(
 		JSON.stringify(schema, (key, value) =>
 			(key === "description" || key === "title") && typeof value === "string"
 				? undefined
@@ -273,18 +307,19 @@ function documentationSchema(schema, operation) {
 		...(operation.local === "save" ? ["commit_sha", "archive"] : []),
 	];
 	for (const key of blocked) delete projected.properties?.[key];
-	projected.required = projected.required?.filter(
-		(key) => !blocked.includes(key),
-	);
+	if (projected.required)
+		projected.required = projected.required.filter(
+			(key) => !blocked.includes(key),
+		);
 	return projected;
 }
 
-async function readTopic(topic) {
+async function readTopic(topic: string) {
 	const text = await readFile(join(docsDir, `${topic}.md`), "utf8");
 	return boundedDocumentation(text);
 }
 
-function boundedDocumentation(text) {
+function boundedDocumentation(text: string) {
 	const max = 16_000;
 	if (Buffer.byteLength(text) <= max) return text;
 	const suffix = "\n\n[Documentation truncated; request the narrower topic.]\n";
