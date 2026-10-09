@@ -29,6 +29,7 @@ interface RuntimePlanBase {
 	nativeCompaction: boolean;
 	nativeReplay: boolean;
 	contextManagement: boolean;
+	contextManagementExternal: boolean;
 	contextManagementMode: ContextManagementMode;
 	contextManagementRemote: boolean;
 	contextManagementNested: boolean;
@@ -139,6 +140,7 @@ export function resolveCodexRuntimePlan(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
 	executionMode?: ExecutionMode,
+	externalNotes = false,
 ): CodexRuntimePlan {
 	const isConfigured = configuredProvider(ctx, config);
 	const codexTransport = isCodexTransportContext(ctx);
@@ -159,6 +161,7 @@ export function resolveCodexRuntimePlan(
 		nativeCompaction: false,
 		nativeReplay: false,
 		contextManagement: false,
+		contextManagementExternal: externalNotes,
 		contextManagementMode: "off" as const,
 		contextManagementRemote: false,
 		contextManagementNested: false,
@@ -179,7 +182,7 @@ export function resolveCodexRuntimePlan(
 
 	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
-	const configuredContextManagementMode = isResponsesContext(ctx) && config.compaction.continuity !== "compaction"
+	const configuredContextManagementMode = !externalNotes && isResponsesContext(ctx) && config.compaction.continuity !== "compaction"
 		? config.compaction.historyStorage
 		: "off";
 	const contextManagement = configuredContextManagementMode !== "off" &&
@@ -193,7 +196,7 @@ export function resolveCodexRuntimePlan(
 	base.compactOnRollover = contextManagement && config.compaction.continuity === "notes-and-compaction";
 	base.idleNotesRollover = contextManagement && config.compaction.continuity === "notes" && config.compaction.idleNotesRollover;
 	base.nativeReplay = effectiveOpenAICodex;
-	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
+	const nativeCompaction = effectiveOpenAICodex && (externalNotes ? config.compaction.method !== "pi" : nativeCompactionConfigured(config.compaction));
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
@@ -203,7 +206,7 @@ export function resolveCodexRuntimePlan(
 			: undefined;
 	if (requestedCodeMode) {
 		const contextManagementNested = contextManagement;
-		const contextTools = !contextManagement ? []
+		const contextTools = !contextManagement && !externalNotes ? []
 			: ["new_context"];
 		const transport = usesResponsesLite(ctx, config)
 			? "responses-lite"
@@ -244,7 +247,7 @@ export function resolveCodexRuntimePlan(
 	return {
 		...base,
 		kind: "normal",
-		toolNames: [...normalToolNames(ctx, config, contextManagement), ...(base.autoReasoning ? ["change_reasoning"] : [])],
+		toolNames: [...normalToolNames(ctx, config, contextManagement || externalNotes), ...(base.autoReasoning ? ["change_reasoning"] : [])],
 		prompt: "normal",
 		transport: "responses",
 		nativeCompaction,
@@ -256,9 +259,13 @@ export function resolveCodexRuntimePlan(
 
 export function resolveCodexRuntimePlanForState(
 	ctx: RuntimeContext,
-	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames">,
+	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames" | "externalNotes">,
 ): CodexRuntimePlan {
-	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode, Boolean(state.externalNotes));
+	if (state.externalNotes && (plan.kind === "inactive" || plan.kind === "extras"))
+		plan.ownedToolNames = plan.ownedToolNames.filter(name => !CONTEXT_MANAGEMENT_TOOL_NAMES.includes(name));
+	if (state.externalNotes && plan.kind === "extras")
+		plan.toolNames = [...plan.toolNames, ...CONTEXT_MANAGEMENT_TOOL_NAMES];
 	const missingToolNames = state.availableToolNames === undefined
 		? []
 		: [...plan.toolNames, ...(plan.contextManagementNested ? ["history", "notes"] : [])]

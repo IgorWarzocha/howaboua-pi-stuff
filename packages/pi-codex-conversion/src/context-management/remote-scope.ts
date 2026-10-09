@@ -66,13 +66,13 @@ export function assertRemoteBackendScope(ctx: ExtensionContext, scope: string): 
 
 export async function resolveRemoteContextScope(ctx: ExtensionContext, state: AdapterState): Promise<string> {
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
-	if (!plan.contextManagementNested)
+	if (!plan.contextManagementNested && !(state.externalNotes && (plan.kind === "code" || plan.kind === "notebook")))
 		throw new Error("Protected context requires Code or Notebook");
 	const identity = contextAgentIdentity(ctx);
 	const model = JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]);
 	const provider = await resolveRemoteContextProvider(ctx);
 	const latest = resolveCodexRuntimePlanForState(ctx, state);
-	if (!latest.contextManagementNested || latest.contextManagementMode !== plan.contextManagementMode || latest.kind !== plan.kind ||
+	if ((!latest.contextManagementNested && !state.externalNotes) || latest.contextManagementMode !== plan.contextManagementMode || latest.kind !== plan.kind ||
 		JSON.stringify(identity) !== JSON.stringify(contextAgentIdentity(ctx)) ||
 		model !== JSON.stringify([ctx.model?.api, ctx.model?.provider, ctx.model?.id, ctx.model?.baseUrl]))
 		throw new Error("Remote context changed during authentication; start a new exec cell");

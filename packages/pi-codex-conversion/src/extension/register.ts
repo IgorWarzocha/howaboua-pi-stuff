@@ -14,6 +14,9 @@ import { registerVoiceHandoff } from "../voice/handoff.ts";
 import { hasCodexTransportConfigChanged, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
+import { registerExternalNotesBridge } from "../context-management/external-notes-bridge.ts";
+import { createExternalNotesRemoteService } from "../context-management/external-notes-remote.ts";
+import { configureExternalNotesTools } from "../context-management/tools.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
@@ -22,6 +25,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	runtime.state.contextTree.register(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
+	let cleanupNotesBridge: (() => void) | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
 			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
@@ -34,6 +38,12 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames, runtime.beforeRequestSend);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
+		const unregisterNotesBridge = registerExternalNotesBridge(pi, runtime, codeMode, {
+			...createExternalNotesRemoteService(),
+			configureTools: (definitions, ctx, contracts) => configureExternalNotesTools(pi, runtime.state, definitions, ctx, contracts),
+		});
+		cleanupNotesBridge = unregisterNotesBridge;
+		pi.on("session_shutdown", () => unregisterNotesBridge());
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
@@ -42,7 +52,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				runtime.state.notebookStatusMessageId = undefined;
 			tools.applyConfig(config);
 			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
-			runtime.state.contextWindows.ensureInitialized(
+			if (!runtime.state.externalNotes) runtime.state.contextWindows.ensureInitialized(
 				pi,
 				ctx,
 				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement,
@@ -80,6 +90,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			priority: () => runtime.state.enabled || runtime.state.config.voiceFeaturesOnly ? 20 : 5,
 		});
 	} catch (registrationError) {
+		cleanupNotesBridge?.();
 		try {
 			try {
 				cleanupProxyProvider?.shutdown();

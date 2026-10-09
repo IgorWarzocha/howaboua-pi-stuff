@@ -82,6 +82,7 @@ export async function registerCodexCodeMode(
 		},
 		isActive,
 		opaqueResultScope: (ctx) => resolveRemoteContextScope(ctx, runtime.state),
+		lazyOpaqueResultScope: () => Boolean(runtime.state.externalNotes),
 		deliverOpaqueResponse: (response, callId, scope, ctx) => appendRemoteDelivery(pi, response, callId, scope, ctx),
 		executionKind: (ctx) =>
 			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
@@ -222,10 +223,17 @@ function createNestedTools(
 			{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
 		));
 	}
-	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement) {
-		const [, getContextRemaining] = createContextWindowTools(pi, runtime.state);
-		tools.push(toNestedTool(
-			getContextRemaining,
+	if (ctx && (runtime.state.externalNotes || resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement)) {
+		const externalRemaining = runtime.state.externalNotes?.tools?.find(tool => tool.name === "get_context_remaining");
+		if (externalRemaining) tools.push(toNestedTool(externalRemaining, "await tools.get_context_remaining({})", {}, {
+			resultValue: result => {
+				const text = result.content.find(part => part.type === "text");
+				const remaining = text?.type === "text" ? JSON.parse(text.text) as { remainingTokens?: number | null } : undefined;
+				return { tokens_left: remaining?.remainingTokens ?? null };
+			},
+		}));
+		else if (!runtime.state.externalNotes) tools.push(toNestedTool(
+			createContextWindowTools(pi, runtime.state)[1],
 			"await tools.get_context_remaining({})",
 			{},
 			{

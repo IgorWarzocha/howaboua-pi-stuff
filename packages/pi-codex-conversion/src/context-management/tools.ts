@@ -5,7 +5,7 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
 import { registerCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
@@ -14,6 +14,7 @@ import { remoteBackendScope, withRemoteContextScope } from "./remote-scope.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 import { HISTORY_NESTED_USAGE, NOTES_NESTED_USAGE } from "./tool-contract.ts";
+import { syncAdapter } from "../adapter/activation/activation.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
 
@@ -162,9 +163,50 @@ export function registerContextManagementTools(
 	const nested = nestedTools(false);
 	const mixedNested = nestedTools(false, true);
 	const remoteNested = nestedTools(true);
-	registerCodeModeExtensionTools(pi, (ctx) => ctx && plan(ctx).contextManagementNested
-		? plan(ctx).contextManagementRemote ? remoteNested : route.requiresRemoteScope?.(ctx) ? mixedNested : nested
-		: []);
+	registerCodeModeExtensionTools(pi, (ctx) => {
+		if (state.externalNotes) return externalNestedTools(state, ctx);
+		return ctx && plan(ctx).contextManagementNested
+			? plan(ctx).contextManagementRemote ? remoteNested : route.requiresRemoteScope?.(ctx) ? mixedNested : nested
+			: [];
+	});
+}
+
+export function configureExternalNotesTools(
+	pi: ExtensionAPI,
+	state: AdapterState,
+	tools: readonly ToolDefinition[],
+	ctx: ExtensionContext,
+	contracts: Readonly<Record<"notes" | "history", string>>,
+): void {
+	if (!state.externalNotes) throw new Error("Notes continuity handoff is unavailable");
+	state.externalNotes.tools = tools;
+	state.externalNotes.contracts = contracts;
+	syncAdapter(pi, ctx, state);
+}
+
+function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
+	const external = state.externalNotes;
+	if (!external || !ctx || !isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state))) return [];
+	const protectedResults = ctx.model?.api === "openai-codex-responses";
+	return (external.tools ?? []).filter(tool => tool.name === "notes" || tool.name === "history").map(tool => {
+		const nested = toNestedTool(tool, `await tools.${tool.name}({ action, ...args })`, {}, {
+			deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
+			opaqueResult: protectedResults, allowPlainResult: true,
+			opaqueResultScope: result => {
+				const details = result.details;
+				return remoteBackendScope(details && typeof details === "object" && "codexHistoryNotes" in details ? details.codexHistoryNotes : undefined);
+			},
+			isContextNoteWrite: input => tool.name === "notes" && Boolean(input && typeof input === "object" && "action" in input &&
+				(input.action === "write_file" || input.action === "append_to_file")),
+		});
+		return { ...nested,
+			discoveryUsage: external.contracts?.[tool.name === "notes" ? "notes" : "history"],
+			invoke: (...[input, context, signal]: Parameters<typeof nested.invoke>) => nested.invoke(input,
+				protectedResults && !context.resolveOpaqueScope && context.extensionContext
+					? { ...context, extensionContext: withRemoteContextScope(context.extensionContext, context.opaqueScope) }
+					: context, signal),
+		};
+	});
 }
 
 function assertContextManagementActive(

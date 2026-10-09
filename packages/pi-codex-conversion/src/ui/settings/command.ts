@@ -133,7 +133,7 @@ export function registerCodexCommand(
 				}
 				return;
 			}
-			ctx.ui.notify(formatCodexSettings(state.config), "info");
+			ctx.ui.notify(formatCodexSettings(state.config) + (state.externalNotes ? "\nNotes continuity is externally managed; saved PCC continuity settings are inactive." : ""), "info");
 			return;
 		}
 		let configScope: CodexConversionConfigScope = hasFolderCodexConversionConfig(
@@ -162,6 +162,7 @@ export function registerCodexCommand(
 			};
 		};
 		await openCodexSettingsScreen(ctx, {
+			externalNotes: Boolean(state.externalNotes),
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),

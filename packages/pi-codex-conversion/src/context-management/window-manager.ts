@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { NotesOwner } from "./external-notes-protocol.ts";
 import { contextAgentIdentity } from "./agent-identity.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getCurrentSystemMessage, type ProviderHeaders } from "@earendil-works/pi-ai";
@@ -74,6 +75,7 @@ export class CodexContextWindowManager {
 	} | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
+	private externalOwner: (() => NotesOwner | undefined) | undefined;
 	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
 
 	constructor(
@@ -96,6 +98,10 @@ export class CodexContextWindowManager {
 
 	currentIdentity(): ContextWindowIdentity | undefined {
 		return this.identity ? { ...this.identity } : undefined;
+	}
+
+	setExternalOwner(owner: () => NotesOwner | undefined): void {
+		this.externalOwner = owner;
 	}
 
 	recordSettlement(pi: ExtensionAPI, ctx: ExtensionContext, aborted: boolean, now = Date.now()): void {
@@ -455,11 +461,13 @@ export class CodexContextWindowManager {
 	}
 
 	rewritePayload(payload: unknown, ctx: ExtensionContext): unknown {
-		return rewriteWindowPayload(payload, ctx, this.identity);
+		const owner = this.externalOwner?.();
+		return rewriteWindowPayload(payload, ctx, owner ? owner.identity(ctx) : this.identity, !owner);
 	}
 
 	rewriteHeaders(headers: ProviderHeaders, ctx: ExtensionContext): void {
-		rewriteWindowHeaders(headers, ctx, this.identity);
+		const owner = this.externalOwner?.();
+		rewriteWindowHeaders(headers, ctx, owner ? owner.identity(ctx) : this.identity, !owner);
 	}
 
 	private sendWindowMessage(

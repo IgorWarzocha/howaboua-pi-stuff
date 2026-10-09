@@ -104,6 +104,7 @@ export type NativeCompactionRequestOptions = Pick<
 >;
 
 export type SerializeResponsesMessagesOptions = {
+	projectMessages?: ((messages: readonly AgentMessage[]) => AgentMessage[]) | undefined;
 	instructions?: string | undefined;
 	includeInstructionsInInput?: boolean | undefined;
 	blockImages?: boolean | undefined;
@@ -172,6 +173,7 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 	options: SerializeResponsesMessagesOptions = {},
 ): ResponsesInputItem[] {
 	const developerMessages = new CodexDeveloperMessageBridge();
+	if (options.projectMessages) messages = options.projectMessages(messages);
 	const llmMessages = applyBlockImages(
 		convertToLlm(developerMessages.prepare(messages, true, model)),
 		options.blockImages ?? readBlockImagesSetting(),

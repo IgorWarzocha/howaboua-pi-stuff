@@ -21,6 +21,7 @@ import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
 import { recordNotebookStatus } from "../adapter/notebook-status.ts";
 import { hasFreshContextNotes } from "../context-management/saved-notes.ts";
 import { findLatestWindowBoundaryEntry } from "../context-management/window-manager.ts";
+import { discoverExternalNotesOwner } from "../context-management/external-notes-bridge.ts";
 import type { ExtensionHandler, TurnEndEvent, InputEvent, BeforeAgentStartEvent, AgentStartEvent, AgentSettledEvent, ContextWithSystemEvent, TurnEndEventResult, InputEventResult, BeforeAgentStartEventResult, ContextEventResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexTurnLifecycle(
@@ -33,6 +34,7 @@ export function createCodexTurnLifecycle(
 ) {
 	const { state } = runtime;
 	const startManualNotesWindow = async (ctx: ExtensionContext): Promise<boolean> => {
+		if (state.externalNotes) return false;
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		try {
 			const rolled = plan.contextManagementMode === "tree"
@@ -63,6 +65,7 @@ export function createCodexTurnLifecycle(
 	return {
 		turnEnded: (event, ctx) => {
 			flushCodexReasoningUpdates(pi, ctx);
+			if (state.externalNotes) return;
 			if (event.message.role !== "assistant") return;
 			if (ctx.signal?.aborted || event.message.stopReason === "error" || event.message.stopReason === "length" || event.message.stopReason === "aborted") {
 				state.contextWindows.cancelScheduledCompaction();
@@ -89,6 +92,16 @@ export function createCodexTurnLifecycle(
 			if (reminder) return { entries: [...event.entries, reminder], continue: true };
 		},
 		input: async (event, ctx) => {
+			discoverExternalNotesOwner(pi, state);
+			if (state.externalNotes) {
+				if (event.streamingBehavior === undefined) {
+					session.activate(ctx);
+					state.codexTurnState.beginTurn();
+					syncAdapter(pi, ctx, state);
+				}
+				if (event.source !== "extension") runtime.voice.piInput(event.text, event.streamingBehavior);
+				return;
+			}
 			const inputPlan = resolveCodexRuntimePlanForState(ctx, state);
 			const checkpointInput = state.contextWindows.admitPromptedCheckpointInput(event);
 			const identity = state.contextWindows.currentIdentity();
@@ -131,11 +144,11 @@ export function createCodexTurnLifecycle(
 				runtime.voice.piInput(event.text, event.streamingBehavior);
 		},
 		beforeAgentStart: async (event, ctx) => {
-			state.contextTree.handoff.preparing(event.prompt);
+			if (!state.externalNotes) state.contextTree.handoff.preparing(event.prompt);
 			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (!state.contextWindows.currentIdentity()) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
+			if (!state.externalNotes && !state.contextWindows.currentIdentity()) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
 			if (plan.kind !== "notebook") state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
@@ -153,8 +166,10 @@ export function createCodexTurnLifecycle(
 		},
 		agentStarted: async (_event, ctx) => {
 			updateCodexPreparedIdleKickoff(pi, "agent_start");
-			state.contextWindows.beginPromptedManualCheckpointRun();
-			state.contextTree.handoff.started(ctx);
+			if (!state.externalNotes) {
+				state.contextWindows.beginPromptedManualCheckpointRun();
+				state.contextTree.handoff.started(ctx);
+			}
 			runtime.autoReasoning.begin(ctx);
 			runtime.cancelCacheKeepalive();
 			// Final serialization sees every extension's prompt and native tool edits.
@@ -166,6 +181,18 @@ export function createCodexTurnLifecycle(
 			runtime.finishTurn();
 			updateCodexPreparedIdleKickoff(pi, "agent_settled");
 			flushCodexReasoningUpdates(pi, ctx);
+			if (state.externalNotes) {
+				if (!event.aborted) ui.recordNoteSave(ctx);
+				runtime.autoReasoning.settle(ctx);
+				const quotaExhausted = !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
+				session.flushToolRefresh(ctx);
+				state.codexTurnState.reset();
+				runtime.voice.settleTurn();
+				runtime.lanVoice.agentSettled();
+				if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
+				if (!quotaExhausted) runtime.armCacheKeepalive(ctx);
+				return;
+			}
 			if (!event.aborted) ui.recordNoteSave(ctx);
 			// Rollover compaction aborts this run before its successor exists.
 			const continuingWork = state.contextWindows.isRolloverCompactionRunning()
@@ -203,7 +230,8 @@ export function createCodexTurnLifecycle(
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			try {
 				const window = findLatestWindowBoundaryEntry(ctx.sessionManager.getBranch());
-				await recordCodexContextBriefings(pi, ctx, window?.details.contextManagement.currentWindowId,
+				await recordCodexContextBriefings(pi, ctx, state.externalNotes
+					? state.externalNotes.owner.identity(ctx)?.currentWindowId : window?.details.contextManagement.currentWindowId,
 					runtime.projectContextMessages(ctx, event.messages));
 			} catch (error) {
 				ctx.abort();

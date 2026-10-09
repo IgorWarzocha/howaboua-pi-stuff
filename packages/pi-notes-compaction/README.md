@@ -8,7 +8,7 @@ Standalone use needs Pi 1.1.0 or newer. Run an isolated session from this checko
 pi --no-extensions -e ./packages/pi-notes-compaction/src/index.ts
 ```
 
-Current Pi Codex Conversion does not implement the required takeover bridge. If its existing context tools are installed alongside this extension, this extension stays inactive rather than overwriting them. `/notes status` reports the conflict. The proposed integration is specified in [PCC-INTEGRATION.md](PCC-INTEGRATION.md).
+Pi Codex Conversion in this checkout implements the [takeover bridge](PCC-INTEGRATION.md). When loaded together, this extension owns notes and window rollover; PCC keeps its provider, Code/Notebook and normal-compaction services. Older PCC versions without the bridge leave this extension inactive rather than creating conflicting tools. `/notes status` reports activation and available capabilities.
 
 ## Notes and windows
 

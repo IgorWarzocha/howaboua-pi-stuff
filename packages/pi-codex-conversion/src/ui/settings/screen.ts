@@ -29,6 +29,7 @@ import { nativeDevicePicker } from "./native-device-picker.ts";
 import { createUsageTab, type UsageTabOptions } from "./usage-tab.ts";
 
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
+	externalNotes?: boolean;
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
 	onGlobalLunaCacheKeepalive: (minutes: LunaCacheKeepaliveMinutes) => CodexConversionConfig | undefined;
@@ -142,6 +143,7 @@ export async function openCodexSettingsScreen(
 					theme,
 					availableContextModels,
 					ctx,
+					options.externalNotes,
 				),
 				...(activeTab === "voice"
 					? (["inputDevice", "outputDevice"] as const).map((key): ConfigSetting => ({
@@ -272,7 +274,7 @@ export async function openCodexSettingsScreen(
 					);
 				if (activeTab === "context")
 					settingsLines = withContextPortabilityWarning(settingsLines, theme, width);
-				if (activeTab === "context" && draft.compaction.continuity === "notes")
+				if (activeTab === "context" && !options.externalNotes && draft.compaction.continuity === "notes")
 					settingsLines = withSettingsDetails(settingsLines, [
 						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
 					]);

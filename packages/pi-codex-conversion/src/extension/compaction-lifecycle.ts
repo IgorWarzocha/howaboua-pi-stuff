@@ -21,7 +21,7 @@ export function createCodexCompactionLifecycle(
 
 	return {
 		beforeCompact: async (event, ctx) => {
-			if (state.contextTree.handoff.active) return { cancel: true };
+			if (!state.externalNotes && state.contextTree.handoff.active) return { cancel: true };
 			// Summaries can share the model/session routing; keep the live checkpoint.
 			runtime.finishTurn();
 			state.cwd = ctx.cwd;
@@ -29,9 +29,9 @@ export function createCodexCompactionLifecycle(
 				ctx,
 				state,
 			);
-			if (event.reason === "manual" && !state.contextWindows.currentIdentity())
+			if (!state.externalNotes && event.reason === "manual" && !state.contextWindows.currentIdentity())
 				state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
-			const contextManagementResult = plan.contextManagement
+			const contextManagementResult = !state.externalNotes && plan.contextManagement
 				? state.contextWindows.prepareCompaction(
 					event,
 					plan.contextManagementMode,
@@ -69,6 +69,7 @@ export function createCodexCompactionLifecycle(
 			if (state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
 			state.pendingPiCompactionNativeWindow = undefined;
 			runtime.voice.compactionFinished();
+			if (state.externalNotes) return;
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			const reuseNotes = state.contextWindows.finishManualCheckpointRequest(
 				pi, ctx, event, plan.contextManagement && !plan.compactOnRollover,
@@ -80,9 +81,9 @@ export function createCodexCompactionLifecycle(
 			try {
 				runtime.voice.resetContextAnnouncements();
 				state.pendingPiCompactionNativeWindow = undefined;
-				state.contextWindows.recordCompaction(event.compactionEntry.details);
+				if (!state.externalNotes) state.contextWindows.recordCompaction(event.compactionEntry.details);
 				const plan = resolveCodexRuntimePlanForState(ctx, state);
-				const rolloverCompaction = plan.compactOnRollover && event.reason === "manual" &&
+				const rolloverCompaction = !state.externalNotes && plan.compactOnRollover && event.reason === "manual" &&
 					state.contextWindows.isRolloverCompactionRunning();
 				let treeRolloverScheduled = false;
 				const contextCompaction =

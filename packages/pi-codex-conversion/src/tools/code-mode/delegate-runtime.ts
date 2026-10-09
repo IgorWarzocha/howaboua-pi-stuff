@@ -50,6 +50,7 @@ export class CodeModeDelegateRuntime {
 	private readonly execSessions = new Map<string, Set<number>>();
 	private readonly terminatingCells = new Set<string>();
 	private readonly contextNoteWrites = new Map<string, boolean>();
+	private readonly remoteNoteWrites = new Set<string>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
@@ -106,6 +107,7 @@ export class CodeModeDelegateRuntime {
 			this.execSessions.delete(cellId);
 			this.terminatingCells.delete(cellId);
 			this.contextNoteWrites.delete(cellId);
+			this.remoteNoteWrites.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -125,6 +127,7 @@ export class CodeModeDelegateRuntime {
 		this.execSessions.clear();
 		this.terminatingCells.clear();
 		this.contextNoteWrites.clear();
+		this.remoteNoteWrites.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
 		this.blockerChanges.clear();
@@ -235,6 +238,8 @@ export class CodeModeDelegateRuntime {
 		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
 		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
 		const noteWrites = this.contextNoteWrites.get(response.cellId);
+		const remoteNoteWrite = this.remoteNoteWrites.has(response.cellId);
+		if (response.kind !== "yielded") this.remoteNoteWrites.delete(response.cellId);
 		const terminate = response.kind === "result" && !response.errorText && noteWrites !== false && this.terminatingCells.has(response.cellId);
 		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
 		if (response.kind !== "yielded") this.contextNoteWrites.delete(response.cellId);
@@ -247,7 +252,7 @@ export class CodeModeDelegateRuntime {
 			...(noteWrites !== undefined && response.kind !== "yielded"
 				? { contextNotesSaved: response.kind === "result" && !response.errorText && noteWrites }
 				: {}),
-			...(noteWrites !== undefined && opaque && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
+			...(noteWrites !== undefined && remoteNoteWrite && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
 			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
@@ -329,6 +334,8 @@ export class CodeModeDelegateRuntime {
 			originalExecCallId: this.originalExecCalls.get(cellId),
 			toolCallId: trace.id,
 			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
+				this.reserveOpaqueCall(cellId);
+				if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
 				const pending = this.opaqueResults.get(cellId);
 				if (!pending || controller.signal.aborted ||
 					this.cellContexts.get(cellId)?.opaqueScope !== context.opaqueScope ||
@@ -370,7 +377,10 @@ export class CodeModeDelegateRuntime {
 			if (opaqueResult) {
 				if (!context.opaqueContextValid || !await context.opaqueContextValid())
 					throw new Error("Remote context changed; start a new exec cell");
-				this.reserveOpaqueCall(cellId);
+				if (!context.resolveOpaqueScope) {
+					this.reserveOpaqueCall(cellId);
+					if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
+				}
 			}
 			blocking =
 				!isCustomToolDefinition(tool) &&

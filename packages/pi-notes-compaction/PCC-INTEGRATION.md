@@ -1,6 +1,6 @@
 # PCC takeover contract, protocol 1
 
-This document specifies changes required in Pi Codex Conversion. **PCC has not been changed.** The new extension implements its side in `src/bridge.ts` and stays inactive when legacy context tools exist without an acknowledged bridge.
+This contract is implemented by Pi Codex Conversion in this checkout and by this extension's `src/bridge.ts`. The extension stays inactive when legacy context tools exist without an acknowledged bridge.
 
 Use Pi's public `pi.events` bus. Do not import PCC internals into this package or create a dependency cycle. `src/bridge.ts` defines the exact TypeScript signatures. Bus objects and callbacks are process-local, not serialized session data.
 

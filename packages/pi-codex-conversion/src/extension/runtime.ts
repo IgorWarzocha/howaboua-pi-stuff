@@ -118,6 +118,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		contextTree: new CodexContextTreeCoordinator(contextWindows, contextKickoff),
 	};
 	const tracker = createExecCommandTracker();
+	contextWindows.setExternalOwner(() => state.externalNotes?.owner);
 	const sessions = createExecSessionManager({
 		env: { ...process.env },
 		bridgeBinaryPath: () => getBundledToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
@@ -292,6 +293,12 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	};
 
 	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[]) => {
+		if (state.externalNotes) {
+			// Message projection preserves the committed prompt before retiring conversation.
+			const branch = ctx.sessionManager.getBranch();
+			return state.externalNotes.owner.projectMessages(projectCodexDeveloperHistory(branch, messages))
+				.filter(message => !isProviderContextExcludedMessage(message));
+		}
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const branch = ctx.sessionManager.getBranch();
 		const archived = hasTreeArchives(branch);

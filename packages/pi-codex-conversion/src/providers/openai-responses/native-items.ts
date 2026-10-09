@@ -78,8 +78,11 @@ export function encryptedToolOutputFromDetails(details: unknown): string | undef
 export function opaqueToolOutputsFromDetails(details: unknown): Array<{ resultId: string; name: string; encryptedOutput: string }> {
 	if (!details || typeof details !== "object") return [];
 	const record = details as Record<string, unknown>;
-	if (record["codeMode"] !== true || !Array.isArray(record["opaqueOutputs"])) return [];
-	return record["opaqueOutputs"].map((item: unknown) => {
+	const notes = record["codexHistoryNotes"];
+	const outputs = notes && typeof notes === "object" && "cachedOutputs" in notes
+		? notes.cachedOutputs : record["codeMode"] === true ? record["opaqueOutputs"] : undefined;
+	if (!Array.isArray(outputs)) return [];
+	return outputs.map((item: unknown) => {
 		if (!item || typeof item !== "object") throw new Error("Invalid protected tool output");
 		const value = item as Record<string, unknown>;
 		if (typeof value["resultId"] !== "string" || typeof value["name"] !== "string" ||

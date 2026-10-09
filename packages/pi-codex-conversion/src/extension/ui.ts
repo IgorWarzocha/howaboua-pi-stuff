@@ -75,9 +75,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const { state } = runtime;
 		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const identity = state.contextWindows.currentIdentity();
-		if (plan.contextManagement && identity)
-			bookmarkNotesContinuation(pi, ctx, identity.currentWindowId, plan.contextManagementMode);
+		const identity = state.externalNotes ? state.externalNotes.owner.identity(ctx) : state.contextWindows.currentIdentity();
+		if ((plan.contextManagement || plan.contextManagementExternal) && identity)
+			bookmarkNotesContinuation(pi, ctx, identity.currentWindowId, plan.contextManagementExternal ? "local" : plan.contextManagementMode);
 	});
 	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
@@ -173,9 +173,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const { state } = runtime;
 		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const identity = state.contextWindows.currentIdentity();
-		if (plan.contextManagement && identity)
-			recordNoteSaveMarker(pi, ctx, identity.currentWindowId, plan.contextManagementMode);
+		const identity = state.externalNotes ? state.externalNotes.owner.identity(ctx) : state.contextWindows.currentIdentity();
+		if ((plan.contextManagement || plan.contextManagementExternal) && identity)
+			recordNoteSaveMarker(pi, ctx, identity.currentWindowId, plan.contextManagementExternal ? "local" : plan.contextManagementMode);
 	};
 	const refreshUsageStatus = async (ctx: ExtensionContext) => {
 		const generation = ++usageGeneration;
