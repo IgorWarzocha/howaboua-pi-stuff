@@ -38,9 +38,15 @@ Browser microphone audio captured during connection setup is buffered. Call stat
 
 LAN control is unauthenticated and intended only for trusted networks. Browser control and audio enforce the same HTTPS origin. Do not expose it to the internet.
 
-Settings live in `grok-realtime.json` in Pi's agent directory. The default LAN port is `43121`. The current defaults are voice `eve` and model `grok-voice-latest`. Automatic resume is on by default. An established voice connection that drops gets one replacement attempt, preserving the audio device, mute state and conversation continuity. A failed replacement stops visibly rather than retrying indefinitely. Browser microphone disconnection is separate; reconnect from the page. Dictation failures retain the available partial text but do not resume transcription automatically.
+## Settings and recovery
+
+Settings live in `grok-realtime.json` in Pi's agent directory. The default LAN port is `43121`. The default voice is `eve` and model is `grok-voice-latest`.
+
+Automatic resume is on by default. A dropped voice connection gets one replacement attempt, preserving the audio device, mute state and conversation continuity. If recovery fails, the call stops with an error. Browser microphone disconnection is separate; reconnect from the page. Dictation failures retain available partial text but do not resume transcription automatically.
 
 Dictation uses xAI's streaming speech-to-text service with your Pi xAI login, not the realtime conversation model. It does not invoke tools or submit a Pi request. The language setting applies to dictation too; `auto` lets xAI detect it. Transcription has its own pricing or account allowance. Account entitlement and billing still need to be verified separately.
+
+## Personality and context
 
 Add voice personality and guidance in `~/.pi/agent/GROK-REALTIME-SYSTEM-PROMPT.md`, or in Pi's configured agent directory. The first call creates a comment-only template if the file is missing and never overwrites an existing file. Optional project instructions live in `.pi/GROK-REALTIME-SYSTEM-PROMPT.md` under the session's working directory.
 
@@ -66,7 +72,7 @@ Local device discovery, microphone capture and speaker playback use the same cro
 
 On macOS, microphone permission may be attributed to the terminal application hosting Pi. Check System Settings → Privacy & Security → Microphone if capture is denied. On Windows, check Privacy & security → Microphone, including access for desktop apps. Managed-device policy can also block capture. The macOS helper includes a microphone usage description, but permission prompts across terminal hosts still need validation.
 
-Choose a microphone and speaker under Voice → Audio devices, or use system defaults. Device discovery only runs when you open a picker; `pactl` is not required. Browser audio uses the browser's selected devices. If you saved a device with the earlier PulseAudio helper, select it again: device IDs belong to their audio backend.
+Choose a microphone and speaker under Voice → Audio devices, or use system defaults. Browser audio uses the browser's selected devices.
 
 Build the helper from this package with `bun run build:audio-helper`. Building requires Rust and the platform's compiler toolchain; Linux also needs `pkg-config` and ALSA development headers. The helper has no credentials or network transport. It captures and plays 24 kHz mono PCM, with echo processing and mute boundaries.
 

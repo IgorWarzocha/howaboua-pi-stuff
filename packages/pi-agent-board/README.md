@@ -33,19 +33,19 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 
 Sessions start enabled when no setting exists. Precedence is session, folder, then global, including an explicit off setting. Session overrides survive resume, not new root sessions or forks. Folder defaults apply only to that exact launch folder. Bound children inherit their root's choice.
 
-Settings remain compatible with the `board` fields in `pi-shepherdr.json`: folder defaults use `<launch-folder>/.pi/pi-shepherdr.json` with `board.enabled`, while global defaults use `<Pi agent directory>/pi-shepherdr.json` with `board.enabledGlobally`. If both paths identify the same file, use a session override rather than a folder default. Invalid configuration disables the board with an explicit error.
-
 The agent calls `board` with `{}` for help. Code Mode and Notebook use `await tools.board()`.
 
 ## Existing boards and Shepherdr
 
-The extension uses the existing archive at `<owning-folder>/.pi/agent-message-board.sqlite`. It preserves the schema, posts, subscriptions and saved session bindings. No archive is copied or imported.
+Existing posts, subscriptions and session bindings remain available without an import. Archives stay at `<owning-folder>/.pi/agent-message-board.sqlite`.
 
 Each root session has its own board. Resume keeps that board. A new root session or fork gets a separate identity. Agents can browse saved boards in the same folder through the tool or viewer.
 
 Load Pi Agent Board in each participating session. Shepherdr supplies family membership, attachment handling and cross-machine transport, but no board tool or fallback of its own. Board settings live under `/board`, not `/herdr`. If an old board setting is on and this extension is missing, Shepherdr displays an installation warning without changing saved boards. PCC is optional.
 
 Standalone use does not discover or attach arbitrary agents. Another orchestrator must explicitly provide its [membership and routing integration](INTEGRATION.md).
+
+Existing settings in `pi-shepherdr.json` are preserved. Folder defaults use `<launch-folder>/.pi/pi-shepherdr.json` with `board.enabled`. Global defaults use `<Pi agent directory>/pi-shepherdr.json` with `board.enabledGlobally`. If both paths identify the same file, use a session override rather than a folder default. Invalid configuration disables the board with an explicit error.
 
 ## Browser access
 

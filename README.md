@@ -39,6 +39,7 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-browser`](./packages/pi-browser) | Logged-in browser control with local CDP sessions and SSH host routing |
 | [`pi-cache-hit-predictor`](./packages/pi-cache-hit-predictor) | Inline prompt-cache hit predictions when switching models or reasoning levels |
+| [`pi-chatgpt-sites`](./packages/pi-chatgpt-sites) | ChatGPT Sites management, committed-source saves and deployment |
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image inspection, and Code Mode tools for GPT/Codex models |
 | [`pi-codex-guardian`](./packages/pi-codex-guardian) | Guardian approval reviews before tool execution in native Pi, Code Mode, and Notebook Mode |
 | [`pi-gippity-control`](./packages/pi-gippity-control) | Realtime voice and LAN remote control for any Pi model |

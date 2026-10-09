@@ -1,6 +1,10 @@
 # Pi Notes Compaction
 
-Local checkpoint notes and notes-guided context windows for any Pi model. This is a private development package, not an npm release.
+Keep working across fresh context windows with local checkpoint notes, searchable session history and optional remote lookup. Works with any Pi model.
+
+This is a private development package, not an npm release.
+
+## Try it
 
 Standalone use needs Pi 1.1.0 or newer. Run an isolated session from this checkout:
 
@@ -8,13 +12,15 @@ Standalone use needs Pi 1.1.0 or newer. Run an isolated session from this checko
 pi --no-extensions -e ./packages/pi-notes-compaction/src/index.ts
 ```
 
-Pi Codex Conversion in this checkout implements the [takeover bridge](PCC-INTEGRATION.md). When loaded together, this extension owns notes and window rollover; PCC keeps its provider, Code/Notebook and normal-compaction services. Older PCC versions without the bridge leave this extension inactive rather than creating conflicting tools. `/notes status` reports activation and available capabilities.
+Ask the agent to save a checkpoint and start a new context window. It can read those notes and search earlier session history to continue.
+
+With Pi Codex Conversion from this checkout, local notes work alongside Codex tools, Code Mode, Notebook and normal compaction. Older PCC versions without this integration leave the extension inactive. Run `/notes status` to check activation and available capabilities. Extension authors can read the [integration contract](PCC-INTEGRATION.md).
 
 ## Notes and windows
 
 The agent keeps the familiar `notes`, `history`, `new_context` and `get_context_remaining` tools. Notes use virtual paths. Relative paths belong to the current agent. History searches the selected Pi session branch, including earlier windows. It does not create a second transcript archive.
 
-By default, `new_context` retires the preceding conversation from the next model request without generating a summary. Pi's JSONL history stays intact. The successor runs the full extension preparation chain, with recent note paths and the same context-window identity lineage.
+By default, `new_context` starts a fresh window without generating a summary. The agent receives recent note paths, and Pi's saved history remains available for lookup.
 
 Reminders arrive at 85% and 90% context use. `/compact` requests a notes checkpoint and opens a new window only after a completed run with fresh saved notes. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
 
@@ -27,9 +33,7 @@ After 25 idle minutes, the next input waits for rollover only if the latest comp
 - `/notes compact off` restores notes-only rollover. This is the default.
 - `/notes prune` removes SQLite records for sessions whose recorded files are missing. Unknown paths, permission errors and the active session are retained.
 
-The only compaction setting is the normal-compaction toggle. This extension neither implements a separate compaction engine nor stores compaction output. Ordinary Pi compaction records remain Pi's responsibility.
-
-One SQLite database lives at `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Session records appear only on an actual note write or remote response cache write. Notes are plaintext. Successful-write recovery snapshots in model-invisible Pi entries preserve native fork and branch behavior even after a source session's SQLite records are pruned. Existing plaintext PCC note entries can be read without importing or rewriting the session.
+Notes are stored as plaintext in `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Saved session snapshots preserve notes across forks and branch navigation, including after database pruning. Existing plaintext PCC notes remain readable without an import.
 
 ## Optional remote lookup
 

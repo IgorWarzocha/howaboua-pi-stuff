@@ -6,4 +6,4 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-Browser, Notebook, agents, board and ask now return help when called without arguments, including empty objects in structured mode. Skills returns its catalog with command guidance. Explicit help remains supported.
+Browser, Notebook, agents and ask now return help when called without arguments, including empty objects in structured mode. Skills returns its catalog with command guidance. Explicit help remains supported.
