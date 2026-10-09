@@ -58,6 +58,9 @@ export async function focusAgent(
 		},
 		...(handoff?.trim() ? { handoff } : {}),
 		voice,
+		...(service
+			? { voiceAudioTransport: service.audioTransport ?? "webrtc" }
+			: {}),
 	};
 	if (service) {
 		const channel = await runtime.client.openFocusChannel(panel, request);
@@ -121,6 +124,12 @@ export function readFocus(value: unknown): FocusRequest {
 		throw new Error("Invalid focus handoff");
 	if ("voice" in value && typeof value.voice !== "boolean")
 		throw new Error("Invalid focus voice selection");
+	if (
+		"voiceAudioTransport" in value &&
+		value.voiceAudioTransport !== "webrtc" &&
+		value.voiceAudioTransport !== "pcm24"
+	)
+		throw new Error("Invalid focus audio transport");
 	return value as FocusRequest;
 }
 

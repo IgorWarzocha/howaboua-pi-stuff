@@ -34,7 +34,7 @@ export async function startControllerConversation(options: {
 	instructions: string;
 	initialItems?: RealtimeInitialMessageItem[] | undefined;
 	inputMuted?: boolean | undefined;
-	greeting?: "fresh" | "contextual" | undefined;
+	greeting?: "fresh" | "contextual" | "handoff" | undefined;
 	peer?: CodexRealtimePeer | undefined;
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
@@ -75,7 +75,7 @@ export async function startControllerConversation(options: {
 		if (options.greeting) {
 			setTimeout(() => {
 				if (options.lifecycle.isCurrent(session))
-					session.greet(options.greeting === "contextual");
+					session.greet(options.greeting === "contextual", options.greeting === "handoff");
 			}, 0).unref?.();
 		}
 	}

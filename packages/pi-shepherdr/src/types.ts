@@ -23,6 +23,7 @@ export interface FocusRequest {
 	};
 	handoff?: string;
 	voice?: boolean;
+	voiceAudioTransport?: "webrtc" | "pcm24";
 }
 
 export interface PeerChannel {

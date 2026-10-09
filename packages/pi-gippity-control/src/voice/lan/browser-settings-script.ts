@@ -26,6 +26,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
   };
   const display = (data) => {
     fillSelect('v3Voice', data.voices.map((voice) => ({ value:voice, label:voice })), data.config.v3Voice);
+    fillSelect('v3AlternateVoice', data.voices.map((voice) => ({ value:voice, label:voice })), data.config.v3AlternateVoice);
     const modelValue = (model) => JSON.stringify(model);
     const models = data.contextModels.slice();
     const current = data.config.contextModel;
@@ -62,6 +63,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     if (busy || !loaded) return;
     const patch = {
       v3Voice:form.elements.namedItem('v3Voice').value,
+      v3AlternateVoice:form.elements.namedItem('v3AlternateVoice').value,
       contextModel:JSON.parse(form.elements.namedItem('contextModel').value),
       contextReasoning:form.elements.namedItem('contextReasoning').value,
     };

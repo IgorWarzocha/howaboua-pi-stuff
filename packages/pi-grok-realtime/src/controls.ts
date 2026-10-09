@@ -15,6 +15,10 @@ export class GrokControls {
 	onChange: (() => void) | undefined;
 	private operation = Promise.resolve();
 	private generation = 0;
+	private pendingStarts = 0;
+	get preparing(): boolean {
+		return this.pendingStarts > 0;
+	}
 	private localDraft: ExtensionContext | undefined;
 	constructor(pi: ExtensionAPI) {
 		this.voice = new GrokRealtimeController(pi);
@@ -45,6 +49,7 @@ export class GrokControls {
 		this.dictation.cancelStartup();
 	}
 	startVoice(ctx: ExtensionContext, audio?: RealtimeAudio): Promise<void> {
+		this.pendingStarts++;
 		const generation = ++this.generation;
 		this.cancelStartup();
 		return this.enqueue(async () => {
@@ -53,9 +58,12 @@ export class GrokControls {
 				throw new Error("Voice startup cancelled");
 			const config = readConfig();
 			await this.voice.start(ctx, config, audio ?? new NativeAudio(config));
+		}).finally(() => {
+			this.pendingStarts--;
 		});
 	}
 	startDictation(ctx: ExtensionContext, audio?: RealtimeAudio): Promise<void> {
+		this.pendingStarts++;
 		const generation = ++this.generation;
 		this.cancelStartup();
 		return this.enqueue(async () => {
@@ -74,6 +82,8 @@ export class GrokControls {
 				this.clearDraft();
 				throw error;
 			}
+		}).finally(() => {
+			this.pendingStarts--;
 		});
 	}
 	async toggleVoice(ctx: ExtensionContext): Promise<void> {

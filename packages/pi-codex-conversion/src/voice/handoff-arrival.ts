@@ -168,6 +168,11 @@ export function startVoiceArrival(options: {
 				typeof activation["inputMuted"] !== "boolean"
 			)
 				throw new Error("Voice transfer did not provide its microphone state");
+			if (
+				activation["alternateVoice"] !== undefined &&
+				typeof activation["alternateVoice"] !== "boolean"
+			)
+				throw new Error("Voice transfer provided an invalid voice selection");
 			signal.throwIfAborted();
 			reservation.release();
 			const session = await voice.startRealtimeWithPeerPlan(
@@ -177,6 +182,7 @@ export function startVoiceArrival(options: {
 				signal,
 				prepared,
 				activation["inputMuted"],
+				activation["alternateVoice"] === true,
 			);
 			if (!session)
 				throw new Error(

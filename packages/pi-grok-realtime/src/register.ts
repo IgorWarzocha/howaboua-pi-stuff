@@ -15,6 +15,8 @@ import {
 } from "./config.ts";
 import { GrokControls } from "./controls.ts";
 import { validateAccess } from "./credentials.ts";
+import { registerVoiceHandoff } from "./handoff.ts";
+import { isRecord } from "./handoff-wire.ts";
 import type { startLan } from "./lan/server.ts";
 import { openSettings } from "./settings.ts";
 
@@ -22,6 +24,63 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 	const controls = new GrokControls(pi);
 	const { voice, dictation } = controls;
 	const activity = new PiActivity();
+	let transferredActivity: ReturnType<PiActivity["snapshot"]> = {
+		status: "idle",
+		text: "",
+	};
+	const transferredPrompts: string[] = [];
+	voice.onTransferredEvent = (event, data) => {
+		if (event === "handoff_started") {
+			transferredPrompts.length = 0;
+			transferredActivity = { status: "idle", text: "" };
+		} else if (event === "agent_start")
+			transferredActivity = { status: "working", text: "" };
+		else if (event === "agent_settled")
+			transferredActivity = {
+				...transferredActivity,
+				status: transferredActivity.text ? "settled" : "idle",
+			};
+		else if (event === "ui_prompt_start") {
+			transferredPrompts.push(
+				isRecord(data) && typeof data["title"] === "string"
+					? data["title"]
+					: "Pi is waiting for your input in the terminal",
+			);
+		} else if (event === "ui_prompt_end") transferredPrompts.pop();
+		else if (
+			(event === "message_update" || event === "message_end") &&
+			isRecord(data)
+		) {
+			const message = data["message"];
+			if (
+				isRecord(message) &&
+				message["role"] === "assistant" &&
+				Array.isArray(message["content"])
+			) {
+				const text = message["content"]
+					.flatMap((part: unknown) =>
+						isRecord(part) &&
+						part["type"] === "text" &&
+						typeof part["text"] === "string"
+							? [part["text"]]
+							: [],
+					)
+					.join("\n");
+				if (text.trim()) transferredActivity = { ...transferredActivity, text };
+			}
+		}
+	};
+	registerVoiceHandoff({
+		pi,
+		voice,
+		getConfig: readConfig,
+		priority: () => 30,
+		isBusy: () =>
+			controls.preparing ||
+			["connecting", "recording", "finishing"].includes(
+				dictation.state().status,
+			),
+	});
 	let lan: Awaited<ReturnType<typeof startLan>> | undefined;
 	let lanOperation = Promise.resolve();
 	controls.onChange = activity.onChange = () => lan?.publish();
@@ -174,15 +233,31 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 								theme: () => ctx.ui.theme,
 								send: (text) => {
 									activity.working();
-									voice.input(text);
-									pi.sendUserMessage(
-										text,
-										ctx.isIdle() ? undefined : { deliverAs: "steer" },
-									);
+									void voice
+										.sendText(ctx, text)
+										.catch((error) =>
+											ctx.ui.notify(
+												error instanceof Error ? error.message : String(error),
+												"error",
+											),
+										);
 								},
 								state: () => ({
 									...voice.state(),
-									activity: activity.snapshot(),
+									activity:
+										voice.state().status === "transferred"
+											? {
+													...transferredActivity,
+													...(transferredPrompts.length
+														? {
+																status: "waiting",
+																prompt:
+																	transferredPrompts.at(-1) ??
+																	"Pi is waiting for your input in the terminal",
+															}
+														: {}),
+												}
+											: activity.snapshot(),
 									dictation: dictation.state(),
 								}),
 								mute: (muted) => voice.mute(muted),

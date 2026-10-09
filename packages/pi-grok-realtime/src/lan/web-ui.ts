@@ -26,7 +26,8 @@ details{padding:16px 0;border-top:1px solid var(--pi-border-muted,GrayText)}summ
 <details><summary>Settings</summary><p><small>Saved settings apply when the next voice call starts.</small></p>
 <form id="settings"><fieldset disabled id="settings-fields">
 <label for="access">Access</label><select id="access" name="access"><option value="oauth">OAuth</option><option value="api_key">API key</option></select>
-<label for="voice">Voice</label><input id="voice" name="voice" list="voices" required><datalist id="voices"></datalist>
+<label for="voice">Primary voice</label><input id="voice" name="voice" list="voices" required><datalist id="voices"></datalist>
+<label for="alternateVoice">Alternate voice</label><input id="alternateVoice" name="alternateVoice" list="voices" required><small>Session transfers alternate between primary and alternate voices.</small>
 <label for="model">Realtime model</label><input id="model" name="model" list="models" required><datalist id="models"></datalist>
 <small>Custom IDs are allowed. Voice and model availability depends on your account.</small>
 <label for="reasoning">Reasoning effort</label><select id="reasoning" name="reasoning"><option value="high">High</option><option value="none">None</option></select>
@@ -72,7 +73,7 @@ let attempt = 0;
 let epoch = 0;
 const settings = document.getElementById('settings');
 const settingsStatus = document.getElementById('settings-status');
-const settingKeys = ['access','voice','model','reasoning','webSearch','autoResume','contextModel','contextReasoning','speed','language','silenceSeconds'];
+const settingKeys = ['access','voice','alternateVoice','model','reasoning','webSearch','autoResume','contextModel','contextReasoning','speed','language','silenceSeconds'];
 let savedSettings = {};
 function showSettings(config) {
   savedSettings = config;

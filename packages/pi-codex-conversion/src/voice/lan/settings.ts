@@ -7,6 +7,7 @@ import { LanVoiceSettingsError, type LanVoiceSettings } from "./settings-contrac
 const BOOLEAN_SETTINGS = ["autoResumeRealtime", "refreshRealtimeAfterCompaction", "delegationAcknowledgements", "forwardReasoningSummaries"] as const;
 interface VoiceSettings {
 	v3Voice: RealtimeV3Voice;
+	v3AlternateVoice: RealtimeV3Voice;
 	contextModel?: VoiceContextModel | undefined;
 	contextReasoning: VoiceContextReasoning;
 	autoResumeRealtime: boolean;
@@ -34,6 +35,7 @@ export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => C
 		return {
 			config: {
 				v3Voice: voice.v3Voice,
+				v3AlternateVoice: voice.v3AlternateVoice,
 				contextModel: voice.contextModel ?? null,
 				contextReasoning: voice.contextReasoning,
 				...Object.fromEntries(BOOLEAN_SETTINGS.map((key) => [key, voice[key]])),
@@ -51,10 +53,10 @@ export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => C
 			const patch: Partial<VoiceSettings> = {};
 			for (const [key, value] of Object.entries(body)) {
 				if (key === "clientId") continue;
-				if (key === "v3Voice") {
+				if (key === "v3Voice" || key === "v3AlternateVoice") {
 					const voice = normalizeRealtimeV3Voice(value);
 					if (!voice) throw new LanVoiceSettingsError("Choose a listed voice");
-					patch.v3Voice = voice;
+					patch[key] = voice;
 				} else if (key === "contextReasoning") {
 					if (typeof value !== "string" || !(VOICE_CONTEXT_REASONING_LEVELS as readonly string[]).includes(value))
 						throw new LanVoiceSettingsError("Choose a listed context reasoning level");

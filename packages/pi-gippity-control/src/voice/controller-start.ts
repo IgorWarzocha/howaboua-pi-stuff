@@ -40,6 +40,7 @@ export interface RealtimePeerPlan {
 
 export interface VoiceControllerRuntime {
 	state: VoiceState;
+	alternateVoice?: boolean;
 	context?: ExtensionContext | undefined;
 	config?: GippityControlConfig | undefined;
 	announcedMode?: CodexVoiceMode | undefined;
@@ -87,6 +88,7 @@ export async function startControllerMode(options: {
 	mode: CodexVoiceMode;
 	realtimePeerPlan?: RealtimePeerPlan | undefined;
 	resume?: boolean | undefined;
+	alternateVoice?: boolean | undefined;
 	inputMuted?: boolean | undefined;
 	preparedRealtimeContext?: PreparedRealtimeContext | undefined;
 	signal?: AbortSignal | undefined;
@@ -118,6 +120,9 @@ export async function startControllerMode(options: {
 	const startGeneration = ++runtime.startGeneration;
 	runtime.context = options.ctx;
 	runtime.config = options.config;
+	runtime.alternateVoice = options.resume
+		? (runtime.alternateVoice ?? false)
+		: (options.alternateVoice ?? false);
 	runtime.realtimePeerPlan =
 		options.mode === "realtime" ? options.realtimePeerPlan : undefined;
 	options.messages.setContext(options.ctx);
@@ -224,15 +229,25 @@ async function startConversation(
 	const peer = options.realtimePeerPlan?.createPeer();
 	await startControllerConversation({
 		auth,
-		config: options.config,
+		config: runtime.alternateVoice
+			? {
+					...options.config,
+					voice: {
+						...options.config.voice,
+						v3Voice: options.config.voice.v3AlternateVoice,
+					},
+				}
+			: options.config,
 		instructions,
 		initialItems,
 		inputMuted: options.inputMuted,
 		greeting: options.resume
 			? undefined
-			: initialItems?.length
-				? "contextual"
-				: "fresh",
+			: options.alternateVoice !== undefined
+				? "handoff"
+				: initialItems?.length
+					? "contextual"
+					: "fresh",
 		peer,
 		signal,
 		lifecycle: {

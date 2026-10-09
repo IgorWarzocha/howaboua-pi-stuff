@@ -1,4 +1,4 @@
-interface AudioCallbacks {
+export interface AudioCallbacks {
 	onAudio(pcm: Buffer): void;
 	onError(error: Error): void;
 }

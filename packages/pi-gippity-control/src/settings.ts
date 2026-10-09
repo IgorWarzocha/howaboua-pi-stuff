@@ -87,7 +87,7 @@ export async function openGippitySettings(options: {
 			},
 			{
 				id: "voice",
-				label: "Voice",
+				label: "Primary voice",
 				currentValue: formatVoiceName(config.voice.v3Voice),
 				values: REALTIME_V3_VOICES.map(formatVoiceName),
 				update: (value, current) => ({
@@ -97,6 +97,21 @@ export async function openGippitySettings(options: {
 						v3Voice:
 							normalizeRealtimeV3Voice(value.toLowerCase()) ??
 							current.voice.v3Voice,
+					},
+				}),
+			},
+			{
+				id: "alternateVoice",
+				label: "Alternate voice",
+				currentValue: formatVoiceName(config.voice.v3AlternateVoice),
+				values: REALTIME_V3_VOICES.map(formatVoiceName),
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						v3AlternateVoice:
+							normalizeRealtimeV3Voice(value.toLowerCase()) ??
+							current.voice.v3AlternateVoice,
 					},
 				}),
 			},
