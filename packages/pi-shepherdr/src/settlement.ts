@@ -400,6 +400,7 @@ export class SettlementReporter {
 			}
 		} catch (error) {
 			if (!lifecycle.isCurrent()) return;
+			if (!this.state.byTerminal(request.record.terminalId)) return;
 			if (request.status === "blocked") {
 				const current = this.state.byTerminal(request.record.terminalId);
 				if (current) {

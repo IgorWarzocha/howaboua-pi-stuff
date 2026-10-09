@@ -56,7 +56,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, noteSaveMarkers: enabled },
 			}),
-			"Mark saved notes and bookmark the next user prompt in /tree. Select it with No summary, then /compact in Notes and history before resubmitting. Existing bookmarks are kept when switched off.",
+			"Mark saved notes and bookmark the next user prompt in /tree. Existing bookmarks are kept when switched off.",
 		),
 		toggle(
 			"backgroundShellWidget",

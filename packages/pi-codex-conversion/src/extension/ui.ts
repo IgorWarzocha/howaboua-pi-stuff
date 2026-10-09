@@ -94,11 +94,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const status = readNotebookStatus(entry.data);
 		return renderNotice(entry, status.title, status.content, expanded, theme);
 	});
-	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, { expanded }, theme) => {
+	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, _options, theme) => {
 		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.noteSaveMarkers) return undefined;
-		const content = theme.fg("success", "✓ Notes saved") + (expanded
-			? theme.fg("dim", "\nThe next user prompt gets a Continue from notes bookmark in /tree. Select it with No summary, then run /compact in Notes and history before resubmitting.")
-			: "");
+		const content = theme.fg("success", "✓ Notes saved");
 		// Native entries retain their child between redraws. Check branch membership
 		// at render time so appending a marker also retires the cached older child.
 		// Pi owns the parent spacer, which an empty child cannot remove.

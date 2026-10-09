@@ -13,7 +13,8 @@ import {
 } from "@earendil-works/pi-ai";
 import type {
 	ResponseCreateParamsStreaming,
-	ResponseInput,
+	ResponseInput as OpenAIResponseInput,
+	ResponseOutputMessage,
 	ResponseInputItem,
 	ResponseToolSearchOutputItemParam,
 	Tool as OpenAITool,
@@ -24,7 +25,7 @@ import {
 	resolveGrammarConstrainedSampling,
 	resolveJsonSchemaStrictSampling,
 } from "../constrained-sampling.js";
-import { parseTextSignature, shortHash } from "./signatures.ts";
+import { parseTextSignature, shortHash, type TextSignaturePhase } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
 import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, recordedResponsesNamespace, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
@@ -32,6 +33,10 @@ import { unrouteContextNamespaceToolCall } from "../../context-management/namesp
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
 type ImageContentWithDetail = { type: "image"; data: string; mimeType: string; detail?: ImageDetail | undefined };
+
+// Codex supports partial_answer before the OpenAI SDK's Responses declarations.
+type ResponseInput = Array<Exclude<OpenAIResponseInput[number], ResponseOutputMessage> |
+	(Omit<ResponseOutputMessage, "phase"> & { phase?: TextSignaturePhase | null })>;
 
 export interface OpenAIResponsesStreamOptions {
 	serviceTier?: ResponseCreateParamsStreaming["service_tier"] | undefined;
