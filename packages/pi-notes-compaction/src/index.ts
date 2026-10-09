@@ -12,12 +12,7 @@ import {
 } from "./bridge.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { exportNotesSnapshot, sessionRef } from "./notes.js";
-import {
-	IDLE_MINUTES,
-	type NotesSettings,
-	readSettings,
-	writeSettings,
-} from "./settings.js";
+import { type NotesSettings, readSettings, writeSettings } from "./settings.js";
 import { openNotesSettings } from "./settings-screen.js";
 import { NotesStore } from "./store.js";
 import {
@@ -31,9 +26,6 @@ import {
 	WINDOW_MESSAGE,
 	windowDetails,
 } from "./windows.js";
-
-const HELP =
-	"Use /notes for settings, /notes status, /notes prune, /notes compact on|off, or /notes idle off|5|15|25|55 (minutes). Compaction and idle rollover default off. Compaction adds the normal installed Pi/PCC compaction flow to new_context. Idle intervals are not provider cache-expiry guarantees.";
 
 export default function notesCompaction(pi: ExtensionAPI): void {
 	registerWindowRenderer(pi);
@@ -215,6 +207,14 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	pi.registerCommand("notes", {
 		description: "Manage local notes and context rollover",
 		handler: async (args, ctx) => {
+			if (args.trim()) {
+				ctx.ui.notify("Use /notes to open settings.", "info");
+				return;
+			}
+			if (!ctx.hasUI) {
+				ctx.ui.notify("Notes settings require interactive Pi.", "warning");
+				return;
+			}
 			const save = (settings: NotesSettings) => {
 				writeSettings(settingsPath, settings);
 				Object.assign(lifecycle, settings);
@@ -228,89 +228,28 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 					"info",
 				);
 			};
-			if (!args.trim() && ctx.hasUI) {
-				try {
-					await openNotesSettings(ctx, {
-						settings: () => ({
-							normalCompaction: lifecycle.normalCompaction,
-							idleMinutes: lifecycle.idleMinutes,
-						}),
-						save,
-						prune,
-						status: () => {
-							const counts = store.status();
-							return [
-								lifecycle.active
-									? "Continuity active"
-									: `Continuity inactive: ${unavailable ?? "not initialized"}`,
-								`${counts.sessions} sessions · ${counts.revisions} note revisions · ${counts.cachedResponses} cached responses`,
-								`Hybrid lookup: ${lifecycle.bridge?.lookup ? "available" : "unavailable"} · Encrypted delivery: ${lifecycle.bridge?.projectResult ? "available" : "unavailable"}`,
-							];
-						},
-					});
-				} catch (error) {
-					ctx.ui.notify(`Notes settings failed: ${String(error)}`, "error");
-				}
-				return;
-			}
-			const command = args.trim() || "status";
-			if (command === "help") {
-				ctx.ui.notify(HELP, "info");
-				return;
-			}
-			if (command === "status") {
-				ctx.ui.notify(
-					JSON.stringify({
-						active: lifecycle.active,
-						...(unavailable ? { unavailable } : {}),
+			try {
+				await openNotesSettings(ctx, {
+					settings: () => ({
 						normalCompaction: lifecycle.normalCompaction,
 						idleMinutes: lifecycle.idleMinutes,
-						...store.status(),
-						database: store.path,
-						hybridLookup: Boolean(lifecycle.bridge?.lookup),
-						encryptedDelivery: Boolean(lifecycle.bridge?.projectResult),
 					}),
-					"info",
-				);
-				return;
-			}
-			if (command === "compact on" || command === "compact off") {
-				save({
-					normalCompaction: command === "compact on",
-					idleMinutes: lifecycle.idleMinutes,
+					save,
+					prune,
+					status: () => {
+						const counts = store.status();
+						return [
+							lifecycle.active
+								? "Continuity active"
+								: `Continuity inactive: ${unavailable ?? "not initialized"}`,
+							`${counts.sessions} sessions · ${counts.revisions} note revisions · ${counts.cachedResponses} cached responses`,
+							`Hybrid lookup: ${lifecycle.bridge?.lookup ? "available" : "unavailable"} · Encrypted delivery: ${lifecycle.bridge?.projectResult ? "available" : "unavailable"}`,
+						];
+					},
 				});
-				ctx.ui.notify(
-					`Normal compaction ${lifecycle.normalCompaction ? "enabled" : "disabled"}.`,
-					"info",
-				);
-				return;
+			} catch (error) {
+				ctx.ui.notify(`Notes settings failed: ${String(error)}`, "error");
 			}
-			const idle = IDLE_MINUTES.find(
-				(minutes) => command === `idle ${minutes === 0 ? "off" : minutes}`,
-			);
-			if (idle !== undefined) {
-				save({
-					normalCompaction: lifecycle.normalCompaction,
-					idleMinutes: idle,
-				});
-				ctx.ui.notify(
-					idle === 0
-						? "Idle rollover disabled."
-						: `Idle rollover after ${idle} minutes, when fresh notes are available. This is not a cache-expiry guarantee.`,
-					"info",
-				);
-				return;
-			}
-			if (command === "prune") {
-				await ctx.waitForIdle();
-				store.updateFile(sessionRef(ctx));
-				ctx.ui.notify(
-					JSON.stringify(store.prune(ctx.sessionManager.getSessionId())),
-					"info",
-				);
-				return;
-			}
-			ctx.ui.notify(HELP, "warning");
 		},
 	});
 }
