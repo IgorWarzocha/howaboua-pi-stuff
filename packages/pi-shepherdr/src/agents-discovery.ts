@@ -32,6 +32,7 @@ export async function agentsHelp(
 			help: "",
 			list: "machine?",
 			find: "query? status? machine?",
+			focus: "target machine? voice? handoff?",
 			spawn:
 				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?" +
 				(boardAvailable ? " board_thread_id?" : ""),
@@ -59,6 +60,8 @@ export async function agentsHelp(
 			ask_id: "Exact pending Ask ID",
 			send: "Only needed input or work changes; wakes idle agents, no wait/watch. Close finished workers with /quit, not acknowledgement messages",
 			assign: "Delegate a task to an existing agent",
+			focus:
+				"Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach:
 				"Idle target; context/board booleans choose shared access and board membership independently; no task/watch",
 			detach:

@@ -5,11 +5,18 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { acceptFocus, readFocus } from "./agents-focus.js";
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
+import type { AgentFleet } from "./fleet.js";
 import { getCurrentPane } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
 import { announcePeerMessage } from "./messages.js";
+import { acceptFocusChannel } from "./peer-channel.js";
 import type { createPeerCommands } from "./peer-commands.js";
+import {
+	MAX_CHANNEL_FRAME_BYTES,
+	socketChannel,
+} from "./remote/shepherdr-channel.mjs";
 import {
 	MAX_PEER_FRAME_BYTES,
 	PEER_PROTOCOL,
@@ -19,6 +26,7 @@ import {
 export function registerPeerInbox(
 	pi: ExtensionAPI,
 	commands: ReturnType<typeof createPeerCommands>,
+	fleet: AgentFleet,
 ): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
@@ -34,7 +42,7 @@ export function registerPeerInbox(
 		running = false;
 		if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
 			return;
-		close = await openInbox(pi, ctx, () => running, commands);
+		close = await openInbox(pi, ctx, () => running, commands, fleet);
 	});
 	pi.on("session_shutdown", async () => {
 		await close?.();
@@ -48,6 +56,7 @@ async function openInbox(
 	ctx: ExtensionContext,
 	isRunning: () => boolean,
 	commands: ReturnType<typeof createPeerCommands>,
+	fleet: AgentFleet,
 ): Promise<() => Promise<void>> {
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
@@ -99,18 +108,109 @@ async function openInbox(
 				request["terminalId"] !== pane.terminal_id ||
 				ctx.sessionManager.getSessionFile() !== sessionFile ||
 				typeof request["id"] !== "string" ||
-				typeof request["text"] !== "string" ||
-				!request["text"].trim() ||
-				typeof request["sender"] !== "string" ||
-				!/^<herdr_sender [^\n]+ \/>$/.test(request["sender"]) ||
-				(request["context"] !== undefined &&
-					typeof request["context"] !== "string")
+				(request["kind"] !== "focus" &&
+					request["kind"] !== "message" &&
+					request["kind"] !== "channel") ||
+				(request["kind"] !== "focus" &&
+					request["kind"] !== "channel" &&
+					(typeof request["text"] !== "string" ||
+						!request["text"].trim() ||
+						typeof request["sender"] !== "string" ||
+						!/^<herdr_sender [^\n]+ \/>$/.test(request["sender"]) ||
+						(request["context"] !== undefined &&
+							typeof request["context"] !== "string")))
 			) {
 				reply({
 					ok: false,
 					rejected: true,
 					error: "Peer delivery rejected: stale session or invalid request",
 				});
+				return;
+			}
+			if (request["kind"] === "channel") {
+				let focus;
+				try {
+					focus = readFocus(request["focus"]);
+				} catch (error) {
+					reply({ ok: false, rejected: true, error: String(error) });
+					return;
+				}
+				// Hold outbound frames until the admission reply precedes them.
+				const pending: unknown[] = [];
+				let admitted = false;
+				const channel = socketChannel(socket, buffer.slice(newline + 1));
+				const receiverChannel = {
+					...channel,
+					send(message: unknown) {
+						const json = JSON.stringify(message);
+						if (
+							json === undefined ||
+							Buffer.byteLength(json) > MAX_CHANNEL_FRAME_BYTES
+						) {
+							channel.close();
+							throw new Error("Focus channel frame is too large or not JSON");
+						}
+						if (admitted) channel.send(message);
+						else {
+							pending.push(message);
+							if (
+								pending.length > 64 ||
+								Buffer.byteLength(JSON.stringify(pending)) > 1024 * 1024
+							) {
+								channel.close();
+								throw new Error(
+									"Focus channel admission output exceeded its buffer",
+								);
+							}
+						}
+					},
+				};
+				void acceptFocusChannel(pi, receiverChannel, focus, ctx, pane).then(
+					() => {
+						try {
+							socket.write(
+								`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ok: true })}\n`,
+							);
+							admitted = true;
+							for (const message of pending) channel.send(message);
+							pending.length = 0;
+						} catch {
+							channel.close();
+						}
+					},
+					(error: unknown) => {
+						reply(
+							{
+								ok: false,
+								rejected: true,
+								error: error instanceof Error ? error.message : String(error),
+							},
+							() => channel.close(),
+						);
+					},
+				);
+				return;
+			}
+			if (request["kind"] === "focus") {
+				try {
+					if (readFocus(request["focus"]).voice === true)
+						throw new Error(
+							"Voice transfer was not admitted; retry using agents focus with voice:true",
+						);
+				} catch (error) {
+					reply({ ok: false, rejected: true, error: String(error) });
+					return;
+				}
+				socket.setTimeout(60_000, () => socket.destroy());
+				void acceptFocus(pi, ctx, fleet, pane, request["focus"]).then(
+					() => reply({ ok: true, command: false }),
+					(error: unknown) =>
+						reply({
+							ok: false,
+							rejected: !(error instanceof Error && "focusChanged" in error),
+							error: error instanceof Error ? error.message : String(error),
+						}),
+				);
 				return;
 			}
 			let submitted = false;
@@ -126,10 +226,10 @@ async function openInbox(
 					});
 					return;
 				}
-				const text = request["text"];
+				const text = request["text"] as string;
 				const sender = request["context"]
 					? `${request["sender"]}\n${request["context"]}`
-					: request["sender"];
+					: (request["sender"] as string);
 				if (text.startsWith("/")) {
 					const route = commands.prepare(text, ctx);
 					const { command } = route;
@@ -196,7 +296,10 @@ async function openInbox(
 				if (idle) startPreparedIdleTurn(pi, ctx);
 				// Voice failure must not turn accepted delivery into a retry.
 				try {
-					announcePeerMessage(pi, { sender: request["sender"], text });
+					announcePeerMessage(pi, {
+						sender: request["sender"] as string,
+						text,
+					});
 				} catch (error) {
 					ctx.ui.notify(
 						`Peer voice update failed: ${String(error)}`,

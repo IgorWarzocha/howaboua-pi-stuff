@@ -1,23 +1,25 @@
 // @howaboua/pi-shepherdr managed bridge
 import { readFile, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { openPeerChannel } from "./shepherdr-channel.mjs";
 import {
 	listenContext,
 	relayContextPath,
 	requestContext,
 } from "./shepherdr-context.mjs";
-import { sendPeerMessage } from "./shepherdr-peer.mjs";
+import { sendPeerFocus, sendPeerMessage } from "./shepherdr-peer.mjs";
 import { readSessionView } from "./shepherdr-session.mjs";
 import { watchSessions } from "./shepherdr-session-watch.mjs";
 
-const BRIDGE_VERSION = 15;
+const BRIDGE_VERSION = 16;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
 const contextRequests = new Map();
 const contextCalls = new Map();
+const channels = new Map();
 
 function requestController(request, signal) {
 	signal.throwIfAborted();
@@ -321,6 +323,35 @@ async function handle(message) {
 	if (message.op === "message") {
 		return sendPeerMessage(request, message.agent, message.message);
 	}
+	if (message.op === "identity") {
+		return { host: hostname(), session: argument("session") || "default" };
+	}
+	if (message.op === "focus") {
+		return sendPeerFocus(request, message.agent, message.request);
+	}
+	if (message.op === "channel_open") {
+		const channel = await openPeerChannel(
+			request,
+			message.agent,
+			message.request,
+		);
+		channels.set(message.id, channel);
+		channel.onClose((error) => {
+			channels.delete(message.id);
+			send({
+				type: "channel",
+				channel: message.id,
+				closed: true,
+				error: error.message,
+			});
+		});
+		channel.onMessage((frame) => {
+			if (process.stdout.writableLength > 1024 * 1024)
+				throw new Error("Focus channel bridge output exceeded its buffer");
+			send({ type: "channel", channel: message.id, message: frame });
+		});
+		return { admitted: true };
+	}
 	if (message.op === "context") {
 		const controller = new AbortController();
 		contextCalls.set(message.id, controller);
@@ -400,6 +431,23 @@ process.stdin.on("data", (chunk) => {
 			contextCalls.get(message.id)?.abort();
 			continue;
 		}
+		if (message?.op === "channel_send" || message?.op === "channel_close") {
+			const channel = channels.get(message.id);
+			try {
+				if (message.op === "channel_close") channel?.close();
+				else if (channel) channel.send(message.message);
+				else
+					send({
+						type: "channel",
+						channel: message.id,
+						closed: true,
+						error: "Focus channel is unavailable",
+					});
+			} catch (error) {
+				channel?.close();
+			}
+			continue;
+		}
 		if (message?.op === "context_reply") {
 			const pending = contextRequests.get(message.id);
 			if (pending) {
@@ -424,6 +472,7 @@ process.stdin.on("data", (chunk) => {
 });
 
 async function shutdown() {
+	for (const channel of channels.values()) channel.close();
 	for (const close of subscriptions.values()) close();
 	for (const controller of contextCalls.values()) controller.abort();
 	await Promise.allSettled([...contextRelays.values()].map((close) => close()));

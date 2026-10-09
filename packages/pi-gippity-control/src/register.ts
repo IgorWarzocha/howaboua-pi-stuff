@@ -12,6 +12,7 @@ import {
 } from "./realtime-voice.ts";
 import { CodexVoiceController } from "./voice/controller.ts";
 import { createCodexVoiceControls } from "./voice/controls.ts";
+import { registerVoiceHandoff } from "./voice/handoff.ts";
 import { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 import { registerLanRemoteCreateRenderers } from "./voice/lan/create.ts";
 import { GippityRemoteApps } from "./voice/lan/remote-app.ts";
@@ -161,5 +162,11 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1)
 			throw new AggregateError(failures, "GipPity shutdown failed");
+	});
+	registerVoiceHandoff({
+		pi,
+		voice,
+		getConfig: () => readGippityControlConfig(),
+		priority: () => 10,
 	});
 }

@@ -10,6 +10,7 @@ import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
+import { registerVoiceHandoff } from "../voice/handoff.ts";
 import { hasCodexTransportConfigChanged, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
@@ -74,6 +75,10 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			}
 		});
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
+		registerVoiceHandoff({
+			pi, voice: runtime.voice, getConfig: () => runtime.state.config,
+			priority: () => runtime.state.enabled || runtime.state.config.voiceFeaturesOnly ? 20 : 5,
+		});
 	} catch (registrationError) {
 		try {
 			try {

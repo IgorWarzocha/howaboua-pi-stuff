@@ -16,6 +16,7 @@ import {
 	type VoiceState,
 } from "./controller-support.ts";
 import type { CodexRealtimePeer } from "./conversation/peer.ts";
+import type { TransferredVoiceControls } from "./handoff-contract.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { CodexVoiceSessionMessages } from "./session-messages.ts";
 import type { CodexVoiceMode } from "./ui.ts";
@@ -25,6 +26,9 @@ export interface RealtimePeerPlan {
 	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
 	onInactive?(session: CodexRealtimeConversation, error: Error, resuming: boolean): void;
 	onStatus?(status: string): void;
+	onTransferred?(peer: CodexRealtimePeer, controls: TransferredVoiceControls): void;
+	onTransferEnded?(peer: CodexRealtimePeer, error?: Error): void;
+	onStopped?(): void;
 }
 
 export interface VoiceControllerRuntime {

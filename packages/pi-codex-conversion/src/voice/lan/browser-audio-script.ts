@@ -92,6 +92,8 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     button.setAttribute('aria-label', mode === 'dictation' ? 'Start dictation' : 'Start voice');
     if (reason === 'replaced') {
       setStatus('Moved to another device', 'Tap to take control here');
+    } else if (reason === 'transfer-ended') {
+      setStatus('Transferred session ended', 'Start voice to return to this session');
     } else if (reason !== 'upstream-error' && reason !== 'server-error' && reason !== 'dictation-complete') {
       setStatus(mode === 'dictation' ? 'Tap to start dictation' : 'Tap to start voice');
     }

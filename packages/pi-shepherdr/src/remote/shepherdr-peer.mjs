@@ -6,7 +6,7 @@ import { createConnection } from "node:net";
 import { basename, dirname } from "node:path";
 
 export const MAX_PEER_FRAME_BYTES = 8 * 1024 * 1024;
-export const PEER_PROTOCOL = 2;
+export const PEER_PROTOCOL = 3;
 
 /** @param {string} sessionFile @param {string} terminalId */
 export function peerInboxPath(sessionFile, terminalId) {
@@ -85,9 +85,47 @@ export async function readReceiver(path) {
  * @param {(method: string, params: object) => Promise<unknown>} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").PeerMessage} message
+ * @param {import("../types.js").FocusRequest} [focus]
  * @returns {Promise<import("../types.js").PeerDelivery>}
  */
-export async function sendPeerMessage(request, expected, message) {
+export async function sendPeerMessage(request, expected, message, focus) {
+	const { descriptor, sessionFile, agent } = await resolvePeerReceiver(
+		request,
+		expected,
+		Boolean(focus),
+	);
+	const id = randomUUID();
+	const frame =
+		JSON.stringify({
+			protocol: PEER_PROTOCOL,
+			kind: focus ? "focus" : "message",
+			focus,
+			id,
+			token: descriptor.token,
+			sessionFile,
+			terminalId: agent.terminal_id,
+			text: message.text,
+			sender: message.sender,
+			context: message.context,
+		}) + "\n";
+	return deliverPeerFrame(
+		request,
+		expected,
+		message,
+		focus,
+		descriptor,
+		sessionFile,
+		id,
+		frame,
+	);
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {boolean} allowBlocked
+ */
+export async function resolvePeerReceiver(request, expected, allowBlocked) {
 	const result = await request("agent.get", { target: expected.pane_id });
 	const agent =
 		result &&
@@ -122,7 +160,11 @@ export async function sendPeerMessage(request, expected, message) {
 			true,
 		);
 	}
-	if ("agent_status" in agent && agent.agent_status === "blocked") {
+	if (
+		!allowBlocked &&
+		"agent_status" in agent &&
+		agent.agent_status === "blocked"
+	) {
 		throw deliveryError(
 			"Target is blocked; answer its pending question first",
 			true,
@@ -154,18 +196,30 @@ export async function sendPeerMessage(request, expected, message) {
 			true,
 		);
 	}
-	const id = randomUUID();
-	const frame =
-		JSON.stringify({
-			protocol: PEER_PROTOCOL,
-			id,
-			token: descriptor.token,
-			sessionFile,
-			terminalId: agent.terminal_id,
-			text: message.text,
-			sender: message.sender,
-			context: message.context,
-		}) + "\n";
+	return { descriptor, sessionFile, agent };
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {import("../types.js").PeerMessage} message
+ * @param {import("../types.js").FocusRequest | undefined} focus
+ * @param {{port:number,token:string}} descriptor
+ * @param {string} sessionFile
+ * @param {string} id
+ * @param {string} frame
+ * @returns {Promise<import("../types.js").PeerDelivery>}
+ */
+function deliverPeerFrame(
+	request,
+	expected,
+	message,
+	focus,
+	descriptor,
+	sessionFile,
+	id,
+	frame,
+) {
 	if (Buffer.byteLength(frame) > MAX_PEER_FRAME_BYTES) {
 		throw deliveryError("Peer message is too large", true);
 	}
@@ -196,7 +250,7 @@ export async function sendPeerMessage(request, expected, message) {
 					!attempted,
 				),
 			);
-		const timer = setTimeout(failed, 10_000);
+		const timer = setTimeout(failed, focus ? 55_000 : 10_000);
 		timer.unref();
 		socket.setEncoding("utf8");
 		socket.on("error", failed);
@@ -250,6 +304,20 @@ export async function sendPeerMessage(request, expected, message) {
 			}
 		});
 	});
+}
+
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {import("../types.js").FocusRequest} focus
+ */
+export function sendPeerFocus(request, expected, focus) {
+	return sendPeerMessage(
+		request,
+		expected,
+		{ text: "focus", sender: "" },
+		focus,
+	);
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import { isBlockingAgentsCall } from "./src/agents-contract.js";
+import { acceptFocus, registerFocusArrivals } from "./src/agents-focus.js";
 import { createAgentsTool } from "./src/agents-tool.js";
 import { registerBoardActivityRenderer } from "./src/board/activity.js";
 import { ensureBoardConfig } from "./src/board/config.js";
@@ -14,6 +15,7 @@ import { createPeerCommands } from "./src/peer-commands.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context.js";
+import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
@@ -26,11 +28,15 @@ export default async function shepherdrExtension(
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
 	const peerCommands = createPeerCommands(pi);
-	registerPeerInbox(pi, peerCommands);
 	const fleet = new AgentFleet(pi);
+	registerPeerInbox(pi, peerCommands, fleet);
+	registerFocusArrivals(pi);
+	registerVoiceFocusReceiver(pi, (ctx, pane, request) =>
+		acceptFocus(pi, ctx, fleet, pane, request),
+	);
 	const board = new AgentBoard(pi, fleet);
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
-	const tool = createAgentsTool(fleet, sharedContext, board);
+	const tool = createAgentsTool(fleet, sharedContext, board, pi);
 	const boardTool = createBoardTool(board);
 
 	registerAgentEventRenderer(pi);

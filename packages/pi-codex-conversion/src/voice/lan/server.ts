@@ -7,6 +7,7 @@ import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { RealtimePeerPlan } from "../controller-start.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import { LanTransferredSession } from "./transferred-session.ts";
 import { LanVoiceActivity } from "./activity.ts";
 import { createLanVoiceWebManifest } from "./app-assets.ts";
 import { LanHostRealtimePeer } from "./browser-peer.ts";
@@ -43,9 +44,10 @@ export async function startCodexLanVoiceServer(options: {
 }): Promise<CodexLanVoiceServer> {
 	const certificate = await resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
-	let activeConversation: { peer: LanHostRealtimePeer; conversation: CodexRealtimeConversation } | undefined;
+	let activeConversation: { peer: LanHostRealtimePeer; conversation?: CodexRealtimeConversation } | undefined;
 	let conversationStart: { abort: AbortController; promise: Promise<void> } | undefined;
 	let realtimePlan: RealtimePeerPlan | undefined;
+	let transferred: LanTransferredSession | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
 	const activity = new LanVoiceActivity({
@@ -54,7 +56,7 @@ export async function startCodexLanVoiceServer(options: {
 	});
 	const draft = new LanVoiceDraft({
 		publish: (message) => clients.broadcastControl(message),
-		sendMessage: options.sendUserMessage,
+		sendMessage: (text) => transferred ? transferred.sendText(text) : options.sendUserMessage(text),
 	});
 	const dictation = new LanVoiceDictation({
 		resolveAuth: options.resolveAuth,
@@ -63,12 +65,13 @@ export async function startCodexLanVoiceServer(options: {
 
 	const ensureConversation = async (): Promise<void> => {
 		if (activeConversation) return;
+		if (transferred?.ended) transferred = undefined;
 		if (conversationStart) return conversationStart.promise;
 		if (realtimePlan) return;
 		const abort = new AbortController();
 		let activated = false;
 		const plan: RealtimePeerPlan = {
-			onStatus: (status) => clients.broadcastControl({ type: "status", status }),
+			onStatus: (status) => { if (!transferred) clients.broadcastControl({ type: "status", status }); },
 			createPeer: () => {
 				let peer!: LanHostRealtimePeer;
 				peer = new LanHostRealtimePeer({
@@ -83,6 +86,28 @@ export async function startCodexLanVoiceServer(options: {
 				});
 				return peer;
 			},
+			onStopped: () => {
+				if (transferred || realtimePlan !== plan) return;
+				activeConversation = undefined;
+				realtimePlan = undefined;
+				clients.broadcastControl({ type: "stop", reason: "voice-ended" });
+			},
+			onTransferred: (peer, controls) => {
+				realtimePlan = plan;
+				if (transferred?.controls !== controls) {
+					transferred?.detach();
+					transferred = new LanTransferredSession(controls, clients, activity);
+				}
+				activeConversation = { peer: peer as LanHostRealtimePeer };
+				clients.setConversationSpeakerSuppressed(activeConversation.peer.isSpeakerSuppressed);
+			},
+			onTransferEnded: (peer, error) => {
+				if (activeConversation?.peer !== peer) return;
+				transferred?.end();
+				activeConversation = undefined;
+				if (realtimePlan === plan) realtimePlan = undefined;
+				clients.broadcastControl(error ? { type: "error", message: error.message } : { type: "stop", reason: "transfer-ended" });
+			},
 			onActive: (conversation, peer) => {
 				activated = true;
 				activeConversation = {
@@ -92,6 +117,7 @@ export async function startCodexLanVoiceServer(options: {
 				clients.setConversationSpeakerSuppressed(activeConversation.peer.isSpeakerSuppressed);
 			},
 			onInactive: (conversation, error, resuming) => {
+				if (transferred) return;
 				const ownedActive = activeConversation?.conversation === conversation;
 				if (!ownedActive && realtimePlan !== plan) return;
 				if (ownedActive)
@@ -141,22 +167,29 @@ export async function startCodexLanVoiceServer(options: {
 		async onConversationActivity(active) {
 			const current = activeConversation;
 			if (active) {
-				if (current)
+				if (current?.conversation)
 					options.voice.setConversationInputActive(current.conversation, true);
 				return;
 			}
+			const remote = transferred;
+
 			const plan = realtimePlan;
 			realtimePlan = undefined;
 			activeConversation = undefined;
-			if (plan)
+			if (remote) await remote.stop();
+			else if (plan)
 				await options.voice.stopRealtimeWithPeerPlan(plan, { announce: true });
 		},
-		conversationMuted: () => options.voice.inputMuted,
+		conversationMuted: () => transferred?.controls.inputMuted ?? options.voice.inputMuted,
 		onConversationMute(muted) {
+			if (transferred) {
+				transferred.controls.setInputMuted(muted);
+				return;
+			}
 			if (!options.voice.setInputMuted(muted)) throw new Error("Realtime voice is not active");
 		},
 		onConversationInputTooQuiet(inputTooQuiet) {
-			options.voice.setInputTooQuiet(inputTooQuiet);
+			if (!transferred) options.voice.setInputTooQuiet(inputTooQuiet);
 			clients.broadcastControl({ type: "microphone", state: inputTooQuiet ? "too-quiet" : "ok" });
 		},
 		onConversationAudio(pcm) {
@@ -165,6 +198,7 @@ export async function startCodexLanVoiceServer(options: {
 		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});
 	const removeInputMuteListener = options.voice.onInputMuteChange((muted) => {
+		if (transferred) return;
 		if (muted) clients.resetConversationInputLevel();
 		clients.broadcastControl({ type: "mute", muted });
 	});
@@ -174,9 +208,14 @@ export async function startCodexLanVoiceServer(options: {
 			activity,
 			clients,
 			draft,
-			inputMuted: () => options.voice.inputMuted,
+			sessionSnapshot: () => transferred?.snapshot(),
+			inputMuted: () => transferred?.controls.inputMuted ?? options.voice.inputMuted,
 			renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 			renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
+			async rpc(body) {
+				if (transferred) return transferred.rpc(body);
+				throw new Error("RPC is not available in this Pi context");
+			},
 			ownerIsActive,
 			get closing() { return closing; },
 		});
@@ -224,10 +263,14 @@ export async function startCodexLanVoiceServer(options: {
 		const clientsClosing = clients.close();
 		const failures: unknown[] = [];
 		await collectFailures([clientsClosing, dictation.close()], failures);
+		const remote = transferred;
+		remote?.detach();
+		transferred = undefined;
+		if (remote) await collectFailures([remote.stop()], failures);
 		const remainingPlan = realtimePlan;
 		realtimePlan = undefined;
 		activeConversation = undefined;
-		if (remainingPlan)
+		if (remainingPlan && !remote)
 			await collectFailures([
 				options.voice.stopRealtimeWithPeerPlan(remainingPlan, { announce: true }),
 			], failures);
@@ -242,11 +285,11 @@ export async function startCodexLanVoiceServer(options: {
 	return {
 		ownerSessionId: options.ownerSessionId,
 		urls,
-		agentStarted: () => activity.working(),
-		agentSettled: (text) => activity.settled(text),
-		uiPromptStarted: (title) => activity.waiting(title),
+		agentStarted: () => { if (!transferred) activity.working(); },
+		agentSettled: (text) => { if (!transferred) activity.settled(text); },
+		uiPromptStarted: (title) => { if (!transferred) activity.waiting(title); },
 		uiPromptEnded: (agentRunning) =>
-			agentRunning ? activity.working() : activity.settled(),
+			!transferred && (agentRunning ? activity.working() : activity.settled()),
 		close() {
 			closePromise ??= closeServer();
 			return closePromise;

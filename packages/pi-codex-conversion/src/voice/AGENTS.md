@@ -26,3 +26,4 @@
 - `REALTIME-SYSTEM-PROMPT.md` owns template/schema. Users own identity/tone/presentation; routing owns one-assistant continuity/delegation/immediacy. Log schema changes; never overwrite user prompts; check only when engaged and direct agent migration.
 - Normal Codex Responses has no usable output-audio channel; keep voice on Realtime transport rather than teaching the provider stream speculative audio events.
 - Live network and hardware checks stay opt-in; keep helper framing bounded and cleanup owned by the process lifecycle.
+- After handoff, source controls still own the microphone. `transferred` is not a local conversation and must not block return arrival. Peer refresh preserves the LAN session binding. Change the handoff protocol in both voice packages and Shepherdr together.

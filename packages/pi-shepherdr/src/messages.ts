@@ -11,6 +11,7 @@ import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
 import type {
+	FocusRequest,
 	LatestAssistant,
 	MachineStatus,
 	MonitoredAgent,
@@ -27,6 +28,40 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+
+export function focusArrivalContent(
+	request: FocusRequest,
+	machine: string,
+	codeMode: boolean,
+) {
+	const returnFocus = {
+		action: "focus",
+		target: request.source.pane,
+		machine,
+		voice: request.voice === true,
+	};
+	const args = JSON.stringify(returnFocus);
+	const callable = codeMode ? `await tools.agents(${args})` : `agents ${args}`;
+	return {
+		returnFocus,
+		content: `User arrived from ${JSON.stringify({ ...request.source, machine })}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`,
+	};
+}
+
+export function voiceFocusContinuity(request: FocusRequest): string {
+	return `User transferring voice from ${JSON.stringify(request.source)}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`;
+}
+
+export function voiceFocusReport(
+	side: "source" | "destination",
+	target: string,
+	error?: unknown,
+): string {
+	return error === undefined
+		? `Voice transfer complete (${side}, ${target}); replacement call active`
+		: `Voice transfer failed (${side}, ${target}): ${error instanceof Error ? error.message : String(error)}. Voice availability is not confirmed; inspect the session before retrying`;
+}
+
 export function orchestrationGuidance(enabled: boolean, general: boolean) {
 	if (!enabled) return "Work normally. Delegate only when useful or requested.";
 	return general

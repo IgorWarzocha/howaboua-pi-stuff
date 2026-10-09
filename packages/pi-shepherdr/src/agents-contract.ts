@@ -8,6 +8,7 @@ const ACTIONS = [
 	"help",
 	"list",
 	"find",
+	"focus",
 	"spawn",
 	"watch",
 	"unwatch",
@@ -26,6 +27,7 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	help: new Set(["action"]),
 	list: new Set(["action", "machine"]),
 	find: new Set(["action", "machine", "query", "status"]),
+	focus: new Set(["action", "machine", "target", "voice", "handoff"]),
 	spawn: new Set([
 		"action",
 		"machine",
@@ -64,6 +66,8 @@ const AgentsRequest = Type.Object(
 	{
 		action: StringEnum(ACTIONS),
 		machine: Type.Optional(Type.String()),
+		voice: Type.Optional(Type.Boolean()),
+		handoff: Type.Optional(Type.String()),
 		target: Type.Optional(
 			Type.String({ description: "Agent name or pane ID" }),
 		),

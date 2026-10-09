@@ -1,9 +1,14 @@
 import { createConnection } from "node:net";
+import { hostname } from "node:os";
+import { openPeerChannel } from "./remote/shepherdr-channel.mjs";
 import { requestContext } from "./remote/shepherdr-context.mjs";
-import { sendPeerMessage } from "./remote/shepherdr-peer.mjs";
+import { sendPeerFocus, sendPeerMessage } from "./remote/shepherdr-peer.mjs";
 import type {
+	FocusRequest,
 	HerdrEvent,
+	MachineIdentity,
 	PaneInfo,
+	PeerChannel,
 	PeerDelivery,
 	PeerMessage,
 } from "./types.js";
@@ -56,6 +61,12 @@ export function isHerdrErrorCode(error: unknown, code: string): boolean {
 }
 
 export interface HerdrConnection {
+	machineIdentity(): Promise<MachineIdentity>;
+	focus(agent: PaneInfo, request: FocusRequest): Promise<unknown>;
+	openFocusChannel(
+		agent: PaneInfo,
+		request: FocusRequest,
+	): Promise<PeerChannel>;
 	requestContext(
 		path: string,
 		request: unknown,
@@ -74,6 +85,29 @@ export interface HerdrConnection {
 
 export class HerdrClient implements HerdrConnection {
 	readonly socketPath: string;
+	openFocusChannel(
+		agent: PaneInfo,
+		request: FocusRequest,
+	): Promise<PeerChannel> {
+		return openPeerChannel(
+			(method, params) => this.request(method, params),
+			agent,
+			request,
+		);
+	}
+	async machineIdentity(): Promise<MachineIdentity> {
+		return {
+			host: hostname(),
+			session: process.env["HERDR_SESSION"] || "default",
+		};
+	}
+	focus(agent: PaneInfo, request: FocusRequest): Promise<unknown> {
+		return sendPeerFocus(
+			(method, params) => this.request(method, params),
+			agent,
+			request,
+		);
+	}
 	requestContext(
 		path: string,
 		request: unknown,

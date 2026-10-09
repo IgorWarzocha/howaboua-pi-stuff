@@ -1,4 +1,8 @@
-import { defineTool, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import {
+	defineTool,
+	type ExtensionAPI,
+	getMarkdownTheme,
+} from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { answerAgent } from "./agents-answer.js";
 import {
@@ -14,6 +18,7 @@ import {
 	listFleetAgents,
 	readAgentTerminal,
 } from "./agents-discovery.js";
+import { focusAgent } from "./agents-focus.js";
 import { spawnAgent } from "./agents-spawn.js";
 import {
 	dispatchAgentWork,
@@ -30,6 +35,7 @@ export function createAgentsTool(
 	fleet: AgentFleet,
 	sharedContext: SharedAgentContext,
 	board: AgentBoard,
+	pi: ExtensionAPI,
 ) {
 	return defineTool({
 		name: "agents",
@@ -66,6 +72,20 @@ export function createAgentsTool(
 			}
 
 			const target = required(params.target, "target");
+			if (params.action === "focus") {
+				executionSignal.throwIfAborted();
+				return toolResult(
+					await focusAgent(
+						pi,
+						ctx,
+						fleet,
+						runtime,
+						target,
+						params.voice ?? false,
+						params.handoff,
+					),
+				);
+			}
 			if (params.action === "unwatch") {
 				const record = runtime.monitor
 					.list()

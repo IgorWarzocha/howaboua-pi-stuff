@@ -4,19 +4,22 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { HerdrConnection } from "./herdr-client.js";
 import type { SshMachine } from "./machine-catalog.js";
+import { createBufferedChannel } from "./remote/shepherdr-channel.mjs";
 import type { AssistantReader } from "./session-reader.js";
 import type {
 	HerdrEvent,
 	LatestAssistant,
 	PaneInfo,
+	PeerChannel,
 	PeerDelivery,
 	PeerMessage,
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 15;
+const BRIDGE_VERSION = 16;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
+const REMOTE_CHANNEL_HELPER = "~/.pi/agent/shepherdr-channel.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
 const REMOTE_SESSION_WATCH_HELPER = "~/.pi/agent/shepherdr-session-watch.mjs";
 const REMOTE_CHECKPOINT_HELPER = "~/.pi/agent/shepherdr-checkpoints.mjs";
@@ -176,6 +179,10 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	private readonly onClose: (error: Error) => void;
 	private readonly pending = new Map<string, PendingCall>();
 	private readonly subscriptions = new Map<string, SubscriptionCallbacks>();
+	private readonly channels = new Map<
+		string,
+		ReturnType<typeof createBufferedChannel>
+	>();
 
 	private constructor(
 		child: ChildProcessWithoutNullStreams,
@@ -206,6 +213,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		const [
 			source,
 			peerSource,
+			channelSource,
 			sessionSource,
 			contextSource,
 			checkpointSource,
@@ -216,6 +224,11 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			),
 			readFile(
 				fileURLToPath(new URL("./remote/shepherdr-peer.mjs", import.meta.url)),
+			),
+			readFile(
+				fileURLToPath(
+					new URL("./remote/shepherdr-channel.mjs", import.meta.url),
+				),
 			),
 			readFile(
 				fileURLToPath(
@@ -239,6 +252,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			),
 		]);
 		await deploy(config, peerSource, REMOTE_PEER_HELPER);
+		await deploy(config, channelSource, REMOTE_CHANNEL_HELPER);
 		await deploy(config, sessionSource, REMOTE_SESSION_HELPER);
 		await deploy(config, sessionWatchSource, REMOTE_SESSION_WATCH_HELPER);
 		await deploy(config, checkpointSource, REMOTE_CHECKPOINT_HELPER);
@@ -313,6 +327,73 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 				"Invalid peer acknowledgement; inspect the target before retrying",
 			);
 		return { command: result.command };
+	}
+
+	async machineIdentity(): Promise<import("./types.js").MachineIdentity> {
+		const result = await this.call({ op: "identity" });
+		if (
+			!result ||
+			typeof result !== "object" ||
+			!("host" in result) ||
+			typeof result.host !== "string" ||
+			!("session" in result) ||
+			typeof result.session !== "string"
+		)
+			throw new Error("Could not identify remote Herdr session");
+		return { host: result.host, session: result.session };
+	}
+
+	async openFocusChannel(
+		agent: PaneInfo,
+		request: import("./types.js").FocusRequest,
+	): Promise<PeerChannel> {
+		const id = randomUUID();
+		const state = createBufferedChannel(
+			(message) => {
+				const frame = `${JSON.stringify({ op: "channel_send", id, message })}\n`;
+				if (
+					this.closed ||
+					this.child.stdin.writableLength + Buffer.byteLength(frame) >
+						1024 * 1024
+				)
+					throw new Error(
+						"Focus channel output is unavailable or exceeded its buffer",
+					);
+				this.child.stdin.write(frame);
+			},
+			() => {
+				this.channels.delete(id);
+				if (!this.closed)
+					this.child.stdin.write(
+						`${JSON.stringify({ op: "channel_close", id })}\n`,
+					);
+			},
+		);
+		this.channels.set(id, state);
+		try {
+			const result = await this.call(
+				{ op: "channel_open", id, agent, request },
+				60_000,
+			);
+			if (
+				!result ||
+				typeof result !== "object" ||
+				!("admitted" in result) ||
+				result.admitted !== true
+			)
+				throw new Error("Focus channel was not admitted");
+			return state.channel;
+		} catch (error) {
+			state.fail(error instanceof Error ? error : new Error(String(error)));
+			throw error;
+		}
+	}
+
+	focus(
+		agent: PaneInfo,
+		request: import("./types.js").FocusRequest,
+	): Promise<unknown> {
+		return this.call({ op: "focus", agent, request }, 60_000);
 	}
 
 	async subscribe(
@@ -505,6 +586,20 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 				this.resolvePending("ready", value);
 				continue;
 			}
+			if (value["type"] === "channel" && typeof value["channel"] === "string") {
+				const state = this.channels.get(value["channel"]);
+				if (value["closed"] === true)
+					state?.fail(
+						new Error(
+							typeof value["error"] === "string"
+								? value["error"]
+								: "Focus channel disconnected",
+						),
+					);
+				else if ("message" in value) state?.receive(value["message"]);
+				else state?.fail(new Error("Invalid focus channel frame"));
+				continue;
+			}
 			const subscription = value["subscription"];
 			if (typeof subscription === "string") {
 				const callbacks = this.subscriptions.get(subscription);
@@ -602,6 +697,8 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	}
 
 	private failPending(error: Error, notify: boolean): void {
+		for (const state of this.channels.values()) state.fail(error);
+		this.channels.clear();
 		for (const controller of this.incomingContext.values()) controller.abort();
 		this.incomingContext.clear();
 		for (const pending of this.pending.values()) {

@@ -10,6 +10,28 @@ export interface PeerDelivery {
 	command: boolean;
 }
 
+export interface MachineIdentity {
+	host: string;
+	session: string;
+}
+
+export interface FocusRequest {
+	source: MachineIdentity & {
+		pane: string;
+		terminal: string;
+		sessionFile: string;
+	};
+	handoff?: string;
+	voice?: boolean;
+}
+
+export interface PeerChannel {
+	send(message: unknown): void;
+	onMessage(listener: (message: unknown) => void): () => void;
+	onClose(listener: (error: Error) => void): () => void;
+	close(): void;
+}
+
 export type SettledAgentStatus = Exclude<AgentStatus, "working">;
 
 export type StableAgentActivity =

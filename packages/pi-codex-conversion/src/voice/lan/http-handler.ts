@@ -13,6 +13,8 @@ export interface LanVoiceHttpHandlers {
 	renderManifest(): string;
 	renderPage(): string;
 	inputMuted(): boolean;
+	sessionSnapshot(): unknown;
+	rpc(body: Record<string, unknown>): Promise<unknown>;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
 }
@@ -56,6 +58,8 @@ export async function handleLanVoiceHttpRequest(
 			handlers.clients.connectEvents(clientId, response);
 			handlers.clients.sendControl(clientId, handlers.draft.snapshot());
 			handlers.clients.sendControl(clientId, handlers.activity.snapshot());
+			const session = handlers.sessionSnapshot();
+			if (session) handlers.clients.sendControl(clientId, session);
 			handlers.clients.sendControl(clientId, { type: "mute", muted: handlers.inputMuted() });
 			return;
 		}
@@ -70,6 +74,10 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		const clientId = requiredClientId(body);
+		if (path === "/api/rpc") {
+			sendJson(response, 200, await handlers.rpc(body));
+			return;
+		}
 		if (path === "/api/stop") {
 			handlers.clients.release(clientId, undefined, body["terminateConversation"] === true);
 			sendJson(response, 200, { ok: true });
@@ -81,7 +89,7 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		if (path === "/api/send") {
-			handlers.draft.send(clientId, body["text"], body["revision"]);
+			await handlers.draft.send(clientId, body["text"], body["revision"]);
 			sendJson(response, 200, { ok: true });
 			return;
 		}
