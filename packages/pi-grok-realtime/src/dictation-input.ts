@@ -21,23 +21,3 @@ export class DictationPcm {
 		return output;
 	}
 }
-
-const LANGUAGES = new Set(
-	"ar cs da nl en fil fr de hi id it ja ko mk ms fa pl pt ro ru es sv th tr vi".split(
-		" ",
-	),
-);
-
-/** STT needs a concrete normalization language, unlike realtime's auto setting. */
-export function dictationLanguage(language: string, env = process.env): string {
-	let value = language.trim().toLowerCase();
-	if (value === "auto")
-		value = (
-			env["LC_ALL"] ||
-			env["LC_MESSAGES"] ||
-			env["LANG"] ||
-			"en"
-		).toLowerCase();
-	const primary = value.split(/[_\-.]/)[0]!.trim();
-	return primary === "tl" ? "fil" : LANGUAGES.has(primary) ? primary : "en";
-}

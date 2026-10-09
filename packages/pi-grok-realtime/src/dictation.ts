@@ -7,7 +7,7 @@ import { ActiveVoiceGuard } from "./active-owner.ts";
 import type { RealtimeAudio } from "./audio.ts";
 import type { GrokRealtimeConfig } from "./config.ts";
 import { resolveBearer } from "./credentials.ts";
-import { DictationPcm, dictationLanguage } from "./dictation-input.ts";
+import { DictationPcm } from "./dictation-input.ts";
 
 interface Run {
 	abort: AbortController;
@@ -91,7 +91,9 @@ export class GrokDictationController {
 				url.searchParams.set("encoding", "pcm");
 				url.searchParams.set("interim_results", "true");
 				url.searchParams.set("endpointing", "400");
-				url.searchParams.set("language", dictationLanguage(config.language));
+				const language = config.language.trim();
+				if (language && language.toLowerCase() !== "auto")
+					url.searchParams.set("language", language);
 				const socket = new WebSocket(url, {
 					headers: { Authorization: `Bearer ${bearer}` },
 					handshakeTimeout: 15_000,
