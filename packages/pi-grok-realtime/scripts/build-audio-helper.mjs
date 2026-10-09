@@ -75,8 +75,16 @@ const notices = dependencies.map((pkg) => {
 		)
 		.map((file) => file.name)
 		.sort();
-	if (!files.length) throw new Error(`Missing license notice for ${pkg.name}`);
-	return `${pkg.name} ${pkg.version}\n${pkg.license}\n${pkg.repository ?? ""}\n${(pkg.authors ?? []).join(", ")}\n\n${files.map((file) => readFileSync(join(directory, file), "utf8")).join("\n")}`;
+	// objc2 crate archives omit the repository-wide licensing notice.
+	const notice = files.length
+		? files
+				.map((file) => readFileSync(join(directory, file), "utf8"))
+				.join("\n")
+		: pkg.repository === "https://github.com/madsmtm/objc2"
+			? readFileSync(join(root, "scripts/licenses/objc2.md"), "utf8")
+			: undefined;
+	if (!notice) throw new Error(`Missing license notice for ${pkg.name}`);
+	return `${pkg.name} ${pkg.version}\n${pkg.license}\n${pkg.repository ?? ""}\n${(pkg.authors ?? []).join(", ")}\n\n${notice}`;
 });
 writeFileSync(join(destination, "LICENSES.txt"), notices.join("\n\n---\n\n"));
 const binary = join(destination, executable);

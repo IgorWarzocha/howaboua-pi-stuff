@@ -8,6 +8,7 @@ on:
       - 'packages/pi-grok-realtime/src/audio/rust/**'
       - 'packages/pi-grok-realtime/scripts/build-audio-helper.mjs'
       - 'packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs'
+      - 'packages/pi-grok-realtime/scripts/licenses/**'
       - '.github/workflows/grok-audio-binaries.yml'
 
 concurrency:
@@ -97,7 +98,7 @@ jobs:
             echo "::error::Branch history changed during the audio build; rerun on the current head."
             exit 1
           fi
-          if ! git diff --quiet "$BUILT_SHA" HEAD -- packages/pi-grok-realtime/src/audio/rust packages/pi-grok-realtime/scripts/build-audio-helper.mjs packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs .github/workflows/grok-audio-binaries.yml; then
+          if ! git diff --quiet "$BUILT_SHA" HEAD -- packages/pi-grok-realtime/src/audio/rust packages/pi-grok-realtime/scripts/build-audio-helper.mjs packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs packages/pi-grok-realtime/scripts/licenses .github/workflows/grok-audio-binaries.yml; then
             echo "::error::Audio build inputs changed during the build; refusing to bundle stale binaries."
             exit 1
           fi

@@ -8,6 +8,8 @@ CPAL is Apache-2.0 licensed. Sonora and its WebRTC-derived DSP use BSD-3-Clause.
 Each binary is accompanied by dependency notices in `LICENSES.txt`, generated
 from its Cargo dependency graph during the build. For `dasp_sample`, the build
 selects its Apache-2.0 option. Sonora's workspace license also covers `sonora-aec3`.
+The objc2 crates omit their workspace notice from published archives; the build
+includes the upstream notice retained in `scripts/licenses/objc2.md`.
 
 The default backends are ALSA on Linux, CoreAudio on macOS and WASAPI on Windows.
 Discovery and stream selection use the same backend and CPAL device IDs.
