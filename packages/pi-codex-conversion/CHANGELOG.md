@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.49
+
+- Fixed shared subagent context after switching an existing Remote session to Notes Compaction, preserving encrypted historical lookup.
+
 ## 3.0.48
 
 - ### Breaking changes
