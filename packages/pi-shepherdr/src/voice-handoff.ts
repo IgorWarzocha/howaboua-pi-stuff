@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { recordContextBriefing } from "./context-briefing.js";
+import { recordContextBriefing } from "@howaboua/pi-agent-board/integration";
 import { voiceFocusContinuity, voiceFocusReport } from "./messages.js";
 import { registerFocusChannelReceiver } from "./peer-channel.js";
 import type { FocusRequest, PaneInfo, PeerChannel } from "./types.js";

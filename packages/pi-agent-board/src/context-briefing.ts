@@ -23,6 +23,7 @@ export function registerContextBriefing(
 	const hosted = registerInferenceBriefing(pi, record);
 	const warned = new Set<string>();
 	pi.on("context_with_system", async (event, ctx) => {
+		await hosted.ready;
 		if (hosted.hosted()) return;
 		if (
 			hosted.outdated &&

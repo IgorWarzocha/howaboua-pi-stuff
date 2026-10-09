@@ -2,13 +2,13 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { AgentBoard } from "./board/host.js";
 import {
 	contextBriefingWindow,
 	hasContextRollover,
 	recordContextBriefing,
 	registerContextBriefing,
-} from "./context-briefing.js";
+} from "@howaboua/pi-agent-board/integration";
+import type { AgentBoard } from "./board/host.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";

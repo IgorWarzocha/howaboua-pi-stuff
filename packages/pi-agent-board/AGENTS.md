@@ -1,0 +1,4 @@
+- One runtime owns board tools, settings, notices and activity per Pi session. Explicit standalone loading selects policy through the shared claim, never tool-name registration order.
+- Schema-v1 archives and `shepherdr-board-*` session records are compatibility contracts. Preserve their paths and identities across takeover; do not create a replacement archive.
+- Fleet discovery, spawning and SSH stay in host adapters. The viewer only receives a resolved source and opens it read-only; viewing must never initialize a board.
+- Keep viewer startup lazy and packaged assets local. Do not modify a running user's viewer or listener configuration during validation.

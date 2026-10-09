@@ -30,6 +30,25 @@
         "web-tree-sitter": "^0.27.0",
       },
     },
+    "packages/pi-agent-board": {
+      "name": "@howaboua/pi-agent-board",
+      "version": "0.0.0",
+      "dependencies": {
+        "dompurify": "3.4.16",
+        "marked": "18.1.0",
+        "unicode-case-folding": "1.1.2",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": ">=1.1.0",
+        "@earendil-works/pi-coding-agent": ">=1.1.0",
+        "@earendil-works/pi-tui": ">=1.1.0",
+        "@howaboua/pi-codex-conversion": ">=3.0.47",
+        "typebox": "*",
+      },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
+    },
     "packages/pi-ask": {
       "name": "@howaboua/pi-ask",
       "version": "0.0.11",
@@ -125,6 +144,14 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.0.0",
         "@earendil-works/pi-tui": ">=1.0.0",
+      },
+    },
+    "packages/pi-chatgpt-sites": {
+      "name": "@howaboua/pi-chatgpt-sites",
+      "version": "0.0.0",
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=1.1.0",
+        "typebox": "*",
       },
     },
     "packages/pi-chill": {
@@ -465,7 +492,7 @@
       "name": "@howaboua/pi-shepherdr",
       "version": "0.2.15",
       "dependencies": {
-        "unicode-case-folding": "1.1.2",
+        "@howaboua/pi-agent-board": "0.0.0",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
@@ -478,23 +505,15 @@
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
-        "@earendil-works/pi-ai": ">=1.0.0",
-        "@earendil-works/pi-coding-agent": ">=1.0.0",
-        "@earendil-works/pi-tui": ">=1.0.0",
+        "@earendil-works/pi-ai": ">=1.1.0",
+        "@earendil-works/pi-coding-agent": ">=1.1.0",
+        "@earendil-works/pi-tui": ">=1.1.0",
         "@howaboua/pi-codex-conversion": ">=3.0.47",
         "typebox": "*",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
       ],
-    },
-    "packages/pi-chatgpt-sites": {
-      "name": "@howaboua/pi-chatgpt-sites",
-      "version": "0.0.0",
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": ">=1.1.0",
-        "typebox": "*",
-      },
     },
     "packages/pi-skill-chrome-cdp": {
       "name": "@howaboua/pi-skill-chrome-cdp",
@@ -837,6 +856,8 @@
 
     "@google/genai": ["@google/genai@2.21.0", "", { "dependencies": { "google-auth-library": "^10.3.0", "p-retry": "^4.6.2", "protobufjs": "^7.5.4", "ws": "^8.18.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.25.2" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-+PDtco2/Z0ONdzCGekCoCT+O1VJS9xJQNN4XzQpXG/t3El/SWWMkCWlFRO1KmivOHPa4Q0VjUYu1HBKCZ/v33Q=="],
 
+    "@howaboua/pi-agent-board": ["@howaboua/pi-agent-board@workspace:packages/pi-agent-board"],
+
     "@howaboua/pi-ask": ["@howaboua/pi-ask@workspace:packages/pi-ask"],
 
     "@howaboua/pi-auto-trees": ["@howaboua/pi-auto-trees@workspace:packages/pi-auto-trees"],
@@ -846,6 +867,8 @@
     "@howaboua/pi-browser": ["@howaboua/pi-browser@workspace:packages/pi-browser"],
 
     "@howaboua/pi-cache-hit-predictor": ["@howaboua/pi-cache-hit-predictor@workspace:packages/pi-cache-hit-predictor"],
+
+    "@howaboua/pi-chatgpt-sites": ["@howaboua/pi-chatgpt-sites@workspace:packages/pi-chatgpt-sites"],
 
     "@howaboua/pi-chill": ["@howaboua/pi-chill@workspace:packages/pi-chill"],
 
@@ -880,8 +903,6 @@
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
 
     "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
-
-    "@howaboua/pi-chatgpt-sites": ["@howaboua/pi-chatgpt-sites@workspace:packages/pi-chatgpt-sites"],
 
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
 
@@ -1115,6 +1136,8 @@
 
     "@types/retry": ["@types/retry@0.12.5", "", {}, "sha512-3xSjTp3v03X/lSQLkczaN9UIEwJMoMCA1+Nb5HfbJEQWogdeQIyVtTvxPXDQjZ5zws8rFQfVfRdz03ARihPJgw=="],
 
+    "@types/trusted-types": ["@types/trusted-types@2.0.7", "", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
+
     "@types/ws": ["@types/ws@8.18.1", "", { "dependencies": { "@types/node": "*" } }, "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg=="],
 
     "@typescript/native-preview": ["@typescript/native-preview@7.0.0-dev.20260707.2", "", { "optionalDependencies": { "@typescript/native-preview-darwin-arm64": "7.0.0-dev.20260707.2", "@typescript/native-preview-darwin-x64": "7.0.0-dev.20260707.2", "@typescript/native-preview-linux-arm": "7.0.0-dev.20260707.2", "@typescript/native-preview-linux-arm64": "7.0.0-dev.20260707.2", "@typescript/native-preview-linux-x64": "7.0.0-dev.20260707.2", "@typescript/native-preview-win32-arm64": "7.0.0-dev.20260707.2", "@typescript/native-preview-win32-x64": "7.0.0-dev.20260707.2" }, "bin": { "tsgo": "bin/tsgo" } }, "sha512-oUGp+Rep/hqMhPunyinsALUwSlzHINSxitifPiSaeqoKOKD2OlR9NE3TaPqwsl4NlGslsOSUXI1JotWQzpYCPg=="],
@@ -1227,6 +1250,8 @@
 
     "diff": ["diff@8.0.4", "", {}, "sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw=="],
 
+    "dompurify": ["dompurify@3.4.16", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ=="],
+
     "ecdsa-sig-formatter": ["ecdsa-sig-formatter@1.0.11", "", { "dependencies": { "safe-buffer": "^5.0.1" } }, "sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ=="],
 
     "electron": ["electron@43.4.1", "", { "dependencies": { "@electron-internal/extract-zip": "^1.0.1", "@electron/get": "^5.0.0", "@types/node": "^24.9.0" }, "bin": { "electron": "cli.js", "install-electron": "install.js" } }, "sha512-5b+EuiwkgG5iRcsEL34rimgRpkYp15SsfZOa0pC5kXs0Tb82TH4n95rpQzTZa7yRCbA7tm0WoEbuBL6NaAhAcA=="],
@@ -1337,7 +1362,7 @@
 
     "make-dir": ["make-dir@4.0.0", "", { "dependencies": { "semver": "^7.5.3" } }, "sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw=="],
 
-    "marked": ["marked@18.0.11", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-HnslJfsZkRPBDJRHvVtAaWlZHEpSu7u8LgQuJCELjRKuWR+hpq4A7sLq3p8HaI9ypVoXDXxV34CsQJEe1+J5Aw=="],
+    "marked": ["marked@18.1.0", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w=="],
 
     "minimatch": ["minimatch@10.2.6", "", { "dependencies": { "brace-expansion": "^5.0.8" } }, "sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A=="],
 
@@ -1516,6 +1541,8 @@
     "@earendil-works/pi-coding-agent/yaml": ["yaml@2.9.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA=="],
 
     "@earendil-works/pi-protocol/typebox": ["typebox@1.3.27", "", {}, "sha512-zu+jc1pcy4UiNThxikUr36f0Rybk9PEeCg/NE6adeWr/SKsdNO4EzZHYRDlv2YCVAfj3Odq3dESSo/jNyoBXzA=="],
+
+    "@earendil-works/pi-tui/marked": ["marked@18.0.11", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-HnslJfsZkRPBDJRHvVtAaWlZHEpSu7u8LgQuJCELjRKuWR+hpq4A7sLq3p8HaI9ypVoXDXxV34CsQJEe1+J5Aw=="],
 
     "@electron/get/undici": ["undici@7.29.0", "", {}, "sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw=="],
 

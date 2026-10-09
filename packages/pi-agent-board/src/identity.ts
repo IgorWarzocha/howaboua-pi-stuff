@@ -35,6 +35,10 @@ const BINDING = "shepherdr-board-binding";
 const MEMBER = "shepherdr-board-member";
 const CHILD = "shepherdr-board-child";
 const SETTING = "shepherdr-board-setting";
+const defaults = new WeakMap<ExtensionContext["sessionManager"], boolean>();
+export function setBoardDefault(ctx: ExtensionContext, enabled: boolean) {
+	defaults.set(ctx.sessionManager, enabled);
+}
 const REMOVED = "shepherdr-board-removed";
 const SettingSchema = Type.Object({
 	sessionId: uuid,
@@ -69,7 +73,10 @@ export function saveBoardSetting(
 
 export function rootBoardSetting(ctx: ExtensionContext) {
 	try {
-		const config = readBoardConfig(resolve(ctx.sessionManager.getCwd()));
+		const config = readBoardConfig(
+			resolve(ctx.sessionManager.getCwd()),
+			defaults.get(ctx.sessionManager),
+		);
 		const session = sessionBoardSetting(ctx);
 		return {
 			enabled: session ?? config.folder ?? config.global,

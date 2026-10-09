@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { ConnectedMachine } from "../fleet.js";
+import type { BoardEnvelope } from "@howaboua/pi-agent-board/integration";
 import {
 	type BoardBinding,
 	binding,
@@ -13,8 +13,8 @@ import {
 	saveBinding,
 	saveChild,
 	saveMember,
-} from "./identity.js";
-import type { BoardEnvelope } from "./protocol.js";
+} from "@howaboua/pi-agent-board/integration";
+import type { ConnectedMachine } from "../fleet.js";
 
 function sameMembership(left: BoardBinding, right: BoardBinding) {
 	return isDeepStrictEqual(

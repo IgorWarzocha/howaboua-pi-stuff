@@ -1,6 +1,12 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
+		"packages/pi-agent-board": {
+			"entry": ["src/viewer/server.ts", "src/viewer/web/app.js", "scripts/*.mjs"],
+			"project": ["src/**/*.ts", "src/viewer/web/*.js", "scripts/*.mjs"],
+			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"],
+			"ignoreDependencies": ["@howaboua/pi-codex-conversion"]
+		},
 		"packages/pi-chatgpt-sites": {
 			"entry": ["index.ts", "src/git-askpass.ts", "scripts/*.mjs"],
 			"project": ["src/**/*.ts", "scripts/*.mjs"]

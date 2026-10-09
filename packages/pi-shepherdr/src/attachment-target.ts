@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { binding } from "@howaboua/pi-agent-board/integration";
 import type { ContextSharingService } from "@howaboua/pi-codex-conversion/context-sharing";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
@@ -19,7 +20,6 @@ import {
 	Plan,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
-import { binding } from "./board/identity.js";
 import { sendPolicyMessage } from "./delivery.js";
 import { attachmentMessage, detachmentMessage } from "./messages.js";
 

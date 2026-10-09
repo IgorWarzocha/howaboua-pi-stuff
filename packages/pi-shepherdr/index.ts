@@ -3,10 +3,7 @@ import registerPackageChangelog from "./changelog.js";
 import { isBlockingAgentsCall } from "./src/agents-contract.js";
 import { acceptFocus, registerFocusArrivals } from "./src/agents-focus.js";
 import { createAgentsTool } from "./src/agents-tool.js";
-import { registerBoardActivityRenderer } from "./src/board/activity.js";
-import { ensureBoardConfig } from "./src/board/config.js";
 import { AgentBoard } from "./src/board/host.js";
-import { createBoardTool } from "./src/board/tool.js";
 import { registerAgentController } from "./src/controller.js";
 import { registerDeveloperDelivery } from "./src/delivery.js";
 import { AgentFleet } from "./src/fleet.js";
@@ -24,7 +21,7 @@ export default async function shepherdrExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
 	registerPackageChangelog(pi);
-	ensureBoardConfig();
+
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
 	const peerCommands = createPeerCommands(pi);
@@ -33,25 +30,20 @@ export default async function shepherdrExtension(
 	registerVoiceFocusReceiver(pi, (ctx, pane, request) =>
 		acceptFocus(pi, ctx, fleet, pane, request),
 	);
-	const board = new AgentBoard(pi, fleet);
+	const board = await AgentBoard.create(pi, fleet);
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
 	const tool = createAgentsTool(fleet, sharedContext, board, pi);
-	const boardTool = createBoardTool(board);
 
 	registerAgentEventRenderer(pi);
-	registerBoardActivityRenderer(pi);
 	pi.registerTool(tool);
-	pi.registerTool(boardTool);
-	await registerAgentsInCodeMode(pi, tool, boardTool, board);
+	await registerAgentsInCodeMode(pi, tool);
 	registerAgentController(pi, fleet, board, peerCommands);
 }
 
 async function registerAgentsInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createAgentsTool>,
-	boardTool: ReturnType<typeof createBoardTool>,
-	board: AgentBoard,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
@@ -63,20 +55,8 @@ async function registerAgentsInCodeMode(
 				usage: "await tools.agents() // Persistent agents; first call alone",
 			}),
 		]);
-		const boardRegistration = registerCodeModeExtensionTools(
-			pi,
-			() => [
-				adaptToolForCodeMode(boardTool, {
-					prepareInput: (input) => (input === undefined ? {} : input),
-					usage: "await tools.board() // Shared discussion archive",
-				}),
-			],
-			{ isActive: (ctx) => board.enabled(ctx) },
-		);
-		board.setToolRefresh(() => boardRegistration.refresh());
 		pi.on("session_shutdown", () => {
 			registration.unregister();
-			boardRegistration.unregister();
 		});
 		return registration;
 	} catch (error) {

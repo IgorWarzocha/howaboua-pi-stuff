@@ -3,6 +3,9 @@
 	"version": "0.2.15",
 	"description": "Persistent blocking and asynchronous Pi agents through Herdr.",
 	"type": "module",
+	"engines": {
+		"node": ">=22.18.0"
+	},
 	"license": "MIT",
 	"author": "Igor Warzocha",
 	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-shepherdr#readme",
@@ -44,9 +47,9 @@
 	},
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=3.0.47",
-		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
-		"@earendil-works/pi-tui": ">=1.0.0",
+		"@earendil-works/pi-ai": ">=1.1.0",
+		"@earendil-works/pi-coding-agent": ">=1.1.0",
+		"@earendil-works/pi-tui": ">=1.1.0",
 		"typebox": "*"
 	},
 	"peerDependenciesMeta": {
@@ -55,7 +58,7 @@
 		}
 	},
 	"dependencies": {
-		"unicode-case-folding": "1.1.2"
+		"@howaboua/pi-agent-board": "0.0.0"
 	},
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "3.0.47",

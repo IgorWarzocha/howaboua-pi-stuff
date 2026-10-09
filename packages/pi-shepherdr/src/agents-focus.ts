@@ -6,7 +6,7 @@ import type {
 import {
 	recordContextBriefing,
 	registerContextBriefing,
-} from "./context-briefing.js";
+} from "@howaboua/pi-agent-board/integration";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import {
 	getAgent,

@@ -5,8 +5,8 @@ import {
 	getMarkdownTheme,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import type { BoardBinding } from "@howaboua/pi-agent-board/integration";
 import { activityTask } from "./activity.js";
-import type { BoardBinding } from "./board/identity.js";
 import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";

@@ -3,12 +3,12 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { boardBriefing } from "./briefing.js";
 import {
 	contextBriefingWindow,
 	recordContextBriefing,
 	registerContextBriefing,
-} from "../context-briefing.js";
-import { boardBriefing } from "../messages.js";
+} from "./context-briefing.js";
 import { binding } from "./identity.js";
 
 const OWNER = "shepherdr-board";
@@ -31,10 +31,12 @@ export class BoardAwareness {
 		pi: ExtensionAPI,
 		read: (ctx: ExtensionContext) => Promise<unknown>,
 		availability: (ctx: ExtensionContext, error?: unknown) => void,
+		privateBriefing: () => typeof boardBriefing | undefined,
 	) {
 		this.pi = pi;
 		this.read = read;
 		this.availability = availability;
+		this.privateBriefing = privateBriefing;
 		registerContextBriefing(
 			pi,
 			"board",
@@ -42,6 +44,7 @@ export class BoardAwareness {
 			(ctx, windowId) => this.record(ctx, windowId),
 		);
 	}
+	private readonly privateBriefing: () => typeof boardBriefing | undefined;
 
 	refresh(ctx: ExtensionContext): AwarenessState {
 		const own = binding(ctx);
@@ -154,7 +157,10 @@ export class BoardAwareness {
 				this.refresh(ctx).epoch !== state.epoch
 			)
 				throw new Error("Board membership changed during its briefing");
-			return boardBriefing(Boolean(own.upstream), population);
+			return (this.privateBriefing() ?? boardBriefing)(
+				Boolean(own.upstream),
+				population,
+			);
 		});
 	}
 }

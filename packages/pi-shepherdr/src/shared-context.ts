@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { isBoardEnvelope } from "@howaboua/pi-agent-board/integration";
 import type {
 	ContextSharingService,
 	SharedContextRequest,
@@ -16,7 +17,6 @@ import {
 	Identity,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
-import { isBoardEnvelope } from "./board/protocol.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { sessionPath } from "./herdr.js";
 import {

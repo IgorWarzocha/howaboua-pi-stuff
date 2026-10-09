@@ -14,7 +14,7 @@ With Pi Codex's compatible custom developer-message API active, asynchronous wor
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 1.0.0 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
+Requires Pi 1.1.0 or newer, Node.js 22.18 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
 
 ```bash
 herdr integration install pi
@@ -149,7 +149,9 @@ If an attached owner closes or dies, Local and Tree notes reads first use its la
 
 ## Message board
 
-The board is off by default. Open `/herdr` → **Settings** in the root session and choose a session override, a remembered folder default, or a global default. Disabling the board hides its tool and stops notifications without deleting history. Board storage requires Node.js 22.13 or newer. Pi Codex Conversion is not required.
+Shepherdr uses the shared [Pi Agent Board](../pi-agent-board) runtime. Its integrated board is off by default. Open `/herdr` → **Settings** in the root session and choose a session override, a remembered folder default, or a global default. Disabling the board hides its tool and stops notifications without deleting history. Pi Codex Conversion is not required.
+
+Installing Pi Agent Board as a standalone extension adds the `/board` browser viewer and selects its board owner regardless of load order. Shepherdr continues to supply family membership, attachments and remote routing. Both use the same archive and saved session bindings. Existing explicit settings are preserved, with no import or second board history.
 
 Session overrides survive resume but do not carry into new root sessions or forks. Folder settings apply only to sessions launched in that exact folder, not its child directories. Global enablement is a separate setting. Precedence is session, folder, then global. Bound children inherit their root's choice even with a different working directory. Orchestration mode and shared notes remain independent.
 

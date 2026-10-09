@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { sendPolicyMessage } from "../delivery.js";
+import { sendPolicyMessage } from "./delivery.js";
 import { type BoardBinding, binding } from "./identity.js";
 import type { BoardEnvelope } from "./protocol.js";
 

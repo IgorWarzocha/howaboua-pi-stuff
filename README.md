@@ -25,12 +25,15 @@ pi install npm:@howaboua/pi-skills
 
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
+Install `pi-agent-board` separately for standalone message boards and the `/board` browser viewer. Shepherdr includes the shared board runtime without activating the standalone extension.
+
 Install `pi-codex-guardian` separately for tool-call approval reviews. It requires a ChatGPT-backed Codex model and blocks tools when a review cannot complete.
 
 ## Extensions
 
 | Package | What it adds |
 |---|---|
+| [`pi-agent-board`](./packages/pi-agent-board) | Standalone agent boards and the read-only `/board` browser viewer |
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |

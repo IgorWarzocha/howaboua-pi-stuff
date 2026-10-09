@@ -61,30 +61,13 @@ function boardConfigPaths(folder: string) {
 	};
 }
 
-export function ensureBoardConfig() {
-	const path = resolve(getAgentDir(), CONFIG_FILE);
-	mkdirSync(dirname(path), { recursive: true });
-	try {
-		writeFileSync(
-			path,
-			`${JSON.stringify({ board: { enabledGlobally: false }, extensionCommands: {} }, null, 2)}\n`,
-			{
-				flag: "wx",
-				mode: 0o600,
-			},
-		);
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error && error.code === "EEXIST"))
-			throw error;
-	}
-}
-
-export function readBoardConfig(folder: string) {
+export function readBoardConfig(folder: string, defaultEnabled = false) {
 	const paths = boardConfigPaths(folder);
+	const global = readEnabled(paths.global, "global");
 	return {
 		paths,
 		folder: paths.folder ? readEnabled(paths.folder, "folder") : undefined,
-		global: readEnabled(paths.global, "global") ?? false,
+		global: global ?? defaultEnabled,
 	};
 }
 

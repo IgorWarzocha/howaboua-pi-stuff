@@ -1,9 +1,9 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { BoardParameters } from "./contract.js";
-import type { AgentBoard } from "./host.js";
 import { serializeBoardResult } from "./response.js";
+import type { BoardRuntime } from "./runtime.js";
 
-export function createBoardTool(board: AgentBoard) {
+export function createBoardTool(board: BoardRuntime) {
 	return defineTool({
 		name: "board",
 		label: "Message board",
