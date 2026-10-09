@@ -25,7 +25,7 @@ export function readSettings(path: string): NotesSettings {
 		typeof settings.normalCompaction !== "boolean"
 	)
 		throw new Error(
-			"Invalid notes settings. Use /notes compact on or /notes compact off to replace them.",
+			"Invalid notes settings. Save a setting in /notes, then reload Pi.",
 		);
 	const idleMinutes = "idleMinutes" in settings ? settings.idleMinutes : 0;
 	if (!IDLE_MINUTES.some((value) => value === idleMinutes))

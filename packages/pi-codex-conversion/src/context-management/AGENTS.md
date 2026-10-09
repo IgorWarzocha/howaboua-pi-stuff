@@ -9,5 +9,5 @@
 - Local/Tree keep flat `history` and `notes` routers on every Responses transport. Only Remote uses reserved native namespaces with exact schemas and encrypted sensitive arguments.
 - Local note writes are model-invisible custom entries. Tree snapshots them across branch cuts. Remote failures remain failures.
 - Encrypted history/notes output must remain a top-level Responses tool result; never unwrap it inside Code or Notebook execution.
-- `agent-identity.ts` owns session-family identity independently of the active branch. Bind only fresh, idle Pi-owned threads before their first window; recheck after async authentication. A fork must not reuse its source agent path. External routers transport Local/Tree calls; conversion validates identity and executes storage operations.
+- `agent-identity.ts` owns session-family identity independently of the active branch. Bind only fresh, idle Pi-owned threads before their first window; recheck after async authentication. A fork must not reuse its source agent path. External notes ownership uses local family routing without rewriting saved Remote identity or account provenance needed for historical lookup.
 - Sharing opt-in gates new children, not an adopted identity or its routes. Never detach an existing family when the setting turns off.

@@ -12,7 +12,8 @@ import {
 } from "./bridge.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { exportNotesSnapshot, sessionRef } from "./notes.js";
-import { IDLE_MINUTES, readSettings, writeSettings } from "./settings.js";
+import { type NotesSettings, readSettings, writeSettings } from "./settings.js";
+import { openNotesSettings } from "./settings-screen.js";
 import { NotesStore } from "./store.js";
 import {
 	createSharedExecutor,
@@ -25,9 +26,6 @@ import {
 	WINDOW_MESSAGE,
 	windowDetails,
 } from "./windows.js";
-
-const HELP =
-	"Use /notes status, /notes prune, /notes compact on|off, or /notes idle off|5|15|25|55 (minutes). Compaction and idle rollover default off. Compaction adds the normal installed Pi/PCC compaction flow to new_context. Idle intervals are not provider cache-expiry guarantees.";
 
 export default function notesCompaction(pi: ExtensionAPI): void {
 	registerWindowRenderer(pi);
@@ -209,66 +207,49 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	pi.registerCommand("notes", {
 		description: "Manage local notes and context rollover",
 		handler: async (args, ctx) => {
-			const command = args.trim() || "status";
-			if (command === "help") {
-				ctx.ui.notify(HELP, "info");
+			if (args.trim()) {
+				ctx.ui.notify("Use /notes to open settings.", "info");
 				return;
 			}
-			if (command === "status") {
-				ctx.ui.notify(
-					JSON.stringify({
-						active: lifecycle.active,
-						...(unavailable ? { unavailable } : {}),
-						normalCompaction: lifecycle.normalCompaction,
-						idleMinutes: lifecycle.idleMinutes,
-						...store.status(),
-						database: store.path,
-						hybridLookup: Boolean(lifecycle.bridge?.lookup),
-						encryptedDelivery: Boolean(lifecycle.bridge?.projectResult),
-					}),
-					"info",
-				);
+			if (!ctx.hasUI) {
+				ctx.ui.notify("Notes settings require interactive Pi.", "warning");
 				return;
 			}
-			if (command === "compact on" || command === "compact off") {
-				writeSettings(settingsPath, {
-					normalCompaction: command === "compact on",
-					idleMinutes: lifecycle.idleMinutes,
-				});
-				lifecycle.normalCompaction = command === "compact on";
-				ctx.ui.notify(
-					`Normal compaction ${lifecycle.normalCompaction ? "enabled" : "disabled"}.`,
-					"info",
-				);
-				return;
-			}
-			const idle = IDLE_MINUTES.find(
-				(minutes) => command === `idle ${minutes === 0 ? "off" : minutes}`,
-			);
-			if (idle !== undefined) {
-				writeSettings(settingsPath, {
-					normalCompaction: lifecycle.normalCompaction,
-					idleMinutes: idle,
-				});
-				lifecycle.idleMinutes = idle;
-				ctx.ui.notify(
-					idle === 0
-						? "Idle rollover disabled."
-						: `Idle rollover after ${idle} minutes, when fresh notes are available. This is not a cache-expiry guarantee.`,
-					"info",
-				);
-				return;
-			}
-			if (command === "prune") {
+			const save = (settings: NotesSettings) => {
+				writeSettings(settingsPath, settings);
+				Object.assign(lifecycle, settings);
+			};
+			const prune = async () => {
 				await ctx.waitForIdle();
 				store.updateFile(sessionRef(ctx));
+				const result = store.prune(ctx.sessionManager.getSessionId());
 				ctx.ui.notify(
-					JSON.stringify(store.prune(ctx.sessionManager.getSessionId())),
+					`Pruned ${result.removed} sessions. Retained ${result.unknownPaths} unknown paths and ${result.inaccessible} inaccessible files.`,
 					"info",
 				);
-				return;
+			};
+			try {
+				await openNotesSettings(ctx, {
+					settings: () => ({
+						normalCompaction: lifecycle.normalCompaction,
+						idleMinutes: lifecycle.idleMinutes,
+					}),
+					save,
+					prune,
+					status: () => {
+						const counts = store.status();
+						return [
+							lifecycle.active
+								? "Continuity active"
+								: `Continuity inactive: ${unavailable ?? "not initialized"}`,
+							`${counts.sessions} sessions · ${counts.revisions} note revisions · ${counts.cachedResponses} cached responses`,
+							`Hybrid lookup: ${lifecycle.bridge?.lookup ? "available" : "unavailable"} · Encrypted delivery: ${lifecycle.bridge?.projectResult ? "available" : "unavailable"}`,
+						];
+					},
+				});
+			} catch (error) {
+				ctx.ui.notify(`Notes settings failed: ${String(error)}`, "error");
 			}
-			ctx.ui.notify(HELP, "warning");
 		},
 	});
 }
