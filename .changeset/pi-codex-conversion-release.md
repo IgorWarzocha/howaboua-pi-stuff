@@ -9,6 +9,7 @@
 
 ### Features
 
+- Added Ultrafast selection alongside per-family Fast Mode and a Daybreak toggle that selects an available access program without changing the model.
 - Support a separate notes extension while preserving Codex tools, cached remote lookup, cross-agent notes and history, and normal compaction. Compaction respects the active context window.
 - Select native microphones and speakers in settings, including system defaults and saved unavailable devices. Changes apply on the next local audio start.
 - Save voice and context-summary preferences from the LAN browser for the next call without restarting the current call. Project settings can disable globally configured context summaries.

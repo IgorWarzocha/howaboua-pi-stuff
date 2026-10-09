@@ -14,7 +14,7 @@ import { createNativeCompactionDetails, createNativeCompactionShimResult, hasPor
 import { isResponsesContext } from "../prompt/codex-model.ts";
 import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
-import { isFastModeEnabled } from "../activation/fast-mode.ts";
+import { resolveFastModeServiceTier } from "../activation/fast-mode.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
@@ -125,11 +125,13 @@ function clampOpenAIPromptCacheKey(key: string): string {
 function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionTargetModel: Model<Api>, codeMode: boolean): NativeCompactionRequestOptions {
 	const tools = buildCompactionTools(pi, codeMode);
 	const reasoning = buildCompactionReasoning(pi, ctx, state, compactionTargetModel);
+	const effectiveOpenAICodex = resolveCodexRuntimePlanForState({ model: compactionTargetModel }, state).effectiveOpenAICodex;
+	const serviceTier = effectiveOpenAICodex
+		? resolveFastModeServiceTier(state.config.openai.fast, compactionTargetModel.id) : undefined;
 	return {
 		parallel_tool_calls: true,
 		prompt_cache_key: clampOpenAIPromptCacheKey(ctx.sessionManager.getSessionId()),
-		...(resolveCodexRuntimePlanForState({ model: compactionTargetModel }, state).effectiveOpenAICodex
-			&& isFastModeEnabled(state.config.openai.fast, compactionTargetModel.id) ? { service_tier: "priority" } : {}),
+		...(serviceTier ? { service_tier: serviceTier } : {}),
 		text: { verbosity: state.config.openai.verbosity },
 		...(tools ? { tools } : {}),
 		...(reasoning ? { reasoning } : {}),

@@ -159,10 +159,14 @@ export interface CachedWebSocketRequestBodyResult {
 	decision: WebSocketContinuationDecision;
 }
 
-export type ServiceTier = ResponseCreateParamsStreaming["service_tier"];
+export type ServiceTier = ResponseCreateParamsStreaming["service_tier"] | "ultrafast";
+export interface AccessPrograms {
+	cyber: "standard" | "daybreak_blue" | "daybreak_red";
+}
 export type ProviderEnv = Record<string, string>;
 export type CodexProviderStreamOptions = Omit<SimpleStreamOptions, "toolChoice"> & {
 	serviceTier?: ServiceTier | undefined;
+	accessPrograms?: AccessPrograms | undefined;
 	textVerbosity?: string | undefined;
 	reasoningSummary?: string | null | undefined;
 	toolChoice?: "auto" | "none" | "required" | undefined;
@@ -195,6 +199,7 @@ export interface ResponsesBody {
 	parallel_tool_calls: boolean;
 	temperature?: number | undefined;
 	service_tier?: string | undefined;
+	access_programs?: AccessPrograms | undefined;
 	tools?: unknown[] | undefined;
 	reasoning?: {
 		effort?: string | undefined;

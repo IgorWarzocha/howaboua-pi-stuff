@@ -68,7 +68,7 @@ Custom-tool contract changes and removals, including promoted tools, are announc
 | General | Settings scope, execution and extension modes, providers, heavy prompt overwrite, time reminders |
 | Context | Continuity, notes storage, subagent sharing, compaction, V2 retention |
 | Tools | Auto reasoning (GPT-6), image descriptions, standalone tools |
-| OpenAI | Per-family Fast Mode, verbosity, transport, cache diagnostics, Responses Lite |
+| OpenAI | Per-family Fast and Ultrafast modes, Daybreak, verbosity, transport, cache diagnostics, Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail, note save markers, background shells |
 | Voice | LAN server, realtime behaviour, summarisation, dictation, shortcuts, prompt paths |
 | Usage | Spend by model and reset window, Codex limits, banked reset credits |
@@ -97,7 +97,9 @@ The first setting chooses **Global** or **This project**:
 - Switching back to Global removes project overrides. Without a project file, all settings inherit globally.
 - GPT-5.6 Luna cache keepalive remains global. GPT-5.6 Sol and Terra keepalive follows the project.
 
-Fast Mode has independent settings for Astra, Sol, Terra and Luna, shared across each family's model versions. Existing boolean preferences still apply to all families. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` overrides every family for one Pi process. Run `/reload` after editing config files by hand.
+Fast Mode has independent settings for Astra, Sol, Terra and Luna, shared across each family's model versions. Choose off, on for priority processing, or Ultrafast. Existing boolean preferences still work. `PI_CODEX_FAST=1`, `0` or `ultrafast` overrides every family for one Pi process. Availability depends on the model and account. Ultrafast API-equivalent estimates use the published rates for GPT-6 Astra and GPT-6.1 Sol, six times Standard. Other models retain base-rate estimates without an unknown Ultrafast premium. These estimates are not subscription quota rates. Run `/reload` after editing config files by hand.
+
+On Codex transport, the Daybreak toggle keeps your selected model and chooses an access program from the connected account's model catalog: Blue first, otherwise Red. When enabled, unconfirmed support stops the request rather than silently using ordinary routing. Turning Daybreak off requests Standard when advertised, otherwise leaves the program unset. The server still checks approval and model access. Existing Daybreak model aliases remain available. See [OpenAI's Daybreak guide](https://developers.openai.com/api/docs/guides/daybreak) for supported combinations.
 
 `tools.customRustBinariesDir` overrides bundled helpers by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build on the target machine, collect the binaries in one directory, set its path, then `/reload`.
 

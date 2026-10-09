@@ -223,6 +223,7 @@ export function normalizeCodexConversionConfig(
 		},
 		openai: {
 			fast: normalizeFastMode(openai["fast"]),
+			daybreak: openai["daybreak"] === true,
 			verbosity:
 				normalizeCodexVerbosity(openai["verbosity"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

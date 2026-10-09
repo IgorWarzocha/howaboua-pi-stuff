@@ -1,3 +1,5 @@
+import { readServiceTier } from "./usage.ts";
+import { resolveDaybreakAccess } from "./daybreak.ts";
 import {
 	appendAssistantMessageDiagnostic,
 	createAssistantMessageDiagnostic,
@@ -252,7 +254,14 @@ export function createCodexTransportStream<TApi extends Api>(
 						reason: isWebSocketUpgradeRequiredError(failure.error) ? "upgrade_required" : "message_too_big" });
 				}
 			}
+			if (runtimeConfig) {
+				const accessPrograms = await resolveDaybreakAccess(model, effectiveOptions, runtimeConfig.openai.daybreak, body.model, originator);
+				delete body.access_programs;
+				if (accessPrograms) body.access_programs = accessPrograms;
+			}
 			await deps.beforeRequestSend?.(model, resolvedContext, body, effectiveOptions, responsesLite);
+			// Payload hooks own the final wire tier, including user-selected speed.
+			effectiveOptions.serviceTier = readServiceTier(body.service_tier);
 			const canonicalHistory: CanonicalHistoryDecision | undefined = effectiveOptions?.canonicalCompaction
 				? "compaction"
 				: validateCanonicalSessionRequest(

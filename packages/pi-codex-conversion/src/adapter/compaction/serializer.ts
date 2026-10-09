@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AccessPrograms, ServiceTier } from "../../providers/openai-codex/types.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
@@ -93,7 +94,8 @@ export type NativeCompactionRequestBody = {
 	instructions?: string | undefined;
 	parallel_tool_calls?: boolean | undefined;
 	prompt_cache_key?: string | undefined;
-	service_tier?: string | undefined;
+	service_tier?: ServiceTier;
+	access_programs?: AccessPrograms | undefined;
 	text?: { verbosity: string } | undefined;
 	tools?: unknown[] | undefined;
 	reasoning?: unknown | undefined;
@@ -101,7 +103,7 @@ export type NativeCompactionRequestBody = {
 
 export type NativeCompactionRequestOptions = Pick<
 	NativeCompactionRequestBody,
-	"parallel_tool_calls" | "prompt_cache_key" | "service_tier" | "text" | "tools" | "reasoning"
+	"parallel_tool_calls" | "prompt_cache_key" | "service_tier" | "access_programs" | "text" | "tools" | "reasoning"
 >;
 
 export type SerializeResponsesMessagesOptions = {
