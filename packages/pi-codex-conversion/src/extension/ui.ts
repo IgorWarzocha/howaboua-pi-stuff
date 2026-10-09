@@ -67,7 +67,10 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	pi.on("session_start", restoreNoteSaveContext);
 	pi.on("session_tree", restoreNoteSaveContext);
 	pi.on("session_compact", restoreNoteSaveContext);
-	pi.on("session_shutdown", () => { noteSaveSessionManager = undefined; });
+	pi.on("session_shutdown", () => {
+		invalidateUsageStatus();
+		noteSaveSessionManager = undefined;
+	});
 	pi.on("context_with_system", (_event, ctx) => {
 		const { state } = runtime;
 		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
@@ -182,9 +185,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		}
 		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state))) return;
 		const usageStatus = await fetchCodexUsageStatus(ctx);
+		if (generation !== usageGeneration) return;
 		const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
 		if (
-			generation !== usageGeneration ||
 			!ctx.hasUI ||
 			runtime.state.config.voiceFeaturesOnly ||
 			!runtime.state.config.ui.statusLine ||
