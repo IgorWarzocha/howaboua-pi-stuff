@@ -201,6 +201,7 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 		identity: string | { content: unknown },
 		expanded: boolean,
 		theme: Theme,
+		outputPad: number,
 		pending?: string,
 	) =>
 		new (class extends Text {
@@ -208,6 +209,11 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 			private persisted = false;
 			override render(width: number): string[] {
 				if (!sessionManager) return [];
+				const padding = Math.min(
+					outputPad,
+					Math.max(0, Math.floor((width - 1) / 2)),
+				);
+				const contentWidth = Math.max(1, width - padding * 2);
 				const current = projection();
 				const ownId =
 					typeof identity === "string"
@@ -224,7 +230,7 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 				) {
 					this.setText(
 						theme.style(
-							truncateToWidth("Board · Notice received", Math.max(1, width)),
+							truncateToWidth("Board · Notice received", contentWidth),
 							{ fg: "syntaxString", dim: true },
 						) + (expanded ? "\n" + pending : ""),
 					);
@@ -232,7 +238,7 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 				}
 				if (!group || group.rows.at(-1)?.id !== ownId) return [];
 				const heading = theme.style(
-					truncateToWidth(group.summary, Math.max(1, width)),
+					truncateToWidth(group.summary, contentWidth),
 					{ fg: "syntaxString", dim: true },
 				);
 				if (expanded)
@@ -242,15 +248,17 @@ export function registerBoardActivityRenderer(pi: ExtensionAPI): void {
 				this.setText(heading + (expanded ? "\n" + group.details : ""));
 				return super.render(width);
 			}
-		})("", 0, 0);
+		})("", outputPad, 0);
+	// Pi's entry renderer contract does not expose outputPad; use its default inset.
 	pi.registerEntryRenderer(BOARD_POST_MARKER, (entry, { expanded }, theme) =>
-		component(entry.id, expanded, theme),
+		component(entry.id, expanded, theme, 1),
 	);
-	const incoming: MessageRenderer = (message, { expanded }, theme) =>
+	const incoming: MessageRenderer = (message, { expanded, outputPad }, theme) =>
 		component(
 			{ content: message.content },
 			expanded,
 			theme,
+			outputPad,
 			typeof message.content === "string"
 				? message.content
 				: JSON.stringify(message.content),
