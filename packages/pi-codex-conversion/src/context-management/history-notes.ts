@@ -12,6 +12,7 @@ import type { ContextRouter, SharedContextRequest, RemoteNoteReference } from ".
 import { contextAccountScope, contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
 import { assertRemoteBackendScope, bindRemoteBackendScope, isRemoteNestedContext, remoteBackendScope, remoteContextScope, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 import { historyNotesRenderers } from "./rendering.ts";
+import { projectSharedNotesResult } from "./notes-response-projection.ts";
 import { codexToolProviderHeaders } from "../adapter/codex-tool-provider.ts";
 import {
 	getPiSessionHistoryRecoveryHint,
@@ -212,6 +213,7 @@ export function createHistoryNotesTools(
 					resolveMode(ctx),
 					pi,
 					route,
+					_id,
 				);
 			},
 		},
@@ -246,6 +248,7 @@ export function createHistoryNotesTools(
 					resolveMode(ctx),
 					pi,
 					route,
+					_id,
 				);
 				return finishNoteWrite?.()
 					? { ...result, terminate: true }
@@ -313,7 +316,8 @@ async function callHistoryNotesTool(
 	signal: AbortSignal | undefined,
 	mode: ContextManagementMode,
 	pi: Pick<ExtensionAPI, "appendEntry"> | undefined,
-	route?: ContextRouter,
+	route: ContextRouter | undefined,
+	callId: string,
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
 	const identity = contextAgentIdentity(ctx);
 	if (identity.storage && identity.storage !== (mode === "remote" ? "remote" : "session"))
@@ -324,7 +328,7 @@ async function callHistoryNotesTool(
 			params: namespace === "history" ? { ...params, agent_name: target } : params,
 			encryptedArguments: mode === "remote" && ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint) && !isRemoteNestedContext(ctx),
 		}, signal);
-		if (routed) return routed;
+		if (routed) return projectSharedNotesResult(routed, callId, ctx, signal);
 	}
 	let result: Record<string, unknown>;
 	if (mode === "remote") {

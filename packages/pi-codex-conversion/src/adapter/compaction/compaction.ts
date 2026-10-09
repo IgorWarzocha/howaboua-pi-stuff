@@ -1,4 +1,4 @@
-import { type CompactionResult, type ExtensionAPI, type ExtensionContext, type SessionBeforeCompactEvent, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import { prepareBranchEntries, type CompactionResult, type ExtensionAPI, type ExtensionContext, type SessionBeforeCompactEvent, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { clampThinkingLevel, getCurrentSystemMessage, normalizeContext, type Api, type Model, type ModelThinkingLevel, type TranscriptContext } from "@earendil-works/pi-ai";
 import { resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
@@ -285,9 +285,23 @@ export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompac
 	try {
 		if (event.signal.aborted) return { cancel: true };
 		const branchEntries = compactionBranch(ctx, state);
-		const archived = hasTreeArchives(event.branchEntries);
 		const latest = resolveLatestNativeCompactionEntry(branchEntries);
 		const opaque = latest.ok && !hasPortableNativeCompactionSummary(latest.entry);
+		if (state.externalNotes && branchEntries.length !== event.branchEntries.length) {
+			const preparation = projectPiCompactionEvent(event, branchEntries).preparation;
+			if (!preparation.messagesToSummarize.length && !plan.nativeCompaction && !(plan.nativeReplay && opaque)) {
+				ctx.ui.notify("Nothing to compact in the current context window. The existing context remains.", "warning");
+				return { cancel: true };
+			}
+			// Pi's default route retains this object through the extension chain.
+			// Recompute all summary inputs (including file operations) using physical IDs.
+			preparation.fileOps = prepareBranchEntries(preparation.messagesToSummarize.map((message) => ({
+				type: "message", id: "", parentId: null, timestamp: "", message,
+			}))).fileOps;
+			delete event.preparation.previousSummary;
+			Object.assign(event.preparation, preparation);
+		}
+		const archived = hasTreeArchives(event.branchEntries);
 		const projectedEvent = archived ? projectPiCompactionEvent(event, branchEntries) : event;
 		const summarized = [...projectedEvent.preparation.messagesToSummarize, ...projectedEvent.preparation.turnPrefixMessages];
 		const handoff = projectTreeHandoffReads(summarized, branchEntries).length !== summarized.length;

@@ -188,9 +188,10 @@ export function registerContextSharingService(
 				return entry as SessionEntry;
 			});
 			const owner = externalOwner();
-			if (owner && !owner.snapshotNotes) throw new Error("Saved checkpoints are unavailable for this notes owner");
-			const snapshot = owner ? owner.snapshotNotes!(entries, identity.agentName)
-				: createPiSessionNotesSnapshot(entries, undefined, true);
+			const standaloneReceipts = entries.some(entry => entry.type === "custom" && entry.customType === "notes-compaction:note:v1");
+			if (!standaloneReceipts && owner && !owner.snapshotNotes) throw new Error("Saved checkpoints are unavailable for this notes owner");
+			const snapshot = standaloneReceipts || !owner ? createPiSessionNotesSnapshot(entries, undefined, true, identity.agentName)
+				: owner.snapshotNotes!(entries, identity.agentName);
 			return { ...snapshot, files: snapshot.files.filter((file) => contextTargetAgent("notes", { path: file.path }, identity.agentName) === identity.agentName) };
 		},
 		readAttachmentNotes(snapshot, params) {

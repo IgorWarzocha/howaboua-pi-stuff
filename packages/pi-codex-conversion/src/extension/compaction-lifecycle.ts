@@ -50,7 +50,7 @@ export function createCodexCompactionLifecycle(
 				ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 			}
 			if (contextManagementResult) return contextManagementResult;
-			if (!nativeCompaction && !plan.nativeReplay && !hasTreeArchives(event.branchEntries)) return undefined;
+			if (!nativeCompaction && !plan.nativeReplay && !state.externalNotes && !hasTreeArchives(event.branchEntries)) return undefined;
 			try {
 				const result = await handleCodexSessionBeforeCompact(
 					event,

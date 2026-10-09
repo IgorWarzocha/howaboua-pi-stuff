@@ -71,7 +71,12 @@ export function noteReceipt(data: unknown): NoteReceipt | undefined {
 }
 
 function relativeLegacyPath(path: string): string {
-	return path.replace(/^\/root(?:\/[a-zA-Z0-9_-]+)*\/notes\/?/, "");
+	// Legacy canonical paths use the first notes component as the agent-root boundary.
+	const components = path.split("/");
+	const boundary = components.indexOf("notes");
+	return components[0] === "" && components[1] === "root" && boundary > 1
+		? components.slice(boundary + 1).join("/")
+		: path;
 }
 
 function snapshotNotes(data: unknown, id: string): NoteRevision[] | undefined {

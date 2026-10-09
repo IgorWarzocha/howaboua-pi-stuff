@@ -8,6 +8,10 @@ import type {
 	SessionBeforeCompactEvent,
 	SessionCompactFailedEvent,
 } from "@earendil-works/pi-coding-agent";
+import {
+	buildSessionProjection,
+	prepareBranchEntries,
+} from "@earendil-works/pi-coding-agent";
 import type { NotesBridge } from "./bridge.js";
 import { hasFreshNotes } from "./fresh-notes.js";
 import { noteHints, sessionRef } from "./notes.js";
@@ -354,8 +358,72 @@ export class NotesLifecycle {
 			this.normalCompaction ||
 			this.rollover?.phase === "compacting" ||
 			event.reason === "overflow"
-		)
+		) {
+			// PCC owns preparation when bridged, including native checkpoint routes.
+			if (this.bridge) return;
+			try {
+				const branch = this.windows.projectBranch(event.branchEntries);
+				if (branch.length === event.branchEntries.length) return;
+				const physicalCut = event.branchEntries.findIndex(
+					(entry) => entry.id === event.preparation.firstKeptEntryId,
+				);
+				if (physicalCut < 0)
+					throw new Error("Compaction kept boundary is missing");
+				const keptIds = new Set(
+					event.branchEntries.slice(physicalCut).map((entry) => entry.id),
+				);
+				const projection = buildSessionProjection(branch);
+				const projected = projection.entries;
+				const summary = projection.messages.find(
+					(message) => message.role === "compactionSummary",
+				);
+				const cut = projected.findIndex((entry) =>
+					keptIds.has(entry.sourceEntry.id),
+				);
+				if (cut < 0)
+					throw new Error("Current context kept boundary is missing");
+				const summarized = projected.slice(0, cut);
+				const messages = summarized
+					.flatMap((entry) => entry.messages)
+					.filter(
+						(message) =>
+							message.role !== "system" && message.role !== "compactionSummary",
+					);
+				if (!messages.length) {
+					ctx.ui.notify(
+						"Nothing to compact in the current context window. The existing context remains.",
+						"warning",
+					);
+					return { cancel: true };
+				}
+				// Pi retains this object for its default summarizer after every hook.
+				// Keep that route's auth, provider hooks and retries, and physical kept IDs.
+				delete event.preparation.previousSummary;
+				Object.assign(event.preparation, {
+					firstKeptEntryId: projected[cut]!.sourceEntry.id,
+					...(summary ? { previousSummary: summary.summary } : {}),
+					messagesToSummarize: messages,
+					turnPrefixMessages: [],
+					isSplitTurn: false,
+					fileOps: prepareBranchEntries(
+						summarized.flatMap((entry) =>
+							entry.messages.map((message) => ({
+								...entry.sourceEntry,
+								type: "message" as const,
+								message,
+							})),
+						),
+					).fileOps,
+				});
+			} catch (error) {
+				ctx.ui.notify(
+					`Compaction failed: ${error instanceof Error ? error.message : String(error)}. The existing context remains.`,
+					"error",
+				);
+				return { cancel: true };
+			}
 			return;
+		}
 		if (event.reason === "manual")
 			this.cancelledCompact = {
 				sessionId: ctx.sessionManager.getSessionId(),
