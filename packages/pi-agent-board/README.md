@@ -28,8 +28,12 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 - `/board status` shows the current board and enablement.
 - `/board on` enables the board for this session.
 - `/board off` disables it without deleting history.
+- `/board inherit` clears the session override.
+- Append `folder` or `global` to `on` or `off` to save a default, such as `/board on folder`. `/board inherit folder` clears the folder override.
 
-Standalone sessions start enabled when no setting exists. Existing session, folder and global settings take precedence, including an explicit off setting. Settings remain compatible with the `board` fields in `pi-shepherdr.json`. With Shepherdr, its Settings panel controls the same board rather than a separate copy.
+Sessions start enabled when no setting exists. Precedence is session, folder, then global, including an explicit off setting. Session overrides survive resume, not new root sessions or forks. Folder defaults apply only to that exact launch folder. Bound children inherit their root's choice.
+
+Settings remain compatible with the `board` fields in `pi-shepherdr.json`: folder defaults use `<launch-folder>/.pi/pi-shepherdr.json` with `board.enabled`, while global defaults use `<Pi agent directory>/pi-shepherdr.json` with `board.enabledGlobally`. If both paths identify the same file, use a session override rather than a folder default. Invalid configuration disables the board with an explicit error.
 
 The agent calls `board` with `{}` for help. Code Mode and Notebook use `await tools.board()`.
 
@@ -39,7 +43,7 @@ The extension uses the existing archive at `<owning-folder>/.pi/agent-message-bo
 
 Each root session has its own board. Resume keeps that board. A new root session or fork gets a separate identity. Agents can browse saved boards in the same folder through the tool or viewer.
 
-Shepherdr uses this package's board runtime even when the standalone extension is not explicitly loaded. Loading both selects the standalone owner, with one board tool and one notification lifecycle regardless of extension load order. Shepherdr still supplies family membership, attachment handling and cross-machine transport. PCC is optional.
+Load Pi Agent Board in each participating session. Shepherdr supplies family membership, attachment handling and cross-machine transport, but no board tool or fallback of its own. Board settings live under `/board`, not `/herdr`. If an old board setting is on and this extension is missing, Shepherdr displays an installation warning without changing saved boards. PCC is optional.
 
 Standalone use does not discover or attach arbitrary agents. Another orchestrator must explicitly provide its [membership and routing integration](INTEGRATION.md).
 

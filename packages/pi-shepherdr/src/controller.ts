@@ -8,7 +8,6 @@ import {
 	recordContextBriefing,
 	registerContextBriefing,
 } from "@howaboua/pi-agent-board/integration";
-import type { AgentBoard } from "./board/host.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
@@ -21,7 +20,6 @@ const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
 export function registerAgentController(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
-	board: AgentBoard,
 	peerCommands: ReturnType<typeof createPeerCommands>,
 ): void {
 	let orchestrationEnabled = false;
@@ -141,7 +139,6 @@ export function registerAgentController(
 			}
 			const options = {
 				fleet,
-				board,
 				orchestration: () => orchestrationEnabled,
 				setOrchestration: (enabled: boolean, signal: AbortSignal) =>
 					setOrchestration(ctx, enabled, signal),
@@ -159,7 +156,7 @@ export function registerAgentController(
 					} finally {
 						panels.delete(panel);
 					}
-				} else ctx.ui.notify(controlPanelStatus(ctx, options), "info");
+				} else ctx.ui.notify(controlPanelStatus(options), "info");
 			} catch (error) {
 				if (current()) ctx.ui.notify(String(error), "error");
 			}

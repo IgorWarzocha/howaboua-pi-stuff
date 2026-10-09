@@ -1,6 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
-import type { AgentBoard } from "./board/host.js";
 import { commandConfigPath } from "./command-config.js";
 import type { AgentFleet } from "./fleet.js";
 import { type SshSetupDraft, sshSetupItems } from "./ssh-setup.js";
@@ -9,12 +7,10 @@ export const PANEL_TABS = ["Settings", "Status", "Connections"] as const;
 export type PanelTab = (typeof PANEL_TABS)[number];
 export interface PanelOwners {
 	fleet: AgentFleet;
-	board: AgentBoard;
 	orchestration: () => boolean;
 }
 
 export function buildPanelItems(
-	ctx: ExtensionContext,
 	options: PanelOwners,
 	tab: PanelTab,
 	draft: SshSetupDraft,
@@ -49,7 +45,7 @@ export function buildPanelItems(
 					.join("\n"),
 			})),
 		];
-	const rows: SettingItem[] = [
+	return [
 		{
 			id: "agent-commands",
 			label: "Agent commands",
@@ -64,35 +60,4 @@ export function buildPanelItems(
 			description: "Prefer delegation over direct work in this session.",
 		},
 	];
-	try {
-		const settings = options.board.settings(ctx);
-		for (const scope of ["session", "folder", "global"] as const) {
-			if (scope === "folder" && !settings.paths.folder) continue;
-			rows.push({
-				id: `board:${scope}`,
-				label: `Board ${scope}`,
-				currentValue:
-					settings[scope] === undefined
-						? "inherit"
-						: settings[scope]
-							? "on"
-							: "off",
-				values: scope === "global" ? ["off", "on"] : ["inherit", "on", "off"],
-				description:
-					scope === "session"
-						? "Overrides folder and global defaults. Inherit removes the override."
-						: scope === "folder"
-							? "Default for this exact launch folder, unless overridden by the session."
-							: "Default for sessions without a session or folder override.",
-			});
-		}
-	} catch (error) {
-		rows.push({
-			id: "board-owner",
-			label: "Board settings",
-			currentValue: "unavailable",
-			description: error instanceof Error ? error.message : String(error),
-		});
-	}
-	return rows;
 }

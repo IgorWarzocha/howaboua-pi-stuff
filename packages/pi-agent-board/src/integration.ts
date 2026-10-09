@@ -45,6 +45,7 @@ export {
 	members,
 	parseBinding,
 	removeMember,
+	rootBoardSetting,
 	saveBinding,
 	saveChild,
 	saveMember,

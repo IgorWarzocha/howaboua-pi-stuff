@@ -125,6 +125,7 @@ export class AttachmentTarget {
 		)
 			throw new Error("Invalid attachment request");
 		const plan = input.plan as AttachmentPlan;
+		if (plan.board) this.board.requireAvailable();
 		if (
 			(!plan.context && !plan.board) ||
 			plan.controllerSessionId === plan.targetSessionId ||
@@ -254,6 +255,7 @@ export class AttachmentTarget {
 	) {
 		if (!Check(Detachment, input)) throw new Error("Invalid detach request");
 		const requested = input as Static<typeof Detachment>;
+		if (requested.board) this.board.requireAvailable();
 		const { plan } = requested;
 		if (
 			!isDeepStrictEqual(attachmentOwner(ctx), plan) ||

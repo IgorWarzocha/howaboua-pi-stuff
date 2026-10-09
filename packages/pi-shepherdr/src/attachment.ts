@@ -50,6 +50,7 @@ export class AgentAttachment {
 		params: AgentsParams,
 		signal: AbortSignal,
 	) {
+		if (params.board) this.board.requireAvailable();
 		const sessionFile = sessionPath(panel);
 		const controllerFile = ctx.sessionManager.getSessionFile();
 		const controllerSessionId = ctx.sessionManager.getSessionId();
@@ -213,6 +214,7 @@ export class AgentAttachment {
 		params: AgentsParams,
 		signal: AbortSignal,
 	) {
+		if (params.board) this.board.requireAvailable();
 		const route = attachmentRoutes(ctx).find(
 			(entry) =>
 				entry.machine === runtime.machine &&

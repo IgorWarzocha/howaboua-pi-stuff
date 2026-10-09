@@ -4,17 +4,20 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-	type BoardScope,
 	binding,
 	children,
 	parseBinding,
+	rootBoardSetting,
 	saveBinding,
 	saveChild,
 } from "@howaboua/pi-agent-board/integration";
-import { acquireBoard } from "@howaboua/pi-agent-board/runtime";
+import {
+	type BoardRuntime,
+	discoverBoard,
+} from "@howaboua/pi-agent-board/runtime";
 import type { AgentFleet, ConnectedMachine } from "../fleet.js";
 import { sessionPath } from "../herdr.js";
-import { boardBriefing } from "../messages.js";
+import { boardBriefing, boardMigrationWarning } from "../messages.js";
 import {
 	requestContext,
 	sessionContextPath,
@@ -25,93 +28,106 @@ import { BoardMembership } from "./membership.js";
 export class AgentBoard {
 	readonly membership: BoardMembership;
 	private readonly pi: ExtensionAPI;
-	private readonly runtime: Awaited<ReturnType<typeof acquireBoard>>;
-	private constructor(
-		pi: ExtensionAPI,
-		runtime: Awaited<ReturnType<typeof acquireBoard>>,
-		fleet: AgentFleet,
-	) {
+	private runtime: BoardRuntime | undefined;
+	private constructor(pi: ExtensionAPI, fleet: AgentFleet) {
 		this.pi = pi;
-		this.runtime = runtime;
 		this.membership = new BoardMembership(
 			pi,
-			(ctx, request) => runtime.toOwner(ctx, request),
-			runtime.active,
+			(ctx, request) => this.owner().toOwner(ctx, request),
+			() => this.owner().active,
 		);
-		runtime.attach({
-			briefing: boardBriefing,
-			request: requestContext,
-			commitDirectory: (own, directory, caller, request) =>
-				this.membership.commitDirectory(own, directory, caller, request),
-			routeNotice: (ctx, request, signal) => {
-				const child = children(ctx).find(
-					(entry) =>
-						request.target === entry.binding.agentName ||
-						request.target.startsWith(`${entry.binding.agentName}/`),
+		const warned = new Set<string>();
+		pi.on("session_start", (_event, ctx) => {
+			const sessionId = ctx.sessionManager.getSessionId();
+			if (this.runtime || warned.has(sessionId)) return;
+			try {
+				const setting = rootBoardSetting(ctx);
+				if (setting.error) throw new Error(setting.error);
+				if (binding(ctx).enabled) {
+					warned.add(sessionId);
+					ctx.ui.notify(boardMigrationWarning(), "warning");
+				}
+			} catch (error) {
+				ctx.ui.notify(
+					`Could not restore saved board settings: ${String(error)}`,
+					"error",
 				);
-				if (!child) return Promise.resolve(false);
-				return fleet
-					.connected(child.machine)
-					.client.requestContext(
-						sessionContextPath(child.sessionFile),
-						request,
-						signal,
+			}
+		});
+		discoverBoard(pi, (runtime) => {
+			this.runtime = runtime;
+			runtime.attach({
+				briefing: boardBriefing,
+				request: requestContext,
+				commitDirectory: (own, directory, caller, request) =>
+					this.membership.commitDirectory(own, directory, caller, request),
+				routeNotice: (ctx, request, signal) => {
+					const child = children(ctx).find(
+						(entry) =>
+							request.target === entry.binding.agentName ||
+							request.target.startsWith(`${entry.binding.agentName}/`),
 					);
-			},
-			propagateEnabled: async (ctx, enabled) => {
-				await Promise.all(
-					children(ctx).map(async (child) => {
-						try {
-							await fleet.connected(child.machine).client.requestContext(
-								sessionContextPath(child.sessionFile),
-								{
-									operation: "board-enabled",
-									boardId: binding(ctx).boardId,
-									enabled,
-								},
-								AbortSignal.timeout(750),
-							);
-						} catch {
-							/* Resumed children reconcile before their next user turn. */
-						}
-					}),
-				);
-			},
+					if (!child) return Promise.resolve(false);
+					return fleet
+						.connected(child.machine)
+						.client.requestContext(
+							sessionContextPath(child.sessionFile),
+							request,
+							signal,
+						);
+				},
+				propagateEnabled: async (ctx, enabled) => {
+					await Promise.all(
+						children(ctx).map(async (child) => {
+							try {
+								await fleet.connected(child.machine).client.requestContext(
+									sessionContextPath(child.sessionFile),
+									{
+										operation: "board-enabled",
+										boardId: binding(ctx).boardId,
+										enabled,
+									},
+									AbortSignal.timeout(750),
+								);
+							} catch {
+								/* Resumed children reconcile before their next user turn. */
+							}
+						}),
+					);
+				},
+			});
 		});
 	}
-	static async create(pi: ExtensionAPI, fleet: AgentFleet) {
-		return new AgentBoard(pi, await acquireBoard(pi), fleet);
+	static create(pi: ExtensionAPI, fleet: AgentFleet) {
+		return new AgentBoard(pi, fleet);
 	}
-	subscribe(listener: () => void) {
-		return this.runtime.subscribe(listener);
+	private owner() {
+		if (!this.runtime)
+			throw new Error(
+				"Shared boards are unavailable; use agents for coordination",
+			);
+		return this.runtime;
+	}
+	requireAvailable() {
+		this.owner();
 	}
 	enabled(ctx: ExtensionContext | undefined) {
-		return this.runtime.enabled(ctx);
+		return this.runtime?.enabled(ctx) ?? false;
 	}
 	refresh(ctx: ExtensionContext) {
-		return this.runtime.refresh(ctx);
-	}
-	settings(ctx: ExtensionContext) {
-		return this.runtime.settings(ctx);
-	}
-	setSetting(
-		ctx: ExtensionContext,
-		scope: BoardScope,
-		enabled: boolean | undefined,
-	) {
-		return this.runtime.setSetting(ctx, scope, enabled);
-	}
-	status(ctx: ExtensionContext, includeArchive = true) {
-		return this.runtime.status(ctx, includeArchive);
+		return this.owner().refresh(ctx);
 	}
 	execute(ctx: ExtensionContext, input: unknown, requestId: string) {
-		return this.runtime.execute(ctx, input, requestId);
+		return this.owner().execute(ctx, input, requestId);
 	}
 	handle(ctx: ExtensionContext, value: unknown, signal?: AbortSignal) {
-		return this.runtime.handle(ctx, value, signal);
+		return this.owner().handle(ctx, value, signal);
 	}
 	promptCatchup(ctx: ExtensionContext) {
-		return this.runtime.promptCatchup(ctx);
+		return (
+			this.runtime?.promptCatchup(ctx) ??
+			Promise.resolve({ content: "", accepted() {} })
+		);
 	}
 	async prepare(
 		ctx: ExtensionContext,
@@ -119,8 +135,8 @@ export class AgentBoard {
 		name: string,
 		args: readonly string[],
 	) {
+		if (!this.enabled(ctx)) return undefined;
 		const own = binding(ctx);
-		if (!own.enabled) return undefined;
 		if (
 			args.some((arg) =>
 				/^(?:--(?:session(?:-id)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(
@@ -166,7 +182,7 @@ export class AgentBoard {
 					throw new Error("Spawned agent did not adopt its board binding");
 				if (ctx.sessionManager.getSessionId() !== own.sessionId)
 					throw new Error("Controller session changed during board binding");
-				await this.runtime.toOwner(ctx, {
+				await this.owner().toOwner(ctx, {
 					operation: "board-register",
 					caller: own,
 					member: adopted,

@@ -3,9 +3,6 @@
 	"version": "0.2.15",
 	"description": "Persistent blocking and asynchronous Pi agents through Herdr.",
 	"type": "module",
-	"engines": {
-		"node": ">=22.18.0"
-	},
 	"license": "MIT",
 	"author": "Igor Warzocha",
 	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-shepherdr#readme",
@@ -76,7 +73,7 @@
 		]
 	},
 	"engines": {
-		"node": ">=20.6.0"
+		"node": ">=22.18.0"
 	},
 	"main": "index.ts",
 	"exports": "./index.ts",

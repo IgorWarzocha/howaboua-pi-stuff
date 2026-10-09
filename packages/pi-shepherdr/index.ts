@@ -30,7 +30,7 @@ export default async function shepherdrExtension(
 	registerVoiceFocusReceiver(pi, (ctx, pane, request) =>
 		acceptFocus(pi, ctx, fleet, pane, request),
 	);
-	const board = await AgentBoard.create(pi, fleet);
+	const board = AgentBoard.create(pi, fleet);
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
 	const tool = createAgentsTool(fleet, sharedContext, board, pi);
@@ -38,7 +38,7 @@ export default async function shepherdrExtension(
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
 	await registerAgentsInCodeMode(pi, tool);
-	registerAgentController(pi, fleet, board, peerCommands);
+	registerAgentController(pi, fleet, peerCommands);
 }
 
 async function registerAgentsInCodeMode(

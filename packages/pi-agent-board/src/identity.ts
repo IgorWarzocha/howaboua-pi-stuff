@@ -45,9 +45,7 @@ const SettingSchema = Type.Object({
 	enabled: Type.Union([Type.Boolean(), Type.Null()]),
 });
 
-export function sessionBoardSetting(
-	ctx: ExtensionContext,
-): boolean | undefined {
+function sessionBoardSetting(ctx: ExtensionContext): boolean | undefined {
 	let enabled: boolean | undefined;
 	for (const entry of ctx.sessionManager.getEntries()) {
 		if (entry.type !== "custom" || entry.customType !== SETTING) continue;

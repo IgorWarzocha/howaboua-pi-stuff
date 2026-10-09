@@ -1,5 +1,4 @@
 import {
-	type ExtensionContext,
 	getSettingsListTheme,
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
@@ -36,7 +35,6 @@ export class PanelView {
 	private listHeight = 0;
 	private pressedRow: string | undefined;
 
-	private readonly ctx: ExtensionContext;
 	private readonly owners: PanelOwners;
 	private readonly tui: TUI;
 	private readonly theme: Theme;
@@ -47,7 +45,6 @@ export class PanelView {
 	private readonly close: () => void;
 
 	constructor(
-		ctx: ExtensionContext,
 		owners: PanelOwners,
 		tui: TUI,
 		theme: Theme,
@@ -57,7 +54,6 @@ export class PanelView {
 		current: () => boolean,
 		close: () => void,
 	) {
-		this.ctx = ctx;
 		this.owners = owners;
 		this.tui = tui;
 		this.theme = theme;
@@ -71,12 +67,7 @@ export class PanelView {
 	rebuild() {
 		if (!this.current() || this.editing) return;
 		try {
-			this.definitions = buildPanelItems(
-				this.ctx,
-				this.owners,
-				this.tab,
-				this.draft,
-			);
+			this.definitions = buildPanelItems(this.owners, this.tab, this.draft);
 		} catch (error) {
 			this.actions.message =
 				error instanceof Error ? error.message : String(error);
@@ -157,7 +148,7 @@ export class PanelView {
 			"",
 			...wrap(
 				this.tab === "Settings"
-					? this.owners.board.status(this.ctx, false)
+					? ""
 					: this.tab === "Connections"
 						? "Remote needs Node on SSH PATH and Pi with Herdr integration. Herdr prepares its server before saving."
 						: `${this.owners.fleet.isActive() ? "" : "Run Pi inside Herdr. "}Add SSH targets in Connections; select a machine here to reconnect.`,

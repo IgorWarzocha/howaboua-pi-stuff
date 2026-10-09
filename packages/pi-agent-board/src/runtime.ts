@@ -8,11 +8,7 @@ import {
 } from "./activity.js";
 import { executeArchive, readSubscribedUpdates } from "./archive.js";
 import { BoardAwareness } from "./awareness.js";
-import {
-	type BoardScope,
-	readBoardConfig,
-	writeBoardConfig,
-} from "./config.js";
+import { type BoardScope, writeBoardConfig } from "./config.js";
 import {
 	agentPath,
 	type BoardParams,
@@ -26,7 +22,6 @@ import {
 	rootBoardSetting,
 	saveBinding,
 	saveBoardSetting,
-	sessionBoardSetting,
 	setBoardDefault,
 } from "./identity.js";
 import type { BoardAdapter } from "./integration.js";
@@ -35,19 +30,8 @@ import { createBoardTool } from "./tool.js";
 import { BoardTurns } from "./turns.js";
 
 export class BoardRuntime {
-	private readonly listeners = new Set<() => void>();
-	subscribe(listener: () => void): () => void {
-		this.listeners.add(listener);
-		return () => {
-			this.listeners.delete(listener);
-		};
-	}
-	private changed() {
-		for (const listener of this.listeners) listener();
-	}
 	private readonly pi: ExtensionAPI;
 	private adapter: BoardAdapter | undefined;
-	standalone = false;
 	private readonly turns: BoardTurns;
 	private readonly awareness: BoardAwareness;
 	private refreshTools: (() => void) | undefined;
@@ -72,7 +56,7 @@ export class BoardRuntime {
 		);
 		pi.on("session_start", (_event, ctx) => {
 			this.availabilityWarning = undefined;
-			setBoardDefault(ctx, this.standalone);
+			setBoardDefault(ctx, true);
 			return this.refresh(ctx);
 		});
 		pi.on("before_agent_start", async (_event, ctx) => {
@@ -243,17 +227,7 @@ export class BoardRuntime {
 			this.lastSetting?.sessionId !== own.sessionId ||
 			this.lastSetting.enabled !== own.enabled;
 		this.lastSetting = { sessionId: own.sessionId, enabled: own.enabled };
-		this.changed();
 		if (changed && !own.upstream) await this.propagateEnabled(ctx, own.enabled);
-	}
-	settings(ctx: ExtensionContext) {
-		const own = binding(ctx);
-		if (own.upstream)
-			throw new Error("Change the board setting in the owning root session");
-		return {
-			...readBoardConfig(own.ownerFolder, this.standalone),
-			session: sessionBoardSetting(ctx),
-		};
 	}
 	async setSetting(
 		ctx: ExtensionContext,
@@ -282,9 +256,7 @@ export class BoardRuntime {
 			if (setting.error) throw new Error(setting.error);
 		}
 		if (!caller.enabled)
-			throw new Error(
-				"Board is off; the user can enable it in /board on or /herdr → Settings",
-			);
+			throw new Error("Board is off; the user can enable it with /board on");
 		const value = await this.toOwner(
 			ctx,
 			{
@@ -431,9 +403,7 @@ export class BoardRuntime {
 				enabled: own.enabled,
 			};
 		if (!own.enabled)
-			throw new Error(
-				"Board is off; the user can enable it in /board on or /herdr → Settings",
-			);
+			throw new Error("Board is off; the user can enable it with /board on");
 		const prepared: BoardParams =
 			params.author === undefined
 				? params
@@ -499,16 +469,35 @@ export class BoardRuntime {
 }
 
 const CLAIM = "@howaboua/pi-agent-board.owner/v1";
+const AVAILABLE = "@howaboua/pi-agent-board.available/v1";
 interface OwnerClaim {
 	runtime: Promise<BoardRuntime>;
-	standalone: boolean;
 }
 
-/** Both entrypoints claim the same engine through Pi's shared extension bus. */
-export async function acquireBoard(
+/** Discover an explicitly loaded owner, including one loaded after this adapter. */
+export function discoverBoard(
 	pi: ExtensionAPI,
-	options: { standalone?: boolean } = {},
-): Promise<BoardRuntime> {
+	attach: (runtime: BoardRuntime) => void,
+) {
+	let attached = false;
+	const accept = (runtime: BoardRuntime) => {
+		if (attached) return;
+		attached = true;
+		attach(runtime);
+	};
+	const request = () =>
+		pi.events.emit(CLAIM, {
+			accept: (claim: OwnerClaim) => {
+				void claim.runtime.then(accept);
+			},
+		});
+	const stop = pi.events.on(AVAILABLE, request);
+	request();
+	pi.on("session_shutdown", stop);
+}
+
+/** Only the standalone extension creates and registers the board engine. */
+export async function acquireBoard(pi: ExtensionAPI): Promise<BoardRuntime> {
 	let claim: OwnerClaim | undefined;
 	pi.events.emit(CLAIM, {
 		accept(value: OwnerClaim) {
@@ -517,7 +506,6 @@ export async function acquireBoard(
 	});
 	if (!claim) {
 		const created: OwnerClaim = {
-			standalone: Boolean(options.standalone),
 			runtime: createRuntime(pi),
 		};
 		claim = created;
@@ -532,9 +520,8 @@ export async function acquireBoard(
 		});
 		pi.on("session_shutdown", stop);
 	}
-	if (options.standalone) claim.standalone = true;
 	const runtime = await claim.runtime;
-	runtime.standalone = claim.standalone;
+	pi.events.emit(AVAILABLE, undefined);
 	return runtime;
 }
 

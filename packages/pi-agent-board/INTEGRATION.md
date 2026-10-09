@@ -2,9 +2,9 @@
 
 The standalone extension needs no host adapter. An orchestrator supplies an adapter only when it manages board membership or routes calls between Pi sessions.
 
-Import `acquireBoard` from `@howaboua/pi-agent-board/runtime` and call it during extension initialization with your Pi `ExtensionAPI`. Every caller in the same Pi extension event bus receives the same runtime. Loading the standalone extension selects its default policy and registers `/board`. Do not register another `board` tool or board notification lifecycle.
+Import `discoverBoard` from `@howaboua/pi-agent-board/runtime` and call `discoverBoard(pi, runtime => runtime.attach(adapter))` during extension initialization. The callback runs when the Pi Agent Board extension is available, regardless of load order. Discovery does not create a runtime. Only Pi Agent Board activates the `board` tool, notification lifecycle and `/board` command.
 
-Attach one `BoardAdapter`, from `@howaboua/pi-agent-board/integration`, with `runtime.attach(adapter)` before session startup:
+Supply one `BoardAdapter`, from `@howaboua/pi-agent-board/integration`:
 
 | Method | Host responsibility |
 | --- | --- |
@@ -14,7 +14,7 @@ Attach one `BoardAdapter`, from `@howaboua/pi-agent-board/integration`, with `ru
 | `propagateEnabled(ctx, enabled)` | Forward the root's enablement change to its children |
 | `briefing(member, population)` | Optional host-specific board guidance |
 
-The transport receiver calls `runtime.handle(ctx, envelope, signal)`. Normal board operations use `runtime.execute(ctx, input, requestId)`. Preserve invocation IDs on transport retries so a retried post does not create another post.
+The transport receiver calls `runtime.handle(ctx, envelope, signal)`. Normal board operations use `runtime.execute(ctx, input, requestId)`. Preserve invocation IDs on transport retries so a retried post does not create another post. Without a discovered owner, omit board guidance and binding during ordinary delegation, and reject explicit board operations without changing saved membership.
 
 The runtime owns request validation, storage, tool registration, settings, subscriptions, current-turn notification checks and model-visible board results. The host owns discovery, authenticated routes and membership admission. It must not accept a model-provided filesystem path or an unverified identity as transport authority.
 

@@ -4,15 +4,26 @@ import { acquireBoard } from "./src/runtime.js";
 import { openBoardViewer } from "./src/viewer/index.js";
 
 export default async function agentBoardExtension(pi: ExtensionAPI) {
-	const board = await acquireBoard(pi, { standalone: true });
+	const board = await acquireBoard(pi);
 	pi.registerCommand("board", {
-		description:
-			"Open the board viewer; on|off|status controls this session's board",
+		description: "Board viewer; on|off|inherit [session|folder|global], status",
 		async handler(args, ctx) {
-			const command = args.trim();
-			if (command === "on" || command === "off") {
+			const [command = "", scope = "session", ...extra] = args
+				.trim()
+				.split(/\s+/);
+			if (
+				(command === "on" || command === "off" || command === "inherit") &&
+				(scope === "session" || scope === "folder" || scope === "global") &&
+				!extra.length
+			) {
 				try {
-					await board.setSetting(ctx, "session", command === "on");
+					if (command === "inherit" && scope === "global")
+						throw new Error("Global enablement must be on or off");
+					await board.setSetting(
+						ctx,
+						scope,
+						command === "inherit" ? undefined : command === "on",
+					);
 					ctx.ui.notify(board.status(ctx), "info");
 				} catch (error) {
 					ctx.ui.notify(
@@ -22,13 +33,13 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 				}
 				return;
 			}
-			if (command === "status") {
+			if (args.trim() === "status") {
 				ctx.ui.notify(board.status(ctx), "info");
 				return;
 			}
 			if (command) {
 				ctx.ui.notify(
-					"Use /board, /board on, /board off or /board status",
+					"Use /board, /board status or /board on|off|inherit [session|folder|global]",
 					"warning",
 				);
 				return;

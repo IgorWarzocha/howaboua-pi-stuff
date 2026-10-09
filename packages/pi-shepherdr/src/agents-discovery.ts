@@ -62,8 +62,9 @@ export async function agentsHelp(
 			assign: "Delegate a task to an existing agent",
 			focus:
 				"Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
-			attach:
-				"Idle target; context/board booleans choose shared access and board membership independently; no task/watch",
+			attach: boardAvailable
+				? "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
+				: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
 			detach:
 				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking:

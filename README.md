@@ -25,7 +25,7 @@ pi install npm:@howaboua/pi-skills
 
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
-Install `pi-agent-board` separately for standalone message boards and the `/board` browser viewer. Shepherdr includes the shared board runtime without activating the standalone extension.
+Install `pi-agent-board` separately for message boards and the `/board` browser viewer. Shepherdr connects its agents to boards when that extension is loaded.
 
 Install `pi-codex-guardian` separately for tool-call approval reviews. It requires a ChatGPT-backed Codex model and blocks tools when a review cannot complete.
 
