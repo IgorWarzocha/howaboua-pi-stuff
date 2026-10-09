@@ -1,0 +1,121 @@
+name: Build Grok audio binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'packages/pi-grok-realtime/src/audio/rust/**'
+      - 'packages/pi-grok-realtime/scripts/build-audio-helper.mjs'
+      - 'packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs'
+      - '.github/workflows/grok-audio-binaries.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.platform_arch }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Preserve the glibc baseline of the shipped Linux binaries.
+          - os: ubuntu-24.04
+            platform_arch: linux-x64
+          - os: ubuntu-24.04-arm
+            platform_arch: linux-arm64
+          - os: macos-15-intel
+            platform_arch: darwin-x64
+          - os: macos-latest
+            platform_arch: darwin-arm64
+          - os: windows-latest
+            platform_arch: win32-x64
+          - os: windows-11-arm
+            platform_arch: win32-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+      - name: Install Linux audio headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - name: Build audio helper
+        working-directory: packages/pi-grok-realtime
+        run: node scripts/build-audio-helper.mjs
+      - name: Check audio helper without devices
+        timeout-minutes: 1
+        shell: bash
+        working-directory: packages/pi-grok-realtime
+        run: src/audio/bin/${{ matrix.platform_arch }}/grok-audio${{ runner.os == 'Windows' && '.exe' || '' }} --check
+      - name: Prepare platform artifact
+        shell: bash
+        run: |
+          mkdir -p audio-artifact/${{ matrix.platform_arch }}
+          cp packages/pi-grok-realtime/src/audio/bin/${{ matrix.platform_arch }}/grok-audio${{ runner.os == 'Windows' && '.exe' || '' }} audio-artifact/${{ matrix.platform_arch }}/
+          cp packages/pi-grok-realtime/src/audio/bin/${{ matrix.platform_arch }}/LICENSES.txt audio-artifact/${{ matrix.platform_arch }}/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: grok-audio-${{ matrix.platform_arch }}
+          path: audio-artifact/
+          if-no-files-found: error
+
+  bundle:
+    name: Commit bundled binaries
+    needs: build
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: grok-audio-*
+          merge-multiple: true
+          path: packages/pi-grok-realtime/src/audio/bin
+      - name: Reject stale builds
+        env:
+          BUILT_SHA: ${{ github.sha }}
+        run: |
+          if ! git merge-base --is-ancestor "$BUILT_SHA" HEAD; then
+            echo "::error::Branch history changed during the audio build; rerun on the current head."
+            exit 1
+          fi
+          if ! git diff --quiet "$BUILT_SHA" HEAD -- packages/pi-grok-realtime/src/audio/rust packages/pi-grok-realtime/scripts/build-audio-helper.mjs packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs .github/workflows/grok-audio-binaries.yml; then
+            echo "::error::Audio build inputs changed during the build; refusing to bundle stale binaries."
+            exit 1
+          fi
+      - name: Prepare and verify bundled binaries
+        run: |
+          find packages/pi-grok-realtime/src/audio/bin -type f -name grok-audio -exec chmod 755 {} +
+          node packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs
+      - name: Stage bundled binaries
+        run: git add packages/pi-grok-realtime/src/audio/bin
+      - name: Commit bundled binaries
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          if git diff --cached --quiet; then
+            echo "No bundled binary changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Bundle Grok audio binaries"
+          git push origin "HEAD:$BRANCH_NAME"

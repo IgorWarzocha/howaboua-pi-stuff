@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.howaboua.pi-grok-audio</string>
+	<key>CFBundleName</key>
+	<string>Grok Realtime Audio</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Use your microphone for Grok voice conversations and dictation in Pi.</string>
+</dict>
+</plist>

@@ -39,6 +39,7 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image inspection, and Code Mode tools for GPT/Codex models |
 | [`pi-codex-guardian`](./packages/pi-codex-guardian) | Guardian approval reviews before tool execution in native Pi, Code Mode, and Notebook Mode |
 | [`pi-gippity-control`](./packages/pi-gippity-control) | Realtime voice and LAN remote control for any Pi model |
+| [`pi-grok-realtime`](./packages/pi-grok-realtime) | Grok voice with Pi doing the work, local and browser dictation, and custom voice tools |
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/terra`, and `/luna` commands for GPT-5.6 Codex models |
 | [`pi-codex-imagegen`](./packages/pi-codex-imagegen) | Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |

@@ -5,6 +5,10 @@
 			"entry": ["index.ts", "src/git-askpass.ts", "scripts/*.mjs"],
 			"project": ["src/**/*.ts", "scripts/*.mjs"]
 		},
+		"packages/pi-grok-realtime": {
+			"entry": ["examples/**/*.ts", "scripts/**/*.mjs"],
+			"project": ["*.ts", "src/**/*.ts", "examples/**/*.ts", "scripts/**/*.mjs"]
+		},
 		"packages/pi-auto-trees": {
 			"entry": ["changelog.ts"]
 		},

@@ -25,6 +25,7 @@ import { handleAboutTabInput, renderAboutTab } from "./about-tab.ts";
 import { openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { buildConfigSettings, type ConfigSetting } from "./config-items.ts";
 import { SETTINGS_TABS, type SettingsTab } from "./tabs.ts";
+import { nativeDevicePicker } from "./native-device-picker.ts";
 import { createUsageTab, type UsageTabOptions } from "./usage-tab.ts";
 
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
@@ -64,6 +65,7 @@ export async function openCodexSettingsScreen(
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
 		const usageTab = createUsageTab(ctx, options, () => tui.requestRender(), usageSignal);
 		let settingsList: SettingsList;
+		let devicePickerOpen = false;
 
 		const runEditConfig = async () => {
 			if (!options.onChange(draft)) {
@@ -141,6 +143,29 @@ export async function openCodexSettingsScreen(
 					availableContextModels,
 					ctx,
 				),
+				...(activeTab === "voice"
+					? (["inputDevice", "outputDevice"] as const).map((key): ConfigSetting => ({
+							item: {
+								id: key,
+								label: key === "inputDevice" ? "Microphone" : "Speaker",
+								description: "Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
+								currentValue: draft.voice[key] ?? "System default",
+								submenu: (_value, back) => {
+									devicePickerOpen = true;
+									return nativeDevicePicker(key, draft.voice[key], (value) => {
+										devicePickerOpen = false;
+										back(value);
+									}, theme, () => tui.requestRender(), draft.tools.customRustBinariesDir);
+								},
+							},
+							update: (value, current) => {
+								const voice = { ...current.voice, audioSetupCompleted: true };
+								if (value) voice[key] = value;
+								else delete voice[key];
+								return { ...current, voice };
+							},
+						}))
+					: []),
 			];
 			list = new SettingsList(
 				buildSettings().map(({ item }) => item),
@@ -279,6 +304,11 @@ export async function openCodexSettingsScreen(
 			},
 			invalidate: () => settingsList.invalidate(),
 			handleInput: (data: string) => {
+				if (devicePickerOpen) {
+					settingsList.handleInput(data);
+					tui.requestRender();
+					return;
+				}
 				if (matchesKey(data, Key.shift(Key.tab))) {
 					const currentIndex = SETTINGS_TABS.findIndex(
 						({ id }) => id === activeTab,

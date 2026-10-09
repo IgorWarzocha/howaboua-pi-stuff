@@ -9,7 +9,7 @@ publish = false
 anyhow = "1"
 base64 = "0.22.1"
 bytes = "1"
-cpal = "0.18.1"
+cpal = "=0.18.2"
 crossbeam-queue = "0.3"
 opus = "0.3.1"
 rubato = { version = "=5.0.0", default-features = false }

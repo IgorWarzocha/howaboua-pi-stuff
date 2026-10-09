@@ -335,6 +335,28 @@
         "@earendil-works/pi-tui": ">=1.0.0",
       },
     },
+    "packages/pi-grok-realtime": {
+      "name": "@howaboua/pi-grok-realtime",
+      "version": "0.0.0",
+      "dependencies": {
+        "selfsigned": "^5.5.0",
+        "ws": "^8.21.3",
+      },
+      "devDependencies": {
+        "@biomejs/biome": "^2.5.10",
+        "@earendil-works/pi-ai": "1.1.0",
+        "@earendil-works/pi-coding-agent": "1.1.0",
+        "@earendil-works/pi-tui": "1.1.0",
+        "@types/node": "^26.2.0",
+        "@types/ws": "^8.18.1",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": ">=1.0.0",
+        "@earendil-works/pi-coding-agent": ">=1.0.0",
+        "@earendil-works/pi-tui": ">=1.0.0",
+      },
+    },
     "packages/pi-memories": {
       "name": "@howaboua/pi-memories",
       "version": "0.1.5",
@@ -844,6 +866,8 @@
     "@howaboua/pi-gippity-control": ["@howaboua/pi-gippity-control@workspace:packages/pi-gippity-control"],
 
     "@howaboua/pi-gpt-switcher": ["@howaboua/pi-gpt-switcher@workspace:packages/pi-gpt-switcher"],
+
+    "@howaboua/pi-grok-realtime": ["@howaboua/pi-grok-realtime@workspace:packages/pi-grok-realtime"],
 
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
 

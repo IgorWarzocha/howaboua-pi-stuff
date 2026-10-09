@@ -5,7 +5,11 @@ import {
 	getSettingsListTheme,
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
-import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
+import {
+	type SettingItem,
+	SettingsList,
+	truncateToWidth,
+} from "@earendil-works/pi-tui";
 import {
 	DEFAULT_GIPPITY_LAN_PORT,
 	type GippityControlConfig,
@@ -16,6 +20,7 @@ import {
 	type VoiceContextModel,
 } from "./config.ts";
 import { getGippityControlConfigPath } from "./config-store.ts";
+import { nativeDevicePicker } from "./native-device-picker.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 import { formatVoiceShortcut } from "./voice/setup.ts";
 import {
@@ -24,11 +29,7 @@ import {
 	REALTIME_SYSTEM_PROMPT_BASENAME,
 } from "./voice/system-prompt.ts";
 
-interface Setting {
-	id: string;
-	label: string;
-	currentValue: string;
-	values: string[];
+interface Setting extends SettingItem {
 	update?(value: string, config: GippityControlConfig): GippityControlConfig;
 }
 
@@ -49,6 +50,25 @@ export async function openGippitySettings(options: {
 			contextModels.set(value, { provider: model.provider, modelId: model.id });
 		}
 		const buildSettings = (): Setting[] => [
+			...(["inputDevice", "outputDevice"] as const).map(
+				(key): Setting => ({
+					id: key,
+					label: key === "inputDevice" ? "Microphone" : "Speaker",
+					description:
+						"Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
+					currentValue: config.voice[key] ?? "System default",
+					submenu: (_value, back) =>
+						nativeDevicePicker(key, config.voice[key], back, theme, () =>
+							tui.requestRender(),
+						),
+					update: (value, current) => {
+						const voice = { ...current.voice, audioSetupCompleted: true };
+						if (value) voice[key] = value;
+						else delete voice[key];
+						return { ...current, voice };
+					},
+				}),
+			),
 			{
 				id: "server",
 				label: "Control server",
@@ -197,12 +217,7 @@ export async function openGippitySettings(options: {
 		const createList = () => {
 			let next!: SettingsList;
 			next = new SettingsList(
-				buildSettings().map(({ id, label, currentValue, values }) => ({
-					id,
-					label,
-					currentValue,
-					values,
-				})),
+				buildSettings().map(({ update: _update, ...item }) => item),
 				8,
 				getSettingsListTheme(),
 				(id, value) => {
@@ -229,6 +244,11 @@ export async function openGippitySettings(options: {
 					const updated = setting.update(value, config);
 					if (onChange(updated)) {
 						config = updated;
+						next.updateValue(
+							id,
+							buildSettings().find((item) => item.id === id)?.currentValue ??
+								value,
+						);
 					} else next.updateValue(id, setting.currentValue);
 					tui.requestRender();
 				},
@@ -283,7 +303,7 @@ function details(
 			`Web app: ${webApp} · port ${config.lan.port ?? DEFAULT_GIPPITY_LAN_PORT} (set lan.port in config)${config.lan.customWebApp ? ` · ${customPath ?? "app discovery JSON"}` : ""}`,
 		),
 		dim(
-			`Config (/reload after keybind/device/port edits): ${getGippityControlConfigPath()}`,
+			`Config (/reload after keybind/port edits): ${getGippityControlConfigPath()}`,
 		),
 		dim("Realtime compaction refresh uses the selected Voice context model"),
 		...(status.running

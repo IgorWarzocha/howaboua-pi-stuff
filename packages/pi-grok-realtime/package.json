@@ -1,0 +1,59 @@
+{
+	"name": "@howaboua/pi-grok-realtime",
+	"version": "0.0.0",
+	"description": "Grok realtime voice with Pi as the working agent, locally and over LAN",
+	"license": "MIT",
+	"type": "module",
+	"main": "./index.ts",
+	"exports": {
+		".": "./index.ts",
+		"./tools": "./tools.ts"
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"files": [
+		"index.ts",
+		"tools.ts",
+		"examples",
+		"docs",
+		"src",
+		"scripts",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json",
+		"!src/**/AGENTS.md",
+		"!src/audio/rust/target"
+	],
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"lint": "biome check .",
+		"typecheck": "tsgo --noEmit",
+		"build:audio-helper": "node scripts/build-audio-helper.mjs",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"dependencies": {
+		"selfsigned": "^5.5.0",
+		"ws": "^8.21.3"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-ai": ">=1.0.0",
+		"@earendil-works/pi-tui": ">=1.0.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-coding-agent": "1.1.0",
+		"@earendil-works/pi-ai": "1.1.0",
+		"@earendil-works/pi-tui": "1.1.0",
+		"@types/node": "^26.2.0",
+		"@types/ws": "^8.18.1",
+		"typescript": "^7.0.2"
+	}
+}
