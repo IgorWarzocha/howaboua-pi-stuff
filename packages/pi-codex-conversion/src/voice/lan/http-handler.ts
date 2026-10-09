@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { LanVoiceSettingsError } from "./settings.ts";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceActivity } from "./activity.ts";
 import { getLanVoiceAppAsset } from "./app-assets.ts";
@@ -7,6 +8,8 @@ import { LanVoiceDraftError, type LanVoiceDraft } from "./draft.ts";
 const MAX_REQUEST_BYTES = 300 * 1024;
 
 export interface LanVoiceHttpHandlers {
+	settings(): unknown;
+	configureSettings(body: Record<string, unknown>): unknown;
 	activity: LanVoiceActivity;
 	clients: LanVoiceBrowserClients;
 	draft: LanVoiceDraft;
@@ -45,6 +48,11 @@ export async function handleLanVoiceHttpRequest(
 			sendJson(response, 409, { error: "The Pi session that started this voice server is no longer active" });
 			return;
 		}
+		if (request.method === "GET" && path === "/api/settings") {
+			if (!isLanVoiceOriginAllowed(request)) throw new LanVoiceRequestError(403, "Same-origin settings access required");
+			sendJson(response, 200, handlers.settings());
+			return;
+		}
 		if (request.method === "GET" && path === "/api/events") {
 			const clientId = boundedString(url.searchParams.get("client"), 128);
 			if (!clientId) throw new LanVoiceRequestError(400, "A browser client ID is required");
@@ -71,6 +79,15 @@ export async function handleLanVoiceHttpRequest(
 		const body = await readJson(request);
 		if (!handlers.ownerIsActive() || handlers.closing) {
 			sendJson(response, 409, { error: "The Pi session that started this voice server is no longer active" });
+			return;
+		}
+		if (path === "/api/settings") {
+			try {
+				sendJson(response, 200, handlers.configureSettings(body));
+			} catch (error) {
+				if (error instanceof LanVoiceSettingsError) throw new LanVoiceRequestError(400, error.message);
+				throw error;
+			}
 			return;
 		}
 		const clientId = requiredClientId(body);

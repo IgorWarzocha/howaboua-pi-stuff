@@ -45,6 +45,7 @@ import {
 	lanVoiceUrls,
 	listen,
 } from "./server-runtime.ts";
+import { createLanVoiceSettings } from "./settings.ts";
 import { LanTransferredSession } from "./transferred-session.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
 
@@ -74,6 +75,7 @@ export async function startCodexLanVoiceServer(options: {
 	certificateAgentDir: string;
 	remoteApps: GippityRemoteApps;
 }): Promise<CodexLanVoiceServer> {
+	const settings = createLanVoiceSettings(options.ctx, options.getConfig);
 	const resolveWebApp = (config: GippityControlConfig) => {
 		const customWebApp = config.lan.customWebApp;
 		const customApp =
@@ -207,7 +209,7 @@ export async function startCodexLanVoiceServer(options: {
 		const promise = (async () => {
 			const started = await options.voice.startRealtimeWithPeerPlan(
 				options.ctx,
-				options.getConfig(),
+				settings.getConfig(),
 				plan,
 				abort.signal,
 			);
@@ -291,6 +293,8 @@ export async function startCodexLanVoiceServer(options: {
 		(request, response) => {
 			void handleLanVoiceHttpRequest(request, response, {
 				activity,
+				settings: settings.settings,
+				configureSettings: settings.configureSettings,
 				clients,
 				draft,
 				sessionSnapshot: () => transferred?.snapshot(),

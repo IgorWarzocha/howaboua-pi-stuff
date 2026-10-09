@@ -14,6 +14,7 @@ import type {
 	GippityRemoteAppMessage,
 	GippityRemoteAppRoute,
 } from "./remote-app.ts";
+import { LanVoiceSettingsError } from "./settings.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
 
@@ -24,6 +25,8 @@ interface LanRemoteWebAppState {
 }
 
 export interface LanVoiceHttpHandlers {
+	settings(): unknown;
+	configureSettings(body: Record<string, unknown>): unknown;
 	activity: LanVoiceActivity;
 	clients: LanVoiceBrowserClients;
 	draft: LanVoiceDraft;
@@ -135,6 +138,15 @@ export async function handleLanVoiceHttpRequest(
 			});
 			return;
 		}
+		if (request.method === "GET" && path === "/api/settings") {
+			if (!isLanVoiceOriginAllowed(request))
+				throw new LanVoiceRequestError(
+					403,
+					"Same-origin settings access required",
+				);
+			sendJson(response, 200, handlers.settings());
+			return;
+		}
 		if (request.method === "GET" && path === "/api/events") {
 			const clientId = boundedString(url.searchParams.get("client"), 128);
 			if (!clientId)
@@ -170,6 +182,16 @@ export async function handleLanVoiceHttpRequest(
 				error:
 					"The Pi session that started this voice server is no longer active",
 			});
+			return;
+		}
+		if (path === "/api/settings") {
+			try {
+				sendJson(response, 200, handlers.configureSettings(body));
+			} catch (error) {
+				if (error instanceof LanVoiceSettingsError)
+					throw new LanVoiceRequestError(400, error.message);
+				throw error;
+			}
 			return;
 		}
 		const clientId = requiredClientId(body);

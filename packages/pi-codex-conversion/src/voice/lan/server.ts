@@ -18,6 +18,7 @@ import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest, isLanVoiceOriginAllowed } from "./http-handler.ts";
 import { collectFailures, configureServer, lanVoiceUrls, listen } from "./server-runtime.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
+import { createLanVoiceSettings } from "./settings.ts";
 
 const PORT = 43_120;
 const HEARTBEAT_MS = 15_000;
@@ -42,6 +43,7 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
+	const settings = createLanVoiceSettings(options.ctx, options.getConfig);
 	const certificate = await resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let activeConversation: { peer: LanHostRealtimePeer; conversation?: CodexRealtimeConversation } | undefined;
@@ -132,7 +134,7 @@ export async function startCodexLanVoiceServer(options: {
 		const promise = (async () => {
 			const started = await options.voice.startRealtimeWithPeerPlan(
 				options.ctx,
-				options.getConfig(),
+				settings.getConfig(),
 				plan,
 				abort.signal,
 			);
@@ -206,6 +208,8 @@ export async function startCodexLanVoiceServer(options: {
 	const server = createServer({ cert: certificate.cert, key: certificate.key }, (request, response) => {
 		void handleLanVoiceHttpRequest(request, response, {
 			activity,
+			settings: settings.settings,
+			configureSettings: settings.configureSettings,
 			clients,
 			draft,
 			sessionSnapshot: () => transferred?.snapshot(),
