@@ -2,14 +2,24 @@ name: Build Grok audio binaries
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'packages/pi-grok-realtime/src/audio/rust/**'
+      - 'packages/pi-grok-realtime/src/audio/bin/**'
+      - 'packages/pi-grok-realtime/scripts/**'
+      - '.github/workflows/grok-audio-binaries.yml'
+      - '.node-version'
   push:
     branches-ignore: [main]
     paths:
       - 'packages/pi-grok-realtime/src/audio/rust/**'
+      - 'packages/pi-grok-realtime/src/audio/bin/**'
       - 'packages/pi-grok-realtime/scripts/build-audio-helper.mjs'
+      - 'packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs'
       - 'packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs'
       - 'packages/pi-grok-realtime/scripts/licenses/**'
       - '.github/workflows/grok-audio-binaries.yml'
+      - '.node-version'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,8 +29,38 @@ permissions:
   contents: read
 
 jobs:
+  plan:
+    name: Check audio bundle freshness
+    runs-on: ubuntu-26.04
+    timeout-minutes: 2
+    outputs:
+      rebuild: ${{ steps.plan.outputs.rebuild }}
+      inputs: ${{ steps.plan.outputs.inputs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Check inputs and all six bundled platforms
+        id: plan
+        env:
+          FORCE_BUILD: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: |
+          node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs > audio-plan.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const plan = JSON.parse(readFileSync('audio-plan.json', 'utf8'));
+          console.log(plan.reason);
+          appendFileSync(process.env.GITHUB_OUTPUT, `rebuild=${plan.rebuild || process.env.FORCE_BUILD === '1'}\ninputs=${plan.inputs}\n`);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${plan.reason}\n\n${plan.rebuild ? 'A trusted branch push automatically rebuilds and bundles all six platforms.' : 'No rebuild needed.'}\n`);
+          NODE
+
   build:
     name: ${{ matrix.platform_arch }}
+    needs: plan
+    if: github.event_name != 'pull_request' && github.ref_type == 'branch' && needs.plan.outputs.rebuild == 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -73,7 +113,8 @@ jobs:
 
   bundle:
     name: Commit bundled binaries
-    needs: build
+    needs: [plan, build]
+    if: github.event_name != 'pull_request' && github.ref_type == 'branch'
     runs-on: ubuntu-26.04
     permissions:
       contents: write
@@ -93,12 +134,14 @@ jobs:
       - name: Reject stale builds
         env:
           BUILT_SHA: ${{ github.sha }}
+          BUILT_INPUTS: ${{ needs.plan.outputs.inputs }}
         run: |
           if ! git merge-base --is-ancestor "$BUILT_SHA" HEAD; then
             echo "::error::Branch history changed during the audio build; rerun on the current head."
             exit 1
           fi
-          if ! git diff --quiet "$BUILT_SHA" HEAD -- packages/pi-grok-realtime/src/audio/rust packages/pi-grok-realtime/scripts/build-audio-helper.mjs packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs packages/pi-grok-realtime/scripts/licenses .github/workflows/grok-audio-binaries.yml; then
+          current_inputs=$(node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs | node -e 'let data=""; process.stdin.on("data", chunk => data += chunk); process.stdin.on("end", () => console.log(JSON.parse(data).inputs));')
+          if [ "$current_inputs" != "$BUILT_INPUTS" ]; then
             echo "::error::Audio build inputs changed during the build; refusing to bundle stale binaries."
             exit 1
           fi
@@ -106,6 +149,7 @@ jobs:
         run: |
           find packages/pi-grok-realtime/src/audio/bin -type f -name grok-audio -exec chmod 755 {} +
           node packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs
+          node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs --stamp
       - name: Stage bundled binaries
         run: git add packages/pi-grok-realtime/src/audio/bin
       - name: Commit bundled binaries

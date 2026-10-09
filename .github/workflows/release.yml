@@ -47,7 +47,7 @@ jobs:
       - name: Add aggregate package changesets
         run: bun run changeset:aggregates
       - name: Verify bundled Grok audio binaries
-        run: node packages/pi-grok-realtime/scripts/verify-audio-binaries.mjs
+        run: node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs --check
       - name: Changesets release
         id: changesets
         uses: changesets/action@v2
