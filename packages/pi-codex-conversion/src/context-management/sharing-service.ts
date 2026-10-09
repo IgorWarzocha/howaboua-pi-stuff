@@ -33,7 +33,9 @@ export function registerContextSharingService(
 		if (storageMode === "off") return undefined;
 		const identity = contextAgentIdentity(ctx);
 		const storage = storageMode === "remote" ? "remote" : "session";
-		if (identity.storage && identity.storage !== storage)
+		// The external owner routes live notes locally while the saved identity
+		// retains its Remote provenance for authenticated historical lookup.
+		if (!externalOwner() && identity.storage && identity.storage !== storage)
 			throw new Error(`Shared context requires ${identity.storage === "remote" ? "Remote" : "Local or Tree"} history storage in this session`);
 		return { ...identity, storage };
 	};

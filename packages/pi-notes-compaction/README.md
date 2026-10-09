@@ -26,6 +26,7 @@ Idle rollover is off by default. Enable it with `/notes idle 5`, `15`, `25` or `
 
 ## Management
 
+- `/notes` opens settings for normal compaction and idle rollover, with continuity status and remote capabilities. Changes save immediately. Pruning requires confirmation in the panel. Without an interactive UI, `/notes` shows status.
 - `/notes status` shows activation, storage counts and optional remote capabilities.
 - `/notes compact on` runs the installed normal Pi or PCC compaction flow, including on `new_context`.
 - `/notes compact off` restores notes-only rollover. This is the default.
