@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-shepherdr",
-	"version": "0.2.16",
+	"version": "0.2.17",
 	"description": "Persistent blocking and asynchronous Pi agents through Herdr.",
 	"type": "module",
 	"license": "MIT",

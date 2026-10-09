@@ -304,7 +304,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.90",
+      "version": "0.0.91",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.12",
         "@howaboua/pi-auto-trees": "0.1.16",
@@ -493,7 +493,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.16",
+      "version": "0.2.17",
       "dependencies": {
         "@howaboua/pi-agent-board": "0.0.1",
       },
@@ -569,7 +569,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.98",
+      "version": "0.0.99",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.12",
         "@howaboua/pi-auto-trees": "0.1.16",
