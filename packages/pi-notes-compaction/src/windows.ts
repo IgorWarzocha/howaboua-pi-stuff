@@ -20,9 +20,9 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context. After rollover, read hinted notes. Use history only for a missing detail.
-After substantial work, save useful findings, decisions and resumable state in notes as your last tool calls before replying. Skip brief clarifications, routine lookups, acknowledgements and unchanged state. Explicit checkpoints and reminders still apply. Include note paths in agent handoffs.
-Include useful deferred ideas and tasks when checkpointing. Recording is not permission to implement.
+Keep one checkpoint per task at a stable path: request, constraints, decisions, progress, next steps, history IDs. Replace stale state; mark completion in place. Keep reusable findings and deferred ideas in separate topic notes; link, don't copy. Recording isn't permission to implement.
+
+Save changed state after substantial work, before replying, and before new_context or handoff. Skip routine or unchanged state. Include checkpoint paths in handoffs. After rollover, read the checkpoint, then linked notes as needed; history only for missing details.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

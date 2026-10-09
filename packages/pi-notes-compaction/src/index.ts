@@ -12,7 +12,7 @@ import {
 } from "./bridge.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { exportNotesSnapshot, sessionRef } from "./notes.js";
-import { readNormalCompaction, writeNormalCompaction } from "./settings.js";
+import { IDLE_MINUTES, readSettings, writeSettings } from "./settings.js";
 import { NotesStore } from "./store.js";
 import {
 	createSharedExecutor,
@@ -27,7 +27,7 @@ import {
 } from "./windows.js";
 
 const HELP =
-	"Use /notes status, /notes prune, or /notes compact on|off. Compaction is off by default. When enabled, new_context also runs the normal installed Pi/PCC compaction flow.";
+	"Use /notes status, /notes prune, /notes compact on|off, or /notes idle off|5|15|25|55 (minutes). Compaction and idle rollover default off. Compaction adds the normal installed Pi/PCC compaction flow to new_context. Idle intervals are not provider cache-expiry guarantees.";
 
 export default function notesCompaction(pi: ExtensionAPI): void {
 	registerWindowRenderer(pi);
@@ -108,7 +108,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		lifecycle.active = false;
 		unavailable = undefined;
 		try {
-			lifecycle.normalCompaction = readNormalCompaction(settingsPath);
+			Object.assign(lifecycle, readSettings(settingsPath));
 			lifecycle.bridge = discoverBridge(pi);
 			const claim = lifecycle.bridge?.claim(owner);
 			if (claim && !claim.claimed) throw new Error(claim.reason);
@@ -220,6 +220,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 						active: lifecycle.active,
 						...(unavailable ? { unavailable } : {}),
 						normalCompaction: lifecycle.normalCompaction,
+						idleMinutes: lifecycle.idleMinutes,
 						...store.status(),
 						database: store.path,
 						hybridLookup: Boolean(lifecycle.bridge?.lookup),
@@ -230,10 +231,30 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 				return;
 			}
 			if (command === "compact on" || command === "compact off") {
-				writeNormalCompaction(settingsPath, command === "compact on");
+				writeSettings(settingsPath, {
+					normalCompaction: command === "compact on",
+					idleMinutes: lifecycle.idleMinutes,
+				});
 				lifecycle.normalCompaction = command === "compact on";
 				ctx.ui.notify(
 					`Normal compaction ${lifecycle.normalCompaction ? "enabled" : "disabled"}.`,
+					"info",
+				);
+				return;
+			}
+			const idle = IDLE_MINUTES.find(
+				(minutes) => command === `idle ${minutes === 0 ? "off" : minutes}`,
+			);
+			if (idle !== undefined) {
+				writeSettings(settingsPath, {
+					normalCompaction: lifecycle.normalCompaction,
+					idleMinutes: idle,
+				});
+				lifecycle.idleMinutes = idle;
+				ctx.ui.notify(
+					idle === 0
+						? "Idle rollover disabled."
+						: `Idle rollover after ${idle} minutes, when fresh notes are available. This is not a cache-expiry guarantee.`,
 					"info",
 				);
 				return;

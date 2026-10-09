@@ -15,6 +15,7 @@ import {
 import type { NotesBridge } from "./bridge.js";
 import { hasFreshNotes } from "./fresh-notes.js";
 import { noteHints, sessionRef } from "./notes.js";
+import type { IdleMinutes } from "./settings.js";
 import type { NotesStore } from "./store.js";
 import {
 	SETTLEMENT_ENTRY,
@@ -48,6 +49,7 @@ export class NotesLifecycle {
 	readonly windows = new Windows();
 	active = false;
 	normalCompaction = false;
+	idleMinutes: IdleMinutes = 0;
 	bridge: NotesBridge | undefined;
 	runId = "";
 	private checkpoint: Checkpoint | undefined;
@@ -228,6 +230,7 @@ export class NotesLifecycle {
 	}
 	private idleDue(ctx: ExtensionContext): boolean {
 		if (
+			this.idleMinutes === 0 ||
 			!ctx.isIdle() ||
 			!this.windows.current ||
 			this.rollover ||
@@ -264,7 +267,7 @@ export class NotesLifecycle {
 			"settledAt" in data &&
 			typeof data.settledAt === "number" &&
 			Number.isFinite(data.settledAt) &&
-			Date.now() - data.settledAt >= 25 * 60_000
+			Date.now() - data.settledAt >= this.idleMinutes * 60_000
 		);
 	}
 	async input(

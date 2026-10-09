@@ -24,13 +24,14 @@ By default, `new_context` starts a fresh window without generating a summary. Th
 
 Reminders arrive at 85% and 90% context use. `/compact` requests a notes checkpoint and opens a new window only after a completed run with fresh saved notes. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
 
-After 25 idle minutes, the next input waits for rollover only if the latest completed turn saved fresh notes. Otherwise it proceeds in the current window without requesting a checkpoint. Held input retains its original text, attachments and SDK options. A failed rollover keeps input pending. Submit another prompt to retry, or reload to cancel it.
+Idle rollover is off by default. Enable it with `/notes idle 5`, `15`, `25` or `55` (minutes). After that interval, the next input waits for rollover only if the latest completed turn saved fresh notes. Otherwise it proceeds in the current window without requesting a checkpoint. These intervals are user preferences, not provider cache-expiry guarantees. Held input retains its original text, attachments and SDK options. A failed rollover keeps input pending. Submit another prompt to retry, or reload to cancel it.
 
 ## Management
 
 - `/notes status` shows activation, storage counts and optional remote capabilities.
 - `/notes compact on` runs the installed normal Pi or PCC compaction flow, including on `new_context`.
 - `/notes compact off` restores notes-only rollover. This is the default.
+- `/notes idle off` disables idle rollover. The interval is saved alongside the compaction setting.
 - `/notes prune` removes SQLite records for sessions whose recorded files are missing. Unknown paths, permission errors and the active session are retained.
 
 Notes are stored as plaintext in `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Saved session snapshots preserve notes across forks and branch navigation, including after database pruning. Existing plaintext PCC notes remain readable without an import.

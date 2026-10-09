@@ -478,7 +478,7 @@ export function createTools(
 			name: "notes",
 			label: "notes",
 			description:
-				"Cross-window checkpoints on virtual paths. Relative uses current agent; cross-agent uses <agent>/notes[/path]",
+				"Cross-window notes. write_file replaces; append_to_file adds. Virtual paths: relative uses current agent; cross-agent uses <agent>/notes[/path].",
 			parameters: NOTES_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments(args) {
