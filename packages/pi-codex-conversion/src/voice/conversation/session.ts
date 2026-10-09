@@ -144,12 +144,14 @@ export class CodexRealtimeConversation {
 		if (this.state === "active") this.established = true;
 	}
 
-	greet(contextual: boolean): void {
+	greet(contextual: boolean, arrival = false): void {
 		if (this.state !== "active") return;
 		this.appendSpeakableContext(
-			contextual
-				? "The voice session has started with context from the ongoing conversation. Greet the user by naturally acknowledging the relevant topic, state, or next step. Do not give a generic hello or repeat the context summary. Then wait for them to speak."
-				: "The voice session has started. Give the user a short, distinctive greeting with some personality; a bare generic hello is not enough. Then wait for them to speak.",
+			arrival
+				? "The user has just arrived from another session by voice. Give a short, distinctive arrival greeting that makes the switch clear and naturally acknowledges this session's topic or state. Do not repeat the continuity summary or start a task. Then wait for them to speak."
+				: contextual
+					? "The voice session has started with context from the ongoing conversation. Greet the user by naturally acknowledging the relevant topic, state, or next step. Do not give a generic hello or repeat the context summary. Then wait for them to speak."
+					: "The voice session has started. Give the user a short, distinctive greeting with some personality; a bare generic hello is not enough. Then wait for them to speak.",
 		);
 	}
 

@@ -15,6 +15,7 @@ const REPORT = "herdr-voice-focus-report";
 interface VoiceService {
 	protocol: typeof PROTOCOL;
 	priority: number;
+	audioTransport?: "webrtc" | "pcm24";
 	status(): { active: boolean; busy: boolean };
 	depart(channel: PeerChannel): Promise<void>;
 	arrive(channel: PeerChannel, continuity: string): Promise<void>;
@@ -28,6 +29,9 @@ function voiceServices(pi: ExtensionAPI): VoiceService[] {
 			if (
 				service?.protocol === PROTOCOL &&
 				Number.isFinite(service.priority) &&
+				(service.audioTransport === undefined ||
+					service.audioTransport === "webrtc" ||
+					service.audioTransport === "pcm24") &&
 				typeof service.status === "function" &&
 				typeof service.depart === "function" &&
 				typeof service.arrive === "function"
@@ -127,12 +131,17 @@ export function registerVoiceFocusReceiver(
 		const service = voiceServices(pi)
 			.filter((candidate) => {
 				const status = candidate.status();
-				return !status.active && !status.busy;
+				return (
+					!status.active &&
+					!status.busy &&
+					(candidate.audioTransport ?? "webrtc") ===
+						(request.voiceAudioTransport ?? "webrtc")
+				);
 			})
 			.sort((a, b) => b.priority - a.priority)[0];
 		if (!service)
 			throw new Error(
-				"Destination has no available voice provider; use voice:false for text-only focus",
+				"Destination has no available voice provider compatible with the current call; choose another session or use voice:false for text-only focus",
 			);
 		// arrive reserves synchronously; do not await replacement startup or source
 		// settlement during admission. Attach rejection handling immediately.

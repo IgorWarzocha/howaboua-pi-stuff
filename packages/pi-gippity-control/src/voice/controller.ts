@@ -199,6 +199,7 @@ export class CodexVoiceController {
 		signal?: AbortSignal,
 		preparedRealtimeContext?: PreparedRealtimeContext,
 		inputMuted = false,
+		alternateVoice?: boolean,
 	): Promise<CodexRealtimeConversation | undefined> {
 		if (this.handoffReservation)
 			throw new Error(
@@ -217,6 +218,7 @@ export class CodexVoiceController {
 			false,
 			inputMuted,
 			preparedRealtimeContext,
+			alternateVoice,
 		);
 	}
 
@@ -277,6 +279,7 @@ export class CodexVoiceController {
 		};
 		return {
 			inputMuted,
+			alternateVoice: this.runtime.alternateVoice ?? false,
 			sourceActive: () =>
 				this.currentSession() === session &&
 				this.runtime.state.type === "conversation",
@@ -386,6 +389,7 @@ export class CodexVoiceController {
 		resume = false,
 		inputMuted = false,
 		preparedRealtimeContext?: PreparedRealtimeContext,
+		alternateVoice?: boolean,
 	): Promise<CodexRealtimeConversation | undefined> {
 		return this.ownership.start(async () => {
 			const session = await startControllerMode({
@@ -398,6 +402,7 @@ export class CodexVoiceController {
 				signal,
 				resume,
 				inputMuted,
+				alternateVoice,
 				...(preparedRealtimeContext ? { preparedRealtimeContext } : {}),
 				prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
 				stopCurrent: () =>

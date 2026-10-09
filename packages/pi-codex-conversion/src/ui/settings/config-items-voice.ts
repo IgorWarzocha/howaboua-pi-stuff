@@ -24,7 +24,7 @@ export function buildVoiceSettings(
 			{
 				id: "v3Voice",
 				description: "Choose the speaking voice for Codex realtime conversations.",
-				label: "Codex voice",
+				label: "Primary voice",
 				currentValue: formatVoiceName(config.voice.v3Voice),
 				values: REALTIME_V3_VOICES.map(formatVoiceName),
 			},
@@ -35,6 +35,24 @@ export function buildVoiceSettings(
 					v3Voice:
 						normalizeRealtimeV3Voice(value.toLowerCase()) ??
 						current.voice.v3Voice,
+				},
+			}),
+		),
+		setting(
+			{
+				id: "v3AlternateVoice",
+				description: "Session voice transfers alternate between primary and alternate voices.",
+				label: "Alternate voice",
+				currentValue: formatVoiceName(config.voice.v3AlternateVoice),
+				values: REALTIME_V3_VOICES.map(formatVoiceName),
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					v3AlternateVoice:
+						normalizeRealtimeV3Voice(value.toLowerCase()) ??
+						current.voice.v3AlternateVoice,
 				},
 			}),
 		),

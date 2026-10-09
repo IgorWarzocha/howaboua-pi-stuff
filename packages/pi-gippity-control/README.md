@@ -36,6 +36,8 @@ Commands:
 
 Settings live at `<pi-agent-directory>/pi-gippity-control.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. Keybind changes take effect after `/reload`.
 
+Choose **Primary voice** and **Alternate voice** in settings or the LAN UI. New calls use the primary voice. With Shepherdr, each voice transfer to another session alternates the voice and gives an arrival greeting. Reconnects and context refreshes keep the current voice. Defaults are Cove and Ember.
+
 **Refresh realtime voice after compaction** is off by default and requires a **Voice context model**. When enabled, it pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
 
 Set `lan.customWebApp: true` to enable a custom main UI, then set `lan.customWebAppPath`. Use an absolute path for one global app in every Pi directory, or a relative path resolved from the active Pi session cwd for a project-specific app. It must point to a static directory containing `index.html`; the running server rereads it on refresh. `lan.port` is optional and defaults to `43120`.

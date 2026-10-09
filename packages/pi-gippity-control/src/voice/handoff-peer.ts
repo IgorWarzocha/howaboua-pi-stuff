@@ -13,6 +13,8 @@ import {
 
 export interface CapturedHandoffAudio {
 	readonly inputMuted: boolean;
+	/** Current source phase; omitted by older providers means primary. */
+	readonly alternateVoice?: boolean;
 	sourceActive(): boolean;
 	bindControls(controls: TransferredVoiceControls): void;
 	release(signal: AbortSignal): Promise<void>;

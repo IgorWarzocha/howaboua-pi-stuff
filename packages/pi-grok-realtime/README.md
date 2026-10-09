@@ -38,9 +38,11 @@ Browser microphone audio captured during connection setup is buffered. Call stat
 
 LAN control is unauthenticated and intended only for trusted networks. Browser control and audio enforce the same HTTPS origin. Do not expose it to the internet.
 
+With Shepherdr running in both sessions, ask Pi to put you through to another session. The call keeps its original microphone and speakers while the destination Grok greets you with its own session context. Each transfer switches between the destination's primary and alternate voices, including transfers back. Grok transfers require Grok at the destination. Text-only focus remains available for other sessions.
+
 ## Settings and recovery
 
-Settings live in `grok-realtime.json` in Pi's agent directory. The default LAN port is `43121`. The default voice is `eve` and model is `grok-voice-latest`.
+Settings live in `grok-realtime.json` in Pi's agent directory. The default LAN port is `43121`. The default primary voice is `eve`, alternate voice is `ara` and model is `grok-voice-latest`.
 
 Automatic resume is on by default. A dropped voice connection gets one replacement attempt, preserving the audio device, mute state and conversation continuity. If recovery fails, the call stops with an error. Browser microphone disconnection is separate; reconnect from the page. Dictation failures retain available partial text but do not resume transcription automatically.
 

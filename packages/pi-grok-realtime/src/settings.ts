@@ -257,11 +257,24 @@ export async function openSettings(
 			},
 			{
 				id: "voice",
-				label: "Voice",
+				label: "Primary voice",
 				currentValue: config.voice,
 				submenu: chooser(
 					"voice",
 					"Voice · availability depends on your account",
+					VOICES,
+					"Enter custom voice ID…",
+				),
+			},
+			{
+				id: "alternateVoice",
+				label: "Alternate voice",
+				currentValue: config.alternateVoice,
+				description:
+					"Session transfers alternate between primary and alternate voices",
+				submenu: chooser(
+					"alternateVoice",
+					"Alternate voice · availability depends on your account",
 					VOICES,
 					"Enter custom voice ID…",
 				),

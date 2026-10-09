@@ -172,6 +172,9 @@ export function normalizeCodexConversionConfig(
 			v3Voice:
 				normalizeRealtimeV3Voice(voice["v3Voice"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
+			v3AlternateVoice:
+				normalizeRealtimeV3Voice(voice["v3AlternateVoice"]) ??
+				DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3AlternateVoice,
 			autoResumeRealtime: normalizeBoolean(
 				voice["autoResumeRealtime"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.autoResumeRealtime,

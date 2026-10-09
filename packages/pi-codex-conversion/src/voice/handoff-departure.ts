@@ -78,7 +78,10 @@ export function startVoiceDeparture(options: {
 			]);
 			await audio.release(abort.signal);
 			options.onReleased(controls);
-			link.stage("activate", { inputMuted: audio.inputMuted });
+			link.stage("activate", {
+				inputMuted: audio.inputMuted,
+				alternateVoice: !(options.captured.alternateVoice ?? false),
+			});
 			await link.waitFor("active");
 		} catch (error) {
 			link.fail(asError(error));

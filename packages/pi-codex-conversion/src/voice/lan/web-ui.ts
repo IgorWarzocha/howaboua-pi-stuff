@@ -121,7 +121,8 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
       <p id="settings-scope"></p>
       <form id="settings-form" aria-describedby="settings-status">
         <fieldset id="settings-fields" disabled>
-          <label for="setting-voice">Voice</label><select id="setting-voice" name="v3Voice"></select>
+          <label for="setting-voice">Primary voice</label><select id="setting-voice" name="v3Voice"></select>
+          <label for="setting-alternate-voice">Alternate voice</label><select id="setting-alternate-voice" name="v3AlternateVoice"></select>
           <label for="setting-context-model">Context summary model</label><select id="setting-context-model" name="contextModel"></select>
           <small>Off starts without a Pi context summary. Models use their own account's pricing or subscription allowance.</small>
           <label for="setting-context-reasoning">Context summary reasoning</label><select id="setting-context-reasoning" name="contextReasoning"></select>

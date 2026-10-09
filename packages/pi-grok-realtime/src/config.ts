@@ -58,6 +58,7 @@ export const CONTEXT_REASONING = [
 export interface GrokRealtimeConfig {
 	access: "oauth" | "api_key";
 	voice: string;
+	alternateVoice: string;
 	model: string;
 	port: number;
 	speed: number;
@@ -76,6 +77,7 @@ export interface GrokRealtimeConfig {
 const DEFAULT_CONFIG: GrokRealtimeConfig = {
 	access: "oauth",
 	voice: "eve",
+	alternateVoice: "ara",
 	model: "grok-voice-latest",
 	port: 43121,
 	speed: 1,
@@ -162,6 +164,7 @@ export function normalizeConfig(
 				result.reasoning = supplied;
 				break;
 			case "voice":
+			case "alternateVoice":
 			case "model":
 				if (typeof supplied !== "string" || !supplied.trim())
 					throw new Error(`${key} must be a nonempty ID`);

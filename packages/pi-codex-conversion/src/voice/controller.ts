@@ -188,11 +188,12 @@ export class CodexVoiceController {
 		signal?: AbortSignal,
 		preparedRealtimeContext?: PreparedRealtimeContext,
 		inputMuted = false,
+		alternateVoice?: boolean,
 	): Promise<CodexRealtimeConversation | undefined> {
 		if (this.handoffReservation) throw new Error("A voice transfer is preparing; stop it before starting another call");
 		if (this.forwardedAudio && !preparedRealtimeContext)
 			throw new Error("Voice is connected to another session; stop it before starting another call");
-		return this.startMode(ctx, config, "realtime", plan, signal, false, inputMuted, preparedRealtimeContext);
+		return this.startMode(ctx, config, "realtime", plan, signal, false, inputMuted, preparedRealtimeContext, alternateVoice);
 	}
 
 	reserveHandoffArrival(): { signal: AbortSignal; release(): void } {
@@ -236,6 +237,7 @@ export class CodexVoiceController {
 		};
 		return {
 			inputMuted,
+			alternateVoice: this.runtime.alternateVoice ?? false,
 			sourceActive: () => this.currentSession() === session && this.runtime.state.type === "conversation",
 			release: async (signal) => {
 				if (this.currentSession() !== session) throw new Error("Source voice changed before transfer");
@@ -330,6 +332,7 @@ export class CodexVoiceController {
 		resume = false,
 		inputMuted = false,
 		preparedRealtimeContext?: PreparedRealtimeContext,
+		alternateVoice?: boolean,
 	): Promise<CodexRealtimeConversation | undefined> {
 		return this.ownership.start(async () => {
 			const session = await startControllerMode({
@@ -342,6 +345,7 @@ export class CodexVoiceController {
 				signal,
 				resume,
 				inputMuted,
+				alternateVoice,
 				...(preparedRealtimeContext ? { preparedRealtimeContext } : {}),
 				prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
 				stopCurrent: () => this.stop({ announce: true, transferring: Boolean(preparedRealtimeContext && this.forwardedAudio) }),

@@ -88,6 +88,7 @@ export interface CodexConversionConfig {
 	};
 	voice: {
 		v3Voice: RealtimeV3Voice;
+		v3AlternateVoice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
 		refreshRealtimeAfterCompaction: boolean;
 		audioSetupCompleted: boolean;
@@ -151,6 +152,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false },
 	voice: {
 		v3Voice: "cove",
+		v3AlternateVoice: "ember",
 		autoResumeRealtime: true,
 		refreshRealtimeAfterCompaction: true,
 		audioSetupCompleted: false,

@@ -4,15 +4,21 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { ActiveVoiceGuard } from "./active-owner.ts";
-import type { RealtimeAudio } from "./audio.ts";
+import type { AudioCallbacks, RealtimeAudio } from "./audio.ts";
 import type { GrokRealtimeConfig } from "./config.ts";
 import { prepareContext } from "./context.ts";
 import { resolveConnection } from "./credentials.ts";
+import type { TransferredVoiceControls } from "./handoff-contract.ts";
+import { isRecord } from "./handoff-wire.ts";
 import { completedVoiceReasoningSummary } from "./reasoning-summary.ts";
 import { GrokSession } from "./session.ts";
 import { loadVoicePrompt } from "./system-prompt.ts";
 import type { GrokToolWireDefinition } from "./tools.ts";
 import { collectGrokTools } from "./tools.ts";
+
+export type PreparedVoice = Awaited<
+	ReturnType<GrokRealtimeController["prepareHandoff"]>
+>;
 
 type Call = {
 	abort: AbortController;
@@ -30,6 +36,9 @@ type Call = {
 	tools: readonly GrokToolWireDefinition[];
 	createSession(): GrokSession;
 	diagnostic(event: Record<string, unknown>): void;
+	removeAudioAbort(): void;
+	inputCallbacks: AudioCallbacks;
+	alternateVoice: boolean;
 };
 
 export class GrokRealtimeController {
@@ -37,32 +46,158 @@ export class GrokRealtimeController {
 	private status = "idle";
 	private forwardedText = 0;
 	private operation = Promise.resolve();
+	private generation = 0;
+	private reservation: AbortController | undefined;
+	private transferred: TransferredVoiceControls | undefined;
+	private transferredBusy = false;
 	onChange: (() => void) | undefined;
+	onTransferredEvent: ((event: string, data: unknown) => void) | undefined;
+	onHandoffState:
+		| ((state: ReturnType<GrokRealtimeController["state"]>) => void)
+		| undefined;
 	private readonly pi: ExtensionAPI;
 	private readonly ownership: ActiveVoiceGuard;
 	constructor(pi: ExtensionAPI) {
 		this.pi = pi;
-		this.ownership = new ActiveVoiceGuard(pi, "Grok", () => Boolean(this.call));
+		this.ownership = new ActiveVoiceGuard(pi, "Grok", () =>
+			Boolean(this.call || this.reservation || this.transferred),
+		);
 	}
 	state(): { status: string; muted: boolean; piBusy: boolean } {
 		return {
 			status: this.status,
-			muted: this.call?.muted ?? false,
-			piBusy: this.call?.piBusy ?? false,
+			muted: this.call?.muted ?? this.transferred?.inputMuted ?? false,
+			piBusy:
+				this.call?.piBusy ?? (this.transferred ? this.transferredBusy : false),
 		};
+	}
+
+	reserveHandoffArrival(): { signal: AbortSignal; release(): void } {
+		if (this.call || this.reservation)
+			throw new Error("Grok voice is already active or preparing");
+		this.ownership.assertAvailable();
+		const reservation = new AbortController();
+		this.reservation = reservation;
+		return {
+			signal: reservation.signal,
+			release: () => {
+				if (this.reservation === reservation) this.reservation = undefined;
+			},
+		};
+	}
+	async prepareHandoff(
+		ctx: ExtensionContext,
+		config: GrokRealtimeConfig,
+		signal: AbortSignal,
+	) {
+		const tools = collectGrokTools(this.pi);
+		if (
+			config.webSearch &&
+			tools.definitions.some((tool) => tool.name === "web_search")
+		)
+			throw new Error(
+				"A local tool uses web_search. Rename it or disable native Web search before starting voice",
+			);
+		const instructions = loadVoicePrompt(ctx.cwd);
+		const [context, connection] = await Promise.all([
+			prepareContext(ctx, config, signal),
+			resolveConnection(ctx, config.model, config.access, signal),
+		]);
+		signal.throwIfAborted();
+		return { tools, instructions, context, connection };
+	}
+	captureHandoffAudio() {
+		const call = this.call;
+		if (!call?.announced || call.reconnecting || call.abort.signal.aborted)
+			throw new Error("Grok voice is not ready to transfer");
+		let transferredControls: TransferredVoiceControls | undefined;
+		return {
+			audio: call.audio,
+			inputMuted: call.muted,
+			alternateVoice: call.alternateVoice,
+			sourceActive: () => this.call === call,
+			closed: () => {
+				if (this.transferred !== transferredControls) return;
+				this.transferred = undefined;
+				if (!this.call) this.setStatus("idle");
+			},
+			release: async (
+				callbacks: AudioCallbacks,
+				controls: TransferredVoiceControls,
+			) =>
+				this.enqueue(async () => {
+					if (this.call !== call || call.abort.signal.aborted)
+						throw new Error("Source voice changed during transfer");
+					if (!call.ctx.isIdle())
+						throw new Error(
+							"Source agent started working again before voice transfer",
+						);
+					// Preparation can outlast a microphone toggle on the original call.
+					controls.setInputMuted(call.muted);
+					call.removeAudioAbort();
+					call.inputCallbacks = callbacks;
+					this.call = undefined;
+					this.transferred = controls;
+					transferredControls = controls;
+					this.transferredBusy = false;
+					this.onTransferredEvent?.("handoff_started", {});
+					controls.onSessionEvent((event, data) => {
+						if (this.transferred !== controls) return;
+						if (event === "agent_start") this.transferredBusy = true;
+						else if (event === "agent_settled") this.transferredBusy = false;
+						else if (
+							event === "voice_status" &&
+							isRecord(data) &&
+							typeof data["piBusy"] === "boolean"
+						)
+							this.transferredBusy = data["piBusy"];
+						this.onTransferredEvent?.(event, data);
+						this.onChange?.();
+					});
+					call.abort.abort();
+					call.session.close();
+					call.audio.clear();
+					this.lifecycle(call.ctx, "ended");
+					this.setStatus("transferred");
+				}),
+		};
+	}
+	async sendText(ctx: ExtensionContext, text: string): Promise<void> {
+		if (this.transferred) return this.transferred.sendText(text);
+		this.input(text);
+		this.pi.sendUserMessage(
+			text,
+			ctx.isIdle() ? undefined : { deliverAs: "steer" },
+		);
+	}
+	stopWithAudio(audio: RealtimeAudio): Promise<void> {
+		if (this.call?.audio !== audio) return Promise.resolve();
+		return this.stop();
 	}
 
 	start(
 		ctx: ExtensionContext,
 		config: GrokRealtimeConfig,
 		audio: RealtimeAudio,
+		arrival?: {
+			prepared: PreparedVoice;
+			alternateVoice: boolean;
+			inputMuted: boolean;
+			signal: AbortSignal;
+		},
 	): Promise<void> {
-		this.cancelStartup();
-		return this.enqueue(() =>
-			this.ownership.start(async () => {
-				await this.stopCurrent();
+		if (!arrival) this.cancelStartup();
+		const generation = ++this.generation;
+		return this.ownership.start(() =>
+			this.enqueue(async () => {
+				await this.stopCurrent(Boolean(arrival));
+				if (generation !== this.generation)
+					throw new Error("Voice startup cancelled");
 				const abort = new AbortController();
-				const tools = collectGrokTools(this.pi);
+				arrival?.signal.throwIfAborted();
+				if (arrival?.alternateVoice)
+					config = { ...config, voice: config.alternateVoice };
+				const tools = arrival?.prepared.tools ?? collectGrokTools(this.pi);
 				if (
 					config.webSearch &&
 					tools.definitions.some((tool) => tool.name === "web_search")
@@ -158,47 +293,72 @@ export class GrokRealtimeController {
 					tools: tools.definitions,
 					createSession,
 					diagnostic,
+					removeAudioAbort: () => {},
+					inputCallbacks: {
+						onAudio: (pcm) => {
+							if (this.call === call && !call.muted)
+								call.session.appendAudio(pcm);
+						},
+						onError: (error) => {
+							ctx.ui.notify(error.message, "error");
+							void this.stop();
+						},
+					},
+					alternateVoice: arrival?.alternateVoice ?? false,
 				};
 				this.call = call;
 				this.setStatus("connecting");
 				try {
-					const instructions = loadVoicePrompt(ctx.cwd);
+					const instructions =
+						arrival?.prepared.instructions ?? loadVoicePrompt(ctx.cwd);
 					call.instructions = instructions;
 					this.setStatus("summarizing");
-					const context = await prepareContext(ctx, config, abort.signal);
+					const context =
+						arrival?.prepared.context ??
+						(await prepareContext(ctx, config, abort.signal));
 					if (context)
 						this.pi.appendEntry("grok-realtime-context", { text: context });
 					this.setStatus("connecting");
-					const connection = await resolveConnection(
-						ctx,
-						config.model,
-						config.access,
-						abort.signal,
-					);
+					const connection =
+						arrival?.prepared.connection ??
+						(await resolveConnection(
+							ctx,
+							config.model,
+							config.access,
+							abort.signal,
+						));
 					if (abort.signal.aborted) throw new Error("Voice startup cancelled");
 					const cancelAudio = () => {
 						void audio.close();
 					};
 					abort.signal.addEventListener("abort", cancelAudio, { once: true });
+					call.removeAudioAbort = () =>
+						abort.signal.removeEventListener("abort", cancelAudio);
+					const cancelArrival = () => abort.abort();
+					arrival?.signal.addEventListener("abort", cancelArrival, {
+						once: true,
+					});
+					if (arrival?.signal.aborted) abort.abort();
 					await audio.start({
 						onAudio: (pcm) => {
-							if (this.call !== call || call.muted) return;
 							try {
-								call.session.appendAudio(pcm);
+								call.inputCallbacks.onAudio(pcm);
 							} catch (error) {
 								ctx.ui.notify(asError(error).message, "error");
 								void this.stop();
 							}
 						},
 						onError: (error) => {
-							if (this.call === call) {
-								ctx.ui.notify(error.message, "error");
-								void this.stop();
-							}
+							call.inputCallbacks.onError(error);
 						},
 					});
 					if (abort.signal.aborted) throw new Error("Voice startup cancelled");
 					session.setPiBusy(!ctx.isIdle());
+					if (arrival) {
+						call.muted = arrival.inputMuted;
+						audio.setMuted(call.muted);
+						session.setMuted(call.muted);
+					}
 					await session.start(
 						connection,
 						config,
@@ -206,7 +366,13 @@ export class GrokRealtimeController {
 						abort.signal,
 						tools.definitions,
 						instructions,
+						Boolean(arrival),
 					);
+					arrival?.signal.removeEventListener("abort", cancelArrival);
+					if (arrival)
+						session.context(
+							"The caller has just been put through to this Pi session. Greet them briefly with a distinct welcome to this session; do not recap prior work or start an agent task.",
+						);
 					this.lifecycle(ctx, "started");
 					call.announced = true;
 				} catch (error) {
@@ -218,14 +384,23 @@ export class GrokRealtimeController {
 	}
 
 	stop(): Promise<void> {
+		this.generation++;
+		this.reservation?.abort();
 		this.call?.abort.abort();
 		return this.enqueue(() => this.stopCurrent());
 	}
 	cancelStartup(): void {
+		this.generation++;
+		this.reservation?.abort();
 		if (this.call && (!this.call.announced || this.call.reconnecting))
 			this.call.abort.abort();
 	}
 	mute(muted: boolean): void {
+		if (this.transferred) {
+			this.transferred.setInputMuted(muted);
+			this.publishState();
+			return;
+		}
 		const call = this.call;
 		if (!call) return;
 		call.diagnostic({ type: "microphone.muted", muted });
@@ -398,8 +573,11 @@ export class GrokRealtimeController {
 			await this.stop();
 	}
 
-	private async stopCurrent(): Promise<void> {
+	private async stopCurrent(preserveTransferred = false): Promise<void> {
 		return this.ownership.hold(async () => {
+			const transferred = this.transferred;
+			this.transferred = undefined;
+			if (!preserveTransferred) await transferred?.stop();
 			const call = this.call;
 			this.call = undefined;
 			this.setStatus("idle");
@@ -407,6 +585,7 @@ export class GrokRealtimeController {
 			call.ctx.ui.setStatus("grok-realtime", undefined);
 			call.diagnostic({ type: "call.stop" });
 			call.abort.abort();
+			call.removeAudioAbort();
 			call.session.close();
 			try {
 				await call.audio.close();
@@ -432,6 +611,7 @@ export class GrokRealtimeController {
 			`Grok: ${this.status}${call.piBusy ? " · Pi working" : ""}${call.muted ? " · mic muted" : ""}`,
 		);
 		this.onChange?.();
+		this.onHandoffState?.(this.state());
 	}
 	private enqueue(action: () => Promise<void>): Promise<void> {
 		const result = this.operation.then(action, action);
