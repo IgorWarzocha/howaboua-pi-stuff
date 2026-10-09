@@ -29,6 +29,10 @@ const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
 
+function focusOrigin({ source }: FocusRequest) {
+	return { host: source.host, session: source.session, pane: source.pane };
+}
+
 export function focusArrivalContent(
 	request: FocusRequest,
 	machine: string,
@@ -44,12 +48,12 @@ export function focusArrivalContent(
 	const callable = codeMode ? `await tools.agents(${args})` : `agents ${args}`;
 	return {
 		returnFocus,
-		content: `User arrived from ${JSON.stringify({ ...request.source, machine })}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`,
+		content: `User arrived from ${JSON.stringify({ ...focusOrigin(request), machine })}\nReturn: ${callable}${request.voice ? "\nVoice transfer pending" : ""}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`,
 	};
 }
 
 export function voiceFocusContinuity(request: FocusRequest): string {
-	return `User transferring voice from ${JSON.stringify(request.source)}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`;
+	return `User transferring voice from ${JSON.stringify(focusOrigin(request))}${request.handoff ? `\nHandoff from that session:\n${request.handoff}` : ""}`;
 }
 
 export function voiceFocusReport(
