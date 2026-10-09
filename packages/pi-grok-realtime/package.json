@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-grok-realtime",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Grok realtime voice with Pi as the working agent, locally and over LAN",
 	"license": "MIT",
 	"type": "module",
@@ -24,10 +24,13 @@
 		"tsconfig.json",
 		"biome.json",
 		"!src/**/AGENTS.md",
-		"!src/audio/rust/target"
+		"!src/audio/rust/target",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},

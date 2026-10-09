@@ -18,9 +18,25 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.11
+### @howaboua/pi-agent-board — 0.0.1
 
-- Parents can receive and answer asynchronous questions through Shepherdr while workers continue.
+- ### Features
+
+  Added Pi Agent Board, the standalone home for boards previously bundled with Shepherdr.
+
+  - Channels, threaded discussions, subscriptions, search and saved history.
+  - A read-only `/board` browser viewer with live updates and agent filters.
+  - Compact, expandable activity rows and optional catch-up links for unread subscribed threads on user turns and peer messages, without waking idle agents.
+  - Standalone operation, optional Shepherdr agent sharing, and Code Mode or Notebook access through Pi Codex Conversion.
+
+  Requires Pi 1.1 or newer and Node.js 22.18 or newer. Existing Shepherdr board archives, session bindings and subscriptions are preserved. Board settings now live under `/board`. Install this extension in every participating session and reload Pi.
+
+[Full changelog](./packages/pi-agent-board/CHANGELOG.md)
+
+### @howaboua/pi-ask — 0.0.12
+
+- ### Improvements
+  - Ask returns help when called without arguments, including an empty structured object. Explicit help remains supported.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -36,17 +52,20 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.7
+### @howaboua/pi-better-skills-tool — 0.0.8
 
-- Better Skills now hides the skill catalog from Pi, Code Mode, and Notebook Mode prompts while preserving native `/skill:<name>` commands.
-
-  Remove `--no-skills` from launch wrappers or aliases. Separate catalog-clearing hooks are no longer needed.
+- ### Improvements
+  - Skills returns its catalog with command guidance when called without arguments. Explicit help remains supported.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.7
+### @howaboua/pi-browser — 0.0.8
 
-- Browser operations tolerate unused `response_length` hints. Page-length controls for `open` and `find` are unchanged.
+- ### Improvements
+  - Browser returns help when called without arguments, including an empty structured object. Explicit help remains supported.
+
+  ### Fixes
+  - Screenshots bring the target tab to the foreground, avoiding capture timeouts caused by background focus emulation.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -60,21 +79,41 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.47
+### @howaboua/pi-chatgpt-sites — 0.0.1
 
-- Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+- ### Features
+  - Added Pi Sites with site management, committed-source saves, deployment and on-demand documentation.
+  - Tools are automatically deferred in Code Mode and Notebook.
 
-- Fixed HTTP 400 errors when using Local or Tree history with Pi's OpenAI ChatGPT sign-in.
+[Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-  Show only the latest Notes saved notice on the active branch while preserving earlier checkpoints in session history.
+### @howaboua/pi-codex-conversion — 3.0.48
 
-- Preserve supported reasoning levels when context-history tools are enabled, preventing unsupported "none" errors when cycling GPT-6 Sol or Luna.
+- ### Breaking changes
+  - **BREAKING CHANGE:** Requires Pi 1.1.0 or newer. Update Pi before updating Codex Conversion.
+  - **BREAKING CHANGE:** Sites tools moved to `@howaboua/pi-chatgpt-sites`. Remove the old `sites.toml`, `sites_documentation.toml` and companion directory, install the new extension, then reload Pi. Existing repository bindings are preserved. Calls now use `sites({resource, action, params})` and `sites_documentation({topic})`.
 
-  Clarified that Auto reasoning supports GPT-6.1 Sol in its settings description.
+  ### Features
+  - Added Ultrafast selection alongside per-family Fast Mode and a Daybreak toggle that selects an available access program without changing the model.
+  - Support a separate notes extension while preserving Codex tools, cached remote lookup, cross-agent notes and history, and normal compaction. Compaction respects the active context window.
+  - Select native microphones and speakers in settings, including system defaults and saved unavailable devices. Changes apply on the next local audio start.
+  - Save voice and context-summary preferences from the LAN browser for the next call without restarting the current call. Project settings can disable globally configured context summaries.
+  - Transfer voice through `agents focus`, retaining the microphone and browser connection while switching to the destination's context. Handoffs include attributed context and a return action without starting an agent task.
+  - Choose primary and alternate voices in terminal or browser settings. Each session transfer alternates voices and greets the user in the destination's context.
 
-  Updated `change_reasoning` guidance to call before beginning work and reassess when difficulty or uncertainty changes.
+  ### Improvements
+  - Notebook returns help when called without arguments, including an empty structured object. Explicit help remains supported.
+  - Reasoning guidance raises effort for difficult or uncertain work and lowers it for routine work. Exec guidance calls for timeouts on operations that might not finish on their own.
+  - Notes guidance keeps task checkpoints at stable paths and separates reusable topic notes. Note-save bookmarks label the next user prompt as Notes. Selecting it in `/tree` restores the prompt at the saved checkpoint.
+  - Pending remote notes, history results and completed-cell receipts no longer expire after 15 minutes. Long-running cells can accept more than 32 remote calls.
 
-- Idle window rollover now requires fresh notes from the latest completed turn. Without fresh notes, the incoming prompt runs normally instead of triggering a checkpoint request.
+  ### Fixes
+  - Cancelled runs no longer trigger checkpoint rollover, qualify for idle rollover or receive a Notes saved marker after cancellation.
+  - Context-window history starts with the first applicable turn rather than model selection or tree navigation.
+  - Preserve partial-answer labels during replay and compaction.
+  - Fix voice context summaries for compacted conversations containing remote tool results.
+  - Fix quota refresh after reloads and session switches.
+  - Voice and dictation refuse startup while another voice provider is active, including during reconnection and microphone transfer.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -114,18 +153,28 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.89
+### @howaboua/pi-extensions — 0.0.90
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
-  - @howaboua/pi-shepherdr: Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
+  - @howaboua/pi-ask: Improvements - Ask returns help when called without arguments, including an empty structured object. Explicit help remains supported.
+  - @howaboua/pi-better-skills-tool: Improvements - Skills returns its catalog with command guidance when called without arguments. Explicit help remains supported.
+  - @howaboua/pi-gippity-control: Features - Select native microphones and speakers in settings, including system defaults and saved unavailable devices. Changes apply on the next local audio start without changing browser or handed-off audio. - Save voice and context-summary preferences from the LAN browser for the next call without restarting the current call or changing credentials or native devices. Project settings can disable globally configured context summaries. - Transfer voice through `agents focus`, retaining the microphone and browser connection while switching to the destination's context. Handoffs include attributed context and a return action without starting an agent task. - Choose primary and alternate voices in terminal or browser settings. Each session transfer alternates voices and greets the user in the destination's context. Fixes - Voice and dictation refuse startup while another voice provider is active in the same Pi session, including during reconnection and microphone transfer.
+  - @howaboua/pi-grok-realtime: Features Added Grok realtime voice with the current Pi agent doing the work. - Local audio on Linux, macOS and Windows, plus trusted-LAN browser control with live Pi activity. - Local and browser streaming dictation into an editable draft, with automatic language detection or an explicit language selection, without automatically sending requests. - Selectable voices, models and audio devices, custom Markdown instructions and conversation continuity summaries. - Session voice transfers through Shepherdr, retaining the original microphone and speakers. Each transfer alternates between configurable primary and alternate voices and greets the user in the destination's context. - Automatic connection recovery, saved transcripts and coordination with other active voice providers. - Custom voice tools and optional xAI web search. Uses the matching OAuth or API-key credential configured in Pi. Voice quota and billing depend on the account.
+  - @howaboua/pi-shepherdr: Breaking changes - **BREAKING CHANGE:** Boards moved to `@howaboua/pi-agent-board`. Install it in every participating session and reload Pi. Existing archives, session bindings and subscriptions are preserved. Board settings now live under `/board`, not `/herdr`. The board extension requires Pi 1.1 or newer and Node.js 22.18 or newer. - **BREAKING CHANGE:** Custom extension commands sent through `agents` require an `extensionCommands` allowlist in the receiving session's global `pi-shepherdr.json`. Add the commands you use, then update and reload both controllers and receiving agents. `/herdr` Settings shows the config path and format. Features - Route `/quit`, `/model`, `/thinking`, `/name`, `/new`, `/reload`, `/resume` and `/compact` to agents. `/quit` shuts down Pi before closing its pane. Blocked commands return available commands instead of becoming model prompts. Skills and prompt templates remain supported. - Focus running Pi sessions with `agents focus`, optionally transferring voice through GipPity Control, Codex Conversion or Grok Realtime. Handoffs retain the microphone and browser connection, identify the source device, session and pane without exposing session-file paths, and offer a return action without starting an agent task. Remote focus selects the destination's Herdr session. Client machine selection remains manual. - Pass a shared-board thread to a spawned agent with `board_thread_id` so its initial task can read that context. - Support shared and attached agents with different notes owners. Local checkpoints remain available after detachment. - Accept `/root` as the live root of an agent's own family, including across connected machines. Missing or ambiguous roots fail explicitly. Exact spawn and find targets remain unchanged. Improvements - Agents returns help when called without arguments, including an empty structured object. - Delegation guidance keeps task ownership with either the parent or its delegated agent, avoiding duplicated work. Fixes - Reduce redundant monitoring warnings when workers close, move or are unwatched. Retire question watches and suppress late collection failures. - Coalesce repeated board-owner outage warnings until connectivity recovers. Preserve Herdr event-stream error details locally and over SSH.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.25
+### @howaboua/pi-gippity-control — 0.0.26
 
-- Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
+- ### Features
+  - Select native microphones and speakers in settings, including system defaults and saved unavailable devices. Changes apply on the next local audio start without changing browser or handed-off audio.
+  - Save voice and context-summary preferences from the LAN browser for the next call without restarting the current call or changing credentials or native devices. Project settings can disable globally configured context summaries.
+  - Transfer voice through `agents focus`, retaining the microphone and browser connection while switching to the destination's context. Handoffs include attributed context and a return action without starting an agent task.
+  - Choose primary and alternate voices in terminal or browser settings. Each session transfer alternates voices and greets the user in the destination's context.
+
+  ### Fixes
+  - Voice and dictation refuse startup while another voice provider is active in the same Pi session, including during reconnection and microphone transfer.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -134,6 +183,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
 - Fixed model shortcuts rejecting configured context windows above their defaults.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
+
+### @howaboua/pi-grok-realtime — 0.0.1
+
+- ### Features
+
+  Added Grok realtime voice with the current Pi agent doing the work.
+
+  - Local audio on Linux, macOS and Windows, plus trusted-LAN browser control with live Pi activity.
+  - Local and browser streaming dictation into an editable draft, with automatic language detection or an explicit language selection, without automatically sending requests.
+  - Selectable voices, models and audio devices, custom Markdown instructions and conversation continuity summaries.
+  - Session voice transfers through Shepherdr, retaining the original microphone and speakers. Each transfer alternates between configurable primary and alternate voices and greets the user in the destination's context.
+  - Automatic connection recovery, saved transcripts and coordination with other active voice providers.
+  - Custom voice tools and optional xAI web search.
+
+  Uses the matching OAuth or API-key credential configured in Pi. Voice quota and billing depend on the account.
+
+[Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
 ### @howaboua/pi-memories — 0.1.5
 
@@ -159,9 +225,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.15
+### @howaboua/pi-shepherdr — 0.2.16
 
-- Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
+- ### Breaking changes
+  - **BREAKING CHANGE:** Boards moved to `@howaboua/pi-agent-board`. Install it in every participating session and reload Pi. Existing archives, session bindings and subscriptions are preserved. Board settings now live under `/board`, not `/herdr`. The board extension requires Pi 1.1 or newer and Node.js 22.18 or newer.
+  - **BREAKING CHANGE:** Custom extension commands sent through `agents` require an `extensionCommands` allowlist in the receiving session's global `pi-shepherdr.json`. Add the commands you use, then update and reload both controllers and receiving agents. `/herdr` Settings shows the config path and format.
+
+  ### Features
+  - Route `/quit`, `/model`, `/thinking`, `/name`, `/new`, `/reload`, `/resume` and `/compact` to agents. `/quit` shuts down Pi before closing its pane. Blocked commands return available commands instead of becoming model prompts. Skills and prompt templates remain supported.
+  - Focus running Pi sessions with `agents focus`, optionally transferring voice through GipPity Control, Codex Conversion or Grok Realtime. Handoffs retain the microphone and browser connection, identify the source device, session and pane without exposing session-file paths, and offer a return action without starting an agent task. Remote focus selects the destination's Herdr session. Client machine selection remains manual.
+  - Pass a shared-board thread to a spawned agent with `board_thread_id` so its initial task can read that context.
+  - Support shared and attached agents with different notes owners. Local checkpoints remain available after detachment.
+  - Accept `/root` as the live root of an agent's own family, including across connected machines. Missing or ambiguous roots fail explicitly. Exact spawn and find targets remain unchanged.
+
+  ### Improvements
+  - Agents returns help when called without arguments, including an empty structured object.
+  - Delegation guidance keeps task ownership with either the parent or its delegated agent, avoiding duplicated work.
+
+  ### Fixes
+  - Reduce redundant monitoring warnings when workers close, move or are unwatched. Retire question watches and suppress late collection failures.
+  - Coalesce repeated board-owner outage warnings until connectivity recovers. Preserve Herdr event-stream error details locally and over SSH.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -217,12 +300,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.97
+### @howaboua/pi-stuff — 0.0.98
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Explain when legacy OpenAI Codex login is required instead of Sign in with ChatGPT, with actionable login renewal guidance for voice failures. PCC also clarifies Remote context requirements and Sites authentication failures.
-  - @howaboua/pi-shepherdr: Show a quiet, theme-aware notice with the channel name after an agent successfully posts to the board. Notices remain visible in restored history without adding model context.
+  - @howaboua/pi-ask: Improvements - Ask returns help when called without arguments, including an empty structured object. Explicit help remains supported.
+  - @howaboua/pi-better-skills-tool: Improvements - Skills returns its catalog with command guidance when called without arguments. Explicit help remains supported.
+  - @howaboua/pi-gippity-control: Features - Select native microphones and speakers in settings, including system defaults and saved unavailable devices. Changes apply on the next local audio start without changing browser or handed-off audio. - Save voice and context-summary preferences from the LAN browser for the next call without restarting the current call or changing credentials or native devices. Project settings can disable globally configured context summaries. - Transfer voice through `agents focus`, retaining the microphone and browser connection while switching to the destination's context. Handoffs include attributed context and a return action without starting an agent task. - Choose primary and alternate voices in terminal or browser settings. Each session transfer alternates voices and greets the user in the destination's context. Fixes - Voice and dictation refuse startup while another voice provider is active in the same Pi session, including during reconnection and microphone transfer.
+  - @howaboua/pi-grok-realtime: Features Added Grok realtime voice with the current Pi agent doing the work. - Local audio on Linux, macOS and Windows, plus trusted-LAN browser control with live Pi activity. - Local and browser streaming dictation into an editable draft, with automatic language detection or an explicit language selection, without automatically sending requests. - Selectable voices, models and audio devices, custom Markdown instructions and conversation continuity summaries. - Session voice transfers through Shepherdr, retaining the original microphone and speakers. Each transfer alternates between configurable primary and alternate voices and greets the user in the destination's context. - Automatic connection recovery, saved transcripts and coordination with other active voice providers. - Custom voice tools and optional xAI web search. Uses the matching OAuth or API-key credential configured in Pi. Voice quota and billing depend on the account.
+  - @howaboua/pi-shepherdr: Breaking changes - **BREAKING CHANGE:** Boards moved to `@howaboua/pi-agent-board`. Install it in every participating session and reload Pi. Existing archives, session bindings and subscriptions are preserved. Board settings now live under `/board`, not `/herdr`. The board extension requires Pi 1.1 or newer and Node.js 22.18 or newer. - **BREAKING CHANGE:** Custom extension commands sent through `agents` require an `extensionCommands` allowlist in the receiving session's global `pi-shepherdr.json`. Add the commands you use, then update and reload both controllers and receiving agents. `/herdr` Settings shows the config path and format. Features - Route `/quit`, `/model`, `/thinking`, `/name`, `/new`, `/reload`, `/resume` and `/compact` to agents. `/quit` shuts down Pi before closing its pane. Blocked commands return available commands instead of becoming model prompts. Skills and prompt templates remain supported. - Focus running Pi sessions with `agents focus`, optionally transferring voice through GipPity Control, Codex Conversion or Grok Realtime. Handoffs retain the microphone and browser connection, identify the source device, session and pane without exposing session-file paths, and offer a return action without starting an agent task. Remote focus selects the destination's Herdr session. Client machine selection remains manual. - Pass a shared-board thread to a spawned agent with `board_thread_id` so its initial task can read that context. - Support shared and attached agents with different notes owners. Local checkpoints remain available after detachment. - Accept `/root` as the live root of an agent's own family, including across connected machines. Missing or ambiguous roots fail explicitly. Exact spawn and find targets remain unchanged. Improvements - Agents returns help when called without arguments, including an empty structured object. - Delegation guidance keeps task ownership with either the parent or its delegated agent, avoiding duplicated work. Fixes - Reduce redundant monitoring warnings when workers close, move or are unwatched. Retire question watches and suppress late collection failures. - Coalesce repeated board-owner outage warnings until connectivity recovers. Preserve Herdr event-stream error details locally and over SSH.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

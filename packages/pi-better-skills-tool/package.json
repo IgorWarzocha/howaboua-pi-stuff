@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-better-skills-tool",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "Progressive skill discovery for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
@@ -39,7 +39,7 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=3.0.47",
+		"@howaboua/pi-codex-conversion": ">=3.0.48",
 		"@earendil-works/pi-coding-agent": ">=1.0.0",
 		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*"
@@ -50,7 +50,7 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "3.0.47",
+		"@howaboua/pi-codex-conversion": "3.0.48",
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-coding-agent": "1.1.0",
 		"@earendil-works/pi-tui": "1.1.0",
