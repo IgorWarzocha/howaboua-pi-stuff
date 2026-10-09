@@ -7,6 +7,7 @@ import { ActiveVoiceGuard } from "./active-owner.ts";
 import type { RealtimeAudio } from "./audio.ts";
 import type { GrokRealtimeConfig } from "./config.ts";
 import { resolveBearer } from "./credentials.ts";
+import { DictationPcm, dictationLanguage } from "./dictation-input.ts";
 
 interface Run {
 	abort: AbortController;
@@ -21,6 +22,7 @@ interface Run {
 	finalized: string[];
 	closed: boolean;
 	cleanup?: Promise<void>;
+	readyTimer?: ReturnType<typeof setTimeout>;
 }
 
 export class GrokDictationController {
@@ -85,16 +87,28 @@ export class GrokDictationController {
 				);
 				if (run.closed) throw new Error("Dictation cancelled");
 				const url = new URL("wss://api.x.ai/v1/stt");
-				url.searchParams.set("sample_rate", "24000");
+				url.searchParams.set("sample_rate", "16000");
 				url.searchParams.set("encoding", "pcm");
 				url.searchParams.set("interim_results", "true");
-				if (config.language !== "auto")
-					url.searchParams.set("language", config.language);
+				url.searchParams.set("endpointing", "400");
+				url.searchParams.set("language", dictationLanguage(config.language));
 				const socket = new WebSocket(url, {
 					headers: { Authorization: `Bearer ${bearer}` },
+					handshakeTimeout: 15_000,
 					maxPayload: 0,
 				});
 				run.socket = socket;
+				socket.once("open", () => {
+					if (run.closed) return;
+					run.readyTimer = setTimeout(
+						() =>
+							this.fail(
+								run,
+								new Error("Dictation did not become ready; try again"),
+							),
+						10_000,
+					);
+				});
 				socket.on("message", (data, binary) => {
 					if (run.closed) return;
 					if (binary) {
@@ -126,6 +140,7 @@ export class GrokDictationController {
 				});
 				await run.ready;
 				if (run.closed) throw new Error("Dictation cancelled");
+				const input = new DictationPcm();
 				const starting = audio.start({
 					onAudio: (pcm) => {
 						if (run.closed || this.view.status === "finishing") return;
@@ -137,7 +152,8 @@ export class GrokDictationController {
 							return;
 						}
 						try {
-							socket.send(pcm);
+							const converted = input.convert(pcm);
+							if (converted.length) socket.send(converted);
 						} catch {
 							this.fail(run, new Error("Could not send dictation audio"));
 						}
@@ -165,8 +181,10 @@ export class GrokDictationController {
 	private receive(run: Run, event: unknown): void {
 		if (!event || typeof event !== "object" || !("type" in event))
 			throw new Error("Invalid event");
-		if (event.type === "transcript.created") run.resolveReady();
-		else if (event.type === "transcript.partial") {
+		if (event.type === "transcript.created") {
+			clearTimeout(run.readyTimer);
+			run.resolveReady();
+		} else if (event.type === "transcript.partial") {
 			if (
 				!("text" in event) ||
 				typeof event.text !== "string" ||
@@ -184,9 +202,10 @@ export class GrokDictationController {
 		} else if (event.type === "transcript.done") {
 			if (!("text" in event) || typeof event.text !== "string")
 				throw new Error("Invalid transcript");
-			this.result = { run, text: event.text };
-			this.update("done", event.text);
-			run.resolveDone(event.text);
+			const text = event.text.trim() ? event.text : this.view.text;
+			this.result = { run, text };
+			this.update("done", text);
+			run.resolveDone(text);
 			void this.cleanup(run).catch((error: unknown) => {
 				if (this.displayed !== run) return;
 				this.update(
@@ -227,6 +246,7 @@ export class GrokDictationController {
 	private cleanup(run: Run): Promise<void> {
 		if (run.cleanup) return run.cleanup;
 		run.closed = true;
+		clearTimeout(run.readyTimer);
 		run.abort.abort();
 		if (run.socket && run.socket.readyState !== WebSocket.CLOSED)
 			run.socket.terminate();

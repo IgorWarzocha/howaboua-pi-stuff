@@ -44,7 +44,7 @@ Settings live in `grok-realtime.json` in Pi's agent directory. The default LAN p
 
 Automatic resume is on by default. A dropped voice connection gets one replacement attempt, preserving the audio device, mute state and conversation continuity. If recovery fails, the call stops with an error. Browser microphone disconnection is separate; reconnect from the page. Dictation failures retain available partial text but do not resume transcription automatically.
 
-Dictation uses xAI's streaming speech-to-text service with your Pi xAI login, not the realtime conversation model. It does not invoke tools or submit a Pi request. The language setting applies to dictation too; `auto` lets xAI detect it. Transcription has its own pricing or account allowance. Account entitlement and billing still need to be verified separately.
+Dictation uses xAI's streaming speech-to-text service with your Pi xAI login, not the realtime conversation model. It does not invoke tools or submit a Pi request. Like Grok Build, it sends 16 kHz mono audio with 400 ms endpointing. The language setting controls text normalization; `auto` resolves the host's locale, falling back to English when unsupported. Transcription has its own pricing or account allowance. Account entitlement and billing still need to be verified separately.
 
 ## Personality and context
 
