@@ -14,7 +14,7 @@ import type {
 	SessionView,
 } from "./types.js";
 
-const BRIDGE_VERSION = 14;
+const BRIDGE_VERSION = 15;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_SESSION_HELPER = "~/.pi/agent/shepherdr-session.mjs";
@@ -61,7 +61,7 @@ process.stdin.on("end", () => { void (async () => {
 interface PendingCall {
 	reject: (error: Error) => void;
 	resolve: (value: unknown) => void;
-	timer: NodeJS.Timeout;
+	timer: NodeJS.Timeout | undefined;
 	cleanup?: () => void;
 }
 
@@ -299,7 +299,10 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		agent: PaneInfo,
 		message: PeerMessage,
 	): Promise<PeerDelivery> {
-		const result = await this.call({ op: "message", agent, message }, 26_000);
+		const result = await this.call(
+			{ op: "message", agent, message },
+			message.text.trim() === "/quit" ? 0 : 26_000,
+		);
 		if (
 			!result ||
 			typeof result !== "object" ||
@@ -432,14 +435,18 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			);
 		const id = typeof message["id"] === "string" ? message["id"] : randomUUID();
 		return new Promise((resolve, reject) => {
-			const timer = setTimeout(() => {
-				const error = new Error(
-					`remote Shepherdr ${String(message["op"])} timed out`,
-				);
-				if (message["op"] === "context_relay") this.rejectPending(id, error);
-				else this.disconnected(error);
-			}, timeoutMs);
-			timer.unref();
+			const timer =
+				timeoutMs === 0
+					? undefined
+					: setTimeout(() => {
+							const error = new Error(
+								`remote Shepherdr ${String(message["op"])} timed out`,
+							);
+							if (message["op"] === "context_relay")
+								this.rejectPending(id, error);
+							else this.disconnected(error);
+						}, timeoutMs);
+			timer?.unref();
 			const abort = () => {
 				if (!this.pending.has(id)) return;
 				this.rejectPending(

@@ -32,7 +32,7 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 /herdr
 ```
 
-**Settings** contains orchestration and board preferences. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines through Herdr's setup flow. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
+**Settings** contains orchestration and board preferences, plus agent command guidance and the global config path. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines through Herdr's setup flow. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
 
 `/herdr` is the only entry point; board, connect and orchestration subcommands are replaced by panel controls. Outside the TUI, it reports status without changing it. An orchestration change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. The current guidance returns when a new model context no longer contains it, including turns started by worker messages. Tool availability and monitoring do not depend on this mode.
 
@@ -87,7 +87,37 @@ Prompts sent through `agents` identify peer messages versus delegated tasks and 
 
 Messages sent through `agents` bypass the receiving Pi editor, preserving unsent drafts. Update and reload Shepherdr on receiving agents as well as controllers. If a receiver is unavailable, delivery fails without pasting into its terminal. Raw `herdr agent prompt` still uses terminal input and does not provide this protection.
 
-Messages beginning with `/` use the target Pi session's command, skill and prompt-template expansion, with sender attribution kept out of the arguments. Skills and templates retain normal task waiting. Registered extension commands return `commandSubmitted: true` without waiting or adding a task watch, even through `spawn` or `assign`; submission does not confirm command success. TUI-only commands such as `/model` and `/settings` are not available through this route. When Pi Codex Conversion is installed, update and reload it too.
+Messages beginning with `/` use the target Pi session's command, skill and prompt-template expansion, with sender attribution kept out of the arguments. Skills and templates retain normal task waiting. Prompt templates remain supported, but you must tell your agent which templates exist separately. When Pi Codex Conversion is installed, update and reload it too.
+
+### Agent commands
+
+These built-in commands are available through agent messages without an allowlist:
+
+| Command | Result |
+| --- | --- |
+| `/quit` | Shut down Pi gracefully and close its Herdr pane |
+| `/model <provider/model>` | Change the model |
+| `/thinking <level>` | Change the thinking level |
+| `/name <name>` | Rename the session |
+| `/new` | Start a new session |
+| `/reload` | Reload Pi resources |
+| `/resume <path>` | Resume the session at the supplied path |
+| `/compact [instructions]` | Compact the session with optional instructions |
+
+Custom extension commands must be both registered in the receiving Pi session and allowed in its global user config. **Settings → Agent commands** shows the actual config path. The file is `pi-shepherdr.json` in Pi's agent directory, normally `~/.pi/agent`. Add `extensionCommands` alongside any existing board settings:
+
+```json
+{
+  "board": { "enabledGlobally": false },
+  "extensionCommands": {
+    "my-command": "Run my custom extension action"
+  }
+}
+```
+
+Keys are command names without `/`; values are nonempty descriptions. Only the global user config grants permission. A repository's `.pi/pi-shepherdr.json` cannot allow commands. The config is read on each call. A missing allowlist allows no custom extension commands; malformed config grants none.
+
+Blocked commands return the built-in commands and currently registered, allowed extension commands. Commands return `commandSubmitted: true` without adding a task watch, even through `spawn` or `assign`. Submission does not confirm command success, except `/quit`, which waits for Pi to exit and its pane to close. Built-in commands other than `/quit` require an idle target. Skills and prompt templates keep their existing behavior.
 
 Idle messages start a prepared user turn. Messages arriving during a run use steering, promoted to developer messages when Pi Codex developer delivery is active. Otherwise they remain ordinary Pi custom messages.
 

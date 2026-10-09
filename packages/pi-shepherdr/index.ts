@@ -10,6 +10,7 @@ import { registerAgentController } from "./src/controller.js";
 import { registerDeveloperDelivery } from "./src/delivery.js";
 import { AgentFleet } from "./src/fleet.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
+import { createPeerCommands } from "./src/peer-commands.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context.js";
@@ -24,7 +25,8 @@ export default async function shepherdrExtension(
 	ensureBoardConfig();
 	await installAgentProfiles();
 	await registerDeveloperDelivery(pi);
-	registerPeerInbox(pi);
+	const peerCommands = createPeerCommands(pi);
+	registerPeerInbox(pi, peerCommands);
 	const fleet = new AgentFleet(pi);
 	const board = new AgentBoard(pi, fleet);
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
@@ -36,7 +38,7 @@ export default async function shepherdrExtension(
 	pi.registerTool(tool);
 	pi.registerTool(boardTool);
 	await registerAgentsInCodeMode(pi, tool, boardTool, board);
-	registerAgentController(pi, fleet, board);
+	registerAgentController(pi, fleet, board, peerCommands);
 }
 
 async function registerAgentsInCodeMode(

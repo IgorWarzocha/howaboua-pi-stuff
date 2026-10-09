@@ -9,12 +9,17 @@ import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
 import { announcePeerMessage } from "./messages.js";
+import type { createPeerCommands } from "./peer-commands.js";
 import {
 	MAX_PEER_FRAME_BYTES,
+	PEER_PROTOCOL,
 	peerInboxPath,
 } from "./remote/shepherdr-peer.mjs";
 
-export function registerPeerInbox(pi: ExtensionAPI): void {
+export function registerPeerInbox(
+	pi: ExtensionAPI,
+	commands: ReturnType<typeof createPeerCommands>,
+): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
 	pi.on("agent_start", () => {
@@ -29,7 +34,7 @@ export function registerPeerInbox(pi: ExtensionAPI): void {
 		running = false;
 		if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
 			return;
-		close = await openInbox(pi, ctx, () => running);
+		close = await openInbox(pi, ctx, () => running, commands);
 	});
 	pi.on("session_shutdown", async () => {
 		await close?.();
@@ -42,6 +47,7 @@ async function openInbox(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	isRunning: () => boolean,
+	commands: ReturnType<typeof createPeerCommands>,
 ): Promise<() => Promise<void>> {
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
@@ -51,7 +57,7 @@ async function openInbox(
 	const path = peerInboxPath(sessionFile, pane.terminal_id);
 	const temporary = `${path}.${token}.tmp`;
 	const sockets = new Set<Socket>();
-	let active = true;
+	let state: "open" | "quitting" | "closed" = "open";
 	const server = createServer((socket) => {
 		sockets.add(socket);
 		socket.setEncoding("utf8");
@@ -80,13 +86,14 @@ async function openInbox(
 				socket.destroy();
 				return;
 			}
-			const reply = (value: object) =>
+			const reply = (value: object, flushed?: () => void) =>
 				socket.end(
-					`${JSON.stringify({ protocol: 1, id: request["id"], ...value })}\n`,
+					`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ...value })}\n`,
+					flushed,
 				);
 			if (
-				!active ||
-				request["protocol"] !== 1 ||
+				state !== "open" ||
+				request["protocol"] !== PEER_PROTOCOL ||
 				request["token"] !== token ||
 				request["sessionFile"] !== sessionFile ||
 				request["terminalId"] !== pane.terminal_id ||
@@ -124,15 +131,8 @@ async function openInbox(
 					? `${request["sender"]}\n${request["context"]}`
 					: request["sender"];
 				if (text.startsWith("/")) {
-					// Match only Pi's extension-command boundary, not its argument or
-					// skill/template parsers. Extension commands may never start a turn.
-					const space = text.indexOf(" ");
-					const name = text.slice(1, space < 0 ? undefined : space);
-					const command = pi
-						.getCommands()
-						.some(
-							(entry) => entry.source === "extension" && entry.name === name,
-						);
+					const route = commands.prepare(text, ctx);
+					const { command } = route;
 					const submit = () => {
 						submitted = true;
 						sendPolicyMessage(
@@ -147,11 +147,33 @@ async function openInbox(
 								deliverAs: idle && !command ? "nextTurn" : "steer",
 							},
 						);
-						pi.sendUserMessage(text, {
-							expandPromptTemplates: true,
-							deliverAs: "steer",
-						});
+						route.submit();
 					};
+					if (command) {
+						// Lifecycle commands can tear down this inbox. Flush acceptance first.
+						const execute = () => {
+							try {
+								submit();
+							} catch (error) {
+								ctx.ui.notify(
+									`Command submission failed: ${String(error)}`,
+									"error",
+								);
+							}
+						};
+						if (text.trim() === "/quit") {
+							// Hold this authenticated connection until process exit, not
+							// session_shutdown (which precedes Pi's runtime teardown).
+							state = "quitting";
+							sockets.delete(socket);
+							socket.setTimeout(0);
+							socket.write(
+								`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ok: true, command, closing: true })}\n`,
+								execute,
+							);
+						} else reply({ ok: true, command }, execute);
+						return;
+					}
 					if (idle && !command) startPreparedIdleTurn(pi, ctx, submit);
 					else submit();
 					reply({ ok: true, command });
@@ -193,10 +215,14 @@ async function openInbox(
 	});
 	server.maxConnections = 16;
 	const stop = async () => {
-		if (!active) return;
-		active = false;
+		if (state === "closed") return;
+		const quitting = state === "quitting";
+		state = "closed";
 		for (const socket of sockets) socket.destroy();
-		await new Promise<void>((resolve) => server.close(() => resolve()));
+		const closed = new Promise<void>((resolve) =>
+			server.close(() => resolve()),
+		);
+		if (!quitting) await closed;
 		try {
 			const current: unknown = JSON.parse(await readFile(path, "utf8"));
 			if (
@@ -232,7 +258,7 @@ async function openInbox(
 			throw new Error("Shepherdr peer receiver has no address");
 		await writeFile(
 			temporary,
-			JSON.stringify({ protocol: 1, port: address.port, token }),
+			JSON.stringify({ protocol: PEER_PROTOCOL, port: address.port, token }),
 			{ mode: 0o600, flag: "wx" },
 		);
 		await rename(temporary, path);

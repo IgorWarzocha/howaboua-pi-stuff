@@ -57,7 +57,7 @@ export async function agentsHelp(
 				: {}),
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
 			ask_id: "Exact pending Ask ID",
-			send: "Only needed input or work changes; wakes idle agents, no wait/watch. Never wake finished workers to acknowledge completion or announce closure; close finished panes silently with host controls",
+			send: "Only needed input or work changes; wakes idle agents, no wait/watch. Close finished workers with /quit, not acknowledgement messages",
 			assign: "Delegate a task to an existing agent",
 			attach:
 				"Idle target; context/board booleans choose shared access and board membership independently; no task/watch",
@@ -72,7 +72,7 @@ export async function agentsHelp(
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			slash:
-				"Leading / uses target Pi commands/skills/templates; extension commands are submission-only, even with assign/spawn; TUI-only commands unavailable",
+				"Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
 			reuse:
 				"Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")

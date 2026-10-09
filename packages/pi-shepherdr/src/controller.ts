@@ -13,6 +13,7 @@ import { controlPanelStatus, openControlPanel } from "./control-panel.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
 import { activeAgentsBriefing, orchestrationGuidance } from "./messages.js";
+import type { createPeerCommands } from "./peer-commands.js";
 import { loadAgentProfiles } from "./profiles.js";
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
@@ -21,6 +22,7 @@ export function registerAgentController(
 	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	board: AgentBoard,
+	peerCommands: ReturnType<typeof createPeerCommands>,
 ): void {
 	let orchestrationEnabled = false;
 	const panels = new Set<Promise<void>>();
@@ -127,6 +129,7 @@ export function registerAgentController(
 	pi.registerCommand("herdr", {
 		description: "Shepherdr settings, status and SSH setup",
 		handler: async (args, ctx) => {
+			if (await peerCommands.handle(args, ctx)) return;
 			const commandSignal = sessionLifetime.signal;
 			const commandSessionId = ctx.sessionManager.getSessionId();
 			const current = () =>

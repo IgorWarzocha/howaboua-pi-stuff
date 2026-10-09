@@ -1,6 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import type { AgentBoard } from "./board/host.js";
+import { commandConfigPath } from "./command-config.js";
 import type { AgentFleet } from "./fleet.js";
 import { type SshSetupDraft, sshSetupItems } from "./ssh-setup.js";
 
@@ -49,6 +50,12 @@ export function buildPanelItems(
 			})),
 		];
 	const rows: SettingItem[] = [
+		{
+			id: "agent-commands",
+			label: "Agent commands",
+			currentValue: "",
+			description: `Built-in commands and skills are available. Custom extension commands require an allowlist in Shepherdr’s config. Prompt templates are also supported, but you will need to inform your agent about their existence separately.\nConfig: ${commandConfigPath()}`,
+		},
 		{
 			id: "orchestration",
 			label: "Prioritize delegation",

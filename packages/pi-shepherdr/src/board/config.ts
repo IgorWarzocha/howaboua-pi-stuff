@@ -67,7 +67,7 @@ export function ensureBoardConfig() {
 	try {
 		writeFileSync(
 			path,
-			`${JSON.stringify({ board: { enabledGlobally: false } }, null, 2)}\n`,
+			`${JSON.stringify({ board: { enabledGlobally: false }, extensionCommands: {} }, null, 2)}\n`,
 			{
 				flag: "wx",
 				mode: 0o600,
