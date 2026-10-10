@@ -47,6 +47,12 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			lifecycle.active &&
 			ctx.isIdle() &&
 			ctx.sessionManager.getEntries().every((entry) => {
+				// The first startup after an update records a UI-only changelog.
+				if (
+					entry.type === "custom" &&
+					entry.customType === "@howaboua/pi-stuff/changelog"
+				)
+					return true;
 				// Herdr activation persists its empty registry before first task delivery.
 				if (
 					entry.type === "custom" &&
