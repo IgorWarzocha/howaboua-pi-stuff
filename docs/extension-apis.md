@@ -310,7 +310,7 @@ Read `connection.service` at the point of use. It is optional and can become ava
 | `verify(ctx)` | Checks applicable Remote account compatibility |
 | `createChild(ctx, { name, routing? })` | A promise of `{ binding, adopt() }`; prepares a child identity |
 | `bind(ctx, binding)` | Adopts an explicit binding in a fresh idle child; returns its identity |
-| `execute(ctx, request, signal?)` | Executes an admitted request at the owning session |
+| `execute(ctx, request, signal?)` | Executes an admitted request at the local session owner. Remote storage requires authenticated reader-host dispatch |
 | `registerRouter(router)` | Installs one router and returns its unregister function |
 | `inspectAttachment(ctx, standalone?)` | Optional inspection/authentication for an existing idle owner |
 | `retainAttachmentIdentity(ctx)` | Optional pinning of that owner's native identity |
@@ -462,7 +462,7 @@ See [local voice tools](../packages/pi-grok-realtime/docs/tools.md) for the exac
 
 ### Realtime announcements
 
-Import `reportRealtimeVoicePrompt` from PCC's `realtime-voice` subpath or the GipPity root. Call it with `{ id, active, prompt }`. `parseRealtimeVoicePrompt(value)` validates a report without emitting it. Invalid reports throw; IDs are limited to 160 characters and prompts to 8 KiB.
+Import `reportRealtimeVoicePrompt` from PCC's `realtime-voice` subpath or the GipPity root. Call it with `{ id, active, prompt }`. `parseRealtimeVoicePrompt(value)` validates a report without emitting it and returns `undefined` for invalid input. The reporting helper throws for invalid reports. IDs are limited to 160 characters and prompts to 8 KiB.
 
 For an ongoing state, emit `active: true` at the start and `active: false` at the end. A one-off announcement emits both immediately. This asks an active voice session to speak; it does not create a voice call or substitute for a work assignment.
 
@@ -483,6 +483,8 @@ interface RemoteAppProvider {
 ```
 
 `root` is an absolute static-app directory. An update is either `{ state }` or `{ event, data }`. State/events must be bounded JSON values. App IDs follow the exported implementation's lowercase identifier rules; message payloads are limited to 64 KiB. Registration returns `{ available, dispose() }` and handles load order.
+
+GipPity supports one active miniapp provider per session. Registering another replaces the previous provider and unsubscribes it; registrations do not accumulate independent apps.
 
 GipPity serves the app at `/_gippity/apps/<id>/`. State snapshots are replayed to reconnecting browsers; events are transient. Use the existing remote mini-SDK and server. Do not add a parallel web server to publish the same app.
 
