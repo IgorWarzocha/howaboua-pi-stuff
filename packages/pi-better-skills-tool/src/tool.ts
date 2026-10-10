@@ -25,7 +25,7 @@ export interface SkillsToolOptions {
 export function prepareSkillsCodeModeInput(input: unknown): SkillsParameters {
 	if (input === undefined) return {};
 	if (typeof input !== "string")
-		throw new Error("skills expects a string command");
+		throw new Error('Expected string: tools.skills("read <skill>")');
 	return { command: input };
 }
 
