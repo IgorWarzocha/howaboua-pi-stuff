@@ -1,0 +1,1 @@
+- Fresh-family binding must distinguish startup UI metadata from conversational work without accepting arbitrary custom entries. Changelog notifications consume global seen-version state during startup, even if a spawn later fails; reproduce first-after-update binding with isolated unseen changelog state.
