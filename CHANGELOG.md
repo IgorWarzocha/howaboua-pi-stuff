@@ -52,10 +52,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.8
+### @howaboua/pi-better-skills-tool — 0.0.9
 
-- ### Improvements
-  - Skills returns its catalog with command guidance when called without arguments. Explicit help remains supported.
+- Skills discovery and invalid-input errors now show the JavaScript string-call syntax.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
@@ -129,11 +128,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.91
+### @howaboua/pi-extensions — 0.0.92
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Added slash-command discovery with configured descriptions for the current session or another agent, without executing commands or interrupting its work.
+  - @howaboua/pi-better-skills-tool: Skills discovery and invalid-input errors now show the JavaScript string-call syntax.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -261,11 +260,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.99
+### @howaboua/pi-stuff — 0.0.100
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Added slash-command discovery with configured descriptions for the current session or another agent, without executing commands or interrupting its work.
+  - @howaboua/pi-better-skills-tool: Skills discovery and invalid-input errors now show the JavaScript string-call syntax.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
