@@ -87,7 +87,7 @@
     },
     "packages/pi-better-skills-tool": {
       "name": "@howaboua/pi-better-skills-tool",
-      "version": "0.0.8",
+      "version": "0.0.9",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-coding-agent": "1.1.0",
@@ -304,7 +304,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.91",
+      "version": "0.0.92",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.12",
         "@howaboua/pi-auto-trees": "0.1.16",
@@ -569,7 +569,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.99",
+      "version": "0.0.100",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.12",
         "@howaboua/pi-auto-trees": "0.1.16",

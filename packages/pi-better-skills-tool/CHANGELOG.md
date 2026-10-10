@@ -1,5 +1,9 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.9
+
+- Skills discovery and invalid-input errors now show the JavaScript string-call syntax.
+
 ## 0.0.8
 
 - ### Improvements

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.91",
+	"version": "0.0.92",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -15,7 +15,7 @@
 	"dependencies": {
 		"@howaboua/pi-ask": "0.0.12",
 		"@howaboua/pi-auto-trees": "0.1.16",
-		"@howaboua/pi-better-skills-tool": "0.0.8",
+		"@howaboua/pi-better-skills-tool": "0.0.9",
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-gippity-control": "0.0.26",
 		"@howaboua/pi-gpt-switcher": "0.1.5",

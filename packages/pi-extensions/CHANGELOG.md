@@ -1,5 +1,11 @@
 # @howaboua/pi-extensions
 
+## 0.0.92
+
+- Include bundled package updates:
+
+  - @howaboua/pi-better-skills-tool: Skills discovery and invalid-input errors now show the JavaScript string-call syntax.
+
 ## 0.0.91
 
 - Include bundled package updates:
