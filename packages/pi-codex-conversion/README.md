@@ -474,15 +474,20 @@ const connection = connectCodexContextSharing(pi);
 // In a prepared parent session:
 const service = connection.service;
 if (!service?.canCreateChild(ctx)) return; // Otherwise launch an independent child.
-const binding = await service.createChild(ctx, { name: "worker" });
+// For local storage, register your host router and supply its routing descriptor.
+const prepared = await service.createChild(ctx, { name: "worker", routing });
 // Launch Pi normally and deliver binding through your integration.
 // In the fresh, idle child, before sending its first task:
-await childService.bind(childCtx, binding);
+const adopted = await childService.bind(childCtx, prepared.binding);
+// Back in the parent: verify the returned child identity, then finish adoption.
+await prepared.adopt();
 ```
 
 Pi owns session creation and persistence. `createChild` requires parental opt-in. `bind` accepts that explicit binding regardless of the child's setting for future spawns. It validates storage and account, rejecting used sessions or different existing bindings. `describe(ctx)` reports identity and storage. `verify(ctx)` checks Remote account compatibility.
 
 For Local and Tree, register a router in each participant with `registerRouter`, pass its opaque `routing` descriptor to `createChild`, and route incoming requests through the target's `service.execute(ctx, request, signal)`. Validate family membership, preserve errors and never write directly to another session file. Dispose the connection on shutdown.
+
+The [extension API guide](../../docs/extension-apis.md) covers the complete lifecycle, Board membership, external Notes ownership and existing-session attachment contracts.
 
 ### Realtime announcements
 

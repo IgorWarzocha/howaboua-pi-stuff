@@ -82,6 +82,10 @@ Map an unfamiliar repo, set `/marker` once the useful context is in place, imple
 
 For UI work, I give the agent references first—apps, screenshots, and interface details I like—then iterate through browser inspection and screenshots. One-shotting a good frontend is mostly a party trick.
 
+## Build an integration
+
+The [extension API guide](./docs/extension-apis.md) covers Board and Notes with other subagent extensions, PCC tool and context APIs, voice tools, and browser miniapps. It includes lifecycle diagrams, public contracts and small integration examples.
+
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md). Package-level changelogs remain beside packages that have them.
