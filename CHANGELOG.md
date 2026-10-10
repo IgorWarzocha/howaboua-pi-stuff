@@ -179,9 +179,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
 
-### @howaboua/pi-notes-compaction — 0.0.2
+### @howaboua/pi-notes-compaction — 0.0.3
 
-- Added a `/notes` settings panel for normal compaction, idle rollover, continuity status and confirmed pruning, replacing the subcommands and JSON status output.
+- Fixed shared agent startup after package updates when the startup changelog is present.
 
 [Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
 
