@@ -456,8 +456,6 @@ These tools belong to Grok voice, not Pi's working-model tool list. Registration
 
 Definitions are collected once at call start. Reloads or registration changes apply to the next call. Duplicate and reserved names fail collection. `send_task`, `end_the_call` and `work_landed` are reserved. A local `web_search` cannot coexist with enabled provider-native web search.
 
-`collectGrokTools(pi)` is also exported for the voice host. Its registry snapshots definitions and offers `execute(name, args, context)`. Ordinary tool producers need only `registerGrokTool`.
-
 See [local voice tools](../packages/pi-grok-realtime/docs/tools.md) for the exact schema and cancellation contract and its small clock example.
 
 ### Realtime announcements
@@ -490,7 +488,7 @@ GipPity serves the app at `/_gippity/apps/<id>/`. State snapshots are replayed t
 
 `ensureGippityLan(pi, ctx)` from `lan-service` returns `Promise<{ running, urls }>` or throws if the service cannot provide a display URL. It requests the session-owned LAN service and is not merely a status read.
 
-PCC already includes GipPity. Do not install the standalone GipPity extension alongside it. [Pi Pet](../packages/pi-pet) is an existing consumer of the miniapp and LAN-service APIs.
+These miniapp and LAN-service APIs require the standalone GipPity extension. PCC's built-in voice UI does not provide their brokers; do not assume PCC alone makes them available. [Pi Pet](../packages/pi-pet) is an existing consumer of these APIs.
 
 ## Patch presentation and root helpers
 
