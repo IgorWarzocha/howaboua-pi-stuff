@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { withCodexDeveloperMessageDetails } from "../developer-messages.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
@@ -6,10 +6,14 @@ import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { BRIDGE_CHANNEL, OWNER_CHANNEL, TOOL_NAMES, type NotesBridge, type NotesOwner } from "./external-notes-protocol.ts";
 
 /** Discover before initialization and policy rewrites, in either extension order. */
-export function discoverExternalNotesOwner(pi: ExtensionAPI, state: AdapterState): void {
+export function discoverExternalNotesOwner(pi: ExtensionAPI, state: AdapterState, ctx?: ExtensionContext): void {
 	let found: NotesOwner | undefined;
 	pi.events.emit(OWNER_CHANNEL, {
 		protocol: 1,
+		ctx,
+		projection(owner: Pick<NotesOwner, "projectMessages" | "projectBranch">) {
+			state.notesProjection = owner;
+		},
 		reply(owner: NotesOwner) {
 			if (owner?.protocol !== 1 || owner.owner !== "pi-notes-compaction"
 				|| typeof owner.identity !== "function" || typeof owner.projectMessages !== "function"
@@ -21,6 +25,12 @@ export function discoverExternalNotesOwner(pi: ExtensionAPI, state: AdapterState
 	if (found) {
 		const result = state.externalNotesBridge?.claim(found);
 		if (result && !result.claimed) throw new Error(result.reason);
+	} else if (ctx && state.externalNotes) {
+		state.externalNotes = undefined;
+		state.contextWindows.reset();
+		state.contextKickoff.reset();
+		state.contextTree.reset();
+		state.restoreNativeNotesTools?.();
 	}
 }
 

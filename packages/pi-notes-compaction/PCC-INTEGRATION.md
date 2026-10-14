@@ -12,6 +12,8 @@ Two request channels use synchronous callbacks:
 // PCC asks whether an external continuity owner is installed.
 pi.events.emit("pi-notes-compaction:owner:v1", {
   protocol: 1,
+  ctx, // current model, including before preparation and after model selection
+  projection(owner) { /* retain historical message and branch projection */ },
   reply(owner) { /* retain the NotesOwner for this runtime */ }
 })
 
@@ -23,6 +25,8 @@ pi.events.on("pi-notes-compaction:bridge:v1", request => {
 
 Every extension finishes loading before `session_start`. Both sides must discover again at that boundary. PCC must check for the external owner before its first session initialization and before every activation-plan or tool rewrite. This works in either load order. No prefix edit, timer or module-global import is discovery.
 
+Ownership is model-dependent. Notes replies only when enabled for the request's current model. If a context-bearing discovery gets no reply after takeover, PCC releases the external owner, resets its pending continuity state and restores its own four tool definitions through its original registration API. Reclaim on a matching model uses the same handoff below. Context-free loading discovery must not release an existing owner. The optional `projection` callback receives only message and branch projection regardless of activation, including when resuming on an excluded model. Historical Notes retirement boundaries remain effective when inactive, but Notes guidance and reminders are removed from model context.
+
 `bridge.claim(owner)` returns either `{ claimed: false, reason }` or `{ claimed: true, registerTools }`. A success synchronously transfers continuity policy ownership. The callback `registerTools(tools, ctx)` registers the supplied four definitions **through PCC's own `pi.registerTool` API**, replacing PCC's existing definitions in place. The new extension does not register duplicate names when takeover succeeds. Pi cannot unregister tools. Hiding a legacy definition in another extension is not sufficient because registry precedence depends on extension order.
 
 PCC may defer its legacy registrations until discovery, but it must still use the same PCC-owned registration callback on takeover. With no external owner, PCC retains all existing behavior. A failed claim must leave its legacy owner intact. Do not acknowledge a partial takeover.
@@ -33,7 +37,7 @@ Add an explicit external-owner branch to `adapter/activation/runtime-plan.ts` an
 
 Required boundaries in the current source:
 
-- `context-management/tools.ts` and `extension/tools.ts`: replace the four tools through the registration callback. Active-tool and schema rewrites must preserve delegated definitions. Do not reinstall legacy routers on model changes or settings changes.
+- `context-management/tools.ts` and `extension/tools.ts`: replace the four tools through the registration callback. Active-tool and schema rewrites must preserve delegated definitions while Notes owns continuity. Restore legacy routers only when Notes yields ownership.
 - `extension/session-lifecycle.ts` and `extension/turn-lifecycle.ts`: skip legacy notes/window initialization, input holding, checkpoint admission, note freshness, reminders, settlement records and continuation scheduling. Leave PCC's prompt preparation, runtime synchronization, Notebook status, voice, quota and provider lifecycle active.
 - `extension/compaction-lifecycle.ts`: consult `owner.allowsCompaction(reason)` before any compaction work. When false, return without work so the owner's hook can cancel and handle notes-only rollover, regardless of extension order. Skip legacy `contextWindows.prepareCompaction` and notes checkpoint overrides. When this extension allows normal compaction, run the unchanged installed PCC normal-compaction path. Overflow stays in the same window. Notebook checkpointing, native compaction, replay, transport reset and presentation remain PCC-owned.
 - `context-management/window-manager.ts`, `window-request.ts` and native replay serializers: use `owner.identity(ctx)` and `owner.projectBranch(entries)` for the active window and retirement boundary. Preserve PCC request metadata and zero-based generation semantics. Do not recreate remote history-ingest requirements for local notes.

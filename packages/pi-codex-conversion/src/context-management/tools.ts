@@ -133,10 +133,13 @@ export function registerContextManagementTools(
 		(action, path, ctx) => () => state.contextTree.handoff.finishNoteWrite(action, path, ctx),
 		route,
 	);
-	pi.registerTool(newContext);
-	pi.registerTool(getContextRemaining);
-	pi.registerTool(history);
-	pi.registerTool(notes);
+	state.restoreNativeNotesTools = () => {
+		pi.registerTool(newContext);
+		pi.registerTool(getContextRemaining);
+		pi.registerTool(history);
+		pi.registerTool(notes);
+	};
+	state.restoreNativeNotesTools();
 	// Reuse the registered routers, including family routing and Tree write completion.
 	const contract = { deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
 		opaqueResultScope: (result: AgentToolResult<unknown>) => {
@@ -190,9 +193,10 @@ export function configureExternalNotesTools(
 	ctx: ExtensionContext,
 	contracts: Readonly<Record<"notes" | "history", string>>,
 ): void {
-	if (!state.externalNotes) throw new Error("Notes continuity handoff is unavailable");
-	state.externalNotes.tools = tools;
-	state.externalNotes.contracts = contracts;
+	if (state.externalNotes) {
+		state.externalNotes.tools = tools;
+		state.externalNotes.contracts = contracts;
+	}
 	syncAdapter(pi, ctx, state);
 }
 

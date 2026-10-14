@@ -22,6 +22,9 @@ export interface PendingPiCompactionNativeWindow {
 }
 
 export interface AdapterState {
+	restoreNativeNotesTools?: () => void;
+	/** Committed retirement cuts survive the model-dependent policy handoff. */
+	notesProjection?: Pick<NotesOwner, "projectMessages" | "projectBranch">;
 	externalNotes?: {
 		owner: NotesOwner;
 		tools?: readonly ToolDefinition[] | undefined;

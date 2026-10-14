@@ -8,7 +8,7 @@ import type { AdapterState } from "./state.ts";
 import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
-	discoverExternalNotesOwner(pi, state);
+	discoverExternalNotesOwner(pi, state, ctx);
 	state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	reconcileExternalToolLoadout(state, pi.getActiveTools());

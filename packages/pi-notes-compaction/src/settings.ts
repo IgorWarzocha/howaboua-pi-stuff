@@ -3,7 +3,15 @@ import { dirname } from "node:path";
 
 export const IDLE_MINUTES = [0, 5, 15, 25, 55] as const;
 export type IdleMinutes = (typeof IDLE_MINUTES)[number];
+export const DEFAULT_MODEL_WHITELIST = [
+	"gpt-6-astra",
+	"gpt-6-sol",
+	"gpt-6-luna",
+	"gpt-6.1-sol",
+];
 export interface NotesSettings {
+	active: "all" | "whitelist";
+	modelWhitelist: string[];
 	normalCompaction: boolean;
 	idleMinutes: IdleMinutes;
 	taskBoundaryReminder: number;
@@ -16,6 +24,8 @@ export function readSettings(path: string): NotesSettings {
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT")
 			return {
+				active: "all",
+				modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
 				normalCompaction: false,
 				idleMinutes: 0,
 				taskBoundaryReminder: 0,
@@ -48,10 +58,28 @@ export function readSettings(path: string): NotesSettings {
 			"Invalid idle rollover interval. Choose off, 5, 15, 25 or 55 minutes.",
 		);
 	return {
+		active:
+			"active" in settings
+				? (settings.active as NotesSettings["active"])
+				: "all",
+		modelWhitelist:
+			"modelWhitelist" in settings
+				? (settings.modelWhitelist as string[])
+				: [...DEFAULT_MODEL_WHITELIST],
 		normalCompaction: settings.normalCompaction,
 		idleMinutes: idleMinutes as IdleMinutes,
 		taskBoundaryReminder,
 	};
+}
+
+export function modelIsActive(
+	settings: NotesSettings,
+	model?: { id: string },
+): boolean {
+	return (
+		settings.active === "all" ||
+		Boolean(model && settings.modelWhitelist.includes(model.id))
+	);
 }
 
 export function writeSettings(path: string, settings: NotesSettings): void {

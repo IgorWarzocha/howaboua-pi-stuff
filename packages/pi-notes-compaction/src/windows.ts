@@ -187,7 +187,7 @@ export class Windows {
 			const details = windowDetails(entry);
 			if (details?.kind === "window") {
 				this.current = details.identity;
-				this.compactedSinceBoundary = false;
+				if (details.trim) this.compactedSinceBoundary = false;
 			} else if (
 				details &&
 				(details.kind === "reminder" ||
@@ -300,7 +300,7 @@ export class Windows {
 				throw new Error(
 					"Invalid saved context window. Open an intact session branch to continue.",
 				);
-			if (details?.kind === "window") boundary = details.trim ? i : -1;
+			if (details?.kind === "window" && details.trim) boundary = i;
 		}
 		if (boundary < 0) return [...messages];
 		const system = getCurrentSystemMessage(messages.slice(0, boundary));
@@ -312,7 +312,7 @@ export class Windows {
 		let boundary = -1;
 		for (let i = 0; i < entries.length; i++) {
 			const details = windowDetails(entries[i]!);
-			if (details?.kind === "window") boundary = details.trim ? i : -1;
+			if (details?.kind === "window" && details.trim) boundary = i;
 			// Normal Pi/PCC compaction has already chosen its own checkpoint.
 			if (entries[i]!.type === "compaction") boundary = -1;
 		}

@@ -30,11 +30,26 @@ Idle rollover is off by default. Choose 5, 15, 25 or 55 minutes in `/notes`. Aft
 
 `/notes` opens the settings panel in interactive Pi. It shows continuity status, storage counts and remote capabilities. Changes save immediately.
 
+- **Active** selects **All models** (the default) or **Whitelist**. Whitelist enables the extension only for exact model IDs in the global settings file, regardless of provider. Switching models applies the choice immediately; other models keep their installed compaction behaviour.
 - **Normal compaction** uses the installed Pi or PCC compaction flow for `/compact` and `new_context`. Off keeps notes-only rollover, the default.
 - **Idle rollover** selects the interval or disables it.
 - **Prune missing sessions** removes records for missing session files after confirmation. Unknown paths, permission errors and the active session are retained.
 
 Notes are stored as plaintext in `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Saved session snapshots preserve notes across forks and branch navigation, including after database pruning. Existing plaintext PCC notes remain readable without an import.
+
+The whitelist is preseeded in `<Pi agent directory>/notes-compaction/settings.json` (normally `~/.pi/agent/notes-compaction/settings.json`):
+
+```json
+{
+  "active": "whitelist",
+  "modelWhitelist": ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"],
+  "normalCompaction": false,
+  "idleMinutes": 0,
+  "taskBoundaryReminder": 0
+}
+```
+
+Add or remove model IDs and reload Pi. Copy the model's exact ID, without Pi's provider selector prefix. If the ID itself contains slashes, keep them. Entries are literal matches, not patterns. A new model is inactive in Whitelist mode until you add its ID.
 
 ## Optional remote lookup
 

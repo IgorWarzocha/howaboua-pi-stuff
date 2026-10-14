@@ -136,6 +136,10 @@ export interface BridgeRequest {
 }
 export interface OwnerRequest {
 	protocol: 1;
+	ctx?: ExtensionContext;
+	projection?(
+		owner: Pick<NotesOwner, "projectMessages" | "projectBranch">,
+	): void;
 	reply(owner: NotesOwner): void;
 }
 

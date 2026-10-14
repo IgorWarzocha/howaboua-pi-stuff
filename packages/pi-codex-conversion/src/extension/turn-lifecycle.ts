@@ -114,7 +114,7 @@ export function createCodexTurnLifecycle(
 			if (reminder) return { entries: [...event.entries, reminder], continue: true };
 		},
 		input: async (event, ctx) => {
-			discoverExternalNotesOwner(pi, state);
+			discoverExternalNotesOwner(pi, state, ctx);
 			if (state.externalNotes) {
 				if (event.streamingBehavior === undefined) {
 					session.activate(ctx);
@@ -163,7 +163,7 @@ export function createCodexTurnLifecycle(
 				runtime.voice.piInput(event.text, event.streamingBehavior);
 		},
 		beforeAgentStart: async (event, ctx) => {
-			discoverExternalNotesOwner(pi, state);
+			discoverExternalNotesOwner(pi, state, ctx);
 			session.activate(ctx);
 			state.codexTurnState.beginTurn();
 			if (!state.externalNotes && event.messageType === "user") state.contextTree.handoff.preparing(event.prompt);

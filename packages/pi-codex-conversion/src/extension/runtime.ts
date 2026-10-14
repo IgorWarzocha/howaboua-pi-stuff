@@ -324,7 +324,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			branch,
 			allEntries,
 		);
-		return projectTreeHandoffReads(projected, checkpointBranch)
+		return projectTreeHandoffReads(state.notesProjection?.projectMessages(projected) ?? projected, checkpointBranch)
 			.filter((message) => !isProviderContextExcludedMessage(message));
 	};
 

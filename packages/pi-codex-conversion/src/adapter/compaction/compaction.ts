@@ -37,8 +37,9 @@ import { rewriteRelationshipHeaders, rewriteRelationshipPayload } from "../../co
 function compactionBranch(ctx: ExtensionContext, state: AdapterState): SessionEntry[] {
 	const branch = ctx.sessionManager.getBranch();
 	if (state.externalNotes) return state.externalNotes.owner.projectBranch(branch);
-	return projectContextWindowBranch(hasTreeArchives(branch)
+	const projected = projectContextWindowBranch(hasTreeArchives(branch)
 		? [...projectTreeCheckpointBranch(branch, ctx.sessionManager.getEntries())] : branch);
+	return state.notesProjection?.projectBranch(projected) ?? projected;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -296,7 +297,7 @@ export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompac
 		const branchEntries = compactionBranch(ctx, state);
 		const latest = resolveLatestNativeCompactionEntry(branchEntries);
 		const opaque = latest.ok && !hasPortableNativeCompactionSummary(latest.entry);
-		if (state.externalNotes && branchEntries.length !== event.branchEntries.length) {
+		if ((state.externalNotes || state.notesProjection) && branchEntries.length !== event.branchEntries.length) {
 			const preparation = projectPiCompactionEvent(event, branchEntries).preparation;
 			if (!preparation.messagesToSummarize.length && !plan.nativeCompaction && !(plan.nativeReplay && opaque)) {
 				ctx.ui.notify("Nothing to compact in the current context window. The existing context remains.", "warning");
@@ -382,7 +383,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		}
 	}
 	const codeMode = isCodeModeRuntime(plan);
-	const externalOwner = state.externalNotes?.owner;
+	const externalOwner = state.externalNotes?.owner ?? state.notesProjection;
 	const serializationOptions: SerializeResponsesMessagesOptions = {
 		...(plan.transport === "responses-lite" ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : {}),
 		...(externalOwner ? { projectMessages: (messages) => externalOwner.projectMessages(messages) } : {}),
@@ -530,7 +531,7 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 	});
 	if (!latest.ok) return undefined;
 	if (!runtime.payload) return undefined;
-	const externalOwner = state.externalNotes?.owner;
+	const externalOwner = state.externalNotes?.owner ?? state.notesProjection;
 	const rewrite = rewriteResponsesPayloadWithNativeReplay({
 		model: runtime.currentModel,
 		payload: runtime.payload,

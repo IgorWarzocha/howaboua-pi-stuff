@@ -456,6 +456,7 @@ export class NotesLifecycle {
 	}
 	allowsCompaction(reason: SessionBeforeCompactEvent["reason"]): boolean {
 		return (
+			!this.active ||
 			this.normalCompaction ||
 			this.rollover?.phase === "compacting" ||
 			reason === "overflow"

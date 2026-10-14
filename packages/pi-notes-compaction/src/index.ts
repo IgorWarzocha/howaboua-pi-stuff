@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import {
 	type ExtensionAPI,
+	type ExtensionContext,
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -12,7 +13,12 @@ import {
 } from "./bridge.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { exportNotesSnapshot, sessionRef } from "./notes.js";
-import { type NotesSettings, readSettings, writeSettings } from "./settings.js";
+import {
+	modelIsActive,
+	type NotesSettings,
+	readSettings,
+	writeSettings,
+} from "./settings.js";
 import { openNotesSettings } from "./settings-screen.js";
 import { NotesStore } from "./store.js";
 import {
@@ -33,6 +39,8 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	const settingsPath = join(dir, "settings.json");
 	const store = new NotesStore(join(dir, "notes.sqlite"));
 	const lifecycle = new NotesLifecycle(pi, store);
+	let settings: NotesSettings;
+	let ready = false;
 	const stopAdmission = pi.events.on(
 		"pi-notes-compaction:custom-turn-admission:v1",
 		(value) => {
@@ -41,8 +49,10 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 				ctx: Parameters<NotesLifecycle["prepareCustomTurn"]>[0];
 				preparation?: Promise<void> | undefined;
 			};
-			if (request?.protocol === 1 && !request.preparation)
+			if (request?.protocol === 1 && !request.preparation) {
+				refreshActivation(request.ctx);
 				request.preparation = lifecycle.prepareCustomTurn(request.ctx);
+			}
 		},
 	);
 	const tools = createTools(pi, store, lifecycle);
@@ -53,7 +63,16 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		owner: "pi-notes-compaction",
 		identity: () =>
 			lifecycle.windows.current ? { ...lifecycle.windows.current } : undefined,
-		projectMessages: (messages) => lifecycle.windows.projectMessages(messages),
+		projectMessages: (messages) => {
+			const projected = lifecycle.windows.projectMessages(messages);
+			return lifecycle.active
+				? projected
+				: projected.filter(
+						(message) =>
+							message.role !== "custom" ||
+							!message.customType.startsWith("notes-compaction:"),
+					);
+		},
 		projectBranch: (entries) => lifecycle.windows.projectBranch(entries),
 		allowsCompaction: (reason) => lifecycle.allowsCompaction(reason),
 		canBind: (ctx) =>
@@ -125,17 +144,43 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	const stopOwner = pi.events.on(OWNER_CHANNEL, (data) => {
 		if (!data || typeof data !== "object") return;
 		const request = data as Partial<OwnerRequest>;
-		if (request.protocol === 1 && typeof request.reply === "function")
+		if (request.protocol === 1 && ready && !unavailable)
+			request.projection?.(owner);
+		if (
+			request.protocol === 1 &&
+			typeof request.reply === "function" &&
+			ready &&
+			!unavailable &&
+			(request.ctx
+				? modelIsActive(settings, request.ctx.model)
+				: lifecycle.active)
+		)
 			request.reply(owner);
 	});
 
-	pi.on("session_start", (_event, ctx) => {
-		lifecycle.reset(ctx);
-		lifecycle.active = false;
-		unavailable = undefined;
+	function refreshActivation(ctx: ExtensionContext): void {
+		if (!ready || unavailable) return;
+		const active = modelIsActive(settings, ctx.model);
+		if (!active) {
+			if (lifecycle.active) lifecycle.reset(ctx);
+			lifecycle.active = false;
+			if (lifecycle.bridge) {
+				// PCC rediscovers ownership before deciding its native policy.
+				lifecycle.bridge.configureTools?.(tools, ctx, {
+					notes: NOTES_USAGE,
+					history: HISTORY_USAGE,
+				});
+			} else {
+				pi.setActiveTools(
+					pi
+						.getActiveTools()
+						.filter((name) => !TOOL_NAMES.some((tool) => tool === name)),
+				);
+			}
+			return;
+		}
+		if (lifecycle.active) return;
 		try {
-			Object.assign(lifecycle, readSettings(settingsPath));
-			lifecycle.bridge = discoverBridge(pi);
 			const claim = lifecycle.bridge?.claim(owner);
 			if (claim && !claim.claimed) throw new Error(claim.reason);
 			if (claim?.claimed) {
@@ -162,19 +207,66 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 				notes: NOTES_USAGE,
 				history: HISTORY_USAGE,
 			});
+			if (!lifecycle.bridge)
+				pi.setActiveTools([
+					...new Set([...pi.getActiveTools(), ...TOOL_NAMES]),
+				]);
 			store.updateFile(sessionRef(ctx));
 		} catch (error) {
 			lifecycle.active = false;
 			unavailable = error instanceof Error ? error.message : String(error);
 			ctx.ui.notify(`Notes continuity inactive: ${unavailable}`, "warning");
 		}
+	}
+	function applySettings(value: NotesSettings): void {
+		settings = value;
+		lifecycle.normalCompaction = value.normalCompaction;
+		lifecycle.idleMinutes = value.idleMinutes;
+		lifecycle.taskBoundaryReminder = value.taskBoundaryReminder;
+	}
+	pi.on("session_start", (_event, ctx) => {
+		lifecycle.reset(ctx);
+		lifecycle.active = false;
+		ready = false;
+		unavailable = undefined;
+		try {
+			settings = readSettings(settingsPath);
+			writeSettings(settingsPath, settings);
+			applySettings(settings);
+			lifecycle.bridge = discoverBridge(pi);
+			ready = true;
+			// Register standalone tools even when initially hidden, for later model switches.
+			if (!lifecycle.bridge) {
+				if (
+					pi
+						.getAllTools()
+						.some(
+							(tool) =>
+								TOOL_NAMES.some((name) => name === tool.name) &&
+								tool.sourceInfo.path !== ownSource,
+						)
+				)
+					throw new Error(
+						"Another extension already owns notes continuity. Update it to a version supporting notes integration, then reload Pi.",
+					);
+				for (const tool of tools) pi.registerTool(tool);
+				ownSource = pi.getAllTools().find((tool) => tool.name === "notes")
+					?.sourceInfo.path;
+			}
+			refreshActivation(ctx);
+		} catch (error) {
+			unavailable = error instanceof Error ? error.message : String(error);
+			ctx.ui.notify(`Notes continuity inactive: ${unavailable}`, "warning");
+		}
 	});
 	pi.on("before_agent_start", (event, ctx) => {
+		refreshActivation(ctx);
 		if (lifecycle.active) lifecycle.beforeStart(ctx, event);
 	});
-	pi.on("input", (event, ctx) =>
-		lifecycle.active ? lifecycle.input(event, ctx) : undefined,
-	);
+	pi.on("input", (event, ctx) => {
+		refreshActivation(ctx);
+		return lifecycle.active ? lifecycle.input(event, ctx) : undefined;
+	});
 	pi.on("agent_before_settle", (event) => {
 		if (lifecycle.active) lifecycle.outcome(event.outcome);
 	});
@@ -214,17 +306,16 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			: undefined;
 	});
 	pi.on("context", (event, ctx) => {
-		if (!lifecycle.active) return;
 		try {
 			lifecycle.windows.restore(ctx.sessionManager.getBranch());
-			return { messages: lifecycle.windows.projectMessages(event.messages) };
+			return { messages: owner.projectMessages(event.messages) };
 		} catch (error) {
 			ctx.abort();
 			throw error;
 		}
 	});
 	pi.on("session_before_compact", (event, ctx) =>
-		lifecycle.active ? lifecycle.beforeCompact(event, ctx) : undefined,
+		ready && !unavailable ? lifecycle.beforeCompact(event, ctx) : undefined,
 	);
 	pi.on("session_compact_failed", async (event, ctx) => {
 		if (lifecycle.active) await lifecycle.compactFailed(event, ctx);
@@ -238,6 +329,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		if (lifecycle.active) lifecycle.initialize(ctx);
 	});
 	pi.on("model_select", (_event, ctx) => {
+		refreshActivation(ctx);
 		if (lifecycle.active)
 			lifecycle.bridge?.configureTools?.(tools, ctx, {
 				notes: NOTES_USAGE,
@@ -263,9 +355,10 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 				ctx.ui.notify("Notes settings require interactive Pi.", "warning");
 				return;
 			}
-			const save = (settings: NotesSettings) => {
-				writeSettings(settingsPath, settings);
-				Object.assign(lifecycle, settings);
+			const save = (value: NotesSettings) => {
+				writeSettings(settingsPath, value);
+				applySettings(value);
+				refreshActivation(ctx);
 			};
 			const prune = async () => {
 				await ctx.waitForIdle();
@@ -278,11 +371,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			};
 			try {
 				await openNotesSettings(ctx, {
-					settings: () => ({
-						normalCompaction: lifecycle.normalCompaction,
-						idleMinutes: lifecycle.idleMinutes,
-						taskBoundaryReminder: lifecycle.taskBoundaryReminder,
-					}),
+					settings: () => settings,
 					save,
 					settingsPath,
 					prune,
@@ -291,7 +380,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 						return [
 							lifecycle.active
 								? "Continuity active"
-								: `Continuity inactive: ${unavailable ?? "not initialized"}`,
+								: `Continuity inactive: ${unavailable ?? (ready ? "model not in whitelist" : "not initialized")}`,
 							`${counts.sessions} sessions · ${counts.revisions} note revisions · ${counts.cachedResponses} cached responses`,
 							`Hybrid lookup: ${lifecycle.bridge?.lookup ? "available" : "unavailable"} · Encrypted delivery: ${lifecycle.bridge?.projectResult ? "available" : "unavailable"}`,
 						];

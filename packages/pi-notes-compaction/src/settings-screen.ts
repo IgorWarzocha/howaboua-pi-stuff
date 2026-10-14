@@ -21,7 +21,6 @@ export async function openNotesSettings(
 	},
 ): Promise<void> {
 	while (true) {
-		const status = options.status();
 		const action = await ctx.ui.custom<"close" | "prune">(
 			(tui, theme, _kb, done) => {
 				const settings = options.settings();
@@ -29,6 +28,14 @@ export async function openNotesSettings(
 					minutes === 0 ? "off" : `${minutes} min`;
 				const list = new SettingsList(
 					[
+						{
+							id: "active",
+							label: "Active",
+							description: `Whitelist matches exact model IDs from any provider. Edit modelWhitelist in ${options.settingsPath}, then reload Pi. Example: ["gpt-6-luna", "gpt-6.1-sol"].`,
+							currentValue:
+								settings.active === "all" ? "All models" : "Whitelist",
+							values: ["All models", "Whitelist"],
+						},
 						{
 							id: "compact",
 							label: "Normal compaction",
@@ -88,7 +95,12 @@ export async function openNotesSettings(
 							return;
 						}
 						try {
-							if (id === "compact")
+							if (id === "active")
+								options.save({
+									...current,
+									active: value === "All models" ? "all" : "whitelist",
+								});
+							else if (id === "compact")
 								options.save({ ...current, normalCompaction: value === "on" });
 							else if (id === "taskBoundaryReminder")
 								options.save({
@@ -108,13 +120,17 @@ export async function openNotesSettings(
 						} catch (error) {
 							list.updateValue(
 								id,
-								id === "taskBoundaryReminder"
-									? taskBoundaryLabel(current.taskBoundaryReminder)
-									: id === "compact"
-										? current.normalCompaction
-											? "on"
-											: "off"
-										: idleValue(current.idleMinutes),
+								id === "active"
+									? current.active === "all"
+										? "All models"
+										: "Whitelist"
+									: id === "taskBoundaryReminder"
+										? taskBoundaryLabel(current.taskBoundaryReminder)
+										: id === "compact"
+											? current.normalCompaction
+												? "on"
+												: "off"
+											: idleValue(current.idleMinutes),
 							);
 							ctx.ui.notify(
 								`Could not save notes settings: ${String(error)}`,
@@ -137,8 +153,14 @@ export async function openNotesSettings(
 							rule,
 							`  ${theme.bold("Notes & context")}`,
 							"",
-							...status.flatMap((line) =>
-								wrap(line).map((part) => theme.fg("dim", part)),
+							...options
+								.status()
+								.flatMap((line) =>
+									wrap(line).map((part) => theme.fg("dim", part)),
+								),
+							"",
+							...wrap(
+								"This extension works best on GPT6+ models. For other models we recommend switching the active option to whitelist or switching normal compaction on to work alongside the notes system.",
 							),
 							"",
 							...list.render(width).slice(0, -2),
