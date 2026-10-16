@@ -1,6 +1,5 @@
-- Keep this runtime self-contained; do not add a dependency on `pi-dynamic-tools`.
 - Conversion-specific activation and nested tool definitions stay outside this directory.
-- Codex host source stays pinned under `vendor/code-mode-src/`; keep Pi-owned changes outside its upstream source tree.
+- The only Code host is the checksummed official release in `host-assets.ts`. Cache by release and platform; never select local builds, bundled hosts or `customRustBinariesDir`. Upstream source routes live in the package AGENTS.md.
 - Keep model-native `exec`/`wait`; never rename, configure, or add collision fallbacks.
 - Low-context custom tools belong to Code/Notebook: promoted tools get one standing usage line; deferred contracts stay in synchronous `ALL_TOOLS`, with short appended availability updates. Never mimic this in Structured mode.
 - `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.

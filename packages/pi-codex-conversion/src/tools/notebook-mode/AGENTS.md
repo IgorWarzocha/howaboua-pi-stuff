@@ -13,5 +13,5 @@
 - notebook-diagnostics.ts provides one-shot Deno diagnostics from journals. lsp-process.ts owns bounded JSON-RPC transport, never a resident process.
 - Profiles load by value, never replay cells.
 - directory-lock.ts owns cross-process leases. Release only the observed owner file, never recursively delete lock paths.
-- V8 stays under tools/code-mode/. Share public tool, rendering, nested-tool and output contracts without changing the vendored host.
+- V8 integration stays under tools/code-mode/. Share public tool, rendering, nested-tool and output contracts without modifying the downloaded host.
 - Support Linux/macOS/Windows x64/arm64. Pin versions, sizes and checksums for archives and extracted executables.

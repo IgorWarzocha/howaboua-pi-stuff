@@ -49,7 +49,6 @@ export interface CodeModeToolProvider {
 	richRendering?(): boolean;
 	minimalOutput?(): boolean;
 	executionKind?(ctx: unknown): CodeModeExecutionKind;
-	customRustBinariesDir?(): string;
 	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 	opaqueResultScope?(ctx: ExtensionContext): Promise<string>;
 	lazyOpaqueResultScope?(): boolean;
@@ -230,8 +229,7 @@ export class SharedCodeModeRuntime {
 		if (this.executionKind(ctx) === "notebook") return this.getNotebookClient(ctx);
 		if (!this.clientPromise) {
 			const startupAbort = new AbortController();
-			const customRustBinariesDir = this.activeProviders(ctx).find(provider => provider.customRustBinariesDir)?.customRustBinariesDir?.();
-			const pending = ensureCodeModeHostBinary(startupAbort.signal, { customRustBinariesDir: customRustBinariesDir ?? "" }).then(
+			const pending = ensureCodeModeHostBinary(startupAbort.signal).then(
 				(binary) => new CodeModeHostClient({
 					binary,
 					tools: [],

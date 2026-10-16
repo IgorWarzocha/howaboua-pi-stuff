@@ -18,3 +18,17 @@
 - Reuse `src/developer-messages.ts` for instruction delivery: `trySendCodexDeveloperCustomMessage` preserves caller rendering; false means nothing was sent, so fall back to `pi.sendMessage`. Delivery failures throw, not fall back.
 - `src/adapter/developer-messages.ts` promotes authenticated custom-message carriers to Responses developer items in place. Preserve chronology and keep UI/history identity separate from provider role; never route these through Pi system-prompt updates.
 - After TypeScript topology changes, run root bun run knip.
+
+## Upstream routes
+
+The local Codex reference is `~/Frameworks/codex`. Before changing an upstream-derived area, compare its recorded pin with that checkout's HEAD and inspect the relevant path history. A checkout is a reference, not an automatic upgrade target. Keep intentional Pi adaptations and update provenance only for code actually adopted.
+
+Paths below are relative to `~/Frameworks/codex/codex-rs/`:
+
+- Code host: `code-mode-host/src/`, `code-mode-runtime/src/`, `code-mode-protocol/src/`. Download the official executable pinned in `src/tools/code-mode/host-assets.ts`; do not restore vendored source or a local build route.
+- Patch engine and path utilities: `apply-patch/src/`, `utils/absolute-path/src/`, `utils/path-uri/src/`. Local pin: `src/tools/rust/UPSTREAM.apply-patch`. The sync script preserves Pi's `standalone_executable.rs` and `pi-apply-patch-fs` adapter.
+- Image and cache utilities: `utils/image/src/`, `utils/cache/src/`. Both local copies derive from the revision in `src/tools/rust/crates/codex-utils-image/UPSTREAM`. `src/tools/view-image/rust/main.rs` is Pi's wrapper, not an upstream standalone executable.
+- PTY: `utils/pty/src/`, pinned by `src/tools/rust/crates/codex-utils-pty/UPSTREAM`. Shell execution is an adaptation of `exec-server/src/local_process.rs`, tracked separately in `src/tools/exec/rust/UPSTREAM`, not a copied exec server.
+- Voice DSP: `voice-host/src/device_buffers.rs` and `voice-host/src/processing.rs` map to `src/voice/rust/src/codex_audio/{buffers,processing}.rs`. Pin and adaptation boundary: `src/voice/rust/VENDORED.md`. Its `vendor/` contains licence notices, not dependency source.
+- Transport and compaction are TypeScript adaptations, not exact copies: compare `core/src/client.rs`, `core/src/client_common.rs`, `core/src/compact_remote_v2*.rs`, `codex-api/src/endpoint/responses*`, `codex-api/src/sse/responses*`, `responses-api-proxy/` and `models-manager/models.json`. `UPSTREAM_SYNC.md` records reviewed deltas; also compare Pi's stock provider.
+- `vendor/js-tiktoken/` and `vendor/tree-sitter-bash/` come from the npm tarballs pinned in their own `UPSTREAM` files, not this Codex checkout. Retain the selected encoding/WASM payloads rather than adding unused encodings or native install hooks.

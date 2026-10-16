@@ -103,6 +103,8 @@ On Codex transport, the Daybreak toggle keeps your selected model and chooses an
 
 `tools.customRustBinariesDir` overrides bundled helpers by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build on the target machine, collect the binaries in one directory, set its path, then `/reload`.
 
+Code Mode always uses the pinned official OpenAI runtime, downloaded on first use. It does not use local builds or `tools.customRustBinariesDir`.
+
 ### Optional controls
 
 - **Heavy system prompt overwrite:** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. Off by default.
