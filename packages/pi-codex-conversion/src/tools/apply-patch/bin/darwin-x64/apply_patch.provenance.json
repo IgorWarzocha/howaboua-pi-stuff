@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "source": {
     "repository": "openai/codex",
-    "revision": "c4017a87aacc7558002b7cb510025e967c1d765e",
-    "inputsSha256": "6f98a62ec191bcaa2467d9ac52fcfa1cf06714ca45040639011447451c292854"
+    "revision": "83086188ae0614bd882818ff1aa23f3194962012",
+    "inputsSha256": "4c108aaf9fd3f51b096f2cf898abc6e76536a728e5ffcddf8773e3f907191229"
   },
   "binary": {
-    "sha256": "e0cf6220ec5ac5f501dafad1c70879db90e6faeaaa438b40306b8d14e26c0287"
+    "sha256": "a4d5281b672a627966c9b0bdefafe980d971f6f4f191f1b76be02d1457f7f46f"
   },
   "build": {
     "target": "x86_64-apple-darwin",

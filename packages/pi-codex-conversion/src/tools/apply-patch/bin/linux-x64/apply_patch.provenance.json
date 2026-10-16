@@ -6,11 +6,11 @@
     "inputsSha256": "4c108aaf9fd3f51b096f2cf898abc6e76536a728e5ffcddf8773e3f907191229"
   },
   "binary": {
-    "sha256": "45c57b8a65fe1c47a28e6ae27579e9f200847cce5c2fc7e2c9842870b2583731"
+    "sha256": "bd210ee41a86cb40f9bf8ed2975e4c597a143db4c35c606b176ae7518a74b90c"
   },
   "build": {
     "target": "x86_64-unknown-linux-gnu",
-    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Arch Linux rust 1:1.98.1-1)",
-    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05) (Arch Linux rust 1:1.98.1-1)"
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)"
   }
 }
