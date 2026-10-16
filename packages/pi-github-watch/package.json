@@ -1,7 +1,7 @@
 {
 	"name": "@howaboua/pi-github-watch",
 	"version": "0.0.1",
-	"description": "Opt-in same-session GitHub issue and pull request comment watches for Pi",
+	"description": "Opt-in same-session GitHub comment and Actions run watches for Pi",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
