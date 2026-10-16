@@ -6,11 +6,11 @@
     "inputsSha256": "6f98a62ec191bcaa2467d9ac52fcfa1cf06714ca45040639011447451c292854"
   },
   "binary": {
-    "sha256": "df30feef31dd1a782a98eca3433286ffa25d00df732d396e0c1f0607d965ef57"
+    "sha256": "e0cf6220ec5ac5f501dafad1c70879db90e6faeaaa438b40306b8d14e26c0287"
   },
   "build": {
     "target": "x86_64-apple-darwin",
-    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
-    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)"
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)"
   }
 }
