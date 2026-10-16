@@ -73,12 +73,8 @@ pub fn run_main() -> i32 {
         }
     };
     let json_output = std::env::var_os("PI_APPLY_PATCH_JSON").is_some();
-    match runtime.block_on(crate::apply_patch_with_options(
+    match runtime.block_on(crate::apply_patch(
         &patch_arg,
-        crate::ApplyPatchOptions {
-            update_file_mode: crate::ApplyPatchFileUpdateMode::PreserveLineEndings,
-            ..Default::default()
-        },
         &cwd,
         &mut stdout,
         &mut stderr,
