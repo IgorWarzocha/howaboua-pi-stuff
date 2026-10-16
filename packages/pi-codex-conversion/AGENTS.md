@@ -9,7 +9,7 @@
 - Native runners execute bundled helpers directly. Rebuild locally and use the checkout, never patch installed npm files. Web/image tools belong to their TypeScript packages.
 - Keep src/voice/rust/** and scripts/build-voice-helper.mjs byte-identical with pi-gippity-control. Change and changeset both together.
 - Watch native GitHub builds with gh run watch <id> --exit-status near their expected 10–15 minutes. No polling loops, background shells or temporary log redirection.
-- tools.customRustBinariesDir is the filename-based native-helper override. Startup incompatibility errors point there, not through loader noise.
+- tools.customRustBinariesDir is the filename-based bundled-helper override, not a Code host override. Bundled-helper startup incompatibility errors point there, not through loader noise.
 - Vendored apply-patch engine, path-uri and absolute-path track one Codex commit. Pi changes stay in standalone_executable.rs and pi-apply-patch-fs.
 - Reject review-driven drift from stock Pi unless backend-verified or intentional.
 - Provider names/endpoints do not define backend identity. Renamed/proxied openai-codex-responses retains Codex transport, Fast Mode and account isolation.
