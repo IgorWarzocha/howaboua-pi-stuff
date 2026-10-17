@@ -87,6 +87,12 @@ export interface StartedAgent {
 	id: string;
 }
 
+export class RolledBackAgentLaunchError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : String(cause), { cause });
+	}
+}
+
 async function createStartPane(
 	client: HerdrConnection,
 	params: StartAgentParams,
@@ -272,7 +278,7 @@ async function rollbackCreatedLocation(
 			{ cause },
 		);
 	}
-	throw cause;
+	throw new RolledBackAgentLaunchError(cause);
 }
 
 async function startWhenShellReady(

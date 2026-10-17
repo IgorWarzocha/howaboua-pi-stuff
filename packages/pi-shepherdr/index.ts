@@ -13,6 +13,7 @@ import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context-host.js";
 import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
+import { registerWorkerService } from "./src/worker-service.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
@@ -33,6 +34,7 @@ export default async function shepherdrExtension(
 	const board = AgentBoard.create(pi, fleet);
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
+	registerWorkerService(pi, fleet, sharedContext, board);
 	const tool = createAgentsTool(fleet, sharedContext, board, pi, peerCommands);
 
 	registerAgentEventRenderer(pi);

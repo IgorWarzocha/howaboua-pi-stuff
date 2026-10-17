@@ -445,6 +445,18 @@
         "@howaboua/pi-gippity-control",
       ],
     },
+    "packages/pi-pulses": {
+      "name": "@howaboua/pi-pulses",
+      "version": "0.0.0",
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=1.3.0",
+        "@howaboua/pi-codex-conversion": ">=4.0.1",
+        "typebox": "*",
+      },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
+    },
     "packages/pi-sandbox": {
       "name": "@howaboua/pi-sandbox",
       "version": "0.1.1",
@@ -900,6 +912,8 @@
     "@howaboua/pi-notes-compaction": ["@howaboua/pi-notes-compaction@workspace:packages/pi-notes-compaction"],
 
     "@howaboua/pi-pet": ["@howaboua/pi-pet@workspace:packages/pi-pet"],
+
+    "@howaboua/pi-pulses": ["@howaboua/pi-pulses@workspace:packages/pi-pulses"],
 
     "@howaboua/pi-sandbox": ["@howaboua/pi-sandbox@workspace:packages/pi-sandbox"],
 

@@ -250,6 +250,14 @@ Ordinary delegation stays inside `agents`. For workspace, tab, pane, process, fo
 
 Herdr still owns terminals, layout, agent processes and restored sessions. Shepherdr owns event subscriptions, remote routing, the fleet widget and purple settlement messages.
 
+## Pulse runner
+
+Shepherdr implements Pulses' optional detached-runner contract through Pi events. Pulses owns scheduling. Each worker runs in a separate Pi process, so the main agent remains available. Its final response returns through the same monitored waking delivery as asynchronous `agents` calls, including ordinary kickoff preparation and rollover admission. There is no passive-result or blocking execution mode.
+
+The adapter reuses owned saved sessions, refuses overlapping work and verifies parent session, branch and pane identity. Worker receipts are opaque to Pulses. Use ordinary Shepherdr controls to manage worker panes. Detached pulse workers cannot become schedulers themselves.
+
+Fresh and restored workers use the `general` profile's model, thinking level and explicit Pi arguments without its implementation-role prompt. Ordinary agent spawns still use the complete profile. Fresh workers inherit the existing family board independently of their working directory, alongside optional shared Notes and cache affinity. The adapter does not choose an output destination or keep the controlling Pi alive.
+
 ## License
 
 MIT
