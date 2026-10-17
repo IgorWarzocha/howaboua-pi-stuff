@@ -343,7 +343,6 @@ export function registerWorkerService(
 						"task",
 					);
 					assertBranch();
-					stage = "dispatch";
 					const dispatch = await dispatchAgentWork(
 						runtime,
 						panel,
@@ -353,6 +352,7 @@ export function registerWorkerService(
 						() => {},
 						() => {
 							assertBranch();
+							stage = "dispatch";
 							return runtime.client.sendMessage(panel!, attributed);
 						},
 						{ expectUserMessage: true },

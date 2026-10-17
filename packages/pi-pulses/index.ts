@@ -202,18 +202,20 @@ export default async function pulses(pi: ExtensionAPI) {
 			for (const item of await catalog(current.repo)) {
 				if (stopped || ctx.sessionManager.getSessionId() !== current.owner)
 					break;
-				if (!("definition" in item)) continue;
+				if (!/^[a-z0-9][a-z0-9-]*$/.test(item.id)) continue;
 				try {
-					const definition = item.definition;
-					if (await current.owned(item.id)) {
+					const owned = await current.owned(item.id);
+					if (owned) {
 						ownedIds.add(item.id);
 						if (checkWorkers) await reconcile(ctx, current, item.id);
-					} else if (
-						definition.enabled &&
-						definition.schedule.kind !== "manual"
-					)
-						await bind(definition, current, false);
-					else continue;
+					}
+					if (!("definition" in item)) continue;
+					const definition = item.definition;
+					if (!owned) {
+						if (definition.enabled && definition.schedule.kind !== "manual")
+							await bind(definition, current, false);
+						else continue;
+					}
 					const state = await current.read(item.id);
 					const now = Date.now();
 					if (
@@ -312,8 +314,13 @@ export default async function pulses(pi: ExtensionAPI) {
 		try {
 			const current = await storeFor(ctx);
 			for (const item of await catalog(current.repo))
-				if ("definition" in item && (await current.owned(item.id)))
-					await bind(item.definition, current, true);
+				if (
+					/^[a-z0-9][a-z0-9-]*$/.test(item.id) &&
+					(await current.owned(item.id))
+				) {
+					ownedIds.add(item.id);
+					if ("definition" in item) await bind(item.definition, current, true);
+				}
 		} catch (error) {
 			notify(error);
 		}
