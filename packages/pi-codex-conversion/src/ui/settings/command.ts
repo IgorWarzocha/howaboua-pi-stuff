@@ -170,6 +170,16 @@ export function registerCodexCommand(
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),
+			onGlobalNotebookJournals: (journals) => {
+				const global = readCodexConversionConfig();
+				if (!saveAndApply(ctx, "global", { ...global, notebook: { ...global.notebook, journals } })) return undefined;
+				return readSelectedConfig();
+			},
+			onGlobalNotebookCheckpointCleanup: (checkpointCleanup) => {
+				const global = readCodexConversionConfig();
+				if (!saveAndApply(ctx, "global", { ...global, notebook: { ...global.notebook, checkpointCleanup } })) return undefined;
+				return readSelectedConfig();
+			},
 			onGlobalLunaCacheKeepalive: (minutes, interval) => {
 				const result = setGlobalCodexLunaCacheKeepalive(minutes, undefined, interval);
 				if (!result.ok) {

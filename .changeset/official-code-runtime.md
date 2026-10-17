@@ -13,3 +13,5 @@ Code Mode always uses the pinned official OpenAI runtime. Local builds and `tool
 - Fixed source previews losing their tool background when truncated.
 - Reduced history projection work for message-only histories.
 - Usage-ledger updates and reports now run off the main thread to keep Pi responsive as usage history grows.
+- Notebook journals now expire after one week without updates by default. `/codex` also offers indefinite retention or switching recording off and removing saved journals.
+- Added optional session-checkpoint cleanup after one month or one week of inactivity. Cleanup is off by default.

@@ -88,6 +88,8 @@ export interface CodexConversionConfig {
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
 	notebook: {
+		journals: "off" | "week" | "on";
+		checkpointCleanup: "never" | "month" | "week";
 		maxHeapMiB: number;
 		plainCommandOutput: boolean;
 		profile?: string | undefined;
@@ -160,7 +162,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		method: "pi",
 		v2UserMessageRetention: 64,
 	},
-	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false },
+	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false, journals: "week", checkpointCleanup: "never" },
 	voice: {
 		v3Voice: "cove",
 		v3AlternateVoice: "ember",

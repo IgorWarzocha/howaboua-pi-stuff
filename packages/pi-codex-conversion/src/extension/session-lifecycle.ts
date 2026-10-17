@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
@@ -10,7 +10,10 @@ import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
-import { appendNotebookTreeEpoch } from "../tools/notebook-mode/session-identity.ts";
+import { appendNotebookTreeEpoch, notebookSessionIdentity } from "../tools/notebook-mode/session-identity.ts";
+import { activateNotebookCheckpoint, type NotebookCheckpointActivity } from "../tools/notebook-mode/checkpoint-activity.ts";
+import { resolveNotebookProject } from "../tools/notebook-mode/project-identity.ts";
+import { scheduleNotebookStorageMaintenance } from "../tools/notebook-mode/storage-retention.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import { discoverExternalNotesOwner } from "../context-management/external-notes-bridge.ts";
 import type { CodexToolRegistration } from "./tools.ts";
@@ -30,6 +33,16 @@ export function createCodexSessionLifecycle(
 ) {
 	const { state, tracker, sessions } = runtime;
 	let activeContext: ExtensionContext | undefined;
+	let checkpointActivity: NotebookCheckpointActivity | undefined;
+	let checkpointSession: string | undefined;
+	const trackCheckpoint = async (ctx: ExtensionContext): Promise<void> => {
+		checkpointActivity?.release();
+		checkpointSession = notebookSessionIdentity(ctx);
+		checkpointActivity = await activateNotebookCheckpoint({
+			project: resolveNotebookProject(ctx.cwd), session: checkpointSession, agentDir: getAgentDir(),
+		});
+		scheduleNotebookStorageMaintenance(getAgentDir());
+	};
 	let pendingExtensionToolRefresh = false;
 	const unregisterContextBriefingHost = registerCodexContextBriefingHost(pi);
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
@@ -52,6 +65,7 @@ export function createCodexSessionLifecycle(
 		},
 	);
 	const activate = (ctx: ExtensionContext): void => {
+		if (checkpointSession === notebookSessionIdentity(ctx)) checkpointActivity?.touch();
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 	};
@@ -65,6 +79,7 @@ export function createCodexSessionLifecycle(
 	return {
 		start: async (event, ctx) => {
 			discoverExternalNotesOwner(pi, state);
+			await trackCheckpoint(ctx);
 			activate(ctx);
 			state.notebookStatusMessageId = undefined;
 			ui.invalidateUsageStatus();
@@ -147,6 +162,7 @@ export function createCodexSessionLifecycle(
 			state.notebookStatusMessageId = undefined;
 			if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
+			await trackCheckpoint(ctx);
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			const plan = syncAdapter(pi, ctx, state);
 			if (!state.externalNotes) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement, { createIfMissing: false });
@@ -172,6 +188,7 @@ export function createCodexSessionLifecycle(
 			await runShutdownStep(failures, () => tools.shutdown());
 			await runShutdownStep(failures, () => proxyProvider.shutdown());
 			await runShutdownStep(failures, () => codeMode.shutdown());
+			await runShutdownStep(failures, () => checkpointActivity?.release());
 			state.developerMessages.clear();
 			state.contextWindows.reset();
 			state.contextKickoff.reset();

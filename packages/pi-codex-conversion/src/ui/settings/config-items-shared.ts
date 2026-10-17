@@ -14,7 +14,7 @@ export interface ConfigSetting {
 	update?:
 		| ((value: string, config: CodexConversionConfig) => CodexConversionConfig)
 		| undefined;
-	action?: "edit-config" | "global-luna-cache-keepalive" | "global-luna-cache-keepalive-interval" | "project-cache-keepalive" | undefined;
+	action?: "edit-config" | "global-notebook-journals" | "global-notebook-checkpoint-cleanup" | "global-luna-cache-keepalive" | "global-luna-cache-keepalive-interval" | "project-cache-keepalive" | undefined;
 }
 
 export class TextSettingSubmenu extends Container implements Focusable {

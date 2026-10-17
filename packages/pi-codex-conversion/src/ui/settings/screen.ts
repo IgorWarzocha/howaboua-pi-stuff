@@ -36,6 +36,8 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	waitForIdle: () => Promise<void>;
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
+	onGlobalNotebookJournals: (retention: CodexConversionConfig["notebook"]["journals"]) => CodexConversionConfig | undefined;
+	onGlobalNotebookCheckpointCleanup: (retention: CodexConversionConfig["notebook"]["checkpointCleanup"]) => CodexConversionConfig | undefined;
 	onGlobalLunaCacheKeepalive: (minutes: LunaCacheKeepaliveMinutes, interval: LunaCacheKeepaliveIntervalMinutes) => CodexConversionConfig | undefined;
 	onProjectCacheKeepalive: (enabled: boolean, interval: CacheKeepaliveIntervalMinutes) => CodexConversionConfig | undefined;
 	initialTab?: SettingsTab | undefined;
@@ -201,6 +203,24 @@ export async function openCodexSettingsScreen(
 						} else {
 							list.updateValue(id, definition.item.currentValue);
 						}
+						tui.requestRender();
+						return;
+					}
+					if (definition?.action === "global-notebook-journals") {
+						const nextDraft = options.onGlobalNotebookJournals(value === "Off & remove" ? "off" : value === "On" ? "on" : "week");
+						if (nextDraft) {
+							draft = nextDraft;
+							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						} else list.updateValue(id, definition.item.currentValue);
+						tui.requestRender();
+						return;
+					}
+					if (definition?.action === "global-notebook-checkpoint-cleanup") {
+						const nextDraft = options.onGlobalNotebookCheckpointCleanup(value === "1 month" ? "month" : value === "1 week" ? "week" : "never");
+						if (nextDraft) {
+							draft = nextDraft;
+							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						} else list.updateValue(id, definition.item.currentValue);
 						tui.requestRender();
 						return;
 					}
