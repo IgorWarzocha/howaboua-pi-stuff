@@ -207,7 +207,9 @@ export async function startAgent(
 ): Promise<StartedAgent> {
 	const name = required(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
-		throw new Error("name must match [a-z][a-z0-9_-]{0,31}");
+		throw new Error(
+			"name must be 1–32 characters, start with a lowercase letter, and contain only lowercase letters, digits, underscores or hyphens. Omit name to generate it from label; label can be longer.",
+		);
 	}
 	const label = params.label?.trim() || name;
 	const args = ["--name", label, ...(options.agentArgs ?? [])];
