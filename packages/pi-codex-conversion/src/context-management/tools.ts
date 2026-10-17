@@ -158,6 +158,7 @@ export function registerContextManagementTools(
 		toNestedTool(history, "await tools.history({ action, ...args })", {}, { ...contract, opaqueResult: protectedResults, allowPlainResult: true }),
 		toNestedTool(notes, "await tools.notes({ action, ...args })", {}, {
 			...contract,
+			prepareInput: prepareNestedNotesInput,
 			opaqueResult: protectedResults,
 			allowPlainResult: true,
 			propagateTermination: true,
@@ -214,6 +215,7 @@ function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
 	return (external.tools ?? []).filter(tool => tool.name === "notes" || tool.name === "history").map(tool => {
 		const nested = toNestedTool(tool, `await tools.${tool.name}({ action, ...args })`, {}, {
 			deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
+			...(tool.name === "notes" ? { prepareInput: prepareNestedNotesInput } : {}),
 			opaqueResult: protectedResults, allowPlainResult: true,
 			opaqueResultScope: result => {
 				const details = result.details;
@@ -231,6 +233,20 @@ function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
 					: context, signal),
 		};
 	});
+}
+
+function prepareNestedNotesInput(input: unknown): unknown {
+	if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+	const params = input as Record<string, unknown>;
+	const canonical = params["action"] === "search_contents" ? "max_files"
+		: params["action"] === "list_files_by_prefix" ? "max_results" : undefined;
+	if (!canonical) return input;
+	const alias = canonical === "max_files" ? "max_results" : "max_files";
+	if (!(alias in params)) return input;
+	const prepared = { ...params };
+	if (!(canonical in prepared)) prepared[canonical] = prepared[alias];
+	delete prepared[alias];
+	return prepared;
 }
 
 function assertContextManagementActive(

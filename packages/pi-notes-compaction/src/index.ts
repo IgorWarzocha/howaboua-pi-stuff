@@ -206,7 +206,6 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 					?.sourceInfo.path;
 			}
 			lifecycle.active = true;
-			lifecycle.initialize(ctx);
 			configureTools(ctx);
 			store.updateFile(sessionRef(ctx));
 		} catch (error) {
@@ -279,7 +278,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	});
 	pi.on("before_agent_start", (event, ctx) => {
 		refreshActivation(ctx);
-		if (lifecycle.active) lifecycle.beforeStart(ctx, event);
+		if (lifecycle.active) return lifecycle.beforeStart(ctx, event);
 	});
 	pi.on("input", (event, ctx) => {
 		refreshActivation(ctx);
@@ -316,9 +315,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			? {
 					entries: [
 						...event.entries,
-						windowDetails(reminder)?.kind === "task-boundary"
-							? (lifecycle.bridge?.prepareReminder?.(reminder) ?? reminder)
-							: reminder,
+						lifecycle.bridge?.prepareReminder?.(reminder) ?? reminder,
 					],
 				}
 			: undefined;
@@ -344,7 +341,6 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	});
 	pi.on("session_tree", (_event, ctx) => {
 		lifecycle.reset(ctx);
-		if (lifecycle.active) lifecycle.initialize(ctx);
 	});
 	pi.on("model_select", (_event, ctx) => {
 		refreshActivation(ctx);

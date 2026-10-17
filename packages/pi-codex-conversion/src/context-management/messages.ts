@@ -49,7 +49,7 @@ export interface ContextWindowCompactionDetails {
 }
 
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not a diary. Keep one concise checkpoint per task at a stable path: request, constraints, decisions, status, next steps and history IDs. Use write_file to replace stale state and mark completion. Store durable details once; link to topic notes or artifacts. Recording isn't permission to implement.
+Notes are recovery state, not a diary. Keep one concise, authoritative note per task or topic at a stable path. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Use write_file to replace stale state and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
 
 Batch saves at meaningful milestones, not every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
 </context_window_guidance>`;

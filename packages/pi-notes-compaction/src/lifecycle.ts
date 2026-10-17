@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
 	AgentSettledEvent,
 	BeforeAgentStartEvent,
+	BeforeAgentStartEventResult,
+	CustomMessageEntryDraft,
 	ExtensionAPI,
 	ExtensionContext,
 	InputEvent,
@@ -80,6 +82,20 @@ export class NotesLifecycle {
 		this.pi = pi;
 		this.store = store;
 	}
+	private sendMessage(
+		message: Omit<CustomMessageEntryDraft, "type">,
+		options: { triggerTurn: boolean },
+	): void {
+		const draft: CustomMessageEntryDraft = {
+			type: "custom_message",
+			...message,
+			details: message.details ?? {},
+		};
+		this.pi.sendMessage(
+			this.bridge?.prepareReminder?.(draft) ?? draft,
+			options,
+		);
+	}
 	agent(ctx: ExtensionContext): string {
 		return (
 			this.bridge?.agentName?.(ctx) ??
@@ -100,7 +116,9 @@ export class NotesLifecycle {
 		this.runId = "";
 		this.windows.restore(ctx?.sessionManager.getBranch() ?? []);
 	}
-	initialize(ctx: ExtensionContext): void {
+	private initialize(
+		ctx: ExtensionContext,
+	): CustomMessageEntryDraft | undefined {
 		const branch = ctx.sessionManager.getBranch();
 		this.windows.restore(branch);
 		const latest = branch.findLast(
@@ -112,36 +130,33 @@ export class NotesLifecycle {
 		if (!this.windows.current || !latest) {
 			const inherited = Boolean(this.windows.current);
 			const ids = this.windows.current ?? this.windows.next();
-			this.pi.sendMessage(
-				windowMessage(
-					ids,
-					this.agent(ctx),
-					noteHints(this.store, ctx, this.agent(ctx)),
-					false,
-					inherited ? "identity" : "window",
-				),
-				{ triggerTurn: false },
-			);
 			this.windows.current = ids;
+			return windowMessage(
+				ids,
+				this.agent(ctx),
+				noteHints(this.store, ctx, this.agent(ctx)),
+				false,
+				inherited ? "identity" : "window",
+			);
 		} else if (
 			latest.type === "custom_message" &&
 			typeof latest.content === "string" &&
 			!latest.content.includes(`Agent name: ${this.agent(ctx)}\n`)
 		) {
-			this.pi.sendMessage(
-				windowMessage(
-					this.windows.current,
-					this.agent(ctx),
-					noteHints(this.store, ctx, this.agent(ctx)),
-					false,
-					"identity",
-				),
-				{ triggerTurn: false },
+			return windowMessage(
+				this.windows.current,
+				this.agent(ctx),
+				noteHints(this.store, ctx, this.agent(ctx)),
+				false,
+				"identity",
 			);
 		}
 	}
-	beforeStart(ctx: ExtensionContext, event: BeforeAgentStartEvent): void {
-		this.initialize(ctx);
+	beforeStart(
+		ctx: ExtensionContext,
+		event: BeforeAgentStartEvent,
+	): BeforeAgentStartEventResult | undefined {
+		const message = this.initialize(ctx);
 		this.runId = randomUUID();
 		this.pi.appendEntry(NOTES_RUN_ENTRY, { runId: this.runId });
 		if (
@@ -152,6 +167,9 @@ export class NotesLifecycle {
 				?.requestId === this.checkpoint.requestId
 		)
 			this.checkpoint.runId = this.runId;
+		return message
+			? { message: this.bridge?.prepareReminder?.(message) ?? message }
+			: undefined;
 	}
 	prepareCustomTurn(ctx: ExtensionContext): Promise<void> | undefined {
 		if (this.customAdmission) return this.customAdmission;
@@ -218,12 +236,12 @@ export class NotesLifecycle {
 			throw new Error("Session changed before rollover");
 		const ids = this.windows.next();
 		const hint = noteHints(this.store, ctx, this.agent(ctx));
-		this.pi.sendMessage(windowMessage(ids, this.agent(ctx), hint, trim), {
+		this.sendMessage(windowMessage(ids, this.agent(ctx), hint, trim), {
 			triggerTurn: false,
 		});
 		this.windows.current = ids;
 		if (triggerTurn)
-			this.pi.sendMessage(
+			this.sendMessage(
 				{
 					customType: "notes-compaction:continuation",
 					content: "Read your saved notes and resume the task.",
@@ -291,7 +309,7 @@ export class NotesLifecycle {
 							this.rollover = undefined;
 							try {
 								if (triggerTurn)
-									this.pi.sendMessage(
+									this.sendMessage(
 										{
 											customType: "notes-compaction:continuation",
 											content:
@@ -325,7 +343,7 @@ export class NotesLifecycle {
 			outcome: undefined,
 		};
 		try {
-			this.pi.sendMessage(
+			this.sendMessage(
 				{
 					customType: "notes-compaction:checkpoint:v1",
 					details: { requestId },

@@ -69,7 +69,7 @@ await tools.sandbox('{"action":"create","name":"review-one","template":"web-base
 await tools.sandbox('{"action":"create","name":"review-two","template":"web-base"}')
 ```
 
-Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or setup commands. Perform fresh login in an instance after creation. YAML is validated strictly. Each disk receives an independent `.sandbox.yaml` in its guest workspace. Edit that guest file with `write` or a guest terminal, then ensure or restart services. Editing the original host YAML does not change existing disks. Hardware, network, setup, and resume settings remain captured at creation.
+Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or YAML setup commands. Provision credentials in an instance after creation, either through the repository's live review setup below or an instance-owned login. YAML is validated strictly. Each disk receives an independent `.sandbox.yaml` in its guest workspace. Edit that guest file with `write` or a guest terminal, then ensure or restart services. Editing the original host YAML does not change existing disks. Hardware, network, setup, and resume settings remain captured at creation.
 
 ## Resources and services
 
@@ -129,21 +129,29 @@ await tools.sandbox(JSON.stringify({action: 'exec-kill', name: 'demo', pid: comm
 
 Run `/sandbox <name> [user]` in Pi to get a temporary localhost SSH command. The user defaults to `root`. Run the returned command in a terminal on the VM host. The guest image must include an OpenSSH server and Gondolin's `sandboxssh` helper.
 
-The terminal uses a newly generated key, disables agent forwarding, and disconnects on stop. It does not import host credentials. Install and run whichever tools you choose inside the guest. If a tool needs authentication, complete your own fresh login in the instance, not in a reusable template. Allow its required hosts in the YAML before creation. Credentials saved in the instance persist on reopen. Checkpoints are ordinary local files protected by directory permissions, not package-managed encryption.
+The terminal uses a newly generated key, disables agent forwarding, and disconnects on stop. Opening it does not import host credentials. Install and run whichever tools you choose inside the guest. For authentication, use the repository's live review setup below to reuse your host Pi login, or complete a separate login in the instance. Keep credentials out of reusable templates. Allow the required hosts in the YAML before creation. Credentials saved in the instance persist on reopen. Checkpoints are ordinary local files protected by directory permissions, not package-managed encryption.
 
 ## Review this repository
 
-From this monorepo checkout, refresh a disposable review candidate in an existing environment:
+From this monorepo checkout, refresh a disposable live review candidate using your existing host Pi login:
 
 ```sh
-bun run sandbox:setup --name review
+bun run sandbox:setup --name review --live-model openai-codex/gpt-6-sol
 ```
 
 Add `--config sandbox.yaml` to create the environment first. The host needs Node 24 or newer and installed repository dependencies. The guest needs Bun, Node 24 or newer, Python 3, tar, make, g++, node-gyp, Herdr 0.9 or newer and `fd` on PATH. Provision node-gyp explicitly, for example with `npm install --global node-gyp@13.1.0`, rather than relying on Bun's first-use auto-install during native builds. Install `fd` through your guest's package manager because Pi's automatic download can fail behind the VM network gateway. The command installs Herdr's Pi integration through `herdr integration install pi` and loads it in the isolated agent directory. Allow the package registry and any build-download hosts required by the lockfile in your environment YAML.
 
-The command snapshots tracked working files, including edits and deletions, verifies the transferred archive, installs from the frozen lockfile and builds PCC and the Sandbox controller. Untracked files and host credentials are not copied. Add new in-scope files to Git before refreshing. JJ workspaces use their working revision. Run the printed launch command in a guest Herdr pane. It uses the installed checkout's Pi with local PCC and Shepherdr packages in an isolated agent directory.
+The command snapshots tracked working files, including edits and deletions, verifies the transferred archive, installs from the frozen lockfile and builds PCC and the Sandbox controller. Untracked files and host credentials are not copied by default. Add new in-scope files to Git before refreshing. JJ workspaces use their working revision. Run the printed launch command in a guest Herdr pane. It uses the installed checkout's Pi with local PCC, Shepherdr, Notes and Board packages in an isolated agent directory.
 
 Each successful refresh replaces the previous disposable candidate under the guest workspace's `pi-stuff-review` directory. Agent preferences and guest-owned authentication remain in its separate `agent` directory. Failed preparation leaves the selected candidate unchanged. Existing services are not restarted. Stop active review agents before refreshing, then use the printed command to load the new files. The guest is a snapshot, not a live mirror of the host.
+
+`--live-model` selects the smoke-test model without changing saved model preferences. Omit it only for an offline snapshot or a deliberately fixture-backed test. Such a setup is not live acceptance.
+
+This refreshes the candidate, resolves only the selected provider's short-lived host access token through Pi, and stores it in the instance's private agent directory. Refresh credentials stay on the host. No credentials enter the source snapshot or a reusable template. Other guest credentials and host account and model preferences remain unchanged.
+
+Live mode replaces that disposable guest provider's model override with a stored-token authentication resolver. Fixture endpoints, model definitions and keys are removed, so the candidate uses its normal Codex backend. It then requires one real generated response and reports provider token usage. An auth-readiness flag alone does not pass this check. This verifies live access, not multi-agent cache acceptance.
+
+The command prints the access-token expiry. The guest cannot refresh this token. Rerun the same command to resynchronise after expiry, a host account change or an authentication failure. Use the existing guest Herdr service and agent directory for subsequent review sessions. A failed live check leaves the refreshed candidate selected but does not report it as live-ready.
 
 ## Recovery
 

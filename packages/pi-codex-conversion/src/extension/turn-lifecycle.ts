@@ -176,7 +176,9 @@ export function createCodexTurnLifecycle(
 			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (!state.externalNotes && !state.contextWindows.currentIdentity()) state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
+			const windowMessage = !state.externalNotes && !state.contextWindows.currentIdentity()
+				? state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement, { prepareTurn: true })
+				: undefined;
 			if (plan.kind !== "notebook") state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
@@ -191,6 +193,7 @@ export function createCodexTurnLifecycle(
 				heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
 			});
 			await refreshNotebookStatus(ctx, runtime.projectContextMessages(ctx), event.systemPromptOptions.selectedTools);
+			return windowMessage ? { message: windowMessage } : undefined;
 		},
 		agentStarted: async (_event, ctx) => {
 			if (!state.externalNotes) {

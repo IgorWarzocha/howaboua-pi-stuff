@@ -136,7 +136,7 @@ export class AgentBoard {
 		args: readonly string[],
 	) {
 		if (!this.enabled(ctx)) return undefined;
-		const own = binding(ctx);
+		const own = { ...binding(ctx), enabled: true };
 		if (
 			args.some((arg) =>
 				/^(?:--(?:session(?:-id)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(

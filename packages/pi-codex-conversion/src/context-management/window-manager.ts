@@ -161,8 +161,8 @@ export class CodexContextWindowManager {
 		pi: ExtensionAPI,
 		ctx: ExtensionContext,
 		active: boolean,
-		{ createIfMissing = true }: { createIfMissing?: boolean } = {},
-	): void {
+		{ createIfMissing = true, prepareTurn = false }: { createIfMissing?: boolean; prepareTurn?: boolean } = {},
+	): CustomMessageEntryDraft | undefined {
 		if (!active) return;
 		const pending = this.promptedManualCheckpoint;
 		const branch = ctx.sessionManager.getBranch();
@@ -183,18 +183,21 @@ export class CodexContextWindowManager {
 			}
 			return;
 		}
-		if (!createIfMissing) return;
+		if (!createIfMissing || (!prepareTurn && !branch.some(entry =>
+			entry.type === "message" && entry.message.role === "system"))) return;
 		const windowId = randomUUID();
-		this.sendWindowMessage(
-			pi,
-			ctx,
-			{
-				firstWindowId: windowId,
-				currentWindowId: windowId,
-				windowNumber: 0,
-			},
-			{ trimPreviousWindow: false },
+		this.identity = {
+			firstWindowId: windowId,
+			currentWindowId: windowId,
+			windowNumber: 0,
+			agentName: contextAgentIdentity(ctx).agentName,
+		};
+		const message = createContextWindowMessage(
+			renderContextWindowMessage(this.identity, undefined, this.identity.agentName),
+			"window", this.identity,
 		);
+		if (prepareTurn) return message;
+		pi.sendMessage(message, { triggerTurn: false });
 	}
 
 	project(
