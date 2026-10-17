@@ -15,7 +15,11 @@ import {
 	boardHelp,
 	parseBoardRequest,
 } from "./contract.js";
-import { initializeDelivery, isMissingOptionalModule } from "./delivery.js";
+import {
+	initializeDelivery,
+	isMissingOptionalModule,
+	preparePolicyMessage,
+} from "./delivery.js";
 import {
 	binding,
 	members,
@@ -88,11 +92,11 @@ export class BoardRuntime {
 			catchup.accepted();
 			if (catchup.content)
 				return {
-					message: {
+					message: preparePolicyMessage({
 						customType: "shepherdr-board-catchup",
 						content: catchup.content.trim(),
 						display: true,
-					},
+					}),
 				};
 		});
 	}

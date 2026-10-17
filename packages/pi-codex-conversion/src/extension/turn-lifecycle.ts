@@ -22,6 +22,7 @@ import { recordNotebookStatus } from "../adapter/notebook-status.ts";
 import { hasFreshContextNotes } from "../context-management/saved-notes.ts";
 import { findLatestWindowBoundaryEntry } from "../context-management/window-manager.ts";
 import { discoverExternalNotesOwner } from "../context-management/external-notes-bridge.ts";
+import { withCodexDeveloperMessageDetails } from "../developer-messages.ts";
 import type { ExtensionHandler, TurnEndEvent, InputEvent, BeforeAgentStartEvent, AgentStartEvent, AgentSettledEvent, ContextWithSystemEvent, TurnEndEventResult, InputEventResult, BeforeAgentStartEventResult, ContextEventResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexTurnLifecycle(
@@ -108,10 +109,10 @@ export function createCodexTurnLifecycle(
 					if (!continued) runtime.autoReasoning.settle(ctx);
 				}
 			}, () => {
-				pi.sendMessage({ customType: "codex-context-continuation",
+				pi.sendMessage(withCodexDeveloperMessageDetails({ customType: "codex-context-continuation", details: {},
 					content: "Pi declined the new window request because there is no eligible history to compact. Continue in this same window; the existing context is unchanged.",
 					display: false,
-				}, { triggerTurn: true });
+				}), { triggerTurn: true });
 			})) return;
 			// Budget maintenance must not restart an assistant that has already answered.
 			if (state.contextTree.handoff.active || event.toolResults.length === 0) return;

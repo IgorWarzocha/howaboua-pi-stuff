@@ -294,11 +294,10 @@ export class CodexContextWindowManager {
 	}
 
 	async startNewWindow(
-		pi: ExtensionAPI,
 		ctx: ExtensionContext,
 		options: StartContextWindowOptions,
-	): Promise<boolean> {
-		if (this.rolloverPending || options.signal?.aborted) return false;
+	): Promise<CustomMessageEntryDraft | undefined> {
+		if (this.rolloverPending || options.signal?.aborted) return;
 		const pending = {};
 		this.rolloverPending = pending;
 		try {
@@ -308,12 +307,12 @@ export class CodexContextWindowManager {
 				: undefined;
 			if (this.rolloverPending !== pending || options.signal?.aborted) {
 				if (this.rolloverPending === pending) this.rolloverPending = undefined;
-				return false;
+				return;
 			}
 			await this.beforeWindowStart?.(ctx, options);
 			if (this.rolloverPending !== pending || options.signal?.aborted) {
 				if (this.rolloverPending === pending) this.rolloverPending = undefined;
-				return false;
+				return;
 			}
 			const currentWindowId = randomUUID();
 			const next: ContextWindowIdentity = current
@@ -328,8 +327,7 @@ export class CodexContextWindowManager {
 						currentWindowId,
 						windowNumber: 0,
 					};
-			this.sendWindowMessage(pi, ctx, next, options, threadHint);
-			return true;
+			return this.prepareWindowMessage(ctx, next, options, threadHint);
 		} catch (error) {
 			if (this.rolloverPending === pending) this.rolloverPending = undefined;
 			throw error;
@@ -486,22 +484,21 @@ export class CodexContextWindowManager {
 		rewriteWindowHeaders(headers, ctx, owner ? owner.identity(ctx) : this.identity, !owner);
 	}
 
-	private sendWindowMessage(
-		pi: ExtensionAPI,
+	private prepareWindowMessage(
 		ctx: ExtensionContext,
 		identity: ContextWindowIdentity,
 		options: StartContextWindowOptions,
 		threadHint?: string,
-	): void {
+	): CustomMessageEntryDraft {
 		identity = { ...identity, agentName: contextAgentIdentity(ctx).agentName };
 		this.identity = identity;
 		if (options.trimPreviousWindow) this.trimPendingWindowId = identity.currentWindowId;
-		pi.sendMessage(createContextWindowMessage(
+		return createContextWindowMessage(
 			renderContextWindowMessage(identity, threadHint, identity.agentName),
 			"window",
 			identity,
 			options.trimPreviousWindow,
-		), { triggerTurn: false });
+		);
 	}
 
 }

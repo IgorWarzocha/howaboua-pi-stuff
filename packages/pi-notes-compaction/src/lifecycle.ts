@@ -156,7 +156,16 @@ export class NotesLifecycle {
 		ctx: ExtensionContext,
 		event: BeforeAgentStartEvent,
 	): BeforeAgentStartEventResult | undefined {
-		const message = this.initialize(ctx);
+		// A custom kickoff is not in the branch until after before_agent_start.
+		// Adopt its boundary without restoring the outgoing window or emitting a duplicate.
+		const startingWindow =
+			event.messageType === "custom"
+				? windowDetails({ ...event.message, type: "custom_message" })
+				: undefined;
+		let message: CustomMessageEntryDraft | undefined;
+		if (startingWindow?.kind === "window")
+			this.windows.current = startingWindow.identity;
+		else message = this.initialize(ctx);
 		this.runId = randomUUID();
 		this.pi.appendEntry(NOTES_RUN_ENTRY, { runId: this.runId });
 		if (
@@ -236,19 +245,11 @@ export class NotesLifecycle {
 			throw new Error("Session changed before rollover");
 		const ids = this.windows.next();
 		const hint = noteHints(this.store, ctx, this.agent(ctx));
-		this.sendMessage(windowMessage(ids, this.agent(ctx), hint, trim), {
-			triggerTurn: false,
-		});
+		const message = windowMessage(ids, this.agent(ctx), hint, trim);
 		this.windows.current = ids;
 		if (triggerTurn)
-			this.sendMessage(
-				{
-					customType: "notes-compaction:continuation",
-					content: "Read your saved notes and resume the task.",
-					display: false,
-				},
-				{ triggerTurn: true },
-			);
+			message.content = `${message.content}\n\nRead your saved notes and resume the task.`;
+		this.sendMessage(message, { triggerTurn });
 	}
 	private async roll(
 		ctx: ExtensionContext,

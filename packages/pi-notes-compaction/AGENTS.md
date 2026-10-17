@@ -8,3 +8,4 @@
 - Model deactivation yields policy and tools, not committed history cuts. Untrimmed initialization never undoes a prior retirement; real compaction can supersede it. Preserve projection on context and compaction routes in either extension order.
 - Restore compacted-away identity only in complete context, ahead of its summary. Keep replay slices untouched and developer metadata stable; never queue a turn to restore guidance.
 - Return initial and rebound identity from before_agent_start, never send it during startup. Pi inserts its initial system entry ahead of returned hook messages; startup sends otherwise put per-session identity before the shared cache prefix.
+- Automatic rollover uses the successor window message as its custom kickoff. That entry is not yet in the branch during before_agent_start; adopt its identity instead of restoring the outgoing window or returning another boundary.

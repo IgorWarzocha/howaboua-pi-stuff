@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 	InputEventResult,
+	CustomMessageEntryDraft,
 } from "@earendil-works/pi-coding-agent";
 import {
 	type StartContextWindowOptions,
@@ -15,6 +16,7 @@ export interface StartContextWindowKickoffOptions extends StartContextWindowOpti
 interface PendingContinuation {
 	sessionId: string;
 	windowId: string;
+	message: CustomMessageEntryDraft;
 	input?: Parameters<ExtensionAPI["sendUserMessage"]>[0] | undefined;
 }
 
@@ -89,15 +91,19 @@ export class CodexContextWindowKickoff {
 		options: StartContextWindowKickoffOptions,
 	): Promise<boolean> {
 		const { triggerTurn, ...windowOptions } = options;
-		const started = await this.windows.startNewWindow(pi, ctx, windowOptions);
-		if (!started) return false;
+		const message = await this.windows.startNewWindow(ctx, windowOptions);
+		if (!message) return false;
 		this.continuation = undefined;
-		if (!triggerTurn) return true;
+		if (!triggerTurn) {
+			pi.sendMessage(message, { triggerTurn: false });
+			return true;
+		}
 		const identity = this.windows.currentIdentity();
 		if (!identity) throw new Error("The new context window has no identity");
 		this.continuation = {
 			sessionId: ctx.sessionManager.getSessionId(),
 			windowId: identity.currentWindowId,
+			message,
 		};
 		return true;
 	}
@@ -121,15 +127,17 @@ export class CodexContextWindowKickoff {
 		if (!ctx.isIdle()) return false;
 		this.continuation = undefined;
 		if (pending.input !== undefined) {
+			pi.sendMessage(pending.message, { triggerTurn: false });
 			this.onContinue?.(pending.input);
 			// Queued user input retains template expansion and attachments.
 			pi.sendUserMessage(pending.input, { expandPromptTemplates: true });
 		} else {
-			this.onContinue?.("Continue.");
+			// Tree navigation and queued-input collection finish before this single
+			// boundary entry is persisted and admitted through Pi's custom kickoff.
+			this.onContinue?.("Read your saved notes and resume the task.");
 			pi.sendMessage({
-				customType: "codex-context-continuation",
-				content: "Read your saved notes and resume the task.",
-				display: false,
+				...pending.message,
+				content: `${pending.message.content}\n\nRead your saved notes and resume the task.`,
 			}, { triggerTurn: true });
 		}
 		return true;
