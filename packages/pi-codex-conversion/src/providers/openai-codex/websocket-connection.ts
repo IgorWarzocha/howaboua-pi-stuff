@@ -231,11 +231,21 @@ export function isWebSocketUnauthorizedError(error: unknown): boolean {
 	return webSocketStatus(error) === 401;
 }
 
+export function isWebSocketConnectionError(error: unknown): boolean {
+	const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+	const description = `${error instanceof Error ? `${error.name} ${error.message}` : String(error)} ${typeof code === "string" ? code : ""}`;
+	return /websocket|socket|connection|network|fetch|timed? out|timeout|\b(?:ECONNRESET|ECONNREFUSED|ECONNABORTED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|EPIPE|ETIMEDOUT)\b/i.test(description);
+}
+
 export function extractWebSocketError(event: unknown): Error {
 	if (event && typeof event === "object") {
 		const message = "message" in event ? (event as { message?: unknown | undefined }).message : undefined;
 		if (typeof message === "string" && message.length > 0) {
-			const error = new Error(message) as Error & { status?: number | undefined };
+			const error = new Error(message, { cause: event }) as Error & { status?: number | undefined; code?: string | number | undefined };
+			const nestedError = "error" in event ? event.error : undefined;
+			const code = "code" in event ? event.code
+				: nestedError && typeof nestedError === "object" && "code" in nestedError ? nestedError.code : undefined;
+			if (typeof code === "string" || typeof code === "number") error.code = code;
 			error.status = webSocketHttpStatus(event);
 			return error;
 		}

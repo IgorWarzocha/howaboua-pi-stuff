@@ -32,7 +32,7 @@ import type { BeforeCodexRequestSend, CanonicalHistoryDecision, CodexDiagnostics
 import { createInitialAssistantMessage } from "./types.ts";
 import { finalizeUsage } from "./usage.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./websocket.ts";
-import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
+import { isPermanentWebSocketError, isWebSocketConnectionError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
 import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
@@ -419,8 +419,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						const messageTooBig = isWebSocketMessageTooBigError(error);
 						const unauthorized = isWebSocketUnauthorizedError(error);
 						const retryableWebSocketError = (isCodexApiError(error) || !isPermanentWebSocketError(error)) && isRetryableCodexStreamError(error);
-						const failureCategory = codexDiagnosticsFailure(error).category;
-						const connectionFailure = failureCategory === "connection" || failureCategory === "timeout";
+						const connectionFailure = !isCodexApiError(error) && isWebSocketConnectionError(error);
 						if (retryableWebSocketError && connectionFailure) {
 							startTransportRecovery();
 						}
