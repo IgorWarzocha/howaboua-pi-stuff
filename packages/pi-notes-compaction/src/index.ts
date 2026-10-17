@@ -79,10 +79,10 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		projectBranch: (entries) => lifecycle.windows.projectBranch(entries),
 		allowsCompaction: (reason) => lifecycle.allowsCompaction(reason),
 		allowsWindowRequests: () => lifecycle.newWindowRequests !== "off",
-		canBind: (ctx) =>
+		canBind: (ctx, entries = ctx.sessionManager.getEntries()) =>
 			lifecycle.active &&
 			ctx.isIdle() &&
-			ctx.sessionManager.getEntries().every((entry) => {
+			entries.every((entry) => {
 				// The first startup after an update records a UI-only changelog.
 				if (
 					entry.type === "custom" &&

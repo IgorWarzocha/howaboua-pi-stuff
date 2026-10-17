@@ -5,3 +5,4 @@
 - Tightened notes guidance to favour concise milestone checkpoints over progress logs and repeated reads.
 - Initial window identity now follows the prepared system prompt, preserving the shared prefix for child-agent caching.
 - With PCC active, Notes guidance and automatic continuation messages consistently use developer-role delivery.
+- External integrations can adopt a new fork into a notes family before its first task without rewriting inherited history.

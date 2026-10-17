@@ -236,11 +236,13 @@ sequenceDiagram
 | `projectBranch(entries)` | The corresponding projected `SessionEntry[]` |
 | `allowsCompaction(reason)` | Optional policy check before starting compaction work. The owner's hook handles notes-only rollover |
 | `allowsWindowRequests()` | Optional check of whether the owner permits new-window requests |
-| `canBind(ctx)` | Optional boolean freshness check for a host's family binding |
+| `canBind(ctx, entries?)` | Optional boolean startup check for a host's family binding. With `entries`, classify only those child-owned records |
 | `snapshotNotes(entries, agentName)` | Optional plaintext note snapshot for that owner |
 | `executeShared(query, callId, ctx, signal?)` | Optional owner-side execution returning an `AgentToolResult<SharedNotesDetails>` |
 
 The first three methods are required. Optional methods must be checked before use. A fresh session can already contain startup UI metadata. That alone is not a user turn, but it is not permission to accept arbitrary custom entries or to rebind a used session.
+
+The optional `entries: readonly SessionEntry[]` argument excludes history through an explicitly asserted inherited fork boundary. Omission checks the full session. Older owners that ignore this argument reject inherited conversation history rather than silently adopting it.
 
 ### Bridge capabilities
 
@@ -309,12 +311,12 @@ Read `connection.service` at the point of use. It is optional and can become ava
 |---|---|
 | `protocol` | `1` |
 | `canCreateChild(ctx)` | Whether parental shared-context opt-in permits a new child |
-| `bindRelationship(ctx, relationship)` | Optional synchronous binding of native parent linkage and worker classification in a fresh idle child, independently of shared notes |
+| `bindRelationship(ctx, relationship)` | Optional synchronous binding of immutable native parent linkage and worker classification in an idle thread, independently of history and shared notes |
 | `cacheAffinityId(ctx)` | Optional effective cache routing identity: explicit relationship affinity or the native Pi session ID |
 | `describe(ctx)` | `ContextAgentIdentity` or `undefined` |
 | `verify(ctx)` | Checks applicable Remote account compatibility |
 | `createChild(ctx, { name, routing? })` | A promise of `{ binding, adopt() }`; prepares a child identity |
-| `bind(ctx, binding)` | Adopts an explicit binding in a fresh idle child; returns its identity |
+| `bind(ctx, binding, options?)` | Adopts an explicit family binding before child work; returns its identity |
 | `execute(ctx, request, signal?)` | Executes an admitted request at the local session owner. Remote storage requires authenticated reader-host dispatch |
 | `registerRouter(router)` | Installs one router and returns its unregister function |
 | `inspectAttachment(ctx, standalone?)` | Optional inspection/authentication for an existing idle owner |
@@ -352,11 +354,36 @@ if (childService?.bindRelationship) {
 
 Your orchestrator supplies the trusted transport to that live child owner. This is a PCC service contract, not a public RPC endpoint. Shepherdr implements the transport and automatically binds fresh spawned workers before their first task when both participants expose the capability. It uses the immediate parent's native Pi session ID and `collab_spawn`, including for nested workers. Profiles selecting existing sessions do not create a new relationship.
 
-Parent and worker retain distinct native Pi session IDs. Linkage does not merge their transcripts, grant notes access or require **Share subagent context**. Shared-note family IDs and agent paths remain a separate contract. Binding requires a fresh idle session before its first task. Repeating the same binding is idempotent; a conflicting binding fails. Resume preserves the relationship on the original native thread. A fork creates a new native thread and does not inherit it.
+Parent and worker retain distinct native Pi session IDs. Linkage does not merge their transcripts, grant notes access or require **Share subagent context**. Shared-note family IDs and agent paths remain a separate contract. Establishing a relationship requires an idle thread, not empty history. Fresh children, native forks and previously used unbound idle threads can all receive explicit linkage. The caller supplies the intended parent and root cache affinity. Repeating the same binding is idempotent; a conflicting binding fails. Resume preserves the relationship on the original native thread. A fork creates a new native thread and does not inherit it automatically.
 
 PCC includes the relationship in supported Codex request metadata, including prewarm and native compaction. These fields identify linkage and classification, not shared storage or a promised backend quota policy. Older services without this optional method still support their existing capabilities.
 
 An orchestrator can explicitly add `cacheAffinityId` to route selected workers with a shared `prompt_cache_key` and Responses `session-id`. The optional `cacheAffinityId(ctx)` service method returns the parent's effective affinity, falling back to its native Pi session ID. It works with shared notes disabled and can be read after the parent has started work. Shepherdr uses it for fresh workers, so roots and nested children use matching routing without rebinding active parents. Verify the returned binding includes the requested affinity, since older services may omit unsupported fields. Shepherdr accepts older targets' parent linkage with a warning that shared cache routing is unavailable. Native `thread-id`, request identity, sockets, cancellation and canonical history remain private to each worker. Attachments do not change cache routing. Sharing helps only matching prompt prefixes. Fresh workers do not inherit their parent's transcript, and different instructions, models or tools can reduce overlap.
+
+### Forked children
+
+External orchestrators bind relationships in forked children with the same `bindRelationship(ctx, relationship)` call as fresh children. No fork assertion or Notes approval is needed for linkage or cache affinity.
+
+Optional notes-family adoption remains restricted to children before their own first task. For inherited history, `bind` accepts exported `ContextFamilyBindingOptions`:
+
+```ts
+// Immediately after SessionManager.createBranchedSession() or forkFrom(),
+// before child startup or task delivery. Capture from the resulting child,
+// including any label entries regenerated by Pi.
+const options = {
+  fork: { lastInheritedEntryId: childSession.getEntries().at(-1)!.id },
+};
+// In the live child owner after startup:
+childService.bindRelationship(childCtx, relationship);
+// Optional, using a separately prepared createChild() binding and routing:
+await childService.bind(childCtx, binding, options);
+```
+
+The caller asserts all entries through this boundary are inherited history, not work performed by the child. PCC requires native `parentSession` header metadata and an existing entry boundary. It applies normal family startup checks to every later entry and rechecks admission after asynchronous authentication. These checks detect post-boundary work, not whether a trusted caller lied about the boundary. Never capture a new boundary from an already-used child to bypass family admission. Timestamp comparisons are not lineage proof. Empty forks use ordinary fresh-family binding without options.
+
+Copied relationship, family and backend records remain immutable and are ignored when their native thread ID differs. Bind a new relationship and, if needed, a new child family identity through the live owner. Do not copy the parent's binding as the child's identity. Obtain cache affinity from the parent's live service, independently of Notes or sharing opt-in. The child retains its own execution, socket, cancellation and response-continuation state. No parent `previous_response_id` is transferred. Binding does not rewrite past prompts or tool records. Normal preparation supplies the child's identity on its next kickoff.
+
+Shepherdr continues to launch fresh workers by default. This API does not add a fork argument to its agent tools. Older services may reject fork binding; keep that failure visible rather than retrying as a fresh session.
 
 ### Fresh-child lifecycle
 
