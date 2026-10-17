@@ -25,6 +25,7 @@ import {
 import { handleAboutTabInput, renderAboutTab } from "./about-tab.ts";
 import { openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { buildConfigSettings, type ConfigSetting } from "./config-items.ts";
+import { ChoiceSettingSubmenu } from "./config-items-shared.ts";
 import { SETTINGS_TABS, type SettingsTab } from "./tabs.ts";
 import { nativeDevicePicker } from "./native-device-picker.ts";
 import { contextWindowPicker } from "./context-window-picker.ts";
@@ -74,6 +75,7 @@ export async function openCodexSettingsScreen(
 		let settingsList: SettingsList;
 		let devicePickerOpen = false;
 		let contextWindowPickerOpen = false;
+		let retentionPickerOpen = false;
 
 		const runEditConfig = async () => {
 			if (!options.onChange(draft)) {
@@ -151,7 +153,22 @@ export async function openCodexSettingsScreen(
 					availableContextModels,
 					ctx,
 					options.externalNotes,
-				),
+				).map((definition): ConfigSetting => {
+					if (definition.action !== "global-notebook-journals" && definition.action !== "global-notebook-checkpoint-cleanup") return definition;
+					return {
+						...definition,
+						item: {
+							...definition.item,
+							submenu: (value, back) => {
+								retentionPickerOpen = true;
+								return new ChoiceSettingSubmenu(definition.item, value, (selected) => {
+									retentionPickerOpen = false;
+									back(selected);
+								}, theme);
+							},
+						},
+					};
+				}),
 				...(activeTab === "context" ? [{ item: {
 					id: "contextWindows", label: "Context windows (openai-codex)", currentValue: "",
 					description: "Set local capacity per model in Pi models.json. Global, regardless of the Editing scope above.",
@@ -315,7 +332,7 @@ export async function openCodexSettingsScreen(
 					settingsLines = withSettingsDetails(settingsLines, [
 						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
 					]);
-				if (activeTab === "tools")
+				if (activeTab === "tools" && !retentionPickerOpen)
 					settingsLines = withSettingsDetails(
 						settingsLines,
 						formatToolsDetails(theme, options.configScope.path()),
@@ -343,7 +360,7 @@ export async function openCodexSettingsScreen(
 			},
 			invalidate: () => settingsList.invalidate(),
 			handleInput: (data: string) => {
-				if (devicePickerOpen || contextWindowPickerOpen) {
+				if (devicePickerOpen || contextWindowPickerOpen || retentionPickerOpen) {
 					settingsList.handleInput(data);
 					tui.requestRender();
 					return;
