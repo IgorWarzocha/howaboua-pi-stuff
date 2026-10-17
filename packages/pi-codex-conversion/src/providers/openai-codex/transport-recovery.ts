@@ -220,8 +220,9 @@ export function createCodexTransportStream<TApi extends Api>(
 	(async () => {
 		let output = createInitialAssistantMessage(model);
 		const sink = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
-		const requestTiming = createCodexRequestTiming(sink);
-		const diagnostics: CodexDiagnosticsSink | undefined = sink ? event => sink({ ...event, requestId: requestTiming.requestId }) : undefined;
+		const requestTiming = createCodexRequestTiming(sink, undefined, effectiveOptions?.sessionId);
+		const diagnostics: CodexDiagnosticsSink | undefined = sink ? event => sink({ ...event, requestId: requestTiming.requestId,
+			sessionRequestOrdinal: requestTiming.sessionRequestOrdinal, requestCounterProcessId: requestTiming.requestCounterProcessId }) : undefined;
 		let lane: Exclude<CodexDiagnosticsLane, "prewarm"> = "response";
 		let diagnosticsFailureRecorded = false;
 		let preconnect: ReturnType<typeof preconnectWebSocket> | undefined;

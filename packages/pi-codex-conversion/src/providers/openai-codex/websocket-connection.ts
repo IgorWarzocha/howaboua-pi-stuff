@@ -123,6 +123,14 @@ export function isWebSocketReusable(socket: WebSocketLike): boolean {
 }
 
 const socketDiagnostics = new WeakMap<WebSocketLike, { id: string; record: CodexDiagnosticsSink; clientClosed: boolean; closed: boolean }>();
+const socketRequestOrdinals = new WeakMap<WebSocketLike, number>();
+
+// Count response.create attempts, including prewarm/keepalive, even with logging off.
+export function nextWebSocketRequestOrdinal(socket: WebSocketLike): number {
+	const ordinal = (socketRequestOrdinals.get(socket) ?? 0) + 1;
+	socketRequestOrdinals.set(socket, ordinal);
+	return ordinal;
+}
 
 export function webSocketDiagnosticId(socket: WebSocketLike): string | undefined {
 	return socketDiagnostics.get(socket)?.id;

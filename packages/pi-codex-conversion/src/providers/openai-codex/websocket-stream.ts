@@ -1,7 +1,7 @@
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { createCodexRequestTiming, type CodexAttemptTiming } from "./diagnostic-timing.ts";
 import { codexRequestDiagnostics } from "./diagnostic-request.ts";
-import { webSocketDiagnosticId } from "./websocket-connection.ts";
+import { nextWebSocketRequestOrdinal, webSocketDiagnosticId } from "./websocket-connection.ts";
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { serializeCodexRequest } from "./request-serialization.ts";
@@ -72,6 +72,7 @@ export async function processWebSocketStream<TApi extends Api>(
 	};
 
 	try {
+		const socketRequestOrdinal = nextWebSocketRequestOrdinal(socket);
 		if (diagnostics && recordDiagnostics) {
 			recordDiagnostics({
 				type: "request",
@@ -86,6 +87,7 @@ export async function processWebSocketStream<TApi extends Api>(
 				socketReused: reused,
 				socketId: webSocketDiagnosticId(socket),
 				socketAgeMs,
+				socketRequestOrdinal,
 				socketLane: "main",
 				continuation: cachedRequest.decision,
 				...(cachedRequest.mismatch ? { continuationMismatch: cachedRequest.mismatch } : {}),
@@ -211,6 +213,7 @@ export async function prewarmWebSocket<TApi extends Api>(
 			recordDiagnostics?.({ type: "prewarm-ready", requestId: requestTiming.requestId, transport: "websocket", socketId: webSocketDiagnosticId(socket), socketReused: reused, socketAgeMs, socketLane, prewarm });
 			return { socketReused: reused };
 		}
+		const socketRequestOrdinal = nextWebSocketRequestOrdinal(socket);
 		recordDiagnostics?.({
 			type: "request",
 			lane: "prewarm",
@@ -224,6 +227,7 @@ export async function prewarmWebSocket<TApi extends Api>(
 			socketReused: reused,
 			socketId: webSocketDiagnosticId(socket),
 			socketAgeMs,
+			socketRequestOrdinal,
 			socketLane,
 			prewarm,
 			continuation: cachedRequest.decision,
