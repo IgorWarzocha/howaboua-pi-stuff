@@ -8,7 +8,6 @@ Read when a user asks to configure one of these disabled examples. Do not enable
 | `browser` | Legacy command-backed CDP access; prefer `@howaboua/pi-browser` |
 | `skills` | Pi was launched with `--no-skills` and the agent needs on-demand global or project skills |
 | `port_info` | A process or listener needs identifying |
-| `semantic_grep` | An installed Pi Semantic Grep index needs querying |
 | `spawn_agent` | The user wants an isolated one-shot explorer or reviewer |
 | `vent` | Repeated workflow friction belongs in `VENT.md` |
 | `workflows_create` | The user confirms a repeatable repository procedure |

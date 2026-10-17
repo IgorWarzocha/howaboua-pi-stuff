@@ -82,7 +82,6 @@ These packages are no longer maintained or published. Their source remains avail
 - [`pi-explore-subagents`](./packages/pi-explore-subagents): discovery-only subagents. Use `pi-shepherdr` for maintained agent tooling.
 - [`pi-vent`](./packages/pi-vent): workflow-friction logging, now available as a Pi Codex custom-tool example.
 - [`pi-memories`](./packages/pi-memories): shutdown memory distillation.
-- [`pi-semantic-grep`](./packages/pi-semantic-grep): embedding-based indexing and search.
 
 ## Build an integration
 

@@ -14,6 +14,7 @@ Code Mode always uses the pinned official OpenAI runtime. Local builds and `tool
 - Diagnostics now distinguish logical requests from retries and socket sends, including compaction and cache-warming traffic.
 - Unexecuted tool proposals now show Pending without retaining renderer callbacks.
 - Fixed source previews losing their tool background when truncated.
+- Removed the custom-tool example for the retired Semantic Grep extension.
 - Reduced history projection work for message-only histories.
 - Usage-ledger updates and reports now run off the main thread to keep Pi responsive as usage history grows.
 - Notebook journals now expire after one week without updates by default. `/codex` also offers indefinite retention or switching recording off and removing saved journals.
