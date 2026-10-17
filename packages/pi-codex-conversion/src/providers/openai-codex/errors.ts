@@ -171,8 +171,31 @@ export function createErrorMessage(message: AssistantMessage, error: unknown, ab
 	return message;
 }
 
-export async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string | undefined; code?: string | undefined }> {
-	const raw = await response.text();
+async function readErrorResponseText(response: Response, signal?: AbortSignal): Promise<string> {
+	if (!signal) return response.text();
+	const reader = response.body?.getReader();
+	if (!reader) return "";
+	const decoder = new TextDecoder();
+	let text = "";
+	const cancel = () => { void reader.cancel().catch(() => {}); };
+	signal.addEventListener("abort", cancel, { once: true });
+	if (signal.aborted) cancel();
+	try {
+		while (true) {
+			const chunk = await reader.read();
+			if (signal.aborted) throw new Error("Request was aborted");
+			if (chunk.done) break;
+			text += decoder.decode(chunk.value, { stream: true });
+		}
+		return text + decoder.decode();
+	} finally {
+		signal.removeEventListener("abort", cancel);
+		reader.releaseLock();
+	}
+}
+
+export async function parseErrorResponse(response: Response, signal?: AbortSignal): Promise<{ message: string; friendlyMessage?: string | undefined; code?: string | undefined }> {
+	const raw = await readErrorResponseText(response, signal);
 	let message = raw || response.statusText || "Request failed";
 	let friendlyMessage: string | undefined;
 	let code: string | undefined;

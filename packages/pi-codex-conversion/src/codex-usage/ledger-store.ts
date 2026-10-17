@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, mkdirSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdir, open, readFile, rename, rm, writeFile, type FileHandle } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { getAgentDir, type ModelRegistry } from "@earendil-works/pi-coding-agent";
@@ -27,13 +27,17 @@ function reportRecordingError(error: unknown): void {
 	lastWriteError = message;
 }
 
-async function acquireLock(path: string): Promise<number> {
+async function acquireLock(path: string): Promise<FileHandle> {
 	const deadline = Date.now() + 2_000;
 	while (true) {
 		try {
-			const fd = openSync(path, "wx", 0o600);
-			try { writeFileSync(fd, `${process.pid}\n`); }
-			catch (error) { closeSync(fd); rmSync(path, { force: true }); throw error; }
+			const fd = await open(path, "wx", 0o600);
+			try { await fd.writeFile(`${process.pid}\n`); }
+			catch (error) {
+				try { await fd.close(); }
+				finally { await rm(path, { force: true }); }
+				throw error;
+			}
 			return fd;
 		} catch (error) {
 			if (!(error && typeof error === "object" && "code" in error && error.code === "EEXIST")) throw error;
@@ -46,20 +50,29 @@ async function acquireLock(path: string): Promise<number> {
 // Multiple Pi sessions write the same account. Lock the entire read/modify/rename,
 // not just the final write; atomic rename alone loses simultaneous completions.
 export async function updateUsageLedger(key: string, at: number, update: (account: UsageAccount, ledger: UsageLedger) => void, path = usageLedgerPath()): Promise<void> {
-	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+	await mkdir(dirname(path), { recursive: true, mode: 0o700 });
 	const lock = `${path}.lock`;
 	const fd = await acquireLock(lock);
 	const temporary = `${path}.${randomUUID()}.tmp`;
 	try {
-		const ledger = readUsageLedger(path);
+		let ledger: UsageLedger;
+		try { ledger = parseUsageLedger(JSON.parse(await readFile(path, "utf8"))); }
+		catch (error) {
+			if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+			ledger = { version: 1, accounts: {} };
+		}
 		update(usageAccount(ledger, key, at), ledger);
 		parseUsageLedger(ledger);
-		writeFileSync(temporary, JSON.stringify(ledger), { mode: 0o600, flag: "wx" });
-		renameSync(temporary, path);
+		// Await persistence before releasing the lock. JSON processing still runs here,
+		// but filesystem latency must not block Pi's event loop.
+		await writeFile(temporary, JSON.stringify(ledger), { mode: 0o600, flag: "wx" });
+		await rename(temporary, path);
 	} finally {
-		rmSync(temporary, { force: true });
-		closeSync(fd);
-		rmSync(lock, { force: true });
+		try { await rm(temporary, { force: true }); }
+		finally {
+			try { await fd.close(); }
+			finally { await rm(lock, { force: true }); }
+		}
 	}
 }
 

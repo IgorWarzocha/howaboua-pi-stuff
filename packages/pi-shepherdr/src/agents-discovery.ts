@@ -78,7 +78,7 @@ export async function agentsHelp(
 			watch:
 				"Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt:
-				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
+				"Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
 			slash:
 				"Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
 			reuse:

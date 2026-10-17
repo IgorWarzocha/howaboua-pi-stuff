@@ -326,7 +326,7 @@ The optional attachment methods vary with the installed provider. Check their pr
 
 ### Parent and worker relationships
 
-The same service optionally exposes `bindRelationship(ctx: ExtensionContext, relationship: unknown): CodexAgentRelationship`. The exported `CodexAgentRelationship` type has optional `parentThreadId: string` and `subagentKind: string` fields. At least one must be present. Values must be nonempty printable ASCII without spaces. A worker cannot name itself as its parent.
+The same service optionally exposes `bindRelationship(ctx: ExtensionContext, relationship: unknown): CodexAgentRelationship`. The exported `CodexAgentRelationship` type has optional `parentThreadId: string`, `subagentKind: string` and `cacheAffinityId: string` fields. At least one must be present. Values must be nonempty printable ASCII without spaces. Cache affinity is limited to 64 characters. A worker cannot name itself as its parent.
 
 Check capability availability on the live child service before binding:
 
@@ -351,6 +351,8 @@ Your orchestrator supplies the trusted transport to that live child owner. This 
 Parent and worker retain distinct native Pi session IDs. Linkage does not merge their transcripts, grant notes access or require **Share subagent context**. Shared-note family IDs and agent paths remain a separate contract. Binding requires a fresh idle session before its first task. Repeating the same binding is idempotent; a conflicting binding fails. Resume preserves the relationship on the original native thread. A fork creates a new native thread and does not inherit it.
 
 PCC includes the relationship in supported Codex request metadata, including prewarm and native compaction. These fields identify linkage and classification, not shared storage or a promised backend quota policy. Older services without this optional method still support their existing capabilities.
+
+An orchestrator can explicitly add `cacheAffinityId` to route selected workers with a shared `prompt_cache_key` and Responses `session-id`. Verify the returned binding includes it before submitting work, since older services may omit unsupported fields. Native `thread-id`, request identity, sockets, cancellation and canonical history remain private to each worker. Shepherdr does not enable shared affinity automatically. Sharing helps only matching prompt prefixes. Fresh workers do not inherit their parent's transcript, and different instructions, models or tools can reduce overlap.
 
 ### Fresh-child lifecycle
 

@@ -4,6 +4,7 @@ import { codexRequestDiagnostics } from "./diagnostic-request.ts";
 import { webSocketDiagnosticId } from "./websocket-connection.ts";
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
+import { serializeCodexRequest } from "./request-serialization.ts";
 import { acquireWebSocket, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
 import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
@@ -98,7 +99,7 @@ export async function processWebSocketStream<TApi extends Api>(
 			});
 		}
 		diagnostics?.timing.sent();
-		socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
+		socket.send(serializeCodexRequest({ type: "response.create", ...requestBody }));
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
 				mapCodexEvents(
@@ -234,7 +235,7 @@ export async function prewarmWebSocket<TApi extends Api>(
 			previousResponseId: Boolean(requestBody.previous_response_id),
 		});
 		timing.sent();
-		socket.send(JSON.stringify({ type: "response.create", ...requestBody, ...(generate ? {} : { generate: false }) }));
+		socket.send(serializeCodexRequest({ type: "response.create", ...requestBody, ...(generate ? {} : { generate: false }) }));
 		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => {
 			if (!preserveContinuation) turnState?.capturePrewarm(value);
 		}), undefined, (event) => { timing.observe(event); return options.onProviderStreamEvent?.(event, model); })) {
