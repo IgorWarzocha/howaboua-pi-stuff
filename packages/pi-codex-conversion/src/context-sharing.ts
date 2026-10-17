@@ -40,6 +40,8 @@ export interface ContextSharingService {
 	canCreateChild(ctx: ExtensionContext): boolean;
 	/** Bind a fresh worker before its first task, even with context sharing disabled. */
 	bindRelationship?(ctx: ExtensionContext, relationship: unknown): import("./context-management/agent-relationship.js").CodexAgentRelationship;
+	/** Effective cache routing identity, independent of notes sharing and native execution state. */
+	cacheAffinityId?(ctx: ExtensionContext): string;
 	describe(ctx: ExtensionContext): ContextAgentIdentity | undefined;
 	verify(ctx: ExtensionContext): Promise<void>;
 	createChild(ctx: ExtensionContext, options: { name: string; routing?: unknown }): Promise<{

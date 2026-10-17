@@ -11,7 +11,7 @@ import { createPiSessionNotesSnapshot, readPiSessionNotesSnapshot } from "./loca
 import { executeRemoteAttachment } from "./history-notes.ts";
 import { readRemoteNoteReference, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 import type { NotesOwner } from "./external-notes-protocol.ts";
-import { bindCodexAgentRelationship } from "./agent-relationship.ts";
+import { bindCodexAgentRelationship, codexAgentRelationship } from "./agent-relationship.ts";
 
 async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string, backendUrl?: string): Promise<string> {
 	const provider = await resolveRemoteContextProvider(ctx);
@@ -67,6 +67,7 @@ export function registerContextSharingService(
 	const service: ContextSharingService = {
 		protocol: 1,
 		bindRelationship: (ctx, relationship) => bindCodexAgentRelationship(pi, ctx, relationship, externalOwner()?.canBind),
+		cacheAffinityId: (ctx) => codexAgentRelationship(ctx)?.cacheAffinityId ?? ctx.sessionManager.getSessionId(),
 		canCreateChild: (ctx) => plan(ctx).shareSubagentContext,
 		describe,
 		async verify(ctx) {

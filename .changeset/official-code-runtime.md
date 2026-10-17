@@ -10,7 +10,7 @@ Tightened notes guidance to favour concise milestone checkpoints over progress l
 
 - Added optional cache affinity for child-agent integrations without sharing execution state.
 - Routing fields now precede prompt input in outgoing requests.
-- WebSocket connection recovery now tries one fresh socket before SSE fallback, with a five-minute recovery limit after the first failure.
+- WebSocket connection recovery allows up to three fresh retries within five minutes after the first failure, then switches to SSE with its own five-minute recovery window.
 - Unexecuted tool proposals now show Pending without retaining renderer callbacks.
 - Fixed source previews losing their tool background when truncated.
 - Reduced history projection work for message-only histories.
