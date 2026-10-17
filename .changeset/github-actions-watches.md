@@ -2,4 +2,4 @@
 "@howaboua/pi-github-watch": patch
 ---
 
-Watch GitHub Actions run URLs and wake the session once a run finishes. Completed runs return their result immediately.
+Added GitHub Actions run watches that wake the session when a run finishes. Completed runs return their result immediately.
