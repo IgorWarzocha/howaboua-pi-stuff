@@ -15,4 +15,4 @@ Tightened notes guidance to favour concise milestone checkpoints over progress l
 - Unexecuted tool proposals now show Pending without retaining renderer callbacks.
 - Fixed source previews losing their tool background when truncated.
 - Reduced history projection work for message-only histories.
-- Usage-ledger file operations now run asynchronously; JSON processing remains synchronous.
+- Usage-ledger updates and reports now run off the main thread to keep Pi responsive as usage history grows.
