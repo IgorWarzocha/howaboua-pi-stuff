@@ -473,7 +473,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						}
 						// A transport switch is still another request to the same backend.
 						// SSE gets its own bounded window, never the exhausted WebSocket signal.
-						if (recoveryDeadlineAt !== undefined) startTransportRecovery(true);
+						startTransportRecovery(true);
 						if (!immediateFallback && retryPlan.serverDirected) await waitBeforeRetry(error, attempt + 1, retryPlan);
 						// Pi supplies resolved request auth, not a force-refresh handle. Keep 401
 						// fallback turn-local so refreshed auth can use WebSockets on the next turn.
@@ -499,6 +499,8 @@ export function createCodexTransportStream<TApi extends Api>(
 				}
 			}
 
+			// Preparation can discover incompatibility before the live WebSocket send.
+			if (effectiveTransport !== "sse" && transport === "sse") startTransportRecovery();
 			const sseIdleTimeoutMs = normalizeTimeoutMs(effectiveOptions?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
 			for (let attempt = 0; attempt <= streamMaxRetries; attempt++) {
 				if (attempt > 0) output = createInitialAssistantMessage(model);
