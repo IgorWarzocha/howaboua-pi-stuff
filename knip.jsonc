@@ -83,6 +83,11 @@
 				"src/protocol/index.ts": ["exports", "types"]
 			}
 		},
+		"packages/pi-pulses": {
+			"entry": ["integration.ts"],
+			"project": ["*.ts", "src/**/*.ts"],
+			"ignoreDependencies": ["@howaboua/pi-codex-conversion"]
+		},
 		"packages/pi-shepherdr": {
 			"entry": ["changelog.ts", "profiles/**/*.mjs"]
 		},

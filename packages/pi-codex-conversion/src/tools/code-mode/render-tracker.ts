@@ -8,7 +8,7 @@ export interface CodeModeRenderTracker {
 	): void;
 	start(toolCallId: string): void;
 	finish(toolCallId: string, status?: Exclude<RenderStatus, "running">): void;
-	status(toolCallId: string | undefined): RenderStatus;
+	status(toolCallId: string | undefined): RenderStatus | undefined;
 }
 
 export function createCodeModeRenderTracker(): CodeModeRenderTracker {
@@ -19,9 +19,9 @@ export function createCodeModeRenderTracker(): CodeModeRenderTracker {
 	return {
 		register(toolCallId, invalidate) {
 			if (!toolCallId) return;
-			const entry = entries.get(toolCallId) ?? { status: "running" as const };
-			entry.invalidate = invalidate;
-			entries.set(toolCallId, entry);
+			// Rendering a streamed proposal must not retain its UI or start execution.
+			const entry = entries.get(toolCallId);
+			if (entry?.status === "running") entry.invalidate = invalidate;
 		},
 		start(toolCallId) {
 			const entry = entries.get(toolCallId) ?? { status: "running" as const };
@@ -42,7 +42,7 @@ export function createCodeModeRenderTracker(): CodeModeRenderTracker {
 			if (changed) invalidate?.();
 		},
 		status(toolCallId) {
-			return toolCallId ? (entries.get(toolCallId)?.status ?? "done") : "done";
+			return toolCallId ? entries.get(toolCallId)?.status : undefined;
 		},
 	};
 }

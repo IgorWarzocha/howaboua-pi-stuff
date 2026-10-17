@@ -194,7 +194,7 @@ Child board calls use the owning Pi sessions and existing SSH connections, not a
 
 ## Shared notes and history
 
-With compatible Pi Codex Conversion on both ends, Shepherdr marks fresh spawned workers before their first task with their immediate parent's native Pi session ID and `subagentKind: "collab_spawn"`. Each worker keeps its own native session ID. This relationship works with shared notes disabled and does not grant notes access. Resume preserves it; forks and profiles selecting existing sessions do not acquire an inherited relationship. Older PCC versions without the optional capability retain ordinary delegation. The [extension API guide](../../docs/extension-apis.md#parent-and-worker-relationships) documents PCC's `bindRelationship` service contract for other orchestrators. Shepherdr owns transport, not a separate public relationship RPC API.
+With compatible Pi Codex Conversion on both ends, Shepherdr marks fresh spawned workers before their first task with their immediate parent's native Pi session ID and `subagentKind: "collab_spawn"`. Workers also inherit the parent's effective cache routing identity, including nested and remote spawns. Each worker keeps its own native session, sockets and history. Cache routing works with shared notes disabled and does not grant notes access or copy the parent's transcript. Only matching prompt prefixes can benefit. Resume preserves the relationship; forks and profiles selecting existing sessions do not acquire it. Older PCC versions retain ordinary delegation and any supported parent linkage. The [extension API guide](../../docs/extension-apis.md#parent-and-worker-relationships) documents PCC's service contract for other orchestrators. Shepherdr owns transport, not a separate public relationship RPC API.
 
 With Pi Codex Conversion 3.0.40 or newer and notes-based continuity, enable **Share subagent context** under `/codex context` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; `contextAgent` in the result identifies its notes and history. Shared nested spawns stay in the same family. Turning sharing off affects new spawns only; existing identity survives resume. `assign` and independently started agents remain unchanged. Older compatible Conversion versions keep ordinary delegation without sharing.
 
@@ -249,6 +249,14 @@ Optional profile settings:
 Ordinary delegation stays inside `agents`. For workspace, tab, pane, process, focus, layout or raw-terminal operations, run `herdr --skill` and follow the installed Herdr skill. Shepherdr does not duplicate those controls.
 
 Herdr still owns terminals, layout, agent processes and restored sessions. Shepherdr owns event subscriptions, remote routing, the fleet widget and purple settlement messages.
+
+## Pulse runner
+
+Shepherdr implements Pulses' optional detached-runner contract through Pi events. Pulses owns scheduling. Each worker runs in a separate Pi process, so the main agent remains available. Its final response returns through the same monitored waking delivery as asynchronous `agents` calls, including ordinary kickoff preparation and rollover admission. There is no passive-result or blocking execution mode.
+
+The adapter reuses owned saved sessions, refuses overlapping work and verifies parent session, branch and pane identity. Worker receipts are opaque to Pulses. Use ordinary Shepherdr controls to manage worker panes. Detached pulse workers cannot become schedulers themselves.
+
+Fresh and restored workers use the `general` profile's model, thinking level and explicit Pi arguments without its implementation-role prompt. Ordinary agent spawns still use the complete profile. Fresh workers inherit the existing family board independently of their working directory, alongside optional shared Notes and cache affinity. The adapter does not choose an output destination or keep the controlling Pi alive.
 
 ## License
 

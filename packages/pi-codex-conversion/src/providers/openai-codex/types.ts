@@ -91,7 +91,11 @@ export interface CodexRequestDiagnostics {
 	subagentKind: string;
 }
 
-export type CodexDiagnosticsEvent = { requestId?: string | undefined } & (
+export type CodexDiagnosticsEvent = {
+	requestId?: string | undefined;
+	sessionRequestOrdinal?: number | undefined;
+	requestCounterProcessId?: string | undefined;
+} & (
 	| {
 			type: "connection";
 			socketId: string;
@@ -130,6 +134,7 @@ export type CodexDiagnosticsEvent = { requestId?: string | undefined } & (
 			socketReused?: boolean | undefined;
 			socketId?: string | undefined;
 			socketAgeMs?: number | undefined;
+			socketRequestOrdinal?: number | undefined;
 			socketLane?: "main" | "keepalive" | undefined;
 			continuation?: WebSocketContinuationDecision | undefined;
 			continuationMismatch?: WebSocketContinuationMismatch | undefined;

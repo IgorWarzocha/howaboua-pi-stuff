@@ -1,4 +1,5 @@
 - Persist explicit user actions only. Startup/resume reads config.
+- Destructive retention controls use a choice submenu. Browsing must not save or delete; Enter applies and Esc cancels.
 - Execution mode is scoped normal/code/notebook. Never store it in session entries or expose inherited mode.
 - config-items.ts dispatches tabs, config-items-<tab>.ts builds them, config-items-shared.ts owns shared controls/types.
 - /codex opens General. Feature actions stay under tabs. No default-tab arguments or quick-toggle aliases.

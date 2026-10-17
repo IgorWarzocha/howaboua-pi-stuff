@@ -133,12 +133,12 @@ async function fetchCodexUsageRequest(
 	return snapshot;
 }
 
-export async function fetchCodexUsage(ctx: ExtensionContext, onAccount?: (key: string, nonstandard: boolean) => void): Promise<CodexUsageSnapshot> {
+export async function fetchCodexUsage(ctx: ExtensionContext, onAccount?: (key: string, nonstandard: boolean) => void | Promise<void>): Promise<CodexUsageSnapshot> {
 	const model = ctx.model;
 	if (!model) throw new Error("No active model selected.");
 	const request = await resolveCodexUsageRequest(ctx, model);
 	const accountId = request.headers.get("chatgpt-account-id");
-	if (accountId) onAccount?.(createHash("sha256").update(accountId).digest("hex"), request.nonstandard);
+	if (accountId) await onAccount?.(createHash("sha256").update(accountId).digest("hex"), request.nonstandard);
 	return fetchCodexUsageRequest(request, ctx.signal);
 }
 

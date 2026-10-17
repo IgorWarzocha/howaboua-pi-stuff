@@ -24,9 +24,9 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes persist across windows. Keep one checkpoint per task at a stable path, covering the request, constraints, decisions, progress, next steps and history IDs so you can resume without rereading the conversation. Replace stale state; mark completion in place. Keep reusable findings and deferred ideas in separate topic notes; link, don't copy. Recording isn't permission to implement.
+Notes are recovery state, not a diary. Keep one concise checkpoint per task at a stable path: request, constraints, decisions, status, next steps and history IDs. Use write_file to replace stale state and mark completion. Store durable details once; link to topic notes or artifacts. Recording isn't permission to implement.
 
-Save changed state after substantial work, before replying, and before new_context or handoff. Skip routine or unchanged state. Include checkpoint paths in handoffs. After rollover, read the checkpoint, then linked notes as needed. History retrieves earlier conversation; use it only for missing details.
+Batch saves at meaningful milestones, not every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

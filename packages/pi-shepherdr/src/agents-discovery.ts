@@ -54,7 +54,7 @@ export async function agentsHelp(
 				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
 			target:
 				"Use spawn/find target exactly; /root selects this family's live root",
-			label: "Concise tab/session name",
+			label: "Short tab/session name; prefer two words when useful",
 			...(boardAvailable
 				? {
 						board_thread_id:
@@ -78,7 +78,7 @@ export async function agentsHelp(
 			watch:
 				"Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt:
-				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
+				"Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
 			slash:
 				"Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
 			reuse:

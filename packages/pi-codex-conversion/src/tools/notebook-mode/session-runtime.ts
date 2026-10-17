@@ -1,11 +1,13 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
 import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
 import type { NotebookMemoryUsage, ToolExecutionContext } from "../code-mode/types.ts";
 import type { NotebookBridgeServer } from "./bridge-server.ts";
 import { resolveNotebookCheckpointMaxBytes } from "./checkpoint.ts";
 import type { NotebookCheckpointIdentity } from "./checkpoint-format.ts";
 import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
-import { materializeNotebookJournal, type NotebookJournal } from "./journal.ts";
+import { initializeNotebookJournal, materializeNotebookJournal, type NotebookJournal } from "./journal.ts";
+import { notebookJournalRetention, scheduleNotebookStorageMaintenance } from "./storage-retention.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { extractNotebookNpmImports, recordNotebookNpmImports } from "./npm-imports.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
@@ -20,6 +22,7 @@ import {
 } from "./runtime-health.ts";
 import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
+import { activateNotebookCheckpoint, type NotebookCheckpointActivity } from "./checkpoint-activity.ts";
 
 const MAX_NOTICE_CHARS = 16_384;
 
@@ -42,6 +45,8 @@ export class NotebookSessionRuntime {
 	private baseline = new Set<string>();
 	private startedAtValue: number | undefined;
 	private profileLoaded = false;
+	private completedUserCells = 0;
+	private checkpointActivity: NotebookCheckpointActivity | undefined;
 
 	constructor(options: {
 		runtime: NotebookRuntimeOptions;
@@ -68,6 +73,7 @@ export class NotebookSessionRuntime {
 	}
 
 	async ensure(context: ToolExecutionContext, signal?: AbortSignal): Promise<void> {
+		scheduleNotebookStorageMaintenance(this.options.agentDir);
 		const extension = context.extensionContext;
 		if (!extension) throw new Error("Notebook Code Mode requires an extension session context");
 		this.extensionContext = extension;
@@ -76,6 +82,7 @@ export class NotebookSessionRuntime {
 			this.beginStartup(extension, signal);
 		}
 		await this.startup;
+		this.checkpointActivity?.touch();
 	}
 
 	async restart(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<string | undefined> {
@@ -155,6 +162,8 @@ export class NotebookSessionRuntime {
 		this.startedAtValue = undefined;
 		this.profileLoaded = false;
 		await kernel?.shutdown().catch(() => undefined);
+		this.checkpointActivity?.release();
+		this.checkpointActivity = undefined;
 		await this.bridge.shutdown();
 	}
 
@@ -163,9 +172,18 @@ export class NotebookSessionRuntime {
 	runtimeHealthFor(context: ExtensionContext): NotebookRuntimeHealth {
 		return this.identityMatches(context) ? this.runtimeHealth() : { state: "not_started" };
 	}
-	journal(): NotebookJournal | undefined { return this.journalValue; }
+	journal(): NotebookJournal | undefined {
+		if (notebookJournalRetention(this.options.agentDir) === "off") return undefined;
+		if (this.checkpointIdentityValue && (!this.journalValue || !existsSync(this.journalValue.path))) {
+			this.journalValue = initializeNotebookJournal(this.checkpointIdentityValue, this.checkpointMaxBytes);
+		}
+		return this.journalValue;
+	}
+	recordCompletedCell(): void { this.completedUserCells += 1; }
+	cellCount(): number { return Math.max(this.completedUserCells, this.journalValue?.cells ?? 0); }
 	materializeJournal(): void {
-		if (this.journalValue) materializeNotebookJournal(this.journalValue);
+		const journal = this.journal();
+		if (journal) materializeNotebookJournal(journal);
 	}
 	baselineNames(): ReadonlySet<string> { return this.baseline; }
 	configuredProfileLoaded(): boolean { return this.profileLoaded; }
@@ -202,7 +220,7 @@ export class NotebookSessionRuntime {
 	} {
 		return {
 			startedAt: this.startedAtValue,
-			userCells: this.journalValue?.completedCells ?? 0,
+			userCells: this.completedUserCells,
 			memory: this.memoryValue,
 			checkpoint: this.checkpoints.status(),
 		};
@@ -212,7 +230,12 @@ export class NotebookSessionRuntime {
 		this.identityValue = sessionIdentity(context);
 		this.extensionContext = context;
 		this.memoryValue = undefined;
-		const started = await startNotebookSession({
+		this.checkpointActivity?.release();
+		this.checkpointActivity = await activateNotebookCheckpoint({
+			project: resolveNotebookProject(context.cwd), session: notebookSessionIdentity(context), agentDir: this.options.agentDir,
+		});
+		let started: Awaited<ReturnType<typeof startNotebookSession>>;
+		try { started = await startNotebookSession({
 			context,
 			runtime: skipProfile && this.options.profile
 				? { ...this.options, profile: undefined }
@@ -221,10 +244,15 @@ export class NotebookSessionRuntime {
 			checkpointMaxBytes: this.checkpointMaxBytes,
 			onKernelFailure: (kernel) => this.handleKernelFailure(kernel),
 			...(signal ? { signal } : {}),
-		});
+		}); } catch (error) {
+			this.checkpointActivity.release();
+			this.checkpointActivity = undefined;
+			throw error;
+		}
 		this.kernelValue = started.kernel;
 		this.startedAtValue = Date.now();
 		this.journalValue = started.journal;
+		this.completedUserCells = started.journal?.completedCells ?? 0;
 		this.checkpointIdentityValue = started.checkpointIdentity;
 		this.baseline = started.baselineNames;
 		this.profileLoaded = started.configuredProfileLoaded;

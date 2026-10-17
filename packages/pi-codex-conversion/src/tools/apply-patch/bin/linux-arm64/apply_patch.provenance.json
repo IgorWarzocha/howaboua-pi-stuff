@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "openai/codex",
-    "revision": "c4017a87aacc7558002b7cb510025e967c1d765e",
-    "inputsSha256": "6f98a62ec191bcaa2467d9ac52fcfa1cf06714ca45040639011447451c292854"
+    "revision": "83086188ae0614bd882818ff1aa23f3194962012",
+    "inputsSha256": "4c108aaf9fd3f51b096f2cf898abc6e76536a728e5ffcddf8773e3f907191229"
   },
   "binary": {
-    "sha256": "8d519202bb351271f1b4a48dd20e4d52accd2126d8a246ef57ff381b8ca25a30"
+    "sha256": "5805fbbca863cedc70e5155a2e329b8ca63d7b84a643169debee9a23ba3e622c"
   },
   "build": {
     "target": "aarch64-unknown-linux-gnu",
-    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
-    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)"
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)"
   }
 }

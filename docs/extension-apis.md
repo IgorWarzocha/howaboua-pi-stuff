@@ -17,13 +17,13 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 | Shared notes without PCC | Notes Compaction and your own compatible Notes bridge | Identity, routing, ownership handoff and any optional provider services you choose to implement |
 | A Pi tool usable from Code or Notebook | A normal Pi tool, with PCC present | Usually no extra registration. Use the Code Mode API for custom behavior |
 | A local tool callable by Grok voice | [Grok Realtime](../packages/pi-grok-realtime/README.md) | A `GrokToolDefinition` |
-| A miniapp in GipPity's browser UI | [GipPity Control](../packages/pi-gippity-control/README.md), or PCC's included GipPity | A static app and a state/event provider |
+| A miniapp in GipPity's browser UI | The standalone [GipPity Control](../packages/pi-gippity-control/README.md) extension | A static app and a state/event provider |
 
 **Without Shepherdr does not mean without an orchestrator.** Board and Notes do not find arbitrary agents, launch processes, invent membership or authenticate another extension's transport. Shepherdr is one consumer of these APIs, not a required process manager.
 
 Board's adapter is an explicitly exported package API. Notes' lower-level bridge is a documented event protocol, with no separately exported bridge SDK. A custom bridge is possible, but it is more work than connecting the existing PCC context-sharing service. Installing Notes alone does not turn another subagent extension into a shared-notes host.
 
-Board and Notes require Pi 1.1.0 or newer. For the combined PCC/Notes integration described here, use PCC 3.0.49 or newer and Notes Compaction 0.0.3 or newer. Check each package's manifest for its Node.js and peer requirements.
+Board requires Pi 1.1.0 or newer. Notes requires Pi 1.2.0 or newer. Integrations involving current PCC require Pi 1.3.0 or newer. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
 
 ```mermaid
 flowchart LR
@@ -49,7 +49,7 @@ flowchart LR
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-hooks` | Nested-call preflight and completion | [`code-mode-hooks.ts`](../packages/pi-codex-conversion/src/code-mode-hooks.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-preflight` | Supported older preflight import | [`code-mode-preflight.ts`](../packages/pi-codex-conversion/src/code-mode-preflight.ts) |
-| `@howaboua/pi-codex-conversion/developer-messages` | Developer delivery, prepared kickoffs and context briefings | [`developer-messages.ts`](../packages/pi-codex-conversion/src/developer-messages.ts) |
+| `@howaboua/pi-codex-conversion/developer-messages` | Developer delivery, reminder annotation and context briefings | [`developer-messages.ts`](../packages/pi-codex-conversion/src/developer-messages.ts) |
 | `@howaboua/pi-codex-conversion/apply-patch-display` | Custom patch presentation | [`apply-patch-display.ts`](../packages/pi-codex-conversion/src/apply-patch-display.ts) |
 | `@howaboua/pi-codex-conversion/realtime-voice` | Voice announcements | [`realtime-voice.ts`](../packages/pi-codex-conversion/src/realtime-voice.ts) |
 | `@howaboua/pi-grok-realtime/tools` | Register local Grok voice tools | [`tools.ts`](../packages/pi-grok-realtime/src/tools.ts) |
@@ -234,6 +234,8 @@ sequenceDiagram
 | `identity(ctx)` | `WindowIdentity` or `undefined`; first/current/previous window IDs and zero-based `windowNumber` |
 | `projectMessages(messages)` | The active-window `AgentMessage[]` |
 | `projectBranch(entries)` | The corresponding projected `SessionEntry[]` |
+| `allowsCompaction(reason)` | Optional policy check before starting compaction work. The owner's hook handles notes-only rollover |
+| `allowsWindowRequests()` | Optional check of whether the owner permits new-window requests |
 | `canBind(ctx)` | Optional boolean freshness check for a host's family binding |
 | `snapshotNotes(entries, agentName)` | Optional plaintext note snapshot for that owner |
 | `executeShared(query, callId, ctx, signal?)` | Optional owner-side execution returning an `AgentToolResult<SharedNotesDetails>` |
@@ -246,6 +248,7 @@ Besides `claim`, a bridge may provide:
 
 | Method | Responsibility |
 |---|---|
+| `prepareReminder(entry)` | Return a `CustomMessageEntryDraft` with any metadata needed for developer-role delivery. Preserve the owner's chronological entry without sending it |
 | `configureTools(tools, ctx, contracts)` | Configure the same tools for nested execution and discovery |
 | `beforeWindow(ctx, signal?)` | Finish host-owned preparation before a new window marker is committed |
 | `agentName(ctx)` | Supply this session's family agent path |
@@ -307,6 +310,7 @@ Read `connection.service` at the point of use. It is optional and can become ava
 | `protocol` | `1` |
 | `canCreateChild(ctx)` | Whether parental shared-context opt-in permits a new child |
 | `bindRelationship(ctx, relationship)` | Optional synchronous binding of native parent linkage and worker classification in a fresh idle child, independently of shared notes |
+| `cacheAffinityId(ctx)` | Optional effective cache routing identity: explicit relationship affinity or the native Pi session ID |
 | `describe(ctx)` | `ContextAgentIdentity` or `undefined` |
 | `verify(ctx)` | Checks applicable Remote account compatibility |
 | `createChild(ctx, { name, routing? })` | A promise of `{ binding, adopt() }`; prepares a child identity |
@@ -326,7 +330,7 @@ The optional attachment methods vary with the installed provider. Check their pr
 
 ### Parent and worker relationships
 
-The same service optionally exposes `bindRelationship(ctx: ExtensionContext, relationship: unknown): CodexAgentRelationship`. The exported `CodexAgentRelationship` type has optional `parentThreadId: string` and `subagentKind: string` fields. At least one must be present. Values must be nonempty printable ASCII without spaces. A worker cannot name itself as its parent.
+The same service optionally exposes `bindRelationship(ctx: ExtensionContext, relationship: unknown): CodexAgentRelationship`. The exported `CodexAgentRelationship` type has optional `parentThreadId: string`, `subagentKind: string` and `cacheAffinityId: string` fields. At least one must be present. Values must be nonempty printable ASCII without spaces. Cache affinity is limited to 64 characters. A worker cannot name itself as its parent.
 
 Check capability availability on the live child service before binding:
 
@@ -351,6 +355,8 @@ Your orchestrator supplies the trusted transport to that live child owner. This 
 Parent and worker retain distinct native Pi session IDs. Linkage does not merge their transcripts, grant notes access or require **Share subagent context**. Shared-note family IDs and agent paths remain a separate contract. Binding requires a fresh idle session before its first task. Repeating the same binding is idempotent; a conflicting binding fails. Resume preserves the relationship on the original native thread. A fork creates a new native thread and does not inherit it.
 
 PCC includes the relationship in supported Codex request metadata, including prewarm and native compaction. These fields identify linkage and classification, not shared storage or a promised backend quota policy. Older services without this optional method still support their existing capabilities.
+
+An orchestrator can explicitly add `cacheAffinityId` to route selected workers with a shared `prompt_cache_key` and Responses `session-id`. The optional `cacheAffinityId(ctx)` service method returns the parent's effective affinity, falling back to its native Pi session ID. It works with shared notes disabled and can be read after the parent has started work. Shepherdr uses it for fresh workers, so roots and nested children use matching routing without rebinding active parents. Verify the returned binding includes the requested affinity, since older services may omit unsupported fields. Shepherdr accepts older targets' parent linkage with a warning that shared cache routing is unavailable. Native `thread-id`, request identity, sockets, cancellation and canonical history remain private to each worker. Attachments do not change cache routing. Sharing helps only matching prompt prefixes. Fresh workers do not inherit their parent's transcript, and different instructions, models or tools can reduce overlap.
 
 ### Fresh-child lifecycle
 
@@ -442,6 +448,8 @@ Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS
 
 `new_context` remains a sequential model-only tool. Never put it under an `exec` cell or a nested-tool wrapper.
 
+Notebook shares retained project bindings between sessions using the same project and Pi agent directory. Each running kernel keeps its own working state. Session checkpoints and journals follow the user's `/codex` retention settings, so an old session may resume without its temporary variables. Cleanup does not remove shared project and profile bindings, Notes or Pi conversation history. These cache files are not an inter-agent transport API.
+
 ### Observe and guard nested calls
 
 Pi's ordinary tool events see outer `exec` and `wait` calls. Use the separate nested-call hooks when you need to inspect the operations inside them.
@@ -460,16 +468,18 @@ Use the `developer-messages` subpath for these functions:
 
 | Function | Contract |
 |---|---|
-| `sendCodexDeveloperMessage(pi, content, options?)` | Sends persistent developer content or throws |
-| `trySendCodexDeveloperMessage(pi, content, options?)` | Returns `false` only when delivery capability is unavailable; delivery failures throw |
+| `sendCodexDeveloperMessage(pi, content, options?)` | Accepts persistent developer content for delivery or throws |
+| `trySendCodexDeveloperMessage(pi, content, options?)` | Returns `true` when accepted, or `false` only when delivery capability is unavailable. Delivery failures throw |
 | `trySendCodexDeveloperCustomMessage(pi, message, options?)` | Same distinction while preserving the caller's custom renderer/details |
-| `tryStartCodexPreparedIdlePrompt(pi, start?, prompt?)` | Requests prepared idle admission; returns `started`, `pending` or `false` |
-| `tryStartCodexPreparedIdleKickoff(pi, ctx, prompt?)` | Boolean convenience wrapper that notifies when a kickoff remains pending |
-| `updateCodexPreparedIdleKickoff(pi, action)` | Reports `agent_start`, `agent_settled` or `session_reset` to the shared kickoff owner |
+| `withCodexDeveloperMessageDetails(message)` | Return a copy with PCC developer-message metadata. Requires object-valued `details`. Does not send or start a turn |
 | `registerCodexContextBriefing(pi, handler)` | Registers an admission-time briefing callback; returns an unsubscribe function |
 | `hasCodexContextBriefingHost(pi)` | Checks whether briefing projection is available |
 
-Message options are `deliverAs: "steer" | "followUp" | "nextTurn"` and optional `triggerTurn`. Developer delivery by itself does not run the complete preparation chain for a new user task. For an idle agent, stage needed content and use the prepared user kickoff. For an already-running agent, steering is a different operation.
+Message options are optional `deliverAs: "steer" | "followUp" | "nextTurn"` and `triggerTurn`. `nextTurn` queues context without starting a turn, even if `triggerTurn` is true. An accepted message may still be waiting for preparation. Acceptance does not acknowledge task execution, and a preparation failure can leave the message pending rather than unsent.
+
+PCC 4.0 removed `tryStartCodexPreparedIdlePrompt`, `tryStartCodexPreparedIdleKickoff` and `updateCodexPreparedIdleKickoff`. Use Pi's `pi.sendUserMessage(content, options?)` for a user task, or `pi.sendMessage(message, { triggerTurn: true })` for a custom-message kickoff. Pi runs `before_agent_start` for new user-message runs and idle custom kickoffs. Custom kickoffs skip `input` hooks, and steering into an existing run does not start a new preparation cycle. Finish any tree navigation before starting the run, since preparation already counts as busy.
+
+The PCC delivery helpers require an active Responses adapter and mark their messages for developer-role projection. An ordinary Pi custom message is not automatically a developer message. Its `display` flag controls UI visibility, not provider role.
 
 A custom message supplies `customType`, nonempty `content`, `display` and optional plain-object `details`. PCC reserves the `@howaboua/pi-codex-conversion/developer-message` details key. Do not fall back after a delivery failure and risk sending the same task twice.
 

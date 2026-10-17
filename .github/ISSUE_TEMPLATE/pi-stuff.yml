@@ -30,7 +30,6 @@ body:
         - pi-codex-guardian
         - pi-codex-imagegen
         - pi-codex-web-run
-        - pi-dynamic-tools
         - pi-explore-subagents
         - pi-gippity-control
         - pi-github-watch

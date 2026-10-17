@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "source": {
     "repository": "openai/codex",
-    "revision": "c4017a87aacc7558002b7cb510025e967c1d765e",
-    "inputsSha256": "6f98a62ec191bcaa2467d9ac52fcfa1cf06714ca45040639011447451c292854"
+    "revision": "83086188ae0614bd882818ff1aa23f3194962012",
+    "inputsSha256": "4c108aaf9fd3f51b096f2cf898abc6e76536a728e5ffcddf8773e3f907191229"
   },
   "binary": {
-    "sha256": "b5bd3e8167cf1135fc725feb9fc11b65e7c59162876bbf683c28d628151659df"
+    "sha256": "02d2ac41b560e5b187c9770b43828d6c711223f95c48971aa4c050a21544b417"
   },
   "build": {
     "target": "aarch64-apple-darwin",
-    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
-    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)"
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)"
   }
 }

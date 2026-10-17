@@ -2,13 +2,13 @@
 
 The contract follows OpenAI Codex image generation at commit b545c94041017d000e2c8b2f6272705d21b85dfb.
 
-The TypeScript implementation uses `gpt-image-2.5` instead of the snapshot's `gpt-image-2`.
+The TypeScript implementation uses `gpt-image-2.5` instead of the baseline's `gpt-image-2`.
 
-Reference snapshots live under upstream/. The executable implementation is TypeScript: it preserves Codex generation/edit selectors, native image endpoints, response metadata, and workspace-local artifacts without bundling the Rust client.
+The upstream source is `codex-rs/ext/image-generation/`, `codex-rs/codex-api/src/endpoint/images.rs` and `codex-rs/codex-api/src/images.rs` in [OpenAI Codex](https://github.com/openai/codex). Use Git at the revision above for the baseline, then compare relevant changes. `upstream/` retains attribution and the revision only. The executable implementation is TypeScript: it preserves Codex generation/edit selectors, native image endpoints, response metadata, and workspace-local artifacts without bundling the Rust client.
 
 ## September 28 review
 
-Reviewed through Codex `1b1835f751ebdc0cfc50b3fe55d4571dbb294563`; reference snapshots remain pinned to the revision above.
+Reviewed through Codex `1b1835f751ebdc0cfc50b3fe55d4571dbb294563`; the reference baseline remains the revision above.
 
 - `transparent_background` follows `40eac3ce8a`: true requests transparency for generation or editing; omission or false requests an opaque background. This replaces the previous automatic background selection.
 - HTTP redirects resolve proxy and `no_proxy` routing for each destination, following the route-aware transport change in `6ea62c4396`. The runtime remains identical to the web-search package's copy.

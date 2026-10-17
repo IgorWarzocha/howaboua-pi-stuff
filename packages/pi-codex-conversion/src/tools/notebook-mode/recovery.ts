@@ -43,6 +43,10 @@ export class NotebookRecoveryController {
 	async diagnostics(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const identity = this.identity(context, "diagnostics");
 		const journal = initializeNotebookJournal(identity, this.maxBytes);
+		if (!journal) return {
+			message: "Notebook diagnostics are unavailable while journals are off. Re-enable Notebook journals in /codex to diagnose newly recorded cells. Execution and saved binding recovery remain available",
+			details: { available: false, reason: "journals_off" },
+		};
 		const deno = await ensureNotebookDenoBinary({ agentDir: this.agentDir }, signal);
 		const runtimeBindings = new Set([
 			...projectStateBindingNames(identity, this.maxBytes),

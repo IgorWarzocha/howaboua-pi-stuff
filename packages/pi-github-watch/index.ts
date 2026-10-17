@@ -6,10 +6,15 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { deliver } from "./src/delivery.js";
-import { githubClient, type Thread } from "./src/github.js";
+import {
+	githubClient,
+	type RunSnapshot,
+	type WatchTarget,
+	type WorkflowRun,
+} from "./src/github.js";
 
 interface Watch {
-	thread: Thread;
+	thread: WatchTarget;
 	seen: Set<string>;
 	controller: AbortController;
 	timer?: ReturnType<typeof setTimeout>;
@@ -18,7 +23,14 @@ interface Watch {
 }
 const MINUTE = 60_000;
 const HELP =
-	"watch: {action: 'watch', thread: URL | owner/repo#123 | number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}, or omit thread to cancel all without GitHub access. Watches continue after notifications until cancellation, session switch, reload or shutdown. Issues check each minute; PRs first check after 7 minutes, then each minute. New issue comments, PR reviews and inline comments wake this session with metadata only. Failed checks pause the watch; watch again to retry.";
+	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}, or omit thread to cancel all without GitHub access. Issues and runs check each minute; PRs first check after 7 minutes, then each minute. Thread watches continue after new comments/reviews. Run watches follow the latest attempt, notify once on completion, then stop; already-completed runs return immediately. Notifications contain metadata, not comments or logs. Watches end on cancellation, session switch, reload or shutdown. Failed checks pause the watch; watch again to retry.";
+
+function runResult(
+	run: WorkflowRun,
+	snapshot: Extract<RunSnapshot, { completed: true }>,
+): string {
+	return `GitHub Actions: ${snapshot.conclusion} (attempt ${snapshot.attempt}) at ${run.url}. Read details with gh run view ${run.number} --repo ${run.repo}.`;
+}
 
 export default async function (pi: ExtensionAPI) {
 	const watches = new Map<string, Watch>();
@@ -38,11 +50,20 @@ export default async function (pi: ExtensionAPI) {
 		watch.nextCheck = Date.now() + delay;
 		watch.timer = setTimeout(async () => {
 			try {
-				const seen = await githubClient(
-					pi,
-					ctx.cwd,
-					watch.controller.signal,
-				).snapshot(watch.thread);
+				const client = githubClient(pi, ctx.cwd, watch.controller.signal);
+				if (watch.thread.kind === "run") {
+					const snapshot = await client.runSnapshot(watch.thread);
+					if (watch.controller.signal.aborted) return;
+					if (snapshot.completed) {
+						deliver(pi, runResult(watch.thread, snapshot));
+						watches.delete(watch.thread.url);
+						watch.controller.abort();
+						return;
+					}
+					schedule(watch, ctx, MINUTE);
+					return;
+				}
+				const seen = await client.snapshot(watch.thread);
 				if (watch.controller.signal.aborted) return;
 				const count = [...seen].filter((id) => !watch.seen.has(id)).length;
 				if (count)
@@ -58,13 +79,13 @@ export default async function (pi: ExtensionAPI) {
 				try {
 					deliver(
 						pi,
-						`GitHub watch paused: ${watch.thread.url}. Checking or notification delivery failed. Check gh auth status and thread access; call github_watch watch again to resume.`,
+						`GitHub watch paused: ${watch.thread.url}. Checking or notification delivery failed. Check gh auth status and access to the watched URL; call github_watch watch again to resume.`,
 					);
 				} catch {
 					/* UI remains available when turn delivery fails. */
 				}
 				ctx.ui.notify(
-					`GitHub watch paused: ${watch.thread.url}. Check gh auth status and thread access, then watch again.`,
+					`GitHub watch paused: ${watch.thread.url}. Check gh auth status and access to the watched URL, then watch again.`,
 					"error",
 				);
 			}
@@ -75,7 +96,7 @@ export default async function (pi: ExtensionAPI) {
 		name: "github_watch",
 		label: "GitHub watch",
 		description:
-			"Watch worthwhile GitHub issue/PR threads for new comments in this session, not every thread automatically. Call without arguments for help",
+			"Watch selected GitHub threads for comments or Actions runs for completion in this session. Nothing watched automatically. Call without arguments for help",
 		parameters: Type.Object(
 			{
 				action: Type.Optional(
@@ -108,7 +129,9 @@ export default async function (pi: ExtensionAPI) {
 				return result("All watches cancelled.");
 			}
 			if (!args.thread?.trim())
-				throw new Error("Supply thread: a URL, owner/repo#123, or a number.");
+				throw new Error(
+					"Supply thread: an issue/PR or Actions run URL, owner/repo#123, or an issue/PR number.",
+				);
 			const epoch = generation;
 			const client = githubClient(pi, ctx.cwd, signal);
 			const thread = await client.resolve(args.thread);
@@ -129,7 +152,10 @@ export default async function (pi: ExtensionAPI) {
 			}
 			if (previous?.state === "watching")
 				return result(`${thread.url}: already watching`);
-			const seen = await client.snapshot(thread);
+			const snapshot =
+				thread.kind === "run"
+					? await client.runSnapshot(thread)
+					: await client.snapshot(thread);
 			if (generation !== epoch || signal?.aborted)
 				throw new Error(
 					"Watch setup interrupted. Retry in the current session.",
@@ -137,9 +163,18 @@ export default async function (pi: ExtensionAPI) {
 			if (watches.get(thread.url)?.state === "watching")
 				return result(`${thread.url}: already watching`);
 			previous?.controller.abort();
+			if (
+				thread.kind === "run" &&
+				!(snapshot instanceof Set) &&
+				snapshot.completed
+			) {
+				watches.delete(thread.url);
+				return result(`${runResult(thread, snapshot)} No watch started.`);
+			}
 			const watch: Watch = {
 				thread,
-				seen: previous?.seen ?? seen,
+				seen:
+					snapshot instanceof Set ? (previous?.seen ?? snapshot) : new Set(),
 				controller: new AbortController(),
 				state: "watching",
 				nextCheck: 0,

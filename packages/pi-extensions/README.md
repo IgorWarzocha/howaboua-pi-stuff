@@ -28,6 +28,6 @@ pi install npm:@howaboua/pi-extensions
 
 `pi-agent-board`, `pi-chatgpt-sites`, `pi-codex-guardian`, `pi-notes-compaction` and `pi-sandbox` are also separate installs. They provide boards, Sites management, tool approval reviews, session notes and context rollover, and local VMs with app previews.
 
-The retired `pi-dynamic-tools`, `pi-explore-subagents`, `pi-memories`, `pi-semantic-grep`, and `pi-vent` packages are excluded and receive no further releases.
+The retired `pi-explore-subagents`, `pi-memories`, `pi-semantic-grep`, and `pi-vent` packages are excluded and receive no further releases.
 
 Installing this bundle loads every extension above. Install individual packages instead if you only want part of the set.

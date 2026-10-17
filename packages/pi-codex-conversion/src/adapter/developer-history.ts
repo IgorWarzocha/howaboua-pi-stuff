@@ -23,6 +23,13 @@ export function projectCodexDeveloperHistory(
 	leafId?: string | null,
 ): AgentMessage[] {
 	const retired = new Set<string>();
+	const survives = (message: AgentMessage) => message.role !== "custom" || message.customType !== CODEX_REASONING_UPDATE_TYPE
+		|| !retired.has(readCodexReasoningUpdate(message.details).id);
+	// Without projected metadata or persisted reasoning updates, supplied messages
+	// need neither reconstruction nor compaction retirement. Do not cache their edits.
+	if (messages && !entries.some((entry) =>
+		(entry.type === "custom" && isVirtualCustomType(entry.customType))
+		|| (entry.type === "custom_message" && entry.customType === CODEX_REASONING_UPDATE_TYPE))) return messages.filter(survives);
 	const byId = new Map(entries.map((entry) => [entry.id, entry]));
 	let ancestor = leafId === null ? undefined : leafId ? byId.get(leafId) : entries.at(-1);
 	let compacted = false;
@@ -32,8 +39,6 @@ export function projectCodexDeveloperHistory(
 			retired.add(readCodexReasoningUpdate(ancestor.type === "custom" ? ancestor.data : ancestor.details).id);
 		ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined;
 	}
-	const survives = (message: AgentMessage) => message.role !== "custom" || message.customType !== CODEX_REASONING_UPDATE_TYPE
-		|| !retired.has(readCodexReasoningUpdate(message.details).id);
 	// Pi can retain pre-compaction messages. Retire only their reasoning bookkeeping,
 	// without changing saved entries or another extension's message transformations.
 	messages = messages?.filter(survives);
@@ -93,8 +98,11 @@ function messageKey(message: AgentMessage): string {
 }
 
 function isVirtualMessage(message: AgentMessage): message is Extract<AgentMessage, { role: "custom" }> {
-	return message.role === "custom" && (message.customType === CODEX_REASONING_UPDATE_TYPE
-		|| message.customType === CODEX_CONTEXT_BRIEFING_TYPE
-		|| message.customType === CODEX_CURRENT_TIME_REMINDER_TYPE || message.customType === CODEX_TOOLKIT_UPDATE_TYPE
-		|| message.customType === CODEX_NOTEBOOK_STATUS_TYPE);
+	return message.role === "custom" && isVirtualCustomType(message.customType);
+}
+
+function isVirtualCustomType(customType: string): boolean {
+	return customType === CODEX_REASONING_UPDATE_TYPE || customType === CODEX_CONTEXT_BRIEFING_TYPE
+		|| customType === CODEX_CURRENT_TIME_REMINDER_TYPE || customType === CODEX_TOOLKIT_UPDATE_TYPE
+		|| customType === CODEX_NOTEBOOK_STATUS_TYPE;
 }

@@ -72,8 +72,8 @@ export function orchestrationGuidance(enabled: boolean, general: boolean) {
 	if (!enabled)
 		return `Work normally. Delegate only when useful or requested. ${ownership}`;
 	const guidance = general
-		? "Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks."
-		: "Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
+		? "Orchestrate general agents with separate scopes. Integrate their results, validate the combined outcome and report it. Work directly only when asked or for routine local tasks."
+		: "Orchestrate agents with separate scopes. Integrate their results, validate the combined outcome and report it. Work directly only when asked or for routine local tasks.";
 	return `${guidance} ${ownership}`;
 }
 export function activeAgentsBriefing(

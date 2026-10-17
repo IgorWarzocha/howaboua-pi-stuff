@@ -102,7 +102,9 @@ export class ActivityGroup {
 	}
 
 	get anchorId(): string | undefined {
-		return [...this.members].find(([, member]) => member.anchorEligible)?.[0];
+		for (const [id, member] of this.members)
+			if (member.anchorEligible) return id;
+		return undefined;
 	}
 
 	refresh(exceptId?: string): void {
@@ -266,6 +268,19 @@ export class ActivityTimeline {
 
 	/** Persistence restamps queued messages. Bind each occurrence to its actual branch entry. */
 	reconcileMessages(entries: readonly SessionEntry[]): void {
+		const bound = new Set<string>();
+		const pending = new Map<string, { key: string; entryId?: string }[]>();
+		for (const source of this.messageSources.values()) {
+			if (source.entryId !== undefined) {
+				bound.add(source.entryId);
+			} else {
+				const matches = pending.get(source.key) ?? [];
+				matches.push(source);
+				pending.set(source.key, matches);
+			}
+		}
+		// Pop in arrival order without repeatedly shifting duplicate notices.
+		for (const matches of pending.values()) matches.reverse();
 		for (const entry of entries) {
 			if (
 				entry.type !== "custom_message" ||
@@ -273,26 +288,29 @@ export class ActivityTimeline {
 				!activityMessageTypes.some((type) => type === entry.customType)
 			)
 				continue;
-			const sources = [...this.messageSources.values()];
-			if (sources.some((source) => source.entryId === entry.id)) continue;
+			if (bound.has(entry.id)) continue;
 			const key = messageKey({
 				...entry,
 				timestamp: Date.parse(entry.timestamp),
 			});
-			const source = sources.find(
-				(source) => source.entryId === undefined && source.key === key,
-			);
-			if (source) source.entryId = entry.id;
+			const source = pending.get(key)?.pop();
+			if (source) {
+				source.entryId = entry.id;
+				bound.add(entry.id);
+			}
 		}
 	}
 
 	private prepareMessageReplay(entries: readonly SessionEntry[]): void {
 		this.replayMessages.clear();
+		const byEntry = new Map<string, string>();
+		for (const [id, source] of this.messageSources) {
+			if (source.entryId !== undefined && !byEntry.has(source.entryId))
+				byEntry.set(source.entryId, id);
+		}
 		for (const entry of entries) {
 			if (entry.type !== "custom_message") continue;
-			const id = [...this.messageSources].find(
-				([, source]) => source.entryId === entry.id,
-			)?.[0];
+			const id = byEntry.get(entry.id);
 			if (!id) continue;
 			const key = replayKey({
 				...entry,

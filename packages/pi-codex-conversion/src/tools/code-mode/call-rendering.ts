@@ -25,7 +25,9 @@ export function renderExecCall(
 		);
 	}
 	const status = tracker.status(context?.toolCallId);
-	const verb = status === "running" ? "Running" : status === "yielded" ? "Started" : "Ran";
+	const pending = context?.executionStarted === false && context.isPartial !== false;
+	const running = status === "running" || (status === undefined && context?.executionStarted && context.isPartial);
+	const verb = pending ? "Pending" : running ? "Running" : status === "yielded" ? "Started" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} code`)}`;
 	if (!context?.expanded && code.trim()) text += `\n${previewCode(code, theme)}`;
 	const names = customToolNames(code);
@@ -43,9 +45,11 @@ export function renderWaitCall(
 ): Text {
 	tracker.register(context?.toolCallId, context?.invalidate);
 	if (!richRendering) return new Text("", 0, 0);
-	const done = tracker.status(context?.toolCallId) !== "running";
+	const status = tracker.status(context?.toolCallId);
+	const pending = context?.executionStarted === false && context.isPartial !== false;
+	const done = status !== "running" && !(status === undefined && context?.executionStarted && context.isPartial);
 	const terminate = args.terminate === true;
-	const title = terminate
+	const title = pending ? "Pending code cell request" : terminate
 		? done ? "Terminated code cell" : "Terminating code cell"
 		: done ? "Waited for code cell" : "Waiting for code cell";
 	const cell = typeof args.cell_id === "string" ? ` #${args.cell_id}` : "";
@@ -66,7 +70,8 @@ function customToolNames(code: string): string[] {
 
 function previewCode(code: string, theme: CodeModeRenderTheme): string {
 	const highlighted = highlightCode(code.trim(), "javascript");
-	const lines = highlighted.slice(0, 3).map((line) => truncateToWidth(`  ${line}`, 100, "..."));
+	// Truncation resets must preserve the surrounding tool panel background.
+	const lines = highlighted.slice(0, 3).map((line) => truncateToWidth(`  ${line}`, 100, "...").replaceAll("\x1b[0m", "\x1b[39m"));
 	const skippedCount = highlighted.length - lines.length;
 	if (skippedCount > 0) lines.push(theme.fg("muted", `  ... (${skippedCount} more lines, ${expandHint()})`));
 	return lines.join("\n");

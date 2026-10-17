@@ -280,9 +280,12 @@ function promptArgument(
 
 export function profileAgentArgs(
 	profile: AgentProfile,
-	options: { targetLocal?: boolean } = {},
+	options: { targetLocal?: boolean; includePrompt?: boolean } = {},
 ): string[] {
-	const prompt = promptArgument(profile, options.targetLocal !== false);
+	const prompt =
+		options.includePrompt === false
+			? undefined
+			: promptArgument(profile, options.targetLocal !== false);
 	return [
 		"--model",
 		profile.model,

@@ -158,6 +158,8 @@ export function normalizeCodexConversionConfig(
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
 		},
 		notebook: {
+			journals: notebook["journals"] === "off" || notebook["journals"] === "on" ? notebook["journals"] : "week",
+			checkpointCleanup: notebook["checkpointCleanup"] === "month" || notebook["checkpointCleanup"] === "week" ? notebook["checkpointCleanup"] : "never",
 			maxHeapMiB: normalizeIntegerInRange(
 				notebook["maxHeapMiB"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.notebook.maxHeapMiB,

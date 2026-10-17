@@ -1,2 +1,2 @@
-- Keep generation/edit selectors and response metadata aligned with upstream/ plus the reviewed deltas in UPSTREAM_SYNC.md; Pi-facing auth, artifacts, rendering, and Code Mode projection remain TypeScript.
+- Compare generation/edit contracts with `~/Frameworks/codex/codex-rs/ext/image-generation/`, `codex-api/src/endpoint/images.rs` and `codex-api/src/images.rs` (last two relative to `codex-rs/`). `UPSTREAM_SYNC.md` pins the reference and reviewed deltas. Inspect changes since that pin when touching the adapter; do not restore inert Rust snapshots. Pi-facing auth, artifacts, rendering and Code Mode projection remain TypeScript.
 - Local edit targets accept validated PNG, JPEG, GIF, or WebP bytes. Recent targets come only from Pi's active compaction-aware context.

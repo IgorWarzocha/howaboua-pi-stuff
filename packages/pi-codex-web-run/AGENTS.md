@@ -1,2 +1,2 @@
-- Keep alpha/search request and result shapes aligned with the pinned Codex snapshot in upstream/; Pi-facing auth, proxying, rendering, and Code Mode projection remain TypeScript.
+- Compare alpha/search contracts with `~/Frameworks/codex/codex-rs/ext/web-search/`, `codex-api/src/endpoint/search.rs` and `codex-api/src/search.rs` (last two relative to `codex-rs/`). `UPSTREAM_SYNC.md` pins the reference and reviewed deltas. Inspect changes since that pin when touching the adapter; do not restore inert Rust snapshots. Pi-facing auth, proxying, rendering and Code Mode projection remain TypeScript.
 - Preserve explicit search/navigation arguments and reusable result refs without adding conversation-history disclosure.
