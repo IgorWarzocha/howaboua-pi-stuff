@@ -10,7 +10,7 @@ import {
 
 const SkillsParameters = Type.Object(
 	{
-		command: Type.Optional(Type.String({ description: "Omit for discovery" })),
+		command: Type.Optional(Type.String({ description: "help, list or read" })),
 	},
 	{ additionalProperties: false },
 );

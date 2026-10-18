@@ -51,17 +51,7 @@ export default async function shepherdrExtension(
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);
-		const ordinary = tool.description;
-		promptMode = registerGptPromptMode(pi, (active) => {
-			const description = active
-				? "Persistent delegation; first discovery call alone"
-				: ordinary;
-			if (tool.description !== description) {
-				tool.description = description;
-				pi.registerTool(tool);
-			}
-			return [tool];
-		});
+		promptMode = registerGptPromptMode(pi, () => [tool]);
 	} catch (error) {
 		if (
 			!(error instanceof Error) ||
@@ -90,7 +80,7 @@ async function registerAgentsInCodeMode(
 			adaptToolForCodeMode(tool, {
 				prepareInput: (input) => (input === undefined ? {} : input),
 				blocking: isBlockingAgentsCall,
-				usage: "await tools.agents() // Persistent agents; first call alone",
+				discovery: "help",
 			}),
 		]);
 		pi.on("session_shutdown", () => {

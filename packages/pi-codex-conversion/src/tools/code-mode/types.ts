@@ -49,8 +49,8 @@ export interface ProgrammaticCodeModeToolDefinition
 	discoverWhenDeferred?: boolean | undefined;
 	/** Compact callable spine; full help remains in ALL_TOOLS. */
 	discoveryUsage?: string | undefined;
-	/** Server summaries replace appended per-tool inventory. */
-	discovery?: "server" | undefined;
+	/** Help entries accept an empty call without performing an operation. Server summaries own MCP discovery. */
+	discovery?: "help" | "server" | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi or the adapter owns argument preparation and admission hooks. */

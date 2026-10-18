@@ -63,14 +63,8 @@ export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);
-		const ordinary = ask.description;
 		registerGptPromptMode(pi, (active) => {
 			gpt = active;
-			const description = active ? "User input/action; {} help" : ordinary;
-			if (ask.description !== description) {
-				ask.description = description;
-				pi.registerTool(ask);
-			}
 			return [ask];
 		});
 	} catch (error) {
@@ -131,7 +125,7 @@ async function registerAskInCodeMode(
 			adaptToolForCodeMode(ask, {
 				blocking: (input) =>
 					!isAskHelpInput(input) && !isSteeringAskInput(input),
-				usage: "await tools.ask() // help",
+				discovery: "help",
 			}),
 		]);
 		pi.on("session_shutdown", () => registration.unregister());

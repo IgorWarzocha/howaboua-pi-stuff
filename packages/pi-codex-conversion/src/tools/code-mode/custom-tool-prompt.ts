@@ -1,10 +1,10 @@
 import type {
 	CodeModeToolDefinition,
-	CodeModeToolMetadata,
 	CustomToolDefinition,
 } from "./types.js";
 import type { CodeModeExecutionKind } from "./shared-runtime.js";
 import {
+	codeModeGlobalName,
 	translateCodeModeGuideline,
 	translateCodeModeToolReferences,
 	translateCodeModeUsage,
@@ -26,7 +26,7 @@ export const WAIT_DESCRIPTION =
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
 const TOOL_GUIDANCE_HEADING = "Tool guidance:";
-const DEFERRED_TOOLS_GUIDANCE = "For additional tools, run text(ALL_TOOLS) in exec";
+const DEFERRED_TOOLS_GUIDANCE = "For additional tools and their contracts, run text(ALL_TOOLS) in exec";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
 export const CODE_MODE_TOOLS_SECTION = "exec_tools";
@@ -98,7 +98,7 @@ function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
 
 function buildUsageSection(
 	heading: string,
-	tools: CodeModeToolMetadata[],
+	tools: CodeModeToolDefinition[],
 	priority: readonly string[] = [],
 ): string {
 	if (tools.length === 0) return "";
@@ -110,7 +110,9 @@ function buildUsageSection(
 			};
 			return rank(left.name) - rank(right.name) || left.name.localeCompare(right.name);
 		})
-		.map((tool) => `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
+		.map((tool) => "discovery" in tool && tool.discovery === "help"
+			? `- tools.${codeModeGlobalName(tool.name)}: ${translateCodeModeToolReferences(tool.description ?? "", tool.name)}`
+			: `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
 		.join("\n")}`;
 }
 
@@ -130,6 +132,7 @@ export function buildCodeModeToolsPrompt(
 				? "exec: persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Small programs across cells; retained globals may come from earlier agents/sessions"
 				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+		"For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",
@@ -137,7 +140,7 @@ export function buildCodeModeToolsPrompt(
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		buildGuidanceSection(tools),
 		// The catalogue is always available, even when its first or last tool is unlisted.
-		gpt ? "More tools: text(ALL_TOOLS) in exec" : DEFERRED_TOOLS_GUIDANCE,
+		DEFERRED_TOOLS_GUIDANCE,
 		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");

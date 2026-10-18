@@ -8,4 +8,5 @@
 - Invalid spawn names now explain naming limits and how to use a longer label. Spawn guidance favours short two-word names.
 - Added an optional Pulses runner with persistent workers, saved-session reuse and completion reports that wake the parent.
 - Expanded tool calls now show outgoing tasks, messages, replies and focus handoffs in full.
-- Added compact agent help for Codex Conversion's GPT prompt mode.
+- Added compact agent help and hosted Board briefings for Codex Conversion's GPT prompt mode.
+- Agent discovery now uses the same help contract across native, Code and Notebook tools.

@@ -2,4 +2,4 @@
 "@howaboua/pi-better-skills-tool": patch
 ---
 
-Use compact discovery guidance and help when GPT prompt mode is selected.
+Use consistent skill discovery across native, Code and Notebook modes, with compact help in GPT prompt mode.

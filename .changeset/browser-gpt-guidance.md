@@ -2,4 +2,4 @@
 "@howaboua/pi-browser": patch
 ---
 
-Use compact tool guidance and help when GPT prompt mode is selected.
+Use consistent tool discovery across native, Code and Notebook modes, with compact help in GPT prompt mode.

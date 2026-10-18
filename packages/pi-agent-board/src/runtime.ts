@@ -564,7 +564,7 @@ async function createRuntime(pi: ExtensionAPI) {
 				adaptToolForCodeMode(tool, {
 					prepareInput: (input) =>
 						input === undefined || input === null ? {} : input,
-					usage: "await tools.board() // Shared discussion archive",
+					discovery: "help",
 				}),
 			],
 			{ isActive: (ctx) => runtime.enabled(ctx) },

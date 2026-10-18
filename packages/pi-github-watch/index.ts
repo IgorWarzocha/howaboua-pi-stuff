@@ -100,7 +100,7 @@ export default async function (pi: ExtensionAPI) {
 		name: "github_watch",
 		label: "GitHub watch",
 		description:
-			"Watch selected GitHub threads for comments or Actions runs for completion in this session. Nothing watched automatically. Call without arguments for help",
+			"Watch selected GitHub threads for comments or Actions runs for completion in this session",
 		parameters: Type.Object(
 			{
 				action: Type.Optional(
@@ -195,18 +195,7 @@ export default async function (pi: ExtensionAPI) {
 	try {
 		const module = "@howaboua/pi-codex-conversion/prompt-mode";
 		const { registerGptPromptMode } = await import(module);
-		const description = tool.description;
-		let previous = false;
-		promptMode = registerGptPromptMode(pi, (active: boolean) => {
-			if (active !== previous) {
-				previous = active;
-				tool.description = active
-					? "Opt-in session GitHub thread/comment and Actions completion watches; no args for help"
-					: description;
-				pi.registerTool(tool);
-			}
-			return [tool];
-		});
+		promptMode = registerGptPromptMode(pi, () => [tool]);
 	} catch (error) {
 		if (
 			!(error instanceof Error) ||
@@ -225,7 +214,7 @@ export default async function (pi: ExtensionAPI) {
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: "await tools.github_watch() // help",
+				discovery: "help",
 				deferLoading: true,
 			}),
 		]);

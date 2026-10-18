@@ -50,7 +50,7 @@ export function createAskRuntime({
 	const tool = defineTool({
 		name: "ask",
 		label: "Ask",
-		description: "Request user input or action; {} for help",
+		description: "Request user input or action",
 		parameters: AskParameters,
 		executionMode: "sequential",
 		prepareArguments(input) {
@@ -68,14 +68,14 @@ export function createAskRuntime({
 						textContent(
 							(isGpt()
 								? [
-										"ask({}) / ask({help:true}): help",
+										"ask({}) / ask({help:true}): usage",
 										'ask({prompts:[{title,body?,multiple?,choices?:[{label,description?}]}],delivery?:"wait"|"steer",handoff?})',
 										"Default wait; steer only with reversible work to continue. Handoffs wait for user action: state completion signal",
 										"Reviews: each finding = prompt + disposition choices; do not report first",
 										"Automatic Other/rephrase; no choices = free text. Blank Other/rephrase = rephrase/follow up",
 									]
 								: [
-										"ask({}) or ask({ help: true }) returns help",
+										"ask({}) or ask({ help: true }) returns usage",
 										'ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], delivery?: "wait"|"steer", handoff? })',
 										"Omit delivery to wait; steer only while reversible work can continue. Handoffs wait for user action; state the completion signal",
 										"For reviews, make each finding a prompt with disposition choices; do not report first",

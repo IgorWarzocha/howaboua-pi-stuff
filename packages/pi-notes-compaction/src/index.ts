@@ -60,23 +60,9 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);
-		const ordinary = tools.map((tool) => tool.description);
-		const registration = registerGptPromptMode(pi, (active, ctx) => {
-			let changed = false;
-			for (const [index, tool] of tools.entries()) {
-				const description =
-					active && tool.name === "notes"
-						? "Persistent notes. write_file replaces; append_to_file adds. Paths: relative=current agent; cross-agent=<agent>/notes[/path]"
-						: ordinary[index]!;
-				if (tool.description !== description) {
-					changed = true;
-					tool.description = description;
-					if (lifecycle.active) pi.registerTool(tool);
-				}
-			}
-			if (changed && ctx && lifecycle.active) configureTools(ctx);
-			return lifecycle.active ? tools : [];
-		});
+		const registration = registerGptPromptMode(pi, () =>
+			lifecycle.active ? tools : [],
+		);
 		lifecycle.gptPromptMode = () => registration.active;
 	} catch (error) {
 		if (

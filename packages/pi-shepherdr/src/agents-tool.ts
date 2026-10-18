@@ -43,7 +43,8 @@ export function createAgentsTool(
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description: "Delegate to persistent agents; discover first, alone",
+		description: "Delegate to persistent agents",
+		promptGuidelines: ["Make the first agents discovery call alone"],
 		parameters: AgentsParameters,
 		executionMode: "sequential",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {

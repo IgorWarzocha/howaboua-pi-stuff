@@ -47,8 +47,7 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 	const sites = defineTool({
 		name: "sites",
 		label: "Sites",
-		description:
-			"Manage ChatGPT Sites. No arguments or action:help returns help",
+		description: "Manage ChatGPT Sites",
 		parameters: Type.Object(
 			{
 				resource: Type.Optional(Type.String()),
@@ -89,7 +88,7 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 	const tools = [
 		{
 			tool: sites,
-			gpt: "Manage ChatGPT Sites; no args/action:help for help",
+			gpt: "Manage ChatGPT Sites",
 			ordinary: sites.description,
 		},
 		{
@@ -100,6 +99,17 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 	];
 	for (const { tool } of tools) pi.registerTool(tool);
 	try {
+		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
+			await import("@howaboua/pi-codex-conversion/code-mode");
+		const registration = registerCodeModeExtensionTools(pi, () =>
+			tools.map(({ tool }) =>
+				adaptToolForCodeMode(tool, {
+					discovery: "help",
+					deferLoading: true,
+				}),
+			),
+		);
+		pi.on("session_shutdown", () => registration.unregister());
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);

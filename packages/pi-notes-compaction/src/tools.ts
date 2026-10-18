@@ -46,9 +46,8 @@ const HISTORY_ACTIONS = [
 	"read_item",
 	"search_contents",
 ] as const;
-export const NOTES_USAGE =
-	"await tools.notes({ action, ...args }) // no args: help; actions(required args): list_files_by_prefix(); read_file(path); search_contents(query); append_to_file(path,text); write_file(path,text)";
-export const HISTORY_USAGE = "await tools.history() // help";
+export const NOTES_USAGE = "await tools.notes()";
+export const HISTORY_USAGE = "await tools.history()";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const NULLABLE_STRING = Type.Optional(Type.Union([Type.String(), Type.Null()]));
@@ -228,13 +227,19 @@ function discovery(
 			),
 			...(namespace === "notes"
 				? {
+						writes: "write_file replaces; append_to_file adds",
+						paths:
+							"Relative uses current agent; cross-agent uses <agent>/notes[/path]",
 						usage: '{ "action": "read_file", "path": "checkpoint" }',
 						ranges:
 							"start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
 						defaults:
 							"list max_results 20; search max_files/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
 					}
-				: {}),
+				: {
+						usage:
+							"Search earlier conversation, don't browse it. Pass returned IDs unchanged",
+					}),
 		});
 	}
 	return undefined;
@@ -558,8 +563,7 @@ export function createTools(
 		{
 			name: "notes",
 			label: "notes",
-			description:
-				"Persistent notes. write_file replaces; append_to_file adds. Virtual paths: relative uses current agent; cross-agent uses <agent>/notes[/path].",
+			description: "Persistent notes",
 			parameters: NOTES_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments(args) {
@@ -604,8 +608,7 @@ export function createTools(
 		{
 			name: "history",
 			label: "history",
-			description:
-				"Search earlier conversation, don't browse it. Pass returned IDs unchanged",
+			description: "Search earlier conversation",
 			parameters: HISTORY_SCHEMA,
 			prepareArguments(args) {
 				return args === undefined ? {} : args;

@@ -4,7 +4,7 @@ import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-wor
 import { isCodexDeveloperMessageDetails, type CodexDeveloperMessageDetails } from "../../developer-messages.ts";
 import { isContextWindowBoundary } from "../../context-management/messages.ts";
 import { formatCodeModeToolHelp, isCodeModeToolDiscoverable } from "../../tools/code-mode/custom-tool-prompt.ts";
-import { codeModeGlobalName } from "../../tools/code-mode/tool-identity.ts";
+import { codeModeGlobalName, translateCodeModeToolReferences, translateCodeModeUsage } from "../../tools/code-mode/tool-identity.ts";
 import type { CodeModeToolDefinition } from "../../tools/code-mode/types.ts";
 
 export const CODEX_TOOLKIT_UPDATE_TYPE = "codex-toolkit-update";
@@ -69,9 +69,11 @@ export function recordCodeModeToolkit(
 		.map((tool) => [codeModeGlobalName(tool.name), tool]));
 	const tools: ToolkitTool[] = discoverable.map((tool) => ({
 		name: codeModeGlobalName(tool.name),
-		description: "discoveryUsage" in tool && tool.discoveryUsage
-			? `${tool.discoveryUsage}\n${tool.description ?? ""}`.trim()
-			: excerpt(`${"disabledReason" in tool && tool.disabledReason ? "Disabled: " : ""}${tool.description || tool.promptSnippet || tool.usage}`),
+		description: "discovery" in tool && tool.discovery === "help"
+			? excerpt(translateCodeModeToolReferences(tool.description ?? "", tool.name))
+			: [translateCodeModeUsage("discoveryUsage" in tool && tool.discoveryUsage ? tool.discoveryUsage : tool.usage, tool.name),
+				excerpt(`${"disabledReason" in tool && tool.disabledReason ? "Disabled: " : ""}${tool.description || tool.promptSnippet || ""}`)]
+				.filter(Boolean).join("\n"),
 		contract: toolContract(tool),
 		namespace: tool.namespace?.name ?? "",
 	})).sort((left, right) => left.name.localeCompare(right.name));
@@ -99,10 +101,10 @@ export function recordCodeModeToolkit(
 	const instructions = Object.entries(namespaces).filter(([name, description]) => !previous || previous.namespaces[name] !== description)
 		.map(([name, description]) => `${name}${description ? `\n${description}` : ""}`);
 	const content = [
-		previous ? "Toolkit update — current help in ALL_TOOLS; supersedes earlier contracts"
+		previous ? "Toolkit update — current contracts in ALL_TOOLS; supersedes earlier contracts"
 			: standingPromoted.size || discoverable.some((tool) => !tool.deferLoading)
-				? "Tool help in ALL_TOOLS; updates supersede standing usage"
-				: "Deferred tools — full help in ALL_TOOLS",
+				? "Tool contracts in ALL_TOOLS; updates supersede standing usage"
+				: "Deferred tools — contracts and arguments in ALL_TOOLS",
 		...instructions,
 		...(!previous ? toolLines(tools.filter((tool) => current.get(tool.name)!.deferLoading))
 			: added.length ? ["Added:", ...updateLines(added)] : []),

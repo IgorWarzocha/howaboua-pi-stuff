@@ -427,7 +427,8 @@ Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript 
 
 | Option | Purpose |
 | --- | --- |
-| `usage` | Callable contract. Include arguments or a help entry point. Only `promptGuidelines` accompany it, not native descriptions, snippets or schemas |
+| `usage` | Callable contract with arguments. Only `promptGuidelines` accompany it, not native descriptions, snippets or schemas |
+| `discovery: "help"` | Opt in only when an empty call returns usage without performing an operation. The prompt lists the capability without a call signature. Omit `usage` to generate the no-argument help call |
 | `toolName` | Non-default Responses namespace |
 | `resultValue` | Structured JavaScript result instead of ordinary model-visible content |
 | `blocking` | `true` or an input predicate to hold the turn. Otherwise long calls can yield to `wait` |

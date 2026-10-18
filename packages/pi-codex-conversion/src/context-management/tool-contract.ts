@@ -17,13 +17,13 @@ export type HistoryAction = (typeof HISTORY_ACTIONS)[number];
 export type NotesAction = (typeof NOTES_ACTIONS)[number];
 
 export const HISTORY_DESCRIPTION =
+	"Search earlier conversation";
+
+export const HISTORY_GUIDANCE =
 	"Search earlier conversation, don't browse it. Pass returned IDs unchanged";
 
 export const NOTES_DESCRIPTION =
-	"Persistent notes. write_file replaces; append_to_file adds. Virtual paths: relative uses current agent; cross-agent uses <agent>/notes[/path].";
+	"Persistent notes";
 
-export const HISTORY_NESTED_USAGE =
-	"await tools.history({ action, ...args }) // actions(required args): list_windows(); list_items(); read_item(item_id,window_id); search_contents(query)";
-
-export const NOTES_NESTED_USAGE =
-	"await tools.notes({ action, ...args }) // actions(required args): list_files_by_prefix(); read_file(path); search_contents(query); append_to_file(path,text); write_file(path,text)";
+export const NOTES_GUIDANCE =
+	"write_file replaces; append_to_file adds. Virtual paths: relative uses current agent; cross-agent uses <agent>/notes[/path].";

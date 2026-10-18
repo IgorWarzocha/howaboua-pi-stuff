@@ -29,14 +29,8 @@ export default async function browserExtension(
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);
-		const ordinary = tool.description;
 		registerGptPromptMode(pi, (active) => {
 			gpt = active;
-			const description = active ? "Logged-in browser control" : ordinary;
-			if (tool.description !== description) {
-				tool.description = description;
-				pi.registerTool(tool);
-			}
 			return [tool];
 		});
 	} catch (error) {
@@ -76,7 +70,7 @@ async function registerBrowserInCodeMode(
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareBrowserInput,
-				usage: "await tools.browser() // Logged-in browser help",
+				discovery: "help",
 			}),
 		]);
 	} catch (error) {

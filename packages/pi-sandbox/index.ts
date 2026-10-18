@@ -100,7 +100,7 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: "await tools.sandbox()",
+				discovery: "help",
 				kind: "freeform",
 				prepareInput: prepareSandboxInput,
 				resultValue: (result) => {

@@ -16,7 +16,7 @@ export async function registerPulseControls(
 	const tool = defineTool({
 		name: "pulses",
 		label: "Pulses",
-		description: "Run a saved routine. Call without arguments for help",
+		description: "Run a saved routine",
 		parameters: Type.Object(
 			{
 				run: Type.Optional(Type.String({ minLength: 1 })),
@@ -64,7 +64,7 @@ export async function registerPulseControls(
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: "await tools.pulses() // help",
+				discovery: "help",
 				deferLoading: true,
 			}),
 		]);

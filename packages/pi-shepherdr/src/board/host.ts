@@ -57,7 +57,8 @@ export class AgentBoard {
 		discoverBoard(pi, (runtime) => {
 			this.runtime = runtime;
 			runtime.attach({
-				briefing: boardBriefing,
+				briefing: (member, population) =>
+					boardBriefing(member, population, runtime.gptPromptMode),
 				request: requestContext,
 				commitDirectory: (own, directory, caller, request) =>
 					this.membership.commitDirectory(own, directory, caller, request),

@@ -25,9 +25,11 @@ import {
 import {
 	HISTORY_ACTIONS,
 	HISTORY_DESCRIPTION,
+	HISTORY_GUIDANCE,
 	type HistoryAction,
 	NOTES_ACTIONS,
 	NOTES_DESCRIPTION,
+	NOTES_GUIDANCE,
 	type NotesAction,
 } from "./tool-contract.ts";
 
@@ -107,7 +109,7 @@ const NOTES_ACTION_FIELDS = {
 
 const HISTORY_PARAMETERS = Type.Object(
 	{
-		action: StringEnum(HISTORY_ACTIONS),
+		action: Type.Optional(StringEnum(["help", ...HISTORY_ACTIONS])),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 		item_id: Type.Optional(Type.String()),
 		limit: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -139,7 +141,7 @@ const HISTORY_PARAMETERS = Type.Object(
 
 const NOTES_PARAMETERS = Type.Object(
 	{
-		action: StringEnum(NOTES_ACTIONS),
+		action: Type.Optional(StringEnum(["help", ...NOTES_ACTIONS])),
 		file_order: Type.Optional(
 			StringEnum(["ascending", "descending"] as const),
 		),
@@ -201,6 +203,7 @@ export function createHistoryNotesTools(
 				return args as Static<typeof HISTORY_PARAMETERS>;
 			},
 			async execute(_id, params, signal, _update, ctx: ExtensionContext) {
+				if (params.action === undefined || params.action === "help") return historyNotesHelp("history");
 				const action = historyAction(params.action);
 				validateHistoryArguments(action, params);
 				return callHistoryNotesTool(
@@ -238,6 +241,7 @@ export function createHistoryNotesTools(
 				return args as Static<typeof NOTES_PARAMETERS>;
 			},
 			async execute(_id, params, signal, _update, ctx: ExtensionContext) {
+				if (params.action === undefined || params.action === "help") return historyNotesHelp("notes");
 				const action = notesAction(params.action);
 				validateNotesArguments(action, params);
 				const finishNoteWrite = action === "write_file" || action === "append_to_file"
@@ -261,6 +265,18 @@ export function createHistoryNotesTools(
 			},
 		},
 	];
+}
+
+function historyNotesHelp(namespace: "history" | "notes"): AgentToolResult<CodexHistoryNotesDetails> {
+	return historyNotesResult(namespace, {
+		usage: `${namespace}({ action, ...args }); no arguments or action:help returns usage`,
+		actions: namespace === "history" ? HISTORY_ACTION_FIELDS : NOTES_ACTION_FIELDS,
+		required: namespace === "history"
+			? { read_item: ["item_id", "window_id"], search_contents: ["query"] }
+			: { read_file: ["path"], search_contents: ["query"], append_to_file: ["path", "text"], write_file: ["path", "text"] },
+		schema: namespace === "history" ? HISTORY_PARAMETERS : NOTES_PARAMETERS,
+		guidance: namespace === "history" ? HISTORY_GUIDANCE : NOTES_GUIDANCE,
+	});
 }
 
 export async function loadHistoryNotesThreadHint(

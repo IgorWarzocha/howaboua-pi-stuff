@@ -4,7 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import { toNestedTool } from "./adapter/code-mode/nested-tool-adapter.ts";
-import { codeModeNameForToolIdentity } from "./tools/code-mode/tool-identity.ts";
+import { codeModeGlobalName, codeModeNameForToolIdentity } from "./tools/code-mode/tool-identity.ts";
 
 export {
 	type CodeModeExtensionToolProvider,
@@ -21,8 +21,7 @@ export function adaptToolForCodeMode<
 	TState,
 >(
 	tool: ToolDefinition<TParams, TDetails, TState>,
-	options: {
-		usage: string;
+	options: ({ discovery: "help"; usage?: string } | { discovery?: undefined; usage: string }) & {
 		blocking?: boolean | ((input: unknown) => boolean);
 		deferLoading?: boolean;
 		kind?: "function" | "freeform";
@@ -38,7 +37,8 @@ export function adaptToolForCodeMode<
 	const nestedTool = options.toolName
 		? { ...tool, name: codeModeNameForToolIdentity(options.toolName) }
 		: tool;
-	const adapted = toNestedTool(nestedTool, options.usage, {}, {
+	const usage = options.usage ?? `await tools.${codeModeGlobalName(nestedTool.name)}()`;
+	const adapted = toNestedTool(nestedTool, usage, {}, {
 		modelVisibleResult: true,
 		translatePromptMetadata: options.promptMetadata !== false,
 		...(options.kind ? { kind: options.kind } : {}),
@@ -53,5 +53,5 @@ export function adaptToolForCodeMode<
 			? { deferLoading: true, discoverWhenDeferred: true }
 			: {}),
 	});
-	return { ...adapted, topLevelName: tool.name };
+	return { ...adapted, ...(options.discovery ? { discovery: options.discovery } : {}), topLevelName: tool.name };
 }
