@@ -12,7 +12,7 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 	const board = await acquireBoard(pi);
 	pi.registerCommand("board", {
 		description:
-			"Board viewer; settings, on|off|inherit [session|folder|global], status",
+			"Board viewer; settings, summarize <thread-id>, on|off|inherit [session|folder|global], status",
 		async handler(args, ctx) {
 			if (args.trim() === "settings") {
 				if (!ctx.hasUI) {
@@ -44,8 +44,8 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 					}
 					ctx.ui.notify(
 						selected === "Custom"
-							? `Board summary model: Custom. Edit board.summary.custom in ${config.path}: set provider, model and reasoning. Summary generation is not yet available.`
-							: "Board summary model: Luna. Summary generation is not yet available.",
+							? `Board summary model: Custom. Edit board.summary.custom in ${config.path}: set provider, model and reasoning.`
+							: "Board summary model: Luna (high).",
 						"info",
 					);
 				} catch (error) {
@@ -59,6 +59,17 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 			const [command = "", scope = "session", ...extra] = args
 				.trim()
 				.split(/\s+/);
+			if (command === "summarize" && !extra.length) {
+				try {
+					board.summarize(ctx, scope);
+				} catch (error) {
+					ctx.ui.notify(
+						error instanceof Error ? error.message : String(error),
+						"error",
+					);
+				}
+				return;
+			}
 			if (
 				(command === "on" || command === "off" || command === "inherit") &&
 				(scope === "session" || scope === "folder" || scope === "global") &&
@@ -87,7 +98,7 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 			}
 			if (command) {
 				ctx.ui.notify(
-					"Use /board, /board settings, /board status or /board on|off|inherit [session|folder|global]",
+					"Use /board, /board settings, /board summarize <thread-id>, /board status or /board on|off|inherit [session|folder|global]",
 					"warning",
 				);
 				return;

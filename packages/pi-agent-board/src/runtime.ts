@@ -31,6 +31,7 @@ import {
 } from "./identity.js";
 import type { BoardAdapter } from "./integration.js";
 import { type BoardEnvelope, parseEnvelope } from "./protocol.js";
+import { BoardSummarizer } from "./summarizer.js";
 import { createBoardTool } from "./tool.js";
 import { BoardTurns } from "./turns.js";
 
@@ -41,6 +42,7 @@ export class BoardRuntime {
 	private adapter: BoardAdapter | undefined;
 	private readonly turns: BoardTurns;
 	private readonly awareness: BoardAwareness;
+	private readonly summarizer = new BoardSummarizer();
 	private refreshTools: (() => void) | undefined;
 	private lastSetting: { sessionId: string; enabled: boolean } | undefined;
 	private configError: string | undefined;
@@ -63,10 +65,12 @@ export class BoardRuntime {
 			(ctx, ids) => this.awareness.markSeen(ctx, ids),
 		);
 		pi.on("session_start", (_event, ctx) => {
+			this.summarizer.cancelAll();
 			this.availabilityWarning = undefined;
 			setBoardDefault(ctx, true);
 			return this.refresh(ctx);
 		});
+		pi.on("session_shutdown", () => this.summarizer.cancelAll());
 		pi.on("before_agent_start", async (_event, ctx) => {
 			this.preparePromptMode?.(ctx);
 			// Reconcile resumed/offline children before tool/prompt preparation.
@@ -232,7 +236,10 @@ export class BoardRuntime {
 		if (own.enabled) active.push("board");
 		this.pi.setActiveTools(active);
 		this.refreshTools?.();
-		if (!own.enabled) this.turns.active.clear();
+		if (!own.enabled) {
+			this.turns.active.clear();
+			this.summarizer.cancelAll();
+		}
 		const changed =
 			this.lastSetting?.sessionId !== own.sessionId ||
 			this.lastSetting.enabled !== own.enabled;
@@ -257,6 +264,14 @@ export class BoardRuntime {
 		const own = binding(ctx);
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
 		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"})${includeArchive ? `. ${own.boardId}\nArchive: ${own.databasePath}` : ""}${setting?.error ? `\n${setting.error}` : ""}`;
+	}
+	summarize(ctx: ExtensionContext, thread: string) {
+		const own = binding(ctx);
+		if (own.upstream || own.sessionId !== own.rootSessionId)
+			throw new Error("Summarize threads in the owning parent session");
+		if (!own.enabled) throw new Error("Board is off; enable it with /board on");
+		parseBoardRequest({ action: "read_thread", thread_id: thread });
+		this.summarizer.start(ctx, own, thread.toLowerCase());
 	}
 	async execute(ctx: ExtensionContext, input: unknown, requestId: string) {
 		const params = parseBoardRequest(input);
@@ -428,6 +443,18 @@ export class BoardRuntime {
 			request.requestId,
 		);
 		if ("notice" in result && result.notice) {
+			// Replayed mutations have no notice: never start or cancel twice for a retry.
+			if (params.action === "set_status") {
+				if (params.status === "open")
+					this.summarizer.cancel(own.boardId, result.notice.thread_id);
+				else
+					this.summarizer.start(
+						ctx,
+						own,
+						result.notice.thread_id,
+						result.notice.message_id,
+					);
+			}
 			for (let start = 0; start < result.recipients.length; start += 16) {
 				await Promise.all(
 					result.recipients.slice(start, start + 16).map(async (target) => {

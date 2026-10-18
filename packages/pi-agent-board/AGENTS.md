@@ -2,5 +2,6 @@
 - Schema-v1 archives and `shepherdr-board-*` session records are compatibility contracts. Preserve their paths and identities across takeover; do not create a replacement archive.
 - Status and its comment share the post transaction and invocation ID. Replaying a status call must not reapply it over a later status; read-only legacy archives default to open without creating tables.
 - Summaries are derived snapshots, not posts. Status changes discard them in the same transaction; a late save must match the closed status comment and covered latest post. Tool and viewer searches replace summarized posts by default; only `full` searches originals. Legacy reads never create summary tables.
+- Start summarization only after a fresh committed status notice, never an invocation replay. Its system prompt owns instructions; source payload owns channel/status and chronological author/timestamp/text with the closing comment marked, not IDs or session context. Keep requests tool-free and cancel them with the owning session or board.
 - Fleet discovery, spawning and SSH stay in host adapters. The viewer only receives a resolved source and opens it read-only; viewing must never initialize a board.
 - Keep viewer startup lazy and packaged assets local. Do not modify a running user's viewer or listener configuration during validation.
