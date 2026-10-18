@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
 	appendFile,
 	mkdir,
+	readdir,
 	readFile,
 	rename,
 	unlink,
@@ -59,6 +60,24 @@ export class PulseStore {
 			if (isMissing(error)) return false;
 			throw error;
 		}
+	}
+	async ownedIds(): Promise<string[]> {
+		let entries;
+		try {
+			entries = await readdir(this.repo.stateRoot, { withFileTypes: true });
+		} catch (error) {
+			if (isMissing(error)) return [];
+			throw error;
+		}
+		const ids: string[] = [];
+		for (const entry of entries)
+			if (
+				entry.isDirectory() &&
+				/^[a-z0-9][a-z0-9-]*$/.test(entry.name) &&
+				(await this.owned(entry.name))
+			)
+				ids.push(entry.name);
+		return ids;
 	}
 	async release(id: string): Promise<void> {
 		if (!(await this.owned(id)))

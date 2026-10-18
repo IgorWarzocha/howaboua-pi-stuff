@@ -203,6 +203,16 @@ export default async function pulses(pi: ExtensionAPI) {
 		const ctx = context;
 		try {
 			const current = await storeFor(ctx);
+			if (checkWorkers)
+				for (const id of ownedIds) {
+					if (stopped || ctx.sessionManager.getSessionId() !== current.owner)
+						break;
+					try {
+						if (await current.owned(id)) await reconcile(ctx, current, id);
+					} catch (error) {
+						notify(error);
+					}
+				}
 			for (const item of await catalog(current.repo)) {
 				if (stopped || ctx.sessionManager.getSessionId() !== current.owner)
 					break;
@@ -211,7 +221,6 @@ export default async function pulses(pi: ExtensionAPI) {
 					const owned = await current.owned(item.id);
 					if (owned) {
 						ownedIds.add(item.id);
-						if (checkWorkers) await reconcile(ctx, current, item.id);
 					}
 					if (!("definition" in item)) continue;
 					const definition = item.definition;
@@ -323,6 +332,8 @@ export default async function pulses(pi: ExtensionAPI) {
 		});
 		try {
 			const current = await storeFor(ctx);
+			// Runtime ownership survives authoring-file deletion, including resume.
+			for (const id of await current.ownedIds()) ownedIds.add(id);
 			for (const item of await catalog(current.repo))
 				if (
 					/^[a-z0-9][a-z0-9-]*$/.test(item.id) &&
