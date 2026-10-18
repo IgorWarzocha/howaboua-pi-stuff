@@ -2,6 +2,7 @@
 "@howaboua/pi-github-watch": patch
 ---
 
-Added GitHub Actions run watches that wake the session when a run finishes. Completed runs return their result immediately.
-
-Use consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+- Added GitHub Actions run watches that wake the session when a run finishes. Completed runs return their result immediately.
+- Added consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+- PR watches now surface unresolved review threads, including existing feedback, without repeated notifications for unchanged threads. Notices encourage replies and resolution after feedback is addressed.
+- Conversation watches now detect edits while ignoring the authenticated account's replies and duplicate inline-review receipts.

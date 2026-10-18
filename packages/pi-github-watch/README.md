@@ -1,6 +1,6 @@
 # GitHub Watch
 
-Opt-in GitHub comment and Actions run watches that wake the same Pi session. Notifications contain a URL and comment count or run conclusion, never comment bodies or job logs. The agent reads the details with `gh`.
+Opt-in GitHub watches that wake the same Pi session for unresolved PR feedback, conversation changes and completed Actions runs. Notifications contain links, counts or run conclusions, never comment bodies or job logs. The agent reads the details with `gh`.
 
 ## Install
 
@@ -16,9 +16,13 @@ Ask the agent to watch a worthwhile thread, such as an issue awaiting an answer 
 
 The `github_watch` tool accepts a GitHub URL in its `thread` field, `owner/repo#123`, or a bare issue/PR number resolved through `gh repo view` in the current working directory. Call it without arguments for help. Its actions are `watch`, `status` and `cancel`.
 
-Issues are checked every minute. PRs take an initial metadata snapshot immediately, wait seven minutes before the first check, then check every minute. PR watches include conversation comments, submitted reviews and inline review comments. Existing comments and edits do not trigger notifications.
+Issues are checked every minute. PRs take an initial snapshot immediately, wait seven minutes before the first check, then check every minute.
 
-Thread watches continue after a notification.
+The first PR check surfaces all unresolved review threads, including ones that existed before the watch. Later checks notify when a thread appears, reopens or receives changed feedback, showing the current unresolved list. Unchanged threads and resolution alone do not wake the session. Resolved threads are excluded, but outdated threads remain visible until resolved.
+
+Conversation comments and standalone reviews have no resolved state. Existing entries are baselined, then new or edited entries trigger notifications. Pending reviews and duplicate inline-review receipts are ignored. Replies by the authenticated `gh` account do not trigger notifications, although its unresolved threads remain in the list. Posts made through another account are treated as another participant's feedback.
+
+Notifications encourage the agent to read the discussion, reply with a fix or reasoned disposition, and resolve addressed review threads. The watcher does not post replies or resolve threads itself. Thread watches continue after a notification.
 
 ## Watch an Actions run
 

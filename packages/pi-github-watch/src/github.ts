@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { threadSnapshot } from "./feedback.js";
 
 export interface Thread {
 	repo: string;
@@ -105,32 +106,8 @@ export function githubClient(
 				url: `https://github.com/${repo}/${kindText === "pr" ? "pull" : "issues"}/${number}`,
 			};
 		},
-		async snapshot(thread: Thread): Promise<Set<string>> {
-			const base = `repos/${thread.repo}`;
-			const endpoints = [`${base}/issues/${thread.number}/comments`];
-			if (thread.kind === "pr")
-				endpoints.push(
-					`${base}/pulls/${thread.number}/reviews`,
-					`${base}/pulls/${thread.number}/comments`,
-				);
-			const ids = new Set<string>();
-			for (const endpoint of endpoints) {
-				const output = await gh([
-					"api",
-					`${endpoint}?per_page=100`,
-					"--paginate",
-					"--jq",
-					'.[] | select(.state != "PENDING") | .id',
-				]);
-				for (const id of output.split(/\s+/).filter(Boolean)) {
-					if (!/^\d+$/.test(id))
-						throw new Error(
-							"GitHub returned invalid comment metadata. Retry the watch.",
-						);
-					ids.add(`${endpoint}:${id}`);
-				}
-			}
-			return ids;
+		snapshot(thread: Thread) {
+			return threadSnapshot(gh, thread);
 		},
 		async runSnapshot(run: WorkflowRun): Promise<RunSnapshot> {
 			const snapshot: unknown = JSON.parse(

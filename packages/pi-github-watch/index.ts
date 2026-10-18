@@ -5,7 +5,8 @@ import {
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { deliver } from "./src/delivery.js";
+import { deliver, feedbackMessage } from "./src/delivery.js";
+import type { ThreadSnapshot } from "./src/feedback.js";
 import {
 	githubClient,
 	type RunSnapshot,
@@ -15,7 +16,7 @@ import {
 
 interface Watch {
 	thread: WatchTarget;
-	seen: Set<string>;
+	seen: ThreadSnapshot;
 	controller: AbortController;
 	timer?: ReturnType<typeof setTimeout>;
 	state: "watching" | "paused";
@@ -23,10 +24,10 @@ interface Watch {
 }
 const MINUTE = 60_000;
 const HELP =
-	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}, or omit thread to cancel all without GitHub access. Issues and runs check each minute; PRs first check after 7 minutes, then each minute. Thread watches continue after new comments/reviews. Run watches follow the latest attempt, notify once on completion, then stop; already-completed runs return immediately. Notifications contain metadata, not comments or logs. Watches end on cancellation, session switch, reload or shutdown. Failed checks pause the watch; watch again to retry.";
+	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}; omit thread to cancel all offline. Issues/runs check each minute; PRs after 7 minutes, then each minute. PRs surface unresolved review threads, including existing ones; unchanged lists stay quiet. Conversation comments and standalone reviews notify on changes, excluding the authenticated gh user. Threads keep watching. Runs follow the latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no comment bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
 
 const GPT_HELP =
-	"watch: {action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}. status: {action:'status'}. cancel: {action:'cancel',thread:reference}; omit thread to cancel all without GitHub access. Poll issues/runs every minute; PRs after 7min, then every minute. Threads keep watching after comments/reviews. Runs follow latest attempt, notify once on completion and stop; completed runs return immediately. Notifications: metadata only, no comments/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
+	"watch: {action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}. status: {action:'status'}. cancel: {action:'cancel',thread:reference}; omit thread to cancel all offline. Poll issues/runs each minute; PRs after 7min, then each minute. PRs surface unresolved review threads, including existing; unchanged lists stay quiet. Conversation/standalone review changes notify, excluding authenticated gh user. Threads keep watching. Runs follow latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
 
 function runResult(
 	run: WorkflowRun,
@@ -69,12 +70,15 @@ export default async function (pi: ExtensionAPI) {
 				}
 				const seen = await client.snapshot(watch.thread);
 				if (watch.controller.signal.aborted) return;
-				const count = [...seen].filter((id) => !watch.seen.has(id)).length;
-				if (count)
-					deliver(
-						pi,
-						`GitHub watch: ${count} new comment/review item(s) at ${watch.thread.url}. Read the FULL thread with gh ${watch.thread.kind === "pr" ? "pr" : "issue"} view ${watch.thread.number} --repo ${watch.thread.repo} --comments, not just the latest comment.${watch.thread.kind === "pr" ? ` Also read inline review threads with gh api --paginate repos/${watch.thread.repo}/pulls/${watch.thread.number}/comments.` : ""}`,
-					);
+				const conversationChanges = [...seen.conversation].filter(
+					([id, version]) => watch.seen.conversation.get(id) !== version,
+				).length;
+				const reviewChanged = [...seen.unresolved].some(
+					([id, item]) =>
+						watch.seen.unresolved.get(id)?.version !== item.version,
+				);
+				if (conversationChanges || reviewChanged)
+					deliver(pi, feedbackMessage(watch.thread, seen, conversationChanges));
 				watch.seen = seen;
 				schedule(watch, ctx, MINUTE);
 			} catch {
@@ -157,10 +161,13 @@ export default async function (pi: ExtensionAPI) {
 			}
 			if (previous?.state === "watching")
 				return result(`${thread.url}: already watching`);
-			const snapshot =
-				thread.kind === "run"
-					? await client.runSnapshot(thread)
-					: await client.snapshot(thread);
+			let seen: ThreadSnapshot = {
+				conversation: new Map(),
+				unresolved: new Map(),
+			};
+			const runSnapshot =
+				thread.kind === "run" ? await client.runSnapshot(thread) : undefined;
+			if (thread.kind !== "run") seen = await client.snapshot(thread);
 			if (generation !== epoch || signal?.aborted)
 				throw new Error(
 					"Watch setup interrupted. Retry in the current session.",
@@ -168,18 +175,17 @@ export default async function (pi: ExtensionAPI) {
 			if (watches.get(thread.url)?.state === "watching")
 				return result(`${thread.url}: already watching`);
 			previous?.controller.abort();
-			if (
-				thread.kind === "run" &&
-				!(snapshot instanceof Set) &&
-				snapshot.completed
-			) {
+			if (thread.kind === "run" && runSnapshot?.completed) {
 				watches.delete(thread.url);
-				return result(`${runResult(thread, snapshot)} No watch started.`);
+				return result(`${runResult(thread, runSnapshot)} No watch started.`);
 			}
 			const watch: Watch = {
 				thread,
-				seen:
-					snapshot instanceof Set ? (previous?.seen ?? snapshot) : new Set(),
+				// Baseline conversation history, but surface existing unresolved threads on the first check.
+				seen: previous?.seen ?? {
+					conversation: seen.conversation,
+					unresolved: new Map(),
+				},
 				controller: new AbortController(),
 				state: "watching",
 				nextCheck: 0,
