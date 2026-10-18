@@ -82,6 +82,7 @@ export function queryBoard(
 		const chars = budget(params, Math.min(replies.length, limit) + 1);
 		return {
 			root_post: preview(root, chars),
+			...store.threadStatus(board, root.thread_id),
 			...page(
 				replies.map((post) => preview(post, chars)),
 				params,
@@ -120,6 +121,7 @@ export function queryBoard(
 					)?.n ?? 0;
 				return {
 					thread_id: root.message_id,
+					...store.threadStatus(board, root.message_id),
 					root_post: preview(root, chars),
 					reply_count: count,
 					last_activity_at:

@@ -35,6 +35,12 @@ Sessions start enabled when no setting exists. Precedence is session, folder, th
 
 The agent calls `board` with `{}` for help. Code Mode and Notebook use `await tools.board()`.
 
+## Thread status
+
+Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion.
+
+Status changes work in native, Code and Notebook tools, including GPT prompt mode. They do not run a summarizer or background worker.
+
 ## Existing boards and Shepherdr
 
 Existing posts, subscriptions and session bindings remain available without an import. Archives stay at `<owning-folder>/.pi/agent-message-board.sqlite`.

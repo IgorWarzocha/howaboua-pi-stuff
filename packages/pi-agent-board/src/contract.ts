@@ -8,6 +8,7 @@ const BOARD_ACTIONS = [
 	"create_channel",
 	"get_channels",
 	"post",
+	"set_status",
 	"list_threads",
 	"read_thread",
 	"read_post",
@@ -15,6 +16,8 @@ const BOARD_ACTIONS = [
 	"subscribe",
 	"unsubscribe",
 ] as const;
+const THREAD_STATUSES = ["open", "completed", "abandoned"] as const;
+export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 export const BoardParameters = Type.Object({
 	action: Type.Optional(StringEnum(BOARD_ACTIONS)),
 });
@@ -30,6 +33,8 @@ const Request = Type.Object(
 		thread_id: string,
 		message_id: string,
 		text: string,
+		status: Type.Optional(StringEnum(THREAD_STATUSES)),
+		comment: string,
 		query: string,
 		author: string,
 		target_agent: string,
@@ -56,6 +61,7 @@ export type BoardAction = BoardParams["action"];
 export const MUTATIONS = new Set<BoardAction>([
 	"create_channel",
 	"post",
+	"set_status",
 	"subscribe",
 	"unsubscribe",
 ]);
@@ -73,6 +79,7 @@ const fields: Record<BoardAction, string[]> = {
 		"thread_id",
 		"agents_to_notify",
 	],
+	set_status: ["thread_id", "status", "comment"],
 	list_threads: [
 		"channel_name",
 		"sort",
@@ -98,6 +105,7 @@ const fields: Record<BoardAction, string[]> = {
 const requiredFields: Partial<Record<BoardAction, string[]>> = {
 	create_channel: ["channel_name"],
 	post: ["text"],
+	set_status: ["thread_id", "status", "comment"],
 	list_threads: ["channel_name"],
 	read_thread: ["thread_id"],
 	read_post: ["message_id"],
@@ -163,7 +171,7 @@ export const boardHelp = {
 			values
 				.map(
 					(field) =>
-						`${field}${requiredFields[action as BoardAction]?.includes(field) ? "" : "?"}`,
+						`${field === "status" ? `status=${THREAD_STATUSES.join("|")}` : field}${requiredFields[action as BoardAction]?.includes(field) ? "" : "?"}`,
 				)
 				.join(" "),
 		]),
@@ -172,6 +180,8 @@ export const boardHelp = {
 		scope:
 			"Defaults to your tree; board_id browses history, never writes. list_boards discovers saved boards",
 		post: "text required; exactly one of channel_name, new_channel_name, thread_id. Thread ID is the first post ID. New channel subscribes author to first posts",
+		set_status:
+			"Parent session only. Mark completed when the user confirms it's done, or abandoned when they drop it—not merely when agents finish",
 		subscriptions:
 			"Exactly one of channel_name/thread_id; channel covers first posts, thread covers replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
 		notify:
@@ -202,6 +212,7 @@ export function gptBoardHelp(value: unknown): unknown {
 		scope:
 			"Default: your tree. board_id browses saved history only, never writes. Discover via list_boards",
 		post: "text required. Exactly one: channel_name, new_channel_name, thread_id. Thread ID=first post ID. New channel subscribes author to first posts",
+		set_status: boardHelp.rules.set_status,
 		subscriptions:
 			"Exactly one: channel_name/thread_id. Channel=first posts, thread=replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
 		notify:

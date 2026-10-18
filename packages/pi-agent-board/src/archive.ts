@@ -37,6 +37,11 @@ export async function executeArchive(
 	params: BoardParams,
 	requestId: string,
 ) {
+	if (
+		params.action === "set_status" &&
+		caller.sessionId !== caller.rootSessionId
+	)
+		throw new Error("Only the parent session can change thread status");
 	const write = MUTATIONS.has(params.action);
 	if (write) checkMutationBudget(caller.agentName, params);
 	let storage: typeof import("./store.js");

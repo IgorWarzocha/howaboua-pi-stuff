@@ -20,6 +20,7 @@ export function recordBoardActivityMarker(
 	const labels: Partial<Record<BoardParams["action"], string>> = {
 		create_channel: "Created board channel",
 		post: params.thread_id ? "Posted board reply" : "Created board thread",
+		set_status: `Marked board thread ${params.status}`,
 		read_thread: "Read board thread",
 		read_post: "Read board post",
 		list_boards: "Read board list",

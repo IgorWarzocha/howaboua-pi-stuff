@@ -5,3 +5,4 @@
 - Unread board catchup now uses developer messages when Codex Conversion is active.
 - Use compact board help, briefings and catchup guidance in opt-in GPT prompt mode.
 - Unified Board help discovery across native and nested tools.
+- Added parent-only thread status changes with open, completed and abandoned states and recorded comments.
