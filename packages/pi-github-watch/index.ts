@@ -24,10 +24,10 @@ interface Watch {
 }
 const MINUTE = 60_000;
 const HELP =
-	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}; omit thread to cancel all offline. Issues/runs check each minute; PRs after 7 minutes, then each minute. PRs surface unresolved review threads, including existing ones; unchanged lists stay quiet. Conversation comments and standalone reviews notify on changes, excluding the authenticated gh user. Threads keep watching. Runs follow the latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no comment bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
+	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}; omit thread to cancel all offline. Issues/runs check each minute; PRs after 7 minutes, then each minute. PRs surface unresolved review threads, including existing ones; unchanged lists stay quiet. Conversation comments and standalone reviews notify on changes, excluding the authenticated gh user. PR watches stop on closure or merge; closed PRs return immediately. Issue watches continue. Runs follow the latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no comment bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
 
 const GPT_HELP =
-	"watch: {action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}. status: {action:'status'}. cancel: {action:'cancel',thread:reference}; omit thread to cancel all offline. Poll issues/runs each minute; PRs after 7min, then each minute. PRs surface unresolved review threads, including existing; unchanged lists stay quiet. Conversation/standalone review changes notify, excluding authenticated gh user. Threads keep watching. Runs follow latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
+	"watch: {action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}. status: {action:'status'}. cancel: {action:'cancel',thread:reference}; omit thread to cancel all offline. Poll issues/runs each minute; PRs after 7min, then each minute. PRs surface unresolved review threads, including existing; unchanged lists stay quiet. Conversation/standalone review changes notify, excluding authenticated gh user. PR watches stop on closure/merge; closed PRs return immediately. Issues keep watching. Runs follow latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
 
 function runResult(
 	run: WorkflowRun,
@@ -67,6 +67,16 @@ export default async function (pi: ExtensionAPI) {
 					}
 					schedule(watch, ctx, MINUTE);
 					return;
+				}
+				if (watch.thread.kind === "pr") {
+					const state = await client.prState(watch.thread);
+					if (watch.controller.signal.aborted) return;
+					if (state !== "open") {
+						deliver(pi, `${watch.thread.url}: PR ${state}. Watch stopped.`);
+						watches.delete(watch.thread.url);
+						watch.controller.abort();
+						return;
+					}
 				}
 				const seen = await client.snapshot(watch.thread);
 				if (watch.controller.signal.aborted) return;
@@ -167,7 +177,10 @@ export default async function (pi: ExtensionAPI) {
 			};
 			const runSnapshot =
 				thread.kind === "run" ? await client.runSnapshot(thread) : undefined;
-			if (thread.kind !== "run") seen = await client.snapshot(thread);
+			const prState =
+				thread.kind === "pr" ? await client.prState(thread) : undefined;
+			if (thread.kind !== "run" && (!prState || prState === "open"))
+				seen = await client.snapshot(thread);
 			if (generation !== epoch || signal?.aborted)
 				throw new Error(
 					"Watch setup interrupted. Retry in the current session.",
@@ -175,6 +188,10 @@ export default async function (pi: ExtensionAPI) {
 			if (watches.get(thread.url)?.state === "watching")
 				return result(`${thread.url}: already watching`);
 			previous?.controller.abort();
+			if (prState && prState !== "open") {
+				watches.delete(thread.url);
+				return result(`${thread.url}: PR ${prState}. No watch started.`);
+			}
 			if (thread.kind === "run" && runSnapshot?.completed) {
 				watches.delete(thread.url);
 				return result(`${runResult(thread, runSnapshot)} No watch started.`);
