@@ -12,6 +12,7 @@ import {
 	RolledBackAgentLaunchError,
 	rollbackStartedAgent,
 	startAgent,
+	UnstartedAgentLaunchError,
 } from "./launch.js";
 import { attributeAgentPrompt } from "./messages.js";
 import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
@@ -368,7 +369,9 @@ export function registerWorkerService(
 			} catch (error) {
 				if (
 					stage === "preflight" ||
-					(stage === "launch" && error instanceof RolledBackAgentLaunchError)
+					(stage === "launch" &&
+						(error instanceof RolledBackAgentLaunchError ||
+							error instanceof UnstartedAgentLaunchError))
 				)
 					throw Object.assign(
 						new Error(error instanceof Error ? error.message : String(error), {

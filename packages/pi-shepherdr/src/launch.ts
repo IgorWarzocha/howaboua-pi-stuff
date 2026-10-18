@@ -93,6 +93,12 @@ export class RolledBackAgentLaunchError extends Error {
 	}
 }
 
+export class UnstartedAgentLaunchError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : String(cause), { cause });
+	}
+}
+
 async function createStartPane(
 	client: HerdrConnection,
 	params: StartAgentParams,
@@ -109,10 +115,13 @@ async function createStartPane(
 	}
 	if (placement === "new_tab") {
 		const workspaceTarget = required(params.workspace, "workspace");
-		const workspace = resolveWorkspace(
-			await getSnapshot(client),
-			workspaceTarget,
-		);
+		let workspace;
+		try {
+			workspace = resolveWorkspace(await getSnapshot(client), workspaceTarget);
+		} catch (error) {
+			throw new UnstartedAgentLaunchError(error);
+		}
+		// A failed create response may still have created a location.
 		const created = createdLocation(
 			await client.request<unknown>("tab.create", {
 				workspace_id: workspace.workspace_id,
@@ -229,11 +238,12 @@ export async function startAgent(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
 		);
 	}
-	const cwd = await resolveStartDirectory(
-		params,
-		fallbackCwd,
-		resolveDirectory,
-	);
+	let cwd: string;
+	try {
+		cwd = await resolveStartDirectory(params, fallbackCwd, resolveDirectory);
+	} catch (error) {
+		throw new UnstartedAgentLaunchError(error);
+	}
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
