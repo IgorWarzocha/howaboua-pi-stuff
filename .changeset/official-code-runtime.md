@@ -22,6 +22,6 @@ Code Mode always uses the pinned official OpenAI runtime. Local builds and `tool
 - Notebook journals now expire after one week without updates by default. `/codex` also offers indefinite retention or switching recording off and removing saved journals.
 - Added optional session-checkpoint cleanup after one month or one week of inactivity. Cleanup is off by default.
 - Standard Codex requests now send base instructions as a leading developer message, matching Responses Lite and current OpenAI Codex, without inventing a prompt when none is supplied.
-- Added an opt-in GPT prompt mode built on Heavy, with compact instructions and a shared mode API for participating extensions. Existing off/on settings are unchanged.
+- Added an opt-in experimental GPT prompt mode built on Heavy, with compact instructions and a shared mode API for participating extensions. Existing off/on settings are unchanged.
 - Code and Notebook use one discovery rule for help-backed tools, keeping arguments in on-demand help instead of repeated startup instructions.
 - Built-in history and notes return usage for empty calls and explicit help requests without accessing storage.

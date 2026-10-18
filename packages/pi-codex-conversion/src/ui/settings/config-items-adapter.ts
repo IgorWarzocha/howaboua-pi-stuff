@@ -76,17 +76,17 @@ export function buildAdapterSettings(
 				description: "On removes Pi's generic scaffold. GPT also compresses PCC's instructions; savings vary with execution mode and context. Other extensions' instructions are preserved.",
 				label: "Heavy system prompt overwrite",
 				currentValue: config.prompt.heavySystemPromptOverwrite === "gpt"
-					? "GPT (compact)"
+					? "GPT (experimental)"
 					: config.prompt.heavySystemPromptOverwrite
 					? "on (40% smaller)"
 					: "off",
-				values: ["off", "on (40% smaller)", "GPT (compact)"],
+				values: ["off", "on (40% smaller)", "GPT (experimental)"],
 			},
 			(value, current) => ({
 				...current,
 				prompt: {
 					...current.prompt,
-					heavySystemPromptOverwrite: value === "GPT (compact)" ? "gpt" : value !== "off",
+					heavySystemPromptOverwrite: value === "GPT (experimental)" ? "gpt" : value !== "off",
 				},
 			}),
 		),
