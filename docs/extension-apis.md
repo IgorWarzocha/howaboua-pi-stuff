@@ -1,6 +1,6 @@
 # Extension integration APIs
 
-Use the pieces you need. Pi Agent Board can share discussions between agents without Shepherdr. Notes Compaction can maintain a session without PCC or Shepherdr. An orchestrator can connect those capabilities to its own agent lifecycle through the contracts below.
+Use the pieces you need. Pi Agent Board can share discussions between agents without Shepherdr. Notes Compaction can maintain a session without Pi Codex Conversion (PCC) or Shepherdr. An orchestrator can connect those capabilities to its own agent lifecycle through the contracts below.
 
 This guide covers extension-to-extension APIs: registration, ownership, identity, routing, lifecycle and results. It is for people building Pi extensions, including people using an agent to build one. It does not require adopting the whole package collection.
 
@@ -16,6 +16,8 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 | Shared notes with PCC installed | Notes Compaction and [PCC](../packages/pi-codex-conversion/README.md) in the participants | PCC context-sharing discovery, child binding and a family router |
 | Shared notes without PCC | Notes Compaction and your own compatible Notes bridge | Identity, routing, ownership handoff and any optional provider services you choose to implement |
 | A Pi tool usable from Code or Notebook | A normal Pi tool, with PCC present | Usually no extra registration. Use the Code Mode API for custom behavior |
+| Compact extension guidance in PCC GPT prompt mode | PCC and your extension | Alternate wording through `registerGptPromptMode` |
+| A detached worker runner for Pulses | Source-only [Pulses](../packages/pi-pulses/README.md) and your runner | Worker admission, inspection, restoration and waking result delivery |
 | A local tool callable by Grok voice | [Grok Realtime](../packages/pi-grok-realtime/README.md) | A `GrokToolDefinition` |
 | A miniapp in GipPity's browser UI | The standalone [GipPity Control](../packages/pi-gippity-control/README.md) extension | A static app and a state/event provider |
 
@@ -47,11 +49,13 @@ flowchart LR
 | `pi-notes-compaction:owner:v1` and `pi-notes-compaction:bridge:v1` | Notes ownership and optional host services | [`bridge.ts`](../packages/pi-notes-compaction/src/bridge.ts) |
 | `@howaboua/pi-codex-conversion/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-codex-conversion/src/context-sharing.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
+| `@howaboua/pi-codex-conversion/prompt-mode` | Select owned guidance for PCC GPT prompt mode | [`prompt-mode.ts`](../packages/pi-codex-conversion/src/prompt-mode.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-hooks` | Nested-call preflight and completion | [`code-mode-hooks.ts`](../packages/pi-codex-conversion/src/code-mode-hooks.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-preflight` | Supported older preflight import | [`code-mode-preflight.ts`](../packages/pi-codex-conversion/src/code-mode-preflight.ts) |
 | `@howaboua/pi-codex-conversion/developer-messages` | Developer delivery, reminder annotation and context briefings | [`developer-messages.ts`](../packages/pi-codex-conversion/src/developer-messages.ts) |
 | `@howaboua/pi-codex-conversion/apply-patch-display` | Custom patch presentation | [`apply-patch-display.ts`](../packages/pi-codex-conversion/src/apply-patch-display.ts) |
 | `@howaboua/pi-codex-conversion/realtime-voice` | Voice announcements | [`realtime-voice.ts`](../packages/pi-codex-conversion/src/realtime-voice.ts) |
+| `@howaboua/pi-pulses/runner/v1` | Source-only detached-worker protocol, not an npm import | [`integration.ts`](../packages/pi-pulses/integration.ts) |
 | `@howaboua/pi-grok-realtime/tools` | Register local Grok voice tools | [`tools.ts`](../packages/pi-grok-realtime/src/tools.ts) |
 | `@howaboua/pi-gippity-control/remote-app` | Register a browser miniapp | [`remote-app.ts`](../packages/pi-gippity-control/src/voice/lan/remote-app.ts) |
 | `@howaboua/pi-gippity-control/lan-service` | Request the session's LAN service | [`service.ts`](../packages/pi-gippity-control/src/voice/lan/service.ts) |
@@ -232,7 +236,7 @@ sequenceDiagram
 | Method | Result and purpose |
 |---|---|
 | `identity(ctx)` | `WindowIdentity` or `undefined`; first/current/previous window IDs and zero-based `windowNumber` |
-| `projectMessages(messages)` | The active-window `AgentMessage[]` |
+| `projectMessages(messages, entries?)` | The active-window `AgentMessage[]`; optional current-branch entries refresh projection before later lifecycle hooks |
 | `projectBranch(entries)` | The corresponding projected `SessionEntry[]` |
 | `allowsCompaction(reason)` | Optional policy check before starting compaction work. The owner's hook handles notes-only rollover |
 | `allowsWindowRequests()` | Optional check of whether the owner permits new-window requests |
@@ -242,7 +246,9 @@ sequenceDiagram
 
 The first three methods are required. Optional methods must be checked before use. A fresh session can already contain startup UI metadata. That alone is not a user turn, but it is not permission to accept arbitrary custom entries or to rebind a used session.
 
-The optional `entries: readonly SessionEntry[]` argument excludes history through an explicitly asserted inherited fork boundary. Omission checks the full session. Older owners that ignore this argument reject inherited conversation history rather than silently adopting it.
+For `projectMessages`, pass `ctx.sessionManager.getBranch()` when projection must reflect the current branch before the owner's lifecycle hooks run. Omitting it uses the owner's existing window state. The optional argument is backward-compatible, but older owners do not perform this early refresh.
+
+For `canBind`, the optional `entries: readonly SessionEntry[]` argument excludes history through an explicitly asserted inherited fork boundary. Omission checks the full session. Older owners that ignore this argument reject inherited conversation history rather than silently adopting it.
 
 ### Bridge capabilities
 
@@ -428,6 +434,46 @@ Board and context binding are separate transactions. If both are enabled, comple
 
 Fresh-child sharing opt-in controls new children. It does not detach an already-adopted family when turned off. Resume retains identity. Forks get their own identity. Existing-agent attachment must preserve the original owner rather than rebind it under a new child path.
 
+## PCC GPT prompt mode
+
+PCC GPT prompt mode selects compact wording for PCC and participating extensions. Users choose **GPT (experimental)** under **Heavy system prompt overwrite** in `/codex`, or set `prompt.heavySystemPromptOverwrite` to `"gpt"`. It builds on Heavy's scaffold handling without changing tool arguments or execution. The mode is active only while PCC's adapter is active, not simply because the selected model is a GPT model.
+
+Import `registerGptPromptMode` from `@howaboua/pi-codex-conversion/prompt-mode`. Its synchronous callback receives `(active: boolean, context: ExtensionContext | undefined)` and returns current owned tool metadata or nothing. The exported `PromptModeToolMetadata` type contains `name`, optional `promptSnippet` and optional `promptGuidelines`.
+
+The caller below supplies two definitions of the same tool that differ only in owned wording:
+
+```ts
+import type { ExtensionAPI, ToolDefinition } from
+  "@earendil-works/pi-coding-agent";
+import { registerGptPromptMode } from
+  "@howaboua/pi-codex-conversion/prompt-mode";
+
+export function registerModeAwareTool(
+  pi: ExtensionAPI,
+  ordinary: ToolDefinition,
+  compact: ToolDefinition,
+) {
+  let current = ordinary;
+  pi.registerTool(current);
+  return registerGptPromptMode(pi, active => {
+    const next = active ? compact : ordinary;
+    if (next !== current) {
+      current = next;
+      pi.registerTool(current);
+    }
+    return [current];
+  });
+}
+```
+
+Registration first calls the handler with `false` and no context, then requests the broker's latest prepared mode. It works in either extension load order. Preparation calls the handler again before prompt and tool capture, even when the mode has not changed. Keep it synchronous and repeatable. Re-register native definitions only when their text changes, but return their current metadata every time: Pi has already cloned the prompt metadata before preparation. Handler errors fail registration or preparation rather than silently selecting ordinary wording.
+
+The returned `GptPromptModeRegistration` exposes read-only `active` for help and nested-tool providers, plus `dispose()`. Read `active` when producing guidance rather than caching it at startup. Registration disposes automatically on shutdown. Disposal stops updates; it does not unregister your tool. Without a PCC broker, `active` remains false. For optional PCC support, load the module lazily and retain ordinary wording when the package or subpath is absent.
+
+Most adopters need only registration. If a command or an early preparation hook consumes the mode before normal capture, call `prepareGptPromptMode(pi, ctx)` first. A hook capturing prompt metadata can pass `event.systemPromptOptions` as its third argument, supplying `toolSnippets` and `toolGuidelines`. This synchronously prepares the current mode and is a no-op without the host. PCC owns `registerGptPromptModeBroker`; consumer extensions must not register a competing broker.
+
+Change only your extension's own prose. Preserve tool names, schemas, execution, user content, project instructions and other extensions' contributions. The helper does not grant permission to rewrite a running session's standing prompt.
+
 ## Tools in Code and Notebook
 
 Register a normal Pi tool first. PCC can expose ordinary Pi extension and MCP tools automatically. Use the `code-mode` API when you need custom usage, activation, blocking, input conversion or result projection.
@@ -462,16 +508,19 @@ This fragment assumes a tool name that is a JavaScript identifier. Use PCC's nam
 
 | Option | Effect |
 |---|---|
-| `usage` | Required concise callable contract |
+| `usage` | Concise callable contract, required unless `discovery: "help"` supplies the default empty help call |
+| `discovery: "help"` | List the tool's capability without a call signature; an empty call must return usage without performing an operation |
 | `blocking` | Boolean or input predicate for a call that must hold the turn |
 | `deferLoading` | Keep startup small and expose the contract through discovery |
 | `kind` | `function` or `freeform` |
 | `prepareInput(input)` | Required for freeform input; maps it to normal parameters |
-| `promptMetadata` | Whether to translate applicable Pi prompt metadata |
+| `promptMetadata` | Translate Pi snippets and guidelines by default; only guidelines accompany the callable contract in the standing nested-tool guidance |
 | `toolName` | Explicit Code Mode tool identity/namespace |
 | `resultValue(result)` | Custom JavaScript result projection |
 
-Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS`. They are not necessarily separate provider JSON schemas. Do not infer that prompt guidance survived merely because a callable exists.
+For a help-backed tool, use `adaptToolForCodeMode(tool, { discovery: "help", deferLoading: true })`. Omitting `usage` generates its no-argument help call. Structured help calls use `{}`. This is an explicit contract, not inferred behaviour: the tool must accept empty input and return usage instead of executing its task. The option does not implement help for you. Ordinary operation tools retain their explicit `usage` signatures.
+
+Nested tools remain callable through `tools` and discoverable through `ALL_TOOLS`, which retains descriptions, snippets and schemas for on-demand help. They are not necessarily separate provider JSON schemas. Do not infer that prompt guidance survived merely because a callable exists. Help discovery works independently of PCC GPT prompt mode.
 
 `new_context` remains a sequential model-only tool. Never put it under an `exec` cell or a nested-tool wrapper.
 
@@ -511,6 +560,25 @@ The PCC delivery helpers require an active Responses adapter and mark their mess
 A custom message supplies `customType`, nonempty `content`, `display` and optional plain-object `details`. PCC reserves the `@howaboua/pi-codex-conversion/developer-message` details key. Do not fall back after a delivery failure and risk sending the same task twice.
 
 A `CodexContextBriefing` is `{ protocol: 1, id, owner, key, content }`, persisted with `pi.appendEntry(CODEX_CONTEXT_BRIEFING_TYPE, briefing)`. IDs and content are immutable. The handler receives `(ctx, windowId, messages?)` at inference admission. Use selected context to decide what is already present; do not edit earlier messages or the static system prompt to refresh guidance.
+
+## Pulses worker runners
+
+[Pulses](../packages/pi-pulses/README.md) is private and source-only. Its [`integration.ts`](../packages/pi-pulses/integration.ts) defines an extension interoperability contract, not a published runner SDK. Pulses owns scheduling and admissions. A runner owns detached workers, saved-session restoration and final-result delivery that wakes the controlling main session. Shepherdr is the first implementation.
+
+`connectPulseRunner(pi)` returns a connection with a live `service` getter and `dispose()`. Each service lookup emits `@howaboua/pi-pulses/runner/v1/request` with `{ protocol: "@howaboua/pi-pulses/runner/v1", accept }`. A runner answers synchronously with `accept(runner)`. No answer returns `undefined`; multiple distinct runners raise an ownership conflict. Dispose the connection and unsubscribe listeners on shutdown.
+
+`PulseRunner` requires `protocol: "@howaboua/pi-pulses/runner/v1"`, a nonempty `id` and these methods:
+
+| Method | Contract |
+|---|---|
+| `isController(ctx)` | Whether this session may own and schedule pulses; false for detached workers, including resumed workers |
+| `start(ctx, input)` | `Promise<PulseWorker>` confirming admission, never task completion |
+| `inspect(ctx, workerId)` | `Promise<PulseWorker>` reporting the worker's current state |
+| `subscribe(listener)` | Subscribe to worker-state changes and return an unsubscribe function |
+
+`PulseRun` contains string fields `taskId`, `title`, `prompt`, `cwd`, `runId` and optional `workerId`. Preserve the run identity across any check of the same admission. `PulseWorker` contains an opaque `workerId` and `state: "working" | "idle" | "closed"`.
+
+Controller checks and subscriptions may precede operational readiness. Check `isController(ctx)` before claiming or scheduling work. A rejected `start` remains uncertain unless an `Error` carries `dispatched: false`, recognised by `isPulseRunNotStarted(error)`. Only that positive receipt permits clearing the admission. A missing receipt or malformed history does not prove the task never started. Do not replay unconfirmed work or substitute execution inside the main agent.
 
 ## Voice and browser integrations
 
