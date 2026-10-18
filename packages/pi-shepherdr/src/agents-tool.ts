@@ -242,7 +242,7 @@ export function createAgentsTool(
 				params?.name ??
 				params?.agent_type ??
 				"";
-			return new Text(
+			const title = new Text(
 				theme.fg(
 					context && "isBlocked" in context && context.isBlocked === true
 						? "warning"
@@ -252,6 +252,13 @@ export function createAgentsTool(
 				0,
 				0,
 			);
+			const message = params?.message ?? params?.handoff;
+			if (!context?.expanded || !message) return title;
+			const container = new Container();
+			container.addChild(title);
+			container.addChild(new Spacer(1));
+			container.addChild(new Text(message, 0, 0));
+			return container;
 		},
 		renderResult(toolResult, options, theme) {
 			const details =
