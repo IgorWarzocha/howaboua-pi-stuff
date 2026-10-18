@@ -13,6 +13,7 @@ import {
 import { metadata, POST_COLUMNS, type PostRecord, preview } from "./paging.js";
 import { queryBoard } from "./queries.js";
 import { serializeBoardResult } from "./response.js";
+import { ThreadSummaries } from "./summaries.js";
 
 export interface BoardScope {
 	boardId: string;
@@ -39,6 +40,7 @@ message_id TEXT NOT NULL, PRIMARY KEY(board_id,thread_id));`;
 /** One transaction/connection per call. Reads never create a file, schema or board. */
 export class BoardStore {
 	readonly db: DatabaseSync;
+	readonly summaries: ThreadSummaries;
 	private readonly hasThreadStatuses: boolean;
 	constructor(path: string, write: boolean) {
 		const fresh = !existsSync(path);
@@ -66,6 +68,7 @@ export class BoardStore {
 			this.hasThreadStatuses = !!this.one(
 				"SELECT 1 FROM sqlite_master WHERE type='table' AND name='thread_statuses'",
 			);
+			this.summaries = new ThreadSummaries(this.db, write);
 			if (write) this.db.exec("COMMIT");
 		} catch (error) {
 			this.db.close();
@@ -327,7 +330,7 @@ export class BoardStore {
 			key,
 			request,
 		);
-		if (params.action === "set_status")
+		if (params.action === "set_status") {
 			this.run(
 				`INSERT INTO thread_statuses(board_id,thread_id,status,message_id) VALUES(?,?,?,?)
 				ON CONFLICT(board_id,thread_id) DO UPDATE SET status=excluded.status,message_id=excluded.message_id`,
@@ -336,6 +339,8 @@ export class BoardStore {
 				required(params.status, "status"),
 				id,
 			);
+			this.summaries.discard(board, root);
+		}
 		this.subscription(board, `thread:${root}`, scope.agentName, true, true);
 		return {
 			value: {

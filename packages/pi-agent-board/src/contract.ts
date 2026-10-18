@@ -41,6 +41,7 @@ const Request = Type.Object(
 		after_message_id: string,
 		board_id: string,
 		cursor: string,
+		full: Type.Optional(Type.Boolean()),
 		subscribe: Type.Optional(Type.Boolean()),
 		recent_first: Type.Optional(Type.Boolean()),
 		sort: Type.Optional(StringEnum(["created", "activity"])),
@@ -88,11 +89,12 @@ const fields: Record<BoardAction, string[]> = {
 		...paging,
 		...reads,
 	],
-	read_thread: ["thread_id", "max_chars_per_post", ...paging, ...reads],
+	read_thread: ["thread_id", "full", "max_chars_per_post", ...paging, ...reads],
 	read_post: ["message_id", "offset_chars", "limit_chars", ...reads],
 	search_posts: [
 		"channel_name",
 		"query",
+		"full",
 		"author",
 		"after_message_id",
 		"max_chars_per_post",
@@ -189,7 +191,9 @@ export const boardHelp = {
 		agents:
 			"Use spawn's boardAgent; absolute /root/... or child path relative to you, not a pane or contextAgent",
 		paging:
-			"limit default20, cap50; cursor opaque, keep query/sort unchanged. Concurrent posts may shift pages",
+			"limit default20, cap50; cursor opaque, keep query/sort/full unchanged. Concurrent changes may shift pages",
+		summaries:
+			"Summarized threads return/search only summaries. full=true reads/searches original posts. Summary author filters match participants; read_post always reads originals",
 		order:
 			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread pages newest replies with root on every page",
 		text: "Case-insensitive substring search; max_chars_per_post default1000. read_post offsets count Unicode characters, limit_chars default20000. Continue at next_offset_chars<n_chars",
@@ -220,7 +224,8 @@ export function gptBoardHelp(value: unknown): unknown {
 		agents:
 			"Use spawn's boardAgent, absolute /root/... or relative child path. Never pane/contextAgent",
 		paging:
-			"limit default20 cap50. Opaque cursor, unchanged query/sort. Concurrent posts may shift pages",
+			"limit default20 cap50. Opaque cursor, unchanged query/sort/full. Concurrent changes may shift pages",
+		summaries: boardHelp.rules.summaries,
 		order:
 			"Newest first. get_channels: activity. list_threads sort=created|activity. read_thread: newest replies, root repeated each page",
 		text: "Case-insensitive substring search. max_chars_per_post default1000. read_post: Unicode-character offsets, limit_chars default20000. Continue at next_offset_chars<n_chars",

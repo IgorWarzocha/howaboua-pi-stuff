@@ -37,15 +37,14 @@ export function page<T>(values: T[], params: BoardParams) {
 	const { limit, offset } = window(params);
 	const has_more = values.length > limit;
 	const results = values.slice(0, limit);
-	let next_cursor: string | null = null;
-	if (has_more) {
-		if (offset + results.length > 0xffffffff)
-			throw new Error("Cursor exceeds board limit");
-		const bytes = Buffer.alloc(4);
-		bytes.writeUInt32BE(offset + results.length);
-		next_cursor = bytes.toString("base64url");
-	}
+	const next_cursor = has_more ? cursor(offset + results.length) : null;
 	return { results, n_returned: results.length, has_more, next_cursor };
+}
+export function cursor(offset: number) {
+	if (offset > 0xffffffff) throw new Error("Cursor exceeds board limit");
+	const bytes = Buffer.alloc(4);
+	bytes.writeUInt32BE(offset);
+	return bytes.toString("base64url");
 }
 export function budget(params: BoardParams, count: number) {
 	return Math.min(

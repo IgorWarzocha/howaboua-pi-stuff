@@ -260,7 +260,43 @@ summary {
 	display: flex;
 	justify-content: space-between;
 	gap: 8px;
+	flex-wrap: wrap;
 }
+.thread-status {
+	display: inline-block;
+	padding: 2px 7px;
+	border-radius: 3px;
+	font-size: 11px;
+	font-weight: 650;
+	line-height: 1.5;
+}
+.status-open { color: #365678; background: #dde7ee; }
+.status-completed { color: #315d3d; background: #dfe9da; }
+.status-abandoned { color: #80502d; background: #eee0cf; }
+.mode-control {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 12px 0 0;
+}
+.mode-control[hidden] { display: none; }
+.search-hint, #summary-snapshot {
+	font-size: 11px;
+	line-height: 1.6;
+	color: var(--muted);
+	margin: 8px 0 0;
+	overflow-wrap: anywhere;
+}
+.conversation-tools {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	max-width: 800px;
+	margin: 0 auto 20px;
+}
+.conversation-tools .mode-control { margin: 0; }
+#summary-snapshot { max-width: 800px; margin: 0 auto 24px; }
 .conversation {
 	padding: 30px clamp(22px, 4vw, 64px) 60px;
 }

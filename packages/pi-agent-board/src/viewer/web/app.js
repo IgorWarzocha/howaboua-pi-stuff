@@ -9,6 +9,8 @@ const state = {
 	channel: "",
 	author: "",
 	query: "",
+	searchFull: false,
+	full: false,
 	thread: "",
 	detail: null,
 	page: null,
@@ -106,10 +108,17 @@ function threadParams() {
 		channel: state.channel,
 		author: state.author,
 		q: state.query,
+		full: state.searchFull ? "true" : "",
 	};
 }
 function same(a, b) {
 	return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function statusLabel(status) {
+	return node("span", `thread-status status-${status}`, {
+		open: "Open", completed: "Completed", abandoned: "Abandoned",
+	}[status]);
 }
 
 function renderBoard() {
@@ -194,6 +203,7 @@ function renderThreads() {
 			);
 			const foot = node("div", "thread-foot");
 			foot.append(
+				statusLabel(thread.status),
 				node("span", "", thread.channel),
 				node(
 					"span",
@@ -201,6 +211,7 @@ function renderThreads() {
 					`${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}`,
 				),
 			);
+			if (thread.summarized) foot.append(node("span", "", "Summary"));
 			link.append(meta, node("p", "thread-preview", thread.preview), foot);
 			link.onclick = (event) => {
 				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
@@ -219,14 +230,14 @@ function renderThreads() {
 	$("more-threads").hidden = !state.page.nextCursor;
 }
 
-function renderPost(post, root) {
+function renderPost(post, root, summary = false) {
 	const article = node("article", "post");
 	if (root) article.append(node("div", "post-channel", post.channel));
 	const header = node("header", "post-header");
 	const time = node("time", "", date(post.createdAt));
 	time.dateTime = post.createdAt;
 	time.title = post.createdAt;
-	header.append(author(post.author), time);
+	header.append(summary ? node("strong", "", "Summary") : author(post.author), time);
 	const body = node("div", "prose");
 	body.innerHTML = DOMPurify.sanitize(
 		marked.parse(post.text, { async: false }),
@@ -277,8 +288,16 @@ function renderPost(post, root) {
 }
 function renderConversation() {
 	const conversation = state.conversation;
+	const summary = conversation.summary;
+	$("thread-status").replaceChildren(statusLabel(conversation.status));
+	$("discussion-mode").hidden = !summary;
+	$("full-discussion").checked = state.full;
+	const snapshot = $("summary-snapshot");
+	snapshot.hidden = !summary;
+	snapshot.textContent = summary ? `Summary saved ${date(summary.createdAt)} · ${summary.provider}/${summary.model} · ${summary.reasoning} · Through ${summary.throughMessageId}` : "";
+	if (summary?.hasNewerPosts) snapshot.prepend(node("strong", "", "New replies after this summary. "));
 	$("posts").replaceChildren(
-		renderPost(conversation.root, true),
+		...(conversation.root ? [renderPost(conversation.root, true)] : summary ? [renderPost(summary, false, true)] : []),
 		...conversation.replies.map((post) => renderPost(post, false)),
 	);
 	$("more-replies").hidden = !conversation.nextCursor;
@@ -291,6 +310,9 @@ function clearConversation() {
 	$("more-replies").hidden = true;
 	document.body.classList.remove("detail-open");
 	$("posts").replaceChildren();
+	$("thread-status").replaceChildren();
+	$("discussion-mode").hidden = true;
+	$("summary-snapshot").hidden = true;
 	saveSelection();
 }
 async function loadList() {
@@ -304,8 +326,9 @@ async function loadList() {
 	setChanged(false);
 	if (page.threads[0]) await openThread(page.threads[0].id);
 }
-async function openThread(id) {
-	const conversation = await api("/api/thread", { boardId: state.board, id });
+async function openThread(id, full = false) {
+	const conversation = await api("/api/thread", { boardId: state.board, id, full: full ? "true" : "" });
+	state.full = full;
 	state.thread = id;
 	state.conversation = conversation;
 	state.firstConversation = conversation;
@@ -348,7 +371,7 @@ async function refresh(explicit = false) {
 		api("/api/board", { boardId: state.board }),
 		api("/api/threads", params),
 		state.thread
-			? api("/api/thread", { boardId: state.board, id: state.thread })
+			? api("/api/thread", { boardId: state.board, id: state.thread, full: state.full ? "true" : "" })
 			: Promise.resolve(null),
 	]);
 	if (!explicit && (state.threadPages > 1 || state.replyPages > 1)) {
@@ -396,9 +419,15 @@ $("search-form").onsubmit = (event) => {
 	event.preventDefault();
 	run(async () => {
 		state.query = $("search").value.trim();
+		state.searchFull = $("search-full").checked;
 		await loadList();
 	});
 };
+$("search-full").onchange = () => run(async () => {
+	state.searchFull = $("search-full").checked;
+	await loadList();
+});
+$("full-discussion").onchange = () => run(() => openThread(state.thread, $("full-discussion").checked));
 $("refresh").onclick = () => run(() => refresh(true));
 $("back").onclick = () => {
 	document.body.classList.remove("detail-open");
@@ -433,6 +462,7 @@ $("more-replies").onclick = () =>
 		const page = await api("/api/thread", {
 			boardId: state.board,
 			id: state.thread,
+			full: state.full ? "true" : "",
 			cursor: state.conversation.nextCursor,
 		});
 		if (state.replyPages === 1) state.firstConversation = state.conversation;

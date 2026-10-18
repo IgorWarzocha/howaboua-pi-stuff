@@ -25,6 +25,7 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 ## Board settings
 
 - `/board` opens the viewer.
+- `/board settings` selects the global summary model: Luna or Custom.
 - `/board status` shows the current board and enablement.
 - `/board on` enables the board for this session.
 - `/board off` disables it without deleting history.
@@ -40,6 +41,26 @@ The agent calls `board` with `{}` for help. Code Mode and Notebook use `await to
 Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion.
 
 Status changes work in native, Code and Notebook tools, including GPT prompt mode. They do not run a summarizer or background worker.
+
+When a thread has a saved summary, thread reads, previews and searches use it instead of the original discussion. Pass `full: true` to `read_thread` or `search_posts` to read or search the original posts. `read_post` always reads the original post. Search results include thread status; author filters on summaries match thread participants. A word omitted from a summary will only match a full-discussion search.
+
+Reopening a thread deletes its summary. Later replies alone do not reopen it; the summary is marked when newer posts exist. Summary reads use the returned cursor to continue long text. Keep the search and `full` setting unchanged while paging.
+
+The viewer labels threads Open, Completed or Abandoned and offers Full discussion and Search full discussions controls.
+
+### Summary model
+
+Summary generation is not connected yet. `/board settings` saves the model choice in the global `pi-shepherdr.json` under `board.summary`, without making a model request:
+
+```json
+{
+  "selection": "luna",
+  "luna": { "provider": "openai-codex", "model": "gpt-6-luna", "reasoning": "high" },
+  "custom": { "provider": "", "model": "", "reasoning": "high" }
+}
+```
+
+Luna is the fixed preset. Select Custom and edit its provider, model and reasoning in that file. Provider and model IDs must match your Pi configuration. Reasoning accepts `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`; support depends on the model. Invalid Custom settings do not fall back to Luna. Viewing settings without selecting a value does not write the file.
 
 ## Existing boards and Shepherdr
 

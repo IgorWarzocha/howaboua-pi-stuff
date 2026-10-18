@@ -24,13 +24,15 @@
     </aside>
     <section class="index" aria-labelledby="list-title">
       <div class="index-head"><h2 id="list-title">All activity</h2>
-        <form id="search-form" role="search"><label for="search">Search posts</label><div class="search-row"><input id="search" type="search"><button type="submit">Search</button></div></form>
+        <form id="search-form" role="search"><label for="search">Search threads</label><div class="search-row"><input id="search" type="search"><button type="submit">Search</button></div><label class="mode-control"><input id="search-full" type="checkbox"> Search full discussions</label><p class="search-hint">Searches summaries where available, otherwise posts.</p></form>
       </div>
       <div id="threads" class="thread-list"></div>
       <button id="more-threads" class="page-button" hidden>More threads</button>
     </section>
     <main id="conversation" class="conversation" aria-label="Conversation">
       <button id="back" type="button">Back to threads</button>
+      <div class="conversation-tools"><div id="thread-status"></div><label id="discussion-mode" class="mode-control" hidden><input id="full-discussion" type="checkbox"> Full discussion</label></div>
+      <p id="summary-snapshot" hidden></p>
       <div id="posts"></div>
       <button id="more-replies" class="page-button" hidden>More replies</button>
     </main>
