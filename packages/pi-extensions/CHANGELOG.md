@@ -1,5 +1,17 @@
 # @howaboua/pi-extensions
 
+## 0.0.97
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Use consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+  - @howaboua/pi-auto-trees: Use compact priming, commit-summary and voice guidance in opt-in PCC GPT prompt mode.
+  - @howaboua/pi-better-skills-tool: Use consistent skill discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+  - @howaboua/pi-github-watch: - Added GitHub Actions run watches that wake the session when a run finishes. Completed runs return their result immediately. - Added consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode. - PR watches now surface unresolved review threads, including existing feedback, without repeated notifications for unchanged threads. Notices encourage replies and resolution after feedback is addressed. - Conversation watches now detect edits while ignoring the authenticated account's replies and duplicate inline-review receipts. - PR watches now stop when the PR is closed or merged. Already-closed PRs return their state without starting a watch.
+  - @howaboua/pi-pet: Added empty-call reaction discovery, including when no pet is connected, and deferred Code and Notebook help.
+  - @howaboua/pi-shepherdr: **Worker integrations** - Fresh workers now share their parent's cache routing with compatible Codex Conversion. Shared notes remain optional, and native sessions and histories remain separate. - Fresh workers inherit the live Board setting before their first request, keeping Board tools and guidance available from startup. - Added an optional Pulses runner with persistent workers, saved-session reuse and completion reports that wake the parent. **Agent tools and guidance** - Expanded tool calls now show outgoing tasks, messages, replies and focus handoffs in full. - Added compact agent help and hosted Board briefings for PCC GPT prompt mode. - Agent discovery now uses the same help contract across native, Code and Notebook tools. - Added delegation guidance for distinct scopes, shared project context and combined validation. - Invalid spawn names now explain naming limits and how to use a longer label. Spawn guidance favours short two-word names.
+  - @howaboua/pi-unicode-charts: Use compact chart guidance in opt-in PCC GPT prompt mode.
+
 ## 0.0.96
 
 - Include bundled package updates:

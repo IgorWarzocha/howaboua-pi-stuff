@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.96",
+	"version": "0.0.97",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -13,19 +13,19 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@howaboua/pi-ask": "0.0.14",
-		"@howaboua/pi-auto-trees": "0.1.16",
-		"@howaboua/pi-better-skills-tool": "0.0.9",
+		"@howaboua/pi-ask": "0.0.15",
+		"@howaboua/pi-auto-trees": "0.1.17",
+		"@howaboua/pi-better-skills-tool": "0.0.10",
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-gippity-control": "0.0.26",
-		"@howaboua/pi-github-watch": "0.0.1",
+		"@howaboua/pi-github-watch": "0.0.2",
 		"@howaboua/pi-gpt-switcher": "0.1.5",
 		"@howaboua/pi-grok-realtime": "0.0.1",
-		"@howaboua/pi-pet": "0.1.6",
-		"@howaboua/pi-shepherdr": "0.2.21",
+		"@howaboua/pi-pet": "0.1.7",
+		"@howaboua/pi-shepherdr": "0.2.22",
 		"@howaboua/pi-smart-btw": "0.2.8",
 		"@howaboua/pi-subagent-review": "0.2.25",
-		"@howaboua/pi-unicode-charts": "0.1.0"
+		"@howaboua/pi-unicode-charts": "0.1.1"
 	},
 	"files": [
 		"README.md",

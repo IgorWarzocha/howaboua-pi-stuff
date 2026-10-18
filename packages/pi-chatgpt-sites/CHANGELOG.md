@@ -1,5 +1,9 @@
 # @howaboua/pi-chatgpt-sites
 
+## 0.0.2
+
+- Streamlined tool descriptions and on-demand help discovery. Guide contents are unchanged.
+
 ## 0.0.1
 
 - ### Features
