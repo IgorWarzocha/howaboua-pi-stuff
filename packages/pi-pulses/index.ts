@@ -25,6 +25,7 @@ export default async function pulses(pi: ExtensionAPI) {
 	let ready = false;
 	let idle: (() => void) | undefined;
 	const ownedIds = new Set<string>();
+	const schedules = new Map<string, string>();
 	const notify = (error: unknown) =>
 		context?.ui.notify(
 			error instanceof Error
@@ -69,12 +70,15 @@ export default async function pulses(pi: ExtensionAPI) {
 			});
 			delete state.worker;
 		}
-		if (created || rebase) {
+		const schedule = JSON.stringify(definition.schedule);
+		if (created || rebase || schedules.get(definition.id) !== schedule) {
 			state.lastRunAt = Date.now();
 			const key = pulseDueKey(definition.schedule, state.lastRunAt);
 			if (key) state.lastDueKey = key;
+			else delete state.lastDueKey;
 		}
 		await current.save(definition.id, state);
+		schedules.set(definition.id, schedule);
 	}
 	async function run(
 		ctx: ExtensionContext,
@@ -215,6 +219,11 @@ export default async function pulses(pi: ExtensionAPI) {
 						if (definition.enabled && definition.schedule.kind !== "manual")
 							await bind(definition, current, false);
 						else continue;
+					} else if (
+						schedules.get(item.id) !== JSON.stringify(definition.schedule)
+					) {
+						// A live schedule edit starts here, without replaying its past slots.
+						await bind(definition, current, true);
 					}
 					const state = await current.read(item.id);
 					const now = Date.now();
@@ -298,6 +307,7 @@ export default async function pulses(pi: ExtensionAPI) {
 		stopped = false;
 		ready = false;
 		ownedIds.clear();
+		schedules.clear();
 		if (timer) clearInterval(timer);
 		unsubscribe?.();
 		unsubscribe = bridge.service?.subscribe(() => {
