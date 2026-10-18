@@ -63,7 +63,8 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		owner: "pi-notes-compaction",
 		identity: () =>
 			lifecycle.windows.current ? { ...lifecycle.windows.current } : undefined,
-		projectMessages: (messages) => {
+		projectMessages: (messages, entries) => {
+			if (entries) lifecycle.windows.restore(entries);
 			const projected = lifecycle.windows.projectMessages(
 				messages,
 				lifecycle.bridge?.prepareReminder,
@@ -322,8 +323,12 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	});
 	pi.on("context", (event, ctx) => {
 		try {
-			lifecycle.windows.restore(ctx.sessionManager.getBranch());
-			return { messages: owner.projectMessages(event.messages) };
+			return {
+				messages: owner.projectMessages(
+					event.messages,
+					ctx.sessionManager.getBranch(),
+				),
+			};
 		} catch (error) {
 			ctx.abort();
 			throw error;

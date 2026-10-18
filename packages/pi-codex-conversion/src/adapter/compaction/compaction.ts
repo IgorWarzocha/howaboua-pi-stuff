@@ -390,7 +390,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 			const projected = state.externalNotes ? messages : state.contextWindows.project(
 				messages, plan.contextManagementMode, ctx.sessionManager.getBranch(), ctx.sessionManager.getEntries(),
 			);
-			return externalOwner?.projectMessages(projected) ?? [...projected];
+			return externalOwner?.projectMessages(projected, branchEntries) ?? [...projected];
 		},
 	};
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel, codeMode);

@@ -7,5 +7,6 @@
 - Custom kickoffs skip input hooks. The custom-turn-admission event owns pre-kickoff idle rollover; compaction must finish before Pi reserves startup as busy. Successor custom turns run every before_agent_start hook.
 - Model deactivation yields policy and tools, not committed history cuts. Untrimmed initialization never undoes a prior retirement; real compaction can supersede it. Preserve projection on context and compaction routes in either extension order.
 - Restore compacted-away identity only in complete context, ahead of its summary. Keep replay slices untouched and developer metadata stable; never queue a turn to restore guidance.
+- Reconstructed prewarm must refresh projection from the current branch: PCC's session_compact hook can run before Notes'. Do not refresh kickoff projection while its successor boundary is still unpersisted.
 - Return initial and rebound identity from before_agent_start, never send it during startup. Pi inserts its initial system entry ahead of returned hook messages; startup sends otherwise put per-session identity before the shared cache prefix.
 - Automatic rollover uses the successor window message as its custom kickoff. That entry is not yet in the branch during before_agent_start; adopt its identity instead of restoring the outgoing window or returning another boundary.
