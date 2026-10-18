@@ -5,6 +5,7 @@
 **Compatibility and retention**
 
 - Code Mode always uses the pinned official OpenAI runtime. Local builds and `tools.customRustBinariesDir` no longer override it. Other native helper overrides are unchanged.
+- Code runtime downloads now honour proxy environment settings.
 - Notebook journals now expire after one week without updates by default. `/codex` also offers indefinite retention or switching recording off and removing saved journals.
 - Added optional session-checkpoint cleanup after one month or one week of inactivity. Cleanup is off by default.
 

@@ -52,13 +52,19 @@ export async function installCodeModeHost(options: InstallCodeModeHostOptions): 
 			const timeoutSignal = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
 			const { getProxyForUrl } = await dynamicImport("proxy-from-env") as { getProxyForUrl(url: string): string };
 			const proxy = getProxyForUrl(assetUrl);
-			const response = await globalThis.fetch(assetUrl, {
-				redirect: "follow",
-				signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
-				...(proxy ? { proxy } : {}),
-			} as RequestInit & { proxy?: string });
-			if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`);
-			bytes = Buffer.from(await response.arrayBuffer());
+			const { ProxyAgent } = await dynamicImport("undici") as typeof import("undici");
+			const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
+			try {
+				const response = await globalThis.fetch(assetUrl, {
+					redirect: "follow",
+					signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+					...(dispatcher ? { dispatcher } : {}),
+				} as RequestInit & { dispatcher?: InstanceType<typeof ProxyAgent> });
+				if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`);
+				bytes = Buffer.from(await response.arrayBuffer());
+			} finally {
+				await dispatcher?.close();
+			}
 		} catch (error) {
 			throw new Error(`failed to download ${assetUrl}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
