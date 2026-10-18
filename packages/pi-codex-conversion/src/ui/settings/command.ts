@@ -107,6 +107,7 @@ export function registerCodexCommand(
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
 		}
+		if (writeResult.warning) ctx.ui.notify(writeResult.warning, "warning");
 		applyEffectiveConfig(ctx);
 		return true;
 	}
@@ -186,6 +187,7 @@ export function registerCodexCommand(
 					ctx.ui.notify(`Failed to save global Luna cache keepalive: ${result.error}`, "error");
 					return undefined;
 				}
+				if (result.warning) ctx.ui.notify(result.warning, "warning");
 				applyEffectiveConfig(ctx);
 				return readSelectedConfig();
 			},

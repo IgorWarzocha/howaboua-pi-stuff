@@ -233,7 +233,7 @@ export function setGlobalCodexLunaCacheKeepalive(
 	minutes: LunaCacheKeepaliveMinutes,
 	globalConfigPath: string = getCodexConversionConfigPath(),
 	intervalMinutes?: LunaCacheKeepaliveIntervalMinutes,
-): { ok: true } | { ok: false; error: string } {
+): { ok: true; warning?: string } | { ok: false; error: string } {
 	const config = readCodexConversionConfig(globalConfigPath);
 	return writeCodexConversionConfig({
 		...config,
@@ -290,7 +290,7 @@ export function writeCodexConversionConfig(
 	config: CodexConversionConfig,
 	configPath: string = getCodexConversionConfigPath(),
 	folderScope = false,
-): { ok: true } | { ok: false; error: string } {
+): { ok: true; warning?: string } | { ok: false; error: string } {
 	try {
 		const normalizedConfig = normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>;
 		const normalized = folderScope
@@ -322,7 +322,9 @@ export function writeCodexConversionConfig(
 		writeConfigDocumentAtomic(configPath, document);
 		if (!folderScope && (previousJournals !== config.notebook.journals || config.notebook.journals === "off")) {
 			try { maintainNotebookJournals(dirname(configPath)); } catch (error) {
-				return { ok: false, error: `Settings saved, but journal cleanup failed: ${error instanceof Error ? error.message : String(error)}. Retry Notebook journals in /codex` };
+				const warning = `Settings saved, but journal cleanup failed: ${error instanceof Error ? error.message : String(error)}. Retry Notebook journals in /codex`;
+				console.warn(warning);
+				return { ok: true, warning };
 			}
 		}
 		if (!folderScope && (previousCheckpointCleanup !== config.notebook.checkpointCleanup || previousJournals !== config.notebook.journals)) {
