@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { getSitesAuth } from "./src/auth.js";
 import { SitesClient } from "./src/client.js";
@@ -43,8 +43,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export default function sitesExtension(pi: ExtensionAPI) {
-	pi.registerTool({
+export default async function sitesExtension(pi: ExtensionAPI) {
+	const sites = defineTool({
 		name: "sites",
 		label: "Sites",
 		description:
@@ -69,7 +69,7 @@ export default function sitesExtension(pi: ExtensionAPI) {
 			);
 		},
 	});
-	pi.registerTool({
+	const guide = defineTool({
 		name: "sites_documentation",
 		label: "Sites documentation",
 		description: "Sites guide or current resource.action parameter schema",
@@ -86,4 +86,44 @@ export default function sitesExtension(pi: ExtensionAPI) {
 			);
 		},
 	});
+	const tools = [
+		{
+			tool: sites,
+			gpt: "Manage ChatGPT Sites; no args/action:help for help",
+			ordinary: sites.description,
+		},
+		{
+			tool: guide,
+			gpt: "Sites guide or live resource.action parameter schema",
+			ordinary: guide.description,
+		},
+	];
+	for (const { tool } of tools) pi.registerTool(tool);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		registerGptPromptMode(pi, (active) => {
+			for (const { tool, gpt, ordinary } of tools) {
+				const description = active ? gpt : ordinary;
+				if (tool.description !== description) {
+					tool.description = description;
+					pi.registerTool(tool);
+				}
+			}
+			return tools.map(({ tool }) => tool);
+		});
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes("@howaboua/pi-codex-conversion")
+		)
+			throw error;
+	}
 }

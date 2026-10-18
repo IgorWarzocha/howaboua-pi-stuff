@@ -18,8 +18,32 @@ export {
 } from "./src/prompts.js";
 export { INCREMENTAL_WORKFLOW_END_WIDGET } from "./src/workflow.js";
 
-export default function (pi: ExtensionAPI): void {
+export default async function (pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
 	ensureConfigFile();
-	registerIncrementalWorkflow(pi, registerTreeSummaryModel(pi));
+	let mode:
+		| typeof import("@howaboua/pi-codex-conversion/prompt-mode")
+		| undefined;
+	try {
+		mode = await import("@howaboua/pi-codex-conversion/prompt-mode");
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes("@howaboua/pi-codex-conversion")
+		)
+			throw error;
+	}
+	const promptMode = mode?.registerGptPromptMode(pi, () => {});
+	registerIncrementalWorkflow(
+		pi,
+		registerTreeSummaryModel(pi),
+		promptMode,
+		mode?.prepareGptPromptMode,
+	);
 }

@@ -13,6 +13,7 @@ import {
 	agentPath,
 	type BoardParams,
 	boardHelp,
+	gptBoardHelp,
 	parseBoardRequest,
 } from "./contract.js";
 import {
@@ -34,6 +35,8 @@ import { createBoardTool } from "./tool.js";
 import { BoardTurns } from "./turns.js";
 
 export class BoardRuntime {
+	gptPromptMode = false;
+	private preparePromptMode: ((ctx: ExtensionContext) => void) | undefined;
 	private readonly pi: ExtensionAPI;
 	private adapter: BoardAdapter | undefined;
 	private readonly turns: BoardTurns;
@@ -51,6 +54,7 @@ export class BoardRuntime {
 			(ctx) => this.population(ctx),
 			availability,
 			() => this.adapter?.briefing,
+			() => this.gptPromptMode,
 		);
 		this.turns = new BoardTurns(
 			pi,
@@ -64,6 +68,7 @@ export class BoardRuntime {
 			return this.refresh(ctx);
 		});
 		pi.on("before_agent_start", async (_event, ctx) => {
+			this.preparePromptMode?.(ctx);
 			// Reconcile resumed/offline children before tool/prompt preparation.
 			const own = binding(ctx);
 			if (own.upstream) {
@@ -119,6 +124,9 @@ export class BoardRuntime {
 	}
 	setToolRefresh(refresh: () => void) {
 		this.refreshTools = refresh;
+	}
+	setPromptModePreparation(prepare: (ctx: ExtensionContext) => void) {
+		this.preparePromptMode = prepare;
 	}
 	private async population(ctx: ExtensionContext) {
 		const own = binding(ctx);
@@ -190,7 +198,7 @@ export class BoardRuntime {
 				.some((tool) => ["exec", "code", "notebook"].includes(tool));
 			return {
 				content: result.length
-					? `\n\nUnread board updates available; read if relevant to the current task: ${[
+					? `\n\n${this.gptPromptMode ? "Unread board updates. Read task-relevant threads:" : "Unread board updates available; read if relevant to the current task:"} ${[
 							...new Set(result.map((post) => post.thread_id)),
 						]
 							.map((thread_id) => {
@@ -280,7 +288,9 @@ export class BoardRuntime {
 				"warning",
 			);
 		}
-		return value;
+		return params.action === "help" && this.gptPromptMode
+			? gptBoardHelp(value)
+			: value;
 	}
 	async handle(
 		ctx: ExtensionContext,
@@ -532,6 +542,18 @@ async function createRuntime(pi: ExtensionAPI) {
 	const runtime = new BoardRuntime(pi);
 	const tool = createBoardTool(runtime);
 	pi.registerTool(tool);
+	try {
+		const { registerGptPromptMode, prepareGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		runtime.setPromptModePreparation((ctx) => prepareGptPromptMode(pi, ctx));
+		registerGptPromptMode(pi, (active) => {
+			runtime.gptPromptMode = active;
+			return [tool];
+		});
+	} catch (error) {
+		if (!isMissingOptionalModule(error, "prompt-mode")) throw error;
+	}
 	registerBoardActivityRenderer(pi);
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =

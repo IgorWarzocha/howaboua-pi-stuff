@@ -21,9 +21,38 @@ export default async function browserExtension(
 		configError = error instanceof Error ? error.message : String(error);
 	}
 	const runtime = new BrowserRuntime(routes);
-	const tool = createBrowserTool(runtime);
+	let gpt = false;
+	const tool = createBrowserTool(runtime, () => gpt);
 	registerBrowserCommand(pi);
 	pi.registerTool(tool);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		const ordinary = tool.description;
+		registerGptPromptMode(pi, (active) => {
+			gpt = active;
+			const description = active ? "Logged-in browser control" : ordinary;
+			if (tool.description !== description) {
+				tool.description = description;
+				pi.registerTool(tool);
+			}
+			return [tool];
+		});
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes(CODE_MODE_PACKAGE)
+		)
+			throw error;
+	}
+
 	const registration = await registerBrowserInCodeMode(pi, tool);
 	pi.on("session_shutdown", async () => {
 		registration?.unregister();

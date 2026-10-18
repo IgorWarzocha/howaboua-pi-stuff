@@ -1,20 +1,24 @@
 export function browserHelp(
 	hosts: readonly string[] = [],
+	gpt = false,
 ): Record<string, unknown> {
 	const routed = hosts.length > 0;
 	return {
-		input:
-			"Request={action,...fields}; Pi: {command:JSON.stringify(request)}; Code/Notebook: JSON.stringify(request), JSON.parse(result)",
+		input: gpt
+			? "Request={action,...fields}; Pi {command:JSON.stringify(request)}; Code/Notebook JSON.stringify(request), JSON.parse(result)"
+			: "Request={action,...fields}; Pi: {command:JSON.stringify(request)}; Code/Notebook: JSON.stringify(request), JSON.parse(result)",
 		...(routed
 			? {
-					host: `${hosts.join("|")} optional; keep a user-named host on every call and its refs/handles`,
+					host: `${hosts.join("|")}${gpt ? " optional; retain user-named host on every call + refs/handles" : " optional; keep a user-named host on every call and its refs/handles"}`,
 				}
 			: {}),
 		refs: "tabs -> open; keep ref_id/id/cursors with their result",
-		safety:
-			"Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
-		batch:
-			"{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
+		safety: gpt
+			? "Unless authorized, ask before unfamiliar low-trust navigation/consequential action; never close shared browser"
+			: "Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
+		batch: gpt
+			? "{action_name:[{...fields}],...}; nonempty arrays, no item action; root host/response_length; independent only"
+			: "{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
 		actions: {
 			help: "",
 			tabs: "query? offset? owned_only? -> ref_id title url owned",

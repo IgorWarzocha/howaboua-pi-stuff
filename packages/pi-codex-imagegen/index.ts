@@ -22,21 +22,56 @@ export default async function imagegenExtension(
 		promptSnippet: false,
 	});
 	pi.registerTool(tool);
-	const registration = await registerImagegenInCodeMode(pi, tool);
+	let gpt = false;
+	let registration: Awaited<ReturnType<typeof registerImagegenInCodeMode>>;
+	const ordinary = {
+		description: tool.description,
+	};
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		registerGptPromptMode(pi, (active) => {
+			if (gpt !== active) {
+				gpt = active;
+				tool.description = active
+					? "Generate/edit images; no selectors=generate"
+					: ordinary.description;
+				pi.registerTool(tool);
+				registration?.refresh();
+			}
+			return [tool];
+		});
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes(CODE_MODE_PACKAGE)
+		)
+			throw error;
+	}
+	registration = await registerImagegenInCodeMode(pi, tool, () => gpt);
 	pi.on("session_shutdown", () => registration?.unregister());
 }
 
 async function registerImagegenInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createImageGenerationTool>,
+	gpt: () => boolean,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import(CODE_MODE_MODULE);
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage:
-					"generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; never text/serialize base64 result",
+				usage: gpt()
+					? "generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: aspect ratio + quality; cutouts: transparency; edits: preserve existing transparency; no selectors=generate, paths/recent count=edit; never text/serialize base64"
+					: "generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; never text/serialize base64 result",
 				promptMetadata: false,
 				toolName: { namespace: "image_gen", name: "imagegen" },
 				resultValue: imagegenCodeModeResult,

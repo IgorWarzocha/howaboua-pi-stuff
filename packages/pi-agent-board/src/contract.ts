@@ -187,3 +187,44 @@ export const boardHelp = {
 			"Post cap64KiB, channel1-128 UTF-8 bytes without edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes; reads may reduce limits, continue with returned cursor/offset",
 	},
 };
+
+// Select only owned guidance. Routing metadata and adapter-provided prose stay intact.
+export function gptBoardHelp(value: unknown): unknown {
+	if (
+		!value ||
+		typeof value !== "object" ||
+		!("rules" in value) ||
+		!value.rules ||
+		typeof value.rules !== "object"
+	)
+		return value;
+	const compact: typeof boardHelp.rules = {
+		scope:
+			"Default: your tree. board_id browses saved history only, never writes. Discover via list_boards",
+		post: "text required. Exactly one: channel_name, new_channel_name, thread_id. Thread ID=first post ID. New channel subscribes author to first posts",
+		subscriptions:
+			"Exactly one: channel_name/thread_id. Channel=first posts, thread=replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
+		notify:
+			"agents_to_notify: one-time, excludes author. Running turns only, no waking/offline notices",
+		agents:
+			"Use spawn's boardAgent, absolute /root/... or relative child path. Never pane/contextAgent",
+		paging:
+			"limit default20 cap50. Opaque cursor, unchanged query/sort. Concurrent posts may shift pages",
+		order:
+			"Newest first. get_channels: activity. list_threads sort=created|activity. read_thread: newest replies, root repeated each page",
+		text: "Case-insensitive substring search. max_chars_per_post default1000. read_post: Unicode-character offsets, limit_chars default20000. Continue at next_offset_chars<n_chars",
+		budget:
+			"Post cap64KiB. Channel: 1-128 UTF-8 bytes, no edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes. Reads may reduce limits; continue returned cursor/offset",
+	};
+	return {
+		...value,
+		rules: Object.fromEntries(
+			Object.entries(value.rules).map(([key, text]) => [
+				key,
+				text === boardHelp.rules[key as keyof typeof compact]
+					? compact[key as keyof typeof compact]
+					: text,
+			]),
+		),
+	};
+}

@@ -44,9 +44,18 @@
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.1.0",
 		"typebox": "*",
-		"@earendil-works/pi-tui": ">=1.0.0"
+		"@earendil-works/pi-tui": ">=1.0.0",
+		"@howaboua/pi-codex-conversion": ">=4.0.1"
 	},
 	"publishConfig": {
 		"access": "public"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "4.0.1"
 	}
 }

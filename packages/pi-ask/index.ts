@@ -30,7 +30,9 @@ const DEVELOPER_MESSAGES_MODULE = `${CODE_MODE_PACKAGE}/developer-messages`;
 export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
 	const trySendCodexDeveloperMessage = await loadCodexDeveloperMessageSender();
+	let gpt = false;
 	const askRuntime = createAskRuntime({
+		isGpt: () => gpt,
 		onRequestChange: (change) => publishAskRequest(pi, change),
 		deliverSteer: createSteerDelivery(pi, trySendCodexDeveloperMessage),
 		onBlockedChange: (state) => {
@@ -57,6 +59,34 @@ export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 		);
 	};
 	pi.registerTool(ask);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		const ordinary = ask.description;
+		registerGptPromptMode(pi, (active) => {
+			gpt = active;
+			const description = active ? "User input/action; {} help" : ordinary;
+			if (ask.description !== description) {
+				ask.description = description;
+				pi.registerTool(ask);
+			}
+			return [ask];
+		});
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes(CODE_MODE_PACKAGE)
+		)
+			throw error;
+	}
+
 	await registerAskInCodeMode(pi, ask);
 	pi.on("session_start", (_event, ctx) => restorePending(ctx));
 	pi.on("session_tree", (_event, ctx) => restorePending(ctx));

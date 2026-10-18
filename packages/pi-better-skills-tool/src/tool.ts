@@ -18,6 +18,7 @@ const SkillsParameters = Type.Object(
 type SkillsParameters = Static<typeof SkillsParameters>;
 
 export interface SkillsToolOptions {
+	isGpt?(): boolean;
 	globalRoot?: string;
 	getLoadedSkills?(): readonly LoadedSkill[];
 }
@@ -44,6 +45,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 				options.globalRoot ?? defaultSkillsDir(),
 				defaultSessionSkillsDir(ctx.cwd),
 				options.getLoadedSkills?.() ?? [],
+				options.isGpt?.() ?? false,
 			);
 			return {
 				content: [{ type: "text", text: output }],

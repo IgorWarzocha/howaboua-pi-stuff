@@ -159,6 +159,7 @@ export function runSkills(
 		? defaultSessionSkillsDir()
 		: undefined,
 	loadedSkills: readonly LoadedSkill[] = [],
+	gpt = false,
 ): string {
 	const request = parseRequest(input);
 	const skills = discoverVisibleSkills(globalRoot, sessionRoot, loadedSkills);
@@ -166,7 +167,7 @@ export function runSkills(
 		request.commands
 			.map((command) =>
 				command.action === "help"
-					? `Commands: list [category...] | read <skill> [skill-or-reference...] | help. Join commands with ;\nJS: tools.skills("read <skill>")\n\n${formatSkillList(skills)}`
+					? `${gpt ? 'list [category...] | read <skill> [skill-or-reference...] | help; separator ;\nJS: tools.skills("read <skill>")' : 'Commands: list [category...] | read <skill> [skill-or-reference...] | help. Join commands with ;\nJS: tools.skills("read <skill>")'}\n\n${formatSkillList(skills)}`
 					: command.action === "list"
 						? formatSkillList(skills, command.categories)
 						: readSkillPackage(skills, command.name, command.selectors),
