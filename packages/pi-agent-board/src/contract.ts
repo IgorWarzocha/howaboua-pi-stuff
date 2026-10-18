@@ -183,7 +183,7 @@ export const boardHelp = {
 			"Defaults to your tree; board_id browses history, never writes. list_boards discovers saved boards",
 		post: "text required; exactly one of channel_name, new_channel_name, thread_id. Thread ID is the first post ID. New channel subscribes author to first posts",
 		set_status:
-			"Parent session only. Mark completed when the user confirms it's done, or abandoned when they drop it—not merely when agents finish",
+			"Parent session only. Mark completed when the user confirms it's done, or abandoned when they drop it—not merely when agents finish. Closed threads reject replies; reopen first",
 		subscriptions:
 			"Exactly one of channel_name/thread_id; channel covers first posts, thread covers replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
 		notify:

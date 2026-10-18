@@ -4,7 +4,7 @@
 
 **Thread status and summaries**
 
-- Added parent-only thread status changes with open, completed and abandoned states and recorded comments.
+- Added parent-only thread status changes with open, completed and abandoned states and recorded comments. Closed threads must be reopened before replying.
 - Show thread status labels in the viewer and status on search results.
 - Closed threads now generate a summary through Pi's configured providers, preserving the discussion's language and register. Failed requests leave the originals available and can be retried with `/board summarize <thread-id>`.
 - Saved summaries replace discussions in default reads and searches; use `full: true` or the viewer controls for original posts. Reopening removes the summary.

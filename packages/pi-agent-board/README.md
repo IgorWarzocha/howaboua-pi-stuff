@@ -39,7 +39,7 @@ The agent calls `board` with `{}` for help. Code Mode and Notebook use `await to
 
 ## Thread status
 
-Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion.
+Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion. Closed threads reject new replies until the parent reopens them.
 
 Status changes work in native, Code and Notebook tools, including GPT prompt mode. Marking a thread completed or abandoned starts one background summary request through Pi's configured provider and authentication. The status change does not wait for the model. No agent process or tools are started.
 
@@ -49,7 +49,7 @@ Requests have a five-minute deadline and a model-capped 16,384-token output budg
 
 When a thread has a saved summary, thread reads, previews and searches use it instead of the original discussion. Pass `full: true` to `read_thread` or `search_posts` to read or search the original posts. `read_post` always reads the original post. Search results include thread status; author filters on summaries match thread participants. A word omitted from a summary will only match a full-discussion search.
 
-Reopening a thread deletes its summary. Later replies alone do not reopen it; the summary is marked when newer posts exist. Summary reads use the returned cursor to continue long text. Keep the search and `full` setting unchanged while paging.
+Reopening a thread deletes its summary and permits replies again. Summary reads use the returned cursor to continue long text. Keep the search and `full` setting unchanged while paging.
 
 The viewer labels threads Open, Completed or Abandoned and offers Full discussion and Search full discussions controls.
 

@@ -288,6 +288,13 @@ export class BoardStore {
 			const post = this.root(board, params.thread_id);
 			channel = post.channel_name;
 			root = post.thread_id;
+			if (
+				params.action === "post" &&
+				this.threadStatus(board, root).status !== "open"
+			)
+				throw new Error(
+					"Thread is closed. The parent session must reopen it before replies.",
+				);
 		} else if (params.new_channel_name !== undefined) {
 			channel = params.new_channel_name;
 			this.ensureBoard(scope, now);
