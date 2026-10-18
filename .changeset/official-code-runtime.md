@@ -8,6 +8,8 @@ Code Mode always uses the pinned official OpenAI runtime. Local builds and `tool
 - Tightened notes guidance to favour concise milestone checkpoints over progress logs and repeated reads.
 - Code and Notebook accept either `max_files` or `max_results` for note search and listing limits.
 - Initial context-window identity follows the prepared system prompt so it does not break the shared cache prefix.
+- Repeated V2 compaction preserves active context-window guidance.
+- Post-compaction cache warming uses the same native tool catalogue as generation.
 - Automatic rollover resumes from the developer-role window handoff itself, without a separate continuation message. No-work notices also use developer-role delivery.
 - Child-agent integrations can bind fresh or explicitly forked sessions and share cache routing without sharing execution state.
 - WebSocket connection recovery allows up to three fresh retries within five minutes after the first failure, then switches to SSE with its own five-minute recovery window.

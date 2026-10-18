@@ -65,9 +65,7 @@ export async function registerCodexCodeMode(
 						syncAdapter(pi, latestContext, runtime.state);
 				});
 			}
-			const changes = piTools.prepareLoadout(loadout);
-			return { ...changes, hiddenDeclarations: [...(changes.hiddenDeclarations ?? []), "codemode",
-				...(nativeSearch ? ["tool_search"] : [])] };
+			return piTools.prepareLoadout(loadout, ["codemode", ...(nativeSearch ? ["tool_search"] : [])]);
 		},
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;

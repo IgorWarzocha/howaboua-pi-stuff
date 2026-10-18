@@ -2,5 +2,6 @@
 - Replay only the latest compaction, independently of the selected continuity strategy or next method. Selecting Pi consumes an opaque checkpoint on the isolated summary lane before retiring it; do not send placeholder history.
 - V2 is the only executable protocol. Legacy V1 checkpoint strategy strings are accepted only to replay existing shared sessions.
 - V2 is cached native checkpoint/replay, not prose: preserve canonical output/tool history, bounded real user messages, and live tail; truncate outputs only for endpoint budget.
+- Reconstruct repeated compaction through the complete projected context and generation's replay replacement. Tail-only projection loses restored guidance; preamble clones must retain wire types and metadata or exact replay silently becomes lenient.
 - Keep V2 on the active cache/continuation lane; it stays opt-in because encrypted checkpoints are unreadable.
 - Portable summaries run Pi compaction on isolated request lanes and stay cumulative across providers. Inject the latest opaque native window only when no readable summary exists. Tree summaries use projected history with physical Pi cut points.

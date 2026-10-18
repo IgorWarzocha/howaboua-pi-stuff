@@ -40,6 +40,7 @@ import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 import { priceGeneratedPrewarm } from "../providers/openai-codex/usage.ts";
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
+import { projectPiCodeModeDeclarations } from "../adapter/code-mode/pi-tools.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -332,8 +333,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	const currentMessages = (ctx: CodexContext) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
-		const messages = projectCodeModeMcpSections(projectContextMessages(ctx), isCodeModeRuntime(plan)
-			&& required.every(name => pi.getActiveTools().includes(name)));
+		const codeMode = isCodeModeRuntime(plan) && required.every(name => pi.getActiveTools().includes(name));
+		const contextMessages = projectContextMessages(ctx);
+		const messages = projectCodeModeMcpSections(codeMode
+			? projectPiCodeModeDeclarations(pi, contextMessages) : contextMessages, codeMode);
 		return convertToLlm(
 			state.developerMessages.prepare(
 				messages,
