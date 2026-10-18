@@ -109,6 +109,27 @@ export function githubClient(
 		snapshot(thread: Thread) {
 			return threadSnapshot(gh, thread);
 		},
+		async prState(thread: Thread): Promise<"open" | "closed" | "merged"> {
+			const value: unknown = JSON.parse(
+				await gh([
+					"api",
+					`repos/${thread.repo}/pulls/${thread.number}`,
+					"--jq",
+					"{state, merged}",
+				]),
+			);
+			if (
+				value &&
+				typeof value === "object" &&
+				"state" in value &&
+				"merged" in value &&
+				typeof value.merged === "boolean"
+			) {
+				if (value.state === "closed") return value.merged ? "merged" : "closed";
+				if (value.state === "open" && !value.merged) return "open";
+			}
+			throw new Error("GitHub returned invalid PR state. Retry the watch.");
+		},
 		async runSnapshot(run: WorkflowRun): Promise<RunSnapshot> {
 			const snapshot: unknown = JSON.parse(
 				await gh([

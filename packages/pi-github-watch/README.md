@@ -22,7 +22,7 @@ The first PR check surfaces all unresolved review threads, including ones that e
 
 Conversation comments and standalone reviews have no resolved state. Existing entries are baselined, then new or edited entries trigger notifications. Pending reviews and duplicate inline-review receipts are ignored. Replies by the authenticated `gh` account do not trigger notifications, although its unresolved threads remain in the list. Posts made through another account are treated as another participant's feedback.
 
-Notifications encourage the agent to read the discussion, reply with a fix or reasoned disposition, and resolve addressed review threads. The watcher does not post replies or resolve threads itself. Thread watches continue after a notification.
+Notifications encourage the agent to read the discussion, reply with a fix or reasoned disposition, and resolve addressed review threads. The watcher does not post replies or resolve threads itself. Watches continue after feedback notifications. A PR watch stops with a final notice when a check finds the PR closed or merged. Already-closed PRs return their state without starting a watch. To watch a reopened PR, start a new watch. Issue watches continue until cancelled or the session ends.
 
 ## Watch an Actions run
 
