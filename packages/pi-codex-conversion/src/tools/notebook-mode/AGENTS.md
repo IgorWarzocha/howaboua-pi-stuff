@@ -6,6 +6,8 @@
 - Deno idle can precede queued output and reattribute it to the next request. Keep collection open through the FIFO marker and drain idle, including after errors. Do not rewrite user source or add history for the drain.
 - Saved runtime versions are provenance, not restore/write gates. Let deserialization report incompatibility.
 - journal.ts appends events and rotates at the heap-derived budget, retaining one previous .ipynb. journal-document.ts materialises standard notebooks.
+- Journal retention is global to the agent directory, not folder-scoped. Re-read it at write boundaries so another session's Off cannot resurrect deleted journals. Journal cleanup must not affect saved bindings or restart the kernel.
+- Session-checkpoint expiry is independent. Protect Pi sessions before lazy kernel startup and retain that protection until session shutdown; kernel-only activity misses resumed and mode-switched sessions. Never age out project/profile bindings or Pi history.
 - Sessions are private forks. New globalThis properties and pinned bindings merge into project state, never another live kernel.
 - Promote pins and commit metadata under one project lock. Failed commits restore kernel tracking. Release/prune preserve pins. Prune needs a caller-selected glob.
 - Dispatch tool hooks inside the kernel after bridge settlement. Never start another Jupyter execute while a cell awaits that bridge. Suppress recursion per async hook, not globally.
@@ -13,5 +15,5 @@
 - notebook-diagnostics.ts provides one-shot Deno diagnostics from journals. lsp-process.ts owns bounded JSON-RPC transport, never a resident process.
 - Profiles load by value, never replay cells.
 - directory-lock.ts owns cross-process leases. Release only the observed owner file, never recursively delete lock paths.
-- V8 stays under tools/code-mode/. Share public tool, rendering, nested-tool and output contracts without changing the vendored host.
+- V8 integration stays under tools/code-mode/. Share public tool, rendering, nested-tool and output contracts without modifying the downloaded host.
 - Support Linux/macOS/Windows x64/arm64. Pin versions, sizes and checksums for archives and extracted executables.

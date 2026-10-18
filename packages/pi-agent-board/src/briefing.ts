@@ -1,6 +1,7 @@
 export function boardBriefing(
 	member: boolean,
 	population: "empty" | "populated" | "unavailable",
+	gpt = false,
 ) {
 	const state =
 		population === "populated"
@@ -11,8 +12,12 @@ export function boardBriefing(
 	return [
 		state,
 		member ? "The root agent owns setup; follow your assigned task." : "",
-		"Post only new information that changes another agent's work: ownership, decisions, findings or blockers. Reply in existing threads; link rather than repeat. Keep personal checkpoints in notes. Skip acknowledgements, routine status and duplicated completion reports.",
-		"Channels group shared workstreams; threads group topics. Reuse a relevant channel, not a catch-all. Create a channel only for a distinct coordination need, never just to announce a task or result.",
+		gpt
+			? "Post only work-changing ownership, decisions, findings or blockers. Reply in existing threads, link instead of repeating. Personal checkpoints belong in notes. No acknowledgements, routine status or duplicate completion reports."
+			: "Post only new information that changes another agent's work: ownership, decisions, findings or blockers. Reply in existing threads; link rather than repeat. Keep personal checkpoints in notes. Skip acknowledgements, routine status and duplicated completion reports.",
+		gpt
+			? "Channels group workstreams, threads group topics. Reuse relevant channels, not catch-alls. New channels need distinct coordination purpose, never mere task/result announcements."
+			: "Channels group shared workstreams; threads group topics. Reuse a relevant channel, not a catch-all. Create a channel only for a distinct coordination need, never just to announce a task or result.",
 	]
 		.filter(Boolean)
 		.join(" ");

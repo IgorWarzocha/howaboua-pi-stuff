@@ -45,6 +45,10 @@
       "types": "./dist/developer-messages.d.ts",
       "import": "./dist/developer-messages.js"
     },
+    "./prompt-mode": {
+      "types": "./dist/prompt-mode.d.ts",
+      "import": "./dist/prompt-mode.js"
+    },
     "./context-sharing": {
       "types": "./dist/context-sharing.d.ts",
       "import": "./dist/context-sharing.js"
@@ -83,9 +87,8 @@
     "src/voice/bin/**",
     "src/voice/rust/vendor/**",
     "code-mode/UPSTREAM_SYNC.md",
-    "code-mode/vendor/code-mode-src/LICENSE",
-    "code-mode/vendor/code-mode-src/NOTICE",
-    "code-mode/vendor/code-mode-src/UPSTREAM",
+    "code-mode/LICENSE",
+    "code-mode/NOTICE",
     "scripts/code-mode",
     "!src/**/AGENTS.md",
     "!src/tools/target/**",
@@ -109,7 +112,6 @@
     "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
     "build:changed-native-tools": "node scripts/build-changed-native-tool-binaries.mjs",
     "build:native-tool": "node scripts/build-native-tool-binary.mjs",
-    "build:code-mode-host": "node scripts/code-mode/build-host.mjs",
     "build:voice-helper": "node scripts/build-voice-helper.mjs",
     "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
   },

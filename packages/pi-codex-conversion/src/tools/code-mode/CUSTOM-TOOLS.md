@@ -53,7 +53,6 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 - `agents`: starts persistent explorer and reviewer Pi agents in Herdr panels; remote routing requires explicit installer configuration.
 - `skills`: lists Pi's standard global and session skill catalog, reads one exact skill or reads its references by name.
 - `port_info`: cross-platform listener and process diagnostics.
-- `semantic_grep`: queries an existing index owned by an installed and configured `@howaboua/pi-semantic-grep`.
 - `spawn_agent`: launches isolated explorer or reviewer Pi processes.
 - `vent`: appends batched workflow-friction notes to `VENT.md`.
 - `workflows_create`: creates or updates repo-local workflow skills.

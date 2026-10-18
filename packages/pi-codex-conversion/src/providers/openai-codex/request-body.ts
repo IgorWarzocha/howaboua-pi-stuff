@@ -79,12 +79,14 @@ export function buildRequestBody<TApi extends Api>(
 	});
 	const initialSystemMessage = getInitialSystemMessage(normalizedContext.messages);
 	const instructions = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : "";
+	if (instructions.length > 0) {
+		messages.unshift({ type: "message", role: "developer", content: [{ type: "input_text", text: instructions }] });
+	}
 
 	const body: ResponsesBody = {
 		model: model.id,
 		store: false,
 		stream: true,
-		instructions: instructions || "You are a helpful assistant.",
 		input: messages,
 		text: { verbosity: ((options as { textVerbosity?: string | undefined } | undefined)?.textVerbosity ?? "low") as string },
 		include: ["reasoning.encrypted_content"],

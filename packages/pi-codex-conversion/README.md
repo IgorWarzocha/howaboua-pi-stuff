@@ -103,9 +103,11 @@ On Codex transport, the Daybreak toggle keeps your selected model and chooses an
 
 `tools.customRustBinariesDir` overrides bundled helpers by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build on the target machine, collect the binaries in one directory, set its path, then `/reload`.
 
+Code Mode always uses the pinned official OpenAI runtime, downloaded on first use. It does not use local builds or `tools.customRustBinariesDir`.
+
 ### Optional controls
 
-- **Heavy system prompt overwrite:** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. Off by default.
+- **Heavy system prompt overwrite:** **on** removes roughly 40% of Pi's known default scaffold while preserving other extensions' additions. **GPT (experimental)** builds on that baseline with denser PCC instructions and participating toolkit guidance. Tool arguments and capabilities stay unchanged. Savings depend on execution mode and context. Off by default. Existing boolean configuration still works. Set `prompt.heavySystemPromptOverwrite` to `"gpt"` for GPT mode.
 - **Current time reminders:** choose 30 or 60 minutes under **General**. Active Responses adapters receive a persisted UTC developer message on the first inference in each context and when the interval has elapsed. No timer, extra turn or system-prompt change. Off by default.
 - **Auto reasoning:** lets GPT-6 Astra, Sol and Luna, plus GPT-6.1 Sol, adjust effort through `change_reasoning` on Codex transport. Offers low, medium, high, xhigh and max, never below your selected level, and restores that level after the run settles, including retries and compaction. Enable `tools.autoReasoning` under **Tools**. Off by default.
 
@@ -425,7 +427,8 @@ Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript 
 
 | Option | Purpose |
 | --- | --- |
-| `usage` | Callable contract. Include arguments or a help entry point. Only `promptGuidelines` accompany it, not native descriptions, snippets or schemas |
+| `usage` | Callable contract with arguments. Only `promptGuidelines` accompany it, not native descriptions, snippets or schemas |
+| `discovery: "help"` | Opt in only when an empty call returns usage without performing an operation. The prompt lists the capability without a call signature. Omit `usage` to generate the no-argument help call |
 | `toolName` | Non-default Responses namespace |
 | `resultValue` | Structured JavaScript result instead of ordinary model-visible content |
 | `blocking` | `true` or an input predicate to hold the turn. Otherwise long calls can yield to `wait` |
@@ -436,6 +439,14 @@ Adapted tools retain Pi context, UI, schema, progress and rendering. JavaScript 
 Activation is also sampled at normal session and input boundaries. Prompt, registry and outer-tool filtering then stay fixed through the run.
 
 Working integrations include [`pi-ask`](../pi-ask) for blocking UI, [`pi-better-skills-tool`](../pi-better-skills-tool) and [`pi-browser`](../pi-browser) for freeform input, [`pi-codex-web-run`](../pi-codex-web-run) and [`pi-codex-imagegen`](../pi-codex-imagegen) for namespaced structured results, and [`pi-shepherdr`](../pi-shepherdr) for activation and per-call blocking.
+
+### GPT prompt mode
+
+The optional `@howaboua/pi-codex-conversion/prompt-mode` export provides `registerGptPromptMode(pi, apply)`. The synchronous `apply(active, context)` callback selects your extension's own compact wording before prompt and tool capture. Re-register native definitions only when their text changes. Return their current `name`, `promptSnippet` and `promptGuidelines` so the prepared prompt uses the same metadata. Keep tool names, arguments and execution unchanged.
+
+The returned registration exposes `active` for help and nested-tool providers, plus `dispose()`. Registration works in either load order and disposes on shutdown. Without an active PCC adapter the mode is false. Optional integrations should retain ordinary wording when the module is unavailable. Do not compress user content, project instructions or other extensions' text.
+
+See [PCC GPT prompt mode](../../docs/extension-apis.md#pcc-gpt-prompt-mode) for the callback contract, preparation timing and an integration example.
 
 ### Developer messages
 

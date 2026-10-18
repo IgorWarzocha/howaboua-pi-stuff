@@ -10,9 +10,10 @@ import {
 } from "@earendil-works/pi-ai";
 import {
 	HISTORY_ACTIONS,
-	HISTORY_DESCRIPTION,
+	HISTORY_GUIDANCE,
 	NOTES_ACTIONS,
 	NOTES_DESCRIPTION,
+	NOTES_GUIDANCE,
 } from "./tool-contract.ts";
 
 type JsonSchema = Record<string, unknown>;
@@ -74,7 +75,7 @@ function historyNamespace() {
 	return {
 		type: "namespace",
 		name: "history",
-		description: HISTORY_DESCRIPTION,
+		description: HISTORY_GUIDANCE,
 		tools: [
 			operation(
 				"list_windows",
@@ -141,7 +142,7 @@ function notesNamespace() {
 	return {
 		type: "namespace",
 		name: "notes",
-		description: NOTES_DESCRIPTION,
+		description: `${NOTES_DESCRIPTION}. ${NOTES_GUIDANCE}`,
 		tools: [
 			operation(
 				"list_files_by_prefix",

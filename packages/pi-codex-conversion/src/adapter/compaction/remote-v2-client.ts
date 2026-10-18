@@ -154,7 +154,13 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 			const requestBody = canonicalBody
 				? withCurrentCompactionControls(canonicalBody, body)
 				: body;
-			const promptInput = normalizeRemoteCompactionV2PromptInput(canonicalInput ?? options.promptInput) as ResponsesInputItem[];
+			// This context contains only the authoritative system baseline. The
+			// reconstructed conversation intentionally omits it; canonical input
+			// already includes the exact sent prefix (including legacy layouts).
+			const promptInput = normalizeRemoteCompactionV2PromptInput(canonicalInput ?? [
+				...(options.runtime.codexTransport ? body.input : []),
+				...options.promptInput,
+			]) as ResponsesInputItem[];
 			const request = await shrinkNativeCompactionRequestForEndpoint({
 				model: requestBody.model,
 				input: promptInput,

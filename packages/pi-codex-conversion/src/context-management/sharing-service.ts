@@ -11,7 +11,8 @@ import { createPiSessionNotesSnapshot, readPiSessionNotesSnapshot } from "./loca
 import { executeRemoteAttachment } from "./history-notes.ts";
 import { readRemoteNoteReference, resolveRemoteContextProvider, REMOTE_ACCOUNT_MISMATCH, REMOTE_CONTEXT_UNAVAILABLE } from "./remote-scope.ts";
 import type { NotesOwner } from "./external-notes-protocol.ts";
-import { bindCodexAgentRelationship } from "./agent-relationship.ts";
+import { bindCodexAgentRelationship, codexAgentRelationship } from "./agent-relationship.ts";
+import { bindingStartupEntries, hasConversation } from "./binding-startup.ts";
 
 async function verifyRemoteAccount(ctx: ExtensionContext, expected?: string, backendUrl?: string): Promise<string> {
 	const provider = await resolveRemoteContextProvider(ctx);
@@ -66,7 +67,8 @@ export function registerContextSharingService(
 	};
 	const service: ContextSharingService = {
 		protocol: 1,
-		bindRelationship: (ctx, relationship) => bindCodexAgentRelationship(pi, ctx, relationship, externalOwner()?.canBind),
+		bindRelationship: (ctx, relationship) => bindCodexAgentRelationship(pi, ctx, relationship),
+		cacheAffinityId: (ctx) => codexAgentRelationship(ctx)?.cacheAffinityId ?? ctx.sessionManager.getSessionId(),
 		canCreateChild: (ctx) => plan(ctx).shareSubagentContext,
 		describe,
 		async verify(ctx) {
@@ -98,7 +100,7 @@ export function registerContextSharingService(
 				if (!contextAgentIdentity(ctx).storage) pi.appendEntry(CONTEXT_AGENT_ENTRY, parent);
 			} };
 		},
-		async bind(ctx, input) {
+		async bind(ctx, input, options) {
 			const binding = parseContextAgentBinding(input);
 			if (binding.agentName === "/root") throw new Error("Shared context binding requires a child agent path");
 			const identity = { ...binding, threadId: ctx.sessionManager.getSessionId() };
@@ -112,10 +114,10 @@ export function registerContextSharingService(
 					return true;
 				}
 				const owner = externalOwner();
-				if (!ctx.isIdle() || (owner ? !owner.canBind?.(ctx) : ctx.sessionManager.getEntries().some((entry) =>
-					entry.type === "message" || entry.type === "custom_message" || entry.type === "compaction" || entry.type === "branch_summary" ||
-					(entry.type === "custom" && entry.customType.startsWith("codex-context-")))))
-					throw new Error("Shared context can bind only a fresh, idle Pi session before its first turn");
+				const entries = bindingStartupEntries(ctx, options);
+				if (!ctx.isIdle() || (owner ? !owner.canBind?.(ctx, entries) : hasConversation(entries) || entries.some((entry) =>
+					entry.type === "custom" && entry.customType.startsWith("codex-context-"))))
+					throw new Error("Shared context requires an idle child before its first turn; inherited fork history needs an explicit boundary");
 				if (binding.storage === "session" && !router) throw new Error("Local and Tree sharing require a registered context router");
 				return false;
 			};

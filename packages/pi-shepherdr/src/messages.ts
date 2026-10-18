@@ -72,8 +72,8 @@ export function orchestrationGuidance(enabled: boolean, general: boolean) {
 	if (!enabled)
 		return `Work normally. Delegate only when useful or requested. ${ownership}`;
 	const guidance = general
-		? "Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks."
-		: "Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
+		? "Orchestrate general agents with separate scopes. Integrate their results, validate the combined outcome and report it. Work directly only when asked or for routine local tasks."
+		: "Orchestrate agents with separate scopes. Integrate their results, validate the combined outcome and report it. Work directly only when asked or for routine local tasks.";
 	return `${guidance} ${ownership}`;
 }
 export function activeAgentsBriefing(
@@ -110,6 +110,7 @@ export function boardMigrationWarning() {
 export function boardBriefing(
 	member: boolean,
 	population: "empty" | "populated" | "unavailable",
+	gpt = false,
 ) {
 	const state =
 		population === "populated"
@@ -120,6 +121,15 @@ export function boardBriefing(
 	const setup = member
 		? "The root agent owns setup; follow your assigned task."
 		: "";
+	if (gpt)
+		return [
+			state,
+			setup,
+			"Post only work-changing ownership, decisions, findings or blockers. Reply in existing threads, link instead of repeating. Personal checkpoints belong in notes. No acknowledgements, routine status or duplicate completion reports. Use agents for assignments and urgent messages.",
+			"Channels group workstreams, threads group topics. Reuse relevant channels, not catch-alls. New channels need distinct coordination purpose, never mere task/result announcements.",
+		]
+			.filter(Boolean)
+			.join(" ");
 	return (
 		[
 			state,

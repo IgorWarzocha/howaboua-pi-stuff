@@ -87,6 +87,18 @@ export interface StartedAgent {
 	id: string;
 }
 
+export class RolledBackAgentLaunchError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : String(cause), { cause });
+	}
+}
+
+export class UnstartedAgentLaunchError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : String(cause), { cause });
+	}
+}
+
 async function createStartPane(
 	client: HerdrConnection,
 	params: StartAgentParams,
@@ -103,10 +115,13 @@ async function createStartPane(
 	}
 	if (placement === "new_tab") {
 		const workspaceTarget = required(params.workspace, "workspace");
-		const workspace = resolveWorkspace(
-			await getSnapshot(client),
-			workspaceTarget,
-		);
+		let workspace;
+		try {
+			workspace = resolveWorkspace(await getSnapshot(client), workspaceTarget);
+		} catch (error) {
+			throw new UnstartedAgentLaunchError(error);
+		}
+		// A failed create response may still have created a location.
 		const created = createdLocation(
 			await client.request<unknown>("tab.create", {
 				workspace_id: workspace.workspace_id,
@@ -207,7 +222,9 @@ export async function startAgent(
 ): Promise<StartedAgent> {
 	const name = required(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
-		throw new Error("name must match [a-z][a-z0-9_-]{0,31}");
+		throw new Error(
+			"name must be 1–32 characters, start with a lowercase letter, and contain only lowercase letters, digits, underscores or hyphens. Omit name to generate it from label; label can be longer.",
+		);
 	}
 	const label = params.label?.trim() || name;
 	const args = ["--name", label, ...(options.agentArgs ?? [])];
@@ -221,11 +238,12 @@ export async function startAgent(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
 		);
 	}
-	const cwd = await resolveStartDirectory(
-		params,
-		fallbackCwd,
-		resolveDirectory,
-	);
+	let cwd: string;
+	try {
+		cwd = await resolveStartDirectory(params, fallbackCwd, resolveDirectory);
+	} catch (error) {
+		throw new UnstartedAgentLaunchError(error);
+	}
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
@@ -270,7 +288,7 @@ async function rollbackCreatedLocation(
 			{ cause },
 		);
 	}
-	throw cause;
+	throw new RolledBackAgentLaunchError(cause);
 }
 
 async function startWhenShellReady(

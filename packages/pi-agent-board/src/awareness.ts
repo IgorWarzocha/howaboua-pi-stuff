@@ -27,15 +27,18 @@ export class BoardAwareness {
 		ctx: ExtensionContext,
 		error?: unknown,
 	) => void;
+	private readonly gpt: () => boolean;
 	constructor(
 		pi: ExtensionAPI,
 		read: (ctx: ExtensionContext) => Promise<unknown>,
 		availability: (ctx: ExtensionContext, error?: unknown) => void,
 		privateBriefing: () => typeof boardBriefing | undefined,
+		gpt: () => boolean = () => false,
 	) {
 		this.pi = pi;
 		this.read = read;
 		this.availability = availability;
+		this.gpt = gpt;
 		this.privateBriefing = privateBriefing;
 		registerContextBriefing(
 			pi,
@@ -157,10 +160,10 @@ export class BoardAwareness {
 				this.refresh(ctx).epoch !== state.epoch
 			)
 				throw new Error("Board membership changed during its briefing");
-			return (this.privateBriefing() ?? boardBriefing)(
-				Boolean(own.upstream),
-				population,
-			);
+			const privateBriefing = this.privateBriefing();
+			return privateBriefing
+				? privateBriefing(Boolean(own.upstream), population)
+				: boardBriefing(Boolean(own.upstream), population, this.gpt());
 		});
 	}
 }

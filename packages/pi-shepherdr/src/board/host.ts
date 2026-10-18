@@ -57,7 +57,8 @@ export class AgentBoard {
 		discoverBoard(pi, (runtime) => {
 			this.runtime = runtime;
 			runtime.attach({
-				briefing: boardBriefing,
+				briefing: (member, population) =>
+					boardBriefing(member, population, runtime.gptPromptMode),
 				request: requestContext,
 				commitDirectory: (own, directory, caller, request) =>
 					this.membership.commitDirectory(own, directory, caller, request),
@@ -136,7 +137,7 @@ export class AgentBoard {
 		args: readonly string[],
 	) {
 		if (!this.enabled(ctx)) return undefined;
-		const own = binding(ctx);
+		const own = { ...binding(ctx), enabled: true };
 		if (
 			args.some((arg) =>
 				/^(?:--(?:session(?:-id)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(

@@ -31,11 +31,16 @@ function materializedInput(state: CanonicalSessionState): unknown[] {
 	return [...state.requestBody.input, ...state.responseItems];
 }
 
-function responsesLiteRequestPrefixLength(input: readonly unknown[]): number {
-	const first = input[0];
-	if (!first || typeof first !== "object" || (first as { type?: unknown }).type !== "additional_tools") return 0;
-	const second = input[1];
-	return second && typeof second === "object" && (second as { role?: unknown }).role === "developer" ? 2 : 1;
+function compactionRequestPrefixLength(state: CanonicalSessionState, reconstructedInput: readonly unknown[]): number {
+	const first = state.reconstructedRequestInput[0];
+	const toolsPrefix = first && typeof first === "object" && (first as { type?: unknown }).type === "additional_tools" ? 1 : 0;
+	const instructions = state.reconstructedRequestInput[toolsPrefix];
+	// Reconstructed history omits the standing prompt, but can itself start with a
+	// persisted developer update. Never strip that update from the comparison.
+	const hasInstructions = state.requestBody.instructions === undefined && instructions && typeof instructions === "object"
+		&& (instructions as { role?: unknown }).role === "developer"
+		&& !responseInputsEqual([instructions], reconstructedInput.slice(0, 1));
+	return toolsPrefix + (hasInstructions ? 1 : 0);
 }
 
 function replayCanonicalInput(
@@ -144,7 +149,7 @@ export function resolveCanonicalCompactionPromptInput(
 	const replay = replayCanonicalInput(
 		state,
 		reconstructedInput,
-		responsesLiteRequestPrefixLength(state.reconstructedRequestInput),
+		compactionRequestPrefixLength(state, reconstructedInput),
 	);
 	return {
 		...(replay.input ? { input: replay.input } : {}),

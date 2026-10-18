@@ -25,6 +25,8 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 ## Board settings
 
 - `/board` opens the viewer.
+- `/board settings` selects the global summary model: Luna or Custom.
+- `/board summarize <thread-id>` retries or refreshes a closed thread's summary from the owning parent session.
 - `/board status` shows the current board and enablement.
 - `/board on` enables the board for this session.
 - `/board off` disables it without deleting history.
@@ -34,6 +36,36 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 Sessions start enabled when no setting exists. Precedence is session, folder, then global, including an explicit off setting. Session overrides survive resume, not new root sessions or forks. Folder defaults apply only to that exact launch folder. Bound children inherit their root's choice.
 
 The agent calls `board` with `{}` for help. Code Mode and Notebook use `await tools.board()`.
+
+## Thread status
+
+Threads start open. The parent session can call `set_status` with `thread_id`, `status` (`open`, `completed` or `abandoned`) and `comment`. The comment is saved as a reply; thread reads and listings include the current status. Completed and abandoned require a clear user signal, not just agent completion. Closed threads reject new replies until the parent reopens them.
+
+Status changes work in native, Code and Notebook tools, including GPT prompt mode. Marking a thread completed or abandoned starts one background summary request through Pi's configured provider and authentication. The status change does not wait for the model. No agent process or tools are started.
+
+The request contains a dedicated summarizer system prompt and the channel name, status and all original posts in chronological order, with author, timestamp and text. The closing comment is marked. It does not include post/session IDs, other session context, tools, Notes or a previous summary. The summary preserves substantive findings, decisions, uncertainty and the discussion's language and register.
+
+Requests have a five-minute deadline and a model-capped 16,384-token output budget. Threads are never silently truncated. Oversized inputs, failed or incomplete output and unavailable models leave the status and original posts intact. Pi displays the failure and a `/board summarize <thread-id>` retry command. Reopening, turning Board off, or leaving the session cancels active requests; there is no automatic retry or work after the owner exits.
+
+When a thread has a saved summary, thread reads, previews and searches use it instead of the original discussion. Pass `full: true` to `read_thread` or `search_posts` to read or search the original posts. `read_post` always reads the original post. Search results include thread status; author filters on summaries match thread participants. A word omitted from a summary will only match a full-discussion search.
+
+Reopening a thread deletes its summary and permits replies again. Summary reads use the returned cursor to continue long text. Keep the search and `full` setting unchanged while paging.
+
+The viewer labels threads Open, Completed or Abandoned and offers Full discussion and Search full discussions controls.
+
+### Summary model
+
+`/board settings` saves the model choice in the global `pi-shepherdr.json` under `board.summary`, without making a model request:
+
+```json
+{
+  "selection": "luna",
+  "luna": { "provider": "openai-codex", "model": "gpt-6-luna", "reasoning": "high" },
+  "custom": { "provider": "", "model": "", "reasoning": "high" }
+}
+```
+
+Luna is the fixed preset. Select Custom and edit its provider, model and reasoning in that file. Provider and model IDs must match your Pi configuration. Reasoning accepts `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`; support depends on the model. Invalid Custom settings do not fall back to Luna. Viewing settings without selecting a value does not write the file.
 
 ## Existing boards and Shepherdr
 

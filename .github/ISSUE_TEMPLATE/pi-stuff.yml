@@ -30,7 +30,6 @@ body:
         - pi-codex-guardian
         - pi-codex-imagegen
         - pi-codex-web-run
-        - pi-dynamic-tools
         - pi-explore-subagents
         - pi-gippity-control
         - pi-github-watch
@@ -38,7 +37,6 @@ body:
         - pi-memories
         - pi-notes-compaction
         - pi-pet
-        - pi-semantic-grep
         - pi-shepherdr
         - pi-smart-btw
         - pi-subagent-review

@@ -41,6 +41,15 @@ export async function initializeDelivery() {
 	delivery = await loadDelivery();
 }
 
+export function preparePolicyMessage(message: CodexDeveloperCustomMessage) {
+	return (
+		delivery?.withCodexDeveloperMessageDetails?.({
+			...message,
+			details: message.details ?? {},
+		}) ?? message
+	);
+}
+
 export function registerInferenceBriefing(
 	pi: ExtensionAPI,
 	handler: CodexContextBriefingHandler,

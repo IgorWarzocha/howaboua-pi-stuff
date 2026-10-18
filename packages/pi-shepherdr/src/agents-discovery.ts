@@ -25,11 +25,13 @@ function describeProfiles(profiles: Map<string, AgentProfile>) {
 
 export async function agentsHelp(
 	boardAvailable = false,
+	gpt = false,
 ): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
-		commands:
-			"commands: true lists available slash commands with descriptions; defaults to this session, target and machine optionally select another session; does not execute commands",
+		commands: gpt
+			? "commands:true lists slash commands/descriptions, never executes. Default this session; target/machine select another"
+			: "commands: true lists available slash commands with descriptions; defaults to this session, target and machine optionally select another session; does not execute commands",
 		actions: {
 			help: "",
 			list: "machine?",
@@ -48,13 +50,14 @@ export async function agentsHelp(
 			reply: "target extension id message machine?",
 		},
 		rules: {
-			reply:
-				"Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",
+			reply: gpt
+				? "Use extension report/read template; send cannot resolve. Blocking waits for resumed work; others return after semantic delivery"
+				: "Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",
 			machine:
 				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
 			target:
 				"Use spawn/find target exactly; /root selects this family's live root",
-			label: "Concise tab/session name",
+			label: "Short tab/session name; prefer two words when useful",
 			...(boardAvailable
 				? {
 						board_thread_id:
@@ -62,25 +65,30 @@ export async function agentsHelp(
 					}
 				: {}),
 			send: "Message or work update; wakes idle agents, no wait/watch. Close finished workers with /quit, not acknowledgement messages",
-			assign:
-				"Delegate or update work; active updates share its pending result, never replace an existing wait",
-			focus:
-				"Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
+			assign: gpt
+				? "Delegate/update work. Active updates share pending result, never replace existing wait"
+				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
+			focus: gpt
+				? "Running session; passive arrival+return call, no task/watch. voice=false default; true transfers active mic asynchronously. handoff=context. Remote selects target Herdr session, not client machine"
+				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach: boardAvailable
 				? "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
 				: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
 			detach:
 				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
-			blocking:
-				"spawn/assign default true; profile blocking overrides spawn. Fan out independent implementation workers with false; end your turn when only waiting. Completion/blockage arrives after you reply; no polling or sleep waits",
+			blocking: gpt
+				? "spawn/assign default true; profile overrides spawn. Independent implementation fanout: false. Only waiting? End turn. Completion/blockage arrives after reply; no polling/sleep waits"
+				: "spawn/assign default true; profile blocking overrides spawn. Fan out independent implementation workers with false; end your turn when only waiting. Completion/blockage arrives after you reply; no polling or sleep waits",
 			share_context:
 				"Profile false isolates notes/history; otherwise follows controller sharing setting",
 			watch:
 				"Delegation and watch keep reporting subsequent work until unwatch or close",
-			prompt:
-				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
-			slash:
-				"Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
+			prompt: gpt
+				? "Distinct worker scope, outcome, project context, issue references. Define success, not forbidden investigations"
+				: "Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
+			slash: gpt
+				? "Leading / routes target commands/skills/templates. Commands skip task waiting including assign/spawn; blocked returns choices. /quit exits Pi and closes pane"
+				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
 			reuse:
 				"Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")

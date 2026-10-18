@@ -4,4 +4,5 @@
 - Section getters observe later `before_agent_start` edits only. Live deferred-tool availability belongs in appended toolkit updates, not reconstructed prompts or provider patches.
 - Provider code may serialize or capture final instructions but must not author prompt text. Later Pi extensions may still mutate the prompt; inspect the final provider payload when exact sent instructions matter.
 - Keep construction deterministic and cache-stable.
+- GPT mode inherits Heavy's scaffold removal. Compact only paired owned guidance; preserve foreign contributions and opaque overrides. Off/on text must stay unchanged.
 - Assume GPT knows durable Codex concepts; emit only Pi/local/failure deltas. On new models delete first, restore only real-use regressions; ignore synthetic evals.

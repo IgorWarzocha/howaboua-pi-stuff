@@ -13,6 +13,7 @@ import { registerPeerInbox } from "./src/peer-inbox.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context-host.js";
 import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
+import { registerWorkerService } from "./src/worker-service.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
@@ -33,10 +34,37 @@ export default async function shepherdrExtension(
 	const board = AgentBoard.create(pi, fleet);
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
-	const tool = createAgentsTool(fleet, sharedContext, board, pi, peerCommands);
+	registerWorkerService(pi, fleet, sharedContext, board);
+	let promptMode: { readonly active: boolean } | undefined;
+	const tool = createAgentsTool(
+		fleet,
+		sharedContext,
+		board,
+		pi,
+		peerCommands,
+		() => promptMode?.active ?? false,
+	);
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		promptMode = registerGptPromptMode(pi, () => [tool]);
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes(CODE_MODE_PACKAGE)
+		)
+			throw error;
+	}
 	await registerAgentsInCodeMode(pi, tool);
 	registerAgentController(pi, fleet, peerCommands);
 }
@@ -52,7 +80,7 @@ async function registerAgentsInCodeMode(
 			adaptToolForCodeMode(tool, {
 				prepareInput: (input) => (input === undefined ? {} : input),
 				blocking: isBlockingAgentsCall,
-				usage: "await tools.agents() // Persistent agents; first call alone",
+				discovery: "help",
 			}),
 		]);
 		pi.on("session_shutdown", () => {

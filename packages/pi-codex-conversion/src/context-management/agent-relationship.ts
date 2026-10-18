@@ -11,18 +11,23 @@ const TURN_METADATA = "x-codex-turn-metadata";
 export interface CodexAgentRelationship {
 	parentThreadId?: string;
 	subagentKind?: string;
+	/** Optional routing affinity, not a native thread or shared-history identity. */
+	cacheAffinityId?: string;
 }
 
 function parseRelationship(input: unknown): CodexAgentRelationship {
 	if (!input || typeof input !== "object") throw new Error("Invalid Codex agent relationship");
 	const value = input as CodexAgentRelationship;
-	for (const field of [value.parentThreadId, value.subagentKind]) {
+	for (const field of [value.parentThreadId, value.subagentKind, value.cacheAffinityId]) {
 		if (field !== undefined && (typeof field !== "string" || !/^[\x21-\x7e]+$/.test(field)))
 			throw new Error("Invalid Codex agent relationship");
 	}
-	if (!value.parentThreadId && !value.subagentKind) throw new Error("Empty Codex agent relationship");
+	if (value.cacheAffinityId && value.cacheAffinityId.length > 64)
+		throw new Error("Codex cache affinity must not exceed 64 characters");
+	if (!value.parentThreadId && !value.subagentKind && !value.cacheAffinityId) throw new Error("Empty Codex agent relationship");
 	return { ...(value.parentThreadId ? { parentThreadId: value.parentThreadId } : {}),
-		...(value.subagentKind ? { subagentKind: value.subagentKind } : {}) };
+		...(value.subagentKind ? { subagentKind: value.subagentKind } : {}),
+		...(value.cacheAffinityId ? { cacheAffinityId: value.cacheAffinityId } : {}) };
 }
 
 export function codexAgentRelationship(ctx: Pick<ExtensionContext, "sessionManager">): CodexAgentRelationship | undefined {
@@ -38,8 +43,7 @@ export function codexAgentRelationship(ctx: Pick<ExtensionContext, "sessionManag
 	return relationship;
 }
 
-export function bindCodexAgentRelationship(pi: ExtensionAPI, ctx: ExtensionContext, input: unknown,
-	isPristineStartup?: (ctx: ExtensionContext) => boolean): CodexAgentRelationship {
+export function bindCodexAgentRelationship(pi: ExtensionAPI, ctx: ExtensionContext, input: unknown): CodexAgentRelationship {
 	const relationship = parseRelationship(input);
 	if (relationship.parentThreadId === ctx.sessionManager.getSessionId()) throw new Error("An agent cannot be its own parent");
 	const current = codexAgentRelationship(ctx);
@@ -47,11 +51,7 @@ export function bindCodexAgentRelationship(pi: ExtensionAPI, ctx: ExtensionConte
 		if (!isDeepStrictEqual(current, relationship)) throw new Error("An existing agent relationship cannot be rebound");
 		return current;
 	}
-	// An external notes owner recognises its initial UI window without admitting work.
-	const pristine = isPristineStartup ? isPristineStartup(ctx) : !ctx.sessionManager.getEntries().some(entry =>
-		entry.type === "message" || entry.type === "custom_message" || entry.type === "compaction" || entry.type === "branch_summary");
-	if (!ctx.isIdle() || !pristine)
-		throw new Error("Agent relationship requires a fresh, idle session before its first task");
+	if (!ctx.isIdle()) throw new Error("Agent relationship requires an idle Pi session");
 	pi.appendEntry(RELATIONSHIP_ENTRY, { ...relationship, threadId: ctx.sessionManager.getSessionId() });
 	return relationship;
 }
@@ -66,6 +66,7 @@ export function rewriteRelationshipHeaders(headers: ProviderHeaders, ctx: Extens
 	const relationship = codexAgentRelationship(ctx);
 	if (relationship?.parentThreadId) headers[PARENT_HEADER] = relationship.parentThreadId;
 	if (relationship?.subagentKind) headers[SUBAGENT_HEADER] = relationship.subagentKind;
+	if (relationship?.cacheAffinityId) headers["session-id"] = relationship.cacheAffinityId;
 	if (relationship) headers[TURN_METADATA] = mergeTurnMetadata(headers[TURN_METADATA], ctx);
 }
 
@@ -81,10 +82,14 @@ export function rewriteRelationshipPayload(payload: unknown, ctx: ExtensionConte
 	const body = payload as Record<string, unknown>;
 	const existing = body["client_metadata"];
 	const metadata = existing && typeof existing === "object" && !Array.isArray(existing) ? existing as Record<string, unknown> : {};
-	return { ...body, client_metadata: {
-		...metadata,
-		[TURN_METADATA]: mergeTurnMetadata(metadata[TURN_METADATA], ctx),
-		...(relationship.parentThreadId ? { [PARENT_HEADER]: relationship.parentThreadId } : {}),
-		...(relationship.subagentKind ? { [SUBAGENT_HEADER]: relationship.subagentKind } : {}),
-	} };
+	return {
+		...body,
+		...(relationship.cacheAffinityId ? { prompt_cache_key: relationship.cacheAffinityId } : {}),
+		client_metadata: {
+			...metadata,
+			[TURN_METADATA]: mergeTurnMetadata(metadata[TURN_METADATA], ctx),
+			...(relationship.parentThreadId ? { [PARENT_HEADER]: relationship.parentThreadId } : {}),
+			...(relationship.subagentKind ? { [SUBAGENT_HEADER]: relationship.subagentKind } : {}),
+		},
+	};
 }

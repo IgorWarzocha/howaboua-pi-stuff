@@ -25,7 +25,7 @@ import { withNotebookRecoveryGuidance } from "./runtime-health.ts";
 
 export interface StartedNotebookSession {
 	kernel: DenoJupyterKernel;
-	journal: NotebookJournal;
+	journal: NotebookJournal | undefined;
 	checkpointIdentity: NotebookCheckpointIdentity;
 	baselineNames: Set<string>;
 	projectBaseline: ProjectStateBaseline;
@@ -72,7 +72,11 @@ export async function startNotebookSession(options: {
 			session: notebookSessionIdentity(context),
 			agentDir: runtime.agentDir,
 		};
-		const journal = initializeNotebookJournal(checkpointIdentity, options.checkpointMaxBytes);
+		let journal: NotebookJournal | undefined;
+		let journalNotice: string | undefined;
+		try { journal = initializeNotebookJournal(checkpointIdentity, options.checkpointMaxBytes); } catch (error) {
+			journalNotice = `Notebook journal is unavailable; execution and saved binding recovery remain available. Check Notebook journals in /codex: ${error instanceof Error ? error.message : String(error)}`;
+		}
 		const baselineNames = new Set(await kernel.complete("", 0, signal));
 		const projectState = await restoreProjectState(kernel, {
 			project,
@@ -122,7 +126,7 @@ export async function startNotebookSession(options: {
 		const exampleNotice = exampleNames.length === 2
 			? "Notebook example foo/bar available; inspect foo.description, foo.usage, bar.description, and bar.usage before constructing a reusable global"
 			: undefined;
-		const restoreNotice = [exampleNotice, npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
+		const restoreNotice = [exampleNotice, npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, journalNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,

@@ -5,6 +5,7 @@ import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes, type LunaCacheKeepaliveIntervalMinutes, type CacheKeepaliveIntervalMinutes } from "./config.ts";
 import { readCodexCacheEnvironment } from "./cache-environment.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
+import { maintainNotebookJournals, scheduleNotebookStorageMaintenance } from "../../tools/notebook-mode/storage-retention.ts";
 
 // Lite deliberately shares the original package's config so replacing either
 // package does not require a reset or a second settings file.
@@ -82,6 +83,10 @@ function withoutProjectOnlyDocument(document: Record<string, unknown>): Record<s
 }
 
 function withoutGlobalOnlyDocument(document: Record<string, unknown>): Record<string, unknown> {
+	const notebook = isRecord(document["notebook"]) ? { ...document["notebook"] } : undefined;
+	if (notebook) delete notebook["journals"];
+	if (notebook) delete notebook["checkpointCleanup"];
+	document = notebook ? { ...document, notebook } : document;
 	const openai = isRecord(document["openai"]) ? { ...document["openai"] } : undefined;
 	if (!openai) return document;
 	delete openai["lunaCacheKeepaliveMinutes"];
@@ -228,7 +233,7 @@ export function setGlobalCodexLunaCacheKeepalive(
 	minutes: LunaCacheKeepaliveMinutes,
 	globalConfigPath: string = getCodexConversionConfigPath(),
 	intervalMinutes?: LunaCacheKeepaliveIntervalMinutes,
-): { ok: true } | { ok: false; error: string } {
+): { ok: true; warning?: string } | { ok: false; error: string } {
 	const config = readCodexConversionConfig(globalConfigPath);
 	return writeCodexConversionConfig({
 		...config,
@@ -285,17 +290,23 @@ export function writeCodexConversionConfig(
 	config: CodexConversionConfig,
 	configPath: string = getCodexConversionConfigPath(),
 	folderScope = false,
-): { ok: true } | { ok: false; error: string } {
+): { ok: true; warning?: string } | { ok: false; error: string } {
 	try {
 		const normalizedConfig = normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>;
 		const normalized = folderScope
 			? withoutDisabledProjectCacheKeepalive(withoutGlobalOnlyDocument(normalizedConfig))
 			: withoutProjectOnlyDocument(normalizedConfig);
 		let document = normalized;
+		let previousJournals: unknown = "week";
+		let previousCheckpointCleanup: unknown = "never";
 		if (existsSync(configPath)) {
 			try {
 				const existing = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
-				if (isRecord(existing)) document = mergeConfigDocument(existing, normalized);
+				if (isRecord(existing)) {
+					if (isRecord(existing["notebook"])) previousJournals = existing["notebook"]["journals"] ?? "week";
+					if (isRecord(existing["notebook"])) previousCheckpointCleanup = existing["notebook"]["checkpointCleanup"] ?? "never";
+					document = mergeConfigDocument(existing, normalized);
+				}
 			} catch {
 				// A valid explicit settings write replaces an unreadable document.
 			}
@@ -309,6 +320,16 @@ export function writeCodexConversionConfig(
 		if (isRecord(compaction))
 			for (const key of ["contextManagement", "hybridCompaction", "responsesCompaction", "portableSummary"]) delete compaction[key];
 		writeConfigDocumentAtomic(configPath, document);
+		if (!folderScope && (previousJournals !== config.notebook.journals || config.notebook.journals === "off")) {
+			try { maintainNotebookJournals(dirname(configPath)); } catch (error) {
+				const warning = `Settings saved, but journal cleanup failed: ${error instanceof Error ? error.message : String(error)}. Retry Notebook journals in /codex`;
+				console.warn(warning);
+				return { ok: true, warning };
+			}
+		}
+		if (!folderScope && (previousCheckpointCleanup !== config.notebook.checkpointCleanup || previousJournals !== config.notebook.journals)) {
+			scheduleNotebookStorageMaintenance(dirname(configPath), true);
+		}
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

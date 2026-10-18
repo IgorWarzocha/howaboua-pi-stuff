@@ -1,7 +1,8 @@
-- Keep this runtime self-contained; do not add a dependency on `pi-dynamic-tools`.
 - Conversion-specific activation and nested tool definitions stay outside this directory.
-- Codex host source stays pinned under `vendor/code-mode-src/`; keep Pi-owned changes outside its upstream source tree.
+- The only Code host is the checksummed official release in `host-assets.ts`. Cache by release and platform; never select local builds, bundled hosts or `customRustBinariesDir`. Upstream source routes live in the package AGENTS.md.
 - Keep model-native `exec`/`wait`; never rename, configure, or add collision fallbacks.
-- Low-context custom tools belong to Code/Notebook: promoted tools get one standing usage line; deferred contracts stay in synchronous `ALL_TOOLS`, with short appended availability updates. Never mimic this in Structured mode.
+- Low-context custom tools belong to Code/Notebook: promoted tools get one standing entry; deferred contracts stay in synchronous `ALL_TOOLS`, with short appended availability updates. Never mimic this in Structured mode.
+- Only explicit `discovery: "help"` tools omit call signatures. Their empty call must return usage without executing an operation. Never infer this from optional arguments or apply it to arbitrary third-party tools.
 - `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
+- A different extension can register the shared Code turn hook before PCC. Keep prompt-mode preparation at this hook's capture boundary, before provider selection, host preparation and `collectPromptTools`; PCC's own later hook is not sufficient.
 - `shared-runtime.ts` selects the V8 or lazily imported Notebook client; Notebook implementation stays under sibling `tools/notebook-mode/`.

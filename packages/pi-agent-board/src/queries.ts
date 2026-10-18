@@ -1,7 +1,8 @@
 import { caseFold } from "unicode-case-folding";
-import { agentPath, type BoardParams, required } from "./contract.js";
+import { type BoardParams, required } from "./contract.js";
 import {
 	budget,
+	cursor,
 	metadata,
 	POST_COLUMNS,
 	type PostRecord,
@@ -9,7 +10,9 @@ import {
 	preview,
 	window,
 } from "./paging.js";
+import { searchBoard } from "./search.js";
 import type { BoardStore } from "./store.js";
+import { summaryPreview } from "./summaries.js";
 
 export function queryBoard(
 	store: BoardStore,
@@ -72,6 +75,28 @@ export function queryBoard(
 	}
 	if (params.action === "read_thread") {
 		const root = store.root(board, required(params.thread_id, "thread_id"));
+		const summary = params.full
+			? undefined
+			: store.summaries.get(board, root.thread_id);
+		if (summary) {
+			const points = Array.from(summary.text);
+			const start = Math.min(offset, points.length);
+			const text = points.slice(start, start + budget(params, 1)).join("");
+			const next = start + Array.from(text).length;
+			return {
+				view: "summary",
+				root_post: metadata(root),
+				...store.threadStatus(board, root.thread_id),
+				summary: {
+					...summaryPreview(summary, 0),
+					text_preview: text,
+					offset_chars: start,
+					truncated: next < points.length,
+				},
+				has_more: next < points.length,
+				next_cursor: next < points.length ? cursor(next) : null,
+			};
+		}
 		const replies = store.all<PostRecord>(
 			`SELECT ${POST_COLUMNS} FROM posts WHERE board_id=? AND root=? AND id<>root ORDER BY created_at DESC,seq DESC LIMIT ? OFFSET ?`,
 			board,
@@ -81,7 +106,9 @@ export function queryBoard(
 		);
 		const chars = budget(params, Math.min(replies.length, limit) + 1);
 		return {
+			view: "full",
 			root_post: preview(root, chars),
+			...store.threadStatus(board, root.thread_id),
 			...page(
 				replies.map((post) => preview(post, chars)),
 				params,
@@ -107,6 +134,7 @@ export function queryBoard(
 		const chars = budget(params, 2 * Math.min(roots.length, limit));
 		return page(
 			roots.map((root) => {
+				const summary = store.summaries.get(board, root.thread_id);
 				const reply = store.one<PostRecord>(
 					`SELECT ${POST_COLUMNS} FROM posts WHERE board_id=? AND root=? AND id<>root ORDER BY created_at DESC,seq DESC LIMIT 1`,
 					board,
@@ -120,57 +148,24 @@ export function queryBoard(
 					)?.n ?? 0;
 				return {
 					thread_id: root.message_id,
-					root_post: preview(root, chars),
+					...store.threadStatus(board, root.message_id),
+					...(summary
+						? { summary: summaryPreview(summary, chars) }
+						: { root_post: preview(root, chars) }),
 					reply_count: count,
 					last_activity_at:
 						reply && reply.created_at > root.created_at
 							? reply.created_at
 							: root.created_at,
-					latest_reply: reply ? preview(reply, chars) : null,
+					...(summary
+						? {}
+						: { latest_reply: reply ? preview(reply, chars) : null }),
 				};
 			}),
 			params,
 		);
 	}
-	if (params.action === "search_posts") return search(store, board, params);
+	if (params.action === "search_posts")
+		return searchBoard(store, board, params);
 	throw new Error(`Unsupported board read: ${params.action}`);
-}
-
-function search(store: BoardStore, board: string, params: BoardParams) {
-	const { limit, offset } = window(params);
-	const clauses = ["board_id=?"];
-	const args: (string | number)[] = [board];
-	if (params.channel_name !== undefined) {
-		clauses.push("channel=?");
-		args.push(params.channel_name);
-	}
-	if (params.author !== undefined) {
-		clauses.push("author=?");
-		args.push(agentPath(params.author, "/root"));
-	}
-	if (params.query !== undefined) {
-		clauses.push("instr(body_search,?)>0");
-		args.push(caseFold(params.query));
-	}
-	if (params.after_message_id !== undefined) {
-		const after = store.one<{ created_at: string; seq: number }>(
-			"SELECT created_at,seq FROM posts WHERE board_id=? AND id=?",
-			board,
-			params.after_message_id,
-		);
-		if (!after) throw new Error("Post not found in this board");
-		clauses.push("(created_at,seq)>(?,?)");
-		args.push(after.created_at, after.seq);
-	}
-	const posts = store.all<PostRecord>(
-		`SELECT ${POST_COLUMNS} FROM posts WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC,seq DESC LIMIT ? OFFSET ?`,
-		...args,
-		limit + 1,
-		offset,
-	);
-	const chars = budget(params, Math.min(posts.length, limit));
-	return page(
-		posts.map((post) => preview(post, chars)),
-		params,
-	);
 }

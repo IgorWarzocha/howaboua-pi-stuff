@@ -1,10 +1,10 @@
 import type {
 	CodeModeToolDefinition,
-	CodeModeToolMetadata,
 	CustomToolDefinition,
 } from "./types.js";
 import type { CodeModeExecutionKind } from "./shared-runtime.js";
 import {
+	codeModeGlobalName,
 	translateCodeModeGuideline,
 	translateCodeModeToolReferences,
 	translateCodeModeUsage,
@@ -15,13 +15,18 @@ Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults
 Await work; use a timeout when an operation might not finish on its own
 Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
+export const GPT_EXEC_DESCRIPTION = `Compose tools in JavaScript; source only, no JSON/fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
+Await work; timeout operations that may not finish
+Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
+
 export const WAIT_DESCRIPTION =
 	"Resume or terminate a yielded exec cell";
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
 const TOOL_GUIDANCE_HEADING = "Tool guidance:";
-const DEFERRED_TOOLS_GUIDANCE = "For additional tools, run text(ALL_TOOLS) in exec";
+const DEFERRED_TOOLS_GUIDANCE = "For additional tools and their contracts, run text(ALL_TOOLS) in exec";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
 export const CODE_MODE_TOOLS_SECTION = "exec_tools";
@@ -93,7 +98,7 @@ function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
 
 function buildUsageSection(
 	heading: string,
-	tools: CodeModeToolMetadata[],
+	tools: CodeModeToolDefinition[],
 	priority: readonly string[] = [],
 ): string {
 	if (tools.length === 0) return "";
@@ -105,13 +110,16 @@ function buildUsageSection(
 			};
 			return rank(left.name) - rank(right.name) || left.name.localeCompare(right.name);
 		})
-		.map((tool) => `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
+		.map((tool) => "discovery" in tool && tool.discovery === "help"
+			? `- tools.${codeModeGlobalName(tool.name)}: ${translateCodeModeToolReferences(tool.description ?? "", tool.name)}`
+			: `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
 		.join("\n")}`;
 }
 
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	executionKind: CodeModeExecutionKind = "code",
+	gpt = false,
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
@@ -120,8 +128,11 @@ export function buildCodeModeToolsPrompt(
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
 		executionKind === "notebook"
-			? "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
+			? gpt
+				? "exec: persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Small programs across cells; retained globals may come from earlier agents/sessions"
+				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+		"For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",
@@ -171,12 +182,15 @@ export function prepareCodeModeToolsPrompt(
 	documentationPath?: string,
 	isEnabled: () => boolean = () => true,
 	executionKind: CodeModeExecutionKind = "code",
+	gpt = false,
 ): string {
 	const sections = options.sections ??= {};
 	customizationGuidance.set(options, () => documentationPath && isEnabled()
-		? `Custom tools to run in exec: read ${documentationPath} instead of Pi docs`
+		? gpt
+			? `exec custom tools: read ${documentationPath}, not Pi docs`
+			: `Custom tools to run in exec: read ${documentationPath} instead of Pi docs`
 		: "");
-	const section = buildCodeModeToolsPrompt(tools, executionKind);
+	const section = buildCodeModeToolsPrompt(tools, executionKind, gpt);
 	if (options.forceSystemPrompt !== undefined) {
 		options.forceSystemPrompt = upsertCodeModeToolsSection(options.forceSystemPrompt, isEnabled() ? section : "");
 	} else {

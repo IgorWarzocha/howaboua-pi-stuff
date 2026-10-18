@@ -8,10 +8,12 @@ import {
 	type BoardParams,
 	MUTATIONS,
 	required,
+	type ThreadStatus,
 } from "./contract.js";
 import { metadata, POST_COLUMNS, type PostRecord, preview } from "./paging.js";
 import { queryBoard } from "./queries.js";
 import { serializeBoardResult } from "./response.js";
+import { ThreadSummaries } from "./summaries.js";
 
 export interface BoardScope {
 	boardId: string;
@@ -30,10 +32,16 @@ CREATE INDEX posts_root ON posts(board_id,root,created_at,seq);
 CREATE INDEX posts_order ON posts(board_id,created_at,seq);
 CREATE TABLE subscriptions (board_id TEXT NOT NULL,target TEXT NOT NULL,agent TEXT NOT NULL,enabled INTEGER NOT NULL,PRIMARY KEY(board_id,target,agent));
 PRAGMA user_version=1;`;
+const THREAD_STATUS_SCHEMA = `CREATE TABLE IF NOT EXISTS thread_statuses (
+board_id TEXT NOT NULL, thread_id TEXT NOT NULL,
+status TEXT NOT NULL CHECK(status IN ('open','completed','abandoned')),
+message_id TEXT NOT NULL, PRIMARY KEY(board_id,thread_id));`;
 
 /** One transaction/connection per call. Reads never create a file, schema or board. */
 export class BoardStore {
 	readonly db: DatabaseSync;
+	readonly summaries: ThreadSummaries;
+	private readonly hasThreadStatuses: boolean;
 	constructor(path: string, write: boolean) {
 		const fresh = !existsSync(path);
 		if (write && fresh) mkdirSync(dirname(path), { recursive: true });
@@ -56,6 +64,11 @@ export class BoardStore {
 				this.db.exec(SCHEMA);
 			else if (version !== 1)
 				throw new Error("Unsupported Shepherdr board archive schema");
+			if (write) this.db.exec(THREAD_STATUS_SCHEMA);
+			this.hasThreadStatuses = !!this.one(
+				"SELECT 1 FROM sqlite_master WHERE type='table' AND name='thread_statuses'",
+			);
+			this.summaries = new ThreadSummaries(this.db, write);
 			if (write) this.db.exec("COMMIT");
 		} catch (error) {
 			this.db.close();
@@ -85,6 +98,23 @@ export class BoardStore {
 		if (post.thread_id !== id)
 			throw new Error("thread_id must identify a first post");
 		return post;
+	}
+	threadStatus(
+		board: string,
+		thread: string,
+	): {
+		status: ThreadStatus;
+		status_message_id: string | null;
+	} {
+		return (
+			(this.hasThreadStatuses
+				? this.one<{ status: ThreadStatus; status_message_id: string }>(
+						"SELECT status,message_id AS status_message_id FROM thread_statuses WHERE board_id=? AND thread_id=?",
+						board,
+						thread,
+					)
+				: undefined) ?? { status: "open", status_message_id: null }
+		);
 	}
 	channel(board: string, name: string) {
 		const channel = this.one<{
@@ -171,7 +201,8 @@ export class BoardStore {
 	}
 	private mutate(scope: BoardScope, params: BoardParams, requestId: string) {
 		const board = scope.boardId;
-		if (params.action === "post") return this.publish(scope, params, requestId);
+		if (params.action === "post" || params.action === "set_status")
+			return this.publish(scope, params, requestId);
 		if (params.action === "create_channel") {
 			const name = required(params.channel_name, "channel_name");
 			const now = new Date().toISOString();
@@ -238,7 +269,13 @@ export class BoardStore {
 		if (previous) {
 			if (previous.request !== request)
 				throw new Error("Invocation ID already used for a different post");
-			return { value: metadata(this.post(board, previous.id)), recipients: [] };
+			return {
+				value: {
+					...metadata(this.post(board, previous.id)),
+					...(params.action === "set_status" ? { status: params.status } : {}),
+				},
+				recipients: [],
+			};
 		}
 		const recipients = new Set(
 			(params.agents_to_notify ?? []).map((name) => this.resolve(scope, name)),
@@ -251,6 +288,13 @@ export class BoardStore {
 			const post = this.root(board, params.thread_id);
 			channel = post.channel_name;
 			root = post.thread_id;
+			if (
+				params.action === "post" &&
+				this.threadStatus(board, root).status !== "open"
+			)
+				throw new Error(
+					"Thread is closed. The parent session must reopen it before replies.",
+				);
 		} else if (params.new_channel_name !== undefined) {
 			channel = params.new_channel_name;
 			this.ensureBoard(scope, now);
@@ -275,7 +319,10 @@ export class BoardStore {
 			author: scope.agentName,
 			thread_id: root,
 			created_at: now,
-			text: required(params.text, "text"),
+			text:
+				params.action === "set_status"
+					? required(params.comment, "comment")
+					: required(params.text, "text"),
 		};
 		this.run(
 			"INSERT INTO posts(board_id,id,channel,root,author,created_at,text,body_search,request_id,request) VALUES(?,?,?,?,?,?,?,?,?,?)",
@@ -290,9 +337,23 @@ export class BoardStore {
 			key,
 			request,
 		);
+		if (params.action === "set_status") {
+			this.run(
+				`INSERT INTO thread_statuses(board_id,thread_id,status,message_id) VALUES(?,?,?,?)
+				ON CONFLICT(board_id,thread_id) DO UPDATE SET status=excluded.status,message_id=excluded.message_id`,
+				board,
+				root,
+				required(params.status, "status"),
+				id,
+			);
+			this.summaries.discard(board, root);
+		}
 		this.subscription(board, `thread:${root}`, scope.agentName, true, true);
 		return {
-			value: metadata(post),
+			value: {
+				...metadata(post),
+				...(params.action === "set_status" ? { status: params.status } : {}),
+			},
 			notice: preview(post, 150),
 			recipients: [...recipients],
 		};
@@ -319,9 +380,12 @@ export function validateMutation(params: BoardParams) {
 				"Channel must be 1-128 UTF-8 bytes without edge whitespace/control characters",
 			);
 	}
-	if (params.action === "post") {
-		const text = required(params.text, "text");
+	if (params.action === "post" || params.action === "set_status") {
+		const field = params.action === "set_status" ? "comment" : "text";
+		const text = required(params[field], field);
 		if (!text || !text.isWellFormed() || Buffer.byteLength(text) > 65536)
-			throw new Error("Post must be 1-65536 UTF-8 bytes");
+			throw new Error(
+				`${params.action === "post" ? "Post" : "Comment"} must be 1-65536 UTF-8 bytes`,
+			);
 	}
 }

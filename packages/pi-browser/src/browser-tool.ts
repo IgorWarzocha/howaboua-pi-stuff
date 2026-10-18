@@ -1,5 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { browserHelp } from "./browser/help.js";
 import { isRecordValue } from "./browser/parse-operation.js";
 import { parseBrowserRequest } from "./browser/request.js";
 import { BrowserRuntime } from "./browser/runtime.js";
@@ -23,7 +24,10 @@ export function prepareBrowserInput(input: unknown): { command: string } {
 	return { command: JSON.stringify(input) };
 }
 
-export function createBrowserTool(runtime: BrowserRuntime) {
+export function createBrowserTool(
+	runtime: BrowserRuntime,
+	isGpt = () => false,
+) {
 	return defineTool({
 		name: "browser",
 		label: "Browser",
@@ -38,7 +42,8 @@ export function createBrowserTool(runtime: BrowserRuntime) {
 		),
 		prepareArguments: prepareBrowserInput,
 		async execute(_toolCallId, input, signal, onUpdate, ctx) {
-			const result = await runtime.execute(parseBrowserRequest(input.command), {
+			const request = parseBrowserRequest(input.command);
+			let result = await runtime.execute(request, {
 				ownerId: ctx.sessionManager.getSessionId(),
 				signal: signal ?? new AbortController().signal,
 				onOperation(operation, index, total) {
@@ -61,6 +66,8 @@ export function createBrowserTool(runtime: BrowserRuntime) {
 					});
 				},
 			});
+			if (isGpt() && "help" in request)
+				result = browserHelp(runtime.hosts, true);
 			return {
 				content: [{ type: "text", text: JSON.stringify(result) }],
 				details: result,

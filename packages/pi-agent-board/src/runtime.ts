@@ -13,9 +13,14 @@ import {
 	agentPath,
 	type BoardParams,
 	boardHelp,
+	gptBoardHelp,
 	parseBoardRequest,
 } from "./contract.js";
-import { initializeDelivery, isMissingOptionalModule } from "./delivery.js";
+import {
+	initializeDelivery,
+	isMissingOptionalModule,
+	preparePolicyMessage,
+} from "./delivery.js";
 import {
 	binding,
 	members,
@@ -26,14 +31,18 @@ import {
 } from "./identity.js";
 import type { BoardAdapter } from "./integration.js";
 import { type BoardEnvelope, parseEnvelope } from "./protocol.js";
+import { BoardSummarizer } from "./summarizer.js";
 import { createBoardTool } from "./tool.js";
 import { BoardTurns } from "./turns.js";
 
 export class BoardRuntime {
+	gptPromptMode = false;
+	private preparePromptMode: ((ctx: ExtensionContext) => void) | undefined;
 	private readonly pi: ExtensionAPI;
 	private adapter: BoardAdapter | undefined;
 	private readonly turns: BoardTurns;
 	private readonly awareness: BoardAwareness;
+	private readonly summarizer = new BoardSummarizer();
 	private refreshTools: (() => void) | undefined;
 	private lastSetting: { sessionId: string; enabled: boolean } | undefined;
 	private configError: string | undefined;
@@ -47,6 +56,7 @@ export class BoardRuntime {
 			(ctx) => this.population(ctx),
 			availability,
 			() => this.adapter?.briefing,
+			() => this.gptPromptMode,
 		);
 		this.turns = new BoardTurns(
 			pi,
@@ -55,11 +65,14 @@ export class BoardRuntime {
 			(ctx, ids) => this.awareness.markSeen(ctx, ids),
 		);
 		pi.on("session_start", (_event, ctx) => {
+			this.summarizer.cancelAll();
 			this.availabilityWarning = undefined;
 			setBoardDefault(ctx, true);
 			return this.refresh(ctx);
 		});
+		pi.on("session_shutdown", () => this.summarizer.cancelAll());
 		pi.on("before_agent_start", async (_event, ctx) => {
+			this.preparePromptMode?.(ctx);
 			// Reconcile resumed/offline children before tool/prompt preparation.
 			const own = binding(ctx);
 			if (own.upstream) {
@@ -88,11 +101,11 @@ export class BoardRuntime {
 			catchup.accepted();
 			if (catchup.content)
 				return {
-					message: {
+					message: preparePolicyMessage({
 						customType: "shepherdr-board-catchup",
 						content: catchup.content.trim(),
 						display: true,
-					},
+					}),
 				};
 		});
 	}
@@ -115,6 +128,9 @@ export class BoardRuntime {
 	}
 	setToolRefresh(refresh: () => void) {
 		this.refreshTools = refresh;
+	}
+	setPromptModePreparation(prepare: (ctx: ExtensionContext) => void) {
+		this.preparePromptMode = prepare;
 	}
 	private async population(ctx: ExtensionContext) {
 		const own = binding(ctx);
@@ -186,7 +202,7 @@ export class BoardRuntime {
 				.some((tool) => ["exec", "code", "notebook"].includes(tool));
 			return {
 				content: result.length
-					? `\n\nUnread board updates available; read if relevant to the current task: ${[
+					? `\n\n${this.gptPromptMode ? "Unread board updates. Read task-relevant threads:" : "Unread board updates available; read if relevant to the current task:"} ${[
 							...new Set(result.map((post) => post.thread_id)),
 						]
 							.map((thread_id) => {
@@ -220,7 +236,10 @@ export class BoardRuntime {
 		if (own.enabled) active.push("board");
 		this.pi.setActiveTools(active);
 		this.refreshTools?.();
-		if (!own.enabled) this.turns.active.clear();
+		if (!own.enabled) {
+			this.turns.active.clear();
+			this.summarizer.cancelAll();
+		}
 		const changed =
 			this.lastSetting?.sessionId !== own.sessionId ||
 			this.lastSetting.enabled !== own.enabled;
@@ -245,6 +264,14 @@ export class BoardRuntime {
 		const own = binding(ctx);
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
 		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"})${includeArchive ? `. ${own.boardId}\nArchive: ${own.databasePath}` : ""}${setting?.error ? `\n${setting.error}` : ""}`;
+	}
+	summarize(ctx: ExtensionContext, thread: string) {
+		const own = binding(ctx);
+		if (own.upstream || own.sessionId !== own.rootSessionId)
+			throw new Error("Summarize threads in the owning parent session");
+		if (!own.enabled) throw new Error("Board is off; enable it with /board on");
+		parseBoardRequest({ action: "read_thread", thread_id: thread });
+		this.summarizer.start(ctx, own, thread.toLowerCase());
 	}
 	async execute(ctx: ExtensionContext, input: unknown, requestId: string) {
 		const params = parseBoardRequest(input);
@@ -276,7 +303,9 @@ export class BoardRuntime {
 				"warning",
 			);
 		}
-		return value;
+		return params.action === "help" && this.gptPromptMode
+			? gptBoardHelp(value)
+			: value;
 	}
 	async handle(
 		ctx: ExtensionContext,
@@ -414,6 +443,18 @@ export class BoardRuntime {
 			request.requestId,
 		);
 		if ("notice" in result && result.notice) {
+			// Replayed mutations have no notice: never start or cancel twice for a retry.
+			if (params.action === "set_status") {
+				if (params.status === "open")
+					this.summarizer.cancel(own.boardId, result.notice.thread_id);
+				else
+					this.summarizer.start(
+						ctx,
+						own,
+						result.notice.thread_id,
+						result.notice.message_id,
+					);
+			}
 			for (let start = 0; start < result.recipients.length; start += 16) {
 				await Promise.all(
 					result.recipients.slice(start, start + 16).map(async (target) => {
@@ -528,6 +569,18 @@ async function createRuntime(pi: ExtensionAPI) {
 	const runtime = new BoardRuntime(pi);
 	const tool = createBoardTool(runtime);
 	pi.registerTool(tool);
+	try {
+		const { registerGptPromptMode, prepareGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		runtime.setPromptModePreparation((ctx) => prepareGptPromptMode(pi, ctx));
+		registerGptPromptMode(pi, (active) => {
+			runtime.gptPromptMode = active;
+			return [tool];
+		});
+	} catch (error) {
+		if (!isMissingOptionalModule(error, "prompt-mode")) throw error;
+	}
 	registerBoardActivityRenderer(pi);
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
@@ -538,7 +591,7 @@ async function createRuntime(pi: ExtensionAPI) {
 				adaptToolForCodeMode(tool, {
 					prepareInput: (input) =>
 						input === undefined || input === null ? {} : input,
-					usage: "await tools.board() // Shared discussion archive",
+					discovery: "help",
 				}),
 			],
 			{ isActive: (ctx) => runtime.enabled(ctx) },

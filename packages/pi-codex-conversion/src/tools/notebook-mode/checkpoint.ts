@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, type Dirent } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import {
 	CHECKPOINT_SCHEMA,
+	checkpointPaths,
 	type CheckpointEntry,
 	type CheckpointManifest,
 	type NotebookCheckpointIdentity,
@@ -164,21 +165,6 @@ export function sessionCheckpointProjectExclusions(
 			...(manifest.projectNames ?? []),
 		])
 		: new Set();
-}
-
-function checkpointPaths(identity: NotebookCheckpointIdentity): { directory: string; manifest: string } {
-	const key = createHash("sha256")
-		.update(`${resolve(identity.project)}\0${identity.session}`)
-		.digest("hex");
-	const directory = join(
-		identity.agentDir,
-		"cache",
-		"pi-codex-conversion",
-		"notebook-mode",
-		"sessions",
-		key,
-	);
-	return { directory, manifest: join(directory, "checkpoint.json") };
 }
 
 function sessionFamily(session: string): string {

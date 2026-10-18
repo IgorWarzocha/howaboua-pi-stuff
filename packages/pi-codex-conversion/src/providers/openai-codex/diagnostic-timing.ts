@@ -26,15 +26,27 @@ function count(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-export function createCodexRequestTiming(record: CodexDiagnosticsSink | undefined, now = () => performance.now()) {
+// Native session IDs, never shared cache-affinity IDs. Retained across socket,
+// context-window and diagnostics changes; deliberately not persisted on resume.
+const sessionRequestOrdinals = new Map<string, number>();
+const requestCounterProcessId = crypto.randomUUID();
+
+export function createCodexRequestTiming(record: CodexDiagnosticsSink | undefined, now = () => performance.now(), sessionId?: string) {
 	if (!record) now = () => 0;
 	const requestId = record ? crypto.randomUUID() : "";
 	const requestStart = now();
 	let attempt = 0;
+	let sessionRequestOrdinal: number | undefined;
 	return {
 		requestId,
+		get sessionRequestOrdinal() { return sessionRequestOrdinal; },
+		requestCounterProcessId,
 		get nextAttempt() { return attempt + 1; },
 		start(lane: CodexDiagnosticsLane, transport: CodexDiagnosticsTransport, measureOutput = true) {
+			if (lane !== "prewarm" && sessionId && sessionRequestOrdinal === undefined) {
+				sessionRequestOrdinal = (sessionRequestOrdinals.get(sessionId) ?? 0) + 1;
+				sessionRequestOrdinals.set(sessionId, sessionRequestOrdinal);
+			}
 			const started = now();
 			const attemptNumber = ++attempt;
 			let sendMs: number | null = null;
@@ -82,7 +94,7 @@ export function createCodexRequestTiming(record: CodexDiagnosticsSink | undefine
 					finished = true;
 					const ended = now();
 					const duration = completionMs !== null && sendMs !== null ? completionMs - sendMs : 0;
-					record?.({ type: "timing", lane, transport, requestId, attempt: attemptNumber, outcome,
+					record?.({ type: "timing", lane, transport, requestId, sessionRequestOrdinal, requestCounterProcessId, attempt: attemptNumber, outcome,
 						requestElapsedMs: ended - requestStart, attemptElapsedMs: ended - started,
 						sendMs, firstEventMs, firstVisibleTextMs, completionMs, outputTokens, reasoningTokens,
 						outputTokensPerSecond: outcome === "completed" && outputTokens !== null && duration > 0 ? outputTokens * 1000 / duration : null, backend });

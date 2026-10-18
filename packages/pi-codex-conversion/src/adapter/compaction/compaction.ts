@@ -1,7 +1,7 @@
 import { prepareBranchEntries, type CompactionResult, type ExtensionAPI, type ExtensionContext, type SessionBeforeCompactEvent, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { clampThinkingLevel, getCurrentSystemMessage, normalizeContext, type Api, type Model, type ModelThinkingLevel, type TranscriptContext } from "@earendil-works/pi-ai";
 import { resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
-import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
+import { rewriteResponsesPayloadWithNativeReplay } from "../replay/payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type NativeCompactionRuntime, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { convertResponsesTools } from "../../providers/openai-responses/shared.ts";
 import {
@@ -210,31 +210,31 @@ export function buildNativeCompactionInput(args: {
 	latestNativeCompaction: LatestNativeCompactionResolution;
 	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): { input: ResponsesInputItem[]; compactedKeptWindow: boolean } | undefined {
+	const input = serializeActiveSessionToResponsesInput({
+		model: args.model,
+		entries: args.allEntries,
+		leafId: args.leafId,
+		options: args.serializationOptions,
+	});
 	if (args.latestNativeCompaction.ok) {
-		const compactedWindow = cloneCompactedWindow(args.latestNativeCompaction.entry.details?.compactedWindow ?? []);
-		if (!compactedWindow) return undefined;
-		const liveTailEntries = args.branchEntries.slice(args.latestNativeCompaction.index + 1);
-		const serializationOptions = args.latestNativeCompaction.entry.systemMessage
-			? { ...args.serializationOptions, transcriptBaseline: args.latestNativeCompaction.entry.systemMessage }
-			: args.serializationOptions;
+		// Project the complete context before replacing Pi's summary/kept window,
+		// just as generation does. A tail-only projection cannot restore guidance
+		// that lives ahead of the compaction summary.
+		const replay = rewriteResponsesPayloadWithNativeReplay({
+			model: args.model,
+			payload: { model: args.model.id, input },
+			branchEntries: args.branchEntries,
+			compactionEntry: args.latestNativeCompaction.entry,
+			serializationOptions: args.serializationOptions,
+		});
+		if (!replay.ok || !replay.rewrittenPayload.input.every(isRecord)) return undefined;
 		return {
-			input: [
-				...compactedWindow,
-				...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries, serializationOptions }),
-			],
+			input: replay.rewrittenPayload.input,
 			compactedKeptWindow: false,
 		};
 	}
 
-	return {
-		input: serializeActiveSessionToResponsesInput({
-			model: args.model,
-			entries: args.allEntries,
-			leafId: args.leafId,
-			options: args.serializationOptions,
-		}),
-		compactedKeptWindow: true,
-	};
+	return { input, compactedKeptWindow: true };
 }
 
 export async function resolveCanonicalCompactionReplay(args: {
@@ -386,7 +386,12 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const externalOwner = state.externalNotes?.owner ?? state.notesProjection;
 	const serializationOptions: SerializeResponsesMessagesOptions = {
 		...(plan.transport === "responses-lite" ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : {}),
-		...(externalOwner ? { projectMessages: (messages) => externalOwner.projectMessages(messages) } : {}),
+		projectMessages: (messages) => {
+			const projected = state.externalNotes ? messages : state.contextWindows.project(
+				messages, plan.contextManagementMode, ctx.sessionManager.getBranch(), ctx.sessionManager.getEntries(),
+			);
+			return externalOwner?.projectMessages(projected, branchEntries) ?? [...projected];
+		},
 	};
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel, codeMode);
 	const builtInput = buildNativeCompactionInput({
@@ -398,7 +403,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		serializationOptions,
 	});
 	if (!builtInput) {
-		ctx.ui.notify("OpenAI native compaction could not clone the previous compacted window; Pi compaction was not run.", "error");
+		ctx.ui.notify("OpenAI native compaction could not reconstruct the current conversation; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
 	const canonicalReplay = runtime.codexTransport && runtime.apiKey

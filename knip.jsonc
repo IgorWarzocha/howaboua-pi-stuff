@@ -4,8 +4,7 @@
 		"packages/pi-agent-board": {
 			"entry": ["src/viewer/server.ts", "src/viewer/web/app.js", "scripts/*.mjs"],
 			"project": ["src/**/*.ts", "src/viewer/web/*.js", "scripts/*.mjs"],
-			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"],
-			"ignoreDependencies": ["@howaboua/pi-codex-conversion"]
+			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"]
 		},
 		"packages/pi-chatgpt-sites": {
 			"entry": ["index.ts", "src/git-askpass.ts", "scripts/*.mjs"],
@@ -38,6 +37,7 @@
 				"src/code-mode-hooks.ts",
 				"src/context-sharing.ts",
 				"src/developer-messages.ts",
+				"src/prompt-mode.ts",
 				"src/apply-patch-display.ts",
 				"src/realtime-voice.ts",
 				"src/codex-usage/analyse.ts",
@@ -82,6 +82,11 @@
 			"ignoreIssues": {
 				"src/protocol/index.ts": ["exports", "types"]
 			}
+		},
+		"packages/pi-pulses": {
+			"entry": ["integration.ts"],
+			"project": ["*.ts", "src/**/*.ts"],
+			"ignoreDependencies": ["@howaboua/pi-codex-conversion"]
 		},
 		"packages/pi-shepherdr": {
 			"entry": ["changelog.ts", "profiles/**/*.mjs"]

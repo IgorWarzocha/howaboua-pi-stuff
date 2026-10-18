@@ -62,10 +62,9 @@ export function normalizeCodexConversionConfig(
 		prompt: {
 			currentTimeReminderMinutes: prompt["currentTimeReminderMinutes"] === 30 || prompt["currentTimeReminderMinutes"] === 60
 				? prompt["currentTimeReminderMinutes"] : 0,
-			heavySystemPromptOverwrite: normalizeBoolean(
-				prompt["heavySystemPromptOverwrite"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite,
-			),
+			heavySystemPromptOverwrite: prompt["heavySystemPromptOverwrite"] === "gpt" || typeof prompt["heavySystemPromptOverwrite"] === "boolean"
+				? prompt["heavySystemPromptOverwrite"]
+				: DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite,
 		},
 		scope: {
 			allProviders:
@@ -158,6 +157,8 @@ export function normalizeCodexConversionConfig(
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
 		},
 		notebook: {
+			journals: notebook["journals"] === "off" || notebook["journals"] === "on" ? notebook["journals"] : "week",
+			checkpointCleanup: notebook["checkpointCleanup"] === "month" || notebook["checkpointCleanup"] === "week" ? notebook["checkpointCleanup"] : "never",
 			maxHeapMiB: normalizeIntegerInRange(
 				notebook["maxHeapMiB"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.notebook.maxHeapMiB,

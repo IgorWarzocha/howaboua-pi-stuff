@@ -33,7 +33,7 @@ import {
 	windowDetails,
 } from "./windows.js";
 
-export default function notesCompaction(pi: ExtensionAPI): void {
+export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	registerWindowRenderer(pi);
 	const dir = join(getAgentDir(), "notes-compaction");
 	const settingsPath = join(dir, "settings.json");
@@ -56,6 +56,27 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		},
 	);
 	const tools = createTools(pi, store, lifecycle);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		const registration = registerGptPromptMode(pi, () =>
+			lifecycle.active ? tools : [],
+		);
+		lifecycle.gptPromptMode = () => registration.active;
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes("@howaboua/pi-codex-conversion")
+		)
+			throw error;
+	}
 	let ownSource: string | undefined;
 	let unavailable: string | undefined;
 	const owner: NotesOwner = {
@@ -63,7 +84,8 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		owner: "pi-notes-compaction",
 		identity: () =>
 			lifecycle.windows.current ? { ...lifecycle.windows.current } : undefined,
-		projectMessages: (messages) => {
+		projectMessages: (messages, entries) => {
+			if (entries) lifecycle.windows.restore(entries);
 			const projected = lifecycle.windows.projectMessages(
 				messages,
 				lifecycle.bridge?.prepareReminder,
@@ -79,10 +101,10 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		projectBranch: (entries) => lifecycle.windows.projectBranch(entries),
 		allowsCompaction: (reason) => lifecycle.allowsCompaction(reason),
 		allowsWindowRequests: () => lifecycle.newWindowRequests !== "off",
-		canBind: (ctx) =>
+		canBind: (ctx, entries = ctx.sessionManager.getEntries()) =>
 			lifecycle.active &&
 			ctx.isIdle() &&
-			ctx.sessionManager.getEntries().every((entry) => {
+			entries.every((entry) => {
 				// The first startup after an update records a UI-only changelog.
 				if (
 					entry.type === "custom" &&
@@ -206,7 +228,6 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 					?.sourceInfo.path;
 			}
 			lifecycle.active = true;
-			lifecycle.initialize(ctx);
 			configureTools(ctx);
 			store.updateFile(sessionRef(ctx));
 		} catch (error) {
@@ -279,7 +300,7 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	});
 	pi.on("before_agent_start", (event, ctx) => {
 		refreshActivation(ctx);
-		if (lifecycle.active) lifecycle.beforeStart(ctx, event);
+		if (lifecycle.active) return lifecycle.beforeStart(ctx, event);
 	});
 	pi.on("input", (event, ctx) => {
 		refreshActivation(ctx);
@@ -316,17 +337,19 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 			? {
 					entries: [
 						...event.entries,
-						windowDetails(reminder)?.kind === "task-boundary"
-							? (lifecycle.bridge?.prepareReminder?.(reminder) ?? reminder)
-							: reminder,
+						lifecycle.bridge?.prepareReminder?.(reminder) ?? reminder,
 					],
 				}
 			: undefined;
 	});
 	pi.on("context", (event, ctx) => {
 		try {
-			lifecycle.windows.restore(ctx.sessionManager.getBranch());
-			return { messages: owner.projectMessages(event.messages) };
+			return {
+				messages: owner.projectMessages(
+					event.messages,
+					ctx.sessionManager.getBranch(),
+				),
+			};
 		} catch (error) {
 			ctx.abort();
 			throw error;
@@ -344,7 +367,6 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 	});
 	pi.on("session_tree", (_event, ctx) => {
 		lifecycle.reset(ctx);
-		if (lifecycle.active) lifecycle.initialize(ctx);
 	});
 	pi.on("model_select", (_event, ctx) => {
 		refreshActivation(ctx);

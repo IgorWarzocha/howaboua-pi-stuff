@@ -26,14 +26,9 @@ export function isResponsesInputMessageItem(value: unknown): value is ResponsesI
 	return typeof content === "string" || (Array.isArray(content) && content.every(isResponsesInputContentItem));
 }
 
-function cloneResponsesInputContentItem(item: ResponsesInputContentItem): ResponsesInputContentItem {
-	if (item.type === "input_text") return { type: "input_text", text: item.text };
-	if (item.type === "encrypted_content") return { type: "encrypted_content", encrypted_content: item.encrypted_content };
-	return { type: "input_image", detail: item.detail, image_url: item.image_url };
-}
-
 export function cloneResponsesInputMessageItem(item: ResponsesInputMessageItem): ResponsesInputMessageItem {
-	return { role: item.role, content: typeof item.content === "string" ? item.content : item.content.map(cloneResponsesInputContentItem) };
+	// Replay matching compares the wire shape, including optional type/metadata.
+	return structuredClone(item);
 }
 
 export function cloneStructuredValue(value: unknown): unknown {

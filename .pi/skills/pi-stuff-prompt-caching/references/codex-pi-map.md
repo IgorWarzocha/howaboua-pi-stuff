@@ -33,7 +33,6 @@ Normal and Code Mode intentionally have different prompt and tool layouts. Do no
 
 ## Other local cache surfaces
 
-- `pi-dynamic-tools/src/tools.ts` mutates the system prompt during `before_agent_start`.
 - `pi-unicode-charts/src/index.ts` appends chart instructions when the session has a UI.
 - `pi-gippity-control/src/register.ts` filters provider-visible messages in `context`.
 - `pi-smart-btw/index.ts` removes legacy model-facing state records in `context`; current BTW state is display-only.

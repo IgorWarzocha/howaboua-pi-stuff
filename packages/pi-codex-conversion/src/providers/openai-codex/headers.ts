@@ -131,7 +131,8 @@ export function buildSSEHeaders(
 	if (responsesLite) headers.set(RESPONSES_LITE_HEADER, "true");
 
 	if (sessionId) {
-		headers.set("session-id", sessionId);
+		// Explicit affinity changes routing only. Thread and request identity stay native.
+		headers.set("session-id", additionalHeaders?.["session-id"] ?? sessionId);
 		headers.set("thread-id", sessionId);
 		headers.set("x-client-request-id", sessionId);
 	}
@@ -156,7 +157,7 @@ export function buildWebSocketHeaders(
 	headers.set("OpenAI-Beta", OPENAI_BETA_RESPONSES_WEBSOCKETS);
 	headers.set("x-responsesapi-include-timing-metrics", "true");
 	headers.set("x-client-request-id", requestId);
-	headers.set("session-id", requestId);
+	headers.set("session-id", additionalHeaders?.["session-id"] ?? requestId);
 	headers.set("thread-id", requestId);
 	return headers;
 }

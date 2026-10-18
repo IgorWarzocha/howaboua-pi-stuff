@@ -43,13 +43,14 @@ export interface NotesOwner {
 	protocol: 1;
 	owner: "pi-notes-compaction";
 	identity(ctx: ExtensionContext): WindowIdentity | undefined;
-	projectMessages(messages: readonly AgentMessage[]): AgentMessage[];
+	/** Current branch refreshes projection before later lifecycle hooks have run. */
+	projectMessages(messages: readonly AgentMessage[], entries?: readonly SessionEntry[]): AgentMessage[];
 	projectBranch(entries: readonly SessionEntry[]): SessionEntry[];
 	/** Consult before compaction work; the owner's hook performs notes-only rollover. */
 	allowsCompaction?(reason: SessionBeforeCompactEvent["reason"]): boolean;
 	allowsWindowRequests?(): boolean;
-	/** Only this owner's pristine initialization may precede a family binding. */
-	canBind?(ctx: ExtensionContext): boolean;
+	/** Classify startup records after a host-validated inherited fork boundary, or the full fresh session. */
+	canBind?(ctx: ExtensionContext, entries?: readonly SessionEntry[]): boolean;
 	snapshotNotes?(entries: readonly SessionEntry[], agentName: string): import("./local-notes.ts").NoteSnapshotData;
 	/** Executes with live write accounting; protected responses remain transport-safe until reader delivery. */
 	executeShared?(query: LookupQuery, callId: string, ctx: ExtensionContext, signal?: AbortSignal): Promise<import("../context-sharing.ts").SharedContextResult>;

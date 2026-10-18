@@ -42,9 +42,9 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 		if (usageLoading || signal.aborted) return;
 		usageLoading = true;
 		requestRender();
-		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx, (key, custom) => {
+		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx, async (key, custom) => {
 			nonstandard = custom;
-			spendLines = readSpendReport(key);
+			spendLines = await readSpendReport(key);
 			requestRender();
 		})))()
 			.then(async (usage) => {

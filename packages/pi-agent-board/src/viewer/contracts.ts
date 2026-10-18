@@ -53,6 +53,8 @@ export interface BoardDetail {
 }
 
 interface ThreadSummary {
+	status: ThreadStatus;
+	summarized: boolean;
 	id: string;
 	channel: string;
 	author: string;
@@ -76,7 +78,21 @@ export interface Post {
 }
 
 export interface ThreadDetail {
-	root: Post;
+	status: ThreadStatus;
+	summary: DiscussionSummary | null;
+	root: Post | null;
 	replies: Post[];
 	nextCursor: string | null;
+}
+
+export type ThreadStatus = "open" | "completed" | "abandoned";
+
+export interface DiscussionSummary {
+	text: string;
+	createdAt: string;
+	throughMessageId: string;
+	hasNewerPosts: boolean;
+	provider: string;
+	model: string;
+	reasoning: string;
 }

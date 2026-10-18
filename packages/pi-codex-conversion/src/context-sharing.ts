@@ -6,6 +6,7 @@ export type { NoteSnapshotData } from "./context-management/local-notes.js";
 
 export type { ContextAgentBinding, ContextAgentIdentity } from "./context-management/agent-identity.js";
 export type { CodexAgentRelationship } from "./context-management/agent-relationship.js";
+export type { ContextFamilyBindingOptions } from "./context-management/binding-startup.js";
 
 export interface SharedContextRequest {
 	sessionId: string;
@@ -38,15 +39,17 @@ export type AttachmentNotesData = NoteSnapshotData | RemoteNoteReference;
 export interface ContextSharingService {
 	protocol: 1;
 	canCreateChild(ctx: ExtensionContext): boolean;
-	/** Bind a fresh worker before its first task, even with context sharing disabled. */
+	/** Establish immutable linkage in an idle native thread, independently of history and notes sharing. */
 	bindRelationship?(ctx: ExtensionContext, relationship: unknown): import("./context-management/agent-relationship.js").CodexAgentRelationship;
+	/** Effective cache routing identity, independent of notes sharing and native execution state. */
+	cacheAffinityId?(ctx: ExtensionContext): string;
 	describe(ctx: ExtensionContext): ContextAgentIdentity | undefined;
 	verify(ctx: ExtensionContext): Promise<void>;
 	createChild(ctx: ExtensionContext, options: { name: string; routing?: unknown }): Promise<{
 		binding: ContextAgentBinding;
 		adopt(): Promise<void>;
 	}>;
-	bind(ctx: ExtensionContext, binding: unknown): Promise<ContextAgentIdentity>;
+	bind(ctx: ExtensionContext, binding: unknown, options?: import("./context-management/binding-startup.js").ContextFamilyBindingOptions): Promise<ContextAgentIdentity>;
 	/** Inspect an idle standalone owner for alias attachment without rebinding its identity. */
 	inspectAttachment?(ctx: ExtensionContext, standalone?: boolean): Promise<ContextAgentIdentity> | ContextAgentIdentity;
 	/** Keep native IDs while pinning storage and Remote account/backend for live aliases. */

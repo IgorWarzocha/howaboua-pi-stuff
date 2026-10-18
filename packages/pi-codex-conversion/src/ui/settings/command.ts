@@ -107,6 +107,7 @@ export function registerCodexCommand(
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
 		}
+		if (writeResult.warning) ctx.ui.notify(writeResult.warning, "warning");
 		applyEffectiveConfig(ctx);
 		return true;
 	}
@@ -170,12 +171,23 @@ export function registerCodexCommand(
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),
+			onGlobalNotebookJournals: (journals) => {
+				const global = readCodexConversionConfig();
+				if (!saveAndApply(ctx, "global", { ...global, notebook: { ...global.notebook, journals } })) return undefined;
+				return readSelectedConfig();
+			},
+			onGlobalNotebookCheckpointCleanup: (checkpointCleanup) => {
+				const global = readCodexConversionConfig();
+				if (!saveAndApply(ctx, "global", { ...global, notebook: { ...global.notebook, checkpointCleanup } })) return undefined;
+				return readSelectedConfig();
+			},
 			onGlobalLunaCacheKeepalive: (minutes, interval) => {
 				const result = setGlobalCodexLunaCacheKeepalive(minutes, undefined, interval);
 				if (!result.ok) {
 					ctx.ui.notify(`Failed to save global Luna cache keepalive: ${result.error}`, "error");
 					return undefined;
 				}
+				if (result.warning) ctx.ui.notify(result.warning, "warning");
 				applyEffectiveConfig(ctx);
 				return readSelectedConfig();
 			},
@@ -287,5 +299,6 @@ function formatCodexSettings(config: CodexConversionConfig): string {
 	const fast = [`all models ${allModelsFastModeState(config.openai.fast)}`,
 		...FAST_MODE_FAMILIES.map((family) => `${family} ${config.openai.fast[family] === "ultrafast" ? "ultrafast" : config.openai.fast[family] ? "on" : "off"}`)].join(", ");
 	const accessProgram = config.openai.daybreak ? "on" : "off";
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, continuity ${CONTINUITY_LABELS[config.compaction.continuity]}, history and notes storage ${config.compaction.historyStorage}, share subagent context ${config.compaction.shareSubagentContext ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
+	const promptOverwrite = config.prompt.heavySystemPromptOverwrite === "gpt" ? "GPT" : config.prompt.heavySystemPromptOverwrite ? "on" : "off";
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${promptOverwrite}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, continuity ${CONTINUITY_LABELS[config.compaction.continuity]}, history and notes storage ${config.compaction.historyStorage}, share subagent context ${config.compaction.shareSubagentContext ? "on" : "off"}, compaction method ${COMPACTION_METHOD_LABELS[config.compaction.method]}, preserved user messages (V2 only) ${config.compaction.v2UserMessageRetention}k, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins duration, ${config.openai.lunaCacheKeepaliveIntervalMinutes} mins request interval`}, Astra/Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? `${config.openai.cacheKeepaliveIntervalMinutes} mins request interval` : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, Daybreak ${accessProgram}, Fast Mode ${fast}, verbosity ${config.openai.verbosity}`;
 }

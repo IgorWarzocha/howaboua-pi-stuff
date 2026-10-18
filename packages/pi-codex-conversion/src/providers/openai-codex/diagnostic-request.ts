@@ -12,15 +12,15 @@ export function codexRequestDiagnostics(body: ResponsesBody, headers: Headers, h
 	const lite = isResponsesLiteRequest(body);
 	const first = body.input[0] as Record<string, unknown> | undefined;
 	const leadingInstructions: unknown[] = [];
-	if (lite) {
-		for (const item of body.input.slice(1)) {
+	if (body.instructions === undefined) {
+		for (const item of body.input.slice(lite ? 1 : 0)) {
 			if (!item || typeof item !== "object" || !("role" in item) || item.role !== "developer") break;
 			leadingInstructions.push(item);
 		}
 	}
 	const fingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(value ?? null)).digest("hex");
 	return {
-		instructionsFingerprint: fingerprint(lite ? leadingInstructions : body.instructions),
+		instructionsFingerprint: fingerprint(body.instructions ?? leadingInstructions),
 		toolsFingerprint: fingerprint(lite ? first?.["tools"] : body.tools),
 		cacheKeyFingerprint: fingerprint(body.prompt_cache_key),
 		routingFingerprint: fingerprint(["x-codex-routing-hint", "originator", "openai-beta", "x-openai-internal-codex-responses-lite"].map(name => [name, headers.get(name)])),

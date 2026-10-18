@@ -13,7 +13,6 @@ import { toNestedTool } from "../adapter/code-mode/nested-tool-adapter.ts";
 import { remoteDeliveryScope, withRemoteContextScope } from "./remote-scope.ts";
 import { registerContextSharingService } from "./sharing-service.ts";
 import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
-import { HISTORY_NESTED_USAGE, NOTES_NESTED_USAGE } from "./tool-contract.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import type { ContextRouter } from "../context-sharing.ts";
 import { contextAgentIdentity, contextTargetAgent } from "./agent-identity.ts";
@@ -155,9 +154,10 @@ export function registerContextManagementTools(
 				? details.codexHistoryNotes : undefined);
 		} };
 	const nestedTools = (remote: boolean, protectedResults = remote) => [
-		toNestedTool(history, "await tools.history({ action, ...args })", {}, { ...contract, opaqueResult: protectedResults, allowPlainResult: true }),
-		toNestedTool(notes, "await tools.notes({ action, ...args })", {}, {
+		toNestedTool(history, "await tools.history()", {}, { ...contract, opaqueResult: protectedResults, allowPlainResult: true }),
+		toNestedTool(notes, "await tools.notes()", {}, {
 			...contract,
+			prepareInput: prepareNestedNotesInput,
 			opaqueResult: protectedResults,
 			allowPlainResult: true,
 			propagateTermination: true,
@@ -166,7 +166,7 @@ export function registerContextManagementTools(
 		}),
 	].map((tool) => ({
 		...tool,
-		discoveryUsage: tool.name === "history" ? HISTORY_NESTED_USAGE : NOTES_NESTED_USAGE,
+		discovery: "help" as const,
 		...(protectedResults ? {
 			output: "Remote receipts only; contents reach the model automatically, not JavaScript",
 		} : {}),
@@ -212,8 +212,9 @@ function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
 	if (!external || !ctx || !isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state))) return [];
 	const protectedResults = ctx.model?.api === "openai-codex-responses";
 	return (external.tools ?? []).filter(tool => tool.name === "notes" || tool.name === "history").map(tool => {
-		const nested = toNestedTool(tool, `await tools.${tool.name}({ action, ...args })`, {}, {
+		const nested = toNestedTool(tool, `await tools.${tool.name}()`, {}, {
 			deferLoading: true, discoverWhenDeferred: true, modelVisibleResult: true,
+			...(tool.name === "notes" ? { prepareInput: prepareNestedNotesInput } : {}),
 			opaqueResult: protectedResults, allowPlainResult: true,
 			opaqueResultScope: result => {
 				const details = result.details;
@@ -224,6 +225,7 @@ function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
 				contextTargetAgent("notes", input as Record<string, unknown>, contextAgentIdentity(ctx).agentName) === contextAgentIdentity(ctx).agentName),
 		});
 		return { ...nested,
+			discovery: "help" as const,
 			discoveryUsage: external.contracts?.[tool.name === "notes" ? "notes" : "history"],
 			invoke: (...[input, context, signal]: Parameters<typeof nested.invoke>) => nested.invoke(input,
 				protectedResults && !context.resolveOpaqueScope && context.extensionContext
@@ -231,6 +233,20 @@ function externalNestedTools(state: AdapterState, ctx?: ExtensionContext) {
 					: context, signal),
 		};
 	});
+}
+
+function prepareNestedNotesInput(input: unknown): unknown {
+	if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+	const params = input as Record<string, unknown>;
+	const canonical = params["action"] === "search_contents" ? "max_files"
+		: params["action"] === "list_files_by_prefix" ? "max_results" : undefined;
+	if (!canonical) return input;
+	const alias = canonical === "max_files" ? "max_results" : "max_files";
+	if (!(alias in params)) return input;
+	const prepared = { ...params };
+	if (!(canonical in prepared)) prepared[canonical] = prepared[alias];
+	delete prepared[alias];
+	return prepared;
 }
 
 function assertContextManagementActive(

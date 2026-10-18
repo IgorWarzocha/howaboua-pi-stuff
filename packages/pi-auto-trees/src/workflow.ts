@@ -1,4 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	GptPromptModeRegistration,
+	prepareGptPromptMode,
+} from "@howaboua/pi-codex-conversion/prompt-mode";
 import { readSummaryConfig } from "./config.js";
 import { getSemanticLeafId, WorkflowMarker } from "./marker-state.js";
 import {
@@ -14,6 +18,8 @@ export const INCREMENTAL_WORKFLOW_END_WIDGET = "auto-trees-end";
 export function registerIncrementalWorkflow(
 	pi: ExtensionAPI,
 	navigateWithSummaryModel: NavigateWithSummaryModel,
+	promptMode?: GptPromptModeRegistration,
+	prepareMode?: typeof prepareGptPromptMode,
 ): void {
 	const marker = new WorkflowMarker();
 	let pendingPrimeCount = 0;
@@ -71,9 +77,10 @@ export function registerIncrementalWorkflow(
 		handler: async (args, ctx) => {
 			await ctx.waitForIdle();
 			const scope = args.trim() || INCREMENTAL_WORKFLOW_DEFAULT_PRIME_SCOPE;
+			prepareMode?.(pi, ctx);
 			pendingPrimeCount += 1;
 			try {
-				pi.sendUserMessage(buildPrimePrompt(scope));
+				pi.sendUserMessage(buildPrimePrompt(scope, promptMode?.active));
 			} catch (error) {
 				pendingPrimeCount -= 1;
 				ctx.ui.notify(
@@ -109,6 +116,7 @@ export function registerIncrementalWorkflow(
 				return;
 			}
 
+			prepareMode?.(pi, ctx);
 			ctx.ui.setWorkingMessage(ctx.ui.theme.fg("dim", "Saving summary…"));
 			if (ctx.hasUI) {
 				ctx.ui.setWidget(
@@ -122,11 +130,14 @@ export function registerIncrementalWorkflow(
 					{ placement: "aboveEditor" },
 				);
 			}
-			announceEndStarted(pi);
+			announceEndStarted(pi, promptMode?.active);
 
 			let result: Awaited<ReturnType<typeof ctx.navigateTree>>;
 			try {
-				const navigationOptions = buildEndNavigationOptions(args);
+				const navigationOptions = buildEndNavigationOptions(
+					args,
+					promptMode?.active,
+				);
 				let summaryConfig;
 				try {
 					summaryConfig = readSummaryConfig();
@@ -164,7 +175,7 @@ export function registerIncrementalWorkflow(
 				return;
 			}
 			marker.apply(pi, ctx, nextMarkerId, "Summary saved and marker advanced");
-			announceEndCompleted(pi);
+			announceEndCompleted(pi, promptMode?.active);
 		},
 	});
 }

@@ -1,6 +1,7 @@
 import type { ExecutionMode } from "./execution-mode.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
+export type HeavySystemPromptOverwrite = boolean | "gpt";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
 export type FastModeFamily = (typeof FAST_MODE_FAMILIES)[number];
 export type FastModeConfig = Record<FastModeFamily | "other", boolean | "ultrafast">;
@@ -55,7 +56,7 @@ export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMi
 export interface CodexConversionConfig {
 	executionMode: ExecutionMode;
 	voiceFeaturesOnly: boolean;
-	prompt: { heavySystemPromptOverwrite: boolean; currentTimeReminderMinutes: 0 | 30 | 60 };
+	prompt: { heavySystemPromptOverwrite: HeavySystemPromptOverwrite; currentTimeReminderMinutes: 0 | 30 | 60 };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
 		autoReasoning: boolean;
@@ -88,6 +89,8 @@ export interface CodexConversionConfig {
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
 	notebook: {
+		journals: "off" | "week" | "on";
+		checkpointCleanup: "never" | "month" | "week";
 		maxHeapMiB: number;
 		plainCommandOutput: boolean;
 		profile?: string | undefined;
@@ -160,7 +163,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		method: "pi",
 		v2UserMessageRetention: 64,
 	},
-	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false },
+	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false, journals: "week", checkpointCleanup: "never" },
 	voice: {
 		v3Voice: "cove",
 		v3AlternateVoice: "ember",

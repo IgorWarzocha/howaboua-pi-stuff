@@ -125,7 +125,8 @@ export function createNotebookControlProxy(
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
-		usage: "await tools.notebook() // help; or { action, query?, name?, names?, hook? }",
+		usage: "await tools.notebook()",
+		discovery: "help",
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",

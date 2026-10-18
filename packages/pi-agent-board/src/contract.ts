@@ -8,6 +8,7 @@ const BOARD_ACTIONS = [
 	"create_channel",
 	"get_channels",
 	"post",
+	"set_status",
 	"list_threads",
 	"read_thread",
 	"read_post",
@@ -15,6 +16,8 @@ const BOARD_ACTIONS = [
 	"subscribe",
 	"unsubscribe",
 ] as const;
+const THREAD_STATUSES = ["open", "completed", "abandoned"] as const;
+export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 export const BoardParameters = Type.Object({
 	action: Type.Optional(StringEnum(BOARD_ACTIONS)),
 });
@@ -30,12 +33,15 @@ const Request = Type.Object(
 		thread_id: string,
 		message_id: string,
 		text: string,
+		status: Type.Optional(StringEnum(THREAD_STATUSES)),
+		comment: string,
 		query: string,
 		author: string,
 		target_agent: string,
 		after_message_id: string,
 		board_id: string,
 		cursor: string,
+		full: Type.Optional(Type.Boolean()),
 		subscribe: Type.Optional(Type.Boolean()),
 		recent_first: Type.Optional(Type.Boolean()),
 		sort: Type.Optional(StringEnum(["created", "activity"])),
@@ -56,6 +62,7 @@ export type BoardAction = BoardParams["action"];
 export const MUTATIONS = new Set<BoardAction>([
 	"create_channel",
 	"post",
+	"set_status",
 	"subscribe",
 	"unsubscribe",
 ]);
@@ -73,6 +80,7 @@ const fields: Record<BoardAction, string[]> = {
 		"thread_id",
 		"agents_to_notify",
 	],
+	set_status: ["thread_id", "status", "comment"],
 	list_threads: [
 		"channel_name",
 		"sort",
@@ -81,11 +89,12 @@ const fields: Record<BoardAction, string[]> = {
 		...paging,
 		...reads,
 	],
-	read_thread: ["thread_id", "max_chars_per_post", ...paging, ...reads],
+	read_thread: ["thread_id", "full", "max_chars_per_post", ...paging, ...reads],
 	read_post: ["message_id", "offset_chars", "limit_chars", ...reads],
 	search_posts: [
 		"channel_name",
 		"query",
+		"full",
 		"author",
 		"after_message_id",
 		"max_chars_per_post",
@@ -98,6 +107,7 @@ const fields: Record<BoardAction, string[]> = {
 const requiredFields: Partial<Record<BoardAction, string[]>> = {
 	create_channel: ["channel_name"],
 	post: ["text"],
+	set_status: ["thread_id", "status", "comment"],
 	list_threads: ["channel_name"],
 	read_thread: ["thread_id"],
 	read_post: ["message_id"],
@@ -163,7 +173,7 @@ export const boardHelp = {
 			values
 				.map(
 					(field) =>
-						`${field}${requiredFields[action as BoardAction]?.includes(field) ? "" : "?"}`,
+						`${field === "status" ? `status=${THREAD_STATUSES.join("|")}` : field}${requiredFields[action as BoardAction]?.includes(field) ? "" : "?"}`,
 				)
 				.join(" "),
 		]),
@@ -172,6 +182,8 @@ export const boardHelp = {
 		scope:
 			"Defaults to your tree; board_id browses history, never writes. list_boards discovers saved boards",
 		post: "text required; exactly one of channel_name, new_channel_name, thread_id. Thread ID is the first post ID. New channel subscribes author to first posts",
+		set_status:
+			"Parent session only. Mark completed when the user confirms it's done, or abandoned when they drop it—not merely when agents finish. Closed threads reject replies; reopen first",
 		subscriptions:
 			"Exactly one of channel_name/thread_id; channel covers first posts, thread covers replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
 		notify:
@@ -179,7 +191,9 @@ export const boardHelp = {
 		agents:
 			"Use spawn's boardAgent; absolute /root/... or child path relative to you, not a pane or contextAgent",
 		paging:
-			"limit default20, cap50; cursor opaque, keep query/sort unchanged. Concurrent posts may shift pages",
+			"limit default20, cap50; cursor opaque, keep query/sort/full unchanged. Concurrent changes may shift pages",
+		summaries:
+			"Closing starts background summarization. Summarized threads return/search only summaries. full=true reads/searches original posts. Summary author filters match participants; read_post always reads originals",
 		order:
 			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread pages newest replies with root on every page",
 		text: "Case-insensitive substring search; max_chars_per_post default1000. read_post offsets count Unicode characters, limit_chars default20000. Continue at next_offset_chars<n_chars",
@@ -187,3 +201,46 @@ export const boardHelp = {
 			"Post cap64KiB, channel1-128 UTF-8 bytes without edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes; reads may reduce limits, continue with returned cursor/offset",
 	},
 };
+
+// Select only owned guidance. Routing metadata and adapter-provided prose stay intact.
+export function gptBoardHelp(value: unknown): unknown {
+	if (
+		!value ||
+		typeof value !== "object" ||
+		!("rules" in value) ||
+		!value.rules ||
+		typeof value.rules !== "object"
+	)
+		return value;
+	const compact: typeof boardHelp.rules = {
+		scope:
+			"Default: your tree. board_id browses saved history only, never writes. Discover via list_boards",
+		post: "text required. Exactly one: channel_name, new_channel_name, thread_id. Thread ID=first post ID. New channel subscribes author to first posts",
+		set_status: boardHelp.rules.set_status,
+		subscriptions:
+			"Exactly one: channel_name/thread_id. Channel=first posts, thread=replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
+		notify:
+			"agents_to_notify: one-time, excludes author. Running turns only, no waking/offline notices",
+		agents:
+			"Use spawn's boardAgent, absolute /root/... or relative child path. Never pane/contextAgent",
+		paging:
+			"limit default20 cap50. Opaque cursor, unchanged query/sort/full. Concurrent changes may shift pages",
+		summaries: boardHelp.rules.summaries,
+		order:
+			"Newest first. get_channels: activity. list_threads sort=created|activity. read_thread: newest replies, root repeated each page",
+		text: "Case-insensitive substring search. max_chars_per_post default1000. read_post: Unicode-character offsets, limit_chars default20000. Continue at next_offset_chars<n_chars",
+		budget:
+			"Post cap64KiB. Channel: 1-128 UTF-8 bytes, no edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes. Reads may reduce limits; continue returned cursor/offset",
+	};
+	return {
+		...value,
+		rules: Object.fromEntries(
+			Object.entries(value.rules).map(([key, text]) => [
+				key,
+				text === boardHelp.rules[key as keyof typeof compact]
+					? compact[key as keyof typeof compact]
+					: text,
+			]),
+		),
+	};
+}

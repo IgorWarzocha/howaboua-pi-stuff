@@ -36,7 +36,8 @@ export class SpawnContext {
 		runtime: ConnectedMachine,
 		args: readonly string[],
 	) {
-		if (!this.getService()?.bindRelationship) return undefined;
+		const service = this.getService();
+		if (!service?.bindRelationship) return undefined;
 		// Session-selection profiles resume existing identities rather than creating workers.
 		if (
 			args.some((arg) =>
@@ -47,7 +48,12 @@ export class SpawnContext {
 		)
 			return undefined;
 		const parentThreadId = ctx.sessionManager.getSessionId();
-		const relationship = { parentThreadId, subagentKind: "collab_spawn" };
+		const cacheAffinityId = service.cacheAffinityId?.(ctx);
+		const linkage = { parentThreadId, subagentKind: "collab_spawn" };
+		const relationship = {
+			...linkage,
+			...(cacheAffinityId ? { cacheAffinityId } : {}),
+		};
 		return {
 			accept: async (agent: PaneInfo) => {
 				const file = sessionPath(agent);
@@ -65,6 +71,12 @@ export class SpawnContext {
 					return {
 						warning:
 							"Worker relationship marking requires Codex conversion on the target",
+					};
+				// Older targets preserve linkage but do not recognise cache affinity.
+				if (cacheAffinityId && isDeepStrictEqual(value, linkage))
+					return {
+						warning:
+							"Worker started without shared cache routing; update Codex Conversion on the target to enable it",
 					};
 				if (!isDeepStrictEqual(value, relationship))
 					throw new Error(

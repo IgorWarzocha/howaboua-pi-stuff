@@ -38,11 +38,13 @@ export function createAgentsTool(
 	board: AgentBoard,
 	pi: ExtensionAPI,
 	commands: ReturnType<typeof createPeerCommands>,
+	gpt: () => boolean = () => false,
 ) {
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description: "Delegate to persistent agents; discover first, alone",
+		description: "Delegate to persistent agents",
+		promptGuidelines: ["Make the first agents discovery call alone"],
 		parameters: AgentsParameters,
 		executionMode: "sequential",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {
@@ -50,7 +52,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(await agentsHelp(board.enabled(ctx)));
+				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });
@@ -242,7 +244,7 @@ export function createAgentsTool(
 				params?.name ??
 				params?.agent_type ??
 				"";
-			return new Text(
+			const title = new Text(
 				theme.fg(
 					context && "isBlocked" in context && context.isBlocked === true
 						? "warning"
@@ -252,6 +254,13 @@ export function createAgentsTool(
 				0,
 				0,
 			);
+			const message = params?.message ?? params?.handoff;
+			if (!context?.expanded || !message) return title;
+			const container = new Container();
+			container.addChild(title);
+			container.addChild(new Spacer(1));
+			container.addChild(new Text(message, 0, 0));
+			return container;
 		},
 		renderResult(toolResult, options, theme) {
 			const details =

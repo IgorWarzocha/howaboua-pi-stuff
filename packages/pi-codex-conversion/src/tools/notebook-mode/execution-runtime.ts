@@ -76,7 +76,7 @@ export class NotebookExecutionRuntime {
 		await session.checkpoints.flush();
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
 		const effectiveYieldTime = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
-		this.nextCellId = Math.max(this.nextCellId, (session.journal()?.cells ?? 0) + 1);
+		this.nextCellId = Math.max(this.nextCellId, session.cellCount() + 1);
 		const id = `notebook-${this.nextCellId++}`;
 		session.recordMemory(undefined);
 		const cell = new NotebookCell({
@@ -91,14 +91,14 @@ export class NotebookExecutionRuntime {
 		if (notice) cell.emit([{ type: "input_text", text: notice }]);
 		this.delegate.bindCell(id, cell.context, new Map(tools.map((tool) => [tool.name, tool])));
 		let journaled = false;
-		const journal = session.journal();
-		if (journal) {
-			try {
+		try {
+			const journal = session.journal();
+			if (journal) {
 				beginNotebookJournalCell(journal, { id, source: cell.source });
 				journaled = true;
-			} catch (error) {
-				this.reportJournalFailure(error, "start", cell);
 			}
+		} catch (error) {
+			this.reportJournalFailure(error, "start", cell);
 		}
 		const metadata = tools
 			.filter(isCodeModeToolDiscoverable)
@@ -206,18 +206,19 @@ export class NotebookExecutionRuntime {
 				errorText: `${error instanceof Error ? error.message : String(error)}${recovery ? `\n${recovery}` : ""}`,
 			};
 		} finally {
-			const journal = session.journal();
-			if (cell.result && journal) {
-				try {
+			if (cell.result) session.recordCompletedCell();
+			try {
+				const journal = session.journal();
+				if (cell.result && journal) {
 					finishNotebookJournalCell(journal, {
 						id: cell.id,
 						source: cell.source,
 						items: cell.items,
 						result: cell.result,
 					});
-				} catch (error) {
-					this.reportJournalFailure(error, journaled ? "completion" : "update", cell);
 				}
+			} catch (error) {
+				this.reportJournalFailure(error, journaled ? "completion" : "update", cell);
 			}
 			cell.markCompleted();
 		}
