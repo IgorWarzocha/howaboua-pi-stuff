@@ -25,6 +25,9 @@ const MINUTE = 60_000;
 const HELP =
 	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}, or omit thread to cancel all without GitHub access. Issues and runs check each minute; PRs first check after 7 minutes, then each minute. Thread watches continue after new comments/reviews. Run watches follow the latest attempt, notify once on completion, then stop; already-completed runs return immediately. Notifications contain metadata, not comments or logs. Watches end on cancellation, session switch, reload or shutdown. Failed checks pause the watch; watch again to retry.";
 
+const GPT_HELP =
+	"watch: {action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}. status: {action:'status'}. cancel: {action:'cancel',thread:reference}; omit thread to cancel all without GitHub access. Poll issues/runs every minute; PRs after 7min, then every minute. Threads keep watching after comments/reviews. Runs follow latest attempt, notify once on completion and stop; completed runs return immediately. Notifications: metadata only, no comments/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
+
 function runResult(
 	run: WorkflowRun,
 	snapshot: Extract<RunSnapshot, { completed: true }>,
@@ -33,6 +36,7 @@ function runResult(
 }
 
 export default async function (pi: ExtensionAPI) {
+	let promptMode: { readonly active: boolean } | undefined;
 	const watches = new Map<string, Watch>();
 	let generation = 0;
 	const clear = () => {
@@ -112,7 +116,8 @@ export default async function (pi: ExtensionAPI) {
 				details: {},
 			});
 			const action = args.action ?? "help";
-			if (action === "help") return result(HELP);
+			if (action === "help")
+				return result(promptMode?.active ? GPT_HELP : HELP);
 			if (action === "status")
 				return result(
 					watches.size
@@ -187,6 +192,34 @@ export default async function (pi: ExtensionAPI) {
 		},
 	});
 	pi.registerTool(tool);
+	try {
+		const module = "@howaboua/pi-codex-conversion/prompt-mode";
+		const { registerGptPromptMode } = await import(module);
+		const description = tool.description;
+		let previous = false;
+		promptMode = registerGptPromptMode(pi, (active: boolean) => {
+			if (active !== previous) {
+				previous = active;
+				tool.description = active
+					? "Opt-in session GitHub thread/comment and Actions completion watches; no args for help"
+					: description;
+				pi.registerTool(tool);
+			}
+			return [tool];
+		});
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes("@howaboua/pi-codex-conversion")
+		)
+			throw error;
+	}
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");

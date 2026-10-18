@@ -29,6 +29,12 @@ Notes are recovery state, not a diary. Keep one concise, authoritative note per 
 Batch saves at meaningful milestones, not every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
 </context_window_guidance>`;
 
+const GPT_GUIDANCE = `<context_window_guidance>
+Notes=recovery state, not diary. One concise authoritative note/task or topic, stable path. Checkpoints: request, constraints, decisions, status, next steps, history IDs. write_file replaces stale state; mark completion. Link existing notes, don't copy/summarise. Recording != permission to implement.
+
+Batch saves at meaningful milestones, not every reply/step. Before new_context/handoff: save current state, await success; handoff includes checkpoint path. After rollover: read checkpoint, then needed links only. Don't reread notes still in context unless possibly changed. history fills missing details.
+</context_window_guidance>`;
+
 export function registerWindowRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer(
 		WINDOW_MESSAGE,
@@ -152,6 +158,7 @@ export function windowMessage(
 	hint: string,
 	trim: boolean,
 	kind: "window" | "identity" = "window",
+	gpt = false,
 ): CustomMessageEntryDraft {
 	const lines = [
 		`Agent name: ${agent}`,
@@ -164,7 +171,7 @@ export function windowMessage(
 	return {
 		type: "custom_message",
 		customType: WINDOW_MESSAGE,
-		content: `${GUIDANCE}\n\n<context_window>\n${lines.join("\n")}\n</context_window>`,
+		content: `${gpt ? GPT_GUIDANCE : GUIDANCE}\n\n<context_window>\n${lines.join("\n")}\n</context_window>`,
 		display: true,
 		details: {
 			protocol: 1,

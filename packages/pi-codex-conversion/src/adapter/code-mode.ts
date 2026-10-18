@@ -26,6 +26,7 @@ const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
+	beforePrepare?: (ctx: ExtensionContext) => void,
 ): Promise<CodeModeRegistration> {
 	let latestContext: ExtensionContext | undefined;
 	let stopped = false;
@@ -96,7 +97,10 @@ export async function registerCodexCodeMode(
 		minimalOutput: () => runtime.state.config.ui.compactTools === "minimal",
 	});
 	return {
-		prepare: (ctx) => programmaticRuntime.prepare(ctx),
+		prepare: (ctx) => {
+			if (ctx) beforePrepare?.(ctx as ExtensionContext);
+			return programmaticRuntime.prepare(ctx);
+		},
 		getTools: (ctx) => programmaticRuntime.getTools(ctx),
 		getPromptTools: (ctx) => programmaticRuntime.getPromptTools(ctx),
 		notebookStatus: (ctx) => programmaticRuntime.notebookStatus(ctx),

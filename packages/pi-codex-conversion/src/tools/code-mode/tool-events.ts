@@ -3,11 +3,13 @@ import {
 	prepareCodeModeToolsPrompt,
 } from "./custom-tool-prompt.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
+import { prepareGptPromptMode, registerGptPromptMode } from "../../prompt-mode.ts";
 
 export function registerCodeModeEvents(
 	pi: ExtensionAPI,
 	runtime: SharedCodeModeRuntime,
 ): void {
+	const promptMode = registerGptPromptMode(pi, () => undefined);
 	pi.on("session_start", () => {
 		runtime.resetPromptTools();
 		runtime.clearOpaqueResults();
@@ -18,6 +20,8 @@ export function registerCodeModeEvents(
 	});
 	pi.on("session_shutdown", () => runtime.clearOpaqueResults());
 	pi.on("before_agent_start", (event, ctx) => {
+		// Other extensions can bind this hook before conversion registers its own.
+		prepareGptPromptMode(pi, ctx, event.systemPromptOptions);
 		const executionKind = runtime.executionKind(ctx);
 		const requiredTools = executionKind === "notebook"
 			? ["exec", "wait", "notebook"]
@@ -35,6 +39,7 @@ export function registerCodeModeEvents(
 			documentationPath,
 			() => requiredTools.every((name) => event.systemPromptOptions.selectedTools.includes(name)),
 			executionKind,
+			promptMode.active,
 		);
 		return undefined;
 	});

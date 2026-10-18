@@ -38,6 +38,7 @@ export function createAgentsTool(
 	board: AgentBoard,
 	pi: ExtensionAPI,
 	commands: ReturnType<typeof createPeerCommands>,
+	gpt: () => boolean = () => false,
 ) {
 	return defineTool({
 		name: "agents",
@@ -50,7 +51,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(await agentsHelp(board.enabled(ctx)));
+				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });

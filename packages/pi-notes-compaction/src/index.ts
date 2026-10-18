@@ -33,7 +33,7 @@ import {
 	windowDetails,
 } from "./windows.js";
 
-export default function notesCompaction(pi: ExtensionAPI): void {
+export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	registerWindowRenderer(pi);
 	const dir = join(getAgentDir(), "notes-compaction");
 	const settingsPath = join(dir, "settings.json");
@@ -56,6 +56,41 @@ export default function notesCompaction(pi: ExtensionAPI): void {
 		},
 	);
 	const tools = createTools(pi, store, lifecycle);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		const ordinary = tools.map((tool) => tool.description);
+		const registration = registerGptPromptMode(pi, (active, ctx) => {
+			let changed = false;
+			for (const [index, tool] of tools.entries()) {
+				const description =
+					active && tool.name === "notes"
+						? "Persistent notes. write_file replaces; append_to_file adds. Paths: relative=current agent; cross-agent=<agent>/notes[/path]"
+						: ordinary[index]!;
+				if (tool.description !== description) {
+					changed = true;
+					tool.description = description;
+					if (lifecycle.active) pi.registerTool(tool);
+				}
+			}
+			if (changed && ctx && lifecycle.active) configureTools(ctx);
+			return lifecycle.active ? tools : [];
+		});
+		lifecycle.gptPromptMode = () => registration.active;
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes("@howaboua/pi-codex-conversion")
+		)
+			throw error;
+	}
 	let ownSource: string | undefined;
 	let unavailable: string | undefined;
 	const owner: NotesOwner = {

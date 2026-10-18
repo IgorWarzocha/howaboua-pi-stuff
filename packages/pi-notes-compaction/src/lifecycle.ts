@@ -57,6 +57,7 @@ type Rollover = {
 
 export class NotesLifecycle {
 	readonly windows = new Windows();
+	gptPromptMode = () => false;
 	active = false;
 	normalCompaction = false;
 	newWindowRequests: NewWindowRequests = "unrestricted";
@@ -137,6 +138,7 @@ export class NotesLifecycle {
 				noteHints(this.store, ctx, this.agent(ctx)),
 				false,
 				inherited ? "identity" : "window",
+				this.gptPromptMode(),
 			);
 		} else if (
 			latest.type === "custom_message" &&
@@ -149,6 +151,7 @@ export class NotesLifecycle {
 				noteHints(this.store, ctx, this.agent(ctx)),
 				false,
 				"identity",
+				this.gptPromptMode(),
 			);
 		}
 	}
@@ -245,7 +248,14 @@ export class NotesLifecycle {
 			throw new Error("Session changed before rollover");
 		const ids = this.windows.next();
 		const hint = noteHints(this.store, ctx, this.agent(ctx));
-		const message = windowMessage(ids, this.agent(ctx), hint, trim);
+		const message = windowMessage(
+			ids,
+			this.agent(ctx),
+			hint,
+			trim,
+			"window",
+			this.gptPromptMode(),
+		);
 		this.windows.current = ids;
 		if (triggerTurn)
 			message.content = `${message.content}\n\nRead your saved notes and resume the task.`;

@@ -35,10 +35,46 @@ export default async function shepherdrExtension(
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
 	registerWorkerService(pi, fleet, sharedContext, board);
-	const tool = createAgentsTool(fleet, sharedContext, board, pi, peerCommands);
+	let promptMode: { readonly active: boolean } | undefined;
+	const tool = createAgentsTool(
+		fleet,
+		sharedContext,
+		board,
+		pi,
+		peerCommands,
+		() => promptMode?.active ?? false,
+	);
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
+	try {
+		const { registerGptPromptMode } = await import(
+			"@howaboua/pi-codex-conversion/prompt-mode"
+		);
+		const ordinary = tool.description;
+		promptMode = registerGptPromptMode(pi, (active) => {
+			const description = active
+				? "Persistent delegation; first discovery call alone"
+				: ordinary;
+			if (tool.description !== description) {
+				tool.description = description;
+				pi.registerTool(tool);
+			}
+			return [tool];
+		});
+	} catch (error) {
+		if (
+			!(error instanceof Error) ||
+			!("code" in error) ||
+			![
+				"ERR_MODULE_NOT_FOUND",
+				"MODULE_NOT_FOUND",
+				"ERR_PACKAGE_PATH_NOT_EXPORTED",
+			].includes(String(error.code)) ||
+			!error.message.includes(CODE_MODE_PACKAGE)
+		)
+			throw error;
+	}
 	await registerAgentsInCodeMode(pi, tool);
 	registerAgentController(pi, fleet, peerCommands);
 }

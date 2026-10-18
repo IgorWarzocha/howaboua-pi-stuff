@@ -3,4 +3,5 @@
 - Keep model-native `exec`/`wait`; never rename, configure, or add collision fallbacks.
 - Low-context custom tools belong to Code/Notebook: promoted tools get one standing usage line; deferred contracts stay in synchronous `ALL_TOOLS`, with short appended availability updates. Never mimic this in Structured mode.
 - `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
+- A different extension can register the shared Code turn hook before PCC. Keep prompt-mode preparation at this hook's capture boundary, before provider selection, host preparation and `collectPromptTools`; PCC's own later hook is not sufficient.
 - `shared-runtime.ts` selects the V8 or lazily imported Notebook client; Notebook implementation stays under sibling `tools/notebook-mode/`.

@@ -411,6 +411,7 @@
         "better-sqlite3": "13.0.3",
       },
       "devDependencies": {
+        "@howaboua/pi-codex-conversion": "4.0.1",
         "@types/better-sqlite3": "9.6.0",
       },
       "peerDependencies": {
@@ -418,8 +419,12 @@
         "@earendil-works/pi-ai": ">=1.0.4",
         "@earendil-works/pi-coding-agent": ">=1.2.0",
         "@earendil-works/pi-tui": ">=1.0.4",
+        "@howaboua/pi-codex-conversion": ">=4.0.1",
         "typebox": "*",
       },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
     },
     "packages/pi-pet": {
       "name": "@howaboua/pi-pet",

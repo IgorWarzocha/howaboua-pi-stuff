@@ -7,6 +7,7 @@ import {
 } from "./host-protocol.js";
 import {
 	EXEC_DESCRIPTION,
+	GPT_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
 } from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
@@ -32,6 +33,7 @@ import {
 import { runCodeModeToolWithHooks } from "./nested-tool-completion.js";
 import { registerNotebookTool } from "./notebook-tool.ts";
 import { PiToolCallScope } from "./pi-tool-call-scope.ts";
+import { registerGptPromptMode } from "../../prompt-mode.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -67,8 +69,17 @@ export function registerPublicCodeModeTools(
 	const renderResult = createResultRenderer(runtime, tracker);
 	const broker = registerCodeModePreflightBroker(pi);
 	const hooks = { preflight: broker.run, completion: broker.complete };
-	pi.registerTool(createExecTool(runtime, tracker, renderResult, hooks));
+	const exec = createExecTool(runtime, tracker, renderResult, hooks);
+	pi.registerTool(exec);
 	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks));
+	let gpt = false;
+	registerGptPromptMode(pi, active => {
+		if (active !== gpt) {
+			gpt = active;
+			pi.registerTool({ ...exec, description: active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION });
+		}
+		return [exec];
+	});
 	registerNotebookTool(pi, runtime);
 }
 

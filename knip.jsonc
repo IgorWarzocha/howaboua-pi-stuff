@@ -38,6 +38,7 @@
 				"src/code-mode-hooks.ts",
 				"src/context-sharing.ts",
 				"src/developer-messages.ts",
+				"src/prompt-mode.ts",
 				"src/apply-patch-display.ts",
 				"src/realtime-voice.ts",
 				"src/codex-usage/analyse.ts",

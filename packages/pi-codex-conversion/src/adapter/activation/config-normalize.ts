@@ -62,10 +62,9 @@ export function normalizeCodexConversionConfig(
 		prompt: {
 			currentTimeReminderMinutes: prompt["currentTimeReminderMinutes"] === 30 || prompt["currentTimeReminderMinutes"] === 60
 				? prompt["currentTimeReminderMinutes"] : 0,
-			heavySystemPromptOverwrite: normalizeBoolean(
-				prompt["heavySystemPromptOverwrite"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite,
-			),
+			heavySystemPromptOverwrite: prompt["heavySystemPromptOverwrite"] === "gpt" || typeof prompt["heavySystemPromptOverwrite"] === "boolean"
+				? prompt["heavySystemPromptOverwrite"]
+				: DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite,
 		},
 		scope: {
 			allProviders:
