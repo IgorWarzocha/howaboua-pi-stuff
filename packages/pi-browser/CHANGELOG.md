@@ -1,5 +1,9 @@
 # @howaboua/pi-browser
 
+## 0.0.9
+
+- Use consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+
 ## 0.0.8
 
 - ### Improvements

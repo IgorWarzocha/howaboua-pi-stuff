@@ -31,7 +31,7 @@
     },
     "packages/pi-agent-board": {
       "name": "@howaboua/pi-agent-board",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "dependencies": {
         "dompurify": "3.4.17",
         "marked": "18.1.1",
@@ -53,7 +53,7 @@
     },
     "packages/pi-ask": {
       "name": "@howaboua/pi-ask",
-      "version": "0.0.14",
+      "version": "0.0.15",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-ai": "1.3.0",
@@ -76,7 +76,7 @@
     },
     "packages/pi-auto-trees": {
       "name": "@howaboua/pi-auto-trees",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",
@@ -94,7 +94,7 @@
     },
     "packages/pi-better-skills-tool": {
       "name": "@howaboua/pi-better-skills-tool",
-      "version": "0.0.9",
+      "version": "0.0.10",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",
@@ -116,7 +116,7 @@
     },
     "packages/pi-browser": {
       "name": "@howaboua/pi-browser",
-      "version": "0.0.8",
+      "version": "0.0.9",
       "bin": {
         "pi-browser-worker": "./dist/remote-worker.js",
       },
@@ -155,7 +155,7 @@
     },
     "packages/pi-chatgpt-sites": {
       "name": "@howaboua/pi-chatgpt-sites",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "devDependencies": {
         "@howaboua/pi-codex-conversion": "4.0.1",
       },
@@ -186,7 +186,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "4.0.1",
+      "version": "4.0.2",
       "dependencies": {
         "openai": "7.34.0",
         "proxy-from-env": "2.1.0",
@@ -236,7 +236,7 @@
     },
     "packages/pi-codex-imagegen": {
       "name": "@howaboua/pi-codex-imagegen",
-      "version": "0.0.10",
+      "version": "0.0.11",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.12.2",
@@ -262,7 +262,7 @@
     },
     "packages/pi-codex-web-run": {
       "name": "@howaboua/pi-codex-web-run",
-      "version": "0.0.7",
+      "version": "0.0.8",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.12.2",
@@ -308,7 +308,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.96",
+      "version": "0.0.97",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.14",
         "@howaboua/pi-auto-trees": "0.1.16",
@@ -358,7 +358,7 @@
     },
     "packages/pi-github-watch": {
       "name": "@howaboua/pi-github-watch",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-ai": "1.3.0",
@@ -431,7 +431,7 @@
     },
     "packages/pi-notes-compaction": {
       "name": "@howaboua/pi-notes-compaction",
-      "version": "0.0.7",
+      "version": "0.0.8",
       "dependencies": {
         "better-sqlite3": "13.0.3",
       },
@@ -453,7 +453,7 @@
     },
     "packages/pi-pet": {
       "name": "@howaboua/pi-pet",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "devDependencies": {
         "@biomejs/biome": "2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",
@@ -492,7 +492,7 @@
     },
     "packages/pi-sandbox": {
       "name": "@howaboua/pi-sandbox",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@earendil-works/gondolin": "0.13.0",
         "yaml": "2.9.1",
@@ -518,7 +518,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.21",
+      "version": "0.2.22",
       "dependencies": {
         "@howaboua/pi-agent-board": "0.0.1",
       },
@@ -594,7 +594,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.104",
+      "version": "0.0.105",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.14",
         "@howaboua/pi-auto-trees": "0.1.16",
@@ -663,7 +663,7 @@
     },
     "packages/pi-unicode-charts": {
       "name": "@howaboua/pi-unicode-charts",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",

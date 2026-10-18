@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.15
+
+- Use consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+
 ## 0.0.14
 
 - Ask now separates exact choice labels from descriptions in forwarded questions.

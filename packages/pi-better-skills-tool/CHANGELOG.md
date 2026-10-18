@@ -1,5 +1,9 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.10
+
+- Use consistent skill discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
+
 ## 0.0.9
 
 - Skills discovery and invalid-input errors now show the JavaScript string-call syntax.

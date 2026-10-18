@@ -1,5 +1,9 @@
 # @howaboua/pi-unicode-charts
 
+## 0.1.1
+
+- Use compact chart guidance in opt-in PCC GPT prompt mode.
+
 ## 0.1.0
 
 ### Changes
