@@ -19,7 +19,6 @@ export const activityMessageTypes = [
 	"subdir-agents-context",
 	"codex-developer-message",
 	"codex-context-window",
-	"codex-native-compaction-display",
 ] as const;
 
 export const activityEntryTypes = [

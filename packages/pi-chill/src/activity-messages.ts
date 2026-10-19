@@ -142,38 +142,47 @@ export function activityMessageRenderer(
 						: undefined));
 		if (label) group.notices.set(id, label);
 		if (event?.warning) group.noticeWarnings.add(id);
+		const heading = renderActivityHeading(group, theme, outputPad);
+		const originalText = new Text(original, outputPad, 0);
+		const detail = expanded
+			? original
+			: (peer?.body ?? (event?.body || original));
+		const detailText =
+			detail === original ? originalText : new Text(detail, outputPad, 0);
+		const labelText = new Text("", outputPad, 0);
+		const updateLabel = () =>
+			labelText.setText(
+				label ? theme.fg(event?.warning ? "warning" : "muted", label) : "",
+			);
+		updateLabel();
+		const hint =
+			!expanded && event
+				? original.match(
+						/(?:^|\n)<operator_hint>([^<]*)<\/operator_hint>(?:\n|$)/,
+					)?.[1]
+				: undefined;
+		const hintText = hint
+			? new Text(unescapeAttribute(hint), outputPad, 0)
+			: undefined;
 		const component = new (class extends Container {
+			override invalidate(): void {
+				// The heading may be detached while another row anchors the group.
+				heading.invalidate();
+				updateLabel();
+				super.invalidate();
+			}
+
 			override render(width: number): string[] {
 				this.clear();
 				if (!isEnabled()) {
-					this.addChild(new Text(original, outputPad, 0));
+					this.addChild(originalText);
 					return super.render(width);
 				}
-				if (group.anchorId === id)
-					this.addChild(renderActivityHeading(group, theme, outputPad));
+				if (group.anchorId === id) this.addChild(heading);
 				if (group.open || (group.anchorId === undefined && expanded)) {
-					if (!expanded && label)
-						this.addChild(
-							new Text(
-								theme.fg(event?.warning ? "warning" : "muted", label),
-								outputPad,
-								0,
-							),
-						);
-					this.addChild(
-						new Text(
-							expanded ? original : (peer?.body ?? (event?.body || original)),
-							outputPad,
-							0,
-						),
-					);
-					if (!expanded && event) {
-						const hint = original.match(
-							/(?:^|\n)<operator_hint>([^<]*)<\/operator_hint>(?:\n|$)/,
-						)?.[1];
-						if (hint)
-							this.addChild(new Text(unescapeAttribute(hint), outputPad, 0));
-					}
+					if (!expanded && label) this.addChild(labelText);
+					this.addChild(detailText);
+					if (hintText) this.addChild(hintText);
 				}
 				return super.render(width);
 			}
@@ -218,15 +227,22 @@ export function activityEntryRenderer(
 			group.notices.set(id, title);
 			group.noticeWarnings.add(id);
 		}
+		const heading = renderActivityHeading(group, theme);
+		const readableText = new Text(readable, 1, 0);
+		const detailText = expanded ? new Text(raw, 1, 0) : readableText;
 		const component = new (class extends Container {
+			override invalidate(): void {
+				heading.invalidate();
+				super.invalidate();
+			}
+
 			override render(width: number): string[] {
 				this.clear();
-				if (!isEnabled()) this.addChild(new Text(readable, 1, 0));
+				if (!isEnabled()) this.addChild(readableText);
 				else {
-					if (group.anchorId === id)
-						this.addChild(renderActivityHeading(group, theme));
+					if (group.anchorId === id) this.addChild(heading);
 					if (group.open || (group.anchorId === undefined && expanded))
-						this.addChild(new Text(expanded ? raw : readable, 1, 0));
+						this.addChild(detailText);
 				}
 				return super.render(width);
 			}

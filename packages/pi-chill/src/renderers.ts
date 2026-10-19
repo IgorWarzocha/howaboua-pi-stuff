@@ -40,7 +40,21 @@ export function renderActivityHeading(
 	theme: RenderTheme,
 	outputPad = 1,
 ): Component {
-	const container = new Container();
+	const container = new (class extends Container {
+		private cached: { width: number; lines: string[] } | undefined;
+
+		override invalidate(): void {
+			this.cached = undefined;
+			super.invalidate();
+		}
+
+		override render(width: number): string[] {
+			if (this.cached?.width !== width) {
+				this.cached = { width, lines: super.render(width) };
+			}
+			return this.cached.lines;
+		}
+	})();
 	container.addChild(
 		new MouseRegion(
 			{
