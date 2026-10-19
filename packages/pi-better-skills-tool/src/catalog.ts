@@ -14,6 +14,8 @@ export { defaultSessionSkillsDir, defaultSkillsDir } from "./discovery.js";
 const MAX_OUTPUT_BYTES = 48 * 1024;
 // Leave room for an exact continuation command inside the output budget.
 const MAX_COMMAND_BYTES = 4 * 1024;
+const READ_HELP =
+	"Reference-only selectors omit the initial skill body. To read a body plus references, use separate commands: read skill; read other/references/topic";
 
 type SkillRequest =
 	| { action: "help" }
@@ -167,9 +169,9 @@ export function runSkills(
 		request.commands
 			.map((command) =>
 				command.action === "help"
-					? `${gpt ? 'list [category...] | read <skill> [skill-or-reference...] | help; separator ;\nJS: tools.skills("read <skill>")' : 'Commands: list [category...] | read <skill> [skill-or-reference...] | help. Join commands with ;\nJS: tools.skills("read <skill>")'}\n\n${formatSkillList(skills)}`
+					? `${gpt ? 'list [category...] | read <skill> [skill-or-reference...] | help; separator ;\nJS: tools.skills("read <skill>")' : 'Commands: list [category...] | read <skill> [skill-or-reference...] | help. Join commands with ;\nJS: tools.skills("read <skill>")'}\n${READ_HELP}\n\n${formatSkillList(skills)}`
 					: command.action === "list"
-						? formatSkillList(skills, command.categories)
+						? `${READ_HELP}\n\n${formatSkillList(skills, command.categories)}`
 						: readSkillPackage(skills, command.name, command.selectors),
 			)
 			.join("\n\n"),
