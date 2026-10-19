@@ -110,23 +110,26 @@ export function assess(
 } {
 	const details = object(value["details"]);
 	const code = exitCode(value);
-	const status = traceStatus ?? string(details["status"]);
 	const error = string(value["error"]) || string(details["scriptError"]);
 	const text = error || textContent(value["content"]);
 	let outcome: Outcome;
-	if (["cancelled", "canceled", "aborted"].includes(status))
-		outcome = "cancelled";
-	else if (status === "blocked") outcome = "blocked";
-	else if (status === "error" || value["isError"] === true || error)
+	// Tool details describe arbitrary domain data (for example, a watched agent's status).
+	// Only the enclosing trace's status describes this tool execution.
+	if (
+		["error", "cancelled", "canceled", "aborted"].includes(traceStatus ?? "") ||
+		value["isError"] === true ||
+		error
+	)
 		outcome = "error";
-	else if (status === "running") outcome = "pending";
+	else if (traceStatus === "running" || traceStatus === "blocked")
+		outcome = "incomplete";
 	else if (code !== null && code !== 0) outcome = "nonzero";
-	else if (status === "done" || value["isError"] === false) outcome = "ok";
+	else if (traceStatus === "done" || value["isError"] === false) outcome = "ok";
 	else outcome = "unknown";
 	const group =
 		outcome === "nonzero"
 			? `exit ${code}`
-			: ["error", "blocked", "cancelled"].includes(outcome)
+			: outcome === "error"
 				? signature(text) || outcome
 				: "";
 	return {

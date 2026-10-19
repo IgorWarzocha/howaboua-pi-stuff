@@ -4,7 +4,7 @@
 <body>
 <header><h1>Pi session observatory</h1><p id="status" role="status">Connecting to the local index…</p></header>
 <main>
-<section aria-label="Index coverage"><details id="coverage"><summary>Index coverage</summary><p id="coverage-text"></p><ul id="index-issues"></ul></details><p id="error" role="alert" hidden></p></section>
+<p id="error" role="alert" hidden></p>
 <section class="session-picker" aria-label="Session selection">
 <div class="session-controls">
 <label>Search sessions<input id="session-search" type="search" placeholder="Project or session ID" aria-describedby="sessions-status"></label>
@@ -20,17 +20,22 @@
 <label>Project<select name="project"><option value="">All projects</option></select></label>
 <label>From (UTC)<input name="since" type="date"></label><label>Until (UTC)<input name="until" type="date"></label>
 <label>Scope<select name="scope"><option value="all">All calls</option><option value="direct">Direct only</option><option value="nested">Nested only</option></select></label>
-<label class="search">Tool / signature prefix<input name="q" type="search" placeholder="Search tokens"></label>
+<label class="search">Word prefix search<input name="q" type="search" placeholder="Tool or message words"></label>
+<input name="signature" type="hidden">
 <button type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button>
 </form>
-<p class="muted">All calls includes both wrapper calls and nested calls; these are not independent attempts. Rates use all selected calls, including pending and unknown outcomes.</p>
-<section aria-labelledby="overview-heading"><h2 id="overview-heading">Selected calls</h2><p id="totals">Loading counts…</p>
+<p id="pattern" hidden><span id="pattern-text"></span> <button id="clear-pattern" type="button">Clear exact pattern</button></p>
+<p class="muted">Wrapper and nested calls are distinct recorded observations, not independent executions. Error rates use completed results: OK, error and nonzero exit.</p>
+<section aria-labelledby="overview-heading"><h2 id="overview-heading">Recorded errors</h2><div id="totals" role="status">Loading counts…</div>
 <p><a href="#calls-heading">Browse calls</a></p>
-<div class="breakdowns"><div><h3>By model</h3><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Calls by model"></div></div><div><h3>By tool</h3><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Calls by tool"></div></div></div>
-<details><summary>Daily counts</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily counts"></div></details>
-<h3>Top failure signatures</h3><p class="muted">Select a signature to search its tool and signature tokens.</p><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Failure signatures"></div>
+<div class="breakdowns"><div><h3>Models with errors</h3><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models with errors"></div></div><div><h3>Tools with errors</h3><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools with errors"></div></div></div>
+<h3>Recurring errors</h3><p class="muted">Select a message to browse exact matches for that tool and model, then open a call for detail.</p><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Recurring errors"></div>
+<details id="command-exits"><summary id="exits-summary">Command exits</summary><p class="muted">A nonzero command exit is not automatically a tool failure. For example, grep exits 1 when there is no match.</p><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero command exits"></div></details>
+<details><summary>All tool and model activity</summary><p class="muted">Includes observations without errors.</p><div class="breakdowns"><div id="activity-models" class="table-scroll" tabindex="0" role="region" aria-label="All model activity"></div><div id="activity-tools" class="table-scroll" tabindex="0" role="region" aria-label="All tool activity"></div></div></details>
+<details><summary>Daily history</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily history"></div></details>
+<details id="coverage"><summary>Index coverage</summary><div id="outcome-coverage"></div><p id="coverage-text"></p><ul id="index-issues"></ul></details>
 </section>
-<section aria-labelledby="calls-heading"><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><label>Outcome<select id="outcome"><option value="issues">Issues</option><option value="all">All outcomes</option><option value="error">Error</option><option value="nonzero">Nonzero exit</option><option value="cancelled">Cancelled</option><option value="blocked">Blocked</option><option value="ok">OK</option><option value="pending">Pending</option><option value="unknown">Unknown</option></select></label><button id="refresh" type="button">Refresh calls</button><span id="new-data" role="status"></span></div>
+<section aria-labelledby="calls-heading"><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><label>Outcome<select id="outcome"><option value="error">Errors</option><option value="nonzero">Nonzero command exits</option><option value="ok">OK results</option><option value="all">All observations</option><optgroup label="Coverage"><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></optgroup></select></label><button id="refresh" type="button">Refresh calls</button><span id="new-data" role="status"></span></div>
 <p id="calls-status" role="status"></p><div id="calls" class="table-scroll"></div><nav aria-label="Call pages"><button id="newest" type="button">Newest page</button><button id="older" type="button" disabled>Older calls</button></nav>
 </section>
 <section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" tabindex="-1">Call detail</h2><button id="close-detail" type="button">Close detail</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>

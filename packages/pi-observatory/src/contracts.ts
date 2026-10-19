@@ -1,33 +1,29 @@
-export type Outcome =
-	| "ok"
-	| "error"
-	| "nonzero"
-	| "cancelled"
-	| "blocked"
-	| "pending"
-	| "unknown";
+export type Outcome = "ok" | "error" | "nonzero" | "incomplete" | "unknown";
 
 export interface Counts {
 	calls: number;
 	ok: number;
 	error: number;
 	nonzero: number;
-	cancelled: number;
-	blocked: number;
-	pending: number;
+	incomplete: number;
 	unknown: number;
+}
+
+export interface OutcomeGroup {
+	tool: string;
+	provider: string;
+	model: string;
+	signature: string;
+	count: number;
+	lastSeen: string;
 }
 
 export interface Overview {
 	totals: Counts;
 	byModel: Array<Counts & { provider: string; model: string }>;
 	byTool: Array<Counts & { tool: string }>;
-	groups: Array<{
-		tool: string;
-		signature: string;
-		count: number;
-		lastSeen: string;
-	}>;
+	groups: OutcomeGroup[];
+	exits: OutcomeGroup[];
 	daily: Array<Counts & { day: string }>;
 }
 

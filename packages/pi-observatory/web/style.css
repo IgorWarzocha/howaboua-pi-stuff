@@ -141,10 +141,33 @@ footer,
 	font-size: 12px;
 }
 #totals {
-	font-size: 16px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 8px 28px;
+	font-size: 14px;
 	font-variant-numeric: tabular-nums;
-	padding: 10px 0;
+	padding: 12px 0;
 	border-block: 1px solid var(--line);
+}
+#totals strong {
+	font-size: 24px;
+	font-weight: 600;
+	color: var(--issue);
+}
+#totals span {
+	color: var(--muted);
+}
+#pattern {
+	padding: 8px 0;
+	border-block: 1px solid var(--line);
+	overflow-wrap: anywhere;
+}
+#pattern button {
+	margin: 4px 0;
+}
+#outcome-coverage button {
+	margin: 4px 8px 4px 0;
 }
 .breakdowns {
 	display: grid;
@@ -171,8 +194,21 @@ footer,
 }
 .breakdowns .table-scroll,
 #groups,
+#exits,
 #daily {
 	max-height: 320px;
+}
+#groups button,
+#exits button {
+	width: 100%;
+}
+#groups td:nth-child(3),
+#exits td:nth-child(3) {
+	min-width: 210px;
+	width: 45%;
+}
+details {
+	margin-top: 10px;
 }
 #calls {
 	max-height: 680px;

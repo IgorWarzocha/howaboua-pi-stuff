@@ -37,7 +37,7 @@ export function createIngestor(db: Database.Database) {
 	);
 	const putCall = db.prepare(`INSERT OR IGNORE INTO calls
 		(key,call_id,initiator,file_id,line,timestamp,provider,model,tool,scope,outcome,project,parent_call_id,unpaired)
-		VALUES (@key,@callId,@initiator,@file,@line,@timestamp,@provider,@model,@tool,@scope,'pending',@project,@parent,@unpaired)`);
+		VALUES (@key,@callId,@initiator,@file,@line,@timestamp,@provider,@model,@tool,@scope,'incomplete',@project,@parent,@unpaired)`);
 	const findCall = db.prepare<[string], StoredCall>(
 		"SELECT * FROM calls WHERE key=?",
 	);
@@ -115,8 +115,8 @@ export function createIngestor(db: Database.Database) {
 		traceStatus?: string,
 	): void {
 		linkCall.run(context.file, call.id);
-		// Yield/wait snapshots and copied fork history must not turn a terminal call back into a pending call.
-		if (call.result_entry !== null && call.outcome !== "pending") return;
+		// Partial snapshots and copied fork history must not overwrite a recorded final result.
+		if (call.result_entry !== null && call.outcome !== "incomplete") return;
 		setResult.run({ ...assess(result, traceStatus), ...context, id: call.id });
 		resultPayload.run(displayValue(result), call.id);
 	}

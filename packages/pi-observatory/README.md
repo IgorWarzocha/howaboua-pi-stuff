@@ -1,6 +1,8 @@
 # Pi Observatory
 
-Explore tool failures in your current Pi session, switch to all sessions or search for another session. Filter by model, provider, tool, project and date, then inspect the recorded arguments, result and neighbouring messages. Counts include successful calls so you can compare failure rates rather than just failure totals.
+Find recurring tool errors in your saved Pi sessions, grouped by tool, model and message. Open matching calls to inspect their recorded arguments, results and neighbouring messages. Start with the current session, switch to all sessions or search for another session.
+
+The main tables show tools and models with errors. Command exits, activity without errors, daily history and coverage are available in separate expandable sections. Filter by model, provider, tool, project and date.
 
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
@@ -57,20 +59,26 @@ The background server writes `observatory/server.log`. Its PID is in `observator
 
 - **Error** means an explicit error marker, failed nested trace or recorded script error.
 - **Nonzero exit** means a recorded nonzero subprocess result without an explicit error marker. A search with no matches can legitimately produce one.
-- **Cancelled** and **blocked** require explicit recorded statuses. Ambiguous results remain **unknown**. Calls without a recorded outcome remain **pending**, even after their session ends.
-- Direct calls and observed nested calls have separate scopes. “All calls” includes wrappers and their children, not independent attempts. Rates include pending and unknown calls in their denominators.
+- **No final result** means the index has a call without a matched result, or only a partial nested trace. It does not mean the call is still running. **Unclassified result** means the retained evidence does not establish an outcome. Both appear under coverage.
+- Error rates use completed results: OK, error and nonzero exit. Missing and unclassified results are excluded.
+
+Direct calls and observed nested calls have separate scopes. All calls includes wrappers and their children, which can report the same failure. Counts describe recorded observations, not independent attempts. Aborted calls recorded as errors remain errors. A tool successfully reporting another agent's status is not itself a failed or blocked execution.
 
 Model attribution comes from the initiating assistant message, including the originating cell for known nested continuations. Dates and ordering use the initiating call time where known, not measured completion time. Backend model snapshots and extension versions are not inferred from current installations. Missing attribution stays unknown.
 
 Identical copied history is deduplicated across forked sessions. A session view includes calls in its copied history, with their latest indexed outcomes. Repeated nested snapshots update the same call instead of adding calls. Neighbouring messages show file chronology, not proof of recovery or necessarily the active branch.
 
-Search matches word prefixes in tool names and failure signatures. It does not search full arguments or outputs. Breakdowns show the top 100 models and tools, the top 30 signatures and the latest 90 recorded days. Date filters use UTC, with the Until date included.
+Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting a recurring message filters its exact stored pattern, tool and model. Use **Clear exact pattern** to remove that pattern filter.
+
+Breakdowns show up to 100 models and tools, 30 error patterns, 30 command exit patterns and the latest 90 recorded days. Date filters use UTC, with the Until date included.
 
 ## Index coverage
 
 The indexer checks file metadata every two seconds and consumes appended bytes. During backfill it yields between file batches to discover new sessions and active tails. Complete lines and their cursor commit together. A partially written final line is saved until its remaining bytes arrive. After a crash, only uncommitted work may be read again.
 
 Coverage reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
+
+Existing indexes are updated from their cached SQLite results when the server starts. Classification updates preserve indexing cursors and do not reread session files.
 
 Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
 

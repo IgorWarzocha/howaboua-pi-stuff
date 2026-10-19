@@ -103,12 +103,16 @@ function number(value) {
 	return value.toLocaleString();
 }
 /** @param {Counts} count */
-function issues(count) {
-	return count.error + count.nonzero + count.cancelled + count.blocked;
+function completed(count) {
+	return count.ok + count.error + count.nonzero;
 }
 /** @param {number} value @param {number} total */
 function rate(value, total) {
-	return total ? `${((100 * value) / total).toFixed(1)}%` : "—";
+	if (!total) return "—";
+	const percentage = (100 * value) / total;
+	return percentage > 0 && percentage < 0.1
+		? "<0.1%"
+		: `${percentage.toFixed(1)}%`;
 }
 /** @param {string} value */
 function date(value) {
@@ -144,87 +148,136 @@ function button(label, action) {
 	b.addEventListener("click", action);
 	return b;
 }
-/** @param {Counts} c */
-function countCells(c) {
-	return [
-		number(c.calls),
-		number(issues(c)),
-		rate(issues(c), c.calls),
-		number(c.error),
-		rate(c.error, c.calls),
-		number(c.nonzero),
-		number(c.cancelled),
-		number(c.blocked),
-		number(c.pending),
-		number(c.unknown),
-	];
-}
-const countHeaders = [
-	"Calls",
-	"Issues",
-	"Issue rate",
-	"Errors",
-	"Error rate",
-	"Nonzero",
-	"Cancelled",
-	"Blocked",
-	"Pending",
-	"Unknown",
-];
-const primaryHeaders = ["Calls", "Errors", "Error rate", "Nonzero exits"];
+const primaryHeaders = ["Calls", "Errors", "Error rate"];
 /** @param {Counts} c */
 function primaryCells(c) {
-	return [
-		number(c.calls),
-		number(c.error),
-		rate(c.error, c.calls),
-		number(c.nonzero),
-	];
+	return [number(c.calls), number(c.error), rate(c.error, completed(c))];
+}
+/** @param {import('../src/contracts.ts').OutcomeGroup[]} groups @param {"error" | "nonzero"} result */
+function patternTable(groups, result) {
+	return table(
+		["Tool", "Provider / model", "Message / examples", "Count", "Last seen"],
+		groups.map((g) => [
+			g.tool,
+			`${g.provider} / ${g.model}`,
+			button(g.signature || "(empty message)", () => {
+				for (const key of /** @type {const} */ ([
+					"tool",
+					"provider",
+					"model",
+					"signature",
+				])) {
+					const value = g[key];
+					const control = field(key);
+					if (
+						control instanceof HTMLSelectElement &&
+						!Array.from(control.options).some((o) => o.value === value)
+					)
+						control.add(new Option(value, value));
+					control.value = value;
+				}
+				outcome.value = result;
+				applyFilters();
+				element("calls-heading").focus();
+				element("calls-heading").scrollIntoView({ block: "start" });
+			}),
+			number(g.count),
+			date(g.lastSeen),
+		]),
+		result === "error"
+			? "No recorded errors match this selection."
+			: "No nonzero command exits match this selection.",
+	);
 }
 /** @param {import('../src/contracts.ts').Overview} overview */
 function renderOverview(overview) {
 	const c = overview.totals;
-	element("totals").textContent =
-		`Calls: ${number(c.calls)} · Issues: ${number(issues(c))} (${rate(issues(c), c.calls)}) · Errors: ${number(c.error)} (${rate(c.error, c.calls)}) · Nonzero exits: ${number(c.nonzero)} · Cancelled: ${number(c.cancelled)} · Blocked: ${number(c.blocked)} · OK: ${number(c.ok)} · Pending: ${number(c.pending)} · Unknown: ${number(c.unknown)}`;
+	element("totals").replaceChildren(
+		node("strong", `${number(c.error)} errors`),
+		node("span", `${rate(c.error, completed(c))} error rate`),
+		node("span", `${number(completed(c))} completed results`),
+	);
+	const modelRows = overview.byModel.map((c) => [
+		`${c.provider} / ${c.model}`,
+		...primaryCells(c),
+	]);
+	const toolRows = overview.byTool.map((c) => [c.tool, ...primaryCells(c)]);
 	element("models").replaceChildren(
 		table(
 			["Provider / model", ...primaryHeaders],
-			overview.byModel.map((c) => [
-				`${c.provider} / ${c.model}`,
-				...primaryCells(c),
-			]),
-			"No model data in this selection.",
+			overview.byModel
+				.filter((c) => c.error > 0)
+				.sort((a, b) => b.error - a.error)
+				.map((c) => [`${c.provider} / ${c.model}`, ...primaryCells(c)]),
+			"No models with recorded errors.",
 		),
 	);
 	element("tools").replaceChildren(
 		table(
 			["Tool", ...primaryHeaders],
-			overview.byTool.map((c) => [c.tool, ...primaryCells(c)]),
-			"No tool data in this selection.",
+			overview.byTool
+				.filter((c) => c.error > 0)
+				.sort((a, b) => b.error - a.error)
+				.map((c) => [c.tool, ...primaryCells(c)]),
+			"No tools with recorded errors.",
+		),
+	);
+	element("activity-models").replaceChildren(
+		table(
+			["Provider / model", ...primaryHeaders],
+			modelRows,
+			"No model observations in this selection.",
+		),
+	);
+	element("activity-tools").replaceChildren(
+		table(
+			["Tool", ...primaryHeaders],
+			toolRows,
+			"No tool observations in this selection.",
 		),
 	);
 	element("daily").replaceChildren(
 		table(
-			["Day (UTC)", ...countHeaders],
-			overview.daily.map((c) => [c.day, ...countCells(c)]),
-			"No daily data in this selection.",
+			["Day (UTC)", "Calls", "Completed results", "Errors", "Error rate"],
+			overview.daily
+				.filter((c) => c.calls > 0)
+				.map((c) => [
+					c.day,
+					number(c.calls),
+					number(completed(c)),
+					number(c.error),
+					rate(c.error, completed(c)),
+				]),
+			"No daily observations in this selection.",
 		),
 	);
-	element("groups").replaceChildren(
-		table(
-			["Tool", "Signature", "Issues", "Last seen"],
-			overview.groups.map((g) => [
-				g.tool,
-				button(g.signature || "(empty signature)", () => {
-					field("tool").value = g.tool;
-					field("q").value = g.signature;
-					applyFilters();
+	element("groups").replaceChildren(patternTable(overview.groups, "error"));
+	element("exits").replaceChildren(patternTable(overview.exits, "nonzero"));
+	element("exits-summary").textContent = c.nonzero
+		? `Nonzero command exits · ${number(c.nonzero)}`
+		: "Command exits";
+	const gaps = [];
+	for (const [key, label] of /** @type {const} */ ([
+		["incomplete", "No final result"],
+		["unknown", "Unclassified result"],
+	])) {
+		if (c[key])
+			gaps.push(
+				button(`${label}: ${number(c[key])}`, () => {
+					outcome.value = key;
+					cursor = null;
+					void refreshCalls();
+					element("calls-heading").focus();
+					element("calls-heading").scrollIntoView({ block: "start" });
 				}),
-				number(g.count),
-				date(g.lastSeen),
-			]),
-			"No failure signatures in this selection.",
+			);
+	}
+	element("outcome-coverage").replaceChildren(
+		node(
+			"p",
+			`${number(c.calls)} selected observations. ${gaps.length ? "Missing or unclassified results are excluded from error rates. No final result means no matching final result was recorded, not that a call is running." : "No missing or unclassified results in this selection."}`,
 		),
+		...gaps,
 	);
 }
 /** @param {HTMLSelectElement} select @param {string[]} values */
@@ -353,7 +406,8 @@ async function refreshCalls() {
 			callButtons.set(call.id, action);
 			return [
 				action,
-				call.outcome + (call.exitCode === null ? "" : ` (${call.exitCode})`),
+				outcomeLabel(call.outcome) +
+					(call.exitCode === null ? "" : ` (${call.exitCode})`),
 				call.tool,
 				call.signature,
 				`${call.provider} / ${call.model}`,
@@ -416,7 +470,7 @@ async function openDetail(id) {
 		const detail = await api(`/api/calls/${id}`, request.signal);
 		if (request.signal.aborted) return;
 		element("detail-status").textContent =
-			`${detail.call.tool} · ${detail.call.outcome} · ${date(detail.call.timestamp)}`;
+			`${detail.call.tool} · ${outcomeLabel(detail.call.outcome)} · ${date(detail.call.timestamp)}`;
 		const content = element("detail-content");
 		const metadata = document.createElement("dl");
 		for (const [key, value] of Object.entries({
@@ -470,10 +524,27 @@ async function openDetail(id) {
 		report(error);
 	}
 }
+/** @param {import('../src/contracts.ts').Outcome} value */
+function outcomeLabel(value) {
+	return {
+		ok: "OK",
+		error: "Error",
+		nonzero: "Nonzero exit",
+		incomplete: "No final result",
+		unknown: "Unclassified result",
+	}[value];
+}
 function applyFilters() {
 	query = new URLSearchParams();
-	for (const [key, value] of new FormData(form))
-		if (typeof value === "string" && value.trim()) query.set(key, value.trim());
+	for (const [key, value] of new FormData(form)) {
+		if (typeof value !== "string") continue;
+		const filtered = key === "signature" ? value : value.trim();
+		if (filtered) query.set(key, filtered);
+	}
+	element("pattern").hidden = !query.has("signature");
+	element("pattern-text").textContent = query.has("signature")
+		? `Exact pattern: ${query.get("tool") || "all tools"} · ${query.get("provider") || "all providers"} / ${query.get("model") || "all models"} · ${query.get("signature")}`
+		: "";
 	const url = new URL(location.href);
 	if (query.has("session"))
 		url.searchParams.set("session", query.get("session") || "");
@@ -493,7 +564,13 @@ form.addEventListener("submit", (event) => {
 });
 form.addEventListener("reset", () => {
 	sessionSearch.value = "";
+	field("signature").value = "";
+	outcome.value = "error";
 	setTimeout(applyFilters, 0);
+});
+element("clear-pattern").addEventListener("click", () => {
+	field("signature").value = "";
+	applyFilters();
 });
 sessionSelect.addEventListener("change", applyFilters);
 sessionSelect.addEventListener("blur", () => void refreshSessions());
@@ -538,11 +615,21 @@ element("close-detail").addEventListener("click", () => {
 });
 /** @param {import('../src/contracts.ts').IndexStatus} status */
 function renderStatus(status) {
-	const label = `${status.phase} · ${number(status.files)} files · ${number(status.entries)} entries · ${number(status.bytesRead)} bytes read${status.lastScan ? ` · scanned ${date(status.lastScan)}` : ""}`;
+	const label = `${status.phase} · ${number(status.files)} files · ${number(status.entries)} entries${status.lastScan ? ` · scanned ${date(status.lastScan)}` : ""}`;
 	if (element("status").textContent !== label)
 		element("status").textContent = label;
 	const c = status.coverage;
-	const coverage = `${number(c.wrappersWithoutTraces)} wrappers without traces · ${number(c.droppedTraces)} dropped traces · ${number(c.malformedLines)} malformed lines · ${number(c.unpairedResults)} unpaired results. Unknown and pending calls remain in denominators. Gaps mean the index may not represent every execution.`;
+	const gaps = [
+		[c.wrappersWithoutTraces, "wrappers without traces"],
+		[c.droppedTraces, "dropped traces"],
+		[c.malformedLines, "malformed lines"],
+		[c.unpairedResults, "unpaired results"],
+	]
+		.filter(([count]) => Number(count) > 0)
+		.map(([count, label]) => `${number(Number(count))} ${label}`);
+	const coverage = gaps.length
+		? `Across indexed sessions: ${gaps.join(" · ")}. The index may not represent every execution.`
+		: "Across indexed sessions: no index coverage gaps reported.";
 	if (element("coverage-text").textContent !== coverage)
 		element("coverage-text").textContent = coverage;
 	const messages = [

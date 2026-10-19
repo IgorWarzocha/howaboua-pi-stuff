@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { assess, object } from "./normalise.ts";
 import { initialiseSummaries } from "./summaries.ts";
 
 export function openDatabase(
@@ -18,7 +19,7 @@ export function initialiseDatabase(
 ): void {
 	db.pragma("journal_mode = WAL");
 	const version = db.pragma("user_version", { simple: true });
-	if (version !== 0 && version !== 1)
+	if (version !== 0 && version !== 1 && version !== 2)
 		throw new Error(
 			"Unsupported index version. Choose a new --db path to rebuild.",
 		);
@@ -81,7 +82,6 @@ export function initialiseDatabase(
 			INSERT INTO call_search(call_search,rowid,tool,signature) VALUES('delete',old.id,old.tool,old.signature);
 			INSERT INTO call_search(rowid,tool,signature) VALUES(new.id,new.tool,new.signature);
 		END;
-		PRAGMA user_version = 1;
 	`);
 	initialiseSummaries(db);
 	// Derive session membership from cached entries when adding this index. No source JSONL replay.
@@ -110,4 +110,52 @@ export function initialiseDatabase(
 		sourceRoot,
 	);
 	db.prepare("INSERT OR IGNORE INTO metadata VALUES ('revision', '0')").run();
+	if (version === 1) reclassifyRecordedResults(db);
+	else if (version === 0) db.pragma("user_version = 2");
+}
+
+function reclassifyRecordedResults(db: Database.Database): void {
+	db.transaction(() => {
+		// Version 1 mistook arbitrary tool details.status for this execution's status.
+		// The indexed Pi result contains isError; no session files need to be replayed.
+		const candidates = db
+			.prepare<[], { id: number }>(`
+			SELECT id FROM calls WHERE scope='direct' AND result_entry IS NOT NULL
+			AND outcome IN ('error','blocked','cancelled','pending')
+		`)
+			.all();
+		const payload = db.prepare<
+			[number],
+			{ result: string; outcome: string; preview: string }
+		>(
+			"SELECT p.result,c.outcome,c.preview FROM calls c JOIN payloads p ON p.call_id=c.id WHERE c.id=?",
+		);
+		const update = db.prepare(
+			"UPDATE calls SET outcome=@outcome,exit_code=@exitCode,signature=@signature,preview=@preview WHERE id=@id",
+		);
+		for (const { id } of candidates) {
+			const stored = payload.get(id);
+			if (!stored) throw new Error("Indexed call payload is missing");
+			let result: ReturnType<typeof assess>;
+			try {
+				result = assess(object(JSON.parse(stored.result)));
+			} catch (error) {
+				if (!(error instanceof SyntaxError)) throw error;
+				// Capped payloads may no longer be valid JSON; do not invent their result.
+				result = {
+					outcome: "unknown",
+					exitCode: null,
+					signature: "",
+					preview: stored.preview,
+				};
+			}
+			if (result.outcome !== stored.outcome) update.run({ ...result, id });
+		}
+		db.exec(`
+			UPDATE calls SET outcome='incomplete',signature='' WHERE outcome IN ('pending','blocked');
+			UPDATE calls SET outcome='error' WHERE outcome='cancelled';
+			UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision';
+			PRAGMA user_version = 2;
+		`);
+	})();
 }

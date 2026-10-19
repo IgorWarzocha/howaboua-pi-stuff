@@ -14,10 +14,9 @@ import { object, string } from "./normalise.ts";
 export class BadRequest extends Error {}
 
 function countColumns(weight: string): string {
-	return `COALESCE(SUM(${weight}),0) calls, ${["ok", "error", "nonzero", "cancelled", "blocked", "pending", "unknown"].map((status) => `COALESCE(SUM(CASE WHEN outcome='${status}' THEN ${weight} ELSE 0 END),0) ${status}`).join(",")}`;
+	return `COALESCE(SUM(${weight}),0) calls, ${["ok", "error", "nonzero", "incomplete", "unknown"].map((status) => `COALESCE(SUM(CASE WHEN outcome='${status}' THEN ${weight} ELSE 0 END),0) ${status}`).join(",")}`;
 }
 const columns = `id,timestamp,provider,model,tool,scope,outcome,exit_code exitCode,signature,preview,project`;
-const issues = "('error','nonzero','cancelled','blocked')";
 
 function filters(params: URLSearchParams) {
 	const conditions: string[] = [];
@@ -72,6 +71,13 @@ function filters(params: URLSearchParams) {
 			"id IN (SELECT rowid FROM call_search WHERE call_search MATCH @query)",
 		);
 		values["query"] = tokens.map((token) => `"${token}"*`).join(" AND ");
+	}
+	const signature = params.get("signature");
+	if (signature !== null) {
+		if (signature.length > 240)
+			throw new BadRequest("Error pattern is too long");
+		conditions.push("signature=@signature");
+		values["signature"] = signature;
 	}
 	return { conditions, values };
 }
@@ -136,7 +142,12 @@ export function createQueries(db: Database.Database) {
 				.all(values),
 			groups: db
 				.prepare<Record<string, string | number>, Overview["groups"][number]>(
-					`SELECT tool,signature,${weight} count,MAX(${time}) lastSeen FROM ${source} ${where([...conditions, `outcome IN ${issues}`])} GROUP BY tool,signature ORDER BY count DESC,lastSeen DESC LIMIT 30`,
+					`SELECT tool,provider,model,signature,${weight} count,MAX(${time}) lastSeen FROM ${source} ${where([...conditions, "outcome='error'"])} GROUP BY tool,provider,model,signature ORDER BY count DESC,lastSeen DESC LIMIT 30`,
+				)
+				.all(values),
+			exits: db
+				.prepare<Record<string, string | number>, Overview["exits"][number]>(
+					`SELECT tool,provider,model,signature,${weight} count,MAX(${time}) lastSeen FROM ${source} ${where([...conditions, "outcome='nonzero'"])} GROUP BY tool,provider,model,signature ORDER BY count DESC,lastSeen DESC LIMIT 30`,
 				)
 				.all(values),
 			daily: db
@@ -149,19 +160,10 @@ export function createQueries(db: Database.Database) {
 
 	function calls(params: URLSearchParams): CallPage {
 		const { conditions, values } = filters(params);
-		const outcome = params.get("outcome") || "issues";
-		if (outcome === "issues") conditions.push(`outcome IN ${issues}`);
-		else if (outcome !== "all") {
+		const outcome = params.get("outcome") || "error";
+		if (outcome !== "all") {
 			if (
-				![
-					"ok",
-					"error",
-					"nonzero",
-					"cancelled",
-					"blocked",
-					"pending",
-					"unknown",
-				].includes(outcome)
+				!["ok", "error", "nonzero", "incomplete", "unknown"].includes(outcome)
 			)
 				throw new BadRequest("Invalid outcome");
 			conditions.push("outcome=@outcome");
@@ -238,6 +240,11 @@ export function createQueries(db: Database.Database) {
 				...(call.scope === "nested"
 					? [
 							"Nested snapshots are deduplicated across exec/wait results. Their timestamp is the initiating cell time, not a measured nested execution time.",
+						]
+					: []),
+				...(call.outcome === "incomplete"
+					? [
+							"No final result is recorded. This is an evidence gap, not a claim that the tool is still running.",
 						]
 					: []),
 			],
