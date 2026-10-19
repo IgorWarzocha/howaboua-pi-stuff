@@ -25,11 +25,14 @@
 <button type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button>
 </form>
 <p id="pattern" hidden><span id="pattern-text"></span> <button id="clear-pattern" type="button">Clear pattern</button></p>
-<section aria-label="Usage"><div id="totals" role="status">Loading…</div>
-<div class="breakdowns"><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></div>
+<section id="overview" aria-label="Usage"><div id="totals" role="status">Loading…</div>
+<div class="usage-charts">
+<div><h2 id="tools-heading">Tools</h2><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>Table</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div></details></div>
+<div class="chart-column"><div><h2 id="models-heading">Models</h2><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>Table</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></div>
+<div><div class="chart-heading"><h2>Activity</h2><select id="activity-metric" aria-label="Activity metric"><option value="calls">Calls</option><option value="error">Errors</option></select></div><div id="activity-plot"></div><details><summary>Table</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily activity"></div></details></div></div>
+</div>
 <details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details>
 <details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details>
-<details><summary>Daily</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily calls"></div></details>
 <details id="coverage"><summary>Coverage</summary><div id="outcome-coverage"></div><p id="coverage-text"></p><ul id="index-issues"></ul></details>
 </section>
 <section aria-labelledby="calls-heading"><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><optgroup label="Coverage"><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></optgroup></select></label><button id="refresh" type="button">Refresh</button><span id="new-data" role="status"></span></div>

@@ -101,6 +101,7 @@ async function main(): Promise<void> {
 		for (const [path, file, type] of [
 			["/", "index.html", "text/html; charset=utf-8"],
 			["/app.js", "app.js", "text/javascript; charset=utf-8"],
+			["/charts.js", "charts.js", "text/javascript; charset=utf-8"],
 			["/style.css", "style.css", "text/css; charset=utf-8"],
 		] as const)
 			assets.set(path, {

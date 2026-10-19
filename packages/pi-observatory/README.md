@@ -1,8 +1,8 @@
 # Pi Observatory
 
-See which tools your agents call, how often and with which models. Tool and model tables rank by call volume and show each one's share of calls and error count. Select a tool or model to inspect its calls, arguments and results.
+See which tools your agents call, how often and with which models. Usage bars rank tools and models by call volume, with exact counts and shares. Select a bar to inspect its calls, arguments and results. The activity graph switches between daily calls and errors.
 
-Start with the current session, switch to all sessions or search for another session. Errors, nonzero exits, daily counts and coverage are available below the usage tables. Filter by model, provider, tool, project and date.
+Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools, error counts or a day-by-day view. Errors, nonzero exits and coverage remain available below the charts. Filter by model, provider, tool, project and date.
 
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
@@ -70,7 +70,7 @@ Identical copied history is deduplicated across forked sessions. A session view 
 
 Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting an error message filters its exact stored pattern, tool and model. Use **Clear pattern** to remove that pattern filter.
 
-Breakdowns show up to 100 models and tools, 30 error patterns, 30 command exit patterns and the latest 90 recorded days. Date filters use UTC, with the Until date included.
+Charts show the top 10 tools and 6 models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Its table gives exact daily counts and lets you open a day's calls. Date filters use UTC, with the Until date included.
 
 ## Index coverage
 

@@ -1,4 +1,6 @@
 // @ts-check
+import { activityChart, dailySeries, usageChart } from "./charts.js";
+
 /** @typedef {import('../src/contracts.ts').Counts} Counts */
 /** @typedef {import('../src/contracts.ts').CallRow} CallRow */
 /** @param {string} id */
@@ -16,6 +18,9 @@ function field(name) {
 	return node;
 }
 const outcome = /** @type {HTMLSelectElement} */ (element("outcome"));
+const activityMetric = /** @type {HTMLSelectElement} */ (
+	element("activity-metric")
+);
 const older = /** @type {HTMLButtonElement} */ (element("older"));
 const sessionSelect = /** @type {HTMLSelectElement} */ (element("session"));
 const sessionSearch = /** @type {HTMLInputElement} */ (
@@ -71,6 +76,8 @@ let query = new URLSearchParams();
 /** @type {AbortController | undefined} */ let sessionsRequest;
 /** @type {ReturnType<typeof setTimeout> | undefined} */ let sessionSearchTimer;
 /** @type {Map<number, HTMLButtonElement>} */ let callButtons = new Map();
+/** @type {import('../src/contracts.ts').Overview | undefined} */ let latestOverview;
+/** @type {ReturnType<typeof dailySeries> | undefined} */ let activityDays;
 /** @param {string} path @param {AbortSignal} [signal] */
 async function api(path, signal) {
 	const response = await fetch(path, {
@@ -193,46 +200,83 @@ function patternTable(groups, result) {
 		result === "error" ? "No errors." : "No nonzero exits.",
 	);
 }
+/** @param {string} id @param {Node[]} content */
+function replaceOverview(id, ...content) {
+	const target = element(id);
+	if (!target.contains(document.activeElement))
+		target.replaceChildren(...content);
+}
+function renderActivity() {
+	if (!activityDays) return;
+	const plot = element("activity-plot");
+	plot.replaceChildren(
+		activityChart(
+			activityDays,
+			activityMetric.value === "error" ? "error" : "calls",
+			plot.clientWidth,
+		),
+	);
+}
 /** @param {import('../src/contracts.ts').Overview} overview */
 function renderOverview(overview) {
+	latestOverview = overview;
 	const c = overview.totals;
 	element("totals").replaceChildren(
 		node("strong", `${number(c.calls)} calls`),
 		node("span", `${number(c.error)} errors`),
 	);
-	const modelRows = overview.byModel.map((row) => [
-		button(`${row.provider} / ${row.model}`, () =>
+	const modelItems = overview.byModel.map((row) => ({
+		...row,
+		label: `${row.provider} / ${row.model}`,
+		select: () =>
 			selectCalls({ provider: row.provider, model: row.model, signature: "" }),
-		),
+	}));
+	const toolItems = overview.byTool.map((row) => ({
+		...row,
+		label: row.tool,
+		select: () => selectCalls({ tool: row.tool, signature: "" }),
+	}));
+	replaceOverview("tool-chart", usageChart(toolItems.slice(0, 10), c.calls));
+	replaceOverview("model-chart", usageChart(modelItems.slice(0, 6), c.calls));
+	const modelRows = modelItems.map((row) => [
+		button(row.label, row.select),
 		...primaryCells(row, c.calls),
 	]);
-	const toolRows = overview.byTool.map((row) => [
-		button(row.tool, () => selectCalls({ tool: row.tool, signature: "" })),
+	const toolRows = toolItems.map((row) => [
+		button(row.label, row.select),
 		...primaryCells(row, c.calls),
 	]);
-	element("models").replaceChildren(
+	replaceOverview(
+		"models",
 		table(["Model", ...primaryHeaders], modelRows, "No calls."),
 	);
-	element("tools").replaceChildren(
+	replaceOverview(
+		"tools",
 		table(["Tool", ...primaryHeaders], toolRows, "No calls."),
 	);
-	element("daily").replaceChildren(
+	activityDays = dailySeries(overview.daily);
+	renderActivity();
+	replaceOverview(
+		"daily",
 		table(
 			["Day (UTC)", "Calls", "Errors", "Error rate"],
-			overview.daily
-				.filter((c) => c.calls > 0)
-				.map((c) => [
-					c.day,
-					number(c.calls),
-					number(c.error),
-					rate(c.error, completed(c)),
-				]),
+			activityDays.map((c) => [
+				button(c.day, () =>
+					selectCalls(
+						{ since: c.day, until: c.day },
+						activityMetric.value === "error" ? "error" : "all",
+					),
+				),
+				number(c.calls),
+				number(c.error),
+				rate(c.error, completed(c)),
+			]),
 			"No calls.",
 		),
 	);
-	element("groups").replaceChildren(patternTable(overview.groups, "error"));
+	replaceOverview("groups", patternTable(overview.groups, "error"));
 	element("errors-summary").textContent = `Errors · ${number(c.error)}`;
-	element("exits").replaceChildren(patternTable(overview.exits, "nonzero"));
+	replaceOverview("exits", patternTable(overview.exits, "nonzero"));
 	element("exits-summary").textContent = c.nonzero
 		? `Nonzero exits · ${number(c.nonzero)}`
 		: "Nonzero exits";
@@ -252,7 +296,8 @@ function renderOverview(overview) {
 				}),
 			);
 	}
-	element("outcome-coverage").replaceChildren(
+	replaceOverview(
+		"outcome-coverage",
 		...(gaps.length
 			? gaps
 			: [node("p", "No missing or unclassified results.")]),
@@ -533,6 +578,7 @@ form.addEventListener("reset", () => {
 	sessionSearch.value = "";
 	field("signature").value = "";
 	outcome.value = "all";
+	activityMetric.value = "calls";
 	setTimeout(applyFilters, 0);
 });
 element("clear-pattern").addEventListener("click", () => {
@@ -610,6 +656,26 @@ function renderStatus(status) {
 		/** @type {HTMLDetailsElement} */ (element("coverage")).open = true;
 }
 let stopped = false;
+activityMetric.addEventListener("change", renderActivity);
+element("overview").addEventListener("focusout", (event) => {
+	if (
+		event.relatedTarget instanceof Node &&
+		element("overview").contains(event.relatedTarget)
+	)
+		return;
+	queueMicrotask(() => {
+		if (latestOverview && !element("overview").contains(document.activeElement))
+			renderOverview(latestOverview);
+	});
+});
+let activityWidth = 0;
+const chartResize = new ResizeObserver(([entry]) => {
+	const width = Math.floor(entry?.contentRect.width ?? 0);
+	if (width === activityWidth) return;
+	activityWidth = width;
+	renderActivity();
+});
+chartResize.observe(element("activity-plot"));
 async function poll() {
 	try {
 		/** @type {import('../src/contracts.ts').IndexStatus} */
@@ -631,6 +697,7 @@ async function poll() {
 	if (!stopped) setTimeout(poll, 2000);
 }
 window.addEventListener("pagehide", () => {
+	chartResize.disconnect();
 	stopped = true;
 	dataRequest?.abort();
 	callsRequest?.abort();
