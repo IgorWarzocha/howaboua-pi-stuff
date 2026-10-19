@@ -171,6 +171,7 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 
 function formatEvent(event: CodexDiagnosticsEvent): string {
 	return `${new Date().toISOString()} ${[field("local_request_id", event.requestId),
+		field("scope", event.scope),
 		field("request_counter_process_id", event.requestCounterProcessId), field("session_request_ordinal", event.sessionRequestOrdinal),
 		...eventFields(event)].filter((value): value is string => value !== undefined).join(" ")}\n`;
 }

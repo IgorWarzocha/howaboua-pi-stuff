@@ -4,6 +4,7 @@ import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 
 interface ActiveCodexDiagnostics {
 	key: string;
+	sessionId: string;
 	runtime: {
 		record: CodexDiagnosticsSink;
 		shutdown(): Promise<void>;
@@ -20,7 +21,7 @@ export interface LazyCodexDiagnostics {
 		logName?: string | undefined;
 		announceLog?: boolean | undefined;
 	}): Promise<void>;
-	sink(): CodexDiagnosticsSink | undefined;
+	sink(request?: { sessionId: string | undefined }): CodexDiagnosticsSink | undefined;
 	shutdown(): Promise<void>;
 }
 
@@ -60,9 +61,10 @@ export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 	return {
 		async configure(options) {
 			const model = options.ctx.model;
+			const sessionId = options.ctx.sessionManager.getSessionId();
 			const key = JSON.stringify([
 				options.mode,
-				options.ctx.sessionManager.getSessionId(),
+				sessionId,
 				model?.provider,
 				model?.id,
 				model?.api,
@@ -102,10 +104,14 @@ export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 					}
 				}
 			};
-			active = { key, runtime: next, sink };
+			active = { key, sessionId, runtime: next, sink };
 		},
-		sink() {
-			return active?.sink;
+		sink(request) {
+			if (!active) return;
+			const { sink, sessionId } = active;
+			// Omitted request identifies owned prewarm/keepalive work, not an anonymous provider call.
+			const scope = !request || request.sessionId === sessionId ? "session" : "auxiliary";
+			return event => sink({ ...event, scope });
 		},
 		async shutdown() {
 			generation++;

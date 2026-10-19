@@ -172,10 +172,11 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 	turnState?: CodexTurnState | undefined;
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 	beforeRequestSend?: BeforeCodexRequestSend | undefined;
-	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+	getDiagnostics?: ((sessionId: string | undefined) => CodexDiagnosticsSink | undefined) | undefined;
 	recordUsage?: CodexUsageRecorder | undefined;
 }): void {
 	const streamSimple = (model: Model<Api>, context: TranscriptContext, streamOptions?: CodexProviderStreamOptions) => {
+		const diagnostics = options.getDiagnostics?.(streamOptions?.sessionId);
 		const stream = createCodexTransportStream(model, context, streamOptions, {
 			prepareRequestBody: prepareCodexRequestBody,
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
@@ -183,7 +184,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 			...(options.turnState ? { turnState: options.turnState } : {}),
 			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
 			...(options.beforeRequestSend ? { beforeRequestSend: options.beforeRequestSend } : {}),
-			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
+			...(diagnostics ? { getDiagnostics: () => diagnostics } : {}),
 			...(options.recordUsage ? { recordUsage: options.recordUsage } : {}),
 		});
 		return hasContextNamespaceRouters(context)

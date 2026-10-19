@@ -40,7 +40,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
 			useResponsesLite: (model) => resolveCodexRuntimePlanForState({ model }, runtime.state).transport === "responses-lite",
 			turnState: runtime.state.codexTurnState,
-			getDiagnostics: () => runtime.diagnosticsSink(),
+			getDiagnostics: sessionId => runtime.diagnosticsSink(sessionId),
 			beforeRequestSend: runtime.beforeRequestSend,
 			recordUsage: recordCodexSpend,
 		});

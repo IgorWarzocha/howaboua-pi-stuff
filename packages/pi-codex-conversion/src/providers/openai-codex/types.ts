@@ -92,6 +92,7 @@ export interface CodexRequestDiagnostics {
 }
 
 export type CodexDiagnosticsEvent = {
+	scope?: "session" | "auxiliary" | undefined;
 	requestId?: string | undefined;
 	sessionRequestOrdinal?: number | undefined;
 	requestCounterProcessId?: string | undefined;
