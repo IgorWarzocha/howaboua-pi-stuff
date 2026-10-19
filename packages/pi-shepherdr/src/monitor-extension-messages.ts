@@ -9,6 +9,8 @@ import type { ExtensionMessage, MonitoredAgent, PaneInfo } from "./types.js";
 
 interface MonitorExtensionMessagesOptions {
 	client: HerdrConnection;
+	machine: string;
+	machineLabel: () => string;
 	reader: AssistantReader;
 	state: MonitorState;
 	notify: (
@@ -176,8 +178,19 @@ export class MonitorExtensionMessages {
 	private warning(error: unknown): void {
 		if (this.warned) return;
 		this.warned = true;
+		const label = this.options.machineLabel();
+		const machine =
+			label === this.options.machine
+				? label
+				: `${label} (${this.options.machine})`;
+		const detail =
+			error instanceof Error && "code" in error && error.code === "EPIPE"
+				? "the connection closed"
+				: error instanceof Error
+					? error.message
+					: String(error);
 		this.context?.ui.notify(
-			`Worker extension notifications unavailable: ${error instanceof Error ? error.message : String(error)}. Use agents read to inspect workers; reconnect through /herdr`,
+			`Worker notices unavailable on ${machine}: ${detail}. Open /herdr → Status to reconnect. Then use agents read to check worker messages.`,
 			"warning",
 		);
 	}
