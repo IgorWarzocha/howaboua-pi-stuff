@@ -37,6 +37,4 @@ Assistant commentary, final answers, Board activity, notes-saved notices and hos
 
 Reasoning bodies are hidden while Chill is on. `Ctrl+T` does not reveal them. Turn Chill off with `/chill` to restore native reasoning display. Your saved thinking preference and stored reasoning are unchanged.
 
-The exact messages `Continue.` and `Continue, unless awaiting for user approval.` are hidden, even when typed manually. Other user text and image attachments are unchanged. Some hidden content can leave blank spacing.
-
 This is presentation only. It adds no model tools, prompt instructions, or model calls, and does not change stored messages. Non-interactive output keeps its original renderers.

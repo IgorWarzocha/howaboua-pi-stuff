@@ -65,13 +65,6 @@ export default function (pi: ExtensionAPI) {
 	pi.registerMarkdownTransformer((markdown, context) => {
 		if (!tui || !enabled) return markdown;
 		if (context.messageType === "assistant-thinking") return "";
-		if (
-			context.messageType === "user" &&
-			["Continue.", "Continue, unless awaiting for user approval."].includes(
-				markdown.trim(),
-			)
-		)
-			return "";
 		return markdown;
 	});
 	// Pass-through tools also bypass execution tracking and restore membership.
