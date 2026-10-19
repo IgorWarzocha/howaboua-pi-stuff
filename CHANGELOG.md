@@ -141,12 +141,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-explore-subagents — 0.1.15
-
-- Explorer prompts now use concise evidence maps and explicit unknowns without fixed-length report templates or repeated discovery instructions.
-
-[Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
-
 ### @howaboua/pi-extensions — 0.0.97
 
 - Include bundled package updates:
@@ -206,12 +200,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
   Uses the matching OAuth or API-key credential configured in Pi. Voice quota and billing depend on the account.
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
-
-### @howaboua/pi-memories — 0.1.5
-
-- Memory extraction now uses supplied context without assuming that global or project instruction files were loaded.
-
-[Full changelog](./packages/pi-memories/CHANGELOG.md)
 
 ### @howaboua/pi-notes-compaction — 0.0.8
 
@@ -343,10 +331,4 @@ Going forward, package-level changelogs remain the source of truth for each pack
 - Use compact chart guidance in opt-in PCC GPT prompt mode.
 
 [Full changelog](./packages/pi-unicode-charts/CHANGELOG.md)
-
-### @howaboua/pi-vent — 0.2.11
-
-- Vent now uses shorter tool guidance for recording repeated workflow friction after completing the task.
-
-[Full changelog](./packages/pi-vent/CHANGELOG.md)
 

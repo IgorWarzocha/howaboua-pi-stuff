@@ -30,11 +30,9 @@ body:
         - pi-codex-guardian
         - pi-codex-imagegen
         - pi-codex-web-run
-        - pi-explore-subagents
         - pi-gippity-control
         - pi-github-watch
         - pi-gpt-switcher
-        - pi-memories
         - pi-notes-compaction
         - pi-pet
         - pi-shepherdr
@@ -42,7 +40,6 @@ body:
         - pi-subagent-review
         - pi-subdir-agents
         - pi-unicode-charts
-        - pi-vent
         - A skill
     validations:
       required: true

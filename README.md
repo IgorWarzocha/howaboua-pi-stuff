@@ -75,14 +75,6 @@ Pi discovers installed skills automatically and loads them when a task matches. 
 
 [`pi-chill`](./packages/pi-chill) folds routine tool activity into expandable progress blocks. It is a customisable starting point, installed from a checkout rather than npm, and is not included in the bundles.
 
-## Retired packages
-
-These packages are no longer maintained or published. Their source remains available, and existing npm versions are not removed. They are excluded from the bundles.
-
-- [`pi-explore-subagents`](./packages/pi-explore-subagents): discovery-only subagents. Use `pi-shepherdr` for maintained agent tooling.
-- [`pi-vent`](./packages/pi-vent): workflow-friction logging, now available as a Pi Codex custom-tool example.
-- [`pi-memories`](./packages/pi-memories): shutdown memory distillation.
-
 ## Build an integration
 
 The [extension API guide](./docs/extension-apis.md) covers Board and Notes with other subagent extensions, PCC tool and context APIs, voice tools, and browser miniapps. It includes lifecycle diagrams, public contracts and small integration examples.
