@@ -1,7 +1,8 @@
 Merges to main feed Changesets versioning and npm publishing.
 
 We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Validate and report changes. Source edits do not update running packages.
-For this repository's live VM review, use `bun run sandbox:setup --name NAME --live-model openai-codex/MODEL` after candidate changes. Reuse the host login through this setup's scoped access-token sync; a functioning authenticated guest is the baseline. Stop active review agents before replacing the guest snapshot; host edits alone never update it. Fixtures prove only their controlled cases, not live acceptance. Fix guest readiness instead of moving validation onto the host.
+Sandbox validation means interacting with Pi's TUI through Herdr: normal consecutive turns that execute tools and use the guest environment. Programmatic probes do not require a sandbox and do not substitute for this interaction.
+For live TUI review, use `bun run sandbox:setup --name NAME --live-model openai-codex/MODEL` after candidate changes. Reuse the host login through this setup's scoped access-token sync; a functioning authenticated guest is the baseline. Stop active review agents before replacing the guest snapshot; host edits alone never update it. Fix guest readiness instead of moving TUI acceptance onto the host.
 Release acceptance must run the candidate's bundled native helpers without overrides. Verify guest compatibility first and replace incompatible disposable guests rather than rebuilding helpers around them.
 Resolve package names against immediate packages subdirectories. Search the unique word match first, then follow direct references.
 Keep pi-codex-web-run and pi-codex-imagegen src/codex-runtime trees identical. Do not publish a shared runtime package.
