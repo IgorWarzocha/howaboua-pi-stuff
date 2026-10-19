@@ -6,6 +6,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { hyperlink } from "@earendil-works/pi-tui";
 import {
 	accessKey,
 	loadConfig,
@@ -102,7 +103,7 @@ export async function openObservatory(
 				"Could not open Observatory. Restart its server and run /observatory again.",
 			);
 		const url = value["url"];
-		ctx.ui.notify(url, "info");
+		ctx.ui.notify(hyperlink(url, url), "info");
 		if (!config.openCommand) return;
 		const [command, ...args] = config.openCommand;
 		if (!command) return;
