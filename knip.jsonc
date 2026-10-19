@@ -1,6 +1,10 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
+		"packages/pi-observatory": {
+			"entry": ["src/index-worker.ts", "src/query-worker.ts", "web/app.js"],
+			"project": ["src/**/*.ts", "web/*.js"]
+		},
 		"packages/pi-agent-board": {
 			"entry": ["src/viewer/server.ts", "src/viewer/web/app.js", "scripts/*.mjs"],
 			"project": ["src/**/*.ts", "src/viewer/web/*.js", "scripts/*.mjs"],

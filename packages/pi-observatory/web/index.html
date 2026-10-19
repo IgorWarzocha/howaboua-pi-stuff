@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Pi session observatory</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+<header><h1>Pi session observatory</h1><p id="status" role="status">Connecting to the local index…</p></header>
+<main>
+<section aria-label="Index coverage"><details id="coverage"><summary>Index coverage</summary><p id="coverage-text"></p><ul id="index-issues"></ul></details><p id="error" role="alert" hidden></p></section>
+<section class="session-picker" aria-label="Session selection">
+<div class="session-controls">
+<label>Search sessions<input id="session-search" type="search" placeholder="Project or session ID" aria-describedby="sessions-status"></label>
+<label class="session-choice">Session<select id="session" name="session" form="filters" aria-describedby="sessions-status"><option value="">All sessions</option></select></label>
+<button id="all-sessions" type="button">All sessions</button><button id="current-session" type="button" hidden>Current session</button>
+</div>
+<p id="sessions-status" class="muted" role="status">Loading recent sessions…</p>
+</section>
+<form id="filters" aria-label="Filter calls">
+<label>Provider<select name="provider"><option value="">All providers</option></select></label>
+<label>Model<select name="model"><option value="">All models</option></select></label>
+<label>Tool<select name="tool"><option value="">All tools</option></select></label>
+<label>Project<select name="project"><option value="">All projects</option></select></label>
+<label>From (UTC)<input name="since" type="date"></label><label>Until (UTC)<input name="until" type="date"></label>
+<label>Scope<select name="scope"><option value="all">All calls</option><option value="direct">Direct only</option><option value="nested">Nested only</option></select></label>
+<label class="search">Tool / signature prefix<input name="q" type="search" placeholder="Search tokens"></label>
+<button type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button>
+</form>
+<p class="muted">All calls includes both wrapper calls and nested calls; these are not independent attempts. Rates use all selected calls, including pending and unknown outcomes.</p>
+<section aria-labelledby="overview-heading"><h2 id="overview-heading">Selected calls</h2><p id="totals">Loading counts…</p>
+<p><a href="#calls-heading">Browse calls</a></p>
+<div class="breakdowns"><div><h3>By model</h3><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Calls by model"></div></div><div><h3>By tool</h3><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Calls by tool"></div></div></div>
+<details><summary>Daily counts</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily counts"></div></details>
+<h3>Top failure signatures</h3><p class="muted">Select a signature to search its tool and signature tokens.</p><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Failure signatures"></div>
+</section>
+<section aria-labelledby="calls-heading"><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><label>Outcome<select id="outcome"><option value="issues">Issues</option><option value="all">All outcomes</option><option value="error">Error</option><option value="nonzero">Nonzero exit</option><option value="cancelled">Cancelled</option><option value="blocked">Blocked</option><option value="ok">OK</option><option value="pending">Pending</option><option value="unknown">Unknown</option></select></label><button id="refresh" type="button">Refresh calls</button><span id="new-data" role="status"></span></div>
+<p id="calls-status" role="status"></p><div id="calls" class="table-scroll"></div><nav aria-label="Call pages"><button id="newest" type="button">Newest page</button><button id="older" type="button" disabled>Older calls</button></nav>
+</section>
+<section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" tabindex="-1">Call detail</h2><button id="close-detail" type="button">Close detail</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>
+</main><footer>Local index · source session files are read-only · persisted context shows chronology, not proof of recovery.</footer>
+</body></html>

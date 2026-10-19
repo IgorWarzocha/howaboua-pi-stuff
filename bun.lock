@@ -417,6 +417,19 @@
         "@howaboua/pi-codex-conversion",
       ],
     },
+    "packages/pi-observatory": {
+      "name": "@howaboua/pi-observatory",
+      "version": "0.0.0",
+      "dependencies": {
+        "better-sqlite3": "^13.0.3",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^9.6.0",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=1.3.0",
+      },
+    },
     "packages/pi-pet": {
       "name": "@howaboua/pi-pet",
       "version": "0.1.7",
@@ -869,6 +882,8 @@
     "@howaboua/pi-grok-realtime": ["@howaboua/pi-grok-realtime@workspace:packages/pi-grok-realtime"],
 
     "@howaboua/pi-notes-compaction": ["@howaboua/pi-notes-compaction@workspace:packages/pi-notes-compaction"],
+
+    "@howaboua/pi-observatory": ["@howaboua/pi-observatory@workspace:packages/pi-observatory"],
 
     "@howaboua/pi-pet": ["@howaboua/pi-pet@workspace:packages/pi-pet"],
 
