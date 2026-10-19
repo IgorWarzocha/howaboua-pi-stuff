@@ -12,6 +12,7 @@
 - Promote pins and commit metadata under one project lock. Failed commits restore kernel tracking. Release/prune preserve pins. Prune needs a caller-selected glob.
 - Dispatch tool hooks inside the kernel after bridge settlement. Never start another Jupyter execute while a cell awaits that bridge. Suppress recursion per async hook, not globally.
 - Startup lists exact-version npm imports used by successful project cells. Unlisted packages require user approval.
+- Startup inventories bindings and their unchanged metadata, not sampled memory, ages or checkpoint bookkeeping. Keep full status diagnostics on demand. Install examples without startup tutorials.
 - notebook-diagnostics.ts provides one-shot Deno diagnostics from journals. lsp-process.ts owns bounded JSON-RPC transport, never a resident process.
 - Profiles load by value, never replay cells.
 - directory-lock.ts owns cross-process leases. Release only the observed owner file, never recursively delete lock paths.

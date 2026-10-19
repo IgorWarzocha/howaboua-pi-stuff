@@ -122,7 +122,7 @@ export async function spawnAgent(
 		profile: profile.name,
 		status: "starting",
 	});
-	const agentArgs = profileAgentArgs(profile, { targetLocal: runtime.local });
+	const agentArgs = profileAgentArgs(profile);
 	const relationship = sharedContext.spawns.prepareRelationship(
 		ctx,
 		runtime,

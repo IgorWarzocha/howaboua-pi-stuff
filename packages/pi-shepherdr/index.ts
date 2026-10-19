@@ -10,6 +10,7 @@ import { AgentFleet } from "./src/fleet.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
 import { createPeerCommands } from "./src/peer-commands.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
+import { registerProfilePrompt } from "./src/profile-prompt.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context-host.js";
 import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
@@ -24,6 +25,7 @@ export default async function shepherdrExtension(
 	registerPackageChangelog(pi);
 
 	await installAgentProfiles();
+	registerProfilePrompt(pi);
 	registerDeveloperDelivery(pi);
 	const peerCommands = createPeerCommands(pi);
 	const fleet = new AgentFleet(pi);

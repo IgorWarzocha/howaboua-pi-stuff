@@ -257,7 +257,6 @@ export function registerWorkerService(
 						if (!profile)
 							throw new Error("General worker profile is unavailable");
 						const profileArgs = profileAgentArgs(profile, {
-							targetLocal: true,
 							includePrompt: false,
 						});
 						if (

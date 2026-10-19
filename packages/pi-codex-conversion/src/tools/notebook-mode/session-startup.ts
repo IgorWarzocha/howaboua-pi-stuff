@@ -123,10 +123,7 @@ export async function startNotebookSession(options: {
 		}
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
 		const npmNotice = formatNotebookNpmImportsNotice(readNotebookNpmImports(checkpointIdentity));
-		const exampleNotice = exampleNames.length === 2
-			? "Notebook example foo/bar available; inspect foo.description, foo.usage, bar.description, and bar.usage before constructing a reusable global"
-			: undefined;
-		const restoreNotice = [exampleNotice, npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, journalNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
+		const restoreNotice = [npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, journalNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,

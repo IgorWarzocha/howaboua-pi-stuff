@@ -3,6 +3,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { CODEX_DEVELOPER_MESSAGE_TYPE, isCodexDeveloperMessageDetails, type CodexDeveloperMessageDetails } from "../developer-messages.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
+import { formatStartupStatus, type NotebookStatusDetails } from "../tools/notebook-mode/lifecycle-result.ts";
 import type { AdapterState } from "./activation/state.ts";
 
 export const CODEX_NOTEBOOK_STATUS_TYPE = "codex-notebook-status";
@@ -40,7 +41,9 @@ export async function recordNotebookStatus(
 	let title: string;
 	try {
 		const status = await codeMode.notebookStatus(ctx);
-		content = status.message;
+		// notebookStatus requests status with query "*" from NotebookLifecycleController.
+		const inventory = formatStartupStatus(status.details as NotebookStatusDetails);
+		content = [status.details["startupNotice"], inventory].filter((value) => typeof value === "string" && value).join("\n");
 		title = [
 			"Notebook",
 			typeof status.details["retainedBindings"] === "number" ? `${status.details["retainedBindings"]} retained` : undefined,
