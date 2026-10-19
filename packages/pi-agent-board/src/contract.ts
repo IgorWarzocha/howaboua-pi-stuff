@@ -193,7 +193,7 @@ export const boardHelp = {
 		paging:
 			"limit default20, cap50; cursor opaque, keep query/sort/full unchanged. Concurrent changes may shift pages",
 		summaries:
-			"Closing starts background summarization. Summarized threads return/search only summaries. full=true reads/searches original posts. Summary author filters match participants; read_post always reads originals",
+			"Closing may start summarization if enabled. Summarized threads return/search only summaries. full=true reads/searches original posts. Summary author filters match participants; read_post always reads originals",
 		order:
 			"Newest first; get_channels by activity, list_threads sort=created|activity. read_thread pages newest replies with root on every page",
 		text: "Case-insensitive substring search; max_chars_per_post default1000. read_post offsets count Unicode characters, limit_chars default20000. Continue at next_offset_chars<n_chars",

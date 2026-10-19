@@ -8,7 +8,11 @@ import {
 } from "./activity.js";
 import { executeArchive, readSubscribedUpdates } from "./archive.js";
 import { BoardAwareness } from "./awareness.js";
-import { type BoardScope, writeBoardConfig } from "./config.js";
+import {
+	type BoardScope,
+	writeBoardConfig,
+	writeBoardSummaryAutomatic,
+} from "./config.js";
 import {
 	agentPath,
 	type BoardParams,
@@ -246,11 +250,7 @@ export class BoardRuntime {
 		this.lastSetting = { sessionId: own.sessionId, enabled: own.enabled };
 		if (changed && !own.upstream) await this.propagateEnabled(ctx, own.enabled);
 	}
-	async setSetting(
-		ctx: ExtensionContext,
-		scope: BoardScope,
-		enabled: boolean | undefined,
-	) {
+	async setSetting(ctx: ExtensionContext, scope: BoardScope, enabled: boolean) {
 		if (!ctx.isIdle())
 			throw new Error("Change the board setting after this session settles");
 		const own = binding(ctx);
@@ -265,13 +265,9 @@ export class BoardRuntime {
 		const setting = own.upstream ? undefined : rootBoardSetting(ctx);
 		return `Board ${own.enabled ? "on" : "off"} (${setting?.source ?? "inherited from owner"})${includeArchive ? `. ${own.boardId}\nArchive: ${own.databasePath}` : ""}${setting?.error ? `\n${setting.error}` : ""}`;
 	}
-	summarize(ctx: ExtensionContext, thread: string) {
-		const own = binding(ctx);
-		if (own.upstream || own.sessionId !== own.rootSessionId)
-			throw new Error("Summarize threads in the owning parent session");
-		if (!own.enabled) throw new Error("Board is off; enable it with /board on");
-		parseBoardRequest({ action: "read_thread", thread_id: thread });
-		this.summarizer.start(ctx, own, thread.toLowerCase());
+	setAutomaticSummaries(ctx: ExtensionContext, automatic: boolean) {
+		writeBoardSummaryAutomatic(ctx.cwd, automatic);
+		if (!automatic) this.summarizer.cancelAll();
 	}
 	async execute(ctx: ExtensionContext, input: unknown, requestId: string) {
 		const params = parseBoardRequest(input);
