@@ -31,8 +31,7 @@ body {
 	margin: 0;
 }
 header,
-main,
-footer {
+main {
 	max-width: 1600px;
 	margin: auto;
 	padding: 16px 24px;
@@ -134,7 +133,6 @@ form button {
 	flex: none;
 }
 .muted,
-footer,
 #status,
 #calls-status {
 	color: var(--muted);
@@ -153,7 +151,7 @@ footer,
 #totals strong {
 	font-size: 24px;
 	font-weight: 600;
-	color: var(--issue);
+	color: var(--fg);
 }
 #totals span {
 	color: var(--muted);
@@ -173,6 +171,7 @@ footer,
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 24px;
+	margin-block: 16px;
 }
 .breakdowns > div {
 	min-width: 0;
@@ -319,9 +318,6 @@ dd {
 	font-size: 12px;
 	color: var(--accent);
 }
-footer {
-	border-top: 1px solid var(--line);
-}
 [hidden] {
 	display: none !important;
 }
@@ -333,8 +329,7 @@ tr[aria-selected="true"] {
 		display: block;
 	}
 	header,
-	main,
-	footer {
+	main {
 		padding: 14px;
 	}
 	.breakdowns {

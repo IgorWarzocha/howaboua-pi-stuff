@@ -1,8 +1,8 @@
 # Pi Observatory
 
-Find recurring tool errors in your saved Pi sessions, grouped by tool, model and message. Open matching calls to inspect their recorded arguments, results and neighbouring messages. Start with the current session, switch to all sessions or search for another session.
+See which tools your agents call, how often and with which models. Tool and model tables rank by call volume and show each one's share of calls and error count. Select a tool or model to inspect its calls, arguments and results.
 
-The main tables show tools and models with errors. Command exits, activity without errors, daily history and coverage are available in separate expandable sections. Filter by model, provider, tool, project and date.
+Start with the current session, switch to all sessions or search for another session. Errors, nonzero exits, daily counts and coverage are available below the usage tables. Filter by model, provider, tool, project and date.
 
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
@@ -68,7 +68,7 @@ Model attribution comes from the initiating assistant message, including the ori
 
 Identical copied history is deduplicated across forked sessions. A session view includes calls in its copied history, with their latest indexed outcomes. Repeated nested snapshots update the same call instead of adding calls. Neighbouring messages show file chronology, not proof of recovery or necessarily the active branch.
 
-Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting a recurring message filters its exact stored pattern, tool and model. Use **Clear exact pattern** to remove that pattern filter.
+Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting an error message filters its exact stored pattern, tool and model. Use **Clear pattern** to remove that pattern filter.
 
 Breakdowns show up to 100 models and tools, 30 error patterns, 30 command exit patterns and the latest 90 recorded days. Date filters use UTC, with the Until date included.
 

@@ -132,12 +132,12 @@ export function createQueries(db: Database.Database) {
 			totals,
 			byModel: db
 				.prepare<Record<string, string | number>, Overview["byModel"][number]>(
-					`SELECT provider,model,${counts} FROM ${source} ${clause} GROUP BY provider,model ORDER BY error DESC,calls DESC LIMIT 100`,
+					`SELECT provider,model,${counts} FROM ${source} ${clause} GROUP BY provider,model ORDER BY calls DESC,error DESC LIMIT 100`,
 				)
 				.all(values),
 			byTool: db
 				.prepare<Record<string, string | number>, Overview["byTool"][number]>(
-					`SELECT tool,${counts} FROM ${source} ${clause} GROUP BY tool ORDER BY error DESC,calls DESC LIMIT 100`,
+					`SELECT tool,${counts} FROM ${source} ${clause} GROUP BY tool ORDER BY calls DESC,error DESC LIMIT 100`,
 				)
 				.all(values),
 			groups: db
@@ -160,7 +160,7 @@ export function createQueries(db: Database.Database) {
 
 	function calls(params: URLSearchParams): CallPage {
 		const { conditions, values } = filters(params);
-		const outcome = params.get("outcome") || "error";
+		const outcome = params.get("outcome") || "all";
 		if (outcome !== "all") {
 			if (
 				!["ok", "error", "nonzero", "incomplete", "unknown"].includes(outcome)
@@ -229,24 +229,11 @@ export function createQueries(db: Database.Database) {
 			parentCallId: stored.parentCallId,
 			context,
 			notes: [
-				"Provider and model come from the initiating assistant message. Model aliases are not verified backend snapshots. Pi and extension versions are not reliably recorded in these sessions.",
-				"Neighbouring entries are file chronology, not proof of recovery or the active conversation branch. Context is limited to 32,768 characters per entry.",
-				"Binary content is omitted. Indexed strings are limited to 131,072 characters and each detail to 524,288 characters. Source traces may already be truncated.",
 				...(stored.unpaired
-					? [
-							"No matching initiating call was found for this result. Model attribution is unknown.",
-						]
+					? ["No matching initiating call. Model unknown."]
 					: []),
-				...(call.scope === "nested"
-					? [
-							"Nested snapshots are deduplicated across exec/wait results. Their timestamp is the initiating cell time, not a measured nested execution time.",
-						]
-					: []),
-				...(call.outcome === "incomplete"
-					? [
-							"No final result is recorded. This is an evidence gap, not a claim that the tool is still running.",
-						]
-					: []),
+				...(call.scope === "nested" ? ["Timestamp from parent call."] : []),
+				...(call.outcome === "incomplete" ? ["No final result recorded."] : []),
 			],
 		};
 	}

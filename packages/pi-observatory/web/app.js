@@ -148,114 +148,94 @@ function button(label, action) {
 	b.addEventListener("click", action);
 	return b;
 }
-const primaryHeaders = ["Calls", "Errors", "Error rate"];
-/** @param {Counts} c */
-function primaryCells(c) {
-	return [number(c.calls), number(c.error), rate(c.error, completed(c))];
+const primaryHeaders = ["Calls", "Share", "Errors"];
+/** @param {Counts} c @param {number} total */
+function primaryCells(c, total) {
+	return [number(c.calls), rate(c.calls, total), number(c.error)];
+}
+/** @param {Record<string, string>} selection @param {import('../src/contracts.ts').Outcome | "all"} [result] */
+function selectCalls(selection, result = "all") {
+	for (const [key, value] of Object.entries(selection)) {
+		const control = field(key);
+		if (
+			control instanceof HTMLSelectElement &&
+			!Array.from(control.options).some((o) => o.value === value)
+		)
+			control.add(new Option(value, value));
+		control.value = value;
+	}
+	outcome.value = result;
+	applyFilters();
+	element("calls-heading").focus();
+	element("calls-heading").scrollIntoView({ block: "start" });
 }
 /** @param {import('../src/contracts.ts').OutcomeGroup[]} groups @param {"error" | "nonzero"} result */
 function patternTable(groups, result) {
 	return table(
-		["Tool", "Provider / model", "Message / examples", "Count", "Last seen"],
+		["Tool", "Model", "Message", "Count", "Last seen"],
 		groups.map((g) => [
 			g.tool,
 			`${g.provider} / ${g.model}`,
-			button(g.signature || "(empty message)", () => {
-				for (const key of /** @type {const} */ ([
-					"tool",
-					"provider",
-					"model",
-					"signature",
-				])) {
-					const value = g[key];
-					const control = field(key);
-					if (
-						control instanceof HTMLSelectElement &&
-						!Array.from(control.options).some((o) => o.value === value)
-					)
-						control.add(new Option(value, value));
-					control.value = value;
-				}
-				outcome.value = result;
-				applyFilters();
-				element("calls-heading").focus();
-				element("calls-heading").scrollIntoView({ block: "start" });
-			}),
+			button(g.signature || "(empty message)", () =>
+				selectCalls(
+					{
+						tool: g.tool,
+						provider: g.provider,
+						model: g.model,
+						signature: g.signature,
+					},
+					result,
+				),
+			),
 			number(g.count),
 			date(g.lastSeen),
 		]),
-		result === "error"
-			? "No recorded errors match this selection."
-			: "No nonzero command exits match this selection.",
+		result === "error" ? "No errors." : "No nonzero exits.",
 	);
 }
 /** @param {import('../src/contracts.ts').Overview} overview */
 function renderOverview(overview) {
 	const c = overview.totals;
 	element("totals").replaceChildren(
-		node("strong", `${number(c.error)} errors`),
-		node("span", `${rate(c.error, completed(c))} error rate`),
-		node("span", `${number(completed(c))} completed results`),
+		node("strong", `${number(c.calls)} calls`),
+		node("span", `${number(c.error)} errors`),
 	);
-	const modelRows = overview.byModel.map((c) => [
-		`${c.provider} / ${c.model}`,
-		...primaryCells(c),
-	]);
-	const toolRows = overview.byTool.map((c) => [c.tool, ...primaryCells(c)]);
-	element("models").replaceChildren(
-		table(
-			["Provider / model", ...primaryHeaders],
-			overview.byModel
-				.filter((c) => c.error > 0)
-				.sort((a, b) => b.error - a.error)
-				.map((c) => [`${c.provider} / ${c.model}`, ...primaryCells(c)]),
-			"No models with recorded errors.",
+	const modelRows = overview.byModel.map((row) => [
+		button(`${row.provider} / ${row.model}`, () =>
+			selectCalls({ provider: row.provider, model: row.model, signature: "" }),
 		),
+		...primaryCells(row, c.calls),
+	]);
+	const toolRows = overview.byTool.map((row) => [
+		button(row.tool, () => selectCalls({ tool: row.tool, signature: "" })),
+		...primaryCells(row, c.calls),
+	]);
+	element("models").replaceChildren(
+		table(["Model", ...primaryHeaders], modelRows, "No calls."),
 	);
 	element("tools").replaceChildren(
-		table(
-			["Tool", ...primaryHeaders],
-			overview.byTool
-				.filter((c) => c.error > 0)
-				.sort((a, b) => b.error - a.error)
-				.map((c) => [c.tool, ...primaryCells(c)]),
-			"No tools with recorded errors.",
-		),
-	);
-	element("activity-models").replaceChildren(
-		table(
-			["Provider / model", ...primaryHeaders],
-			modelRows,
-			"No model observations in this selection.",
-		),
-	);
-	element("activity-tools").replaceChildren(
-		table(
-			["Tool", ...primaryHeaders],
-			toolRows,
-			"No tool observations in this selection.",
-		),
+		table(["Tool", ...primaryHeaders], toolRows, "No calls."),
 	);
 	element("daily").replaceChildren(
 		table(
-			["Day (UTC)", "Calls", "Completed results", "Errors", "Error rate"],
+			["Day (UTC)", "Calls", "Errors", "Error rate"],
 			overview.daily
 				.filter((c) => c.calls > 0)
 				.map((c) => [
 					c.day,
 					number(c.calls),
-					number(completed(c)),
 					number(c.error),
 					rate(c.error, completed(c)),
 				]),
-			"No daily observations in this selection.",
+			"No calls.",
 		),
 	);
 	element("groups").replaceChildren(patternTable(overview.groups, "error"));
+	element("errors-summary").textContent = `Errors · ${number(c.error)}`;
 	element("exits").replaceChildren(patternTable(overview.exits, "nonzero"));
 	element("exits-summary").textContent = c.nonzero
-		? `Nonzero command exits · ${number(c.nonzero)}`
-		: "Command exits";
+		? `Nonzero exits · ${number(c.nonzero)}`
+		: "Nonzero exits";
 	const gaps = [];
 	for (const [key, label] of /** @type {const} */ ([
 		["incomplete", "No final result"],
@@ -273,11 +253,9 @@ function renderOverview(overview) {
 			);
 	}
 	element("outcome-coverage").replaceChildren(
-		node(
-			"p",
-			`${number(c.calls)} selected observations. ${gaps.length ? "Missing or unclassified results are excluded from error rates. No final result means no matching final result was recorded, not that a call is running." : "No missing or unclassified results in this selection."}`,
-		),
-		...gaps,
+		...(gaps.length
+			? gaps
+			: [node("p", "No missing or unclassified results.")]),
 	);
 }
 /** @param {HTMLSelectElement} select @param {string[]} values */
@@ -359,7 +337,7 @@ async function refreshSessions() {
 			sessionSelect.value = current;
 		}
 		element("sessions-status").textContent =
-			`${page.sessions.length} ${params.get("q") ? "matching" : "recent"} sessions${page.hasMore ? " · Search to narrow the list" : ""}. Current and selected sessions stay available.`;
+			`${page.sessions.length} ${params.get("q") ? "matching" : "recent"} sessions${page.hasMore ? " · Search for more" : ""}`;
 	} catch (error) {
 		if (!request.signal.aborted) {
 			element("sessions-status").textContent =
@@ -419,7 +397,7 @@ async function refreshCalls() {
 		element("calls").replaceChildren(
 			table(
 				[
-					"Time (UTC) / detail",
+					"Time (UTC)",
 					"Outcome",
 					"Tool",
 					"Signature",
@@ -429,13 +407,11 @@ async function refreshCalls() {
 					"Preview",
 				],
 				rows,
-				query.get("session") === initialSession && initialSession
-					? "No calls match in the current session yet. It may still be indexing, or these filters may exclude its calls. Choose All sessions to broaden the view."
-					: "No calls match these filters.",
+				"No matching calls.",
 			),
 		);
 		element("calls-status").textContent =
-			`${number(page.rows.length)} calls on this page${cursor === null ? " · newest first" : " · older page"}.`;
+			`${number(page.rows.length)} calls${cursor === null ? " · newest first" : " · older page"}`;
 		element("new-data").textContent = "";
 		older.disabled = nextCursor === null;
 		markSelected();
@@ -476,7 +452,6 @@ async function openDetail(id) {
 		for (const [key, value] of Object.entries({
 			Provider: detail.call.provider,
 			Model: detail.call.model,
-			"Model version provenance": "Unknown; recorded model label only",
 			Project: detail.call.project,
 			Scope: detail.call.scope,
 			Source: `${detail.path}:${detail.line}`,
@@ -487,22 +462,14 @@ async function openDetail(id) {
 			metadata.append(node("dt", key), node("dd", value));
 		content.append(metadata);
 		const notes = document.createElement("ul");
-		for (const text of [
-			"Truncated or binary content may be omitted from the persisted record; displayed text is not a complete execution transcript.",
-			...detail.notes,
-		])
-			notes.append(node("li", text));
+		for (const text of detail.notes) notes.append(node("li", text));
+		if (detail.notes.length) content.append(notes);
 		content.append(
-			notes,
 			node("h3", "Arguments"),
 			node("pre", detail.arguments),
 			node("h3", "Result"),
 			node("pre", detail.result),
-			node("h3", "Neighbouring persisted messages"),
-			node(
-				"p",
-				"Chronology only: a later message does not establish that this call recovered.",
-			),
+			node("h3", "Context"),
 		);
 		if (!detail.context.length)
 			content.append(node("p", "No neighbouring messages are available."));
@@ -543,7 +510,7 @@ function applyFilters() {
 	}
 	element("pattern").hidden = !query.has("signature");
 	element("pattern-text").textContent = query.has("signature")
-		? `Exact pattern: ${query.get("tool") || "all tools"} · ${query.get("provider") || "all providers"} / ${query.get("model") || "all models"} · ${query.get("signature")}`
+		? `${query.get("tool") || "All tools"} · ${query.get("model") || "All models"} · ${query.get("signature")}`
 		: "";
 	const url = new URL(location.href);
 	if (query.has("session"))
@@ -565,7 +532,7 @@ form.addEventListener("submit", (event) => {
 form.addEventListener("reset", () => {
 	sessionSearch.value = "";
 	field("signature").value = "";
-	outcome.value = "error";
+	outcome.value = "all";
 	setTimeout(applyFilters, 0);
 });
 element("clear-pattern").addEventListener("click", () => {
@@ -628,8 +595,8 @@ function renderStatus(status) {
 		.filter(([count]) => Number(count) > 0)
 		.map(([count, label]) => `${number(Number(count))} ${label}`);
 	const coverage = gaps.length
-		? `Across indexed sessions: ${gaps.join(" · ")}. The index may not represent every execution.`
-		: "Across indexed sessions: no index coverage gaps reported.";
+		? `Whole index: ${gaps.join(" · ")}`
+		: "Whole index: no coverage gaps reported.";
 	if (element("coverage-text").textContent !== coverage)
 		element("coverage-text").textContent = coverage;
 	const messages = [
@@ -655,8 +622,7 @@ async function poll() {
 			applyFilters();
 		} else if (changed || loadedRevision !== revision) {
 			void refreshData();
-			element("new-data").textContent =
-				"Index updated · Refresh calls for latest data";
+			element("new-data").textContent = "New calls available";
 		}
 	} catch (error) {
 		report(error);

@@ -1,6 +1,6 @@
 Indexing is the only session-file reader. HTTP queries and detail views use SQLite, never source JSONL. File cursor, partial tail, entries, calls, search index and summaries commit atomically. Preserve origin-model attribution across exec/wait snapshots and event identity across copied fork history.
 
-This is historical failure analysis, not a live execution monitor. Missing final results are coverage gaps. Arbitrary tool details.status describes domain data, not the tool's execution. Reclassify cached evidence without resetting source cursors.
+Show historical tool usage and outcomes, including successful calls in the default view. Missing final results are coverage gaps. Arbitrary tool details.status describes domain data, not the tool's execution. Reclassify cached evidence without resetting source cursors.
 
 Index and query workers must remain separate from each other and HTTP handling. Measure query latency during ingestion, not just after it. Common overview slices use transactional tallies; keep them equivalent to raw call counts.
 
