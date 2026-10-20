@@ -1,12 +1,7 @@
 // @ts-check
 import { connectTab, queryTab } from "/tab-client.js";
-import {
-	count,
-	element,
-	renderChart,
-	renderMetrics,
-	renderRows,
-} from "./render.js";
+import { renderRebillCharts } from "./charts.js";
+import { count, element, renderMetrics, renderRows } from "./render.js";
 
 /** @typedef {import('../contracts.ts').CacheSnapshot} CacheSnapshot */
 /** @typedef {import('../contracts.ts').CacheQueryResult} CacheQueryResult */
@@ -63,6 +58,8 @@ function validResult(data) {
 		value.version === 1 &&
 		Boolean(value.totals) &&
 		Number.isFinite(value.totals.inputTokens) &&
+		Number.isFinite(value.totals.rebillMisses) &&
+		Number.isFinite(value.totals.rebillCost) &&
 		Number.isFinite(value.total) &&
 		Number.isFinite(value.offset) &&
 		value.limit === 50 &&
@@ -78,6 +75,10 @@ function renderCoverage() {
 	if (!c.directoryAvailable || !c.files) notices.push("No PCC logs");
 	else if (c.pendingBytes)
 		notices.push(`Indexing ${count(c.indexedFiles)} / ${count(c.files)} logs`);
+	if (c.rebillPendingFiles)
+		notices.push(
+			`Updating cache history · ${count(c.rebillPendingFiles)} logs remaining`,
+		);
 	for (const [value, label] of [
 		[c.partialFiles, "partial logs"],
 		[c.malformed, "malformed lines"],
@@ -122,7 +123,7 @@ async function refresh(background = false) {
 		if (!validResult(value)) throw new Error("Could not read cache data.");
 		offset = value.offset;
 		renderMetrics(value.totals);
-		renderChart(value.days);
+		renderRebillCharts(value.days, value.totals);
 		renderRows(value.requests, value.offset, value.total);
 		results.hidden = false;
 		element("query-status").hidden = true;

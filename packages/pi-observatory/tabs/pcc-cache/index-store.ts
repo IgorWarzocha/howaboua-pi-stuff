@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { RebillState } from "./rebill.ts";
 import type { Header } from "./requests.ts";
 
 export interface FileCursor {
@@ -14,6 +15,8 @@ export interface FileCursor {
 	malformed: number;
 	invalidUsage: number;
 	rewrites: number;
+	rebill?: RebillState;
+	rebillVersion?: number;
 }
 export function openIndex(
 	stateDirectory: string,
@@ -28,6 +31,8 @@ export function openIndex(
 			day TEXT NOT NULL, time TEXT NOT NULL, data TEXT NOT NULL);
 		CREATE INDEX IF NOT EXISTS record_time ON records(time DESC, id);
 		CREATE INDEX IF NOT EXISTS record_day ON records(day);`);
+	db.exec(`CREATE TABLE IF NOT EXISTS rebill_files (
+		name TEXT PRIMARY KEY REFERENCES files(name) ON DELETE CASCADE, data TEXT NOT NULL);`);
 	const previous = db
 		.prepare("SELECT value FROM meta WHERE key='directory'")
 		.get();

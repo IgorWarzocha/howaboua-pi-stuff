@@ -1,5 +1,6 @@
 import type { CacheRequest } from "./contracts.ts";
 import { counter, type LogEvent, label } from "./parser.ts";
+import type { RebillEvidence } from "./rebill.ts";
 
 export interface Header {
 	epoch: number;
@@ -11,6 +12,8 @@ export interface RequestRecord {
 	row: CacheRequest;
 	requestSeen: boolean;
 	successful: boolean;
+	rebillEvidence?: RebillEvidence;
+	rebillUnclassified?: boolean;
 }
 
 export function newRecord(

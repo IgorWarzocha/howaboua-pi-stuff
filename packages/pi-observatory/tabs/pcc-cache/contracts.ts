@@ -25,6 +25,8 @@ export interface CacheRequest {
 	measurement: "hit" | "miss" | "unknown";
 	failureCode: string | null;
 	failureCategory: string | null;
+	/** Estimated previously cached prefix charged again; null cost means unpriced. */
+	rebill?: { tokens: number; cost: number | null };
 }
 
 export interface CacheTotals {
@@ -43,6 +45,11 @@ export interface CacheTotals {
 	fallbacks: number;
 	delta: number;
 	full: number;
+	rebillMisses: number;
+	rebillTokens: number;
+	rebillCost: number;
+	unpricedRebillMisses: number;
+	unclassifiedMisses: number;
 }
 
 export interface CacheDay extends CacheTotals {
@@ -89,6 +96,7 @@ export interface CacheSnapshot {
 		fromDay: string | null;
 		toDay: string | null;
 		legacyRecords: number;
+		rebillPendingFiles: number;
 	};
 	models: string[];
 	scopes?: string[];

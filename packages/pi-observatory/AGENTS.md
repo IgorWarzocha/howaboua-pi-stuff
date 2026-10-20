@@ -2,6 +2,8 @@ Built-in indexing is the only session-file reader for core views. Core HTTP quer
 
 Show historical tool usage and outcomes, including successful calls in the default view. Missing final results are coverage gaps. Arbitrary tool details.status describes domain data, not the tool's execution. Reclassify cached evidence without resetting source cursors.
 
+PCC diagnostic scope is optional; its absence must not disable exact request correlation or rebill classification. Rebill warmth belongs to versioned full-epoch metadata replay, before query filters.
+
 Native Pi receipts contain no nested result payload. Correlate PCC only through nativeCallIds, never names or arguments. PCC snapshots can precede Pi scope drainage: unmatched receipts in running, dropped or historical PCC snapshots remain explicit omissions.
 
 Index and query workers must remain separate from each other and HTTP handling. Measure query latency during ingestion, not just after it. Common overview slices use transactional tallies; keep them equivalent to raw call counts.

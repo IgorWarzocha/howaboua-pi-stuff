@@ -29,6 +29,14 @@ const fieldsKept = new Set([
 	"failure",
 	"code",
 	"to",
+	"instructions_fingerprint",
+	"tools_fingerprint",
+	"cache_key_fingerprint",
+	"routing_fingerprint",
+	"options_fingerprint",
+	"service_tier",
+	"request_counter_process_id",
+	"compaction_source",
 ]);
 
 /** Logger values are JSON primitives, not shell syntax. Never evaluate a log line. */

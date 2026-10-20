@@ -40,32 +40,44 @@ main {
 .panel {
 	margin-top: 16px;
 }
-.key {
-	display: inline-block;
-	width: 9px;
-	height: 9px;
-	margin: 0 4px 0 8px;
-	border-radius: 2px;
+.chart-total {
+	font-size: 22px;
+	font-weight: 650;
 }
-.cached {
+.bar-fill.cost {
 	background: var(--accent);
 }
-.uncached {
-	background: var(--gap);
+.bar-fill.misses {
+	background: var(--warning);
 }
 .chart {
 	overflow-x: auto;
 }
+.daily-plot {
+	display: grid;
+	grid-template-columns: 60px minmax(0, 1fr);
+	min-width: max-content;
+}
+.chart-scale {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	padding: 0 10px 0 0;
+	color: var(--muted);
+	font-size: 11px;
+	text-align: right;
+}
 .bars {
-	height: 175px;
+	height: 145px;
 	display: flex;
 	align-items: stretch;
 	gap: 3px;
 	min-width: max-content;
 	border-bottom: 1px solid var(--line);
-	padding-top: 10px;
+	border-top: 1px dashed var(--line);
 }
 .day {
+	position: relative;
 	flex: 1;
 	min-width: 10px;
 	display: flex;
@@ -73,19 +85,27 @@ main {
 	justify-content: end;
 	outline-offset: -1px;
 }
-.day .cached,
-.day .uncached {
-	min-height: 0;
+.unpriced-day {
+	position: absolute;
+	bottom: 0;
+	font-size: 11px;
+	color: var(--muted);
 }
-.day:hover {
+.day:hover,
+.day:focus-visible {
 	background: var(--hover);
 }
 .chart-dates {
+	grid-column: 2;
 	display: flex;
 	justify-content: space-between;
 	color: var(--muted);
 	font-size: 11px;
 	margin-top: 5px;
+}
+.chart-detail {
+	min-height: 18px;
+	margin: 8px 0 0;
 }
 .section-heading {
 	display: flex;

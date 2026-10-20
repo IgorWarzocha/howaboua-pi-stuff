@@ -84,6 +84,12 @@ const AGGREGATES = {
 	full: `sum(json_extract(data, '$.requestSeen')=1 AND
 		(json_extract(data, '$.row.transport')='sse' OR
 		json_extract(data, '$.row.continuation')!='delta'))`,
+	rebillMisses: "sum(json_extract(data, '$.row.rebill.tokens')>0)",
+	rebillTokens: "sum(json_extract(data, '$.row.rebill.tokens'))",
+	rebillCost: "sum(json_extract(data, '$.row.rebill.cost'))",
+	unpricedRebillMisses:
+		"sum(json_extract(data, '$.row.rebill.tokens')>0 AND json_extract(data, '$.row.rebill.cost') IS NULL)",
+	unclassifiedMisses: "sum(json_extract(data, '$.rebillUnclassified')=1)",
 } satisfies Record<keyof CacheTotals, string>;
 const TOTAL_KEYS = Object.keys(AGGREGATES) as (keyof CacheTotals)[];
 const SELECT_TOTALS = TOTAL_KEYS.map(
@@ -106,6 +112,11 @@ function emptyTotals(): CacheTotals {
 		fallbacks: 0,
 		delta: 0,
 		full: 0,
+		rebillMisses: 0,
+		rebillTokens: 0,
+		rebillCost: 0,
+		unpricedRebillMisses: 0,
+		unclassifiedMisses: 0,
 	};
 }
 

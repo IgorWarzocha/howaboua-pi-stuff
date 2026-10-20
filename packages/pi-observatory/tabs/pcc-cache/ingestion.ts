@@ -12,6 +12,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { CacheSnapshot } from "./contracts.ts";
 import { blankCursor, type FileCursor } from "./index-store.ts";
 import { label, parseLine } from "./parser.ts";
+import { REBILL_VERSION, replayRebill } from "./rebill.ts";
 import { applyEvent, newRecord, type RequestRecord } from "./requests.ts";
 
 export type IngestionCoverage = Omit<
@@ -35,6 +36,7 @@ function consume(
 	cursor: FileCursor,
 	line: Buffer,
 	position: number,
+	replay: boolean,
 ): void {
 	const parsed = parseLine(line.toString("utf8").replace(/\r$/, ""));
 	if (parsed.kind === "malformed") {
@@ -75,13 +77,23 @@ function consume(
 		.update(identity)
 		.digest("base64url")
 		.slice(0, 24);
-	const existing = localId
-		? db.prepare("SELECT data FROM records WHERE id=?").get(id)
-		: undefined;
+	const existing =
+		localId || replay
+			? db.prepare("SELECT data FROM records WHERE id=?").get(id)
+			: undefined;
 	const record: RequestRecord =
 		existing && typeof existing["data"] === "string"
 			? JSON.parse(existing["data"])
 			: newRecord(id, event, cursor.header);
+	if (replay) {
+		if (!existing) return;
+		replayRebill(record, event, cursor);
+		db.prepare("UPDATE records SET data=? WHERE id=?").run(
+			JSON.stringify(record),
+			id,
+		);
+		return;
+	}
 	if (applyEvent(record, event)) cursor.invalidUsage++;
 	db.prepare(
 		"INSERT INTO records VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
@@ -101,6 +113,7 @@ function ingestChunk(
 	name: string,
 	cursor: FileCursor,
 	bytes: number,
+	replay = false,
 ): number {
 	const buffer = Buffer.alloc(bytes);
 	const count = readSync(fd, buffer, 0, bytes, cursor.offset);
@@ -125,6 +138,7 @@ function ingestChunk(
 					cursor,
 					input.subarray(start, end),
 					startOffset + start,
+					replay,
 				);
 			start = end + 1;
 		}
@@ -136,10 +150,9 @@ function ingestChunk(
 		cursor.tail = cursor.discarding ? "" : tail.toString("base64");
 		cursor.offset += count;
 		cursor.anchor = anchor(fd, cursor.offset);
-		db.prepare("UPDATE files SET data=? WHERE name=?").run(
-			JSON.stringify(cursor),
-			name,
-		);
+		db.prepare(
+			`UPDATE ${replay ? "rebill_files" : "files"} SET data=? WHERE name=?`,
+		).run(JSON.stringify(cursor), name);
 		db.exec("COMMIT");
 	} catch (error) {
 		db.exec("ROLLBACK");
@@ -165,6 +178,7 @@ export function ingest(
 		rewrittenFiles: 0,
 		missingFiles: 0,
 		unreadableFiles: 0,
+		rebillPendingFiles: 0,
 	};
 	let names: string[];
 	try {
@@ -259,6 +273,39 @@ export function ingest(
 			}
 			coverage.pendingBytes += Math.max(0, stat.size - cursor.offset);
 			if (cursor.offset >= stat.size) coverage.indexedFiles++;
+			// Metadata replay has its own atomic cursor: migration never clears indexed history.
+			const saved = db
+				.prepare("SELECT data FROM rebill_files WHERE name=?")
+				.get(name);
+			const previousReplay: FileCursor | null =
+				typeof saved?.["data"] === "string" ? JSON.parse(saved["data"]) : null;
+			const replay: FileCursor =
+				previousReplay?.rebillVersion === REBILL_VERSION
+					? previousReplay
+					: {
+							...blankCursor(cursor.identity, cursor.rewrites),
+							rebillVersion: REBILL_VERSION,
+						};
+			if (replay !== previousReplay)
+				db.prepare(
+					"INSERT INTO rebill_files VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET data=excluded.data",
+				).run(name, JSON.stringify(replay));
+			while (
+				remaining > 0 &&
+				performance.now() < deadline &&
+				replay.offset < cursor.offset
+			) {
+				const read = ingestChunk(
+					db,
+					fd,
+					name,
+					replay,
+					Math.min(1024 * 1024, remaining, cursor.offset - replay.offset),
+					true,
+				);
+				if (!read) break;
+				remaining -= read;
+			}
 		} finally {
 			closeSync(fd);
 		}
@@ -271,6 +318,21 @@ export function ingest(
 		const tailBytes = Buffer.byteLength(cursor.tail, "base64");
 		coverage.pendingBytes += tailBytes;
 		if (tailBytes || cursor.discarding) coverage.partialFiles++;
+	}
+	for (const row of db
+		.prepare(`SELECT files.data AS source, rebill_files.data AS replay
+		FROM files LEFT JOIN rebill_files USING(name)`)
+		.iterate()) {
+		const source: FileCursor = JSON.parse(String(row["source"]));
+		const replay: FileCursor | null =
+			typeof row["replay"] === "string" ? JSON.parse(row["replay"]) : null;
+		if (
+			!replay ||
+			replay.rebillVersion !== REBILL_VERSION ||
+			replay.offset - Buffer.byteLength(replay.tail, "base64") <
+				source.offset - Buffer.byteLength(source.tail, "base64")
+		)
+			coverage.rebillPendingFiles++;
 	}
 	return coverage;
 }
