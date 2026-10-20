@@ -5,6 +5,14 @@ import { date, element } from "./view-dom.js";
 /** @param {() => void} onApply */
 export function createFiltersView(onApply) {
 	const form = /** @type {HTMLFormElement} */ (element("filters"));
+	const panel = element("filter-panel");
+	const toggle = element("toggle-filters");
+	/** @param {boolean} open */
+	function showFilters(open) {
+		panel.hidden = !open;
+		toggle.setAttribute("aria-expanded", String(open));
+	}
+	toggle.addEventListener("click", () => showFilters(Boolean(panel.hidden)));
 	/** @param {string} name */
 	function field(name) {
 		const node = form.elements.namedItem(name);
@@ -196,31 +204,20 @@ export function createFiltersView(onApply) {
 		const active = Array.from(query).filter(
 			([key, value]) => key !== "scope" || value !== "all",
 		);
-		element("filter-count").textContent = active.length
-			? `${active.length} active`
-			: "All data";
-		element("scope-label").textContent = [
-			query.has("session")
-				? `Session ${query.get("session")?.slice(0, 8)}`
-				: "All sessions",
-			query.get("project"),
-			query.has("since") && query.has("until")
-				? `${query.get("since")} → ${query.get("until")}`
-				: query.has("since")
-					? `Since ${query.get("since")}`
-					: query.has("until")
-						? `Through ${query.get("until")}`
-						: "All time",
-		]
-			.filter(Boolean)
-			.join(" · ");
+		element("filter-count").textContent = String(active.length);
+		element("filter-count").hidden = active.length === 0;
+		toggle.setAttribute(
+			"aria-label",
+			active.length ? `Filters, ${active.length} active` : "Filters",
+		);
 
 		return query;
 	}
 	form.addEventListener("submit", (event) => {
 		event.preventDefault();
 		onApply();
-		/** @type {HTMLDetailsElement} */ (element("filter-panel")).open = false;
+		showFilters(false);
+		toggle.focus({ preventScroll: true });
 	});
 	form.addEventListener("reset", () => {
 		sessionSearch.value = "";

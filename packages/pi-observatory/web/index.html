@@ -5,9 +5,9 @@
 <header class="app-header">
 <div class="header-bar"><h1><span class="observatory-mark" aria-hidden="true">◉</span> Pi Observatory</h1>
 <nav class="view-nav" aria-label="Dashboard views"><button type="button" data-view="overview" aria-pressed="true">Overview</button><button type="button" data-view="capability-usage" aria-pressed="false">Commands &amp; skills</button><button type="button" data-view="calls-panel" aria-pressed="false">Call explorer</button></nav>
+<button id="toggle-filters" class="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-panel">Filters <span id="filter-count" class="muted" hidden></span></button>
 </div>
-<details id="filter-panel" class="filter-panel"><summary><span id="scope-label" class="muted">All sessions · All time</span><span class="filter-toggle">Filters <span id="filter-count" class="muted">All data</span></span></summary>
-<div class="filter-content">
+<div id="filter-panel" class="filter-content" hidden>
 <section class="session-picker" aria-label="Session selection">
 <div class="session-controls">
 <label>Search sessions<input id="session-search" type="search" placeholder="Project or session ID" aria-describedby="sessions-status"></label>
@@ -26,7 +26,7 @@
 <label class="search">Search calls<input name="q" type="search" placeholder="Tool or message"></label>
 <input name="signature" type="hidden"></fieldset>
 <div class="filter-actions"><button class="primary-button" type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button></div>
-</form></div></details>
+</form></div>
 </header>
 <main>
 <p id="error" role="alert" hidden></p>

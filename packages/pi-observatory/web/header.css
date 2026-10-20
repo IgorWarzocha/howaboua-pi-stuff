@@ -1,11 +1,11 @@
 .app-header {
-	padding-top: 12px;
+	padding-block: 12px;
 	border-bottom: 1px solid var(--line);
 }
 .header-bar {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px 24px;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	gap: 8px 16px;
 	align-items: center;
 }
 h1 {
@@ -21,23 +21,6 @@ h1 {
 	font-size: 24px;
 	vertical-align: -2px;
 }
-#scope-label {
-	min-width: 0;
-	overflow-wrap: anywhere;
-	font-weight: 400;
-}
-.filter-panel > summary {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	min-height: 46px;
-	padding: 8px 0;
-	color: var(--fg);
-}
-.filter-panel > summary::-webkit-details-marker {
-	display: none;
-}
 .filter-toggle {
 	display: flex;
 	align-items: center;
@@ -48,14 +31,14 @@ h1 {
 	content: "▸";
 	color: var(--muted);
 }
-.filter-panel[open] .filter-toggle::before {
+.filter-toggle[aria-expanded="true"]::before {
 	transform: rotate(90deg);
 }
 #filter-count {
 	font-weight: 400;
 }
 .filter-content {
-	margin-bottom: 16px;
+	margin-top: 12px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
 	background: var(--surface);
@@ -111,7 +94,7 @@ h1 {
 }
 .view-nav {
 	display: flex;
-	margin-left: auto;
+	justify-self: end;
 	gap: 20px;
 }
 .view-nav button {
@@ -144,7 +127,7 @@ h1 {
 @media (max-width: 760px) {
 	.app-header {
 		padding-inline: 16px;
-		padding-top: 10px;
+		padding-block: 10px;
 	}
 	h1 {
 		font-size: 16px;
@@ -158,6 +141,19 @@ h1 {
 	}
 	.view-nav button {
 		font-size: 12px;
+	}
+}
+@media (max-width: 600px) {
+	.header-bar {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.filter-toggle {
+		grid-column: 2;
+		grid-row: 1;
+	}
+	.view-nav {
+		grid-column: 1 / -1;
+		grid-row: 2;
 	}
 }
 @media (max-width: 360px) {
