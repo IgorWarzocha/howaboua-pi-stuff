@@ -8,6 +8,6 @@
 - GPT prompt mode uses denser runtime guidance.
 - Notebook guidance distinguishes top-level JSON input from direct objects inside exec.
 - Usage comparisons show “not enough history” instead of a monthly percentage when recording began partway through last month.
-- Usage analysis starts with all projects in the session history root and reports the scanned path.
-- Usage analysis asks for evidence behind savings recommendations rather than treating high session costs as proven waste.
+- Usage analysis defaults to the working directory and its descendants.
+- Usage analysis proposes folder and session drill-downs for approval.
 - Fixed usage scans treating Unicode line separators inside valid session entries as malformed JSON.

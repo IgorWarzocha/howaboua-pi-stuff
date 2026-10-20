@@ -12,11 +12,11 @@ export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommand
 	const script = shellQuote(fileURLToPath(new URL(`./analyse.${import.meta.url.endsWith(".ts") ? "ts" : "js"}`, import.meta.url)));
 	const ledger = shellQuote(usageLedgerPath());
 	pi.sendUserMessage([
-		"Analyse my Codex spending. Use the bundled read-only report script, starting with its help and summary:",
+		"Analyse my Codex spending within the current working directory and its descendants. Use the bundled read-only report script, starting with its help and summary:",
 		`node ${script} --help`,
 		`node ${script} summary --file ${ledger}`,
-		`Scan all projects under this session history root: ${JSON.stringify(usageSessionRoot(ctx.sessionManager.getSessionDir()))}`,
-		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Treat costly sessions as inspection leads, not proven waste. Label untested savings as hypotheses; cheaper settings need not produce equivalent results.",
+		`Session history root: ${JSON.stringify(usageSessionRoot(ctx.sessionManager.getSessionDir()))}`,
+		"Compare reset windows and month trends; use bounded session ranges for model and reasoning breakdowns. Ledger totals are machine-wide context, not directory totals. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest specific folders or sessions for deeper analysis and ask before drilling down.",
 	].join("\n"));
 }
 
