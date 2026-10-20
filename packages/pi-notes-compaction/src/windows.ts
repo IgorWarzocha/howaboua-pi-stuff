@@ -27,12 +27,16 @@ const GUIDANCE = `<context_window_guidance>
 Notes are recovery state, not a diary. Keep one concise, authoritative note per task or topic at a stable path. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Use write_file to replace stale state and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
 
 Batch saves at meaningful milestones, not every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
+
+Previous skill reads don’t carry into this window. Read the skills needed for the current task.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
 Notes=recoverystate≠diary. One concise authoritative note/task-or-topic, stablepath. Taskcheckpoint=request/constraints/decisions/status/nextsteps/historyIDs. write_file→replace stalestate; mark completion. Existingnotes→link≠copy/summarise. Recording≠implementationpermission.
 
 Savebatch@meaningfulmilestones≠every reply/step. Before new_context/handoff: save currentstate→await success; handoff includes checkpointpath. Postrollover: read checkpoint→neededlinks only. In-context notes: reread only if possiblychanged. Missingdetails→history.
+
+Prior skillreads≠currentcontext. Read task-relevant skills.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

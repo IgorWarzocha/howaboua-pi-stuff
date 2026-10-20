@@ -11,3 +11,4 @@
 - Usage analysis defaults to the working directory and its descendants.
 - Usage analysis proposes folder and session drill-downs for approval.
 - Fixed usage scans treating Unicode line separators inside valid session entries as malformed JSON.
+- New-window guidance tells agents to read task-relevant skills again.
