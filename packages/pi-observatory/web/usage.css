@@ -149,9 +149,6 @@
 .resource-panel {
 	min-width: 0;
 }
-#usage-status {
-	margin: 0 0 12px;
-}
 .capability-name {
 	font-weight: 600;
 }

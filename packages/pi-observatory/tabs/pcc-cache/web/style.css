@@ -147,8 +147,11 @@ td small {
 	margin-right: auto;
 }
 #coverage,
-#request-coverage {
+#query-status {
 	overflow-wrap: anywhere;
+}
+#results[aria-busy="true"] {
+	opacity: 0.6;
 }
 @media (max-width: 700px) {
 	.metrics {

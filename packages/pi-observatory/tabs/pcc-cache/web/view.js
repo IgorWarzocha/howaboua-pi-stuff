@@ -1,5 +1,5 @@
 // @ts-check
-import { connectTab } from "/tab-client.js";
+import { connectTab, queryTab } from "/tab-client.js";
 import {
 	count,
 	element,
@@ -9,14 +9,15 @@ import {
 } from "./render.js";
 
 /** @typedef {import('../contracts.ts').CacheSnapshot} CacheSnapshot */
-/** @typedef {import('../contracts.ts').CacheBucket} CacheBucket */
-/** @typedef {import('../contracts.ts').CacheRequest} CacheRequest */
+/** @typedef {import('../contracts.ts').CacheQueryResult} CacheQueryResult */
 
 /** @type {CacheSnapshot | null} */
 let snapshot = null;
 /** @type {Partial<Record<'session' | 'project' | 'since' | 'until', string>>} */
 let filters = {};
-let page = 0;
+/** @type {AbortController | undefined} */
+let active;
+let offset = 0;
 let lastUpdatedAt = "";
 /** @param {string} id */
 const select = (id) => /** @type {HTMLSelectElement} */ (element(id));
@@ -26,112 +27,117 @@ function validSnapshot(data) {
 	if (!data || typeof data !== "object") return false;
 	const value = /** @type {CacheSnapshot} */ (data);
 	return (
-		value.version === 1 &&
+		value.version === 2 &&
 		Boolean(value.coverage) &&
 		typeof value.coverage.directoryAvailable === "boolean" &&
-		Array.isArray(value.buckets) &&
-		Array.isArray(value.requests) &&
-		value.buckets.every(
-			(row) =>
-				row &&
-				typeof row.day === "string" &&
-				typeof row.model === "string" &&
-				Number.isFinite(row.inputTokens) &&
-				Number.isFinite(row.cachedTokens),
-		) &&
-		value.requests.every(
-			(row) =>
-				row &&
-				typeof row.time === "string" &&
-				Number.isFinite(Date.parse(row.time)) &&
-				typeof row.model === "string",
-		)
+		Array.isArray(value.models) &&
+		value.models.every((model) => typeof model === "string")
 	);
 }
 
-/** @param {CacheBucket | CacheRequest} row */
-function matches(row) {
-	const day = "day" in row ? row.day : row.time.slice(0, 10);
+/** @param {unknown} data @returns {data is CacheQueryResult} */
+function validResult(data) {
+	if (!data || typeof data !== "object") return false;
+	const value = /** @type {CacheQueryResult} */ (data);
 	return (
-		(!filters.session || row.sessionId === filters.session) &&
-		(!filters.project || row.project === filters.project) &&
-		(!filters.since || day >= filters.since) &&
-		(!filters.until || day <= filters.until) &&
-		(!select("model").value || row.model === select("model").value) &&
-		(!select("lane").value || row.lane === select("lane").value) &&
-		(!select("scope").value || row.scope === select("scope").value)
+		value.version === 1 &&
+		Boolean(value.totals) &&
+		Number.isFinite(value.totals.inputTokens) &&
+		Number.isFinite(value.total) &&
+		Number.isFinite(value.offset) &&
+		value.limit === 50 &&
+		Array.isArray(value.days) &&
+		Array.isArray(value.requests)
 	);
 }
 
-function render() {
+function renderCoverage() {
 	if (!snapshot) return;
-	const buckets = snapshot.buckets.filter(matches);
-	const requests = snapshot.requests.filter(
-		(row) =>
-			matches(row) &&
-			(!select("result").value || row.measurement === select("result").value),
-	);
-	page = Math.min(page, Math.max(0, Math.ceil(requests.length / 50) - 1));
-	renderMetrics(buckets);
-	renderChart(buckets);
-	renderRows(requests, page);
 	const c = snapshot.coverage;
-	const coverage = [];
-	if (!c.directoryAvailable)
-		coverage.push(
-			"No PCC log directory is available. Enable diagnostics in PCC to record future requests; earlier requests cannot be recovered.",
-		);
-	else if (!c.files)
-		coverage.push(
-			"No PCC logs found. Diagnostics must be enabled in PCC to record requests.",
-		);
-	else {
-		coverage.push(
-			`Log coverage: ${count(c.indexedFiles)} / ${count(c.files)} files${c.fromDay ? ` · ${c.fromDay}–${c.toDay} UTC` : ""}.`,
-		);
-		if (c.pendingBytes)
-			coverage.push(
-				`Backfill in progress: ${(c.pendingBytes / 1048576).toFixed(1)} MiB remaining. Counts are partial.`,
-			);
-		if (c.historyTruncated)
-			coverage.push("Older days are outside this bounded snapshot.");
-		if (filters.since && c.fromDay && filters.since < c.fromDay)
-			coverage.push("The selected range begins before available history.");
-		if (c.partialFiles)
-			coverage.push(
-				`${count(c.partialFiles)} incomplete file tails await more data.`,
-			);
-		if (c.malformed || c.invalidUsage)
-			coverage.push(
-				`${count(c.malformed)} malformed lines · ${count(c.invalidUsage)} invalid usage records excluded.`,
-			);
-		if (c.rewrittenFiles || c.missingFiles || c.unreadableFiles)
-			coverage.push(
-				`Source gaps: ${count(c.rewrittenFiles)} rewritten, ${count(c.missingFiles)} missing, ${count(c.unreadableFiles)} unreadable files.`,
-			);
-		if (c.legacyRecords)
-			coverage.push(
-				`${count(c.legacyRecords)} uncorrelated records in retained history; model attribution may be unknown.`,
-			);
+	const notices = [];
+	if (!c.directoryAvailable || !c.files) notices.push("No PCC logs");
+	else if (c.pendingBytes)
+		notices.push(`Indexing ${count(c.indexedFiles)} / ${count(c.files)} logs`);
+	for (const [value, label] of [
+		[c.partialFiles, "partial logs"],
+		[c.malformed, "malformed lines"],
+		[c.invalidUsage, "invalid usage records"],
+		[c.rewrittenFiles, "rewritten logs"],
+		[c.missingFiles, "missing logs"],
+		[c.unreadableFiles, "unreadable logs"],
+	]) {
+		if (value) notices.push(`${count(Number(value))} ${label}`);
 	}
-	element("coverage").textContent = coverage.join(" ");
-	element("request-coverage").textContent =
-		`${c.requestsTruncated ? "Only the newest records are retained; older matching details may be absent. Aggregate metrics above cover all retained days." : "All retained details are available."} Cache result filters this table only. Times: ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`;
+	element("coverage").textContent = notices.join(" · ");
+	element("coverage").hidden = !notices.length;
+}
+
+/** @param {boolean} [background] */
+async function refresh(background = false) {
+	if (!snapshot || (background && active)) return;
+	active?.abort();
+	const controller = (active = new AbortController());
+	const results = element("results");
+	if (!background) {
+		results.setAttribute("aria-busy", "true");
+		/** @type {HTMLButtonElement} */ (element("previous")).disabled = true;
+		/** @type {HTMLButtonElement} */ (element("next")).disabled = true;
+		element("query-status").hidden = false;
+		element("query-message").textContent = "Loading…";
+		element("retry").hidden = true;
+	}
+	try {
+		const value = await queryTab(
+			{
+				...filters,
+				model: select("model").value,
+				lane: select("lane").value,
+				scope: select("scope").value,
+				result: select("result").value,
+				offset,
+			},
+			controller.signal,
+		);
+		if (active !== controller) return;
+		if (!validResult(value)) throw new Error("Could not read cache data.");
+		offset = value.offset;
+		renderMetrics(value.totals);
+		renderChart(value.days);
+		renderRows(value.requests, value.offset, value.total);
+		results.hidden = false;
+		element("query-status").hidden = true;
+	} catch (error) {
+		if (controller.signal.aborted || active !== controller) return;
+		results.hidden = true;
+		element("query-status").hidden = false;
+		element("query-message").textContent =
+			error instanceof Error ? error.message : "Could not load cache data.";
+		element("retry").hidden = false;
+	} finally {
+		if (active === controller) {
+			active = undefined;
+			results.removeAttribute("aria-busy");
+		}
+	}
 }
 
 for (const id of ["model", "lane", "scope", "result"])
 	select(id).addEventListener("change", () => {
-		page = 0;
-		render();
+		offset = 0;
+		void refresh();
 	});
 element("previous").addEventListener("click", () => {
-	page--;
-	render();
+	offset = Math.max(0, offset - 50);
+	void refresh();
 });
 element("next").addEventListener("click", () => {
-	page++;
-	render();
+	offset += 50;
+	void refresh();
 });
+element("retry").addEventListener("click", () => {
+	void refresh();
+});
+window.addEventListener("pagehide", () => active?.abort());
 
 connectTab(({ data, status, filters: nextFilters }) => {
 	if (data === null) return;
@@ -140,18 +146,18 @@ connectTab(({ data, status, filters: nextFilters }) => {
 	if (snapshot && status.updatedAt === lastUpdatedAt && !changedFilters) return;
 	if (!validSnapshot(data)) {
 		element("waiting").hidden = false;
-		element("waiting").textContent =
-			"The snapshot does not match this page. Check that the collector and page are from the same bundle version.";
+		element("waiting").textContent = "Waiting for cache data…";
 		element("dashboard").hidden = true;
 		return;
 	}
-	if (changedFilters) page = 0;
+	if (changedFilters) offset = 0;
+	const background = snapshot !== null && !changedFilters;
 	lastUpdatedAt = status.updatedAt ?? "";
 	filters = nextFilters;
 	snapshot = data;
 	const model = select("model"),
 		selected = model.value;
-	const models = [...new Set(data.buckets.map((row) => row.model))].sort();
+	const models = [...data.models];
 	if (selected && !models.includes(selected)) models.push(selected);
 	if (
 		JSON.stringify(
@@ -166,5 +172,6 @@ connectTab(({ data, status, filters: nextFilters }) => {
 	}
 	element("waiting").hidden = true;
 	element("dashboard").hidden = false;
-	render();
+	renderCoverage();
+	void refresh(background);
 });

@@ -20,7 +20,6 @@ export interface UsageRow {
 }
 export interface UsageOverview {
 	rows: UsageRow[];
-	truncated: boolean;
 	coverage: {
 		recordingSince: string | null;
 		inventorySince: string | null;
@@ -83,7 +82,7 @@ export function queryUsage(
 			LEFT JOIN uses u USING(kind,name,path) LEFT JOIN seen s USING(kind,name,path)
 			GROUP BY r.kind,r.name,r.path ORDER BY CASE WHEN r.kind='skill'
 				THEN COALESCE(u.skillReads,0)+COALESCE(u.referenceReads,0)+COALESCE(u.fileReads,0)+COALESCE(u.fileReferenceReads,0)
-				ELSE COALESCE(u.submissions,0) END DESC,r.name LIMIT 501),
+				ELSE COALESCE(u.submissions,0) END DESC,r.name),
 		actor_days AS (SELECT e.kind,e.name,e.path,substr(e.timestamp,1,10) day,
 			CASE WHEN e.evidence='submission' THEN 'user' ELSE 'agent' END actor,COUNT(*) n
 			FROM selected_events e JOIN selected_rows r USING(kind,name,path)
@@ -148,8 +147,7 @@ export function queryUsage(
 			)
 			.get()?.count || 0;
 	return {
-		rows: rows.slice(0, 500),
-		truncated: rows.length > 500,
+		rows,
 		coverage: {
 			...coverage,
 			skillResultScan: {

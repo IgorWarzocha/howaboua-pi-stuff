@@ -2,7 +2,7 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
 		"packages/pi-observatory": {
-			"entry": ["src/index-worker.ts", "src/query-worker.ts", "web/app.js", "web/tab-client.js", "tabs/*/collect.ts", "tabs/*/web/view.js"],
+			"entry": ["src/index-worker.ts", "src/query-worker.ts", "web/app.js", "web/tab-client.js", "tabs/*/collect.ts", "tabs/*/query.ts", "tabs/*/web/view.js"],
 			"project": ["src/**/*.ts", "web/*.js", "tabs/**/*.ts", "tabs/**/web/*.js"]
 		},
 		"packages/pi-agent-board": {

@@ -188,9 +188,6 @@ export function createUsageView(selectDay) {
 					]
 				: []),
 		].join(" · ");
-		const status = element("usage-status");
-		status.hidden = !latest.truncated;
-		status.textContent = latest.truncated ? "500-resource limit" : "";
 		const empty = !skills
 			? recorded
 				? "No recorded command submissions match this selection."

@@ -19,21 +19,22 @@
 			<label>Scope<select id="scope"><option value="">All scopes</option><option value="session">Session</option><option value="auxiliary">Auxiliary</option><option value="Unknown">Unknown</option></select></label>
 		</div>
 		<p id="coverage" class="muted" role="status"></p>
+		<div id="query-status" role="status" hidden><span id="query-message"></span> <button id="retry" type="button" hidden>Retry</button></div>
+		<div id="results" hidden>
 		<div id="metrics" class="metrics"></div>
 		<section class="panel" aria-labelledby="activity-title">
 			<h2 id="activity-title">Input tokens by day</h2>
-			<p class="muted">UTC · <span class="key cached"></span> Cached <span class="key uncached"></span> Uncached · Reported usage only</p>
+			<p class="muted">UTC · <span class="key cached"></span> Cached <span class="key uncached"></span> Uncached</p>
 			<div id="chart" class="chart"></div>
-			<p id="activity-summary" class="muted"></p>
 		</section>
 		<section class="panel" aria-labelledby="requests-title">
-			<div class="section-heading"><h2 id="requests-title">Recent requests &amp; observations</h2><label>Cache result<select id="result"><option value="">All results</option><option value="hit">Hit</option><option value="miss">Miss</option><option value="unknown">Unknown</option></select></label></div>
-			<p id="request-coverage" class="muted"></p>
+			<div class="section-heading"><h2 id="requests-title">Requests</h2><label>Cache result<select id="result"><option value="">All results</option><option value="hit">Hit</option><option value="miss">Miss</option><option value="unknown">Unknown</option></select></label></div>
 			<div class="table-scroll" tabindex="0" role="region" aria-label="Request details, scroll horizontally for all columns">
 				<table><thead><tr><th>Time / session</th><th>Model / type</th><th>Cache</th><th>Cached / input</th><th>Transport / history</th><th>Outcome</th><th>Elapsed</th></tr></thead><tbody id="rows"></tbody></table>
 			</div>
 			<div class="pagination"><span id="page-status" class="muted" role="status"></span><button id="previous" type="button">Previous</button><button id="next" type="button">Next</button></div>
 		</section>
+		</div>
 	</div>
 </main>
 </body>

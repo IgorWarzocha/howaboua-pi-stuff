@@ -10,6 +10,7 @@ interface TabManifest {
 	title: string;
 	entry: string;
 	collector: string[];
+	query?: string[];
 	intervalSeconds: number;
 	timeoutSeconds: number;
 	filters: TabFilter[];
@@ -102,15 +103,21 @@ function parseManifest(value: unknown): TabManifest {
 	const entry = raw["entry"] === undefined ? "index.html" : raw["entry"];
 	if (typeof entry !== "string" || !safeRelative(entry))
 		throw new Error("tab.json entry must be a relative file path inside web/");
-	const collector = raw["collector"];
-	if (
-		!Array.isArray(collector) ||
-		!collector.length ||
-		!collector.every(
-			(arg) => typeof arg === "string" && arg.length > 0 && !arg.includes("\0"),
+	const command = (key: "collector" | "query"): string[] => {
+		const argv = raw[key];
+		if (
+			!Array.isArray(argv) ||
+			!argv.length ||
+			!argv.every(
+				(arg) =>
+					typeof arg === "string" && arg.length > 0 && !arg.includes("\0"),
+			)
 		)
-	)
-		throw new Error("tab.json collector must be a nonempty argument array");
+			throw new Error(`tab.json ${key} must be a nonempty argument array`);
+		return argv;
+	};
+	const collector = command("collector");
+	const query = raw["query"] === undefined ? undefined : command("query");
 	const seconds = (key: string, fallback: number, min: number, max: number) => {
 		const result = raw[key] === undefined ? fallback : raw[key];
 		if (
@@ -144,6 +151,7 @@ function parseManifest(value: unknown): TabManifest {
 		title: title.trim(),
 		entry,
 		collector,
+		...(query ? { query } : {}),
 		intervalSeconds: seconds("intervalSeconds", 60, 5, 86400),
 		timeoutSeconds: seconds("timeoutSeconds", 30, 1, 300),
 		filters,

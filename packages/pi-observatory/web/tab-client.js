@@ -82,3 +82,21 @@ export function connectTab(render) {
 		cancelAnimationFrame(pendingSize);
 	};
 }
+
+/** Query this bundle's indexed data. @param {unknown} input @param {AbortSignal} [signal] @returns {Promise<unknown>} */
+export async function queryTab(input, signal) {
+	const id = /^\/tabs\/([a-z][a-z0-9-]*)\//.exec(location.pathname)?.[1];
+	if (!id) throw new Error("Open this tab from Observatory to query its data.");
+	const response = await fetch(`/api/tabs/${id}/query`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(input),
+		...(signal ? { signal } : {}),
+	});
+	const data = await response.json();
+	if (!response.ok)
+		throw new Error(
+			typeof data?.error === "string" ? data.error : "Could not load tab data.",
+		);
+	return data;
+}

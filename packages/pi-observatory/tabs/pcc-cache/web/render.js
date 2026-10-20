@@ -1,6 +1,7 @@
 // @ts-check
 /** @typedef {import('../contracts.ts').CacheRequest} CacheRequest */
-/** @typedef {import('../contracts.ts').CacheBucket} CacheBucket */
+/** @typedef {import('../contracts.ts').CacheTotals} CacheTotals */
+/** @typedef {import('../contracts.ts').CacheDay} CacheDay */
 
 /** @param {string} id */
 export function element(id) {
@@ -21,13 +22,11 @@ function node(tag, text, className = "") {
 	return result;
 }
 
-/** @param {CacheBucket[]} buckets */
-export function renderMetrics(buckets) {
-	const sum = (/** @type {keyof CacheBucket} */ key) =>
-		buckets.reduce((total, row) => total + Number(row[key]), 0);
-	const input = sum("inputTokens"),
-		cached = sum("cachedTokens"),
-		measured = sum("measuredRequests");
+/** @param {CacheTotals} totals */
+export function renderMetrics(totals) {
+	const input = totals.inputTokens,
+		cached = totals.cachedTokens,
+		measured = totals.measuredRequests;
 	/** @type {[string, string, string][]} */
 	const metrics = [
 		[
@@ -37,18 +36,18 @@ export function renderMetrics(buckets) {
 		],
 		[
 			"Request hit rate",
-			percent(sum("hits"), measured),
-			`${count(sum("hits"))} hits · ${count(sum("misses"))} misses`,
+			percent(totals.hits, measured),
+			`${count(totals.hits)} hits · ${count(totals.misses)} misses`,
 		],
 		[
 			"Measured requests",
 			count(measured),
-			`${count(sum("unknownUsage"))} records without measured usage`,
+			`${count(totals.unknownUsage)} unknown`,
 		],
 		[
 			"Retries / failures",
-			`${count(sum("retries"))} / ${count(sum("failures"))}`,
-			`${count(sum("fallbacks"))} transport fallbacks`,
+			`${count(totals.retries)} / ${count(totals.failures)}`,
+			`${count(totals.fallbacks)} fallbacks`,
 		],
 	];
 	element("metrics").replaceChildren(
@@ -62,11 +61,9 @@ export function renderMetrics(buckets) {
 			return card;
 		}),
 	);
-	element("activity-summary").textContent =
-		`${count(sum("outputTokens"))} output tokens · ${count(sum("delta"))} delta / ${count(sum("full"))} full-history requests. Transport counts are not cache measurements.`;
 }
 
-/** @param {CacheBucket[]} buckets */
+/** @param {CacheDay[]} buckets */
 export function renderChart(buckets) {
 	/** @type {Map<string, {input: number, cached: number, hits: number, misses: number}>} */
 	const days = new Map();
@@ -92,9 +89,7 @@ export function renderChart(buckets) {
 			: undefined;
 	chart.replaceChildren();
 	if (!dates.length) {
-		chart.append(
-			node("p", "No recorded usage matches these filters.", "muted"),
-		);
+		chart.append(node("p", "No activity.", "muted"));
 		return;
 	}
 	const max = Math.max(1, ...[...days.values()].map((day) => day.input));
@@ -106,11 +101,8 @@ export function renderChart(buckets) {
 	);
 	const first = dates[0] ?? "",
 		last = dates.at(-1) ?? first;
-	const detail = node(
-		"p",
-		"Focus or hover a day for exact totals. Use arrow keys to move between days.",
-		"muted",
-	);
+	const detail = node("p", "", "muted");
+	detail.hidden = true;
 	detail.setAttribute("aria-live", "polite");
 	for (
 		let time = Date.parse(first);
@@ -128,9 +120,11 @@ export function renderChart(buckets) {
 		bar.setAttribute("aria-label", label);
 		bar.addEventListener("mouseenter", () => {
 			detail.textContent = label;
+			detail.hidden = false;
 		});
 		bar.addEventListener("focus", () => {
 			detail.textContent = label;
+			detail.hidden = false;
 		});
 		bar.addEventListener("keydown", (event) => {
 			const target =
@@ -166,9 +160,9 @@ export function renderChart(buckets) {
 	}
 }
 
-/** @param {CacheRequest[]} requests @param {number} page */
-export function renderRows(requests, page) {
-	const rows = requests.slice(page * 50, (page + 1) * 50).map((request) => {
+/** @param {CacheRequest[]} requests @param {number} offset @param {number} total */
+export function renderRows(requests, offset, total) {
+	const rows = requests.map((request) => {
 		const row = document.createElement("tr");
 		/** @param {string} text @param {string} [detail] @param {string} [className] */
 		const cell = (text, detail = "", className = "") => {
@@ -190,7 +184,7 @@ export function renderRows(requests, page) {
 					: "Miss",
 			request.inputTokens !== null && request.cachedTokens !== null
 				? percent(request.cachedTokens, request.inputTokens)
-				: "No authoritative usage",
+				: "",
 			request.measurement,
 		);
 		cell(
@@ -208,7 +202,13 @@ export function renderRows(requests, page) {
 		);
 		const outcome = cell(
 			request.status,
-			`${request.retries} retries · ${request.fallbacks} fallbacks${request.correlation === "legacy" ? ` · Uncorrelated ${request.kind}` : ""}`,
+			[
+				request.retries ? `${request.retries} retries` : "",
+				request.fallbacks ? `${request.fallbacks} fallbacks` : "",
+				request.correlation === "legacy" ? `Uncorrelated ${request.kind}` : "",
+			]
+				.filter(Boolean)
+				.join(" · "),
 			request.status === "failed" ? "issue" : "",
 		);
 		outcome.title = [
@@ -230,15 +230,16 @@ export function renderRows(requests, page) {
 		const row = document.createElement("tr"),
 			cell = document.createElement("td");
 		cell.colSpan = 7;
-		cell.textContent = "No retained request details match these filters.";
+		cell.textContent = "No requests.";
 		row.append(cell);
 		rows.push(row);
 	}
 	element("rows").replaceChildren(...rows);
 	element("page-status").textContent = requests.length
-		? `${count(page * 50 + 1)}–${count(Math.min((page + 1) * 50, requests.length))} of ${count(requests.length)} retained records`
-		: "0 retained records";
-	/** @type {HTMLButtonElement} */ (element("previous")).disabled = page === 0;
+		? `${count(offset + 1)}–${count(offset + requests.length)} of ${count(total)}`
+		: "0 requests";
+	/** @type {HTMLButtonElement} */ (element("previous")).disabled =
+		offset === 0;
 	/** @type {HTMLButtonElement} */ (element("next")).disabled =
-		(page + 1) * 50 >= requests.length;
+		offset + requests.length >= total;
 }

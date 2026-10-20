@@ -27,14 +27,7 @@ export interface CacheRequest {
 	failureCategory: string | null;
 }
 
-export interface CacheBucket {
-	day: string;
-	sessionId: string | null;
-	sessionName: string | null;
-	project: string | null;
-	model: string;
-	lane: string;
-	scope: string;
+export interface CacheTotals {
 	records: number;
 	/** Legacy usage and request records cannot be deduplicated; use measuredRequests for hit rate. */
 	requestStarts: number;
@@ -52,8 +45,35 @@ export interface CacheBucket {
 	full: number;
 }
 
-export interface CacheSnapshot {
+export interface CacheDay extends CacheTotals {
+	day: string;
+}
+
+export interface CacheQuery {
+	session?: string;
+	project?: string;
+	since?: string;
+	until?: string;
+	model?: string;
+	lane?: string;
+	scope?: string;
+	/** Filters request rows only, never totals or days. */
+	result?: "hit" | "miss" | "unknown" | "";
+	offset?: number;
+}
+
+export interface CacheQueryResult {
 	version: 1;
+	totals: CacheTotals;
+	days: CacheDay[];
+	requests: CacheRequest[];
+	total: number;
+	offset: number;
+	limit: 50;
+}
+
+export interface CacheSnapshot {
+	version: 2;
 	coverage: {
 		directory: string;
 		directoryAvailable: boolean;
@@ -68,10 +88,7 @@ export interface CacheSnapshot {
 		unreadableFiles: number;
 		fromDay: string | null;
 		toDay: string | null;
-		historyTruncated: boolean;
-		requestsTruncated: boolean;
 		legacyRecords: number;
 	};
-	buckets: CacheBucket[];
-	requests: CacheRequest[];
+	models: string[];
 }

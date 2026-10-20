@@ -95,6 +95,26 @@ Declare only the filters your page actually implements: `session`, `project`, `s
 { "filters": ["project", "since", "until"] }
 ```
 
-The bridge supplies these keys as strings, with an empty string for an inactive filter. Dates are inclusive UTC calendar days. Filtering happens in your page against the snapshot; the collector always runs independently of the browser. The host reports active dashboard filters that the tab does not support. Call-only filters do not apply to custom tabs.
+The bridge supplies these keys as strings, with an empty string for an inactive filter. Dates are inclusive UTC calendar days. Apply them to the snapshot in your page, or pass them to your bundle's query command. The collector always runs independently of the browser. The host reports active dashboard filters that the tab does not support. Call-only filters do not apply to custom tabs.
 
-Keep the snapshot bounded. If a tab needs server-side queries over a large custom database, that requires a separate design; this contract deliberately does not expose arbitrary backend routes.
+## Queries
+
+For history too large for a snapshot, keep an index in the collector's state directory and add an optional command to `tab.json`:
+
+```json
+"query": ["node", "query.ts"]
+```
+
+The command receives one JSON value on stdin and returns one JSON value on stdout. It uses the same working directory and environment as the collector. Queries must read only the bundle's own index; they must not collect data, read source logs or access Observatory's core SQLite schema.
+
+Call it from the page through the client bridge:
+
+```js
+import { queryTab } from "/tab-client.js";
+
+const page = await queryTab({ ...filters, offset: 0 }, controller.signal);
+```
+
+The request and result schemas belong to the bundle. Implement filters and pagination against the full index rather than truncating history to fit a snapshot. Bound each response, not the records a user can reach.
+
+Each query has a ten-second timeout, a 16 KiB input limit, a 4 MiB stdout limit and a 64 KiB stderr limit. Up to four queries can run per tab; additional requests receive a busy error. Cancellation and viewer shutdown stop the query's process group. Failed queries return errors rather than partial results. Starting a query never starts collection.

@@ -6,6 +6,7 @@ import {
 	type TabFilter,
 } from "./bundle.ts";
 import { TabCollector, type TabSnapshot, type TabStatus } from "./collector.ts";
+import { TabQueries, TabQueryError } from "./query.ts";
 
 export type { TabSnapshot } from "./collector.ts";
 
@@ -25,6 +26,7 @@ export interface TabCatalog {
 export interface CustomTabs {
 	list(): TabCatalog;
 	get(id: string): TabSnapshot | undefined;
+	query(id: string, input: unknown, signal?: AbortSignal): Promise<unknown>;
 	asset(
 		id: string,
 		path: string,
@@ -55,7 +57,7 @@ export async function createCustomTabs(
 		counts.set(bundle.manifest.id, (counts.get(bundle.manifest.id) ?? 0) + 1);
 	const tabs = new Map<
 		string,
-		{ bundle: TabBundle; collector: TabCollector }
+		{ bundle: TabBundle; collector: TabCollector; queries: TabQueries }
 	>();
 	for (const bundle of bundles) {
 		const id = bundle.manifest.id;
@@ -74,7 +76,11 @@ export async function createCustomTabs(
 		try {
 			const collector = new TabCollector(bundle, join(stateRoot, id), sessions);
 			await collector.initialise(stateRoot);
-			tabs.set(id, { bundle, collector });
+			tabs.set(id, {
+				bundle,
+				collector,
+				queries: new TabQueries(bundle, join(stateRoot, id), sessions),
+			});
 		} catch (error) {
 			errors.push(
 				`Custom tab "${id}" is disabled: ${String(error)}. Check the tab state directory.`,
@@ -94,6 +100,17 @@ export async function createCustomTabs(
 			errors: [...errors],
 		}),
 		get: (id) => tabs.get(id)?.collector.snapshot(),
+		query: async (id, input, signal) => {
+			if (closed)
+				throw new TabQueryError(
+					503,
+					"Observatory is closing. Retry after restarting.",
+				);
+			const tab = tabs.get(id);
+			if (!tab)
+				throw new TabQueryError(404, "This custom tab is missing or disabled.");
+			return tab.queries.query(input, signal);
+		},
 		asset: async (id, path) => {
 			const tab = tabs.get(id);
 			return tab ? readAsset(tab.bundle, path) : undefined;
@@ -104,7 +121,10 @@ export async function createCustomTabs(
 		close: async () => {
 			closed = true;
 			await Promise.all(
-				[...tabs.values()].map(({ collector }) => collector.close()),
+				[...tabs.values()].flatMap(({ collector, queries }) => [
+					collector.close(),
+					queries.close(),
+				]),
 			);
 		},
 	};

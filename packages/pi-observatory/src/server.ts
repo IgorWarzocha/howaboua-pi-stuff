@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
 import { loadConfig, PROTOCOL, sourceId, stateDirectory } from "./config.ts";
-import { serveCustomTabs } from "./custom-tab-http.ts";
+import { serveCustomTabQuery, serveCustomTabs } from "./custom-tab-http.ts";
 import { type CustomTabs, createCustomTabs } from "./custom-tabs/index.ts";
 import { initialiseDatabase, openDatabase } from "./database.ts";
 import { readThemeCss } from "./theme.ts";
@@ -233,6 +233,7 @@ async function main(): Promise<void> {
 					.end(JSON.stringify({ url: `${publicUrl}/${selection}` }));
 				return;
 			}
+			if (serveCustomTabQuery(request, url, response, customTabs)) return;
 			if (request.method !== "GET") {
 				response.writeHead(405, { Allow: "GET" }).end();
 				return;
