@@ -25,9 +25,6 @@ function field(name) {
 	return node;
 }
 const outcome = /** @type {HTMLSelectElement} */ (element("outcome"));
-const activityMetric = /** @type {HTMLSelectElement} */ (
-	element("activity-metric")
-);
 const older = /** @type {HTMLButtonElement} */ (element("older"));
 const newer = /** @type {HTMLButtonElement} */ (element("newer"));
 const newest = /** @type {HTMLButtonElement} */ (element("newest"));
@@ -238,15 +235,8 @@ function renderActivity() {
 	const plot = element("activity-plot");
 	if (plot.contains(document.activeElement)) return;
 	plot.replaceChildren(
-		activityChart(
-			activityDays,
-			activityMetric.value === "error" ? "error" : "calls",
-			plot.clientWidth,
-			(day) =>
-				selectCalls(
-					{ since: day, until: day },
-					activityMetric.value === "error" ? "error" : "all",
-				),
+		activityChart(activityDays, plot.clientWidth, (day, result) =>
+			selectCalls({ since: day, until: day }, result),
 		),
 	);
 }
@@ -685,7 +675,6 @@ form.addEventListener("reset", () => {
 	sessionSearch.value = "";
 	field("signature").value = "";
 	outcome.value = "all";
-	activityMetric.value = "calls";
 	setTimeout(applyFilters, 0);
 });
 element("clear-pattern").addEventListener("click", () => {
@@ -773,7 +762,6 @@ function renderStatus(status) {
 		/** @type {HTMLDetailsElement} */ (element("coverage")).open = true;
 }
 let stopped = false;
-activityMetric.addEventListener("change", renderActivity);
 element("overview").addEventListener("focusout", (event) => {
 	if (
 		event.relatedTarget instanceof Node &&

@@ -332,11 +332,6 @@ label {
 .chart-heading p {
 	margin: 2px 0 0;
 }
-.chart-heading select {
-	width: auto;
-	flex-shrink: 0;
-	font-size: 12px;
-}
 .usage-bars,
 .capability-bars {
 	list-style: none;
@@ -396,9 +391,40 @@ label {
 }
 .activity-readout {
 	margin: 0 0 8px;
-	min-height: 36px;
+	min-height: 18px;
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
+}
+.activity-legend {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 4px 12px;
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
+}
+.activity-legend button {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-height: 36px;
+	padding: 4px;
+	border: 0;
+	font-size: 11px;
+	font-weight: 400;
+	text-align: left;
+	font-variant-numeric: tabular-nums;
+}
+.activity-swatch {
+	border-top: 2px solid var(--outcome-color);
+}
+.activity-swatch.ring-calls {
+	border-top-style: dashed;
+}
+.ring-calls {
+	--outcome-color: var(--fg);
 }
 .activity-day {
 	cursor: pointer;
@@ -412,22 +438,18 @@ label {
 	pointer-events: none;
 }
 .activity-day.active-day .chart-point {
-	fill: var(--series);
-	stroke-width: 3;
+	fill: var(--outcome-color);
+	opacity: 1;
 }
 .activity-day:focus-visible .activity-hit {
-	fill: var(--series);
+	fill: var(--accent);
 	fill-opacity: 0.12;
-	stroke: var(--series);
+	stroke: var(--accent);
 }
 .activity-chart {
 	display: block;
 	width: 100%;
 	height: 210px;
-	--series: var(--accent);
-}
-.activity-chart.error-series {
-	--series: var(--issue);
 }
 .chart-grid {
 	stroke: var(--line);
@@ -441,19 +463,25 @@ label {
 		sans-serif;
 }
 .chart-area {
-	fill: var(--series);
-	opacity: 0.12;
+	fill: var(--fg);
+	opacity: 0.04;
 }
 .chart-line {
 	fill: none;
-	stroke: var(--series);
+	stroke: var(--outcome-color);
 	stroke-width: 2;
 	stroke-linejoin: round;
 }
+.chart-line.ring-calls {
+	stroke-dasharray: 5 4;
+	stroke-width: 1.5;
+}
 .chart-point {
 	fill: var(--surface);
-	stroke: var(--series);
+	stroke: var(--outcome-color);
 	stroke-width: 1.5;
+	opacity: 0;
+	pointer-events: none;
 }
 .outcome-distribution {
 	display: grid;
@@ -979,6 +1007,9 @@ tr[aria-selected="true"] {
 	#usage-summary {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 8px;
+	}
+	.activity-legend {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	#usage-summary .usage-metric {
 		padding: 12px;
