@@ -114,6 +114,15 @@ export function createCustomTabsView(getQuery) {
 		)
 			return;
 		if (
+			event.data?.type === "observatory-tab-size" &&
+			event.data.version === 1
+		) {
+			const height = event.data.height;
+			if (frame && Number.isFinite(height) && height > 0)
+				frame.style.height = `${Math.ceil(height)}px`;
+			return;
+		}
+		if (
 			event.data?.type !== "observatory-tab-ready" ||
 			event.data.version !== 1
 		)

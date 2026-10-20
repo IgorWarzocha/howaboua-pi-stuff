@@ -85,6 +85,8 @@ Pages are mounted only while their tab is visible. Switching tabs removes the if
 
 Link `/base.css` and `/theme.css` before your own stylesheet to use the dashboard's typography, controls and colour variables. The example shows this setup. Use relative URLs for your own assets. They are served under `/tabs/<id>/`.
 
+The client bridge sizes the frame to the page's content, including later updates, so the dashboard scrolls as one page. Use normal document flow and content-driven heights; viewport-relative heights such as `100vh` refer to the frame itself and can create a resizing loop.
+
 ## Dashboard filters
 
 Declare only the filters your page actually implements: `session`, `project`, `since` and `until`. For example:

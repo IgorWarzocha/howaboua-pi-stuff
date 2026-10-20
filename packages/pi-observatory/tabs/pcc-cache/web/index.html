@@ -34,7 +34,6 @@
 			</div>
 			<div class="pagination"><span id="page-status" class="muted" role="status"></span><button id="previous" type="button">Previous</button><button id="next" type="button">Next</button></div>
 		</section>
-		<details><summary>How to read this view</summary><p>Hit means authoritative usage reports cached input tokens. Miss means positive input with zero cached tokens. Missing usage, zero input and non-authoritative prewarm are Unknown, not misses. The cache share is cached tokens divided by total input tokens; the hit rate counts measured requests.</p><p>WebSocket full/delta history and canonical-history fingerprints describe transport, not cache hits or their cause. Retries and fallbacks are logged events; a recovered request is not a final failure. Elapsed time is locally measured request time, when available.</p><p>Older logs without request IDs remain separate observations. Their usage counts, but model attribution and request/event correlation may be unknown. Pending means no final outcome was logged, not proof that the request is still running.</p></details>
 	</div>
 </main>
 </body>

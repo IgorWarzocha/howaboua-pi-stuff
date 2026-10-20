@@ -39,6 +39,26 @@ function validState(value) {
 
 /** Receive snapshots and declared dashboard filters. Returns a disconnect function. @param {(state: TabState) => void} render */
 export function connectTab(render) {
+	let pendingSize = 0;
+	let lastHeight = 0;
+	const sizeObserver = new ResizeObserver(() => {
+		if (pendingSize) return;
+		pendingSize = requestAnimationFrame(() => {
+			pendingSize = 0;
+			// scrollHeight is at least the frame viewport, so it cannot reliably shrink.
+			const height = Math.max(
+				1,
+				Math.ceil(document.documentElement.getBoundingClientRect().height),
+			);
+			if (height === lastHeight) return;
+			lastHeight = height;
+			window.parent.postMessage(
+				{ type: "observatory-tab-size", version: 1, height },
+				location.origin,
+			);
+		});
+	});
+	sizeObserver.observe(document.documentElement);
 	/** @param {MessageEvent} event */
 	function receive(event) {
 		if (event.source !== window.parent || event.origin !== location.origin)
@@ -56,5 +76,9 @@ export function connectTab(render) {
 		{ type: "observatory-tab-ready", version: 1 },
 		location.origin,
 	);
-	return () => window.removeEventListener("message", receive);
+	return () => {
+		window.removeEventListener("message", receive);
+		sizeObserver.disconnect();
+		cancelAnimationFrame(pendingSize);
+	};
 }

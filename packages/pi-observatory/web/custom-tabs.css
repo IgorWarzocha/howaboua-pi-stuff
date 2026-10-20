@@ -13,7 +13,7 @@
 #custom-tab-frame iframe {
 	display: block;
 	width: 100%;
-	height: max(400px, calc(100dvh - 220px));
+	height: 1px;
 	border: 0;
 	background: var(--bg);
 }
