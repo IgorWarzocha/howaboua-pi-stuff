@@ -10,7 +10,8 @@ import { element } from "./view-dom.js";
  * restoreFilters: (filters: string) => void,
  * applyFilters: (push?: boolean, scroll?: number) => Promise<unknown>,
  * calls: ReturnType<typeof import('./calls-view.js').createCallsView>,
- * overview: ReturnType<typeof import('./overview-view.js').createOverviewView>
+ * overview: ReturnType<typeof import('./overview-view.js').createOverviewView>,
+ * customTabs: ReturnType<typeof import('./custom-tabs-view.js').createCustomTabsView>
  * }} options
  */
 export function createNavigation({
@@ -19,6 +20,7 @@ export function createNavigation({
 	applyFilters,
 	calls,
 	overview,
+	customTabs,
 }) {
 	const outcome = /** @type {HTMLSelectElement} */ (element("outcome"));
 	let activeView = "overview";
@@ -74,6 +76,8 @@ export function createNavigation({
 	}
 	/** @param {string} id */
 	function showView(id) {
+		if (id.startsWith("custom:") && !customTabs.has(id.slice(7)))
+			id = "overview";
 		navigationVersion++;
 		if (id !== "detail") {
 			calls.closeDetail();
@@ -92,13 +96,17 @@ export function createNavigation({
 			"detail",
 		])
 			element(panel).hidden = panel !== id;
+		customTabs.show(id.startsWith("custom:") ? id.slice(7) : null);
 		element("back-to-view").hidden = !drillOrigin;
 		if (id === "overview") overview.renderActivity();
 	}
-	for (const button of document.querySelectorAll("button[data-view]"))
-		button.addEventListener("click", () =>
-			navigate(button.getAttribute("data-view") || "overview"),
-		);
+	element("view-nav").addEventListener("click", (event) => {
+		const button =
+			event.target instanceof Element
+				? event.target.closest("button[data-view]")
+				: null;
+		if (button) void navigate(button.getAttribute("data-view") || "overview");
+	});
 	element("back-to-view").addEventListener("click", () => history.back());
 	/** @param {NavigationState} state */
 	async function restoreNavigation(state) {

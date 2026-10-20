@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
 import { loadConfig, PROTOCOL, sourceId, stateDirectory } from "./config.ts";
+import { serveCustomTabs } from "./custom-tab-http.ts";
+import { type CustomTabs, createCustomTabs } from "./custom-tabs/index.ts";
 import { initialiseDatabase, openDatabase } from "./database.ts";
 import { readThemeCss } from "./theme.ts";
 
@@ -74,6 +76,7 @@ async function main(): Promise<void> {
 	>();
 	let sequence = 0;
 	const server = createServer();
+	let tabs: CustomTabs | undefined;
 	try {
 		await rm(join(stateDirectory(), "access-key"), { force: true });
 		releaseDatabase = await acquireLock(`${database}.lock`);
@@ -83,11 +86,22 @@ async function main(): Promise<void> {
 		} finally {
 			db.close();
 		}
+		const customTabs = await createCustomTabs(config.tabs, {
+			stateRoot: join(stateDirectory(), "tabs"),
+			sessions,
+		});
+		tabs = customTabs;
 		const assets = new Map<string, { data: Buffer; type: string }>();
 		for (const [path, file, type] of [
 			["/", "index.html", "text/html; charset=utf-8"],
 			["/app.js", "app.js", "text/javascript; charset=utf-8"],
 			["/api.js", "api.js", "text/javascript; charset=utf-8"],
+			[
+				"/custom-tabs-view.js",
+				"custom-tabs-view.js",
+				"text/javascript; charset=utf-8",
+			],
+			["/tab-client.js", "tab-client.js", "text/javascript; charset=utf-8"],
 			["/calls-view.js", "calls-view.js", "text/javascript; charset=utf-8"],
 			["/filters-view.js", "filters-view.js", "text/javascript; charset=utf-8"],
 			["/navigation.js", "navigation.js", "text/javascript; charset=utf-8"],
@@ -127,6 +141,7 @@ async function main(): Promise<void> {
 			["/activity.css", "activity.css", "text/css; charset=utf-8"],
 			["/usage.css", "usage.css", "text/css; charset=utf-8"],
 			["/calls.css", "calls.css", "text/css; charset=utf-8"],
+			["/custom-tabs.css", "custom-tabs.css", "text/css; charset=utf-8"],
 		] as const)
 			assets.set(path, {
 				data: await readFile(new URL(`../web/${file}`, import.meta.url)),
@@ -242,6 +257,7 @@ async function main(): Promise<void> {
 				response.writeHead(200, { "Content-Type": asset.type }).end(asset.data);
 				return;
 			}
+			if (serveCustomTabs(url, response, customTabs)) return;
 			if (
 				!/^\/api\/(?:status|sessions|facets|overview|usage|calls(?:\/\d+)?)$/.test(
 					url.pathname,
@@ -290,6 +306,7 @@ async function main(): Promise<void> {
 				}
 				if (publicUrl === "http://127.0.0.1:0")
 					publicUrl = `http://127.0.0.1:${address.port}`;
+				customTabs.start();
 				console.log(
 					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nBackground indexing active. Ctrl+C to stop.`,
 				);
@@ -302,6 +319,7 @@ async function main(): Promise<void> {
 			clearTimeout(timer);
 			response.destroy();
 		}
+		await tabs?.close();
 		await Promise.all(
 			workers.map(async (worker) => {
 				worker.postMessage("stop");

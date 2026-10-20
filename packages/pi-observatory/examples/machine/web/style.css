@@ -1,0 +1,14 @@
+body {
+	padding: 12px 0;
+}
+dl {
+	margin: 0;
+	max-width: 640px;
+	gap: 16px 24px;
+}
+meter {
+	display: block;
+	width: 100%;
+	min-width: 140px;
+	margin-top: 6px;
+}

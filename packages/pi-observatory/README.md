@@ -8,7 +8,9 @@ Commands and Skills each use one ranked table with search, sorting and paginatio
 
 Their activity graphs show daily usage before table pagination. Commands plots User submissions. Skills starts with the three most-read active skills, with a separate line for each. Tick up to six skills in the table to compare them. The Agent/User toggle switches between agent reads and user submissions. Selections persist across table pages. Hover or use the arrow keys for daily counts, then select a count to filter the table to that day. Browser Back restores the previous date range. Each graph covers up to 90 calendar days ending on the latest recorded activity in its selection. The same resource search, filters and resource limit apply to the graph and table.
 
-Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Overview and usage views update automatically. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
+Indexing runs in a background worker. Built-in views read SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Overview and usage views update automatically. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
+
+Add your own tabs with a local collector and a custom web page. Observatory runs collection in the background, stores the latest successful JSON snapshot and hosts the page alongside its built-in views. See [Custom tabs](docs/custom-tabs.md) for the bundle contract and a working machine-health example.
 
 ## Run
 
@@ -100,4 +102,4 @@ Existing indexes are updated from cached SQLite evidence when the server starts.
 
 Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
 
-Source files are never modified. If a file is replaced, shortened or detectably rewritten behind its cursor, indexing that file stops and the dashboard reports it. Existing indexed history remains available. Choose a fresh `--db` path to rebuild from the current files. Append-only histories are the supported incremental path. Symlinked files and subdirectories are not followed.
+The built-in indexer never modifies source files. If a file is replaced, shortened or detectably rewritten behind its cursor, indexing that file stops and the dashboard reports it. Existing indexed history remains available. Choose a fresh `--db` path to rebuild from the current files. Append-only histories are the supported incremental path. Symlinked files and subdirectories are not followed.

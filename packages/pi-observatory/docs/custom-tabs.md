@@ -1,0 +1,96 @@
+# Custom tabs
+
+A tab is a local bundle: a manifest, a collector and a web page. The collector produces JSON; the page decides how to display it. Neither needs to import Observatory internals or change its SQLite schema.
+
+**Enable only code you trust.** Collectors run with your account's permissions and environment. Pages share the dashboard's origin and can access its data. The iframe separates presentation, not privileges. This first version runs collectors on Linux and macOS. Windows reports custom tabs as unavailable; built-in views remain usable.
+
+## Try the example
+
+The `examples/machine` bundle reports real host memory, CPU count, uptime and load. Add its absolute directory to the existing `observatory/config.json` under your Pi agent directory:
+
+```json
+{
+  "tabs": ["/absolute/path/to/pi-observatory/examples/machine"]
+}
+```
+
+Keep any other settings in that file. Restart the viewer and reload the browser. The Machine tab appears in the navigation. Remove a path from `tabs` and restart to disable that bundle. Nothing is enabled merely by existing on disk.
+
+Copy the example to a directory you own before changing it. Bundles can live outside the repository. The configured paths must be absolute.
+
+## Bundle layout
+
+```text
+my-tab/
+  tab.json
+  collect.mjs
+  web/
+    index.html
+    view.js
+    style.css
+```
+
+```json
+{
+  "apiVersion": 1,
+  "id": "my-tab",
+  "title": "My tab",
+  "entry": "index.html",
+  "collector": ["node", "collect.mjs"],
+  "intervalSeconds": 60,
+  "timeoutSeconds": 30,
+  "filters": []
+}
+```
+
+`id` is a unique lowercase slug, beginning with a letter, up to 64 characters. `title` is up to 80 characters. `entry` defaults to `index.html` and is relative to `web/`. Only files inside that directory are served; keep private files and collector code outside it. Assets are limited to 16 MiB each. Use separate script and stylesheet files, served from the bundle, rather than inline code or CDN dependencies.
+
+The command is an argument array, not a shell expression. Python and other executables work too. Its working directory is the bundle directory. Refresh defaults to 60 seconds and can be set from 5 to 86,400 seconds. Timeout defaults to 30 seconds and can be set from 1 to 300 seconds. Invalid bundles and duplicate IDs are reported without preventing built-in views from starting.
+
+## Collector contract
+
+Write one complete JSON value to stdout and exit successfully. Write diagnostic logs to stderr. Observatory starts the first run when the viewer starts, then waits `intervalSeconds` after each completed run before starting another. Runs never overlap, and page requests or filter changes never trigger collection.
+
+The collector receives:
+
+| Environment variable | Meaning |
+| --- | --- |
+| `OBSERVATORY_TAB_ID` | The manifest ID |
+| `OBSERVATORY_STATE_DIR` | A private writable directory for cursors and history |
+| `OBSERVATORY_SESSIONS_DIR` | The configured Pi session directory, to read if needed |
+
+Treat source sessions as read-only. Keep your own incremental cursors or database under the state directory. Observatory reserves `last-good.json` and `last-good.*.tmp` there for snapshot storage. Do not depend on the core index's schema or modify it. Emit the data the page needs rather than raw session archives.
+
+Stdout is limited to 4 MiB and stderr to 64 KiB per run. Invalid JSON, excess output, a nonzero exit or a timeout fails that run. The previous successful snapshot remains available with its original update time and a visible error. Successful snapshots survive viewer restarts. Run collectors in the foreground; do not start detached daemons. Observatory terminates the collector process group on timeout and shutdown.
+
+## Page contract
+
+Import the host's small client bridge:
+
+```js
+import { connectTab } from "/tab-client.js";
+
+const disconnect = connectTab(({ data, status, filters }) => {
+  // Render your collector's data, applying any declared filters.
+});
+```
+
+The callback runs when the page connects, collection status or data refreshes, or applied dashboard filters change. `data` is your JSON value. It is `null` before the first successful run; `status.updatedAt` distinguishes that state from a collector that deliberately emits JSON null.
+
+`status` contains `running`, `lastStartedAt`, `updatedAt` and `error`. Timestamps are ISO strings or null; `error` is a message or null. The host already displays collection age and errors above the page. Validate your own snapshot shape before rendering it. `disconnect()` removes the message listener if your page needs to unmount it.
+
+Pages are mounted only while their tab is visible. Switching tabs removes the iframe but does not stop collection. Keep durable state in the collector's state directory rather than relying on an iframe staying alive.
+
+Link `/base.css` and `/theme.css` before your own stylesheet to use the dashboard's typography, controls and colour variables. The example shows this setup. Use relative URLs for your own assets. They are served under `/tabs/<id>/`.
+
+## Dashboard filters
+
+Declare only the filters your page actually implements: `session`, `project`, `since` and `until`. For example:
+
+```json
+{ "filters": ["project", "since", "until"] }
+```
+
+The bridge supplies these keys as strings, with an empty string for an inactive filter. Dates are inclusive UTC calendar days. Filtering happens in your page against the snapshot; the collector always runs independently of the browser. The host reports active dashboard filters that the tab does not support. Call-only filters do not apply to custom tabs.
+
+Keep the snapshot bounded. If a tab needs server-side queries over a large custom database, that requires a separate design; this contract deliberately does not expose arbitrary backend routes.

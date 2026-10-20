@@ -1,6 +1,7 @@
 // @ts-check
 import { api, report } from "./api.js";
 import { createCallsView } from "./calls-view.js";
+import { createCustomTabsView } from "./custom-tabs-view.js";
 import { createFiltersView } from "./filters-view.js";
 import { createNavigation } from "./navigation.js";
 import { createOverviewView } from "./overview-view.js";
@@ -13,6 +14,7 @@ let loadedRevision = -1;
 let stopped = false;
 /** @type {AbortController | undefined} */ let dataRequest;
 const usageView = createUsageView((day) => navigation.selectUsageDay(day));
+const customTabs = createCustomTabsView(() => query);
 const filters = createFiltersView(() => {
 	void applyFilters();
 });
@@ -33,6 +35,7 @@ const navigation = createNavigation({
 	applyFilters,
 	calls,
 	overview: overviewView,
+	customTabs,
 });
 
 async function refreshData() {
@@ -65,6 +68,7 @@ async function refreshData() {
 function applyFilters(push = false, scroll = window.scrollY) {
 	if (navigation.getView() === "detail") navigation.show("calls-panel");
 	query = filters.read();
+	customTabs.context();
 	calls.resetPage();
 	navigation.save(push, scroll);
 	calls.closeDetail();
@@ -76,6 +80,7 @@ element("outcome").addEventListener("change", () => {
 	void calls.refresh();
 });
 async function poll() {
+	void customTabs.refresh();
 	try {
 		/** @type {import('../src/contracts.ts').IndexStatus} */
 		const status = await api("/api/status");
@@ -105,5 +110,8 @@ window.addEventListener("pagehide", () => {
 	usageView.dispose();
 	calls.dispose();
 	filters.dispose();
+	customTabs.dispose();
 });
-void poll();
+void customTabs.load().then(() => {
+	if (!stopped) void poll();
+});

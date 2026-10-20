@@ -12,6 +12,7 @@ export interface ObservatoryConfig {
 	openCommand: string[] | null;
 	sessions: string;
 	database: string;
+	tabs: string[];
 }
 
 export function stateDirectory(): string {
@@ -86,6 +87,17 @@ export async function loadConfig(
 			throw new Error(`Observatory ${key} must be an absolute path`);
 		return path;
 	};
+	const tabs = config["tabs"] === undefined ? [] : config["tabs"];
+	if (
+		!Array.isArray(tabs) ||
+		!tabs.every(
+			(path) =>
+				typeof path === "string" && isAbsolute(path) && !path.includes("\0"),
+		)
+	)
+		throw new Error(
+			"Observatory tabs must be an array of absolute bundle paths",
+		);
 	return {
 		host,
 		port,
@@ -105,6 +117,7 @@ export async function loadConfig(
 		database: overrides.db
 			? resolve(overrides.db)
 			: configuredPath("database", join(stateDirectory(), "index.sqlite")),
+		tabs,
 	};
 }
 
