@@ -3,6 +3,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import { openDatabase } from "./database.ts";
 import { createIndexer } from "./indexer.ts";
 import { createNestedBackfill } from "./nested-backfill.ts";
+import { createSkillFileBackfill } from "./skill-files-backfill.ts";
 
 const { database, sessions, observationsRoot } = workerData as {
 	database: string;
@@ -12,6 +13,7 @@ const { database, sessions, observationsRoot } = workerData as {
 const db = openDatabase(database);
 const indexer = createIndexer(db, sessions, observationsRoot);
 const backfill = createNestedBackfill(db);
+const fileReads = createSkillFileBackfill(db);
 const shutdown = new AbortController();
 parentPort?.on("message", (message) => {
 	if (message === "stop") {
@@ -26,7 +28,7 @@ try {
 			await indexer.scan();
 			nextScan = Date.now() + 2000;
 		}
-		const pending = !shutdown.signal.aborted && backfill();
+		const pending = !shutdown.signal.aborted && (backfill() || fileReads());
 		try {
 			await setTimeout(
 				pending ? 0 : Math.max(0, nextScan - Date.now()),

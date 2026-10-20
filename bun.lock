@@ -422,6 +422,7 @@
       "version": "0.0.0",
       "dependencies": {
         "better-sqlite3": "^13.0.3",
+        "shell-quote": "1.11.0",
       },
       "devDependencies": {
         "@types/better-sqlite3": "^9.6.0",

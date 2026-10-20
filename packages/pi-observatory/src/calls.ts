@@ -85,9 +85,11 @@ export function createCallStore(db: Database.Database) {
 	): void {
 		linkCall.run(context.file, call.id);
 		usage.skillReads(call.id, result);
+		const assessment = assess(result, traceStatus);
+		usage.fileReads(call.id, assessment.outcome, result);
 		// Partial snapshots and copied fork history must not overwrite a recorded final result.
 		if (call.result_entry !== null && call.outcome !== "incomplete") return;
-		setResult.run({ ...assess(result, traceStatus), ...context, id: call.id });
+		setResult.run({ ...assessment, ...context, id: call.id });
 		resultPayload.run(displayValue(result), call.id);
 	}
 	return { insertCall, recordResult };

@@ -25,7 +25,11 @@ All Pi sessions share one server and one index per agent directory. Opening anot
 
 With the extension loaded, Observatory records submitted extension commands, skills and prompt templates through Pi's editor. Standard Pi controls such as `/new` and `/quit`, and unknown slash names, are excluded. It stores command names without arguments. Editor submissions made by automation count too. RPC and non-interactive input are not recorded by this hook.
 
-Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history. Skill read counts require structured results from Better Skills; older results without those records are not counted. An empty count means no recorded use, not proof that a capability was never used.
+Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history.
+
+Skill tracking does not require Better Skills. Observatory recognises ordinary file-reader inputs and literal shell reads such as `cat /path/to/SKILL.md` or `sed -n '1,80p' /path/to/SKILL.md`. Files read under an identified skill directory count as references. Relative paths use the recorded working directory, never the viewer's directory. These are inferred reads, shown separately from confirmed structured receipts in each skill's evidence details. A request identifies intended access, not proof that every byte reached the agent.
+
+Historical reads are recovered from cached calls in the background. The Skills view shows scan progress. Dynamic scripts, unresolved paths, hidden file access and missing arguments cannot be reliably attributed. Path mentions, listings and searches are not counted as skill reads. An empty count means no recorded use, not proof that a capability was never used.
 
 For a standalone server instead:
 
@@ -78,7 +82,7 @@ Identical copied history is deduplicated across forked sessions. A session view 
 
 Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting an error message filters its exact stored pattern, tool and model. Use **Clear pattern** to remove that pattern filter.
 
-Charts show the top 10 tools and 6 models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Its table gives exact daily counts and lets you open a day's calls. Date filters use UTC, with the Until date included.
+Charts show the top six tools and models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Its table gives exact daily counts and lets you open a day's calls. Date filters use UTC, with the Until date included.
 
 ## Index coverage
 
@@ -86,7 +90,7 @@ The indexer checks file metadata every two seconds and consumes appended bytes. 
 
 Coverage reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
 
-Existing indexes are updated from their cached SQLite results when the server starts. Native nested-call backfill runs in bounded background batches. These updates preserve indexing cursors and do not reread session files.
+Existing indexes are updated from cached SQLite evidence when the server starts. Native nested-call and skill-file scans run in bounded background batches. These updates preserve indexing cursors and do not reread session files.
 
 Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
 

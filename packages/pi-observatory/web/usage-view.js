@@ -79,6 +79,8 @@ export function createUsageView() {
 			? row.skillReads +
 					row.referenceReads +
 					row.continuations +
+					row.fileReads +
+					row.fileReferenceReads +
 					row.submissions
 			: row.submissions;
 	}
@@ -113,7 +115,7 @@ export function createUsageView() {
 			details.append(
 				textNode(
 					"p",
-					`${row.skillReads.toLocaleString()} body reads · ${row.referenceReads.toLocaleString()} reference reads · ${row.continuations.toLocaleString()} continuations · ${row.submissions || recorded ? row.submissions.toLocaleString() : "unavailable"} slash submissions`,
+					`${row.fileReads.toLocaleString()} inferred body reads · ${row.fileReferenceReads.toLocaleString()} inferred reference reads · ${row.skillReads.toLocaleString()} confirmed body reads · ${row.referenceReads.toLocaleString()} confirmed reference reads · ${row.continuations.toLocaleString()} continuations · ${row.submissions || recorded ? row.submissions.toLocaleString() : "unavailable"} slash submissions`,
 				),
 			);
 		if (row.owner) details.append(textNode("p", `Source: ${row.owner}`));
@@ -179,7 +181,7 @@ export function createUsageView() {
 			textNode(
 				"p",
 				skills
-					? "Body reads, reference reads, continuations and slash submissions; not unique executions."
+					? "Includes inferred file reads, confirmed reads and slash submissions; not unique executions."
 					: "Recorded slash submissions, not successful executions.",
 				"usage-note muted",
 			),
@@ -269,16 +271,27 @@ export function createUsageView() {
 			);
 		});
 		element("usage-coverage").textContent = [
-			coverage.recordingSince
-				? `Submissions since ${coverage.recordingSince.slice(0, 10)}`
-				: "Submissions unavailable",
-			`${coverage.recordedSessions.toLocaleString()}/${coverage.sessions.toLocaleString()} sessions recorded`,
-			coverage.inventorySince
-				? `Inventory since ${coverage.inventorySince.slice(0, 10)}`
-				: "No inventory snapshots",
+			...(skills
+				? [
+						"File reads inferred from recorded tool inputs; hidden access is unavailable",
+					]
+				: [
+						coverage.recordingSince
+							? `Submissions since ${coverage.recordingSince.slice(0, 10)}`
+							: "Submissions unavailable",
+						`${coverage.recordedSessions.toLocaleString()}/${coverage.sessions.toLocaleString()} sessions recorded`,
+						coverage.inventorySince
+							? `Inventory since ${coverage.inventorySince.slice(0, 10)}`
+							: "No inventory snapshots",
+					]),
+			...(skills && coverage.fileReadScan.phase !== "complete"
+				? [
+						`Whole-index file-read scan: ${coverage.fileReadScan.phase} ${coverage.fileReadScan.progress}%`,
+					]
+				: []),
 		].join(" · ");
 		element("usage-evidence-coverage").textContent =
-			`Selected sessions: submission recording since ${timestamp(coverage.recordingSince)}; ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} sessions have recording evidence. Inventory snapshots since ${timestamp(coverage.inventorySince)}. Inventory dates are observations, not installation dates. Zero means no recorded use, not proof of non-use.`;
+			`Selected sessions: submission recording since ${timestamp(coverage.recordingSince)}; ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} sessions have recording evidence. Inventory snapshots since ${timestamp(coverage.inventorySince)}. Whole-index file-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%); ${coverage.fileReadScan.unresolved.toLocaleString()} potentially relevant calls could not be attributed. Inferred reads identify file-reading inputs, not proof that every byte was consumed. Zero means no recorded use, not proof of non-use.`;
 		element("usage-status").textContent =
 			`${rows.length.toLocaleString()} matching ${skills ? "skills" : "commands"}${latest.truncated ? " · 500-resource limit; narrow session, project or dates for more" : ""}`;
 		const empty =

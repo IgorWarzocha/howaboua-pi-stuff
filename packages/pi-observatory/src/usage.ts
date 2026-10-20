@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { hash, type JsonObject, object, string } from "./normalise.ts";
+import { createSkillFileIngestor } from "./skill-files.ts";
 
 export function initialiseUsage(db: Database.Database): void {
 	db.exec(`
@@ -17,6 +18,20 @@ export function initialiseUsage(db: Database.Database): void {
 			entry_key TEXT NOT NULL REFERENCES usage_snapshots(entry_key),
 			kind TEXT NOT NULL, name TEXT NOT NULL, path TEXT NOT NULL, owner TEXT NOT NULL,
 			PRIMARY KEY(entry_key,kind,name,path)
+		);
+		CREATE TABLE IF NOT EXISTS skill_file_sources (
+			path TEXT PRIMARY KEY, directory TEXT NOT NULL, name TEXT NOT NULL, authoritative INTEGER NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS skill_file_gaps (
+			call_id INTEGER PRIMARY KEY REFERENCES calls(id), reason TEXT NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS skill_file_candidates (
+			call_id INTEGER NOT NULL REFERENCES calls(id), path TEXT NOT NULL,
+			PRIMARY KEY(call_id,path)
+		);
+		CREATE INDEX IF NOT EXISTS skill_candidate_path ON skill_file_candidates(path,call_id);
+		CREATE TABLE IF NOT EXISTS skill_file_replay (
+			call_id INTEGER PRIMARY KEY REFERENCES calls(id)
 		);
 	`);
 }
@@ -37,8 +52,11 @@ function resource(data: JsonObject) {
 }
 
 export function createUsageIngestor(db: Database.Database) {
+	const files = createSkillFileIngestor(db);
 	const event = db.prepare(`INSERT OR IGNORE INTO usage_events
-		VALUES (@key,@entry,@call,@timestamp,@kind,@name,@path,@owner,@input,@evidence)`);
+		VALUES (@key,@entry,@call,@timestamp,@kind,@name,@path,@owner,@input,@evidence)
+		ON CONFLICT(key) DO UPDATE SET name=excluded.name,path=excluded.path,evidence=excluded.evidence
+		WHERE usage_events.evidence IN ('file_read','file_reference_read')`);
 	const snapshot = db.prepare(
 		"INSERT OR IGNORE INTO usage_snapshots VALUES (?,?,?)",
 	);
@@ -76,7 +94,10 @@ export function createUsageIngestor(db: Database.Database) {
 					snapshot.run(key, timestamp, "inventory");
 					for (const command of data["commands"]) {
 						const item = resource(object(command));
-						if (item) inventory.run({ entry: key, ...item });
+						if (item) {
+							inventory.run({ entry: key, ...item });
+							if (item.kind === "skill") files.register(item.path, item.name);
+						}
 					}
 			}
 		},
@@ -102,6 +123,7 @@ export function createUsageIngestor(db: Database.Database) {
 					!["skill", "reference"].includes(string(read["kind"]))
 				)
 					continue;
+				files.register(path, name);
 				const evidence =
 					receipt["continuation"] === true
 						? "continuation"
@@ -122,6 +144,7 @@ export function createUsageIngestor(db: Database.Database) {
 				});
 			}
 		},
+		fileReads: files.record,
 	};
 }
 
@@ -134,6 +157,8 @@ export interface UsageRow {
 	skillReads: number;
 	referenceReads: number;
 	continuations: number;
+	fileReads: number;
+	fileReferenceReads: number;
 	lastUsed: string | null;
 	lastSubmitted: string | null;
 	firstAvailable: string | null;
@@ -147,6 +172,7 @@ export interface UsageOverview {
 		inventorySince: string | null;
 		recordedSessions: number;
 		sessions: number;
+		fileReadScan: { phase: string; progress: number; unresolved: number };
 	};
 }
 
@@ -184,18 +210,20 @@ export function queryUsage(
 		uses AS (SELECT kind,name,path,
 			SUM(evidence='submission') submissions,
 			SUM(evidence='skill_read') skillReads,SUM(evidence='reference_read') referenceReads,SUM(evidence='continuation') continuations,
+			SUM(evidence='file_read') fileReads,SUM(evidence='file_reference_read') fileReferenceReads,
 			MAX(timestamp) lastUsed,MAX(CASE WHEN evidence='submission' THEN timestamp END) lastSubmitted FROM selected_events GROUP BY kind,name,path),
 		seen AS (SELECT kind,name,path,MIN(timestamp) firstAvailable,MAX(timestamp) lastAvailable FROM available GROUP BY kind,name,path)
 		SELECT r.kind,r.name,r.path,MAX(r.owner) owner,
 			COALESCE(u.submissions,0) submissions,
 			COALESCE(u.skillReads,0) skillReads,COALESCE(u.referenceReads,0) referenceReads,COALESCE(u.continuations,0) continuations,
+			COALESCE(u.fileReads,0) fileReads,COALESCE(u.fileReferenceReads,0) fileReferenceReads,
 			u.lastUsed,u.lastSubmitted,s.firstAvailable,s.lastAvailable FROM resources r
 			LEFT JOIN uses u USING(kind,name,path) LEFT JOIN seen s USING(kind,name,path)
-			GROUP BY r.kind,r.name,r.path ORDER BY (COALESCE(u.submissions,0)+COALESCE(u.skillReads,0)+COALESCE(u.referenceReads,0)) DESC,r.name LIMIT 501
+			GROUP BY r.kind,r.name,r.path ORDER BY (COALESCE(u.submissions,0)+COALESCE(u.skillReads,0)+COALESCE(u.referenceReads,0)+COALESCE(u.fileReads,0)+COALESCE(u.fileReferenceReads,0)) DESC,r.name LIMIT 501
 	`)
 		.all(values);
 	const coverage = db
-		.prepare<typeof values, UsageOverview["coverage"]>(`
+		.prepare<typeof values, Omit<UsageOverview["coverage"], "fileReadScan">>(`
 		SELECT MIN(CASE WHEN kind='recording' THEN timestamp END) recordingSince,
 			MIN(CASE WHEN kind='inventory' THEN timestamp END) inventorySince,
 			(SELECT COUNT(DISTINCT f.session_id) FROM usage_snapshots rs
@@ -206,5 +234,38 @@ export function queryUsage(
 	`)
 		.get(values);
 	if (!coverage) throw new Error("Usage coverage is missing");
-	return { rows: rows.slice(0, 500), truncated: rows.length > 500, coverage };
+	const scan = Object.fromEntries(
+		db
+			.prepare<[], { key: string; value: string }>(
+				"SELECT key,value FROM metadata WHERE key LIKE 'fileReadBackfill%'",
+			)
+			.all()
+			.map(({ key, value }) => [key, value]),
+	);
+	const phase = scan["fileReadBackfillPhase"] || "pending";
+	const target = Number(scan["fileReadBackfillTarget"] || 0);
+	const cursor = Number(scan["fileReadBackfillCursor"] || 0);
+	const unresolved =
+		db
+			.prepare<[], { count: number }>(
+				"SELECT COUNT(*) count FROM skill_file_gaps",
+			)
+			.get()?.count || 0;
+	return {
+		rows: rows.slice(0, 500),
+		truncated: rows.length > 500,
+		coverage: {
+			...coverage,
+			fileReadScan: {
+				phase,
+				progress:
+					phase === "complete"
+						? 100
+						: target
+							? Math.min(99, Math.floor((cursor / target) * 100))
+							: 0,
+				unresolved,
+			},
+		},
+	};
 }
