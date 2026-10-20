@@ -97,8 +97,20 @@ async function main(): Promise<void> {
 			],
 			["/view-dom.js", "view-dom.js", "text/javascript; charset=utf-8"],
 			["/charts.js", "charts.js", "text/javascript; charset=utf-8"],
+			[
+				"/activity-chart.js",
+				"activity-chart.js",
+				"text/javascript; charset=utf-8",
+			],
 			["/usage-view.js", "usage-view.js", "text/javascript; charset=utf-8"],
 			["/style.css", "style.css", "text/css; charset=utf-8"],
+			["/base.css", "base.css", "text/css; charset=utf-8"],
+			["/table.css", "table.css", "text/css; charset=utf-8"],
+			["/header.css", "header.css", "text/css; charset=utf-8"],
+			["/overview.css", "overview.css", "text/css; charset=utf-8"],
+			["/activity.css", "activity.css", "text/css; charset=utf-8"],
+			["/usage.css", "usage.css", "text/css; charset=utf-8"],
+			["/calls.css", "calls.css", "text/css; charset=utf-8"],
 		] as const)
 			assets.set(path, {
 				data: await readFile(new URL(`../web/${file}`, import.meta.url)),

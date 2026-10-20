@@ -84,9 +84,7 @@ export function createNavigation({
 				button.getAttribute("data-view") ===
 				(id === "detail" ? "calls-panel" : id);
 			button.setAttribute("aria-pressed", String(active));
-			if (active) element("view-heading").textContent = button.textContent;
 		}
-		if (id === "detail") element("view-heading").textContent = "Call detail";
 		for (const panel of [
 			"overview",
 			"capability-usage",

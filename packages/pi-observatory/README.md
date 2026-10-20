@@ -2,7 +2,7 @@
 
 See which tools your agents call, how often and with which models. Usage bars rank tools and models by call volume, with exact counts and shares. Select a bar to inspect its calls, arguments and results. The activity graph shows daily totals and every outcome together: OK, errors, nonzero exits, missing final results and unclassified results.
 
-Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools and error counts. Errors, nonzero exits and index diagnostics remain available below the charts. Filter by model, provider, tool, project and date. Drill-downs and individual call details open at the top of their view. Back restores the previous filters, call page and scroll position.
+Switch views, refresh and filter from the site header. Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools and error counts. Errors, nonzero exits and index diagnostics remain available below the charts. Filter by model, provider, tool, project and date. Drill-downs and individual call details open at the top of their view. Back restores the previous filters, call page and scroll position.
 
 Commands and Skills each use one ranked table with search, sorting and pagination. Commands shows only recorded slash submissions, alongside the recording start time and session coverage. It cannot reconstruct historical command usage or identify unused commands. Loaded inventory alone never creates a command usage row. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show historical availability, not use or current installation. These views use the session, project and date filters.
 
@@ -82,7 +82,7 @@ Identical copied history is deduplicated across forked sessions. A session view 
 
 Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting an error message filters its exact stored pattern, tool and model. Use **Clear pattern** to remove that pattern filter.
 
-Charts show the top six tools and models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Every series uses the same count scale. Hover a day to preview its exact totals, each outcome and error rate. Click or use arrow keys to select the day, then select a count to inspect its matching calls. Date filters use UTC, with the Until date included.
+Charts show the top six tools and models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Total calls and OK share the upper count scale; the other outcomes share a separate lower count scale. Both plots use the same dates and day selection. Hover a day to preview its exact totals, each outcome and error rate. Click or use arrow keys to select the day, then select a count to inspect its matching calls. Date filters use UTC, with the Until date included.
 
 ## Index coverage
 

@@ -1,0 +1,96 @@
+#activity-plot {
+	min-height: 210px;
+}
+.activity-readout {
+	margin: 0 0 8px;
+	min-height: 18px;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+.activity-legend {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 4px 12px;
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
+}
+.activity-legend button {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-height: 36px;
+	padding: 4px;
+	border: 0;
+	font-size: 11px;
+	font-weight: 400;
+	text-align: left;
+	font-variant-numeric: tabular-nums;
+}
+.activity-swatch {
+	border-top: 2px solid var(--outcome-color);
+}
+.activity-swatch.ring-calls {
+	border-top-style: dashed;
+}
+.ring-calls {
+	--outcome-color: var(--fg);
+}
+.activity-day {
+	cursor: pointer;
+}
+.activity-hit {
+	fill: transparent;
+}
+.activity-guide {
+	stroke: var(--muted);
+	stroke-dasharray: 3 4;
+	pointer-events: none;
+}
+.activity-day.active-day .chart-point {
+	fill: var(--outcome-color);
+	opacity: 1;
+}
+.activity-day:focus-visible .activity-hit {
+	fill: var(--accent);
+	fill-opacity: 0.12;
+	stroke: var(--accent);
+}
+.activity-chart {
+	display: block;
+	width: 100%;
+	height: 210px;
+}
+.chart-grid {
+	stroke: var(--line);
+	stroke-width: 1;
+	stroke-dasharray: 3 5;
+}
+.chart-area {
+	fill: var(--fg);
+	opacity: 0.04;
+}
+.chart-line {
+	fill: none;
+	stroke: var(--outcome-color);
+	stroke-width: 2;
+	stroke-linejoin: round;
+}
+.chart-line.ring-calls {
+	stroke-dasharray: 5 4;
+	stroke-width: 1.5;
+}
+.chart-point {
+	fill: var(--surface);
+	stroke: var(--outcome-color);
+	stroke-width: 1.5;
+	opacity: 0;
+	pointer-events: none;
+}
+@media (max-width: 760px) {
+	.activity-legend {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}

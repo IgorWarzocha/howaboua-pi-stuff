@@ -1,10 +1,6 @@
 // @ts-check
-import {
-	activityChart,
-	dailySeries,
-	outcomeChart,
-	usageChart,
-} from "./charts.js";
+import { activityChart, dailySeries } from "./activity-chart.js";
+import { outcomeChart, usageChart } from "./charts.js";
 import { button, date, element, node, number, table } from "./view-dom.js";
 
 /** @typedef {import('../src/contracts.ts').Counts} Counts */

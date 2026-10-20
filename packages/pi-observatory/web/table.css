@@ -1,0 +1,91 @@
+.table-scroll {
+	overflow: auto;
+	max-width: 100%;
+}
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+	text-align: left;
+}
+th {
+	position: sticky;
+	top: 0;
+	background: var(--bg);
+	color: var(--muted);
+	font-weight: 500;
+	white-space: nowrap;
+	z-index: 1;
+}
+th,
+td {
+	padding: 12px;
+	border-bottom: 1px solid var(--line);
+	vertical-align: top;
+}
+td {
+	overflow-wrap: anywhere;
+}
+td.numeric {
+	text-align: right;
+	white-space: nowrap;
+}
+table button {
+	font-size: 12px;
+	min-height: 32px;
+	text-align: left;
+	background: transparent;
+	color: var(--accent);
+	border-color: transparent;
+	padding: 3px 0;
+}
+table tbody tr:hover {
+	background: var(--hover);
+}
+.pagination,
+.page-controls {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.pagination {
+	justify-content: space-between;
+	flex-wrap: wrap;
+	margin-top: 16px;
+	font-size: 12px;
+	color: var(--muted);
+}
+.page-controls {
+	margin-left: auto;
+}
+#calls-page,
+.page-info {
+	padding-inline: 8px;
+	white-space: nowrap;
+}
+.icon-button,
+.page-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	min-width: 36px;
+	min-height: 36px;
+	padding: 6px;
+}
+.icon-button svg,
+.page-button svg {
+	width: 18px;
+	height: 18px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.page-range {
+	margin-right: auto;
+}
+tr[aria-selected="true"] {
+	background: var(--accent-soft);
+}

@@ -1,4 +1,20 @@
 // @ts-check
+export const OUTCOMES = /** @type {const} */ ([
+	["ok", "OK"],
+	["error", "Errors"],
+	["nonzero", "Nonzero exits"],
+	["incomplete", "No final result"],
+	["unknown", "Unclassified"],
+]);
+
+/** @template {keyof SVGElementTagNameMap} T @param {T} tag @param {Record<string, string | number>} [attrs] */
+export function svg(tag, attrs = {}) {
+	const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+	for (const [name, value] of Object.entries(attrs))
+		node.setAttribute(name, String(value));
+	return node;
+}
+
 /** @typedef {import('../src/contracts.ts').Outcome} Outcome */
 
 /** @param {string} id */
