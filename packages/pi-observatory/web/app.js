@@ -1,5 +1,10 @@
 // @ts-check
-import { activityChart, dailySeries, usageChart } from "./charts.js";
+import {
+	activityChart,
+	dailySeries,
+	outcomeChart,
+	usageChart,
+} from "./charts.js";
 import { createUsageView } from "./usage-view.js";
 
 /** @typedef {import('../src/contracts.ts').Counts} Counts */
@@ -24,6 +29,8 @@ const activityMetric = /** @type {HTMLSelectElement} */ (
 	element("activity-metric")
 );
 const older = /** @type {HTMLButtonElement} */ (element("older"));
+const newer = /** @type {HTMLButtonElement} */ (element("newer"));
+const newest = /** @type {HTMLButtonElement} */ (element("newest"));
 const sessionSelect = /** @type {HTMLSelectElement} */ (element("session"));
 const sessionSearch = /** @type {HTMLInputElement} */ (
 	element("session-search")
@@ -69,7 +76,8 @@ window.addEventListener("hashchange", () => {
 let revision = -1;
 let loadedRevision = -1;
 let query = new URLSearchParams();
-/** @type {number | null} */ let cursor = null;
+/** @type {Array<number | null>} */ let pageCursors = [null];
+let pageIndex = 0;
 /** @type {number | null} */ let nextCursor = null;
 /** @type {number | null} */ let selected = null;
 /** @type {AbortController | undefined} */ let dataRequest;
@@ -80,6 +88,21 @@ let query = new URLSearchParams();
 /** @type {Map<number, HTMLButtonElement>} */ let callButtons = new Map();
 /** @type {import('../src/contracts.ts').Overview | undefined} */ let latestOverview;
 /** @type {ReturnType<typeof dailySeries> | undefined} */ let activityDays;
+/** @param {string} id */
+function showView(id) {
+	for (const button of document.querySelectorAll("button[data-view]")) {
+		const active = button.getAttribute("data-view") === id;
+		button.setAttribute("aria-pressed", String(active));
+		if (active) element("view-heading").textContent = button.textContent;
+	}
+	for (const panel of ["overview", "capability-usage", "calls-panel"])
+		element(panel).hidden = panel !== id;
+	if (id === "overview") renderActivity();
+}
+for (const button of document.querySelectorAll("button[data-view]"))
+	button.addEventListener("click", () =>
+		showView(button.getAttribute("data-view") || "overview"),
+	);
 /** @param {string} path @param {AbortSignal} [signal] */
 async function api(path, signal) {
 	const response = await fetch(path, {
@@ -175,6 +198,7 @@ function selectCalls(selection, result = "all") {
 	}
 	outcome.value = result;
 	applyFilters();
+	showView("calls-panel");
 	element("calls-heading").focus();
 	element("calls-heading").scrollIntoView({ block: "start" });
 }
@@ -223,9 +247,48 @@ function renderActivity() {
 function renderOverview(overview) {
 	latestOverview = overview;
 	const c = overview.totals;
-	element("totals").replaceChildren(
-		node("strong", `${number(c.calls)} calls`),
-		node("span", `${number(c.error)} errors`),
+	replaceOverview(
+		"totals",
+		.../** @type {const} */ ([
+			[
+				"Total calls",
+				number(c.calls),
+				query.get("scope") === "direct"
+					? "Direct calls"
+					: query.get("scope") === "nested"
+						? "Nested calls"
+						: "Direct + nested",
+				"all",
+			],
+			[
+				"Errors",
+				number(c.error),
+				completed(c)
+					? `${rate(c.error, completed(c))} of classified outcomes`
+					: "No classified outcomes",
+				"error",
+			],
+			["Nonzero exits", number(c.nonzero), "Command exit codes", "nonzero"],
+			[
+				"No final result",
+				number(c.incomplete),
+				"Recording gaps, not errors",
+				"incomplete",
+			],
+		]).map(([label, value, detail, result]) => {
+			const metric = button("", () => selectCalls({}, result));
+			metric.className = "metric";
+			metric.append(
+				node("span", label),
+				node("strong", value),
+				node("small", detail),
+			);
+			return metric;
+		}),
+	);
+	replaceOverview(
+		"outcome-chart",
+		outcomeChart(c, (result) => selectCalls({}, result)),
 	);
 	const modelItems = overview.byModel.map((row) => ({
 		...row,
@@ -238,7 +301,7 @@ function renderOverview(overview) {
 		label: row.tool,
 		select: () => selectCalls({ tool: row.tool, signature: "" }),
 	}));
-	replaceOverview("tool-chart", usageChart(toolItems.slice(0, 10), c.calls));
+	replaceOverview("tool-chart", usageChart(toolItems.slice(0, 6), c.calls));
 	replaceOverview("model-chart", usageChart(modelItems.slice(0, 6), c.calls));
 	const modelRows = modelItems.map((row) => [
 		button(row.label, row.select),
@@ -291,8 +354,8 @@ function renderOverview(overview) {
 			gaps.push(
 				button(`${label}: ${number(c[key])}`, () => {
 					outcome.value = key;
-					cursor = null;
 					void refreshCalls();
+					showView("calls-panel");
 					element("calls-heading").focus();
 					element("calls-heading").scrollIntoView({ block: "start" });
 				}),
@@ -412,68 +475,90 @@ async function refreshData() {
 		if (request.signal.aborted) return;
 		renderOverview(overview);
 		renderFacets(facets);
-		renderUsage(usage);
+		renderUsage(usage, usageQuery.toString());
 		loadedRevision = requestedRevision;
 	} catch (error) {
 		report(error);
 	}
 }
-async function refreshCalls() {
+/** @param {number} [targetPage] @param {number | null} [targetCursor] */
+async function refreshCalls(targetPage = 0, targetCursor = null) {
+	const pagerFocus = [older, newer, newest].find(
+		(button) => button === document.activeElement,
+	);
 	callsRequest?.abort();
 	const request = (callsRequest = new AbortController());
 	const params = new URLSearchParams(query);
 	params.set("outcome", outcome.value);
-	params.set("limit", "50");
-	if (cursor !== null) params.set("cursor", String(cursor));
+	params.set("limit", "20");
+	if (targetCursor !== null) params.set("cursor", String(targetCursor));
 	element("calls-status").textContent = "Loading calls…";
 	older.disabled = true;
+	newer.disabled = true;
+	newest.disabled = true;
+	element("calls").setAttribute("aria-busy", "true");
+	let loaded = false;
 	try {
 		/** @type {import('../src/contracts.ts').CallPage} */
 		const page = await api(`/api/calls?${params}`, request.signal);
 		if (request.signal.aborted) return;
+		pageIndex = targetPage;
+		pageCursors = targetPage === 0 ? [null] : pageCursors.slice(0, targetPage);
+		pageCursors[targetPage] = targetCursor;
 		nextCursor = page.nextCursor;
 		callButtons = new Map();
 		const rows = page.rows.map((call) => {
 			const action = button(date(call.timestamp), () => openDetail(call.id));
 			callButtons.set(call.id, action);
-			return [
-				action,
+			const tool = node("div", "");
+			tool.append(
+				node("strong", call.tool),
+				node("small", `${call.provider} / ${call.model}`),
+			);
+			tool.className = "call-tool";
+			const result = node(
+				"span",
 				outcomeLabel(call.outcome) +
 					(call.exitCode === null ? "" : ` (${call.exitCode})`),
-				call.tool,
-				call.signature,
-				`${call.provider} / ${call.model}`,
-				call.scope,
-				call.project,
-				call.preview,
-			];
+			);
+			result.className = `outcome-badge outcome-${call.outcome}`;
+			const preview = node("span", call.signature || call.preview || "—");
+			preview.className = "call-preview";
+			preview.title = call.signature || call.preview;
+			return [action, tool, result, call.scope, preview];
 		});
 		element("calls").replaceChildren(
 			table(
-				[
-					"Time (UTC)",
-					"Outcome",
-					"Tool",
-					"Signature",
-					"Model",
-					"Scope",
-					"Project",
-					"Preview",
-				],
+				["Time (UTC)", "Tool / Model", "Outcome", "Scope", "Preview"],
 				rows,
 				"No matching calls.",
 			),
 		);
-		element("calls-status").textContent =
-			`${number(page.rows.length)} calls${cursor === null ? " · newest first" : " · older page"}`;
+		element("calls-status").textContent = page.rows.length
+			? `${number(pageIndex * 20 + 1)}–${number(pageIndex * 20 + page.rows.length)} calls · newest first`
+			: "No matching calls";
+		element("calls-page").textContent = `Page ${pageIndex + 1}`;
+		element("calls").scrollTop = 0;
 		element("new-data").textContent = "";
-		older.disabled = nextCursor === null;
 		markSelected();
+		loaded = true;
 	} catch (error) {
 		if (!request.signal.aborted)
 			element("calls-status").textContent =
-				"Calls could not be loaded. Use Refresh calls to retry.";
+				"Could not load calls; previous results may still be shown. Use Refresh to retry.";
 		report(error);
+	} finally {
+		if (!request.signal.aborted) {
+			older.disabled = !loaded || nextCursor === null;
+			newer.disabled = newest.disabled = !loaded || pageIndex === 0;
+			element("calls").setAttribute("aria-busy", "false");
+			if (pagerFocus && document.activeElement === document.body) {
+				const focus = !pagerFocus.disabled
+					? pagerFocus
+					: [newer, older, newest].find((button) => !button.disabled);
+				(focus || element("refresh")).focus({ preventScroll: true });
+			}
+		}
 	}
 }
 function markSelected() {
@@ -571,7 +656,30 @@ function applyFilters() {
 		url.searchParams.set("session", query.get("session") || "");
 	else url.searchParams.delete("session");
 	history.replaceState(null, "", url.pathname + url.search + url.hash);
-	cursor = null;
+	pageIndex = 0;
+	pageCursors = [null];
+	nextCursor = null;
+	const active = Array.from(query).filter(
+		([key, value]) => key !== "scope" || value !== "all",
+	);
+	element("filter-count").textContent = active.length
+		? `${active.length} active`
+		: "All data";
+	element("scope-label").textContent = [
+		query.has("session")
+			? `Session ${query.get("session")?.slice(0, 8)}`
+			: "All sessions",
+		query.get("project"),
+		query.has("since") && query.has("until")
+			? `${query.get("since")} → ${query.get("until")}`
+			: query.has("since")
+				? `Since ${query.get("since")}`
+				: query.has("until")
+					? `Through ${query.get("until")}`
+					: "All time",
+	]
+		.filter(Boolean)
+		.join(" · ");
 	detailRequest?.abort();
 	selected = null;
 	element("detail").hidden = true;
@@ -582,6 +690,7 @@ function applyFilters() {
 form.addEventListener("submit", (event) => {
 	event.preventDefault();
 	applyFilters();
+	/** @type {HTMLDetailsElement} */ (element("filter-panel")).open = false;
 });
 form.addEventListener("reset", () => {
 	sessionSearch.value = "";
@@ -610,21 +719,22 @@ sessionSearch.addEventListener("input", () => {
 	sessionSearchTimer = setTimeout(refreshSessions, 200);
 });
 outcome.addEventListener("change", () => {
-	cursor = null;
+	nextCursor = null;
 	void refreshCalls();
 });
 older.addEventListener("click", () => {
 	if (nextCursor !== null) {
-		cursor = nextCursor;
-		void refreshCalls();
+		void refreshCalls(pageIndex + 1, nextCursor);
 	}
 });
-element("newest").addEventListener("click", () => {
-	cursor = null;
-	void refreshCalls();
+newer.addEventListener("click", () => {
+	if (pageIndex > 0)
+		void refreshCalls(pageIndex - 1, pageCursors[pageIndex - 1] ?? null);
 });
+newest.addEventListener("click", () => void refreshCalls());
 element("refresh").addEventListener("click", () => {
-	cursor = null;
+	element("error").hidden = true;
+	void refreshData();
 	void refreshCalls();
 });
 element("close-detail").addEventListener("click", () => {
@@ -637,9 +747,12 @@ element("close-detail").addEventListener("click", () => {
 });
 /** @param {import('../src/contracts.ts').IndexStatus} status */
 function renderStatus(status) {
-	const label = `${status.phase} · ${number(status.files)} files · ${number(status.entries)} entries${status.lastScan ? ` · scanned ${date(status.lastScan)}` : ""}`;
+	const label =
+		status.phase === "idle" ? "Index up to date" : `Index: ${status.phase}`;
 	if (element("status").textContent !== label)
 		element("status").textContent = label;
+	element("index-status-detail").textContent =
+		`${number(status.files)} files · ${number(status.entries)} entries${status.lastScan ? ` · scanned ${date(status.lastScan)}` : ""}`;
 	const c = status.coverage;
 	const gaps = [
 		[c.wrappersWithoutTraces, "wrappers without traces"],
@@ -655,6 +768,9 @@ function renderStatus(status) {
 	const coverage = gaps.length
 		? `Whole index: ${gaps.join(" · ")}`
 		: "Whole index: no coverage gaps reported.";
+	element("coverage-indicator").textContent = gaps.length
+		? `${gaps.length} gap types`
+		: "No reported gaps";
 	if (element("coverage-text").textContent !== coverage)
 		element("coverage-text").textContent = coverage;
 	const messages = [

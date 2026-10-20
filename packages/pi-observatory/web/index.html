@@ -2,55 +2,61 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Pi Observatory</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
 <body>
-<header><h1>Pi Observatory</h1><p id="status" role="status">Connecting…</p></header>
+<header class="app-header"><h1><span class="observatory-mark" aria-hidden="true">◉</span> Pi Observatory</h1><div class="index-state"><span class="status-dot" aria-hidden="true"></span><p id="status" role="status">Connecting…</p></div></header>
 <main>
 <p id="error" role="alert" hidden></p>
+<div class="workspace-heading"><div><h2 id="view-heading">Overview</h2><p id="scope-label" class="muted">All sessions · All time</p></div><button id="refresh" type="button">Refresh</button></div>
+<details id="filter-panel" class="filter-panel"><summary><span>Filters</span><span id="filter-count" class="muted">All data</span></summary>
 <section class="session-picker" aria-label="Session selection">
 <div class="session-controls">
 <label>Search sessions<input id="session-search" type="search" placeholder="Project or session ID" aria-describedby="sessions-status"></label>
 <label class="session-choice">Session<select id="session" name="session" form="filters" aria-describedby="sessions-status"><option value="">All sessions</option></select></label>
 <button id="all-sessions" type="button">All sessions</button><button id="current-session" type="button" hidden>Current session</button>
-</div>
-<p id="sessions-status" class="muted" role="status">Loading recent sessions…</p>
+</div><p id="sessions-status" class="muted" role="status">Loading recent sessions…</p>
 </section>
-<form id="filters" aria-label="Filter calls">
+<form id="filters" aria-label="Filter data">
+<label>Project<select name="project"><option value="">All projects</option></select></label>
+<label>From (UTC)<input name="since" type="date"></label><label>Until (UTC)<input name="until" type="date"></label>
+<fieldset class="call-filters"><legend>Calls only</legend>
 <label>Provider<select name="provider"><option value="">All providers</option></select></label>
 <label>Model<select name="model"><option value="">All models</option></select></label>
 <label>Tool<select name="tool"><option value="">All tools</option></select></label>
-<label>Project<select name="project"><option value="">All projects</option></select></label>
-<label>From (UTC)<input name="since" type="date"></label><label>Until (UTC)<input name="until" type="date"></label>
 <label>Scope<select name="scope"><option value="all">Direct + nested</option><option value="direct">Direct</option><option value="nested">Nested</option></select></label>
-<label class="search">Search<input name="q" type="search" placeholder="Tool or message"></label>
-<input name="signature" type="hidden">
-<button type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button>
-</form>
+<label class="search">Search calls<input name="q" type="search" placeholder="Tool or message"></label>
+<input name="signature" type="hidden"></fieldset>
+<div class="filter-actions"><button class="primary-button" type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button></div>
+</form></details>
+<nav class="view-nav" aria-label="Dashboard views"><button type="button" data-view="overview" aria-pressed="true">Overview</button><button type="button" data-view="capability-usage" aria-pressed="false">Commands &amp; skills</button><button type="button" data-view="calls-panel" aria-pressed="false">Call explorer</button></nav>
 <p id="pattern" hidden><span id="pattern-text"></span> <button id="clear-pattern" type="button">Clear pattern</button></p>
-<section id="overview" aria-label="Usage"><div id="totals" role="status">Loading…</div>
-<div class="usage-charts">
-<div><h2 id="tools-heading">Tools</h2><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>Table</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div></details></div>
-<div class="chart-column"><div><h2 id="models-heading">Models</h2><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>Table</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></div>
-<div><div class="chart-heading"><h2>Activity</h2><select id="activity-metric" aria-label="Activity metric"><option value="calls">Calls</option><option value="error">Errors</option></select></div><div id="activity-plot"></div><details><summary>Table</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily activity"></div></details></div></div>
+<section id="overview" aria-label="Overview">
+<div id="totals" class="metrics" role="status">Loading…</div>
+<div class="activity-grid">
+<section class="chart-panel"><div class="chart-heading"><div><h2>Activity</h2><p class="muted">Daily calls · up to 90 days · UTC</p></div><select id="activity-metric" aria-label="Activity metric"><option value="calls">Calls</option><option value="error">Errors</option></select></div><div id="activity-plot"></div><details><summary>View daily counts</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily activity"></div></details></section>
+<section class="chart-panel"><div class="chart-heading"><h2>Outcomes</h2></div><div id="outcome-chart"></div></section>
 </div>
-<section id="capability-usage" aria-labelledby="capability-heading">
-<div class="section-heading"><h2 id="capability-heading">Commands &amp; skills</h2></div>
-<p class="muted">Only session, project and date filters apply here.</p>
+<div class="usage-charts">
+<section class="chart-panel"><div class="chart-heading"><h2 id="tools-heading">Top tools</h2><span class="muted">Share of calls</span></div><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>View all tools</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div></details></section>
+<section class="chart-panel"><div class="chart-heading"><h2 id="models-heading">Top models</h2><span class="muted">Share of calls</span></div><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>View all models</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></section>
+</div>
+<div class="diagnostics"><details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details><details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details></div>
+</section>
+<section id="capability-usage" aria-labelledby="capability-heading" hidden>
+<div class="section-heading"><h2 id="capability-heading" class="visually-hidden">Commands &amp; skills</h2><span class="muted">Session, project &amp; date filters apply</span></div>
 <div class="capability-controls">
 <label>View<select id="usage-view"><option value="commands">Commands</option><option value="skills">Skills</option></select></label>
-<label class="search">Name, owner or path<input id="usage-search" type="search"></label>
+<label class="search">Find a resource<input id="usage-search" type="search" placeholder="Name, owner or path"></label>
 <label>Sort<select id="usage-sort"><option value="most">Most used</option><option value="least">Least used</option><option value="recent">Most recent</option><option value="name">Name</option></select></label>
 <label>Usage<select id="usage-zero"><option value="all">All</option><option value="zero">Zero recorded</option></select></label>
 </div>
-<p id="usage-coverage" class="muted">Loading recording coverage…</p>
-<p id="usage-status" class="muted" role="status"></p>
-<div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div>
+<div id="usage-summary" class="metrics"></div>
+<div class="capability-grid"><section class="chart-panel"><div id="usage-chart"></div><p id="usage-coverage" class="muted">Loading recording coverage…</p></section>
+<section class="resource-panel"><p id="usage-status" class="muted" role="status"></p><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav></section></div>
 </section>
-<details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details>
-<details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details>
-<details id="coverage"><summary>Coverage</summary><div id="outcome-coverage"></div><p id="coverage-text"></p><ul id="index-issues"></ul><h3>Commands &amp; skills</h3><p id="usage-evidence-coverage"></p><p>Inventory reflects loaded snapshots, not a live installation check. Zero means no recorded use. Older skill reads without recording evidence are unavailable; list/help is excluded.</p></details>
+<section id="calls-panel" aria-labelledby="calls-heading" hidden><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><span id="new-data" role="status"></span><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><optgroup label="Coverage"><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></optgroup></select></label></div>
+<nav class="pagination" aria-label="Call pages"><span id="calls-status" role="status"></span><div class="page-controls"><button id="newest" class="icon-button" type="button" aria-label="First page" title="First page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M17 6l-6 6 6 6"/></svg></button><button id="newer" class="icon-button" type="button" aria-label="Previous page" title="Previous page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><span id="calls-page">Page 1</span><button id="older" class="icon-button" type="button" aria-label="Next page" title="Next page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div></nav>
+<div id="calls" class="table-scroll" tabindex="0" role="region" aria-label="Calls"></div>
+<section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" tabindex="-1">Call detail</h2><button id="close-detail" type="button">Close</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>
 </section>
-<section aria-labelledby="calls-heading"><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><optgroup label="Coverage"><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></optgroup></select></label><button id="refresh" type="button">Refresh</button><span id="new-data" role="status"></span></div>
-<p id="calls-status" role="status"></p><div id="calls" class="table-scroll"></div><nav aria-label="Call pages"><button id="newest" type="button">Newest page</button><button id="older" type="button" disabled>Older calls</button></nav>
-</section>
-<section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" tabindex="-1">Call</h2><button id="close-detail" type="button">Close</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>
+<details id="coverage" class="coverage-panel"><summary>Data coverage <span id="coverage-indicator" class="muted"></span></summary><div id="outcome-coverage"></div><p id="index-status-detail"></p><p id="coverage-text"></p><ul id="index-issues"></ul><h3>Commands &amp; skills</h3><p id="usage-evidence-coverage"></p><p>Inventory reflects loaded snapshots, not a live installation check. Zero means no recorded use. Older skill reads without recording evidence are unavailable; list/help is excluded.</p></details>
 </main>
 </body></html>

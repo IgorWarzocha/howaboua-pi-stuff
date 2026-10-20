@@ -3,7 +3,10 @@
 /** @typedef {import('../src/usage.ts').UsageRow} UsageRow */
 /** @typedef {import('../src/usage.ts').UsageOverview} UsageOverview */
 
-/** @param {string} tag @param {string} text @param {string} [className] */
+const PAGE_SIZE = 10;
+const CHART_LIMIT = 8;
+
+/** @template {keyof HTMLElementTagNameMap} T @param {T} tag @param {string} text @param {string} [className] */
 function textNode(tag, text, className) {
 	const node = document.createElement(tag);
 	node.textContent = text;
@@ -16,7 +19,33 @@ function timestamp(value) {
 	return value ? value.replace("T", " ").replace(/\.\d+Z$/, "Z") : "—";
 }
 
-/** Command counts and skill-read evidence intentionally have separate views. */
+/** @param {"Previous" | "Next"} direction @param {() => void} select */
+function pageButton(direction, select) {
+	const button = document.createElement("button");
+	button.type = "button";
+	button.className = "page-button";
+	button.setAttribute("aria-label", `${direction} resource page`);
+	const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	icon.setAttribute("viewBox", "0 0 20 20");
+	icon.setAttribute("width", "16");
+	icon.setAttribute("height", "16");
+	icon.setAttribute("aria-hidden", "true");
+	const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+	path.setAttribute(
+		"d",
+		direction === "Previous" ? "m12 4-6 6 6 6" : "m8 4 6 6-6 6",
+	);
+	path.setAttribute("fill", "none");
+	path.setAttribute("stroke", "currentColor");
+	path.setAttribute("stroke-width", "1.8");
+	icon.append(path);
+	const label = textNode("span", direction);
+	button.append(...(direction === "Previous" ? [icon, label] : [label, icon]));
+	button.addEventListener("click", select);
+	return button;
+}
+
+/** Command submissions and mixed skill evidence intentionally have separate views. */
 export function createUsageView() {
 	/** @param {string} id */
 	function element(id) {
@@ -29,8 +58,20 @@ export function createUsageView() {
 	const sort = /** @type {HTMLSelectElement} */ (element("usage-sort"));
 	const zero = /** @type {HTMLSelectElement} */ (element("usage-zero"));
 	const target = element("usage-table");
+	const summary = element("usage-summary");
+	const chart = element("usage-chart");
+	const pagination = element("usage-pagination");
+	const range = textNode("span", "", "page-range");
+	const pageInfo = textNode("span", "", "page-info");
+	const previous = pageButton("Previous", () => changePage(-1));
+	const next = pageButton("Next", () => changePage(1));
+	pagination.classList.add("pagination");
+	pagination.setAttribute("aria-label", "Resource pages");
+	pagination.replaceChildren(range, previous, pageInfo, next);
 	/** @type {UsageOverview | undefined} */
 	let latest;
+	let page = 0;
+	let scope = "";
 
 	/** @param {UsageRow} row */
 	function uses(row) {
@@ -43,39 +84,164 @@ export function createUsageView() {
 	}
 
 	/** @param {UsageRow} row */
-	function resource(row) {
+	function name(row) {
+		return view.value === "skills"
+			? row.name
+			: `/${row.kind === "skill" ? "skill:" : ""}${row.name}`;
+	}
+
+	/** @param {UsageRow} row @param {boolean} recorded @param {Set<string>} expanded */
+	function resource(row, recorded, expanded) {
 		const cell = document.createElement("td");
-		const name =
-			view.value === "skills"
-				? row.name
-				: `/${row.kind === "skill" ? "skill:" : ""}${row.name}`;
-		cell.append(textNode("strong", name, "capability-name"));
+		cell.append(textNode("strong", name(row), "capability-name"));
 		if (view.value !== "skills")
 			cell.append(textNode("span", row.kind, "muted capability-kind"));
-		if (row.path || row.firstAvailable || row.lastAvailable) {
-			const source = document.createElement("details");
-			source.append(textNode("summary", row.owner || "Source & availability"));
-			if (row.path) source.append(textNode("p", row.path, "source-path"));
-			if (row.firstAvailable)
-				source.append(
-					textNode("p", `First available ${timestamp(row.firstAvailable)}`),
-				);
-			if (row.lastAvailable)
-				source.append(
-					textNode("p", `Last available ${timestamp(row.lastAvailable)}`),
-				);
-			cell.append(source);
-		} else if (row.owner)
-			cell.append(textNode("span", row.owner, "muted capability-kind"));
+		const details = document.createElement("details");
+		details.dataset["resource"] = JSON.stringify([
+			row.kind,
+			row.name,
+			row.path,
+		]);
+		details.open = expanded.has(details.dataset["resource"]);
+		details.append(
+			textNode(
+				"summary",
+				view.value === "skills" ? "Evidence & source" : "Source & availability",
+			),
+		);
+		if (view.value === "skills")
+			details.append(
+				textNode(
+					"p",
+					`${row.skillReads.toLocaleString()} body reads · ${row.referenceReads.toLocaleString()} reference reads · ${row.continuations.toLocaleString()} continuations · ${row.submissions || recorded ? row.submissions.toLocaleString() : "unavailable"} slash submissions`,
+				),
+			);
+		if (row.owner) details.append(textNode("p", `Source: ${row.owner}`));
+		if (row.path) details.append(textNode("p", row.path, "source-path"));
+		if (row.firstAvailable)
+			details.append(
+				textNode(
+					"p",
+					`First inventory snapshot: ${timestamp(row.firstAvailable)}`,
+				),
+			);
+		if (row.lastAvailable)
+			details.append(
+				textNode(
+					"p",
+					`Last inventory snapshot: ${timestamp(row.lastAvailable)}`,
+				),
+			);
+		if (!row.firstAvailable)
+			details.append(
+				textNode("p", "Observed use only; no inventory snapshot."),
+			);
+		cell.append(details);
 		return cell;
 	}
 
-	function draw() {
-		if (!latest) return;
+	/** @param {UsageRow[]} rows @param {boolean} recorded @param {string} empty */
+	function drawOverview(rows, recorded, empty) {
 		const skills = view.value === "skills";
+		const total = rows.reduce((sum, row) => sum + uses(row), 0);
+		const used = rows.filter((row) => uses(row) > 0);
+		const known = skills || recorded || total > 0;
+		summary.replaceChildren();
+		for (const metric of [
+			{
+				label: skills ? "Recorded uses" : "Submissions",
+				value: known ? total.toLocaleString() : "Unavailable",
+			},
+			{
+				label: "Used resources",
+				value: known ? used.length.toLocaleString() : "Unavailable",
+			},
+			{
+				label: "Zero recorded",
+				value:
+					skills || recorded
+						? (rows.length - used.length).toLocaleString()
+						: "Unavailable",
+			},
+		]) {
+			const node = textNode("div", "", "usage-metric");
+			node.append(
+				textNode("span", metric.label),
+				textNode(
+					"strong",
+					metric.value,
+					metric.value === "Unavailable" ? "metric-unavailable" : "",
+				),
+			);
+			summary.append(node);
+		}
+		summary.append(
+			textNode(
+				"p",
+				skills
+					? "Body reads, reference reads, continuations and slash submissions; not unique executions."
+					: "Recorded slash submissions, not successful executions.",
+				"usage-note muted",
+			),
+		);
+		const heading = textNode("div", "", "chart-heading");
+		heading.append(
+			textNode(
+				"h3",
+				skills ? "Recorded skill evidence" : "Command submissions",
+			),
+			textNode(
+				"span",
+				used.length
+					? `Top ${Math.min(CHART_LIMIT, used.length)} of ${used.length.toLocaleString()} used`
+					: "",
+				"muted",
+			),
+		);
+		chart.replaceChildren(heading);
+		if (!used.length) {
+			chart.append(
+				textNode(
+					"p",
+					!rows.length
+						? empty
+						: !known
+							? "Submission counts are unavailable without recording evidence."
+							: "No recorded use in this view. Zero does not mean never used.",
+					"chart-empty muted",
+				),
+			);
+			return;
+		}
+		const ranked = used
+			.sort((a, b) => uses(b) - uses(a) || a.name.localeCompare(b.name))
+			.slice(0, CHART_LIMIT);
+		const maximum = Math.max(...ranked.map(uses));
+		const bars = textNode("ol", "", "capability-bars");
+		for (const row of ranked) {
+			const item = textNode("li", "", "capability-bar");
+			const label = textNode("div", "", "capability-bar-heading");
+			label.append(
+				textNode("span", name(row), "bar-label"),
+				textNode("span", uses(row).toLocaleString(), "bar-count"),
+			);
+			const track = textNode("span", "", "bar-track");
+			track.setAttribute("aria-hidden", "true");
+			const fill = textNode("span", "", "bar-fill");
+			fill.style.width = `${(100 * uses(row)) / maximum}%`;
+			track.append(fill);
+			item.append(label, track);
+			bars.append(item);
+		}
+		chart.append(bars);
+	}
+
+	function draw() {
+		if (!latest || target.contains(document.activeElement)) return;
+		const skills = view.value === "skills";
+		const coverage = latest.coverage;
 		const recorded =
-			latest.coverage.recordingSince !== null &&
-			latest.coverage.recordedSessions > 0;
+			coverage.recordingSince !== null && coverage.recordedSessions > 0;
 		const needle = search.value.trim().toLocaleLowerCase();
 		const rows = latest.rows.filter(
 			(row) =>
@@ -102,7 +268,6 @@ export function createUsageView() {
 				a.name.localeCompare(b.name)
 			);
 		});
-		const coverage = latest.coverage;
 		element("usage-coverage").textContent = [
 			coverage.recordingSince
 				? `Submissions since ${coverage.recordingSince.slice(0, 10)}`
@@ -113,81 +278,90 @@ export function createUsageView() {
 				: "No inventory snapshots",
 		].join(" · ");
 		element("usage-evidence-coverage").textContent =
-			`Selected sessions: submission recording since ${timestamp(coverage.recordingSince)}; ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} sessions have recording evidence. Inventory snapshots since ${timestamp(coverage.inventorySince)}.`;
+			`Selected sessions: submission recording since ${timestamp(coverage.recordingSince)}; ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} sessions have recording evidence. Inventory snapshots since ${timestamp(coverage.inventorySince)}. Inventory dates are observations, not installation dates. Zero means no recorded use, not proof of non-use.`;
 		element("usage-status").textContent =
-			`${rows.length.toLocaleString()} ${skills ? (rows.length === 1 ? "skill" : "skills") : rows.length === 1 ? "command" : "commands"}${latest.truncated ? " · 500-resource limit; narrow session, project or dates for more" : ""}`;
-		// Defer refreshed rows while a source disclosure or scroll region has focus.
-		if (target.contains(document.activeElement)) return;
+			`${rows.length.toLocaleString()} matching ${skills ? "skills" : "commands"}${latest.truncated ? " · 500-resource limit; narrow session, project or dates for more" : ""}`;
+		const empty =
+			zero.value === "zero" && !skills && !recorded
+				? "Zero-submission counts are unavailable without recording evidence."
+				: latest.rows.length
+					? "No resources match this view."
+					: "No command or skill records in this selection.";
+		drawOverview(rows, recorded, empty);
+		const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+		page = Math.min(page, pages - 1);
+		const start = page * PAGE_SIZE;
+		previous.disabled = page === 0;
+		next.disabled = page >= pages - 1;
+		pageInfo.textContent = `Page ${page + 1} of ${pages}`;
+		range.textContent = rows.length
+			? `${(start + 1).toLocaleString()}–${Math.min(start + PAGE_SIZE, rows.length).toLocaleString()} of ${rows.length.toLocaleString()}`
+			: "0 resources";
 		if (!rows.length) {
-			target.replaceChildren(
-				textNode(
-					"p",
-					latest.rows.length
-						? zero.value === "zero" && !skills && !recorded
-							? "Zero-submission counts are unavailable without recording evidence."
-							: "No matching recorded resources."
-						: "No command or skill records in this selection.",
-				),
-			);
+			target.replaceChildren(textNode("p", empty, "muted"));
 			return;
 		}
+		const expanded = new Set(
+			Array.from(
+				target.querySelectorAll("details[open]"),
+				(node) => /** @type {HTMLElement} */ (node).dataset["resource"] || "",
+			),
+		);
 		const table = document.createElement("table");
 		const head = table.createTHead().insertRow();
-		const headings = [
+		for (const heading of [
 			skills ? "Skill" : "Command",
-			...(skills ? ["Body reads", "Reference reads", "Continuations"] : []),
-			"Submissions",
-			skills ? "Last used (UTC)" : "Last submitted (UTC)",
-			"Available since",
-		];
-		for (const heading of headings) {
-			const th = document.createElement("th");
+			skills ? "Recorded uses" : "Submissions",
+			"Last recorded (UTC)",
+		]) {
+			const th = textNode("th", heading);
 			th.scope = "col";
-			th.textContent = heading;
 			head.append(th);
 		}
 		const body = table.createTBody();
-		for (const item of rows) {
+		for (const item of rows.slice(start, start + PAGE_SIZE)) {
 			const row = body.insertRow();
-			row.append(resource(item));
-			for (const count of skills
-				? [item.skillReads, item.referenceReads, item.continuations]
-				: [])
-				row.append(textNode("td", count.toLocaleString(), "numeric"));
 			row.append(
+				resource(item, recorded, expanded),
 				textNode(
 					"td",
-					item.submissions || recorded
-						? item.submissions.toLocaleString()
+					uses(item) || skills || recorded
+						? uses(item).toLocaleString()
 						: "Unavailable",
 					"numeric",
 				),
-			);
-			row.append(
 				textNode(
 					"td",
 					timestamp(skills ? item.lastUsed : item.lastSubmitted),
 					"evidence-date",
 				),
 			);
-			const inventory = row.insertCell();
-			inventory.textContent = item.firstAvailable
-				? item.firstAvailable.slice(0, 10)
-				: "Observed only";
 		}
 		target.replaceChildren(table);
 	}
 
+	/** @param {number} delta */
+	function changePage(delta) {
+		const focused = document.activeElement;
+		page += delta;
+		target.scrollTop = 0;
+		draw();
+		if (focused === previous && previous.disabled) next.focus();
+		if (focused === next && next.disabled) previous.focus();
+	}
+	function resetPage() {
+		page = 0;
+		draw();
+	}
 	for (const control of [view, sort, zero])
-		control.addEventListener("change", draw);
-	search.addEventListener("input", draw);
-	target.addEventListener("focusout", () =>
-		queueMicrotask(() => {
-			if (!target.contains(document.activeElement)) draw();
-		}),
-	);
-	/** @param {UsageOverview} overview */
-	return function render(overview) {
+		control.addEventListener("change", resetPage);
+	search.addEventListener("input", resetPage);
+	// Keep the focused disclosure/scroll region intact until focus leaves it.
+	target.addEventListener("focusout", () => queueMicrotask(() => draw()));
+	/** @param {UsageOverview} overview @param {string} [nextScope] */
+	return function render(overview, nextScope = "") {
+		if (scope !== nextScope) page = 0;
+		scope = nextScope;
 		latest = overview;
 		draw();
 	};

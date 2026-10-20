@@ -91,6 +91,86 @@ function svg(tag, attrs = {}) {
 	return node;
 }
 
+/** @param {import('../src/contracts.ts').Counts} counts @param {(outcome: import('../src/contracts.ts').Outcome) => void} select */
+export function outcomeChart(counts, select) {
+	const container = document.createElement("div");
+	container.className = "outcome-distribution";
+	if (!counts.calls) {
+		container.textContent = "No calls in this selection.";
+		return container;
+	}
+	const outcomes = /** @type {const} */ ([
+		["ok", "OK"],
+		["error", "Errors"],
+		["nonzero", "Nonzero exits"],
+		["incomplete", "No final result"],
+		["unknown", "Unclassified"],
+	]);
+	const chart = svg("svg", {
+		viewBox: "0 0 180 180",
+		role: "img",
+		"aria-label": outcomes
+			.map(([key, label]) => `${label}: ${counts[key].toLocaleString()}`)
+			.join(", "),
+	});
+	chart.classList.add("outcome-ring");
+	let offset = 0;
+	for (const [key] of outcomes) {
+		const share = (counts[key] / counts.calls) * 100;
+		if (!share) continue;
+		chart.append(
+			svg("circle", {
+				cx: 90,
+				cy: 90,
+				r: 70,
+				pathLength: 100,
+				fill: "none",
+				"stroke-width": 18,
+				"stroke-dasharray": `${share} ${100 - share}`,
+				"stroke-dashoffset": -offset,
+				transform: "rotate(-90 90 90)",
+				class: `ring-${key}`,
+			}),
+		);
+		offset += share;
+	}
+	const value = svg("text", {
+		x: 90,
+		y: 88,
+		"text-anchor": "middle",
+		class: "ring-value",
+	});
+	value.textContent = `${((counts.ok / counts.calls) * 100).toFixed(1)}%`;
+	const label = svg("text", {
+		x: 90,
+		y: 109,
+		"text-anchor": "middle",
+		class: "chart-axis",
+	});
+	label.textContent = "OK outcomes";
+	chart.append(value, label);
+	const legend = document.createElement("ul");
+	legend.className = "outcome-legend";
+	for (const [key, label] of outcomes) {
+		const item = document.createElement("li");
+		const button = document.createElement("button");
+		button.type = "button";
+		button.addEventListener("click", () => select(key));
+		const swatch = document.createElement("span");
+		swatch.className = `outcome-swatch ring-${key}`;
+		swatch.setAttribute("aria-hidden", "true");
+		const name = document.createElement("span");
+		name.textContent = label;
+		const count = document.createElement("strong");
+		count.textContent = counts[key].toLocaleString();
+		button.append(swatch, name, count);
+		item.append(button);
+		legend.append(item);
+	}
+	container.append(chart, legend);
+	return container;
+}
+
 /** @param {Day[]} days @param {"calls" | "error"} metric @param {number} width */
 export function activityChart(days, metric, width) {
 	if (!days.length) {
