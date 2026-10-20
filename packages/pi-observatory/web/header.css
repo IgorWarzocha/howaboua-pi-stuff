@@ -180,29 +180,7 @@ h1 {
 @media (max-width: 760px) {
 	.app-header {
 		padding-inline: 16px;
-	}
-	.app-header {
 		padding-top: 10px;
-	}
-	.header-bar {
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 4px 12px;
-	}
-	.header-bar h1 {
-		grid-column: 1;
-		grid-row: 1;
-	}
-	.header-bar .index-state {
-		grid-column: 1;
-		grid-row: 2;
-		justify-self: start;
-	}
-	.header-bar > #refresh {
-		grid-column: 2;
-		grid-row: 1 / 3;
-	}
-	.view-nav {
-		grid-row: 3;
 	}
 	h1 {
 		font-size: 16px;
@@ -222,6 +200,29 @@ h1 {
 	}
 	.view-nav button {
 		font-size: 12px;
+	}
+}
+@media (max-width: 480px) {
+	.header-bar {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 4px 12px;
+	}
+	.header-bar h1 {
+		grid-column: 1;
+		grid-row: 1;
+	}
+	.header-bar .index-state {
+		grid-column: 1;
+		grid-row: 2;
+		justify-self: start;
+	}
+	.header-bar > #refresh {
+		grid-column: 2;
+		grid-row: 1 / 3;
+		align-self: start;
+	}
+	.view-nav {
+		grid-row: 3;
 	}
 }
 @media (max-width: 360px) {

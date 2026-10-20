@@ -37,10 +37,24 @@ export function dailySeries(rows) {
 
 /** @param {Day[]} days @param {number} width @param {(day: string, outcome: import('../src/contracts.ts').Outcome | "all") => void} select */
 export function activityChart(days, width, select) {
+	const container = document.createElement("div");
+	const header = document.createElement("div");
+	header.className = "chart-heading activity-heading";
+	const heading = document.createElement("h2");
+	heading.textContent = "Activity";
+	heading.id = "activity-heading";
+	const readout = document.createElement("p");
+	readout.className = "activity-readout";
+	const date = document.createElement("span");
+	const rate = document.createElement("span");
+	readout.append(date, rate);
+	header.append(heading, readout);
+	container.append(header);
 	if (!days.length) {
 		const empty = document.createElement("p");
 		empty.textContent = "No calls.";
-		return empty;
+		container.append(empty);
+		return container;
 	}
 	width = Math.max(240, width);
 	const height = 210;
@@ -49,6 +63,7 @@ export function activityChart(days, width, select) {
 		top = 20,
 		bottom = height - 30;
 	const series = /** @type {const} */ ([["calls", "Total calls"], ...OUTCOMES]);
+	const plotted = series.filter(([key]) => key !== "calls" && key !== "ok");
 	const x = (/** @type {number} */ i) =>
 		days.length === 1
 			? (left + right) / 2
@@ -60,30 +75,26 @@ export function activityChart(days, width, select) {
 	});
 	chart.classList.add("activity-chart");
 	const title = svg("title", { id: "activity-title" });
-	title.textContent = `Daily calls, ${days[0]?.day} to ${days.at(-1)?.day}. Total and OK use the upper count scale; other outcomes use a separate lower count scale. Use arrow keys to select a day, then select a count to open its calls.`;
+	title.textContent = `Daily errors, nonzero exits, missing and unclassified results, ${days[0]?.day} to ${days.at(-1)?.day}. Use arrow keys to select a day, then select a count to open its calls. Total and OK counts are available below.`;
 	chart.append(title);
 	const compact = new Intl.NumberFormat(undefined, {
 		notation: "compact",
 		maximumFractionDigits: 1,
 	});
-	/** @param {string} name @param {ReadonlyArray<readonly [keyof import('../src/contracts.ts').Counts, string]>} lines @param {number} start @param {number} end */
-	function plot(name, lines, start, end) {
+	function plot() {
 		const maximum = Math.max(
 			1,
-			...days.flatMap((day) => lines.map(([key]) => day[key])),
+			...days.flatMap((day) => plotted.map(([key]) => day[key])),
 		);
 		const unit = 10 ** Math.floor(Math.log10(maximum / 2));
 		const step = Math.max(1, Math.ceil(maximum / 2 / unit) * unit);
 		const ceiling = step * 2;
 		const y = (/** @type {number} */ value) =>
-			end - (value / ceiling) * (end - start);
+			bottom - (value / ceiling) * (bottom - top);
 		const group = svg("g", {
 			role: "group",
-			"aria-label": `${name}: 0 to ${ceiling.toLocaleString()} calls`,
+			"aria-label": `Daily outcomes: 0 to ${ceiling.toLocaleString()} calls`,
 		});
-		const heading = svg("text", { x: left, y: start - 9, class: "chart-axis" });
-		heading.textContent = name;
-		group.append(heading);
 		for (const value of [0, step, ceiling]) {
 			group.append(
 				svg("line", {
@@ -103,15 +114,8 @@ export function activityChart(days, width, select) {
 			label.textContent = compact.format(value);
 			group.append(label);
 		}
-		for (const [key] of lines) {
+		for (const [key] of plotted) {
 			const points = days.map((day, i) => `${x(i)},${y(day[key])}`).join(" ");
-			if (key === "calls")
-				group.append(
-					svg("polygon", {
-						points: `${x(0)},${end} ${points} ${x(days.length - 1)},${end}`,
-						class: "chart-area",
-					}),
-				);
 			group.append(
 				svg("polyline", {
 					points,
@@ -120,29 +124,12 @@ export function activityChart(days, width, select) {
 				}),
 			);
 		}
-		const guide = svg("line", { y1: start, y2: end, class: "activity-guide" });
+		const guide = svg("line", { y1: top, y2: bottom, class: "activity-guide" });
 		group.append(guide);
 		chart.append(group);
 		return { y, guide };
 	}
-	const volume = plot(
-		"Total and OK",
-		series.filter(([key]) => key === "calls" || key === "ok"),
-		top,
-		80,
-	);
-	const other = plot(
-		"Other outcomes",
-		series.filter(([key]) => key !== "calls" && key !== "ok"),
-		116,
-		bottom,
-	);
-	/** @param {keyof import('../src/contracts.ts').Counts} key @param {number} value */
-	const y = (key, value) =>
-		(key === "calls" || key === "ok" ? volume : other).y(value);
-	const container = document.createElement("div");
-	const readout = document.createElement("p");
-	readout.className = "activity-readout";
+	const { y, guide } = plot();
 	const legend = document.createElement("ul");
 	legend.className = "activity-legend";
 	let selected = days.length - 1;
@@ -156,7 +143,9 @@ export function activityChart(days, width, select) {
 		const name = document.createElement("span");
 		name.textContent = label;
 		const count = document.createElement("strong");
-		button.append(swatch, name, count);
+		if (key === "calls" || key === "ok") button.className = "activity-count";
+		else button.append(swatch);
+		button.append(name, count);
 		button.addEventListener("click", () => {
 			const day = days[selected];
 			if (day) select(day.day, key === "calls" ? "all" : key);
@@ -186,7 +175,8 @@ export function activityChart(days, width, select) {
 		const day = days[index];
 		if (!day) return;
 		selected = index;
-		readout.textContent = `${day.day} UTC · ${errorRate(day)} error rate`;
+		date.textContent = `${day.day} UTC`;
+		rate.textContent = `${errorRate(day)} error rate`;
 		for (const { key, label, button, count } of counts) {
 			count.textContent = day[key].toLocaleString();
 			button.setAttribute(
@@ -194,10 +184,8 @@ export function activityChart(days, width, select) {
 				`${day.day}: ${day[key].toLocaleString()} ${label}. View calls`,
 			);
 		}
-		for (const { guide } of [volume, other]) {
-			guide.setAttribute("x1", String(x(index)));
-			guide.setAttribute("x2", String(x(index)));
-		}
+		guide.setAttribute("x1", String(x(index)));
+		guide.setAttribute("x2", String(x(index)));
 		for (const [i, target] of targets.entries()) {
 			target.setAttribute("tabindex", i === index ? "0" : "-1");
 			target.setAttribute("aria-pressed", String(i === index));
@@ -222,11 +210,11 @@ export function activityChart(days, width, select) {
 				class: "activity-hit",
 			}),
 		);
-		for (const [key] of series)
+		for (const [key] of plotted)
 			target.append(
 				svg("circle", {
 					cx: x(i),
-					cy: y(key, day[key]),
+					cy: y(day[key]),
 					r: 3,
 					class: `chart-point ring-${key}`,
 				}),
@@ -289,6 +277,6 @@ export function activityChart(days, width, select) {
 		label.textContent = dates.format(new Date(day.day));
 		chart.append(label);
 	}
-	container.append(readout, chart, legend);
+	container.append(chart, legend);
 	return container;
 }

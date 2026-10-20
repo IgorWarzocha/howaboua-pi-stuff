@@ -1,11 +1,23 @@
 #activity-plot {
 	min-height: 210px;
 }
-.activity-readout {
-	margin: 0 0 8px;
+.activity-heading {
+	align-items: baseline;
+}
+.activity-heading .activity-readout {
+	display: flex;
+	flex: 1;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0 12px;
+	margin: 0;
 	min-height: 18px;
 	font-size: 12px;
+	color: var(--muted);
 	font-variant-numeric: tabular-nums;
+}
+.activity-readout span {
+	white-space: nowrap;
 }
 .activity-legend {
 	display: grid;
@@ -29,14 +41,11 @@
 	text-align: left;
 	font-variant-numeric: tabular-nums;
 }
+.activity-legend .activity-count {
+	grid-template-columns: minmax(0, 1fr) auto;
+}
 .activity-swatch {
 	border-top: 2px solid var(--outcome-color);
-}
-.activity-swatch.ring-calls {
-	border-top-style: dashed;
-}
-.ring-calls {
-	--outcome-color: var(--fg);
 }
 .activity-day {
 	cursor: pointer;
@@ -68,19 +77,11 @@
 	stroke-width: 1;
 	stroke-dasharray: 3 5;
 }
-.chart-area {
-	fill: var(--fg);
-	opacity: 0.04;
-}
 .chart-line {
 	fill: none;
 	stroke: var(--outcome-color);
 	stroke-width: 2;
 	stroke-linejoin: round;
-}
-.chart-line.ring-calls {
-	stroke-dasharray: 5 4;
-	stroke-width: 1.5;
 }
 .chart-point {
 	fill: var(--surface);
