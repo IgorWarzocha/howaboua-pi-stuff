@@ -4,7 +4,7 @@ See which tools your agents call, how often and with which models. Usage bars ra
 
 Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools, error counts or a day-by-day view. Errors, nonzero exits and coverage remain available below the charts. Filter by model, provider, tool, project and date.
 
-Commands and Skills show submitted slash commands, recorded skill reads, last use and resource ownership. Loaded-resource snapshots include capabilities with no recorded use, so you can spot candidates to remove. These views use the session, project and date filters.
+Commands shows submitted slash commands. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show availability, not use. These views use the session, project and date filters.
 
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
@@ -27,9 +27,9 @@ With the extension loaded, Observatory records submitted extension commands, ski
 
 Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history.
 
-Skill tracking does not require Better Skills. Observatory recognises ordinary file-reader inputs and literal shell reads such as `cat /path/to/SKILL.md` or `sed -n '1,80p' /path/to/SKILL.md`. Files read under an identified skill directory count as references. Relative paths use the recorded working directory, never the viewer's directory. These are inferred reads, shown separately from confirmed structured receipts in each skill's evidence details. A request identifies intended access, not proof that every byte reached the agent.
+Skill tracking does not require Better Skills. Observatory recognises ordinary file-reader inputs and literal shell reads within known `.pi/skills`, `.pi/agent/skills` and `.agents/skills` locations. Custom and package locations require recorded loaded-skill inventory or structured receipts. An arbitrary project's `SKILL.md` does not qualify. Files read under an identified `SKILL.md` directory count as references. Flat Markdown skills match only their own file. Relative paths use the recorded working directory, never the viewer's directory. These are inferred reads, shown separately from confirmed structured receipts. A request identifies intended access, not proof that every byte reached the agent.
 
-Historical reads are recovered from cached calls in the background. The Skills view shows scan progress. Dynamic scripts, unresolved paths, hidden file access and missing arguments cannot be reliably attributed. Path mentions, listings and searches are not counted as skill reads. An empty count means no recorded use, not proof that a capability was never used.
+Historical reads are recovered from cached calls and recognisable Skills tool outputs in the background. Output inventories are not themselves reads. The Skills view labels counts and rankings as partial until both history scans finish. Dynamic scripts, unresolved paths, hidden file access and missing arguments cannot be reliably attributed. Path mentions, listings and searches are not counted as skill reads. An empty count means no recorded use, not proof that a capability was never used. User skill commands never count as agent reads, and disabling those commands does not establish whether agents can access skills.
 
 For a standalone server instead:
 
@@ -51,7 +51,7 @@ The server binds to `127.0.0.1` by default. To view it from another computer, fo
 ssh -N -L 47985:127.0.0.1:47985 user@host
 ```
 
-**Session text can contain secrets.** The SQLite index stores arguments, outputs and message excerpts locally without secret redaction. Keep it private. The dashboard requires a launch-specific access token and does not upload data or make model calls.
+**Session text can contain secrets.** The SQLite index stores arguments, outputs and message excerpts locally without secret redaction. The viewer has no authentication. Anyone who can reach it can read that data. It does not upload data or make model calls.
 
 ## Viewer configuration
 
@@ -61,7 +61,7 @@ Optional settings live in `~/.pi/agent/observatory/config.json`. As with the boa
 { "openCommand": null, "port": 47985 }
 ```
 
-For direct access on a trusted network, set `host` to `0.0.0.0` and `publicUrl` to the externally reachable HTTP or HTTPS origin. A reverse proxy must provide HTTPS if desired. Plain HTTP exposes session data and the viewer token to that network; prefer SSH forwarding or HTTPS. `sessions` and `database` can select other absolute paths. The browser cannot change these paths.
+For direct access on a trusted network, set `host` to `0.0.0.0` and `publicUrl` to the externally reachable HTTP or HTTPS origin. A reverse proxy must provide HTTPS if desired. Plain HTTP exposes session data to that network. Use SSH forwarding or a protected reverse proxy outside a trusted network. `sessions` and `database` can select other absolute paths. The browser cannot change these paths.
 
 The background server writes `observatory/server.log`. Its PID is in `observatory/server.lock`. Stop that PID with `kill -TERM PID`, then run `/observatory` again to restart it. Do not delete a lock while its process is alive. Changing the database or port does not start a second server in the same agent directory.
 

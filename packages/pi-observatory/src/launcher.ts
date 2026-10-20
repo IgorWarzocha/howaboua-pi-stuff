@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -8,7 +9,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { hyperlink } from "@earendil-works/pi-tui";
 import {
-	accessKey,
 	loadConfig,
 	type ObservatoryConfig,
 	PROTOCOL,
@@ -56,6 +56,7 @@ async function available(
 async function ensureServer(config: ObservatoryConfig): Promise<string> {
 	const origin = `http://127.0.0.1:${config.port}`;
 	if (await available(origin, config)) return origin;
+	await mkdir(stateDirectory(), { recursive: true, mode: 0o700 });
 	const path = join(stateDirectory(), "server.log");
 	const log = openSync(path, "a", 0o600);
 	let failure: Error | undefined;
@@ -89,12 +90,10 @@ export async function openObservatory(
 ): Promise<void> {
 	try {
 		const config = await loadConfig();
-		const key = await accessKey();
 		const origin = await ensureServer(config);
 		const session = encodeURIComponent(ctx.sessionManager.getSessionId());
 		const response = await fetch(`${origin}/api/open?session=${session}`, {
 			method: "POST",
-			headers: { Authorization: `Bearer ${key}` },
 			signal: AbortSignal.timeout(3000),
 		});
 		const value = object(await response.json());

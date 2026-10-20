@@ -1,6 +1,9 @@
 import type Database from "better-sqlite3";
 import { hash, type JsonObject, object, string } from "./normalise.ts";
-import { createSkillFileIngestor } from "./skill-files.ts";
+import {
+	applySkillRootPolicy,
+	createSkillFileIngestor,
+} from "./skill-files.ts";
 
 export function initialiseUsage(db: Database.Database): void {
 	db.exec(`
@@ -34,6 +37,7 @@ export function initialiseUsage(db: Database.Database): void {
 			call_id INTEGER PRIMARY KEY REFERENCES calls(id)
 		);
 	`);
+	applySkillRootPolicy(db);
 }
 
 const kinds = ["extension", "skill", "prompt"];
@@ -96,7 +100,8 @@ export function createUsageIngestor(db: Database.Database) {
 						const item = resource(object(command));
 						if (item) {
 							inventory.run({ entry: key, ...item });
-							if (item.kind === "skill") files.register(item.path, item.name);
+							if (item.kind === "skill")
+								files.register(item.path, item.name, true);
 						}
 					}
 			}
@@ -123,7 +128,7 @@ export function createUsageIngestor(db: Database.Database) {
 					!["skill", "reference"].includes(string(read["kind"]))
 				)
 					continue;
-				files.register(path, name);
+				files.register(path, name, true);
 				const evidence =
 					receipt["continuation"] === true
 						? "continuation"
@@ -160,6 +165,7 @@ export interface UsageRow {
 	fileReads: number;
 	fileReferenceReads: number;
 	lastUsed: string | null;
+	lastRead: string | null;
 	lastSubmitted: string | null;
 	firstAvailable: string | null;
 	lastAvailable: string | null;
@@ -173,6 +179,7 @@ export interface UsageOverview {
 		recordedSessions: number;
 		sessions: number;
 		fileReadScan: { phase: string; progress: number; unresolved: number };
+		skillResultScan: { phase: string; progress: number };
 	};
 }
 
@@ -211,19 +218,25 @@ export function queryUsage(
 			SUM(evidence='submission') submissions,
 			SUM(evidence='skill_read') skillReads,SUM(evidence='reference_read') referenceReads,SUM(evidence='continuation') continuations,
 			SUM(evidence='file_read') fileReads,SUM(evidence='file_reference_read') fileReferenceReads,
-			MAX(timestamp) lastUsed,MAX(CASE WHEN evidence='submission' THEN timestamp END) lastSubmitted FROM selected_events GROUP BY kind,name,path),
+			MAX(timestamp) lastUsed,MAX(CASE WHEN evidence IN ('skill_read','reference_read','file_read','file_reference_read') THEN timestamp END) lastRead,
+			MAX(CASE WHEN evidence='submission' THEN timestamp END) lastSubmitted FROM selected_events GROUP BY kind,name,path),
 		seen AS (SELECT kind,name,path,MIN(timestamp) firstAvailable,MAX(timestamp) lastAvailable FROM available GROUP BY kind,name,path)
 		SELECT r.kind,r.name,r.path,MAX(r.owner) owner,
 			COALESCE(u.submissions,0) submissions,
 			COALESCE(u.skillReads,0) skillReads,COALESCE(u.referenceReads,0) referenceReads,COALESCE(u.continuations,0) continuations,
 			COALESCE(u.fileReads,0) fileReads,COALESCE(u.fileReferenceReads,0) fileReferenceReads,
-			u.lastUsed,u.lastSubmitted,s.firstAvailable,s.lastAvailable FROM resources r
+			u.lastUsed,u.lastRead,u.lastSubmitted,s.firstAvailable,s.lastAvailable FROM resources r
 			LEFT JOIN uses u USING(kind,name,path) LEFT JOIN seen s USING(kind,name,path)
-			GROUP BY r.kind,r.name,r.path ORDER BY (COALESCE(u.submissions,0)+COALESCE(u.skillReads,0)+COALESCE(u.referenceReads,0)+COALESCE(u.fileReads,0)+COALESCE(u.fileReferenceReads,0)) DESC,r.name LIMIT 501
+			GROUP BY r.kind,r.name,r.path ORDER BY CASE WHEN r.kind='skill'
+				THEN COALESCE(u.skillReads,0)+COALESCE(u.referenceReads,0)+COALESCE(u.fileReads,0)+COALESCE(u.fileReferenceReads,0)
+				ELSE COALESCE(u.submissions,0) END DESC,r.name LIMIT 501
 	`)
 		.all(values);
 	const coverage = db
-		.prepare<typeof values, Omit<UsageOverview["coverage"], "fileReadScan">>(`
+		.prepare<
+			typeof values,
+			Omit<UsageOverview["coverage"], "fileReadScan" | "skillResultScan">
+		>(`
 		SELECT MIN(CASE WHEN kind='recording' THEN timestamp END) recordingSince,
 			MIN(CASE WHEN kind='inventory' THEN timestamp END) inventorySince,
 			(SELECT COUNT(DISTINCT f.session_id) FROM usage_snapshots rs
@@ -237,7 +250,7 @@ export function queryUsage(
 	const scan = Object.fromEntries(
 		db
 			.prepare<[], { key: string; value: string }>(
-				"SELECT key,value FROM metadata WHERE key LIKE 'fileReadBackfill%'",
+				"SELECT key,value FROM metadata WHERE key LIKE 'fileReadBackfill%' OR key LIKE 'skillResultBackfill%'",
 			)
 			.all()
 			.map(({ key, value }) => [key, value]),
@@ -245,6 +258,9 @@ export function queryUsage(
 	const phase = scan["fileReadBackfillPhase"] || "pending";
 	const target = Number(scan["fileReadBackfillTarget"] || 0);
 	const cursor = Number(scan["fileReadBackfillCursor"] || 0);
+	const skillPhase = scan["skillResultBackfillPhase"] || "pending";
+	const skillTarget = Number(scan["skillResultBackfillTarget"] || 0);
+	const skillCursor = Number(scan["skillResultBackfillCursor"] || 0);
 	const unresolved =
 		db
 			.prepare<[], { count: number }>(
@@ -256,6 +272,15 @@ export function queryUsage(
 		truncated: rows.length > 500,
 		coverage: {
 			...coverage,
+			skillResultScan: {
+				phase: skillPhase,
+				progress:
+					skillPhase === "complete"
+						? 100
+						: skillTarget
+							? Math.min(99, Math.floor((skillCursor / skillTarget) * 100))
+							: 0,
+			},
 			fileReadScan: {
 				phase,
 				progress:

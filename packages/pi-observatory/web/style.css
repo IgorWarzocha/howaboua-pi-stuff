@@ -554,6 +554,21 @@ summary {
 	grid-column: 1 / -1;
 	margin: 0;
 }
+.usage-partial-history {
+	margin-bottom: 20px;
+	padding: 14px 18px;
+	border: 1px solid var(--warning);
+	border-left-width: 4px;
+	border-radius: 6px;
+	background: var(--surface);
+}
+.usage-partial-history strong {
+	color: var(--warning);
+}
+.usage-partial-history p {
+	margin: 4px 0 0;
+	font-size: 12px;
+}
 #usage-summary .metric-unavailable {
 	font-size: 14px;
 	letter-spacing: normal;
@@ -597,6 +612,9 @@ summary {
 	font-weight: 400;
 	padding: 3px 0;
 	overflow-wrap: anywhere;
+}
+#usage-table th:first-child {
+	min-width: 160px;
 }
 .source-path {
 	font-family: ui-monospace, monospace;

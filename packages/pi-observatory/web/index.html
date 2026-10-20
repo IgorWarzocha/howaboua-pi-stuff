@@ -46,8 +46,9 @@
 <label>View<select id="usage-view"><option value="commands">Commands</option><option value="skills">Skills</option></select></label>
 <label class="search">Find a resource<input id="usage-search" type="search" placeholder="Name, owner or path"></label>
 <label>Sort<select id="usage-sort"><option value="most">Most used</option><option value="least">Least used</option><option value="recent">Most recent</option><option value="name">Name</option></select></label>
-<label>Usage<select id="usage-zero"><option value="all">All</option><option value="zero">Zero recorded</option></select></label>
+<label id="usage-zero-label">Usage<select id="usage-zero"><option value="all">All</option><option id="usage-zero-option" value="zero">Zero submissions recorded</option></select></label>
 </div>
+<div id="usage-partial-history" class="usage-partial-history" role="status" hidden></div>
 <div id="usage-summary" class="metrics"></div>
 <div class="capability-grid"><section class="chart-panel"><div id="usage-chart"></div><p id="usage-coverage" class="muted">Loading recording coverage…</p></section>
 <section class="resource-panel"><p id="usage-status" class="muted" role="status"></p><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav></section></div>

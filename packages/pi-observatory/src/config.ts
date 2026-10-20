@@ -1,10 +1,9 @@
-import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { hash, object } from "./normalise.ts";
 
-export const PROTOCOL = "pi-observatory/1";
+export const PROTOCOL = "pi-observatory/2";
 
 export interface ObservatoryConfig {
 	host: "127.0.0.1" | "0.0.0.0";
@@ -113,24 +112,4 @@ export function sourceId(config: ObservatoryConfig): string {
 	return hash(
 		JSON.stringify([resolve(config.sessions), resolve(config.database)]),
 	);
-}
-
-export async function accessKey(): Promise<string> {
-	await mkdir(stateDirectory(), { recursive: true, mode: 0o700 });
-	const path = join(stateDirectory(), "access-key");
-	try {
-		await writeFile(path, randomBytes(32).toString("hex"), {
-			flag: "wx",
-			mode: 0o600,
-		});
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error && error.code === "EEXIST"))
-			throw error;
-	}
-	const key = (await readFile(path, "utf8")).trim();
-	if (!/^[a-f0-9]{64}$/.test(key))
-		throw new Error(
-			`Invalid Observatory access key. Remove ${path} and restart the viewer.`,
-		);
-	return key;
 }

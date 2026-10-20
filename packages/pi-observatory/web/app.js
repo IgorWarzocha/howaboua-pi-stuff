@@ -65,14 +65,18 @@ if (entrySession && entrySession !== initialSession)
 sessionSelect.value = entrySession;
 const fragment = new URLSearchParams(location.hash.slice(1));
 if (fragment.has("token")) {
-	sessionStorage.setItem("pi-observatory-token", fragment.get("token") || "");
-	history.replaceState(null, "", location.pathname + location.search);
+	fragment.delete("token");
+	history.replaceState(
+		null,
+		"",
+		location.pathname + location.search + (fragment.size ? `#${fragment}` : ""),
+	);
 }
-const token = sessionStorage.getItem("pi-observatory-token") || "";
-window.addEventListener("hashchange", () => {
-	if (new URLSearchParams(location.hash.slice(1)).has("token"))
-		location.reload();
-});
+try {
+	sessionStorage.removeItem("pi-observatory-token");
+} catch {
+	// Storage may be disabled; the viewer does not require it.
+}
 let revision = -1;
 let loadedRevision = -1;
 let query = new URLSearchParams();
@@ -106,14 +110,11 @@ for (const button of document.querySelectorAll("button[data-view]"))
 /** @param {string} path @param {AbortSignal} [signal] */
 async function api(path, signal) {
 	const response = await fetch(path, {
-		headers: { Authorization: `Bearer ${token}` },
 		signal: signal ?? null,
 	});
 	if (!response.ok)
 		throw new Error(
-			response.status === 401 || response.status === 403
-				? "Authentication failed. Reopen the dashboard URL supplied by the local server."
-				: `Request failed (${response.status}). Retry or check the local server.`,
+			`Request failed (${response.status}). Retry or check the local server.`,
 		);
 	return response.json();
 }

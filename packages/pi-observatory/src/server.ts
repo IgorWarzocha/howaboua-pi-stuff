@@ -1,16 +1,9 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, open, readFile, unlink } from "node:fs/promises";
+import { mkdir, open, readFile, rm, unlink } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
-import {
-	accessKey,
-	loadConfig,
-	PROTOCOL,
-	sourceId,
-	stateDirectory,
-} from "./config.ts";
+import { loadConfig, PROTOCOL, sourceId, stateDirectory } from "./config.ts";
 import { initialiseDatabase, openDatabase } from "./database.ts";
 
 async function acquireLock(path: string): Promise<() => Promise<void>> {
@@ -47,14 +40,6 @@ function loopbackHost(host: string): boolean {
 	return /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host);
 }
 
-function authenticated(header: string | undefined, key: string): boolean {
-	const supplied = Buffer.from(header ?? "");
-	const expected = Buffer.from(`Bearer ${key}`);
-	return (
-		supplied.length === expected.length && timingSafeEqual(supplied, expected)
-	);
-}
-
 async function main(): Promise<void> {
 	const { values } = parseArgs({
 		options: {
@@ -75,7 +60,7 @@ async function main(): Promise<void> {
 	let publicUrl = config.publicUrl;
 	const identity = sourceId(config);
 	process.umask(0o077);
-	const masterKey = await accessKey();
+	await mkdir(stateDirectory(), { recursive: true, mode: 0o700 });
 	await mkdir(dirname(database), { recursive: true, mode: 0o700 });
 	const releaseServer = await acquireLock(
 		join(stateDirectory(), "server.lock"),
@@ -87,9 +72,9 @@ async function main(): Promise<void> {
 		{ response: ServerResponse; timer: NodeJS.Timeout }
 	>();
 	let sequence = 0;
-	const token = randomBytes(32).toString("hex");
 	const server = createServer();
 	try {
+		await rm(join(stateDirectory(), "access-key"), { force: true });
 		releaseDatabase = await acquireLock(`${database}.lock`);
 		const db = openDatabase(database);
 		try {
@@ -179,17 +164,6 @@ async function main(): Promise<void> {
 				return;
 			}
 			if (request.method === "POST" && url.pathname === "/api/open") {
-				if (
-					request.socket.remoteAddress !== "127.0.0.1" ||
-					!authenticated(request.headers.authorization, masterKey)
-				) {
-					response.writeHead(403, { "Content-Type": "application/json" }).end(
-						JSON.stringify({
-							error: "Only the local Pi extension can open a viewer link",
-						}),
-					);
-					return;
-				}
 				request.resume();
 				const session = url.searchParams.get("session") ?? "";
 				if (session.length > 256) {
@@ -203,9 +177,7 @@ async function main(): Promise<void> {
 					: "";
 				response
 					.writeHead(200, { "Content-Type": "application/json" })
-					.end(
-						JSON.stringify({ url: `${publicUrl}/${selection}#token=${token}` }),
-					);
+					.end(JSON.stringify({ url: `${publicUrl}/${selection}` }));
 				return;
 			}
 			if (request.method !== "GET") {
@@ -215,10 +187,6 @@ async function main(): Promise<void> {
 			const asset = assets.get(url.pathname);
 			if (asset) {
 				response.writeHead(200, { "Content-Type": asset.type }).end(asset.data);
-				return;
-			}
-			if (!authenticated(request.headers.authorization, token)) {
-				response.writeHead(401).end();
 				return;
 			}
 			if (
@@ -270,7 +238,7 @@ async function main(): Promise<void> {
 				if (publicUrl === "http://127.0.0.1:0")
 					publicUrl = `http://127.0.0.1:${address.port}`;
 				console.log(
-					`Pi Observatory: ${publicUrl}/#token=${token}\nSessions: ${sessions}\nIndex: ${database}\nBackground indexing active. Ctrl+C to stop.`,
+					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nBackground indexing active. Ctrl+C to stop.`,
 				);
 			});
 		});

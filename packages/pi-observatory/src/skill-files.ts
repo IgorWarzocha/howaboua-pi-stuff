@@ -3,6 +3,7 @@ import type Database from "better-sqlite3";
 import type { Outcome } from "./contracts.ts";
 import { detectFileReads } from "./file-reads.ts";
 import { hash, type JsonObject, object, textContent } from "./normalise.ts";
+import { recoverSkillReads } from "./skill-results.ts";
 
 export interface CachedFileCall {
 	id: number;
@@ -16,6 +17,43 @@ interface SkillSource {
 	path: string;
 	directory: string;
 	name: string;
+	authoritative: number;
+}
+
+function conventionalSkill(path: string): boolean {
+	return /(?:^|\/)\.(?:pi\/(?:agent\/)?skills|agents\/skills)\/(?:[^/]+\.md|.+\/SKILL\.md)$/.test(
+		path,
+	);
+}
+
+/** Remove the earlier filename-only inference. Actual loaded-skill evidence may establish custom roots. */
+export function applySkillRootPolicy(db: Database.Database): void {
+	if (db.prepare("SELECT 1 FROM metadata WHERE key='knownSkillRoots'").get())
+		return;
+	db.transaction(() => {
+		db.exec("UPDATE skill_file_sources SET authoritative=0");
+		const files = createSkillFileIngestor(db);
+		for (const row of db
+			.prepare<[], { path: string; name: string }>(`
+			SELECT path,name FROM usage_inventory WHERE kind='skill'
+			UNION SELECT path,name FROM usage_events WHERE kind='skill' AND evidence IN ('skill_read','reference_read','continuation')
+		`)
+			.all())
+			files.register(row.path, row.name, true);
+		const remove = db.prepare("DELETE FROM skill_file_sources WHERE path=?");
+		for (const row of db
+			.prepare<[], SkillSource>(
+				"SELECT * FROM skill_file_sources WHERE authoritative=0",
+			)
+			.all())
+			if (!conventionalSkill(row.path)) remove.run(row.path);
+		db.exec(`
+			DELETE FROM usage_events WHERE evidence IN ('file_read','file_reference_read')
+				AND NOT EXISTS (SELECT 1 FROM skill_file_sources s WHERE s.path=usage_events.path);
+			INSERT INTO metadata VALUES ('knownSkillRoots','1');
+			UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision';
+		`);
+	})();
 }
 
 /** Only recorded paths are used. Never inspect today's filesystem to rewrite historical evidence. */
@@ -25,10 +63,12 @@ export function createSkillFileIngestor(db: Database.Database) {
 		ON CONFLICT(path) DO UPDATE SET name=excluded.name,authoritative=excluded.authoritative
 		WHERE excluded.authoritative>skill_file_sources.authoritative`);
 	const source = db.prepare<
-		[string],
+		{ path: string },
 		SkillSource
 	>(`SELECT * FROM skill_file_sources
-		WHERE substr(?,1,length(directory)+1)=directory||'/' ORDER BY length(directory) DESC LIMIT 1`);
+		WHERE path=@path OR (substr(path,length(directory)+2)='SKILL.md'
+			AND substr(@path,1,length(directory)+1)=directory||'/')
+		ORDER BY (path=@path) DESC,length(directory) DESC LIMIT 1`);
 	const callInput = db.prepare<[number], CachedFileCall>(
 		"SELECT c.id,c.tool,c.project,c.timestamp,p.arguments FROM calls c JOIN payloads p ON p.call_id=c.id WHERE c.id=?",
 	);
@@ -50,24 +90,45 @@ export function createSkillFileIngestor(db: Database.Database) {
 	);
 	const resolveCandidates = db.prepare(`INSERT OR IGNORE INTO skill_file_replay
 		SELECT DISTINCT call_id FROM skill_file_candidates WHERE path>=? AND path<?`);
+	const knownSource = db.prepare<[string], SkillSource>(
+		"SELECT * FROM skill_file_sources WHERE path=?",
+	);
 
-	function register(path: string, name = ""): SkillSource | undefined {
+	function register(
+		path: string,
+		name = "",
+		trusted = false,
+	): SkillSource | undefined {
 		path = posix.normalize(path.replaceAll("\\", "/"));
-		if (posix.basename(path).toLowerCase() !== "skill.md") return undefined;
+		if (!path.endsWith(".md")) return undefined;
+		if (
+			!trusted &&
+			!conventionalSkill(path) &&
+			!knownSource.get(path)?.authoritative
+		)
+			return undefined;
 		const directory = posix.dirname(path);
 		if (directory === "." || directory === "/") return undefined;
-		const item = { path, directory, name: name || posix.basename(directory) };
+		const item = {
+			path,
+			directory,
+			name:
+				name ||
+				(posix.basename(path) === "SKILL.md"
+					? posix.basename(directory)
+					: posix.basename(path, ".md")),
+		};
 		const changed = putSource.run({
 			...item,
-			authoritative: Number(Boolean(name)),
+			authoritative: Number(trusted),
 		});
 		if (changed.changes && name) rename.run(name, path);
 		if (changed.changes)
 			resolveCandidates.run(`${directory}/`, `${directory}0`);
-		return source.get(path);
+		return source.get({ path });
 	}
 
-	function targets(call: CachedFileCall) {
+	function targets(call: CachedFileCall, result?: JsonObject) {
 		let args: unknown;
 		try {
 			args = JSON.parse(call.arguments);
@@ -76,14 +137,24 @@ export function createSkillFileIngestor(db: Database.Database) {
 			if (/skill/i.test(call.arguments)) gap.run(call.id, "unreadable");
 			return undefined;
 		}
-		const reads = detectFileReads(call.tool, args, call.project);
-		reads.unsupported &&= /skill/i.test(call.arguments);
+		const legacy = call.tool === "skills" || call.tool === "more_skills";
+		const recovered = legacy
+			? recoverSkillReads(call.tool, args, result)
+			: undefined;
+		const reads = recovered
+			? {
+					paths: recovered.paths,
+					unsupported: recovered.unsupported,
+					shell: false,
+				}
+			: detectFileReads(call.tool, args, call.project);
+		if (!legacy) reads.unsupported &&= /skill/i.test(call.arguments);
 		clearCandidates.run(call.id);
+		for (const root of recovered?.roots ?? []) register(root.path, root.name);
 		// A multi-file read can establish a root and read its references in either operand order.
 		for (const path of reads.paths) register(path);
 		reads.paths = reads.paths.filter((path) => {
-			if (posix.basename(path).toLowerCase() === "skill.md" || source.get(path))
-				return true;
+			if (source.get({ path })) return true;
 			candidate.run(call.id, path);
 			if (/(?:^|\/)skills?\//i.test(path)) reads.unsupported = true;
 			return false;
@@ -93,7 +164,12 @@ export function createSkillFileIngestor(db: Database.Database) {
 
 	function discover(call: CachedFileCall): void {
 		// Discovery precedes replay so references can resolve even when imported before their body reads.
-		if (!/skill\.md/i.test(call.arguments)) return;
+		if (
+			!/\.md/i.test(call.arguments) ||
+			call.tool === "skills" ||
+			call.tool === "more_skills"
+		)
+			return;
 		for (const path of targets(call)?.paths ?? []) register(path);
 	}
 
@@ -109,7 +185,7 @@ export function createSkillFileIngestor(db: Database.Database) {
 			return;
 		}
 		for (const path of reads.paths) {
-			const skill = register(path) ?? source.get(path);
+			const skill = register(path) ?? source.get({ path });
 			if (!skill) continue;
 			event.run({
 				key: `read:${call.id}:${hash(path)}`,
@@ -126,18 +202,17 @@ export function createSkillFileIngestor(db: Database.Database) {
 		if (outcome !== "ok") return;
 		const call = callInput.get(id);
 		if (!call) return;
-		const reads = targets(call);
+		const reads = targets(call, result);
 		if (reads && (reads.paths.length || reads.unsupported))
 			observe(call, reads, result);
 	}
 
 	function replay(call: CachedFileCall): void {
-		const reads = targets(call);
-		if (!reads || (!reads.paths.length && !reads.unsupported)) return;
-		if (!reads.shell) {
-			observe(call, reads, {});
+		const legacy = call.tool === "skills" || call.tool === "more_skills";
+		let reads = legacy ? undefined : targets(call);
+		if (!legacy && (!reads || (!reads.paths.length && !reads.unsupported)))
 			return;
-		}
+		if (reads && !reads.shell) return observe(call, reads, {});
 		let result: JsonObject;
 		try {
 			result = object(JSON.parse(payload.get(call.id)?.result || "{}"));
@@ -146,7 +221,8 @@ export function createSkillFileIngestor(db: Database.Database) {
 			gap.run(call.id, "unreadable");
 			return;
 		}
-		observe(call, reads, result);
+		reads ??= targets(call, result);
+		if (reads) observe(call, reads, result);
 	}
 	return { register, discover, record, replay };
 }
