@@ -156,7 +156,7 @@ export function createUsageView() {
 					? partial
 						? "Reads found so far"
 						: "Agent reads"
-					: "User submissions",
+					: "Recorded submissions",
 				value: known ? total.toLocaleString() : "Unavailable",
 			},
 			{
@@ -164,7 +164,7 @@ export function createUsageView() {
 					? partial
 						? "Skills with reads so far"
 						: "Skills with reads"
-					: "Commands submitted",
+					: "Commands observed",
 				value: known ? used.length.toLocaleString() : "Unavailable",
 			},
 		];
@@ -177,13 +177,6 @@ export function createUsageView() {
 								.reduce((sum, row) => sum + row.submissions, 0)
 								.toLocaleString()
 						: "Unavailable",
-			});
-		if (!skills)
-			metrics.push({
-				label: "Zero submissions recorded",
-				value: recorded
-					? (rows.length - used.length).toLocaleString()
-					: "Unavailable",
 			});
 		for (const metric of metrics) {
 			const node = textNode("div", "", "usage-metric");
@@ -202,7 +195,7 @@ export function createUsageView() {
 				"p",
 				skills
 					? "Agent reads include confirmed body/reference reads and inferred file reads. User submissions and continuations are separate; inventory is not a read."
-					: "User slash submissions, including /skill: commands; not agent skill reads or successful executions.",
+					: "Observed user slash submissions only. Loaded templates and commands with no submission evidence are not usage records.",
 				"usage-note muted",
 			),
 		);
@@ -214,7 +207,7 @@ export function createUsageView() {
 					? partial
 						? "Skill reads found so far"
 						: "Agent skill reads"
-					: "Command submissions",
+					: "Recorded command submissions",
 			),
 			textNode(
 				"span",
@@ -280,14 +273,12 @@ export function createUsageView() {
 			skills &&
 			(coverage.fileReadScan.phase !== "complete" ||
 				coverage.skillResultScan.phase !== "complete");
-		zero.disabled = partial;
-		zeroLabel.hidden = partial;
-		if (partial) zero.value = "all";
-		zeroOption.textContent = skills
-			? "No recorded reads"
-			: "Zero submissions recorded";
+		zero.disabled = partial || !skills;
+		zeroLabel.hidden = partial || !skills;
+		if (zero.disabled) zero.value = "all";
+		zeroOption.textContent = "No recorded reads";
 		zero.title = partial ? "Available when both historical scans finish" : "";
-		partialHistory.hidden = !partial;
+		partialHistory.hidden = skills && !partial;
 		partialHistory.replaceChildren();
 		if (partial)
 			partialHistory.append(
@@ -297,20 +288,26 @@ export function createUsageView() {
 					`Read counts and rankings show only reads found so far. File-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%). Skill-result scan: ${coverage.skillResultScan.phase} (${coverage.skillResultScan.progress}%). The no-recorded-reads filter is unavailable until both finish.`,
 				),
 			);
+		if (!skills)
+			partialHistory.append(
+				textNode("strong", "Historical command usage is unavailable"),
+				textNode(
+					"p",
+					coverage.recordingSince
+						? `Recording evidence starts ${timestamp(coverage.recordingSince)} in ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} selected sessions. Counts below cover observed submissions, not all-time usage. Pi does not retain a command log for earlier sessions.`
+						: "No command recording evidence in this selection. Pi does not retain a command log that can reconstruct earlier submissions. Missing records do not mean commands were unused.",
+				),
+			);
 		const recorded =
 			coverage.recordingSince !== null && coverage.recordedSessions > 0;
 		const needle = search.value.trim().toLocaleLowerCase();
 		const rows = latest.rows.filter(
 			(row) =>
-				(skills
-					? row.kind === "skill"
-					: row.kind !== "skill" ||
-						row.firstAvailable !== null ||
-						row.submissions > 0) &&
+				(skills ? row.kind === "skill" : row.submissions > 0) &&
 				`${row.name} ${row.owner} ${row.path}`
 					.toLocaleLowerCase()
 					.includes(needle) &&
-				(zero.value !== "zero" || (uses(row) === 0 && (skills || recorded))),
+				(zero.value !== "zero" || uses(row) === 0),
 		);
 		rows.sort((a, b) => {
 			if (sort.value === "recent")
@@ -334,10 +331,7 @@ export function createUsageView() {
 						coverage.recordingSince
 							? `Submissions since ${coverage.recordingSince.slice(0, 10)}`
 							: "Submissions unavailable",
-						`${coverage.recordedSessions.toLocaleString()}/${coverage.sessions.toLocaleString()} sessions recorded`,
-						coverage.inventorySince
-							? `Inventory since ${coverage.inventorySince.slice(0, 10)}`
-							: "No inventory snapshots",
+						`${coverage.recordedSessions.toLocaleString()}/${coverage.sessions.toLocaleString()} sessions have recorder evidence`,
 					]),
 			...(skills
 				? [
@@ -351,12 +345,11 @@ export function createUsageView() {
 			`Selected sessions: user submission recording since ${timestamp(coverage.recordingSince)}; ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} sessions have recording evidence. Inventory snapshots since ${timestamp(coverage.inventorySince)} are availability, not reads. Whole-index file-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%); ${coverage.fileReadScan.unresolved.toLocaleString()} potentially relevant calls could not be attributed. Skill-result scan: ${coverage.skillResultScan.phase} (${coverage.skillResultScan.progress}%). Read totals and last-read dates exclude user skill submissions and continuations. Inferred reads identify file-reading inputs, not proof that every byte was consumed. Missing read evidence is not proof of non-use.`;
 		element("usage-status").textContent =
 			`${rows.length.toLocaleString()} matching ${skills ? "skills" : "commands"}${partial ? " · partial read counts and rankings" : ""}${latest.truncated ? " · 500-resource limit; narrow session, project or dates for more" : ""}`;
-		const empty =
-			zero.value === "zero" && !skills && !recorded
-				? "Zero-submission counts are unavailable without recording evidence."
-				: latest.rows.length
-					? "No resources match this view."
-					: "No command or skill records in this selection.";
+		const empty = !skills
+			? "No recorded command submissions match this selection. Historical usage is unknown."
+			: latest.rows.length
+				? "No resources match this view."
+				: "No command or skill records in this selection.";
 		drawOverview(rows, recorded, partial, empty);
 		const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
 		page = Math.min(page, pages - 1);
@@ -381,7 +374,11 @@ export function createUsageView() {
 		const head = table.createTHead().insertRow();
 		for (const heading of [
 			skills ? "Skill" : "Command",
-			skills ? (partial ? "Reads so far" : "Agent reads") : "User submissions",
+			skills
+				? partial
+					? "Reads so far"
+					: "Agent reads"
+				: "Recorded submissions",
 			...(skills ? ["User skill submissions"] : []),
 			skills ? "Last read (UTC)" : "Last submitted (UTC)",
 		]) {

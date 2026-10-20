@@ -10,6 +10,7 @@ Keep /observatory's start-or-reuse, browser-open and link-only flow aligned with
 
 Pi wires editor callbacks after the custom factory returns: compose the existing factory, then wrap public onSubmit in a guarded microtask. Restore only owned callbacks/factories on teardown. Capture submission origin before forwarding, never infer submission from terminal Enter or persist arguments. Recorder metadata belongs in sidecars, not appendEntry: command-only sessions may never flush and startup entries change fresh-session binding.
 Record only commands in Pi's public loaded-resource inventory: extension commands, skills and prompt templates. Standard Pi controls and unknown slash text are intentionally excluded.
+Command usage rows require submission events. Loaded inventory across projects is neither a user's current command list nor evidence of zero use. Missing pre-recorder history stays unknown.
 
 Skill usage must not require a particular reader extension. Keep inferred file-read inputs distinct from confirmed receipts. Never execute recorded code or inspect today's skill files to prove historical access.
 User skill submissions and loaded inventory are not agent reads. An arbitrary project SKILL.md cannot establish a skill root. Outside recognised skill directories, require recorded loaded inventory or structured receipts. Historical output inventories identify sources, not which bodies were emitted. Flat Markdown skills do not own sibling files.

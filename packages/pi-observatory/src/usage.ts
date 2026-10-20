@@ -213,7 +213,7 @@ export function queryUsage(
 		WITH selected_events AS (SELECT * FROM usage_events e WHERE kind IN ('extension','skill','prompt') AND owner<>'builtin' AND (${entryMember("e.entry_key")} OR ${callMember}) AND ${time}),
 		available AS (SELECT i.*,s.timestamp FROM usage_inventory i JOIN usage_snapshots s USING(entry_key)
 			WHERE i.kind IN ('extension','skill','prompt') AND owner<>'builtin' AND ${entryMember("i.entry_key")} AND (@until='' OR substr(timestamp,1,10)<=@until)),
-		resources AS (SELECT kind,name,path,owner FROM selected_events UNION SELECT kind,name,path,owner FROM available),
+		resources AS (SELECT kind,name,path,owner FROM selected_events UNION SELECT kind,name,path,owner FROM available WHERE kind='skill'),
 		uses AS (SELECT kind,name,path,
 			SUM(evidence='submission') submissions,
 			SUM(evidence='skill_read') skillReads,SUM(evidence='reference_read') referenceReads,SUM(evidence='continuation') continuations,

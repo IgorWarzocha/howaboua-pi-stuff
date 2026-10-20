@@ -4,7 +4,7 @@ See which tools your agents call, how often and with which models. Usage bars ra
 
 Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools, error counts or a day-by-day view. Errors, nonzero exits and coverage remain available below the charts. Filter by model, provider, tool, project and date.
 
-Commands shows submitted slash commands. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show availability, not use. These views use the session, project and date filters.
+Commands shows only recorded slash submissions, with recording coverage above the counts. It cannot reconstruct historical command usage or identify unused commands. Loaded inventory alone never creates a command usage row. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show historical availability, not use or current installation. These views use the session, project and date filters.
 
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
