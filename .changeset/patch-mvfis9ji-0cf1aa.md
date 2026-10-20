@@ -7,3 +7,4 @@
 - Notebook startup lists reusable bindings without volatile memory, age or checkpoint diagnostics; full status remains available on demand.
 - GPT prompt mode uses denser runtime guidance.
 - Notebook guidance distinguishes top-level JSON input from direct objects inside exec.
+- Usage comparisons show “not enough history” instead of a monthly percentage when recording began partway through last month.
