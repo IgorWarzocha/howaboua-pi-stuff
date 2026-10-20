@@ -8,6 +8,12 @@ import { runLedgerOperation } from "./ledger-store.ts";
 
 const scans = new Map<string, Promise<void>>();
 
+export function usageSessionRoot(sessionDir: string): string {
+	const standardRoot = join(getAgentDir(), "sessions");
+	const path = relative(standardRoot, sessionDir);
+	return path.startsWith("..") || isAbsolute(path) ? sessionDir : standardRoot;
+}
+
 function scanInChild(root: string, from: number, to: number, windowStart: number, signal: AbortSignal): Promise<UsageHistoryScan> {
 	const script = fileURLToPath(new URL(`./analyse.${import.meta.url.endsWith(".ts") ? "ts" : "js"}`, import.meta.url));
 	return new Promise((resolve, reject) => {
@@ -54,10 +60,7 @@ export function backfillUsage(
 		const { start, to } = reservation,
 			from = start - WEEK_MS;
 		if (to <= from) return;
-		const standardRoot = join(getAgentDir(), "sessions");
-		const path = relative(standardRoot, sessionDir);
-		const root =
-			path.startsWith("..") || isAbsolute(path) ? sessionDir : standardRoot;
+		const root = usageSessionRoot(sessionDir);
 		const history = await scanInChild(root, from, to, start, boundedSignal);
 		boundedSignal.throwIfAborted();
 		await runLedgerOperation(key, Date.now(), {

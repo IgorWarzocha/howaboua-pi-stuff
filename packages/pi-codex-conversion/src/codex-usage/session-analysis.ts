@@ -1,7 +1,6 @@
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { createInterface } from "node:readline";
+import { join, resolve } from "node:path";
 import { emptyStats, type CodexSpend, type SpendStats } from "./ledger-schema.ts";
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -39,6 +38,20 @@ async function* sessionFiles(root: string, from: number, unreadable: (path: stri
 interface SessionUsageOptions { root: string; from: number; to: number; model?: string | undefined }
 interface SessionSpend extends CodexSpend { path: string; reasoning: string; reasoningSource: string; nonstandard: boolean }
 
+async function* jsonLines(input: AsyncIterable<string>): AsyncGenerator<string> {
+	// JSONL uses LF. readline also splits valid U+2028/U+2029 inside JSON strings.
+	let pending = "";
+	for await (const chunk of input) {
+		pending += chunk;
+		let end: number;
+		while ((end = pending.indexOf("\n")) !== -1) {
+			yield pending.slice(0, end);
+			pending = pending.slice(end + 1);
+		}
+	}
+	if (pending) yield pending;
+}
+
 export async function scanSessionUsage(options: SessionUsageOptions, visit: (spend: SessionSpend) => void) {
 	const seen = new Set<string>();
 	const sessions = new Set<string>();
@@ -51,9 +64,9 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 	for await (const path of sessionFiles(options.root, options.from, unreadable)) {
 		const levels = new Map<string, string>();
 		const input = createReadStream(path, { encoding: "utf8" });
-		const lines = createInterface({ input, crlfDelay: Infinity });
+		const lines = jsonLines(input);
 		let readError: Error | undefined;
-		input.on("error", (error) => { readError = error; lines.close(); });
+		input.on("error", (error) => { readError = error; });
 		let lineNumber = 0;
 		try {
 			for await (const line of lines) {
@@ -97,7 +110,7 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 			}
 		} catch (error) {
 			if (!readError || error !== readError) throw error;
-		} finally { lines.close(); input.destroy(); }
+		} finally { input.destroy(); }
 		if (readError) unreadable(path, readError);
 	}
 	return { sessions: sessions.size, skippedCopies, incompleteEntries, unattributedUsage, unreadablePaths, warnings };
@@ -120,6 +133,7 @@ export async function analyseSessions(options: SessionUsageOptions & { limit: nu
 		sessions.set(path, session);
 	});
 	return {
+		root: resolve(options.root),
 		from: new Date(options.from).toISOString(), toExclusive: new Date(options.to).toISOString(),
 		nonstandard,
 		scope: "Local Codex session entries, not account-isolated. Independent of the ledger; do not add these totals to it.",

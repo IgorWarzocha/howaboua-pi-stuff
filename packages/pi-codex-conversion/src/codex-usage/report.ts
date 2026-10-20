@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { shellQuote } from "../shell/tokenize.ts";
-import { backfillUsage } from "./backfill.ts";
+import { backfillUsage, usageSessionRoot } from "./backfill.ts";
 import { runLedgerOperation, recordCodexQuota, usageLedgerPath, usageRecordingError } from "./ledger-store.ts";
 import type { CodexUsageSnapshot } from "./payload.ts";
 
@@ -15,8 +15,8 @@ export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommand
 		"Analyse my Codex spending. Use the bundled read-only report script, starting with its help and summary:",
 		`node ${script} --help`,
 		`node ${script} summary --file ${ledger}`,
-		`Current session directory: ${JSON.stringify(ctx.sessionManager.getSessionDir())}`,
-		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest useful savings without assuming cheaper settings produce equivalent results.",
+		`Scan all projects under this session history root: ${JSON.stringify(usageSessionRoot(ctx.sessionManager.getSessionDir()))}`,
+		"Compare reset windows and month trends; inspect bounded session ranges for model and reasoning breakdowns. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Treat costly sessions as inspection leads, not proven waste. Label untested savings as hypotheses; cheaper settings need not produce equivalent results.",
 	].join("\n"));
 }
 
