@@ -75,11 +75,6 @@ element("outcome").addEventListener("change", () => {
 	navigation.save();
 	void calls.refresh();
 });
-element("refresh").addEventListener("click", () => {
-	element("error").hidden = true;
-	void refreshData();
-	void calls.refresh();
-});
 async function poll() {
 	try {
 		/** @type {import('../src/contracts.ts').IndexStatus} */
@@ -95,11 +90,10 @@ async function poll() {
 			else void applyFilters();
 		} else if (changed || loadedRevision !== revision) {
 			void refreshData();
-			element("new-data").textContent = "New calls available";
+			element("new-data").hidden = false;
 		}
 	} catch (error) {
 		report(error);
-		element("status").textContent = "Local index unavailable · retrying";
 	}
 	if (!stopped) setTimeout(poll, 2000);
 }

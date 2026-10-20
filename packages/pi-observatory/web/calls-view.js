@@ -16,6 +16,7 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 	const older = /** @type {HTMLButtonElement} */ (element("older"));
 	const newer = /** @type {HTMLButtonElement} */ (element("newer"));
 	const newest = /** @type {HTMLButtonElement} */ (element("newest"));
+	const refresh = /** @type {HTMLButtonElement} */ (element("new-data"));
 	/** @type {Array<number | null>} */ let pageCursors = [null];
 	let pageIndex = 0;
 	/** @type {number | null} */ let nextCursor = null;
@@ -27,7 +28,7 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 
 	/** @param {number} [targetPage] @param {number | null} [targetCursor] */
 	async function refreshCalls(targetPage = 0, targetCursor = null) {
-		const pagerFocus = [older, newer, newest].find(
+		const pagerFocus = [older, newer, newest, refresh].find(
 			(button) => button === document.activeElement,
 		);
 		callsRequest?.abort();
@@ -40,6 +41,7 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 		older.disabled = true;
 		newer.disabled = true;
 		newest.disabled = true;
+		refresh.disabled = true;
 		element("calls").setAttribute("aria-busy", "true");
 		let loaded = false;
 		try {
@@ -84,25 +86,33 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 				: "No matching calls";
 			element("calls-page").textContent = `Page ${pageIndex + 1}`;
 			element("calls").scrollTop = 0;
-			element("new-data").textContent = "";
+			refresh.hidden = true;
 			markSelected();
 			loaded = true;
 			pageChanged();
 		} catch (error) {
-			if (!request.signal.aborted)
+			if (!request.signal.aborted) {
+				refresh.hidden = false;
 				element("calls-status").textContent =
-					"Could not load calls; previous results may still be shown. Use Refresh to retry.";
+					"Could not load calls; previous results may still be shown. Use Refresh calls to retry.";
+			}
 			report(error);
 		} finally {
 			if (!request.signal.aborted) {
 				older.disabled = !loaded || nextCursor === null;
 				newer.disabled = newest.disabled = !loaded || pageIndex === 0;
+				refresh.disabled = false;
 				element("calls").setAttribute("aria-busy", "false");
-				if (pagerFocus && document.activeElement === document.body) {
-					const focus = !pagerFocus.disabled
-						? pagerFocus
-						: [newer, older, newest].find((button) => !button.disabled);
-					(focus || element("refresh")).focus({ preventScroll: true });
+				if (
+					pagerFocus &&
+					(document.activeElement === document.body ||
+						(document.activeElement === refresh && refresh.hidden))
+				) {
+					const focus =
+						!pagerFocus.disabled && !pagerFocus.hidden
+							? pagerFocus
+							: [newer, older, newest].find((button) => !button.disabled);
+					(focus || outcome).focus({ preventScroll: true });
 				}
 			}
 		}
@@ -186,6 +196,10 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 			void refreshCalls(pageIndex - 1, pageCursors[pageIndex - 1] ?? null);
 	});
 	newest.addEventListener("click", () => void refreshCalls());
+	refresh.addEventListener("click", () => {
+		element("error").hidden = true;
+		void refreshCalls();
+	});
 
 	function closeDetail() {
 		detailRequest?.abort();

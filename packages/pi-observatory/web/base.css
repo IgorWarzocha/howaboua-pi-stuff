@@ -76,7 +76,6 @@ p {
 	margin: 8px 0;
 }
 .muted,
-#status,
 #calls-status {
 	color: var(--muted);
 	font-size: 12px;

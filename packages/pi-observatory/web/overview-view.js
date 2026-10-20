@@ -169,10 +169,8 @@ export function createOverviewView(selectCalls, getQuery) {
 			: status.phase === "idle"
 				? "Index up to date"
 				: `Index: ${status.phase}`;
-		if (element("status").textContent !== label)
-			element("status").textContent = label;
 		element("index-status-detail").textContent =
-			`${number(status.files)} files · ${number(status.entries)} entries${status.lastScan ? ` · scanned ${date(status.lastScan)}` : ""}`;
+			`${label} · ${number(status.files)} files · ${number(status.entries)} entries${status.lastScan ? ` · scanned ${date(status.lastScan)}` : ""}`;
 		const c = status.coverage;
 		const gaps = /** @type {Array<[number, string]>} */ ([
 			[c.wrappersWithoutTraces, "wrappers without traces"],
