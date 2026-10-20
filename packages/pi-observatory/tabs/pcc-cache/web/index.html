@@ -24,13 +24,11 @@
 		<div id="metrics" class="metrics"></div>
 		<section class="panel" aria-labelledby="misses-title">
 			<div class="section-heading"><h2 id="misses-title">Mid-flight cache misses</h2><strong id="misses-total" class="chart-total"></strong></div>
-			<p class="muted">By day · UTC · After a cache hit, without a known context reset</p>
 			<p id="rebill-coverage" class="muted" hidden></p>
 			<div id="misses-chart" class="chart"></div>
 		</section>
 		<section class="panel" aria-labelledby="cost-title">
-			<div class="section-heading"><h2 id="cost-title">Rebill cost</h2><strong id="cost-total" class="chart-total"></strong></div>
-			<p class="muted" title="Extra cost of reprocessing the previously cached prefix instead of reading it from cache. Uses current model prices, recorded service tier and input length.">Estimated extra input cost · USD</p>
+			<div class="section-heading"><h2 id="cost-title">Estimated rebill cost</h2><strong id="cost-total" class="chart-total"></strong></div>
 			<p id="cost-coverage" class="muted" hidden></p>
 			<div id="cost-chart" class="chart"></div>
 		</section>

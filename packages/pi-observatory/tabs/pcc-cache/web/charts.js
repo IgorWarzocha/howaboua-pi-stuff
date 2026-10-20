@@ -30,10 +30,10 @@ export function renderRebillCharts(buckets, totals) {
 			? "Unpriced"
 			: money(totals.rebillCost);
 	const excluded = element("rebill-coverage");
-	excluded.textContent = `${count(totals.unclassifiedMisses)} ${missWord(totals.unclassifiedMisses)} excluded: missing context metadata`;
+	excluded.textContent = `${count(totals.unclassifiedMisses)} unclassified ${missWord(totals.unclassifiedMisses)}`;
 	excluded.hidden = !totals.unclassifiedMisses;
 	const unpriced = element("cost-coverage");
-	unpriced.textContent = `${count(totals.unpricedRebillMisses)} ${missWord(totals.unpricedRebillMisses)} excluded from cost: no price`;
+	unpriced.textContent = `${count(totals.unpricedRebillMisses)} unpriced ${missWord(totals.unpricedRebillMisses)}`;
 	unpriced.hidden = !totals.unpricedRebillMisses;
 	const days = new Map(buckets.map((day) => [day.day, day]));
 	const dates = [...days.keys()].sort();
@@ -84,11 +84,7 @@ function renderDailyChart(id, dates, days, kind) {
 		"aria-label",
 		`${kind === "misses" ? "Daily mid-flight cache misses" : "Daily rebill cost in USD"}; use arrow keys to move between days`,
 	);
-	const detail = node(
-		"p",
-		"Focus or hover a day for its totals",
-		"chart-detail muted",
-	);
+	const detail = node("p", "", "chart-detail muted");
 	detail.setAttribute("aria-live", "polite");
 	const first = dates[0] ?? "";
 	const last = dates.at(-1) ?? first;

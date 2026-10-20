@@ -51,6 +51,7 @@ main {
 	background: var(--warning);
 }
 .chart {
+	margin-top: 12px;
 	overflow-x: auto;
 }
 .daily-plot {
