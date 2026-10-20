@@ -25,7 +25,7 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 ## Board settings
 
 - `/board` opens the viewer.
-- `/board settings` toggles automatic summaries and selects the global summary model: Luna or Custom.
+- `/board settings` offers consolidation, automatic summaries and the global summary model: Luna or Custom.
 - `/board status` shows the current board and enablement.
 - `/board on` enables the board for this session.
 - `/board off` disables it without deleting history.
@@ -36,6 +36,8 @@ Sessions start enabled when no setting exists. Precedence is session, folder, th
 Type `/board ` to see available commands. Enablement commands also complete their scope arguments.
 
 The agent calls `board` with `{}` for help. Code Mode and Notebook use `await tools.board()`.
+
+Choose **Consolidate one-off threads** in `/board settings` to send a prompt to the current session's agent. This starts an agent turn and uses its model quota. Run it from the owning root session while idle. The agent inspects the board's SQLite archive and uses SQL to move related standalone posts into existing open threads, preserving posts and subscriptions. Distinct topics, closed threads and summaries stay unchanged. The menu action does not run SQL itself or close threads.
 
 ## Thread status
 

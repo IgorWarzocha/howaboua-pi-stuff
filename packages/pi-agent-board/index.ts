@@ -4,6 +4,7 @@ import {
 	resolveBoardSummaryModel,
 	writeBoardSummarySelection,
 } from "./src/config.js";
+import { requestBoardConsolidation } from "./src/consolidation.js";
 import { binding } from "./src/identity.js";
 import { acquireBoard } from "./src/runtime.js";
 import { openBoardViewer } from "./src/viewer/index.js";
@@ -35,14 +36,25 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 					return;
 				}
 				try {
+					const sessionId = ctx.sessionManager.getSessionId();
+					const consolidate =
+						"Consolidate one-off threads (sends a prompt to this session's agent)";
+					const setting = await ctx.ui.select("Board settings and actions", [
+						"Automatic summaries",
+						"Summary model",
+						consolidate,
+					]);
+					if (setting === consolidate) {
+						if (ctx.sessionManager.getSessionId() !== sessionId)
+							throw new Error("Session changed; reopen Board settings");
+						requestBoardConsolidation(pi, ctx);
+						return;
+					}
+					if (!setting) return;
 					const config = readBoardSummaryConfig(ctx.cwd);
-					const setting = await ctx.ui.select(
-						`Board summaries (global; automatic: ${config.automatic ? "on" : "off"})`,
-						["Automatic summaries", "Summary model"],
-					);
 					if (setting === "Automatic summaries") {
 						const selected = await ctx.ui.select(
-							"Summarise threads automatically when closed? Uses model quota.",
+							`Automatic summaries: ${config.automatic ? "on" : "off"}. Summarise on closure? Uses model quota.`,
 							["Off", "On"],
 						);
 						if (selected !== "Off" && selected !== "On") return;
