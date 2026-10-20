@@ -142,7 +142,7 @@
 	letter-spacing: -1px;
 }
 .ring-ok {
-	--outcome-color: var(--accent);
+	--outcome-color: var(--success);
 }
 .ring-error {
 	--outcome-color: var(--issue);

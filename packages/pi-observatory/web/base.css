@@ -7,6 +7,7 @@
 	--surface: #fff;
 	--hover: #edf2ed;
 	--accent: #286844;
+	--success: var(--accent);
 	--accent-soft: #e7f1e8;
 	--issue: #a43d34;
 	--warning: #94651e;

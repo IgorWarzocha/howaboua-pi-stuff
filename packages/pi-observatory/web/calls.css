@@ -62,7 +62,7 @@
 	border-radius: 4px;
 }
 .outcome-ok {
-	color: var(--accent);
+	color: var(--success);
 }
 .outcome-error {
 	color: var(--issue);

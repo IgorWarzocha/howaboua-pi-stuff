@@ -23,6 +23,8 @@ Start a new Pi session or reload extensions, then run `/observatory`. Like `/boa
 
 All Pi sessions share one server and one index per agent directory. Opening another tab changes only its view, not the background work. The server keeps indexing after Pi closes. No agent tool or prompt instructions are added.
 
+Each `/observatory` opening applies that Pi session's theme to the shared viewer, including custom colours. After changing Pi's theme, run `/observatory` again. Reload other open tabs to pick up the colours. The last applied theme survives server restarts. A standalone viewer uses the browser's light or dark preference until first opened from Pi.
+
 With the extension loaded, Observatory records submitted extension commands, skills and prompt templates through Pi's editor. Standard Pi controls such as `/new` and `/quit`, and unknown slash names, are excluded. It stores command names without arguments. Editor submissions made by automation count too. RPC and non-interactive input are not recorded by this hook.
 
 Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history.

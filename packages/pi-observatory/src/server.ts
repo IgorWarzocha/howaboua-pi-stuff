@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
 import { loadConfig, PROTOCOL, sourceId, stateDirectory } from "./config.ts";
 import { initialiseDatabase, openDatabase } from "./database.ts";
+import { readThemeCss } from "./theme.ts";
 
 async function acquireLock(path: string): Promise<() => Promise<void>> {
 	try {
@@ -204,6 +205,21 @@ async function main(): Promise<void> {
 			}
 			if (request.method !== "GET") {
 				response.writeHead(405, { Allow: "GET" }).end();
+				return;
+			}
+			if (url.pathname === "/theme.css") {
+				void readThemeCss().then(
+					(css) =>
+						response
+							.writeHead(200, { "Content-Type": "text/css; charset=utf-8" })
+							.end(css),
+					(error: unknown) => {
+						console.error("Could not read Observatory theme:", error);
+						response
+							.writeHead(500)
+							.end("Could not load the Pi theme. Run /observatory again.");
+					},
+				);
 				return;
 			}
 			const asset = assets.get(url.pathname);

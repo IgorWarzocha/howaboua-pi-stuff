@@ -16,6 +16,7 @@ import {
 	stateDirectory,
 } from "./config.ts";
 import { object } from "./normalise.ts";
+import { saveTheme } from "./theme.ts";
 
 async function available(
 	origin: string,
@@ -91,6 +92,7 @@ export async function openObservatory(
 	try {
 		const config = await loadConfig();
 		const origin = await ensureServer(config);
+		await saveTheme(ctx.ui.theme);
 		const session = encodeURIComponent(ctx.sessionManager.getSessionId());
 		const response = await fetch(`${origin}/api/open?session=${session}`, {
 			method: "POST",
