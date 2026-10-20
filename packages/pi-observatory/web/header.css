@@ -27,13 +27,6 @@ h1 {
 	gap: 8px;
 	white-space: nowrap;
 }
-.filter-toggle::before {
-	content: "▸";
-	color: var(--muted);
-}
-.filter-toggle[aria-expanded="true"]::before {
-	transform: rotate(90deg);
-}
 #filter-count {
 	font-weight: 400;
 }
