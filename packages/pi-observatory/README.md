@@ -82,7 +82,7 @@ Identical copied history is deduplicated across forked sessions. A session view 
 
 Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting an error message filters its exact stored pattern, tool and model. Use **Clear pattern** to remove that pattern filter.
 
-Charts show the top six tools and models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Its table gives exact daily counts and lets you open a day's calls. Date filters use UTC, with the Until date included.
+Charts show the top six tools and models. Their tables include up to 100 of each. Error and exit tables each show up to 30 patterns. Activity covers up to 90 calendar days ending on the latest indexed day in the selection. Gaps between recorded days show zero indexed calls. Hover or focus a day in the graph for exact calls, errors and error rate. Click or press Enter to open that day's calls or errors. Arrow keys move between days. Date filters use UTC, with the Until date included.
 
 ## Index coverage
 

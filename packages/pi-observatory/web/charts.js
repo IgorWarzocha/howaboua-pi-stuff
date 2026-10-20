@@ -171,8 +171,8 @@ export function outcomeChart(counts, select) {
 	return container;
 }
 
-/** @param {Day[]} days @param {"calls" | "error"} metric @param {number} width */
-export function activityChart(days, metric, width) {
+/** @param {Day[]} days @param {"calls" | "error"} metric @param {number} width @param {(day: string) => void} select */
+export function activityChart(days, metric, width, select) {
 	if (!days.length) {
 		const empty = document.createElement("p");
 		empty.textContent = "No calls.";
@@ -196,7 +196,7 @@ export function activityChart(days, metric, width) {
 		bottom - (value / ceiling) * (bottom - top);
 	const chart = svg("svg", {
 		viewBox: `0 0 ${width} ${height}`,
-		role: "img",
+		role: "group",
 		"aria-labelledby": "activity-title",
 	});
 	chart.classList.add(
@@ -204,7 +204,7 @@ export function activityChart(days, metric, width) {
 		metric === "error" ? "error-series" : "call-series",
 	);
 	const title = svg("title", { id: "activity-title" });
-	title.textContent = `Daily ${metric === "error" ? "errors" : "calls"}, ${days[0]?.day} to ${days.at(-1)?.day}. ${days.reduce((sum, day) => sum + day[metric], 0).toLocaleString()} total. Exact counts in the table below.`;
+	title.textContent = `Daily ${metric === "error" ? "errors" : "calls"}, ${days[0]?.day} to ${days.at(-1)?.day}. Arrow keys choose a day. Enter opens its ${metric === "error" ? "errors" : "calls"}.`;
 	chart.append(title);
 	const compact = new Intl.NumberFormat(undefined, {
 		notation: "compact",
@@ -237,18 +237,91 @@ export function activityChart(days, metric, width) {
 		}),
 		svg("polyline", { points, class: "chart-line" }),
 	);
+	const container = document.createElement("div");
+	const readout = document.createElement("p");
+	readout.className = "activity-readout";
+	const guide = svg("line", { y1: top, y2: bottom, class: "activity-guide" });
+	chart.append(guide);
+	/** @type {SVGGElement[]} */
+	const targets = [];
+	/** @param {Day} day */
+	function detail(day) {
+		const completed = day.ok + day.error + day.nonzero;
+		const percentage = completed ? (day.error / completed) * 100 : 0;
+		const rate = !completed
+			? "—"
+			: percentage > 0 && percentage < 0.1
+				? "<0.1%"
+				: `${percentage.toFixed(1)}%`;
+		return `${day.day} UTC · ${day.calls.toLocaleString()} calls · ${day.error.toLocaleString()} errors · ${rate} error rate`;
+	}
+	/** @param {number} index */
+	function inspect(index) {
+		const day = days[index];
+		if (!day) return;
+		readout.textContent = detail(day);
+		guide.setAttribute("x1", String(x(index)));
+		guide.setAttribute("x2", String(x(index)));
+		for (const [i, target] of targets.entries()) {
+			target.setAttribute("tabindex", i === index ? "0" : "-1");
+			target.classList.toggle("active-day", i === index);
+		}
+	}
 	for (const [i, day] of days.entries()) {
+		const target = svg("g", {
+			role: "button",
+			tabindex: "-1",
+			class: "activity-day",
+			"aria-label": `${detail(day)}. View ${metric === "error" ? "errors" : "calls"}`,
+		});
+		const from = i === 0 ? left - 8 : (x(i - 1) + x(i)) / 2;
+		const to = i === days.length - 1 ? right + 8 : (x(i) + x(i + 1)) / 2;
+		target.append(
+			svg("rect", {
+				x: from,
+				y: top,
+				width: to - from,
+				height: bottom - top,
+				class: "activity-hit",
+			}),
+		);
 		const point = svg("circle", {
 			cx: x(i),
 			cy: y(day[metric]),
 			r: days.length === 1 ? 5 : days.length > 30 ? 2 : 3,
 			class: "chart-point",
 		});
-		const label = svg("title");
-		label.textContent = `${day.day}: ${day[metric].toLocaleString()} ${metric === "error" ? "errors" : "calls"}`;
-		point.append(label);
-		chart.append(point);
+		target.append(point);
+		target.addEventListener("pointerenter", () => {
+			// Keep the readout aligned with the day Enter will activate.
+			if (!chart.contains(document.activeElement)) inspect(i);
+		});
+		target.addEventListener("focus", () => inspect(i));
+		target.addEventListener("click", () => select(day.day));
+		target.addEventListener("keydown", (event) => {
+			if (event.key === "Enter" || event.key === " ") {
+				event.preventDefault();
+				select(day.day);
+				return;
+			}
+			const next =
+				event.key === "ArrowLeft"
+					? i - 1
+					: event.key === "ArrowRight"
+						? i + 1
+						: event.key === "Home"
+							? 0
+							: event.key === "End"
+								? days.length - 1
+								: undefined;
+			if (next === undefined) return;
+			event.preventDefault();
+			targets[Math.max(0, Math.min(days.length - 1, next))]?.focus();
+		});
+		targets.push(target);
+		chart.append(target);
 	}
+	inspect(days.length - 1);
 	const dates = new Intl.DateTimeFormat(undefined, {
 		month: "short",
 		day: "numeric",
@@ -277,5 +350,6 @@ export function activityChart(days, metric, width) {
 		label.textContent = dates.format(new Date(day.day));
 		chart.append(label);
 	}
-	return chart;
+	container.append(readout, chart);
+	return container;
 }

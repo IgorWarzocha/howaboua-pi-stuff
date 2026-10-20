@@ -334,6 +334,7 @@ label {
 }
 .chart-heading select {
 	width: auto;
+	flex-shrink: 0;
 	font-size: 12px;
 }
 .usage-bars,
@@ -392,6 +393,32 @@ label {
 }
 #activity-plot {
 	min-height: 210px;
+}
+.activity-readout {
+	margin: 0 0 8px;
+	min-height: 36px;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+.activity-day {
+	cursor: pointer;
+}
+.activity-hit {
+	fill: transparent;
+}
+.activity-guide {
+	stroke: var(--muted);
+	stroke-dasharray: 3 4;
+	pointer-events: none;
+}
+.activity-day.active-day .chart-point {
+	fill: var(--series);
+	stroke-width: 3;
+}
+.activity-day:focus-visible .activity-hit {
+	fill: var(--series);
+	fill-opacity: 0.12;
+	stroke: var(--series);
 }
 .activity-chart {
 	display: block;

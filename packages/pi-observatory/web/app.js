@@ -236,11 +236,17 @@ function replaceOverview(id, ...content) {
 function renderActivity() {
 	if (!activityDays) return;
 	const plot = element("activity-plot");
+	if (plot.contains(document.activeElement)) return;
 	plot.replaceChildren(
 		activityChart(
 			activityDays,
 			activityMetric.value === "error" ? "error" : "calls",
 			plot.clientWidth,
+			(day) =>
+				selectCalls(
+					{ since: day, until: day },
+					activityMetric.value === "error" ? "error" : "all",
+				),
 		),
 	);
 }
@@ -322,24 +328,6 @@ function renderOverview(overview) {
 	);
 	activityDays = dailySeries(overview.daily);
 	renderActivity();
-	replaceOverview(
-		"daily",
-		table(
-			["Day (UTC)", "Calls", "Errors", "Error rate"],
-			activityDays.map((c) => [
-				button(c.day, () =>
-					selectCalls(
-						{ since: c.day, until: c.day },
-						activityMetric.value === "error" ? "error" : "all",
-					),
-				),
-				number(c.calls),
-				number(c.error),
-				rate(c.error, completed(c)),
-			]),
-			"No calls.",
-		),
-	);
 	replaceOverview("groups", patternTable(overview.groups, "error"));
 	element("errors-summary").textContent = `Errors · ${number(c.error)}`;
 	replaceOverview("exits", patternTable(overview.exits, "nonzero"));
