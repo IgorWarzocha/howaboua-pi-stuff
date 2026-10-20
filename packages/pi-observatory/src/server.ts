@@ -105,6 +105,11 @@ async function main(): Promise<void> {
 			],
 			["/usage-view.js", "usage-view.js", "text/javascript; charset=utf-8"],
 			[
+				"/skill-selection.js",
+				"skill-selection.js",
+				"text/javascript; charset=utf-8",
+			],
+			[
 				"/usage-timeline.js",
 				"usage-timeline.js",
 				"text/javascript; charset=utf-8",

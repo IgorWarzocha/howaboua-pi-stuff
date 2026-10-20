@@ -1,4 +1,5 @@
 // @ts-check
+import { createSkillSelection } from "./skill-selection.js";
 import { dailyTimeline, timelineChart } from "./timeline-chart.js";
 import { element } from "./view-dom.js";
 
@@ -7,6 +8,9 @@ import { element } from "./view-dom.js";
 /** @param {(day: string) => void} selectDay */
 export function createUsageTimeline(selectDay) {
 	const target = element("usage-history");
+	const controls = element("skill-comparison-controls");
+	const activity = /** @type {HTMLSelectElement} */ (element("skill-activity"));
+	const picker = createSkillSelection(draw);
 	/** @type {{rows: UsageRow[], skills: boolean, empty: string} | undefined} */
 	let latest;
 	let width = 0;
@@ -14,47 +18,58 @@ export function createUsageTimeline(selectDay) {
 	function draw() {
 		if (!latest || target.contains(document.activeElement)) return;
 		const { rows, skills, empty } = latest;
-		/** @type {Map<string, {day: string, values: Record<string, number>}>} */
-		const byDay = new Map();
-		for (const row of rows) {
-			for (const day of row.daily) {
-				if (!day.user && !(skills && day.agent)) continue;
-				let total = byDay.get(day.day);
-				if (!total) {
-					total = { day: day.day, values: { agent: 0, user: 0 } };
-					byDay.set(day.day, total);
-				}
-				total.values["agent"] = (total.values["agent"] ?? 0) + day.agent;
-				total.values["user"] = (total.values["user"] ?? 0) + day.user;
-			}
-		}
-		const days = dailyTimeline([...byDay.values()]);
-		target.replaceChildren(
-			timelineChart(days, target.clientWidth, {
-				id: "usage-history",
-				title: skills ? "Skill activity" : "Command activity",
-				description: skills
-					? "Daily agent skill reads and user skill submissions. Use arrow keys to select a day, then select a count to filter the table."
-					: "Daily command submissions. Use arrow keys to select a day, then select a count to filter the table.",
-				empty: rows.length ? "No recorded activity in this selection." : empty,
-				series: [
-					...(skills
-						? [
-								{
-									key: "agent",
-									label: "Agent",
-									plotted: true,
-									className: "usage-agent",
-								},
-							]
-						: []),
+		const selection = skills ? picker.selection() : [];
+		const actor = activity.value === "user" ? "user" : "agent";
+		/** @type {import('./timeline-chart.js').TimelineSeries[]} */
+		const series = skills
+			? selection.map(({ key, label, slot }) => ({
+					key,
+					label,
+					plotted: true,
+					className: `skill-line skill-line-${slot}`,
+				}))
+			: [
 					{
 						key: "user",
 						label: "User",
 						plotted: true,
 						className: "usage-user",
 					},
-				],
+				];
+		/** @type {Map<string, {day: string, values: Record<string, number>}>} */
+		const byDay = new Map();
+		for (const { row, key } of skills
+			? selection
+			: rows.map((row) => ({ row, key: "user" }))) {
+			for (const day of row.daily) {
+				const count = day[skills ? actor : "user"];
+				if (!count) continue;
+				let total = byDay.get(day.day);
+				if (!total) {
+					total = { day: day.day, values: {} };
+					byDay.set(day.day, total);
+				}
+				total.values[key] = (total.values[key] ?? 0) + count;
+			}
+		}
+		const days = dailyTimeline([...byDay.values()]);
+		target.replaceChildren(
+			timelineChart(days, target.clientWidth, {
+				id: "usage-history",
+				title: skills
+					? actor === "agent"
+						? "Skill reads"
+						: "Skill submissions"
+					: "Command activity",
+				description: skills
+					? `Daily ${actor === "agent" ? "agent reads" : "user submissions"} per selected skill. Use arrow keys to select a day, then select a count to filter the table to that day.`
+					: "Daily command submissions. Use arrow keys to select a day, then select a count to filter the table.",
+				empty: !rows.length
+					? empty
+					: skills && !selection.length
+						? "Choose skills within the current filters to compare."
+						: "No recorded activity in this selection.",
+				series,
 				select: selectDay,
 				actionLabel: "View day",
 			}),
@@ -77,15 +92,19 @@ export function createUsageTimeline(selectDay) {
 		queueMicrotask(draw);
 	};
 	target.addEventListener("focusout", onFocusOut);
+	activity.addEventListener("change", draw);
 	return {
 		/** @param {UsageRow[]} rows @param {boolean} skills @param {string} empty */
 		render(rows, skills, empty) {
 			latest = { rows, skills, empty };
+			controls.hidden = !skills;
+			if (skills) picker.render(rows);
 			draw();
 		},
 		dispose() {
 			resize.disconnect();
 			target.removeEventListener("focusout", onFocusOut);
+			activity.removeEventListener("change", draw);
 			latest = undefined;
 		},
 	};

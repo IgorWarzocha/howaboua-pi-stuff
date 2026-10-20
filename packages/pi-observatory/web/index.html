@@ -53,7 +53,16 @@
 <label id="usage-zero-label" hidden>Usage<select id="usage-zero"><option value="all">All</option><option id="usage-zero-option" value="zero">No recorded reads</option></select></label>
 </div>
 <div id="usage-partial-history" class="usage-partial-history" role="status" hidden></div>
-<section class="chart-panel usage-history-panel" aria-labelledby="usage-history-heading"><div id="usage-history"></div></section>
+<section class="chart-panel usage-history-panel" aria-labelledby="usage-history-heading">
+<div id="skill-comparison-controls" class="skill-comparison-controls" hidden>
+<details id="skill-selection"><summary id="skill-selection-summary">Skills</summary>
+<label>Find skills to compare<input id="skill-search" type="search" placeholder="Name or source"></label>
+<div class="skill-selection-actions"><span id="skill-selection-status" class="muted" role="status"></span><button id="skill-selection-clear" type="button">Clear selection</button></div>
+<div id="skill-options" class="skill-options" role="group" aria-label="Skills to compare"></div>
+</details>
+<label>Activity<select id="skill-activity"><option value="agent">Agent reads</option><option value="user">User submissions</option></select></label>
+</div>
+<div id="usage-history"></div></section>
 <p id="usage-summary" class="muted"></p>
 <section class="resource-panel"><p id="usage-status" class="muted" role="status" hidden></p><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav><p id="usage-coverage" class="muted"></p></section>
 </section>
