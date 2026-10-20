@@ -46,7 +46,7 @@ export function createAgentsTool(
 		description: "Delegate to persistent agents",
 		promptGuidelines: ["Make the first agents discovery call alone"],
 		parameters: AgentsParameters,
-		executionMode: "sequential",
+		executionMode: "parallel",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {
 			const params = parseAgentsRequest(input);
 			const executionSignal = signal ?? new AbortController().signal;

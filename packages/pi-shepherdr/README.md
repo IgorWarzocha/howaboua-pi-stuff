@@ -69,6 +69,8 @@ Call `agents` with `{}` before first use, alone, then send flat request objects 
 
 `spawn` and `assign` block by default. Set `blocking: false` when the controller should continue other work immediately. A profile's `blocking` setting overrides the call for `spawn`. Task completion and blockage are then delivered automatically.
 
+Blocking calls can run in parallel. In Code or Notebook, use `await Promise.allSettled([...])` to start independent calls together and wait for every result, including failures. Keep blocking enabled when the controller must wait, such as for parallel reviews. Consecutive `await` calls still run one after another; `Promise.all` can exit early on failure.
+
 Nonblocking extension messages notify the controller once; blocking messages arrive with the worker's blocked result. Both remain visible in `read` and later task reports until the producer closes them. Each replyable message includes a ready `reply` call with its machine, target, extension and message ID. Fill in the extension's reply template. `send` does not resolve an extension message.
 
 `reply` returns the extension's receipt after semantic delivery. Blocking messages also wait for resumed work unless another call already owns that wait. Nonblocking replies do not wait for the worker's task to finish. Shepherdr forwards strings unchanged. The producing extension owns their meaning, validation and retries.

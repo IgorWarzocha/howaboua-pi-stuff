@@ -4,7 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { activityTask } from "./activity.js";
-import { allocateAgentName, dispatchAgentWork } from "./agents-work.js";
+import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet.js";
 import { getSnapshot, sessionPath } from "./herdr.js";
@@ -274,67 +274,76 @@ export function registerWorkerService(
 							`--${WORKER_FLAG}`,
 							...(worker ? ["--session", worker.sessionPath] : []),
 						];
-						const name = await allocateAgentName(runtime, input.title);
-						const relationship = worker
-							? undefined
-							: shared.spawns.prepareRelationship(ctx, runtime, args);
-						const sharing =
-							worker || profile.shareContext === false
-								? undefined
-								: await shared.spawns.prepare(ctx, runtime, name, args);
-						const boardBinding = worker
-							? undefined
-							: await board.prepare(ctx, runtime, name, args);
-						const workspace = runtime.local
-							? process.env["HERDR_WORKSPACE_ID"]
-							: undefined;
-						stage = "launch";
-						const started = await startAgent(
-							runtime.client,
-							{
-								name,
-								label: input.title,
-								cwd: input.cwd,
-								placement: workspace ? "new_tab" : "new_workspace",
-								...(workspace ? { workspace } : {}),
-							},
-							runtime.fallbackCwd,
-							runtime.resolveDirectory,
-							{ agentArgs: args },
-						);
+						const reservation = await reserveAgentName(runtime, input.title);
+						const { name } = reservation;
 						try {
-							const relationshipResult = await relationship?.accept(
-								started.agent,
+							const relationship = worker
+								? undefined
+								: shared.spawns.prepareRelationship(ctx, runtime, args);
+							const sharing =
+								worker || profile.shareContext === false
+									? undefined
+									: await shared.spawns.prepare(ctx, runtime, name, args);
+							const boardBinding = worker
+								? undefined
+								: await board.prepare(ctx, runtime, name, args);
+							const workspace = runtime.local
+								? process.env["HERDR_WORKSPACE_ID"]
+								: undefined;
+							stage = "launch";
+							const started = await startAgent(
+								runtime.client,
+								{
+									name,
+									label: input.title,
+									cwd: input.cwd,
+									placement: workspace ? "new_tab" : "new_workspace",
+									...(workspace ? { workspace } : {}),
+								},
+								runtime.fallbackCwd,
+								runtime.resolveDirectory,
+								{ agentArgs: args },
 							);
-							await boardBinding?.accept(started.agent);
-							const sharingResult = await sharing?.accept(started.agent);
-							for (const warning of [
-								relationshipResult?.warning,
-								sharingResult?.warning,
-							])
-								if (warning) ctx.ui.notify(warning, "warning");
-							assertBranch();
-							panel = started.agent;
-							const file = sessionPath(panel);
-							if (!file || (worker && file !== worker.sessionPath))
-								throw new Error("Worker did not restore its saved session");
-							const identity = await runtime.client.machineIdentity();
-							worker = {
-								workerId: worker?.workerId ?? crypto.randomUUID(),
-								pulseId: input.taskId,
-								runId: "",
-								parent: ctx.sessionManager.getSessionFile()!,
-								...identity,
-								target: panel.pane_id,
-								terminal: panel.terminal_id,
-								sessionPath: file,
-								cwd: input.cwd,
-							};
-							pi.appendEntry(ENTRY, worker);
-						} catch (error) {
-							return await rollbackStartedAgent(runtime.client, started, error);
+							try {
+								const relationshipResult = await relationship?.accept(
+									started.agent,
+								);
+								await boardBinding?.accept(started.agent);
+								const sharingResult = await sharing?.accept(started.agent);
+								for (const warning of [
+									relationshipResult?.warning,
+									sharingResult?.warning,
+								])
+									if (warning) ctx.ui.notify(warning, "warning");
+								assertBranch();
+								panel = started.agent;
+								const file = sessionPath(panel);
+								if (!file || (worker && file !== worker.sessionPath))
+									throw new Error("Worker did not restore its saved session");
+								const identity = await runtime.client.machineIdentity();
+								worker = {
+									workerId: worker?.workerId ?? crypto.randomUUID(),
+									pulseId: input.taskId,
+									runId: "",
+									parent: ctx.sessionManager.getSessionFile()!,
+									...identity,
+									target: panel.pane_id,
+									terminal: panel.terminal_id,
+									sessionPath: file,
+									cwd: input.cwd,
+								};
+								pi.appendEntry(ENTRY, worker);
+							} catch (error) {
+								return await rollbackStartedAgent(
+									runtime.client,
+									started,
+									error,
+								);
+							}
+							stage = "preflight";
+						} finally {
+							reservation.release();
 						}
-						stage = "preflight";
 					}
 					if (!worker) throw new Error("Worker ownership is unavailable");
 					const attributed = await attributeAgentPrompt(

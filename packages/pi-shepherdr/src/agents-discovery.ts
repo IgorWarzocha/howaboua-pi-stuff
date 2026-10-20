@@ -77,8 +77,8 @@ export async function agentsHelp(
 			detach:
 				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking: gpt
-				? "spawn/assign default true; profile overrides spawn. Independent implementation fanout: false. Only waiting? End turn. Completion/blockage arrives after reply; no polling/sleep waits"
-				: "spawn/assign default true; profile blocking overrides spawn. Fan out independent implementation workers with false; end your turn when only waiting. Completion/blockage arrives after you reply; no polling or sleep waits",
+				? "spawn/assign default true; profile overrides spawn. Parallel+wait: await Promise.allSettled. false=continue other work; completion/blockage after reply. No polling/sleep waits"
+				: "spawn/assign default true; profile blocking overrides spawn. Use await Promise.allSettled for parallel calls that wait for every result, including failures. Use false only to continue other work; completion/blockage arrives after your reply. No polling or sleep waits",
 			share_context:
 				"Profile false isolates notes/history; otherwise follows controller sharing setting",
 			watch:
