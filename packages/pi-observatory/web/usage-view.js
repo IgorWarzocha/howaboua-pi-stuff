@@ -86,9 +86,16 @@ export function createUsageView(selectDay) {
 	/** @param {UsageRow} row */
 	function resource(row) {
 		const cell = document.createElement("td");
-		cell.append(textNode("strong", name(row), "capability-name"));
-		if (view.value !== "skills")
+		const title = textNode("strong", name(row), "capability-name");
+		if (view.value === "skills") {
+			const label = document.createElement("label");
+			label.className = "skill-choice";
+			label.append(timeline.checkbox(row), title);
+			cell.append(label);
+		} else {
+			cell.append(title);
 			cell.append(textNode("span", row.kind, "muted capability-kind"));
+		}
 		return cell;
 	}
 
@@ -274,7 +281,14 @@ export function createUsageView(selectDay) {
 		control.addEventListener("change", resetPage);
 	search.addEventListener("input", resetPage);
 	// Keep the focused scroll region intact until focus leaves it.
-	target.addEventListener("focusout", () => queueMicrotask(() => draw()));
+	target.addEventListener("focusout", (event) => {
+		if (
+			event.relatedTarget instanceof Node &&
+			target.contains(event.relatedTarget)
+		)
+			return;
+		queueMicrotask(() => draw());
+	});
 	/** @param {UsageOverview} overview @param {string} [nextScope] */
 	function render(overview, nextScope = "") {
 		if (scope !== nextScope) page = 0;

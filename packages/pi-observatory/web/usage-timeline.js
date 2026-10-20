@@ -9,8 +9,9 @@ import { element } from "./view-dom.js";
 export function createUsageTimeline(selectDay) {
 	const target = element("usage-history");
 	const controls = element("skill-comparison-controls");
-	const activity = /** @type {HTMLSelectElement} */ (element("skill-activity"));
-	const picker = createSkillSelection(draw);
+	const activity = element("skill-activity");
+	const selectionActions = element("skill-selection-actions");
+	const skillsSelected = createSkillSelection(draw);
 	/** @type {{rows: UsageRow[], skills: boolean, empty: string} | undefined} */
 	let latest;
 	let width = 0;
@@ -18,8 +19,10 @@ export function createUsageTimeline(selectDay) {
 	function draw() {
 		if (!latest || target.contains(document.activeElement)) return;
 		const { rows, skills, empty } = latest;
-		const selection = skills ? picker.selection() : [];
-		const actor = activity.value === "user" ? "user" : "agent";
+		const selection = skills ? skillsSelected.selection() : [];
+		const actor = activity.querySelector('input[value="user"]:checked')
+			? "user"
+			: "agent";
 		/** @type {import('./timeline-chart.js').TimelineSeries[]} */
 		const series = skills
 			? selection.map(({ key, label, slot }) => ({
@@ -67,7 +70,7 @@ export function createUsageTimeline(selectDay) {
 				empty: !rows.length
 					? empty
 					: skills && !selection.length
-						? "Choose skills within the current filters to compare."
+						? "Tick skills in the table to compare."
 						: "No recorded activity in this selection.",
 				series,
 				select: selectDay,
@@ -94,11 +97,13 @@ export function createUsageTimeline(selectDay) {
 	target.addEventListener("focusout", onFocusOut);
 	activity.addEventListener("change", draw);
 	return {
+		checkbox: skillsSelected.checkbox,
 		/** @param {UsageRow[]} rows @param {boolean} skills @param {string} empty */
 		render(rows, skills, empty) {
 			latest = { rows, skills, empty };
 			controls.hidden = !skills;
-			if (skills) picker.render(rows);
+			selectionActions.hidden = !skills;
+			if (skills) skillsSelected.render(rows);
 			draw();
 		},
 		dispose() {
