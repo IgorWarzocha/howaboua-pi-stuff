@@ -278,7 +278,7 @@ export function createUsageView() {
 		if (zero.disabled) zero.value = "all";
 		zeroOption.textContent = "No recorded reads";
 		zero.title = partial ? "Available when both historical scans finish" : "";
-		partialHistory.hidden = skills && !partial;
+		partialHistory.hidden = !partial;
 		partialHistory.replaceChildren();
 		if (partial)
 			partialHistory.append(
@@ -286,16 +286,6 @@ export function createUsageView() {
 				textNode(
 					"p",
 					`Read counts and rankings show only reads found so far. File-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%). Skill-result scan: ${coverage.skillResultScan.phase} (${coverage.skillResultScan.progress}%). The no-recorded-reads filter is unavailable until both finish.`,
-				),
-			);
-		if (!skills)
-			partialHistory.append(
-				textNode("strong", "Historical command usage is unavailable"),
-				textNode(
-					"p",
-					coverage.recordingSince
-						? `Recording evidence starts ${timestamp(coverage.recordingSince)} in ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} selected sessions. Counts below cover observed submissions, not all-time usage. Pi does not retain a command log for earlier sessions.`
-						: "No command recording evidence in this selection. Pi does not retain a command log that can reconstruct earlier submissions. Missing records do not mean commands were unused.",
 				),
 			);
 		const recorded =
@@ -329,8 +319,8 @@ export function createUsageView() {
 					]
 				: [
 						coverage.recordingSince
-							? `Submissions since ${coverage.recordingSince.slice(0, 10)}`
-							: "Submissions unavailable",
+							? `Recording since ${timestamp(coverage.recordingSince)}`
+							: "No recording evidence",
 						`${coverage.recordedSessions.toLocaleString()}/${coverage.sessions.toLocaleString()} sessions have recorder evidence`,
 					]),
 			...(skills
@@ -346,7 +336,9 @@ export function createUsageView() {
 		element("usage-status").textContent =
 			`${rows.length.toLocaleString()} matching ${skills ? "skills" : "commands"}${partial ? " · partial read counts and rankings" : ""}${latest.truncated ? " · 500-resource limit; narrow session, project or dates for more" : ""}`;
 		const empty = !skills
-			? "No recorded command submissions match this selection. Historical usage is unknown."
+			? recorded
+				? "No recorded command submissions match this selection."
+				: "No command recording evidence in this selection. Earlier usage is unknown."
 			: latest.rows.length
 				? "No resources match this view."
 				: "No command or skill records in this selection.";
