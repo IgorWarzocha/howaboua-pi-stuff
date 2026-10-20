@@ -170,6 +170,18 @@ export function createNavigation({
 		window.scrollTo(0, 0);
 	}
 
+	/** @param {string} day */
+	function selectUsageDay(day) {
+		saveNavigation();
+		const filters = new URLSearchParams(getQuery());
+		filters.set("since", day);
+		filters.set("until", day);
+		restoreFilters(filters.toString());
+		void applyFilters(true, 0);
+		element("capability-heading").focus({ preventScroll: true });
+		window.scrollTo(0, 0);
+	}
+
 	/** @param {number} id @param {boolean} [push] @param {number} [scroll] */
 	async function openDetail(id, push = true, scroll = 0) {
 		if (push) saveNavigation();
@@ -187,6 +199,7 @@ export function createNavigation({
 		savePage,
 		restore: restoreNavigation,
 		selectCalls,
+		selectUsageDay,
 		openDetail,
 		show: showView,
 		getView: () => activeView,

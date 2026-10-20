@@ -10,7 +10,7 @@ import type {
 	SessionPage,
 } from "./contracts.ts";
 import { object, string } from "./normalise.ts";
-import { queryUsage } from "./usage.ts";
+import { queryUsage } from "./usage-query.ts";
 
 export class BadRequest extends Error {}
 

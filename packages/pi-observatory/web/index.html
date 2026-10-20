@@ -45,7 +45,7 @@
 <details id="coverage" class="coverage-panel"><summary>Index diagnostics <span id="coverage-indicator" class="muted"></span></summary><p id="index-status-detail" class="muted"></p><dl id="coverage-counts"></dl><ul id="index-issues"></ul></details>
 </section>
 <section id="capability-usage" aria-labelledby="capability-heading" hidden>
-<h2 id="capability-heading" class="visually-hidden">Commands &amp; skills</h2>
+<h2 id="capability-heading" class="visually-hidden" tabindex="-1">Commands &amp; skills</h2>
 <div class="capability-controls">
 <label>View<select id="usage-view"><option value="commands">Commands</option><option value="skills">Skills</option></select></label>
 <label class="search">Find a resource<input id="usage-search" type="search" placeholder="Name, owner or path"></label>
@@ -53,6 +53,7 @@
 <label id="usage-zero-label" hidden>Usage<select id="usage-zero"><option value="all">All</option><option id="usage-zero-option" value="zero">No recorded reads</option></select></label>
 </div>
 <div id="usage-partial-history" class="usage-partial-history" role="status" hidden></div>
+<section class="chart-panel usage-history-panel" aria-labelledby="usage-history-heading"><div id="usage-history"></div></section>
 <p id="usage-summary" class="muted"></p>
 <section class="resource-panel"><p id="usage-status" class="muted" role="status" hidden></p><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav><p id="usage-coverage" class="muted"></p></section>
 </section>

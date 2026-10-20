@@ -1,7 +1,9 @@
 // @ts-check
+import { createUsageTimeline } from "./usage-timeline.js";
+import { element, date as timestamp } from "./view-dom.js";
 
-/** @typedef {import('../src/usage.ts').UsageRow} UsageRow */
-/** @typedef {import('../src/usage.ts').UsageOverview} UsageOverview */
+/** @typedef {import('../src/usage-query.ts').UsageRow} UsageRow */
+/** @typedef {import('../src/usage-query.ts').UsageOverview} UsageOverview */
 
 const PAGE_SIZE = 10;
 
@@ -11,11 +13,6 @@ function textNode(tag, text, className) {
 	node.textContent = text;
 	if (className) node.className = className;
 	return node;
-}
-
-/** @param {string | null} value */
-function timestamp(value) {
-	return value ? value.replace("T", " ").replace(/\.\d+Z$/, "Z") : "—";
 }
 
 /** @param {"Previous" | "Next"} direction @param {() => void} select */
@@ -44,14 +41,9 @@ function pageButton(direction, select) {
 	return button;
 }
 
-/** User command submissions and agent skill reads intentionally have separate views. */
-export function createUsageView() {
-	/** @param {string} id */
-	function element(id) {
-		const node = document.getElementById(id);
-		if (!node) throw new Error(`Missing element: ${id}`);
-		return node;
-	}
+/** User command submissions and agent skill reads intentionally have separate views. @param {(day: string) => void} selectDay */
+export function createUsageView(selectDay) {
+	const timeline = createUsageTimeline(selectDay);
 	const view = /** @type {HTMLSelectElement} */ (element("usage-view"));
 	const search = /** @type {HTMLInputElement} */ (element("usage-search"));
 	const sort = /** @type {HTMLSelectElement} */ (element("usage-sort"));
@@ -245,6 +237,7 @@ export function createUsageView() {
 				? "No skills match this selection."
 				: "No skill records in this selection.";
 		drawSummary(rows, recorded);
+		timeline.render(rows, skills, empty);
 		const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
 		page = Math.min(page, pages - 1);
 		const start = page * PAGE_SIZE;
@@ -268,13 +261,9 @@ export function createUsageView() {
 		const head = table.createTHead().insertRow();
 		for (const heading of [
 			skills ? "Skill" : "Command",
-			skills
-				? partial
-					? "Reads so far"
-					: "Agent reads"
-				: "Recorded submissions",
-			...(skills ? ["User skill submissions"] : []),
-			skills ? "Last read (UTC)" : "Last submitted (UTC)",
+			skills ? "Agent" : "User",
+			...(skills ? ["User"] : []),
+			skills ? "Last read" : "Last submitted",
 		]) {
 			const th = textNode("th", heading);
 			th.scope = "col";
@@ -332,10 +321,11 @@ export function createUsageView() {
 	// Keep the focused disclosure/scroll region intact until focus leaves it.
 	target.addEventListener("focusout", () => queueMicrotask(() => draw()));
 	/** @param {UsageOverview} overview @param {string} [nextScope] */
-	return function render(overview, nextScope = "") {
+	function render(overview, nextScope = "") {
 		if (scope !== nextScope) page = 0;
 		scope = nextScope;
 		latest = overview;
 		draw();
-	};
+	}
+	return { render, dispose: timeline.dispose };
 }

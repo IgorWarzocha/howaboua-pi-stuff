@@ -104,6 +104,16 @@ async function main(): Promise<void> {
 				"text/javascript; charset=utf-8",
 			],
 			["/usage-view.js", "usage-view.js", "text/javascript; charset=utf-8"],
+			[
+				"/usage-timeline.js",
+				"usage-timeline.js",
+				"text/javascript; charset=utf-8",
+			],
+			[
+				"/timeline-chart.js",
+				"timeline-chart.js",
+				"text/javascript; charset=utf-8",
+			],
 			["/style.css", "style.css", "text/css; charset=utf-8"],
 			["/base.css", "base.css", "text/css; charset=utf-8"],
 			["/table.css", "table.css", "text/css; charset=utf-8"],

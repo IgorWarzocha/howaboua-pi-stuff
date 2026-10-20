@@ -19,6 +19,24 @@
 	margin: 4px 0 0;
 	font-size: 12px;
 }
+.usage-history-panel {
+	margin-bottom: 20px;
+}
+#usage-history .activity-legend {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.usage-agent {
+	--outcome-color: var(--accent);
+}
+.usage-user {
+	--outcome-color: var(--success);
+}
+.chart-line.usage-user {
+	stroke-dasharray: 5 4;
+}
+.activity-swatch.usage-user {
+	border-top-style: dashed;
+}
 #usage-coverage {
 	margin: 20px 0 0;
 	border-top: 1px solid var(--line);

@@ -76,7 +76,7 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 			});
 			element("calls").replaceChildren(
 				table(
-					["Time (UTC)", "Tool / Model", "Outcome", "Scope", "Preview"],
+					["Time", "Tool / Model", "Outcome", "Scope", "Preview"],
 					rows,
 					"No matching calls.",
 				),

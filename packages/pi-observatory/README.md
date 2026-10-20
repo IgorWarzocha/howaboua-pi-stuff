@@ -6,6 +6,8 @@ Switch views and filter from the site header. Start with the current session, sw
 
 Commands and Skills each use one ranked table with search, sorting and pagination. Commands shows only recorded slash submissions, alongside the recording start time and session coverage. It cannot reconstruct historical command usage or identify unused commands. Loaded inventory alone never creates a command usage row. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show historical availability, not use or current installation. These views use the session, project and date filters.
 
+Their activity graphs show daily usage for the matching resources, before table pagination. Commands plots User submissions. Skills separates Agent reads from User submissions. Hover or use the arrow keys for daily counts, then select a count to filter the table to that day. Browser Back restores the previous date range. Each graph covers up to 90 calendar days ending on the latest recorded activity in its selection. The same search and resource limit apply to the graph and table.
+
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Overview and usage views update automatically. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
 
 ## Run
@@ -73,6 +75,8 @@ The background server writes `observatory/server.log`. Its PID is in `observator
 - **Nonzero exit** means a recorded nonzero subprocess result without an explicit error marker. A search with no matches can legitimately produce one.
 - **No final result** means the index has a call without a matched result, or only a partial nested trace. It does not mean the call is still running. **Unclassified result** means the retained evidence does not establish an outcome.
 - Error rates use completed results: OK, error and nonzero exit. Missing and unclassified results are excluded.
+
+Timestamps use your browser's local timezone and date format, with the timezone shown. Daily graphs and date filters use UTC calendar days so their selections match the indexed counts.
 
 Direct calls and observed nested calls have separate scopes. All calls includes wrappers and their children, which can report the same failure. Counts describe recorded observations, not independent attempts. Aborted calls recorded as errors remain errors. A tool successfully reporting another agent's status is not itself a failed or blocked execution.
 

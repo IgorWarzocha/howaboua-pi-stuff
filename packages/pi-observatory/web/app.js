@@ -12,7 +12,7 @@ let revision = -1;
 let loadedRevision = -1;
 let stopped = false;
 /** @type {AbortController | undefined} */ let dataRequest;
-const renderUsage = createUsageView();
+const usageView = createUsageView((day) => navigation.selectUsageDay(day));
 const filters = createFiltersView(() => {
 	void applyFilters();
 });
@@ -54,7 +54,7 @@ async function refreshData() {
 		if (request.signal.aborted) return;
 		overviewView.render(overview);
 		filters.renderFacets(facets);
-		renderUsage(usage, usageQuery.toString());
+		usageView.render(usage, usageQuery.toString());
 		loadedRevision = requestedRevision;
 	} catch (error) {
 		report(error);
@@ -102,6 +102,7 @@ window.addEventListener("pagehide", () => {
 	stopped = true;
 	dataRequest?.abort();
 	overviewView.dispose();
+	usageView.dispose();
 	calls.dispose();
 	filters.dispose();
 });

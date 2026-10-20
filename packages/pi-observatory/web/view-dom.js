@@ -36,9 +36,30 @@ export function number(value) {
 	return value.toLocaleString();
 }
 
-/** @param {string} value */
+const timestampFormat = new Intl.DateTimeFormat(undefined, {
+	year: "numeric",
+	month: "short",
+	day: "numeric",
+	hour: "2-digit",
+	minute: "2-digit",
+	second: "2-digit",
+	timeZoneName: "short",
+});
+const dayFormat = new Intl.DateTimeFormat(undefined, {
+	dateStyle: "medium",
+	timeZone: "UTC",
+});
+
+/** @param {string | null} value */
 export function date(value) {
-	return value ? value.replace("T", " ").replace(/\.\d+Z$/, "Z") : "—";
+	if (!value) return "—";
+	const time = new Date(value);
+	return Number.isFinite(time.getTime()) ? timestampFormat.format(time) : value;
+}
+
+/** UTC calendar buckets must not shift when displayed in another timezone. @param {string} value */
+export function dayLabel(value) {
+	return dayFormat.format(new Date(`${value}T00:00:00Z`));
 }
 
 /** @param {string[]} headers @param {Array<Array<string | HTMLElement>>} rows @param {string} empty */
