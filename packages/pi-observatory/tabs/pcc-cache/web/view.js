@@ -22,6 +22,26 @@ let lastUpdatedAt = "";
 /** @param {string} id */
 const select = (id) => /** @type {HTMLSelectElement} */ (element(id));
 
+/** @param {string} id @param {string[]} values @param {string} all @param {(value: string) => string} label */
+function choices(id, values, all, label) {
+	const control = select(id),
+		selected = control.value;
+	const available = [...values];
+	if (selected && !available.includes(selected)) available.push(selected);
+	if (
+		JSON.stringify(
+			[...control.options].slice(1).map((option) => option.value),
+		) !== JSON.stringify(available)
+	) {
+		control.replaceChildren(
+			new Option(all, ""),
+			...available.map((value) => new Option(label(value), value)),
+		);
+		control.value = selected;
+	}
+	return available.length;
+}
+
 /** @param {unknown} data @returns {data is CacheSnapshot} */
 function validSnapshot(data) {
 	if (!data || typeof data !== "object") return false;
@@ -155,21 +175,19 @@ connectTab(({ data, status, filters: nextFilters }) => {
 	lastUpdatedAt = status.updatedAt ?? "";
 	filters = nextFilters;
 	snapshot = data;
-	const model = select("model"),
-		selected = model.value;
-	const models = [...data.models];
-	if (selected && !models.includes(selected)) models.push(selected);
-	if (
-		JSON.stringify(
-			[...model.options].slice(1).map((option) => option.value),
-		) !== JSON.stringify(models)
-	) {
-		model.replaceChildren(
-			new Option("All models", ""),
-			...models.map((name) => new Option(name, name)),
-		);
-		model.value = selected;
-	}
+	choices("model", data.models, "All models", (value) =>
+		value === "Unknown" ? "Unknown model" : value,
+	);
+	const scopes = choices("scope", data.scopes ?? [], "All scopes", (value) =>
+		value === "Unknown"
+			? "Unknown scope"
+			: value === "session"
+				? "Session"
+				: value === "auxiliary"
+					? "Auxiliary"
+					: value,
+	);
+	element("scope-filter").hidden = scopes < 2 && !select("scope").value;
 	element("waiting").hidden = true;
 	element("dashboard").hidden = false;
 	renderCoverage();

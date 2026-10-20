@@ -91,4 +91,5 @@ export interface CacheSnapshot {
 		legacyRecords: number;
 	};
 	models: string[];
+	scopes?: string[];
 }

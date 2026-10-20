@@ -14,9 +14,9 @@
 	<p id="waiting" role="status">Waiting for cache logs…</p>
 	<div id="dashboard" hidden>
 		<div class="toolbar">
-			<label>Request type<select id="lane"><option value="response">Responses</option><option value="compaction">Compaction</option><option value="prewarm">Prewarm</option><option value="">All types</option><option value="Unknown">Unknown</option></select></label>
+			<label>Request type<select id="lane"><option value="response">Responses</option><option value="compaction">Compaction</option><option value="">All types</option></select></label>
 			<label>Model<select id="model"><option value="">All models</option></select></label>
-			<label>Scope<select id="scope"><option value="">All scopes</option><option value="session">Session</option><option value="auxiliary">Auxiliary</option><option value="Unknown">Unknown</option></select></label>
+			<label id="scope-filter" hidden>Scope<select id="scope"><option value="">All scopes</option></select></label>
 		</div>
 		<p id="coverage" class="muted" role="status"></p>
 		<div id="query-status" role="status" hidden><span id="query-message"></span> <button id="retry" type="button" hidden>Retry</button></div>
@@ -28,7 +28,7 @@
 			<div id="chart" class="chart"></div>
 		</section>
 		<section class="panel" aria-labelledby="requests-title">
-			<div class="section-heading"><h2 id="requests-title">Requests</h2><label>Cache result<select id="result"><option value="">All results</option><option value="hit">Hit</option><option value="miss">Miss</option><option value="unknown">Unknown</option></select></label></div>
+			<div class="section-heading"><h2 id="requests-title">Requests</h2><label>Cache result<select id="result"><option value="">All results</option><option value="hit">Hit</option><option value="miss">Miss</option><option value="unknown">Unmeasured</option></select></label></div>
 			<div class="table-scroll" tabindex="0" role="region" aria-label="Request details, scroll horizontally for all columns">
 				<table><thead><tr><th>Time / session</th><th>Model / type</th><th>Cache</th><th>Cached / input</th><th>Transport / history</th><th>Outcome</th><th>Elapsed</th></tr></thead><tbody id="rows"></tbody></table>
 			</div>

@@ -12,15 +12,21 @@ export function project(
 		coalesce(sum(json_extract(data, '$.row.correlation')='legacy'), 0) AS legacy
 		FROM records`)
 		.get();
-	const models = db
-		.prepare(`SELECT DISTINCT json_extract(data, '$.row.model') AS model
-		FROM records ORDER BY model`)
-		.all()
-		.map((row) => {
-			if (typeof row["model"] !== "string")
-				throw new Error("Invalid indexed cache model.");
-			return row["model"];
-		});
+	const facets = db
+		.prepare(`SELECT DISTINCT json_extract(data, '$.row.model') AS model,
+		json_extract(data, '$.row.scope') AS scope FROM records ORDER BY model,scope`)
+		.all();
+	const values = (key: string) =>
+		[
+			...new Set(
+				facets.map((row) => {
+					const value = row[key];
+					if (typeof value !== "string")
+						throw new Error(`Invalid indexed cache ${key}.`);
+					return value;
+				}),
+			),
+		].sort();
 	return {
 		version: 2,
 		coverage: {
@@ -29,6 +35,7 @@ export function project(
 			toDay: typeof range?.["last"] === "string" ? range["last"] : null,
 			legacyRecords: Number(range?.["legacy"] ?? 0),
 		},
-		models,
+		models: values("model"),
+		scopes: values("scope"),
 	};
 }

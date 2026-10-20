@@ -42,7 +42,7 @@ export function renderMetrics(totals) {
 		[
 			"Measured requests",
 			count(measured),
-			`${count(totals.unknownUsage)} unknown`,
+			`${count(totals.unknownUsage)} unmeasured`,
 		],
 		[
 			"Retries / failures",
@@ -175,10 +175,15 @@ export function renderRows(requests, offset, total) {
 			new Date(request.time).toLocaleString(),
 			request.sessionName || request.sessionId || "Unknown session",
 		).title = request.project || "Unknown project";
-		cell(request.model, `${request.lane} · ${request.scope}`);
+		cell(
+			request.model,
+			[request.lane, request.scope === "Unknown" ? "" : request.scope]
+				.filter(Boolean)
+				.join(" · "),
+		);
 		cell(
 			request.measurement === "unknown"
-				? "Unknown"
+				? "Unmeasured"
 				: request.measurement === "hit"
 					? "Hit"
 					: "Miss",
