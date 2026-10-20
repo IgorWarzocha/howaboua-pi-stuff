@@ -55,16 +55,14 @@
 	display: block;
 	font-size: 11px;
 }
-#usage-table summary {
-	font-weight: 400;
-	padding: 3px 0;
-	overflow-wrap: anywhere;
-}
 #usage-table th:first-child {
 	min-width: 160px;
 }
 .source-path {
+	min-width: 200px;
+	max-width: 340px;
 	font-family: ui-monospace, monospace;
+	white-space: pre-line;
 	overflow-wrap: anywhere;
 }
 .evidence-date {

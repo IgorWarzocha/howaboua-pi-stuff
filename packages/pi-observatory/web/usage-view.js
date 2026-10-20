@@ -83,24 +83,12 @@ export function createUsageView(selectDay) {
 			: `/${row.kind === "skill" ? "skill:" : ""}${row.name}`;
 	}
 
-	/** @param {UsageRow} row @param {Set<string>} expanded */
-	function resource(row, expanded) {
+	/** @param {UsageRow} row */
+	function resource(row) {
 		const cell = document.createElement("td");
 		cell.append(textNode("strong", name(row), "capability-name"));
 		if (view.value !== "skills")
 			cell.append(textNode("span", row.kind, "muted capability-kind"));
-		if (!row.owner && !row.path) return cell;
-		const details = document.createElement("details");
-		details.dataset["resource"] = JSON.stringify([
-			row.kind,
-			row.name,
-			row.path,
-		]);
-		details.open = expanded.has(details.dataset["resource"]);
-		details.append(textNode("summary", "Source"));
-		if (row.owner) details.append(textNode("p", row.owner));
-		if (row.path) details.append(textNode("p", row.path, "source-path"));
-		cell.append(details);
 		return cell;
 	}
 
@@ -218,12 +206,6 @@ export function createUsageView(selectDay) {
 			target.replaceChildren(textNode("p", empty, "muted"));
 			return;
 		}
-		const expanded = new Set(
-			Array.from(
-				target.querySelectorAll("details[open]"),
-				(node) => /** @type {HTMLElement} */ (node).dataset["resource"] || "",
-			),
-		);
 		const table = document.createElement("table");
 		const head = table.createTHead().insertRow();
 		for (const heading of [
@@ -231,6 +213,7 @@ export function createUsageView(selectDay) {
 			skills ? "Agent" : "User",
 			...(skills ? ["User"] : []),
 			skills ? "Last read" : "Last submitted",
+			"Source",
 		]) {
 			const th = textNode("th", heading);
 			th.scope = "col";
@@ -240,7 +223,7 @@ export function createUsageView(selectDay) {
 		for (const item of rows.slice(start, start + PAGE_SIZE)) {
 			const row = body.insertRow();
 			row.append(
-				resource(item, expanded),
+				resource(item),
 				textNode(
 					"td",
 					uses(item) || skills || recorded
@@ -264,6 +247,11 @@ export function createUsageView(selectDay) {
 					timestamp(skills ? item.lastRead : item.lastSubmitted),
 					"evidence-date",
 				),
+				textNode(
+					"td",
+					[item.owner, item.path].filter(Boolean).join("\n") || "—",
+					"source-path",
+				),
 			);
 		}
 		target.replaceChildren(table);
@@ -285,7 +273,7 @@ export function createUsageView(selectDay) {
 	for (const control of [view, sort, zero])
 		control.addEventListener("change", resetPage);
 	search.addEventListener("input", resetPage);
-	// Keep the focused disclosure/scroll region intact until focus leaves it.
+	// Keep the focused scroll region intact until focus leaves it.
 	target.addEventListener("focusout", () => queueMicrotask(() => draw()));
 	/** @param {UsageOverview} overview @param {string} [nextScope] */
 	function render(overview, nextScope = "") {
