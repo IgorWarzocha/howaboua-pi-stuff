@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PCC cache</title>
+	<link rel="stylesheet" href="/base.css">
+	<link rel="stylesheet" href="/theme.css">
+	<link rel="stylesheet" href="style.css">
+	<script type="module" src="view.js"></script>
+</head>
+<body>
+<main>
+	<p id="waiting" role="status">Waiting for cache logs…</p>
+	<div id="dashboard" hidden>
+		<div class="toolbar">
+			<label>Request type<select id="lane"><option value="response">Responses</option><option value="compaction">Compaction</option><option value="prewarm">Prewarm</option><option value="">All types</option><option value="Unknown">Unknown</option></select></label>
+			<label>Model<select id="model"><option value="">All models</option></select></label>
+			<label>Scope<select id="scope"><option value="">All scopes</option><option value="session">Session</option><option value="auxiliary">Auxiliary</option><option value="Unknown">Unknown</option></select></label>
+		</div>
+		<p id="coverage" class="muted" role="status"></p>
+		<div id="metrics" class="metrics"></div>
+		<section class="panel" aria-labelledby="activity-title">
+			<h2 id="activity-title">Input tokens by day</h2>
+			<p class="muted">UTC · <span class="key cached"></span> Cached <span class="key uncached"></span> Uncached · Reported usage only</p>
+			<div id="chart" class="chart"></div>
+			<p id="activity-summary" class="muted"></p>
+		</section>
+		<section class="panel" aria-labelledby="requests-title">
+			<div class="section-heading"><h2 id="requests-title">Recent requests &amp; observations</h2><label>Cache result<select id="result"><option value="">All results</option><option value="hit">Hit</option><option value="miss">Miss</option><option value="unknown">Unknown</option></select></label></div>
+			<p id="request-coverage" class="muted"></p>
+			<div class="table-scroll" tabindex="0" role="region" aria-label="Request details, scroll horizontally for all columns">
+				<table><thead><tr><th>Time / session</th><th>Model / type</th><th>Cache</th><th>Cached / input</th><th>Transport / history</th><th>Outcome</th><th>Elapsed</th></tr></thead><tbody id="rows"></tbody></table>
+			</div>
+			<div class="pagination"><span id="page-status" class="muted" role="status"></span><button id="previous" type="button">Previous</button><button id="next" type="button">Next</button></div>
+		</section>
+		<details><summary>How to read this view</summary><p>Hit means authoritative usage reports cached input tokens. Miss means positive input with zero cached tokens. Missing usage, zero input and non-authoritative prewarm are Unknown, not misses. The cache share is cached tokens divided by total input tokens; the hit rate counts measured requests.</p><p>WebSocket full/delta history and canonical-history fingerprints describe transport, not cache hits or their cause. Retries and fallbacks are logged events; a recovered request is not a final failure. Elapsed time is locally measured request time, when available.</p><p>Older logs without request IDs remain separate observations. Their usage counts, but model attribution and request/event correlation may be unknown. Pending means no final outcome was logged, not proof that the request is still running.</p></details>
+	</div>
+</main>
+</body>
+</html>

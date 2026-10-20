@@ -12,6 +12,8 @@ Indexing runs in a background worker. Built-in views read SQLite exclusively, in
 
 Add your own tabs with a local collector and a custom web page. Observatory runs collection in the background, stores the latest successful JSON snapshot and hosts the page alongside its built-in views. See [Custom tabs](docs/custom-tabs.md) for the bundle contract and a working machine-health example.
 
+The [PCC cache tab](tabs/pcc-cache/README.md) reads Pi Codex Conversion's diagnostic logs to show cache hits, token reuse, retries and transport history. Enable it separately; it does not change PCC's logging settings.
+
 ## Run
 
 This first pass is source-only and is not published to npm. It requires Node 22.18 or newer and the repository's dependencies.

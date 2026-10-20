@@ -6,6 +6,8 @@ A tab is a local bundle: a manifest, a collector and a web page. The collector p
 
 ## Try the example
 
+For a ready-to-use log dashboard, see [PCC cache](../tabs/pcc-cache/README.md). It uses this same bundle contract and keeps its own incremental index, separate from core session indexing.
+
 The `examples/machine` bundle reports real host memory, CPU count, uptime and load. Add its absolute directory to the existing `observatory/config.json` under your Pi agent directory:
 
 ```json
