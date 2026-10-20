@@ -161,17 +161,25 @@ export function queryUsage(
 		since: params.get("since") ?? "",
 		until: params.get("until") ?? "",
 	};
-	const files =
-		"SELECT id FROM files WHERE (@session='' OR session_id=@session) AND (@project='' OR project=@project)";
-	const entryMember = `entry_key IN (SELECT entry_key FROM file_entries WHERE file_id IN (${files}))`;
-	const callMember = `call_id IN (SELECT call_id FROM file_calls WHERE file_id IN (${files}))`;
+	const fileScope =
+		"(@session='' OR f.session_id=@session) AND (@project='' OR f.project=@project)";
+	const scoped = Boolean(values.session || values.project);
+	// Probe membership from the small observation set. Materialising the entire
+	// session-history key set makes an all-sessions usage query scale with every message.
+	const entryMember = (key: string) =>
+		scoped
+			? `EXISTS (SELECT 1 FROM file_entries fe JOIN files f ON f.id=fe.file_id WHERE fe.entry_key=${key} AND ${fileScope})`
+			: "1";
+	const callMember = scoped
+		? `EXISTS (SELECT 1 FROM file_calls fc JOIN files f ON f.id=fc.file_id WHERE fc.call_id=e.call_id AND ${fileScope})`
+		: "1";
 	const time =
 		"(@since='' OR substr(timestamp,1,10)>=@since) AND (@until='' OR substr(timestamp,1,10)<=@until)";
 	const rows = db
 		.prepare<typeof values, UsageRow>(`
-		WITH selected_events AS (SELECT * FROM usage_events WHERE kind IN ('extension','skill','prompt') AND owner<>'builtin' AND (${entryMember} OR ${callMember}) AND ${time}),
+		WITH selected_events AS (SELECT * FROM usage_events e WHERE kind IN ('extension','skill','prompt') AND owner<>'builtin' AND (${entryMember("e.entry_key")} OR ${callMember}) AND ${time}),
 		available AS (SELECT i.*,s.timestamp FROM usage_inventory i JOIN usage_snapshots s USING(entry_key)
-			WHERE i.kind IN ('extension','skill','prompt') AND owner<>'builtin' AND ${entryMember} AND (@until='' OR substr(timestamp,1,10)<=@until)),
+			WHERE i.kind IN ('extension','skill','prompt') AND owner<>'builtin' AND ${entryMember("i.entry_key")} AND (@until='' OR substr(timestamp,1,10)<=@until)),
 		resources AS (SELECT kind,name,path,owner FROM selected_events UNION SELECT kind,name,path,owner FROM available),
 		uses AS (SELECT kind,name,path,
 			SUM(evidence='submission') submissions,
@@ -190,11 +198,11 @@ export function queryUsage(
 		.prepare<typeof values, UsageOverview["coverage"]>(`
 		SELECT MIN(CASE WHEN kind='recording' THEN timestamp END) recordingSince,
 			MIN(CASE WHEN kind='inventory' THEN timestamp END) inventorySince,
-			(SELECT COUNT(DISTINCT session_id) FROM files WHERE id IN (${files}) AND id IN
-				(SELECT file_id FROM file_entries WHERE entry_key IN (SELECT entry_key FROM usage_snapshots WHERE kind='recording'
-					AND (@until='' OR substr(timestamp,1,10)<=@until)))) recordedSessions,
-			(SELECT COUNT(DISTINCT session_id) FROM files WHERE id IN (${files})) sessions
-		FROM usage_snapshots WHERE ${entryMember} AND (@until='' OR substr(timestamp,1,10)<=@until)
+			(SELECT COUNT(DISTINCT f.session_id) FROM usage_snapshots rs
+				JOIN file_entries fe ON fe.entry_key=rs.entry_key JOIN files f ON f.id=fe.file_id
+				WHERE rs.kind='recording' AND ${fileScope} AND (@until='' OR substr(rs.timestamp,1,10)<=@until)) recordedSessions,
+			(SELECT COUNT(DISTINCT f.session_id) FROM files f WHERE ${fileScope}) sessions
+		FROM usage_snapshots s WHERE ${entryMember("s.entry_key")} AND (@until='' OR substr(timestamp,1,10)<=@until)
 	`)
 		.get(values);
 	if (!coverage) throw new Error("Usage coverage is missing");
