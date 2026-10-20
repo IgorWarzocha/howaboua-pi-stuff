@@ -2,9 +2,9 @@
 
 See which tools your agents call, how often and with which models. Usage bars rank tools and models by call volume, with exact counts and shares. Select a bar to inspect its calls, arguments and results. The activity graph shows daily totals and every outcome together: OK, errors, nonzero exits, missing final results and unclassified results.
 
-Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools and error counts. Errors, nonzero exits and coverage remain available below the charts. Filter by model, provider, tool, project and date.
+Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools and error counts. Errors, nonzero exits and index diagnostics remain available below the charts. Filter by model, provider, tool, project and date. Drill-downs and individual call details open at the top of their view. Back restores the previous filters, call page and scroll position.
 
-Commands shows only recorded slash submissions, alongside the recording start time and session coverage. It cannot reconstruct historical command usage or identify unused commands. Loaded inventory alone never creates a command usage row. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show historical availability, not use or current installation. These views use the session, project and date filters.
+Commands and Skills each use one ranked table with search, sorting and pagination. Commands shows only recorded slash submissions, alongside the recording start time and session coverage. It cannot reconstruct historical command usage or identify unused commands. Loaded inventory alone never creates a command usage row. Skills ranks agent reads, with user skill submissions counted separately. Loaded-resource snapshots show historical availability, not use or current installation. These views use the session, project and date filters.
 
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
@@ -69,7 +69,7 @@ The background server writes `observatory/server.log`. Its PID is in `observator
 
 - **Error** means an explicit error marker, failed nested trace or recorded script error.
 - **Nonzero exit** means a recorded nonzero subprocess result without an explicit error marker. A search with no matches can legitimately produce one.
-- **No final result** means the index has a call without a matched result, or only a partial nested trace. It does not mean the call is still running. **Unclassified result** means the retained evidence does not establish an outcome. Both appear under coverage.
+- **No final result** means the index has a call without a matched result, or only a partial nested trace. It does not mean the call is still running. **Unclassified result** means the retained evidence does not establish an outcome.
 - Error rates use completed results: OK, error and nonzero exit. Missing and unclassified results are excluded.
 
 Direct calls and observed nested calls have separate scopes. All calls includes wrappers and their children, which can report the same failure. Counts describe recorded observations, not independent attempts. Aborted calls recorded as errors remain errors. A tool successfully reporting another agent's status is not itself a failed or blocked execution.
@@ -88,7 +88,7 @@ Charts show the top six tools and models. Their tables include up to 100 of each
 
 The indexer checks file metadata every two seconds and consumes appended bytes. During backfill it yields between file batches to discover new sessions and active tails. Complete lines and their cursor commit together. A partially written final line is saved until its remaining bytes arrive. After a crash, only uncommitted work may be read again.
 
-Coverage reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
+Index diagnostics, below the Overview charts, reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
 
 Existing indexes are updated from cached SQLite evidence when the server starts. Native nested-call and skill-file scans run in bounded background batches. These updates preserve indexing cursors and do not reread session files.
 

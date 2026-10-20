@@ -269,8 +269,7 @@ label {
 	gap: 16px;
 	margin-bottom: 24px;
 }
-.metric,
-.usage-metric {
+.metric {
 	text-align: left;
 	padding: 18px 20px;
 	background: var(--surface);
@@ -281,14 +280,12 @@ label {
 	gap: 4px;
 	min-width: 0;
 }
-.metric span,
-.usage-metric span {
+.metric span {
 	color: var(--muted);
 	font-size: 12px;
 	font-weight: 500;
 }
-.metric strong,
-.usage-metric strong {
+.metric strong {
 	display: block;
 	font-size: clamp(24px, 2.5vw, 32px);
 	line-height: 1.3;
@@ -301,8 +298,7 @@ label {
 	font-weight: 400;
 }
 .activity-grid,
-.usage-charts,
-.capability-grid {
+.usage-charts {
 	display: grid;
 	gap: 20px;
 	margin-bottom: 24px;
@@ -332,8 +328,7 @@ label {
 .chart-heading p {
 	margin: 2px 0 0;
 }
-.usage-bars,
-.capability-bars {
+.usage-bars {
 	list-style: none;
 	padding: 0;
 	margin: 0;
@@ -601,14 +596,6 @@ summary {
 	gap: 12px;
 	margin-bottom: 20px;
 }
-#usage-summary {
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 12px;
-}
-.usage-note {
-	grid-column: 1 / -1;
-	margin: 0;
-}
 .usage-partial-history {
 	margin-bottom: 20px;
 	padding: 14px 18px;
@@ -622,24 +609,6 @@ summary {
 }
 .usage-partial-history p {
 	margin: 4px 0 0;
-	font-size: 12px;
-}
-#usage-summary .metric-unavailable {
-	font-size: 14px;
-	letter-spacing: normal;
-	overflow-wrap: anywhere;
-	line-height: 2.2;
-}
-.capability-grid {
-	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-}
-.capability-bar {
-	padding-block: 4px;
-}
-.capability-bar-heading {
-	display: flex;
-	justify-content: space-between;
-	gap: 12px;
 	font-size: 12px;
 }
 #usage-coverage {
@@ -846,9 +815,6 @@ table tbody tr:hover {
 	margin-left: 10px;
 	font-weight: 400;
 }
-#outcome-coverage button {
-	margin: 4px 8px 4px 0;
-}
 #pattern {
 	padding: 12px;
 	border: 1px solid var(--line);
@@ -871,12 +837,6 @@ table tbody tr:hover {
 #new-data {
 	font-size: 12px;
 	color: var(--accent);
-}
-#detail {
-	border-top: 2px solid var(--accent);
-	padding-top: 24px;
-	margin-top: 32px;
-	scroll-margin-top: 20px;
 }
 pre {
 	font:
@@ -936,9 +896,6 @@ tr[aria-selected="true"] {
 		grid-template-columns: 1fr 1fr;
 		gap: 0 12px;
 	}
-	.capability-grid {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
-	}
 }
 @media (max-width: 760px) {
 	.app-header,
@@ -967,17 +924,14 @@ tr[aria-selected="true"] {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 10px;
 	}
-	.metric,
-	.usage-metric {
+	.metric {
 		padding: 14px;
 	}
-	.metric strong,
-	.usage-metric strong {
+	.metric strong {
 		font-size: 26px;
 	}
 	.activity-grid,
 	.usage-charts,
-	.capability-grid,
 	.diagnostics {
 		grid-template-columns: 1fr;
 		gap: 16px;
@@ -1004,21 +958,8 @@ tr[aria-selected="true"] {
 	#filters > label:first-child {
 		grid-column: 1 / -1;
 	}
-	#usage-summary {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 8px;
-	}
 	.activity-legend {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-	#usage-summary .usage-metric {
-		padding: 12px;
-	}
-	#usage-summary strong {
-		font-size: 24px;
-	}
-	#usage-summary span {
-		font-size: 11px;
 	}
 	#usage-pagination .page-range {
 		flex-basis: 100%;
@@ -1047,9 +988,6 @@ tr[aria-selected="true"] {
 		gap: 12px;
 	}
 	.outcome-distribution {
-		grid-template-columns: 1fr;
-	}
-	#usage-summary {
 		grid-template-columns: 1fr;
 	}
 }

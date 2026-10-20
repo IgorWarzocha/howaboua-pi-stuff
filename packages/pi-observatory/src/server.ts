@@ -86,6 +86,16 @@ async function main(): Promise<void> {
 		for (const [path, file, type] of [
 			["/", "index.html", "text/html; charset=utf-8"],
 			["/app.js", "app.js", "text/javascript; charset=utf-8"],
+			["/api.js", "api.js", "text/javascript; charset=utf-8"],
+			["/calls-view.js", "calls-view.js", "text/javascript; charset=utf-8"],
+			["/filters-view.js", "filters-view.js", "text/javascript; charset=utf-8"],
+			["/navigation.js", "navigation.js", "text/javascript; charset=utf-8"],
+			[
+				"/overview-view.js",
+				"overview-view.js",
+				"text/javascript; charset=utf-8",
+			],
+			["/view-dom.js", "view-dom.js", "text/javascript; charset=utf-8"],
 			["/charts.js", "charts.js", "text/javascript; charset=utf-8"],
 			["/usage-view.js", "usage-view.js", "text/javascript; charset=utf-8"],
 			["/style.css", "style.css", "text/css; charset=utf-8"],

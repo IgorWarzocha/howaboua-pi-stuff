@@ -31,17 +31,18 @@
 <section id="overview" aria-label="Overview">
 <div id="totals" class="metrics" role="status">Loading…</div>
 <div class="activity-grid">
-<section class="chart-panel"><div class="chart-heading"><div><h2>Activity</h2><p class="muted">Daily calls and outcomes · up to 90 days · select a day, then a count to view calls</p></div></div><div id="activity-plot"></div></section>
+<section class="chart-panel"><div class="chart-heading"><h2>Activity</h2></div><div id="activity-plot"></div></section>
 <section class="chart-panel"><div class="chart-heading"><h2>Outcomes</h2></div><div id="outcome-chart"></div></section>
 </div>
 <div class="usage-charts">
-<section class="chart-panel"><div class="chart-heading"><h2 id="tools-heading">Top tools</h2><span class="muted">Share of calls</span></div><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>View all tools</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div></details></section>
-<section class="chart-panel"><div class="chart-heading"><h2 id="models-heading">Top models</h2><span class="muted">Share of calls</span></div><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>View all models</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></section>
+<section class="chart-panel"><div class="chart-heading"><h2 id="tools-heading">Top tools</h2></div><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>All tools</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div></details></section>
+<section class="chart-panel"><div class="chart-heading"><h2 id="models-heading">Top models</h2></div><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>All models</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></section>
 </div>
 <div class="diagnostics"><details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details><details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details></div>
+<details id="coverage" class="coverage-panel"><summary>Index diagnostics <span id="coverage-indicator" class="muted"></span></summary><p id="index-status-detail" class="muted"></p><dl id="coverage-counts"></dl><ul id="index-issues"></ul></details>
 </section>
 <section id="capability-usage" aria-labelledby="capability-heading" hidden>
-<div class="section-heading"><h2 id="capability-heading" class="visually-hidden">Commands &amp; skills</h2><span class="muted">Session, project &amp; date filters apply</span></div>
+<h2 id="capability-heading" class="visually-hidden">Commands &amp; skills</h2>
 <div class="capability-controls">
 <label>View<select id="usage-view"><option value="commands">Commands</option><option value="skills">Skills</option></select></label>
 <label class="search">Find a resource<input id="usage-search" type="search" placeholder="Name, owner or path"></label>
@@ -49,15 +50,13 @@
 <label id="usage-zero-label" hidden>Usage<select id="usage-zero"><option value="all">All</option><option id="usage-zero-option" value="zero">No recorded reads</option></select></label>
 </div>
 <div id="usage-partial-history" class="usage-partial-history" role="status" hidden></div>
-<div id="usage-summary" class="metrics"></div>
-<div class="capability-grid"><section class="chart-panel"><div id="usage-chart"></div><p id="usage-coverage" class="muted">Loading recording coverage…</p></section>
-<section class="resource-panel"><p id="usage-status" class="muted" role="status"></p><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav></section></div>
+<p id="usage-summary" class="muted"></p>
+<section class="resource-panel"><p id="usage-status" class="muted" role="status" hidden></p><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav><p id="usage-coverage" class="muted"></p></section>
 </section>
-<section id="calls-panel" aria-labelledby="calls-heading" hidden><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><span id="new-data" role="status"></span><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><optgroup label="Coverage"><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></optgroup></select></label></div>
+<section id="calls-panel" aria-labelledby="calls-heading" hidden><div class="section-heading"><h2 id="calls-heading" class="visually-hidden" tabindex="-1">Calls</h2><button id="back-to-view" type="button" hidden>Back</button><span id="new-data" role="status"></span><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></select></label></div>
 <nav class="pagination" aria-label="Call pages"><span id="calls-status" role="status"></span><div class="page-controls"><button id="newest" class="icon-button" type="button" aria-label="First page" title="First page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M17 6l-6 6 6 6"/></svg></button><button id="newer" class="icon-button" type="button" aria-label="Previous page" title="Previous page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><span id="calls-page">Page 1</span><button id="older" class="icon-button" type="button" aria-label="Next page" title="Next page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div></nav>
 <div id="calls" class="table-scroll" tabindex="0" role="region" aria-label="Calls"></div>
-<section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" tabindex="-1">Call detail</h2><button id="close-detail" type="button">Close</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>
 </section>
-<details id="coverage" class="coverage-panel"><summary>Data coverage <span id="coverage-indicator" class="muted"></span></summary><div id="outcome-coverage"></div><p id="index-status-detail"></p><p id="coverage-text"></p><ul id="index-issues"></ul><h3>Commands &amp; skills</h3><p id="usage-evidence-coverage"></p><p>Inventory reflects loaded snapshots, not a live installation check. Ordinary file readers and literal shell reads do not require a special Skills tool. Dynamic scripts, hidden file access and missing arguments cannot be reliably attributed; list/help and path mentions are not reads.</p></details>
+<section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" class="visually-hidden" tabindex="-1">Call detail</h2><button id="close-detail" type="button">Back</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>
 </main>
 </body></html>

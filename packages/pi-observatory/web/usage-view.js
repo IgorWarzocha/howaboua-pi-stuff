@@ -4,7 +4,6 @@
 /** @typedef {import('../src/usage.ts').UsageOverview} UsageOverview */
 
 const PAGE_SIZE = 10;
-const CHART_LIMIT = 8;
 
 /** @template {keyof HTMLElementTagNameMap} T @param {T} tag @param {string} text @param {string} [className] */
 function textNode(tag, text, className) {
@@ -61,7 +60,6 @@ export function createUsageView() {
 	const zeroLabel = element("usage-zero-label");
 	const target = element("usage-table");
 	const summary = element("usage-summary");
-	const chart = element("usage-chart");
 	const partialHistory = element("usage-partial-history");
 	const pagination = element("usage-pagination");
 	const range = textNode("span", "", "page-range");
@@ -93,8 +91,8 @@ export function createUsageView() {
 			: `/${row.kind === "skill" ? "skill:" : ""}${row.name}`;
 	}
 
-	/** @param {UsageRow} row @param {boolean} recorded @param {Set<string>} expanded */
-	function resource(row, recorded, expanded) {
+	/** @param {UsageRow} row @param {Set<string>} expanded */
+	function resource(row, expanded) {
 		const cell = document.createElement("td");
 		cell.append(textNode("strong", name(row), "capability-name"));
 		if (view.value !== "skills")
@@ -112,13 +110,19 @@ export function createUsageView() {
 				view.value === "skills" ? "Evidence & source" : "Source & availability",
 			),
 		);
-		if (view.value === "skills")
+		if (view.value === "skills") {
 			details.append(
 				textNode(
 					"p",
-					`${row.fileReads.toLocaleString()} inferred body reads · ${row.fileReferenceReads.toLocaleString()} inferred reference reads · ${row.skillReads.toLocaleString()} confirmed body reads · ${row.referenceReads.toLocaleString()} confirmed reference reads · ${row.continuations.toLocaleString()} continuations (separate from read totals) · ${row.submissions || recorded ? row.submissions.toLocaleString() : "unavailable"} user skill submissions (not agent reads)`,
+					`Inferred reads: ${row.fileReads.toLocaleString()} body · ${row.fileReferenceReads.toLocaleString()} reference`,
 				),
+				textNode(
+					"p",
+					`Confirmed reads: ${row.skillReads.toLocaleString()} body · ${row.referenceReads.toLocaleString()} reference`,
+				),
+				textNode("p", `Continuations: ${row.continuations.toLocaleString()}`),
 			);
+		}
 		if (row.owner) details.append(textNode("p", `Source: ${row.owner}`));
 		if (row.path) details.append(textNode("p", row.path, "source-path"));
 		if (row.firstAvailable)
@@ -136,127 +140,34 @@ export function createUsageView() {
 				),
 			);
 		if (!row.firstAvailable)
-			details.append(
-				textNode("p", "Recorded evidence only; no inventory snapshot."),
-			);
+			details.append(textNode("p", "No inventory snapshot."));
 		cell.append(details);
 		return cell;
 	}
 
-	/** @param {UsageRow[]} rows @param {boolean} recorded @param {boolean} partial @param {string} empty */
-	function drawOverview(rows, recorded, partial, empty) {
+	/** @param {UsageRow[]} rows @param {boolean} recorded */
+	function drawSummary(rows, recorded) {
 		const skills = view.value === "skills";
 		const total = rows.reduce((sum, row) => sum + uses(row), 0);
-		const used = rows.filter((row) => uses(row) > 0);
-		const known = skills || recorded || total > 0;
-		summary.replaceChildren();
-		const metrics = [
-			{
-				label: skills
-					? partial
-						? "Reads found so far"
-						: "Agent reads"
-					: "Recorded submissions",
-				value: known ? total.toLocaleString() : "Unavailable",
-			},
-			{
-				label: skills
-					? partial
-						? "Skills with reads so far"
-						: "Skills with reads"
-					: "Commands observed",
-				value: known ? used.length.toLocaleString() : "Unavailable",
-			},
-		];
-		if (skills)
-			metrics.push({
-				label: "User skill submissions",
-				value:
-					recorded || rows.some((row) => row.submissions > 0)
-						? rows
-								.reduce((sum, row) => sum + row.submissions, 0)
-								.toLocaleString()
-						: "Unavailable",
-			});
-		for (const metric of metrics) {
-			const node = textNode("div", "", "usage-metric");
-			node.append(
-				textNode("span", metric.label),
-				textNode(
-					"strong",
-					metric.value,
-					metric.value === "Unavailable" ? "metric-unavailable" : "",
-				),
-			);
-			summary.append(node);
-		}
-		summary.append(
-			textNode(
-				"p",
-				skills
-					? "Agent reads include confirmed body/reference reads and inferred file reads. User submissions and continuations are separate; inventory is not a read."
-					: "Observed user slash submissions only. Loaded templates and commands with no submission evidence are not usage records.",
-				"usage-note muted",
-			),
-		);
-		const heading = textNode("div", "", "chart-heading");
-		heading.append(
-			textNode(
-				"h3",
-				skills
-					? partial
-						? "Skill reads found so far"
-						: "Agent skill reads"
-					: "Recorded command submissions",
-			),
-			textNode(
-				"span",
-				used.length
-					? `Top ${Math.min(CHART_LIMIT, used.length)} of ${used.length.toLocaleString()}${partial ? " so far" : ""}`
-					: "",
-				"muted",
-			),
-		);
-		chart.replaceChildren(heading);
-		if (!used.length) {
-			chart.append(
-				textNode(
-					"p",
-					!rows.length
-						? empty
-						: !known
-							? "Submission counts are unavailable without recording evidence."
-							: skills
-								? partial
-									? "No agent reads found yet. Historical scans are incomplete."
-									: "No agent reads recorded in this view; this is not proof of non-use."
-								: "No user submissions recorded in this view; this is not proof of non-use.",
-					"chart-empty muted",
-				),
-			);
-			return;
-		}
-		const ranked = used
-			.sort((a, b) => uses(b) - uses(a) || a.name.localeCompare(b.name))
-			.slice(0, CHART_LIMIT);
-		const maximum = Math.max(...ranked.map(uses));
-		const bars = textNode("ol", "", "capability-bars");
-		for (const row of ranked) {
-			const item = textNode("li", "", "capability-bar");
-			const label = textNode("div", "", "capability-bar-heading");
-			label.append(
-				textNode("span", name(row), "bar-label"),
-				textNode("span", uses(row).toLocaleString(), "bar-count"),
-			);
-			const track = textNode("span", "", "bar-track");
-			track.setAttribute("aria-hidden", "true");
-			const fill = textNode("span", "", "bar-fill");
-			fill.style.width = `${(100 * uses(row)) / maximum}%`;
-			track.append(fill);
-			item.append(label, track);
-			bars.append(item);
-		}
-		chart.append(bars);
+		const used = rows.filter((row) => uses(row) > 0).length;
+		const activity = skills
+			? total === 1
+				? "read"
+				: "reads"
+			: total === 1
+				? "submission"
+				: "submissions";
+		const resources = skills
+			? used === 1
+				? "skill"
+				: "skills"
+			: used === 1
+				? "command"
+				: "commands";
+		summary.textContent =
+			!skills && !recorded && total === 0
+				? "Submission counts unavailable"
+				: `${total.toLocaleString()} ${activity} · ${used.toLocaleString()} ${resources}`;
 	}
 
 	function draw() {
@@ -277,17 +188,11 @@ export function createUsageView() {
 		zeroLabel.hidden = partial || !skills;
 		if (zero.disabled) zero.value = "all";
 		zeroOption.textContent = "No recorded reads";
-		zero.title = partial ? "Available when both historical scans finish" : "";
+		zero.title = partial ? "History scan in progress" : "";
 		partialHistory.hidden = !partial;
-		partialHistory.replaceChildren();
-		if (partial)
-			partialHistory.append(
-				textNode("strong", "Partial skill history — scans are incomplete"),
-				textNode(
-					"p",
-					`Read counts and rankings show only reads found so far. File-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%). Skill-result scan: ${coverage.skillResultScan.phase} (${coverage.skillResultScan.progress}%). The no-recorded-reads filter is unavailable until both finish.`,
-				),
-			);
+		partialHistory.textContent = partial
+			? `History scan in progress (${Math.min(coverage.fileReadScan.progress, coverage.skillResultScan.progress)}%). Counts are partial.`
+			: "";
 		const recorded =
 			coverage.recordingSince !== null && coverage.recordedSessions > 0;
 		const needle = search.value.trim().toLocaleLowerCase();
@@ -313,16 +218,14 @@ export function createUsageView() {
 			);
 		});
 		element("usage-coverage").textContent = [
-			...(skills
+			...(!skills
 				? [
-						"Agent reads only; inferred file inputs are not proof of content consumed. Hidden access is unavailable",
-					]
-				: [
 						coverage.recordingSince
 							? `Recording since ${timestamp(coverage.recordingSince)}`
 							: "No recording evidence",
 						`${coverage.recordedSessions.toLocaleString()}/${coverage.sessions.toLocaleString()} sessions have recorder evidence`,
-					]),
+					]
+				: []),
 			...(skills
 				? [
 						`Whole-index file-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%)`,
@@ -331,18 +234,17 @@ export function createUsageView() {
 					]
 				: []),
 		].join(" · ");
-		element("usage-evidence-coverage").textContent =
-			`Selected sessions: user submission recording since ${timestamp(coverage.recordingSince)}; ${coverage.recordedSessions.toLocaleString()} of ${coverage.sessions.toLocaleString()} sessions have recording evidence. Inventory snapshots since ${timestamp(coverage.inventorySince)} are availability, not reads. Whole-index file-read scan: ${coverage.fileReadScan.phase} (${coverage.fileReadScan.progress}%); ${coverage.fileReadScan.unresolved.toLocaleString()} potentially relevant calls could not be attributed. Skill-result scan: ${coverage.skillResultScan.phase} (${coverage.skillResultScan.progress}%). Read totals and last-read dates exclude user skill submissions and continuations. Inferred reads identify file-reading inputs, not proof that every byte was consumed. Missing read evidence is not proof of non-use.`;
-		element("usage-status").textContent =
-			`${rows.length.toLocaleString()} matching ${skills ? "skills" : "commands"}${partial ? " · partial read counts and rankings" : ""}${latest.truncated ? " · 500-resource limit; narrow session, project or dates for more" : ""}`;
+		const status = element("usage-status");
+		status.hidden = !latest.truncated;
+		status.textContent = latest.truncated ? "500-resource limit" : "";
 		const empty = !skills
 			? recorded
 				? "No recorded command submissions match this selection."
 				: "No command recording evidence in this selection. Earlier usage is unknown."
-			: latest.rows.length
-				? "No resources match this view."
-				: "No command or skill records in this selection.";
-		drawOverview(rows, recorded, partial, empty);
+			: latest.rows.some((row) => row.kind === "skill")
+				? "No skills match this selection."
+				: "No skill records in this selection.";
+		drawSummary(rows, recorded);
 		const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
 		page = Math.min(page, pages - 1);
 		const start = page * PAGE_SIZE;
@@ -382,7 +284,7 @@ export function createUsageView() {
 		for (const item of rows.slice(start, start + PAGE_SIZE)) {
 			const row = body.insertRow();
 			row.append(
-				resource(item, recorded, expanded),
+				resource(item, expanded),
 				textNode(
 					"td",
 					uses(item) || skills || recorded
