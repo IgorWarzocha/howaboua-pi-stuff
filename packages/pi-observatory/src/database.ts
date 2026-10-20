@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { assess, object } from "./normalise.ts";
 import { initialiseSummaries } from "./summaries.ts";
+import { initialiseUsage } from "./usage.ts";
 
 export function openDatabase(
 	path: string,
@@ -74,6 +75,17 @@ export function initialiseDatabase(
 			file_id INTEGER NOT NULL REFERENCES files(id), cell_id TEXT NOT NULL,
 			origin INTEGER NOT NULL REFERENCES calls(id), PRIMARY KEY(file_id, cell_id)
 		);
+		CREATE TABLE IF NOT EXISTS native_links (
+			key TEXT PRIMARY KEY, call_id INTEGER NOT NULL REFERENCES calls(id)
+		);
+		CREATE TABLE IF NOT EXISTS native_receipts (
+			call_id INTEGER PRIMARY KEY REFERENCES calls(id), status TEXT NOT NULL,
+			arguments_missing INTEGER NOT NULL, duration_ms REAL
+		);
+		CREATE TABLE IF NOT EXISTS nested_coverage (
+			call_id INTEGER PRIMARY KEY REFERENCES calls(id), incomplete INTEGER NOT NULL DEFAULT 0,
+			omitted INTEGER NOT NULL DEFAULT 0, unreadable INTEGER NOT NULL DEFAULT 0
+		);
 		CREATE VIRTUAL TABLE IF NOT EXISTS call_search USING fts5(tool, signature, content='calls', content_rowid='id');
 		CREATE TRIGGER IF NOT EXISTS calls_insert AFTER INSERT ON calls BEGIN
 			INSERT INTO call_search(rowid,tool,signature) VALUES(new.id,new.tool,new.signature);
@@ -84,6 +96,7 @@ export function initialiseDatabase(
 		END;
 	`);
 	initialiseSummaries(db);
+	initialiseUsage(db);
 	// Derive session membership from cached entries when adding this index. No source JSONL replay.
 	if (
 		!db.prepare("SELECT 1 FROM metadata WHERE key='sessionMembership'").get()

@@ -47,6 +47,7 @@ export class CodeModeTraceStore {
 			name,
 			input: sanitizeTraceInput(input, MAX_TRACE_INPUT_CHARS),
 			status: "running",
+			nativeCallIds: [],
 		};
 		traces.push(trace);
 		this.traces.set(cellId, traces);

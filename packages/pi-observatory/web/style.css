@@ -307,6 +307,54 @@ form button {
 	overflow: auto;
 	max-width: 100%;
 }
+#capability-usage {
+	border-top: 1px solid var(--line);
+	padding-top: 20px;
+}
+.capability-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 12px;
+	margin-block: 12px;
+}
+.capability-controls label {
+	flex: 1 1 145px;
+	min-width: 0;
+}
+.capability-controls .search {
+	flex: 2 1 240px;
+}
+#usage-table {
+	max-height: 460px;
+}
+#usage-table td:first-child {
+	min-width: 200px;
+}
+.capability-name {
+	font-weight: 600;
+}
+.capability-kind {
+	display: block;
+}
+#usage-table details {
+	margin-top: 2px;
+}
+#usage-table summary {
+	padding: 2px 0;
+	overflow-wrap: anywhere;
+}
+.source-path {
+	min-width: 180px;
+	max-width: 380px;
+	font-family: ui-monospace, monospace;
+}
+.evidence-date {
+	min-width: 180px;
+}
+#usage-table td:last-child {
+	white-space: nowrap;
+}
 .usage-charts .table-scroll,
 #groups,
 #exits,

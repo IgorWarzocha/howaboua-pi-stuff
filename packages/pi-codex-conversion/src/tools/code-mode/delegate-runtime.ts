@@ -352,7 +352,11 @@ export class CodeModeDelegateRuntime {
 			...(!isCustomToolDefinition(tool) && tool.executionPipeline === "pi"
 				? { preflight: undefined, completion: undefined }
 				: {}),
-			executeTool: (name, args, options) => this.executePiTool(cellId, name, args, { ...options, signal: options?.signal ?? controller.signal }),
+			executeTool: async (name, args, options) => {
+				const outcome = await this.executePiTool(cellId, name, args, { ...options, signal: options?.signal ?? controller.signal });
+				trace.nativeCallIds?.push(outcome.toolCall.id);
+				return outcome;
+			},
 			onUpdate: (update) => {
 				if (captureRendererValues)
 					this.renderStore.captureResult(trace.id, update);

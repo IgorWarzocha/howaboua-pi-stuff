@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
@@ -133,10 +134,6 @@ function packageFiles(skill: CatalogSkill): string[] {
 function formatSkillPaths(skill: CatalogSkill): string {
 	const paths = packageFiles(skill);
 	return `---\nSkill paths (${paths.length}):\n${paths.map((path) => `- ${path}`).join("\n")}`;
-}
-
-function formatSkill(skill: CatalogSkill): string {
-	return `${skill.body}\n\n${formatSkillPaths(skill)}`;
 }
 
 function referenceFiles(skill: CatalogSkill): string[] {
@@ -279,51 +276,59 @@ function deduplicateSelections(selections: ReadSelection[]): ReadSelection[] {
 	});
 }
 
-function formatReferences(selected: ReferenceSelection[]): string {
-	const oneSkill = new Set(selected.map(({ skill }) => skill.name)).size === 1;
-	const withContent = selected.map((selection) => ({
-		...selection,
-		content: readFileSync(selection.path, "utf8").trim(),
-	}));
-	const content =
-		withContent.length === 1
-			? (withContent[0]?.content ?? "")
-			: withContent
-					.map(({ skill, reference, content: body }) => {
-						const label = oneSkill
-							? reference
-							: `${skill.name}/references/${reference}`;
-						return `--- ${label} ---\n${body}`;
-					})
-					.join("\n\n");
-	return `${content}\n\n---\nSources:\n${withContent.map(({ path }) => `- ${path}`).join("\n")}`;
+interface SkillRead {
+	name: string;
+	skillPath: string;
+	path: string;
+	kind: "skill" | "reference";
 }
 
-function formatMixedSelections(selections: ReadSelection[]): string {
-	const content = selections
-		.map((selection) => {
-			if (selection.kind === "skill") {
-				return `--- ${selection.skill.name} ---\n${formatSkill(selection.skill)}`;
-			}
-			return `--- ${selection.skill.name}/references/${selection.reference} ---\n${readFileSync(selection.path, "utf8").trim()}`;
-		})
-		.join("\n\n");
-	const sources = selections
-		.filter(
-			(selection): selection is ReferenceSelection =>
-				selection.kind === "reference",
-		)
-		.map(({ path }) => `- ${path}`);
-	return sources.length
-		? `${content}\n\n---\nSources:\n${sources.join("\n")}`
-		: content;
+export interface SkillReadOutput {
+	output: string;
+	reads: { read: SkillRead; start: number; end: number }[];
+}
+
+function formatSelections(selections: ReadSelection[]): SkillReadOutput {
+	const referencesOnly = selections.every(({ kind }) => kind === "reference");
+	const oneSkill =
+		new Set(selections.map(({ skill }) => skill.name)).size === 1;
+	const result: SkillReadOutput = { output: "", reads: [] };
+	const sources: string[] = [];
+	for (const selection of selections) {
+		if (result.reads.length) result.output += "\n\n";
+		const { skill, kind } = selection;
+		const path = kind === "skill" ? skill.path : selection.path;
+		const body =
+			kind === "skill" ? skill.body : readFileSync(path, "utf8").trim();
+		if (selections.length > 1) {
+			const label =
+				kind === "skill"
+					? skill.name
+					: referencesOnly && oneSkill
+						? selection.reference
+						: `${skill.name}/references/${selection.reference}`;
+			result.output += `--- ${label} ---\n`;
+		}
+		const start = Buffer.byteLength(result.output);
+		result.output += body;
+		result.reads.push({
+			read: { name: skill.name, skillPath: skill.path, path, kind },
+			start,
+			end: Buffer.byteLength(result.output),
+		});
+		if (kind === "skill") result.output += `\n\n${formatSkillPaths(skill)}`;
+		else sources.push(`- ${path}`);
+	}
+	if (sources.length)
+		result.output += `\n\n---\nSources:\n${sources.join("\n")}`;
+	return result;
 }
 
 export function readSkillPackage(
 	skills: CatalogSkill[],
 	name: string,
 	selectors: string[],
-): string {
+): SkillReadOutput {
 	const catalog: ReferenceCatalog = new Map();
 	const primary = resolvePrimarySelection(skills, name, catalog);
 	let selectedSkill = primary.skill;
@@ -346,16 +351,5 @@ export function readSkillPackage(
 			? additional
 			: [primary, ...additional],
 	);
-	if (selections.length === 1) {
-		const selection = selections[0] as ReadSelection;
-		return selection.kind === "skill"
-			? formatSkill(selection.skill)
-			: formatReferences([selection]);
-	}
-	return selections.every(
-		(selection): selection is ReferenceSelection =>
-			selection.kind === "reference",
-	)
-		? formatReferences(selections)
-		: formatMixedSelections(selections);
+	return formatSelections(selections);
 }

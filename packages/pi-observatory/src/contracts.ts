@@ -41,6 +41,9 @@ export interface IndexStatus {
 		unpairedResults: number;
 		wrappersWithoutTraces: number;
 		droppedTraces: number;
+		nativeIncomplete: number;
+		uncorrelatedNativeOmitted: number;
+		unreadableCachedResults: number;
 	};
 }
 

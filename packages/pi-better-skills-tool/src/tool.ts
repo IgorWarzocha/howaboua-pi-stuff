@@ -42,7 +42,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 		],
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const output = runSkills(
+			const { output, skillReads } = runSkills(
 				params.command ?? "",
 				options.globalRoot ?? defaultSkillsDir(),
 				defaultSessionSkillsDir(ctx.cwd),
@@ -51,7 +51,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 			);
 			return {
 				content: [{ type: "text", text: output }],
-				details: {},
+				details: { skillReads },
 			};
 		},
 	});

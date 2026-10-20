@@ -1,5 +1,6 @@
 // @ts-check
 import { activityChart, dailySeries, usageChart } from "./charts.js";
+import { createUsageView } from "./usage-view.js";
 
 /** @typedef {import('../src/contracts.ts').Counts} Counts */
 /** @typedef {import('../src/contracts.ts').CallRow} CallRow */
@@ -10,6 +11,7 @@ function element(id) {
 	return node;
 }
 const form = /** @type {HTMLFormElement} */ (element("filters"));
+const renderUsage = createUsageView();
 /** @param {string} name */
 function field(name) {
 	const node = form.elements.namedItem(name);
@@ -397,13 +399,20 @@ async function refreshData() {
 	const request = (dataRequest = new AbortController());
 	const requestedRevision = revision;
 	try {
-		const [overview, facets] = await Promise.all([
+		const usageQuery = new URLSearchParams();
+		for (const key of ["session", "project", "since", "until"]) {
+			const value = query.get(key);
+			if (value) usageQuery.set(key, value);
+		}
+		const [overview, facets, usage] = await Promise.all([
 			api(`/api/overview?${query}`, request.signal),
 			api("/api/facets", request.signal),
+			api(`/api/usage?${usageQuery}`, request.signal),
 		]);
 		if (request.signal.aborted) return;
 		renderOverview(overview);
 		renderFacets(facets);
+		renderUsage(usage);
 		loadedRevision = requestedRevision;
 	} catch (error) {
 		report(error);
@@ -637,6 +646,9 @@ function renderStatus(status) {
 		[c.droppedTraces, "dropped traces"],
 		[c.malformedLines, "malformed lines"],
 		[c.unpairedResults, "unpaired results"],
+		[c.nativeIncomplete, "incomplete native-call records"],
+		[c.uncorrelatedNativeOmitted, "uncorrelated native calls omitted"],
+		[c.unreadableCachedResults, "unreadable cached results"],
 	]
 		.filter(([count]) => Number(count) > 0)
 		.map(([count, label]) => `${number(Number(count))} ${label}`);

@@ -2,13 +2,16 @@ import { setTimeout } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
 import { openDatabase } from "./database.ts";
 import { createIndexer } from "./indexer.ts";
+import { createNestedBackfill } from "./nested-backfill.ts";
 
-const { database, sessions } = workerData as {
+const { database, sessions, observationsRoot } = workerData as {
 	database: string;
 	sessions: string;
+	observationsRoot?: string;
 };
 const db = openDatabase(database);
-const indexer = createIndexer(db, sessions);
+const indexer = createIndexer(db, sessions, observationsRoot);
+const backfill = createNestedBackfill(db);
 const shutdown = new AbortController();
 parentPort?.on("message", (message) => {
 	if (message === "stop") {
@@ -17,10 +20,19 @@ parentPort?.on("message", (message) => {
 	}
 });
 try {
+	let nextScan = 0;
 	while (!shutdown.signal.aborted) {
-		await indexer.scan();
+		if (Date.now() >= nextScan) {
+			await indexer.scan();
+			nextScan = Date.now() + 2000;
+		}
+		const pending = !shutdown.signal.aborted && backfill();
 		try {
-			await setTimeout(2000, undefined, { signal: shutdown.signal });
+			await setTimeout(
+				pending ? 0 : Math.max(0, nextScan - Date.now()),
+				undefined,
+				{ signal: shutdown.signal },
+			);
 		} catch (error) {
 			if (!shutdown.signal.aborted) throw error;
 		}

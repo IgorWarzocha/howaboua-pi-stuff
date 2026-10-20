@@ -1,5 +1,7 @@
 Merges to main feed Changesets versioning and npm publishing.
 
+Every package must work against released upstream Pi. Never make monorepo functionality depend on modifying, patching or forking upstream Pi; use supported extension APIs and report unavailable capabilities honestly.
+
 We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Validate and report changes. Source edits do not update running packages.
 Sandbox validation means interacting with Pi's TUI through Herdr: normal consecutive turns that execute tools and use the guest environment. Programmatic probes do not require a sandbox and do not substitute for this interaction.
 For live TUI review, use `bun run sandbox:setup --name NAME --live-model openai-codex/MODEL` after candidate changes. Reuse the host login through this setup's scoped access-token sync; a functioning authenticated guest is the baseline. Stop active review agents before replacing the guest snapshot; host edits alone never update it. Fix guest readiness instead of moving TUI acceptance onto the host.

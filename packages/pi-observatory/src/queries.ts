@@ -10,6 +10,7 @@ import type {
 	SessionPage,
 } from "./contracts.ts";
 import { object, string } from "./normalise.ts";
+import { queryUsage } from "./usage.ts";
 
 export class BadRequest extends Error {}
 
@@ -212,6 +213,14 @@ export function createQueries(db: Database.Database) {
 			LEFT JOIN calls parent ON parent.id=c.parent_call_id WHERE c.id=?`)
 			.get(id);
 		if (!stored) throw new Error("Call detail is missing");
+		const native = db
+			.prepare<
+				[number],
+				{ arguments_missing: number; duration_ms: number | null }
+			>(
+				"SELECT arguments_missing,duration_ms FROM native_receipts WHERE call_id=?",
+			)
+			.get(id);
 		const context = db
 			.prepare<[number, number, number], CallDetail["context"][number]>(`
 			SELECT f.line,e.role,e.timestamp,e.text FROM file_entries f JOIN entries e ON e.key=f.entry_key
@@ -229,6 +238,17 @@ export function createQueries(db: Database.Database) {
 			parentCallId: stored.parentCallId,
 			context,
 			notes: [
+				...(native
+					? [
+							"Native call status recorded; Pi does not store its result content.",
+							...(native.arguments_missing
+								? ["Arguments were not recorded."]
+								: []),
+							...(native.duration_ms === null
+								? []
+								: [`Duration: ${native.duration_ms} ms.`]),
+						]
+					: []),
 				...(stored.unpaired
 					? ["No matching initiating call. Model unknown."]
 					: []),
@@ -303,6 +323,19 @@ export function createQueries(db: Database.Database) {
 			)
 			.get();
 		const phase = string(progress["phase"]);
+		const nativeCoverage = db
+			.prepare<
+				[],
+				{
+					nativeIncomplete: number;
+					uncorrelatedNativeOmitted: number;
+					unreadableCachedResults: number;
+				}
+			>(`
+			SELECT COALESCE(SUM(incomplete),0) nativeIncomplete,COALESCE(SUM(omitted),0) uncorrelatedNativeOmitted,
+			COALESCE(SUM(unreadable),0) unreadableCachedResults FROM nested_coverage
+		`)
+			.get();
 		return {
 			phase:
 				phase === "idle" || phase === "error" || phase === "indexing"
@@ -325,6 +358,10 @@ export function createQueries(db: Database.Database) {
 				unpairedResults: coverage?.unpairedResults ?? 0,
 				wrappersWithoutTraces: coverage?.wrappersWithoutTraces ?? 0,
 				droppedTraces: coverage?.droppedTraces ?? 0,
+				nativeIncomplete: nativeCoverage?.nativeIncomplete ?? 0,
+				uncorrelatedNativeOmitted:
+					nativeCoverage?.uncorrelatedNativeOmitted ?? 0,
+				unreadableCachedResults: nativeCoverage?.unreadableCachedResults ?? 0,
 			},
 		};
 	}
@@ -336,6 +373,21 @@ export function createQueries(db: Database.Database) {
 			if (path === "/api/sessions") return sessions(params);
 			if (path === "/api/facets") return facets();
 			if (path === "/api/overview") return overview(params);
+			if (path === "/api/usage") {
+				// Validate the shared session/project/date fields without applying tool filters.
+				const selected = new URLSearchParams();
+				for (const key of ["session", "project", "since", "until"]) {
+					const value = params.get(key);
+					if (value) selected.set(key, value);
+				}
+				filters(selected);
+				for (const key of ["since", "until"]) {
+					const value = selected.get(key);
+					if (value && value.length !== 10)
+						throw new BadRequest("Usage dates must use YYYY-MM-DD");
+				}
+				return queryUsage(db, selected);
+			}
 			if (path === "/api/calls") return calls(params);
 			const match = /^\/api\/calls\/(\d+)$/.exec(path);
 			if (match)

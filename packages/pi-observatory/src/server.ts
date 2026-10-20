@@ -102,6 +102,7 @@ async function main(): Promise<void> {
 			["/", "index.html", "text/html; charset=utf-8"],
 			["/app.js", "app.js", "text/javascript; charset=utf-8"],
 			["/charts.js", "charts.js", "text/javascript; charset=utf-8"],
+			["/usage-view.js", "usage-view.js", "text/javascript; charset=utf-8"],
 			["/style.css", "style.css", "text/css; charset=utf-8"],
 		] as const)
 			assets.set(path, {
@@ -112,7 +113,11 @@ async function main(): Promise<void> {
 			workerData: database,
 		});
 		const writer = new Worker(new URL("./index-worker.ts", import.meta.url), {
-			workerData: { database, sessions },
+			workerData: {
+				database,
+				sessions,
+				observationsRoot: join(stateDirectory(), "events"),
+			},
 		});
 		workers.push(reader, writer);
 		reader.on(
@@ -217,7 +222,7 @@ async function main(): Promise<void> {
 				return;
 			}
 			if (
-				!/^\/api\/(?:status|sessions|facets|overview|calls(?:\/\d+)?)$/.test(
+				!/^\/api\/(?:status|sessions|facets|overview|usage|calls(?:\/\d+)?)$/.test(
 					url.pathname,
 				)
 			) {

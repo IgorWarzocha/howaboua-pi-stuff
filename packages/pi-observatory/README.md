@@ -4,6 +4,8 @@ See which tools your agents call, how often and with which models. Usage bars ra
 
 Start with the current session, switch to all sessions or search for another session. Expand the tables for more tools, error counts or a day-by-day view. Errors, nonzero exits and coverage remain available below the charts. Filter by model, provider, tool, project and date.
 
+Commands and Skills show submitted slash commands, recorded skill reads, last use and resource ownership. Loaded-resource snapshots include capabilities with no recorded use, so you can spot candidates to remove. These views use the session, project and date filters.
+
 Indexing runs in a background worker. The dashboard reads SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Call pages stay put while you inspect them, with a notice when fresh data is available.
 
 ## Run
@@ -20,6 +22,10 @@ pi install ./packages/pi-observatory
 Start a new Pi session or reload extensions, then run `/observatory`. Like `/board`, it starts or reuses a background viewer, opens your browser and prints a link. It opens on the current session. Use **All sessions** to broaden the view, or search the session selector by project or session ID. If the browser cannot open, use the printed link.
 
 All Pi sessions share one server and one index per agent directory. Opening another tab changes only its view, not the background work. The server keeps indexing after Pi closes. No agent tool or prompt instructions are added.
+
+With the extension loaded, Observatory records submitted extension commands, skills and prompt templates through Pi's editor. Standard Pi controls such as `/new` and `/quit`, and unknown slash names, are excluded. It stores command names without arguments. Editor submissions made by automation count too. RPC and non-interactive input are not recorded by this hook.
+
+Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history. Skill read counts require structured results from Better Skills; older results without those records are not counted. An empty count means no recorded use, not proof that a capability was never used.
 
 For a standalone server instead:
 
@@ -64,6 +70,8 @@ The background server writes `observatory/server.log`. Its PID is in `observator
 
 Direct calls and observed nested calls have separate scopes. All calls includes wrappers and their children, which can report the same failure. Counts describe recorded observations, not independent attempts. Aborted calls recorded as errors remain errors. A tool successfully reporting another agent's status is not itself a failed or blocked execution.
 
+Native Pi nested-call records provide names, arguments when retained, and outcomes, but no result content. Matching Code and Notebook traces are counted once using their recorded Pi call identities. Older mixed records without those identities remain explicit coverage gaps rather than guessed matches.
+
 Model attribution comes from the initiating assistant message, including the originating cell for known nested continuations. Dates and ordering use the initiating call time where known, not measured completion time. Backend model snapshots and extension versions are not inferred from current installations. Missing attribution stays unknown.
 
 Identical copied history is deduplicated across forked sessions. A session view includes calls in its copied history, with their latest indexed outcomes. Repeated nested snapshots update the same call instead of adding calls. Neighbouring messages show file chronology, not proof of recovery or necessarily the active branch.
@@ -78,7 +86,7 @@ The indexer checks file metadata every two seconds and consumes appended bytes. 
 
 Coverage reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
 
-Existing indexes are updated from their cached SQLite results when the server starts. Classification updates preserve indexing cursors and do not reread session files.
+Existing indexes are updated from their cached SQLite results when the server starts. Native nested-call backfill runs in bounded background batches. These updates preserve indexing cursors and do not reread session files.
 
 Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
 

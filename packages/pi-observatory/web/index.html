@@ -31,9 +31,22 @@
 <div class="chart-column"><div><h2 id="models-heading">Models</h2><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>Table</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></div>
 <div><div class="chart-heading"><h2>Activity</h2><select id="activity-metric" aria-label="Activity metric"><option value="calls">Calls</option><option value="error">Errors</option></select></div><div id="activity-plot"></div><details><summary>Table</summary><div id="daily" class="table-scroll" tabindex="0" role="region" aria-label="Daily activity"></div></details></div></div>
 </div>
+<section id="capability-usage" aria-labelledby="capability-heading">
+<div class="section-heading"><h2 id="capability-heading">Commands &amp; skills</h2></div>
+<p class="muted">Only session, project and date filters apply here.</p>
+<div class="capability-controls">
+<label>View<select id="usage-view"><option value="commands">Commands</option><option value="skills">Skills</option></select></label>
+<label class="search">Name, owner or path<input id="usage-search" type="search"></label>
+<label>Sort<select id="usage-sort"><option value="most">Most used</option><option value="least">Least used</option><option value="recent">Most recent</option><option value="name">Name</option></select></label>
+<label>Usage<select id="usage-zero"><option value="all">All</option><option value="zero">Zero recorded</option></select></label>
+</div>
+<p id="usage-coverage" class="muted">Loading recording coverage…</p>
+<p id="usage-status" class="muted" role="status"></p>
+<div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div>
+</section>
 <details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details>
 <details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details>
-<details id="coverage"><summary>Coverage</summary><div id="outcome-coverage"></div><p id="coverage-text"></p><ul id="index-issues"></ul></details>
+<details id="coverage"><summary>Coverage</summary><div id="outcome-coverage"></div><p id="coverage-text"></p><ul id="index-issues"></ul><h3>Commands &amp; skills</h3><p id="usage-evidence-coverage"></p><p>Inventory reflects loaded snapshots, not a live installation check. Zero means no recorded use. Older skill reads without recording evidence are unavailable; list/help is excluded.</p></details>
 </section>
 <section aria-labelledby="calls-heading"><div class="section-heading"><h2 id="calls-heading" tabindex="-1">Calls</h2><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><optgroup label="Coverage"><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></optgroup></select></label><button id="refresh" type="button">Refresh</button><span id="new-data" role="status"></span></div>
 <p id="calls-status" role="status"></p><div id="calls" class="table-scroll"></div><nav aria-label="Call pages"><button id="newest" type="button">Newest page</button><button id="older" type="button" disabled>Older calls</button></nav>

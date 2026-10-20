@@ -28,10 +28,24 @@ interface Candidate {
 	mtime: number;
 }
 
-async function discover(root: string): Promise<Candidate[]> {
+async function discover(root: string, optional = false): Promise<Candidate[]> {
 	const files: Candidate[] = [];
 	async function walk(path: string): Promise<void> {
-		for await (const entry of await opendir(path)) {
+		let directory: Awaited<ReturnType<typeof opendir>>;
+		try {
+			directory = await opendir(path);
+		} catch (error) {
+			if (
+				optional &&
+				path === root &&
+				error instanceof Error &&
+				"code" in error &&
+				error.code === "ENOENT"
+			)
+				return;
+			throw error;
+		}
+		for await (const entry of directory) {
 			const full = join(path, entry.name);
 			if (entry.isDirectory()) await walk(full);
 			else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
@@ -62,7 +76,11 @@ async function discover(root: string): Promise<Candidate[]> {
 	);
 }
 
-export function createIndexer(db: Database.Database, root: string) {
+export function createIndexer(
+	db: Database.Database,
+	root: string,
+	observationsRoot?: string,
+) {
 	const ingest = createIngestor(db);
 	const getFile = db.prepare<[string], FileState>(
 		"SELECT * FROM files WHERE path=?",
@@ -89,7 +107,14 @@ export function createIndexer(db: Database.Database, root: string) {
 	let lastScan: string | null = null;
 
 	async function changedFiles(): Promise<Candidate[]> {
-		const files = await discover(root);
+		const files = (
+			await Promise.all([
+				discover(root),
+				observationsRoot ? discover(observationsRoot, true) : [],
+			])
+		)
+			.flat()
+			.sort((a, b) => b.mtime - a.mtime || a.path.localeCompare(b.path));
 		const known = new Map(cursors.all().map((file) => [file.path, file]));
 		return files.filter((candidate) => {
 			const file = known.get(candidate.path);
