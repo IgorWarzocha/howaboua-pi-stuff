@@ -89,6 +89,7 @@ export function createUsageView(selectDay) {
 		cell.append(textNode("strong", name(row), "capability-name"));
 		if (view.value !== "skills")
 			cell.append(textNode("span", row.kind, "muted capability-kind"));
+		if (!row.owner && !row.path) return cell;
 		const details = document.createElement("details");
 		details.dataset["resource"] = JSON.stringify([
 			row.kind,
@@ -96,43 +97,9 @@ export function createUsageView(selectDay) {
 			row.path,
 		]);
 		details.open = expanded.has(details.dataset["resource"]);
-		details.append(
-			textNode(
-				"summary",
-				view.value === "skills" ? "Evidence & source" : "Source & availability",
-			),
-		);
-		if (view.value === "skills") {
-			details.append(
-				textNode(
-					"p",
-					`Inferred reads: ${row.fileReads.toLocaleString()} body · ${row.fileReferenceReads.toLocaleString()} reference`,
-				),
-				textNode(
-					"p",
-					`Confirmed reads: ${row.skillReads.toLocaleString()} body · ${row.referenceReads.toLocaleString()} reference`,
-				),
-				textNode("p", `Continuations: ${row.continuations.toLocaleString()}`),
-			);
-		}
-		if (row.owner) details.append(textNode("p", `Source: ${row.owner}`));
+		details.append(textNode("summary", "Source"));
+		if (row.owner) details.append(textNode("p", row.owner));
 		if (row.path) details.append(textNode("p", row.path, "source-path"));
-		if (row.firstAvailable)
-			details.append(
-				textNode(
-					"p",
-					`First inventory snapshot: ${timestamp(row.firstAvailable)}`,
-				),
-			);
-		if (row.lastAvailable)
-			details.append(
-				textNode(
-					"p",
-					`Last inventory snapshot: ${timestamp(row.lastAvailable)}`,
-				),
-			);
-		if (!row.firstAvailable)
-			details.append(textNode("p", "No inventory snapshot."));
 		cell.append(details);
 		return cell;
 	}
