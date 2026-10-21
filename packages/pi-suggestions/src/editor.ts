@@ -183,7 +183,7 @@ class SuggestionEditor implements EditorComponent, Focusable {
 		)
 			return lines;
 		const column = visibleWidth(before);
-		const available = Math.min(160, width - column * 2);
+		const available = width - column * 2;
 		if (available < 2) return lines;
 		// The width helper emits ANSI resets on truncation, even for plain input.
 		// Strip those before choosing the fake cursor grapheme and applying dim.

@@ -1,6 +1,6 @@
 # Suggestions
 
-Optional next-prompt suggestions in Pi's terminal editor. Suggestions appear as dim text after a completed response, only while the editor is empty. They are drafts, not automatic follow-up requests.
+Suggested next steps in Pi's terminal editor, phrased as requests you can send. Suggestions appear as dim text after a completed response, only while the editor is empty. They are drafts, not automatic follow-up requests.
 
 ## Install
 
@@ -23,6 +23,6 @@ Suggestions use the selected model's quota and may incur API charges. Each predi
 - **Escape** dismisses it. Typing replaces it with your own input.
 - **Enter** alone never submits a suggestion.
 
-The model may offer no suggestion when there is no clear continuation. Input, navigation, new responses and blocking dialogs cancel pending predictions. Long suggestions are visually shortened to fit the editor; accepting inserts the complete draft, at most 160 characters.
+Input, navigation, new responses and blocking dialogs cancel pending suggestions. Long suggestions are visually shortened to fit the editor; accepting inserts the complete draft.
 
 Suggestions require the standard empty editor layout. Custom editors with a different layout remain usable but may not display suggestions. Settings are stored in `suggestions/config.json` under Pi's agent directory.
