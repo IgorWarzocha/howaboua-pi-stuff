@@ -301,12 +301,7 @@ function writeNote(
 	});
 	return {
 		source: "pi-session",
-		file: noteMetadata({
-			path,
-			text: nextText,
-			createdAt: previous?.createdAt ?? timestamp,
-			updatedAt: timestamp,
-		}),
+		file: { path },
 	};
 }
 

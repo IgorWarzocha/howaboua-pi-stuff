@@ -61,11 +61,11 @@ function sessionBoardSetting(ctx: ExtensionContext): boolean | undefined {
 export function saveBoardSetting(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
-	enabled: boolean | undefined,
+	enabled: boolean,
 ) {
 	pi.appendEntry(SETTING, {
 		sessionId: ctx.sessionManager.getSessionId(),
-		enabled: enabled ?? null,
+		enabled,
 	});
 }
 

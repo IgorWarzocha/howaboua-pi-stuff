@@ -4,7 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { activityTask } from "./activity.js";
-import { allocateAgentName, dispatchAgentWork } from "./agents-work.js";
+import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet.js";
 import { getSnapshot, sessionPath } from "./herdr.js";
@@ -18,10 +18,9 @@ import { attributeAgentPrompt } from "./messages.js";
 import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
 import type { PaneInfo } from "./types.js";
+import { PULSE_WORKER_FLAG, type registerWorkerRole } from "./worker-role.js";
 
 const ENTRY = "herdr-owned-worker-v1";
-const WORKER_MARKER = "herdr-pulse-worker-v1";
-const WORKER_FLAG = "shepherdr-pulse-worker";
 const RUNNER_PROTOCOL = "@howaboua/pi-pulses/runner/v1";
 // Structural implementation of Pulses' optional runner ABI, without a private-package dependency.
 interface PulseRun {
@@ -84,28 +83,12 @@ export function registerWorkerService(
 	fleet: AgentFleet,
 	shared: SharedAgentContext,
 	board: AgentBoard,
+	workerRole: ReturnType<typeof registerWorkerRole>,
 ): void {
 	let active: ExtensionContext | undefined;
 	let busy = false;
-	pi.registerFlag(WORKER_FLAG, {
-		type: "boolean",
-		default: false,
-		description: "Run as a detached pulse worker",
-	});
-	const markedWorker = (ctx: ExtensionContext) =>
-		ctx.sessionManager
-			.getEntries()
-			.some(
-				(entry) =>
-					entry.type === "custom" &&
-					entry.customType === WORKER_MARKER &&
-					(entry.data as { sessionId?: unknown } | undefined)?.sessionId ===
-						ctx.sessionManager.getSessionId(),
-			);
 	const isController = (ctx: ExtensionContext) =>
-		ctx.mode === "tui" &&
-		pi.getFlag(WORKER_FLAG) !== true &&
-		!markedWorker(ctx);
+		ctx.mode === "tui" && !workerRole.isPulseWorker(ctx.sessionManager);
 	function assertContext(ctx: ExtensionContext) {
 		if (!isController(ctx))
 			throw new Error("Detached workers cannot claim or schedule pulses");
@@ -257,7 +240,6 @@ export function registerWorkerService(
 						if (!profile)
 							throw new Error("General worker profile is unavailable");
 						const profileArgs = profileAgentArgs(profile, {
-							targetLocal: true,
 							includePrompt: false,
 						});
 						if (
@@ -272,70 +254,79 @@ export function registerWorkerService(
 							);
 						const args = [
 							...profileArgs,
-							`--${WORKER_FLAG}`,
+							`--${PULSE_WORKER_FLAG}`,
 							...(worker ? ["--session", worker.sessionPath] : []),
 						];
-						const name = await allocateAgentName(runtime, input.title);
-						const relationship = worker
-							? undefined
-							: shared.spawns.prepareRelationship(ctx, runtime, args);
-						const sharing =
-							worker || profile.shareContext === false
-								? undefined
-								: await shared.spawns.prepare(ctx, runtime, name, args);
-						const boardBinding = worker
-							? undefined
-							: await board.prepare(ctx, runtime, name, args);
-						const workspace = runtime.local
-							? process.env["HERDR_WORKSPACE_ID"]
-							: undefined;
-						stage = "launch";
-						const started = await startAgent(
-							runtime.client,
-							{
-								name,
-								label: input.title,
-								cwd: input.cwd,
-								placement: workspace ? "new_tab" : "new_workspace",
-								...(workspace ? { workspace } : {}),
-							},
-							runtime.fallbackCwd,
-							runtime.resolveDirectory,
-							{ agentArgs: args },
-						);
+						const reservation = await reserveAgentName(runtime, input.title);
+						const { name } = reservation;
 						try {
-							const relationshipResult = await relationship?.accept(
-								started.agent,
+							const relationship = worker
+								? undefined
+								: shared.spawns.prepareRelationship(ctx, runtime, args);
+							const sharing =
+								worker || profile.shareContext === false
+									? undefined
+									: await shared.spawns.prepare(ctx, runtime, name, args);
+							const boardBinding = worker
+								? undefined
+								: await board.prepare(ctx, runtime, name, args);
+							const workspace = runtime.local
+								? process.env["HERDR_WORKSPACE_ID"]
+								: undefined;
+							stage = "launch";
+							const started = await startAgent(
+								runtime.client,
+								{
+									name,
+									label: input.title,
+									cwd: input.cwd,
+									placement: workspace ? "new_tab" : "new_workspace",
+									...(workspace ? { workspace } : {}),
+								},
+								runtime.fallbackCwd,
+								runtime.resolveDirectory,
+								{ agentArgs: args },
 							);
-							await boardBinding?.accept(started.agent);
-							const sharingResult = await sharing?.accept(started.agent);
-							for (const warning of [
-								relationshipResult?.warning,
-								sharingResult?.warning,
-							])
-								if (warning) ctx.ui.notify(warning, "warning");
-							assertBranch();
-							panel = started.agent;
-							const file = sessionPath(panel);
-							if (!file || (worker && file !== worker.sessionPath))
-								throw new Error("Worker did not restore its saved session");
-							const identity = await runtime.client.machineIdentity();
-							worker = {
-								workerId: worker?.workerId ?? crypto.randomUUID(),
-								pulseId: input.taskId,
-								runId: "",
-								parent: ctx.sessionManager.getSessionFile()!,
-								...identity,
-								target: panel.pane_id,
-								terminal: panel.terminal_id,
-								sessionPath: file,
-								cwd: input.cwd,
-							};
-							pi.appendEntry(ENTRY, worker);
-						} catch (error) {
-							return await rollbackStartedAgent(runtime.client, started, error);
+							try {
+								const relationshipResult = await relationship?.accept(
+									started.agent,
+								);
+								await boardBinding?.accept(started.agent);
+								const sharingResult = await sharing?.accept(started.agent);
+								for (const warning of [
+									relationshipResult?.warning,
+									sharingResult?.warning,
+								])
+									if (warning) ctx.ui.notify(warning, "warning");
+								assertBranch();
+								panel = started.agent;
+								const file = sessionPath(panel);
+								if (!file || (worker && file !== worker.sessionPath))
+									throw new Error("Worker did not restore its saved session");
+								const identity = await runtime.client.machineIdentity();
+								worker = {
+									workerId: worker?.workerId ?? crypto.randomUUID(),
+									pulseId: input.taskId,
+									runId: "",
+									parent: ctx.sessionManager.getSessionFile()!,
+									...identity,
+									target: panel.pane_id,
+									terminal: panel.terminal_id,
+									sessionPath: file,
+									cwd: input.cwd,
+								};
+								pi.appendEntry(ENTRY, worker);
+							} catch (error) {
+								return await rollbackStartedAgent(
+									runtime.client,
+									started,
+									error,
+								);
+							}
+							stage = "preflight";
+						} finally {
+							reservation.release();
 						}
-						stage = "preflight";
 					}
 					if (!worker) throw new Error("Worker ownership is unavailable");
 					const attributed = await attributeAgentPrompt(
@@ -396,12 +387,6 @@ export function registerWorkerService(
 	});
 	pi.on("session_start", () => {
 		active = undefined;
-	});
-	pi.on("before_agent_start", (_event, ctx) => {
-		if (pi.getFlag(WORKER_FLAG) === true && !markedWorker(ctx))
-			pi.appendEntry(WORKER_MARKER, {
-				sessionId: ctx.sessionManager.getSessionId(),
-			});
 	});
 	pi.on("resources_discover", (_event, ctx) => {
 		active = ctx;

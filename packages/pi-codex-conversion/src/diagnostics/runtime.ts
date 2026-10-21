@@ -116,6 +116,7 @@ export async function createCodexDiagnosticsRuntime(options: {
 	return {
 		record(event) {
 			log?.record(event);
+			if (event.scope === "auxiliary") return;
 			if (event.type === "request") {
 				latestRequests.set(event.lane, event);
 				showCurrent([laneLabel(event.lane), requestTransportLabel(event)].filter(Boolean).join(" • "));
@@ -124,7 +125,8 @@ export async function createCodexDiagnosticsRuntime(options: {
 			if (event.type === "usage") {
 				const totalInput = event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;
 				const request = latestRequests.get(event.lane);
-				const transport = request
+				const transport = request && event.requestId !== undefined && request.requestId === event.requestId
+					&& request.transport === event.transport
 					? requestTransportLabel(request)
 					: event.transport === "websocket" ? "WS" : "SSE";
 				const prefix = laneLabel(event.lane);

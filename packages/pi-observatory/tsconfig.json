@@ -1,0 +1,17 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"allowJs": true,
+		"checkJs": true,
+		"paths": { "/tab-client.js": ["./web/tab-client.js"] },
+		"lib": ["ESNext", "DOM", "DOM.Iterable"]
+	},
+	"include": [
+		"index.ts",
+		"src/**/*.ts",
+		"web/**/*.js",
+		"tabs/**/*.ts",
+		"tabs/**/web/**/*.js"
+	]
+}

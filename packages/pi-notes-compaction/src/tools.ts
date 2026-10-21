@@ -78,7 +78,11 @@ const HISTORY_SCHEMA = Type.Object(
 		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 		item_id: STRING,
-		window_id: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+		window_id: Type.Optional(
+			Type.Union([Type.String(), Type.Null()], {
+				description: "Required with item_id for read_item",
+			}),
+		),
 		query: STRING,
 		limit: INTEGER,
 		limit_chars: INTEGER,

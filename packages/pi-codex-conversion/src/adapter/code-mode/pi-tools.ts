@@ -49,6 +49,7 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 					discoverWhenDeferred: mcp || loadout.getExposure(tool.name) !== "deferred" || declared.has(tool.name),
 					...(mcp ? { discovery: "server" as const } : {}),
 					executionPipeline: "pi",
+					propagateTermination: true,
 					inputSchema: tool.parameters,
 					output: tool.outputSchema ? JSON.stringify(tool.outputSchema) : undefined,
 					async invoke(input, context, signal) {

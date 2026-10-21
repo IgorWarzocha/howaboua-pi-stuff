@@ -15,10 +15,10 @@ Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults
 Await work; use a timeout when an operation might not finish on its own
 Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
-export const GPT_EXEC_DESCRIPTION = `Compose tools in JavaScript; source only, no JSON/fences
+export const GPT_EXEC_DESCRIPTION = `JavaScript toolcomposition; sourceonly≠JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Await work; timeout operations that may not finish
-Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
+Await work; possiblynonterminating→timeout
+Barevalues discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serializedoutput, notify(value)→emit, yield_control()→yield`;
 
 export const WAIT_DESCRIPTION =
 	"Resume or terminate a yielded exec cell";
@@ -129,10 +129,11 @@ export function buildCodeModeToolsPrompt(
 	const sections = [
 		executionKind === "notebook"
 			? gpt
-				? "exec: persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Small programs across cells; retained globals may come from earlier agents/sessions"
+				? "exec=persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Smallprograms across cells; retainedglobals may originate earlieragents/sessions"
 				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
-		"For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
+		gpt ? "Tools without callsignature: noargs→usage only≠operation; structured→{}"
+			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",

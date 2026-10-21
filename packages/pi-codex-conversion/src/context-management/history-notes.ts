@@ -368,21 +368,25 @@ async function callHistoryNotesTool(
 		}
 		result = callLocalHistoryNotes(namespace, action, params, ctx, pi, mode);
 	}
-	return historyNotesResult(namespace, result);
+	return historyNotesResult(namespace, result, action);
 }
 
-function historyNotesResult(namespace: "history" | "notes", result: Record<string, unknown>): AgentToolResult<CodexHistoryNotesDetails> {
+function historyNotesResult(namespace: "history" | "notes", result: Record<string, unknown>, action?: HistoryAction | NotesAction): AgentToolResult<CodexHistoryNotesDetails> {
 	const modelResult = { ...result };
 	const backendScope = remoteBackendScope(result);
 	if (backendScope) bindRemoteBackendScope(modelResult, backendScope);
 	delete modelResult["images"];
+	// Local freshness consumes source in details, not in the model's write receipt.
+	const visibleResult = namespace === "notes" && modelResult["source"] === "pi-session" &&
+		(action === "write_file" || action === "append_to_file")
+		? { file: modelResult["file"] } : modelResult;
 	const content: AgentToolResult<CodexHistoryNotesDetails>["content"] = [
 		{
 			type: "text",
 			text:
 				typeof modelResult["encrypted_output"] === "string"
 					? `${namespace} operation completed`
-					: JSON.stringify(modelResult),
+					: JSON.stringify(visibleResult),
 		},
 	];
 	for (const image of parseBackendImages(result["images"])) content.push(image);

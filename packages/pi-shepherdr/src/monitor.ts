@@ -61,6 +61,8 @@ export class AgentMonitor {
 		const reader = options.reader ?? new SessionReader();
 		this.extensionMessages = new MonitorExtensionMessages({
 			client: this.client,
+			machine: this.machine,
+			machineLabel: options.machineLabel,
 			reader,
 			state: this.state,
 			notify: (ctx, record, agent, message) => {

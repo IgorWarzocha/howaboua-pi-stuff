@@ -13,6 +13,7 @@ import {
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { PROFILE_PROMPT_FLAG } from "./profile-prompt.js";
 
 const PROFILE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 const AGENT_DIRECTORY =
@@ -33,7 +34,6 @@ export interface AgentProfile {
 	piArgs: string[];
 	prepare?: string;
 	prompt?: string;
-	promptPath?: string;
 	shareContext?: boolean;
 	thinking: string;
 }
@@ -165,7 +165,6 @@ async function readProfile(
 		...(resolvedPromptPath
 			? {
 					prompt: await readFile(resolvedPromptPath, "utf8"),
-					promptPath: resolvedPromptPath,
 				}
 			: {}),
 		...(prepare ? { prepare } : {}),
@@ -261,37 +260,18 @@ export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
 	return profiles;
 }
 
-function promptArgument(
-	profile: AgentProfile,
-	targetLocal: boolean,
-): string | undefined {
-	if (
-		targetLocal &&
-		profile.promptPath &&
-		![...profile.promptPath].some((character) => /\p{Cc}/u.test(character))
-	) {
-		return profile.promptPath;
-	}
-	return profile.prompt
-		?.replace(/\p{Cc}+/gu, " ")
-		.replace(/\s+/gu, " ")
-		.trim();
-}
-
 export function profileAgentArgs(
 	profile: AgentProfile,
-	options: { targetLocal?: boolean; includePrompt?: boolean } = {},
+	options: { includePrompt?: boolean } = {},
 ): string[] {
-	const prompt =
-		options.includePrompt === false
-			? undefined
-			: promptArgument(profile, options.targetLocal !== false);
+	const prompt = options.includePrompt === false ? undefined : profile.prompt;
 	return [
 		"--model",
 		profile.model,
 		"--thinking",
 		profile.thinking,
-		...(prompt ? ["--append-system-prompt", prompt] : []),
+		// JSON keeps newlines/control characters out of argv without altering role text.
+		...(prompt ? [`--${PROFILE_PROMPT_FLAG}`, JSON.stringify(prompt)] : []),
 		...profile.piArgs,
 	];
 }

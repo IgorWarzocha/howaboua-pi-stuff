@@ -1,0 +1,46 @@
+{
+	"name": "@howaboua/pi-suggestions",
+	"version": "0.0.0",
+	"description": "Editable next-prompt suggestions for Pi",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-suggestions"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"suggestions"
+	],
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md",
+		"changelog.ts",
+		"!**/AGENTS.md"
+	],
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"pi": {
+		"extensions": [
+			"./changelog.ts",
+			"./index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=1.3.0",
+		"@earendil-works/pi-ai": ">=1.3.0",
+		"@earendil-works/pi-tui": ">=1.3.0"
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"lint": "biome check .",
+		"typecheck": "tsgo --noEmit",
+		"pack:dry": "npm pack --dry-run",
+		"prepack": "bun run check"
+	}
+}

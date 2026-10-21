@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	getDeclaredTools,
 	normalizeContext,
+	registerSessionResourceCleanup,
 	type Api,
 	type Context,
 	type Model,
@@ -45,6 +46,13 @@ export type { ResponsesBody } from "./openai-codex/types.ts";
 export function closeOpenAICodexKeepaliveWebSocketSession(sessionId: string): void {
 	closeOpenAICodexWebSocketSessions(codexCacheKeepaliveSocketSessionId(sessionId));
 }
+
+// Like Pi's stock provider, cleanup lives with the shared module pool, not an
+// individual extension registration that may shut down while others still use it.
+registerSessionResourceCleanup(sessionId => {
+	closeOpenAICodexWebSocketSessions(sessionId);
+	if (sessionId) closeOpenAICodexKeepaliveWebSocketSession(sessionId);
+});
 
 async function prepareCodexRequestBody<TApi extends Api>(
 	model: Model<TApi>,
@@ -172,10 +180,11 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 	turnState?: CodexTurnState | undefined;
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 	beforeRequestSend?: BeforeCodexRequestSend | undefined;
-	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+	getDiagnostics?: ((sessionId: string | undefined) => CodexDiagnosticsSink | undefined) | undefined;
 	recordUsage?: CodexUsageRecorder | undefined;
 }): void {
 	const streamSimple = (model: Model<Api>, context: TranscriptContext, streamOptions?: CodexProviderStreamOptions) => {
+		const diagnostics = options.getDiagnostics?.(streamOptions?.sessionId);
 		const stream = createCodexTransportStream(model, context, streamOptions, {
 			prepareRequestBody: prepareCodexRequestBody,
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
@@ -183,7 +192,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 			...(options.turnState ? { turnState: options.turnState } : {}),
 			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
 			...(options.beforeRequestSend ? { beforeRequestSend: options.beforeRequestSend } : {}),
-			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
+			...(diagnostics ? { getDiagnostics: () => diagnostics } : {}),
 			...(options.recordUsage ? { recordUsage: options.recordUsage } : {}),
 		});
 		return hasContextNamespaceRouters(context)

@@ -24,32 +24,32 @@ const PI_DEFAULT_GUIDELINES = new Set([
 ]);
 
 const RUNTIME_IDENTITY_GUIDELINE = ["You are running in Pi with Codex-native tools", "Pi; Codex-native tools"] as const;
-const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finish requested work; ask only if missing info changes action"] as const;
+const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finish requestedwork; ask only if missinginfo changes action"] as const;
 
 const NORMAL_CODEX_GUIDELINES = [
-	["Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell=exec_command; prefer rg/rg --files; filter large output at source"],
+	["Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
 	["Reserve tty=true for input or persistent processes", "tty=true only for input/persistent processes"],
 	["Use apply_patch for text edits, creates, deletes, and moves; split oversized patches", "Text edits/creates/deletes/moves→apply_patch; split oversized patches"],
-	["Run independent tool calls in parallel when practical", "Independent calls→parallel when practical"],
+	["Run independent tool calls in parallel when practical", "Independentcalls→parallel when practical"],
 ] as const;
 
 const CODE_MODE_GUIDELINES = [
-	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell=tools.exec_command; prefer rg/rg --files; filter large output at source"],
-	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "JS: alternate outer quotes around quoted text; preserve literal ${...}/backticks in shell/patches/source"],
+	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
+	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "JS: quotedtext→alternate outerquotes; shell/patches/source→preserve literal ${...}/backticks"],
 	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec"],
 	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true"],
-	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "One tools.apply_patch call/file; oversized→sequential splits; independent files→Promise.allSettled; shell/Python only formatting/bulk rewrites"],
+	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: onecall/file; oversized→sequential splits; independentfiles→Promise.allSettled; shell/Python only formatting/bulkrewrite"],
 	["Await dependencies; use Promise.all for independent calls", "Dependencies→await; independent calls→Promise.all"],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
 
 const NOTEBOOK_MODE_GUIDELINES = [
 	["Reuse matching retained globals", "Reuse matching retained globals"],
-	["Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning", "One-offs block-local; reusable analysis/helpers→named globals+concise description/usage; pin valuable state before pruning"],
+	["Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning", "One-offs→blocklocal; reusable analysis/helpers→namedglobals+concise description/usage; valuablestate→pin before prune"],
 	...CODE_MODE_GUIDELINES,
 	["Notebook state management: notebook({})", "Manage state: notebook({})"],
-	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonical artifacts→files; cross-call shell state→files/arguments"],
-	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Retained helpers self-contained; restart→recreate imports/closures/live handles"],
+	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonicalartifacts→files; tools.exec_command crosscall shellstate→files/args"],
+	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Retainedhelpers=selfcontained; restart→recreate imports/closures/livehandles"],
 	["exec calls run sequentially", "exec calls sequential"],
 ] as const;
 
@@ -163,7 +163,7 @@ export function resolvePromptSkills(
 function buildSkillsContent(skills: PromptSkill[], gpt = false): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		gpt ? "Read user-named/task-matching skills; relative paths→skill directory; load needed references"
+		gpt ? "Read usernamed/taskmatching skills; relativepaths→skilldir; load neededrefs"
 			: "Read skills named by the user or matching the task; resolve relative paths from the skill directory and load needed references",
 	];
 
@@ -370,6 +370,6 @@ function formatShellContext(shell: string, gpt = false): string {
 	const zshGuidance = shellName === "zsh" || shellName === "zsh.exe"
 		? "; capture $? as rc"
 		: "";
-	return gpt ? `Shell=${shell}; obey syntax/quoting/variable rules${zshGuidance}`
+	return gpt ? `Shell=${shell}; obey syntax/quoting/variablerules${zshGuidance}`
 		: `Current shell: ${shell}; follow its syntax, quoting, and variable rules${zshGuidance}`;
 }

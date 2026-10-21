@@ -1,0 +1,223 @@
+.app-header {
+	padding-block: 12px;
+	border-bottom: 1px solid var(--line);
+}
+.investigation-hint {
+	margin: 0 0 20px;
+}
+.investigation-hint code {
+	color: var(--fg);
+}
+.header-bar {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	gap: 8px 16px;
+	align-items: center;
+}
+h1 {
+	font-size: 18px;
+	letter-spacing: -0.03em;
+	margin: 0;
+	font-weight: 650;
+	white-space: nowrap;
+}
+.observatory-mark {
+	position: relative;
+	color: var(--warning);
+	width: 40px;
+	height: 40px;
+	padding: 8px;
+	margin-right: 4px;
+	vertical-align: middle;
+	border: 0;
+	background: transparent;
+	touch-action: manipulation;
+	user-select: none;
+}
+.observatory-mark[data-state="live"] {
+	color: var(--success);
+}
+.observatory-mark svg {
+	width: 24px;
+	height: 24px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.observatory-mark g {
+	display: none;
+}
+.observatory-mark[data-state="paused"] .monitor-pause,
+.observatory-mark[data-state="live"] .monitor-play,
+.observatory-mark[data-state="sync"] .monitor-sync {
+	display: initial;
+}
+.observatory-mark[data-state="sync"] svg {
+	animation: monitor-spin 1.5s linear infinite;
+}
+.observatory-mark::after {
+	content: "";
+	position: absolute;
+	inset: auto 4px 0;
+	height: 2px;
+	background: currentColor;
+	transform: scaleX(0);
+	transform-origin: left;
+}
+.observatory-mark.holding::after {
+	transform: scaleX(1);
+	transition: transform 2s linear;
+}
+@keyframes monitor-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.observatory-mark[data-state="sync"] svg {
+		animation: none;
+	}
+	.observatory-mark.holding::after {
+		transition: none;
+	}
+}
+.filter-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	white-space: nowrap;
+}
+#filter-count {
+	font-weight: 400;
+}
+.filter-content {
+	margin-top: 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+}
+.session-picker,
+#filters {
+	padding: 16px;
+}
+.session-picker {
+	margin: 0;
+	padding-bottom: 0;
+}
+.session-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: end;
+}
+.session-controls label {
+	flex: 1 1 190px;
+}
+.session-controls .session-choice {
+	flex: 2 1 320px;
+}
+#filters {
+	display: grid;
+	grid-template-columns: 2fr 1fr 1fr;
+	gap: 16px;
+}
+.call-filters {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+	border: 0;
+	border-top: 1px solid var(--line);
+	padding: 12px 0 0;
+	margin: 0;
+}
+.call-filters legend {
+	color: var(--muted);
+	font-size: 12px;
+	padding-right: 10px;
+}
+.call-filters .search {
+	grid-column: span 2;
+}
+.filter-actions {
+	grid-column: 1 / -1;
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.view-nav {
+	display: flex;
+	flex-wrap: wrap;
+	min-width: 0;
+	max-width: 100%;
+	justify-content: flex-end;
+	justify-self: end;
+	gap: 4px 20px;
+}
+.view-nav button {
+	border: 0;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	padding: 8px 0;
+	background: transparent;
+	color: var(--muted);
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+.view-nav button[aria-pressed="true"] {
+	color: var(--accent);
+	border-bottom-color: var(--accent);
+}
+.view-nav button:hover:not(:disabled) {
+	background: transparent;
+	color: var(--fg);
+}
+#pattern {
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	overflow-wrap: anywhere;
+	margin-bottom: 20px;
+}
+#pattern button {
+	margin: 4px 0;
+}
+@media (max-width: 760px) {
+	.app-header {
+		padding-inline: 16px;
+		padding-block: 10px;
+	}
+	h1 {
+		font-size: 16px;
+	}
+	#filters,
+	.call-filters {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	#filters > label:first-child {
+		grid-column: 1 / -1;
+	}
+	.view-nav button {
+		font-size: 12px;
+	}
+}
+@media (max-width: 600px) {
+	.header-bar {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.filter-toggle {
+		grid-column: 2;
+		grid-row: 1;
+	}
+	.view-nav {
+		grid-column: 1 / -1;
+		grid-row: 2;
+	}
+}
+@media (max-width: 360px) {
+	.view-nav {
+		gap: 12px;
+	}
+}

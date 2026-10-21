@@ -123,6 +123,18 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	return boundMessage(lines.filter(Boolean).join("\n"));
 }
 
+/** Startup capability inventory, independent of sampled diagnostics and relative ages. */
+export function formatStartupStatus(details: NotebookStatusDetails): string {
+	const lines = [`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""}`];
+	for (const binding of details.matches ?? []) {
+		lines.push(`- ${binding.name}: ${binding.kind}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.pinned ? " · pinned" : ""}${formatBindingMetadata(binding)}`);
+	}
+	if (details.state === "running") lines.push("Bindings unavailable while cell runs; use notebook status after settlement");
+	else if ((details.matches?.length ?? 0) === 0) lines.push("Bindings: none");
+	if ((details.omittedMatches ?? 0) > 0) lines.push(`${details.omittedMatches} binding(s) omitted; notebook status + narrower query`);
+	return boundMessage(lines.join("\n"));
+}
+
 function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined; hook?: NotebookHook | undefined }): string {
 	const description = binding.description === undefined ? "" : ` · ${binding.description}`;
 	const usage = binding.usage === undefined ? "" : ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;

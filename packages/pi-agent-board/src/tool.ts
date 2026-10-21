@@ -1,6 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { BoardParameters } from "./contract.js";
-import { serializeBoardResult } from "./response.js";
+import { serializeBoardToolResult } from "./response.js";
 import type { BoardRuntime } from "./runtime.js";
 
 export function createBoardTool(board: BoardRuntime) {
@@ -14,7 +14,12 @@ export function createBoardTool(board: BoardRuntime) {
 			signal?.throwIfAborted();
 			const value = await board.execute(ctx, params, id);
 			return {
-				content: [{ type: "text", text: serializeBoardResult(value) }],
+				content: [
+					{
+						type: "text",
+						text: serializeBoardToolResult(value, params.action),
+					},
+				],
 				details: {},
 			};
 		},

@@ -144,6 +144,8 @@ export interface RuntimeToolTrace {
 	name: string;
 	input: unknown;
 	status: "running" | "blocked" | "done" | "error";
+	/** Completed Pi nested-call identities; may stay empty until in-flight calls return. */
+	nativeCallIds?: string[] | undefined;
 	result?: RuntimeToolResult | undefined;
 	error?: string | undefined;
 }

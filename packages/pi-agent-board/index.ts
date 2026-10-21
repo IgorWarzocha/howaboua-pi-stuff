@@ -4,6 +4,7 @@ import {
 	resolveBoardSummaryModel,
 	writeBoardSummarySelection,
 } from "./src/config.js";
+import { requestBoardConsolidation } from "./src/consolidation.js";
 import { binding } from "./src/identity.js";
 import { acquireBoard } from "./src/runtime.js";
 import { openBoardViewer } from "./src/viewer/index.js";
@@ -12,7 +13,19 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 	const board = await acquireBoard(pi);
 	pi.registerCommand("board", {
 		description:
-			"Board viewer; settings, summarize <thread-id>, on|off|inherit [session|folder|global], status",
+			"Board viewer; settings, status, on|off [session|folder|global]",
+		getArgumentCompletions(prefix) {
+			const commands = ["settings", "status", "on", "off"];
+			const scopes = ["session", "folder", "global"];
+			const options = prefix.includes(" ")
+				? ["on", "off"].flatMap((command) =>
+						scopes.map((scope) => `${command} ${scope}`),
+					)
+				: commands;
+			return options
+				.filter((value) => value.startsWith(prefix))
+				.map((value) => ({ label: value, value }));
+		},
 		async handler(args, ctx) {
 			if (args.trim() === "settings") {
 				if (!ctx.hasUI) {
@@ -23,7 +36,38 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 					return;
 				}
 				try {
+					if (binding(ctx).upstream)
+						throw new Error("Change Board settings in the owning root session");
+					const sessionId = ctx.sessionManager.getSessionId();
+					const consolidate =
+						"Consolidate one-off threads (sends a prompt to this session's agent)";
+					const setting = await ctx.ui.select("Board settings and actions", [
+						"Automatic summaries",
+						"Summary model",
+						consolidate,
+					]);
+					if (setting === consolidate) {
+						if (ctx.sessionManager.getSessionId() !== sessionId)
+							throw new Error("Session changed; reopen Board settings");
+						requestBoardConsolidation(pi, ctx);
+						return;
+					}
+					if (!setting) return;
 					const config = readBoardSummaryConfig(ctx.cwd);
+					if (setting === "Automatic summaries") {
+						const selected = await ctx.ui.select(
+							`Automatic summaries: ${config.automatic ? "on" : "off"}. Summarise on closure? Uses model quota.`,
+							["Off", "On"],
+						);
+						if (selected !== "Off" && selected !== "On") return;
+						board.setAutomaticSummaries(ctx, selected === "On");
+						ctx.ui.notify(
+							`Automatic board summaries: ${selected.toLowerCase()}.`,
+							"info",
+						);
+						return;
+					}
+					if (setting !== "Summary model") return;
 					const selected = await ctx.ui.select(
 						`Board summary model (global; current: ${config.selection === "luna" ? "Luna" : "Custom"})`,
 						["Luna", "Custom"],
@@ -59,30 +103,13 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 			const [command = "", scope = "session", ...extra] = args
 				.trim()
 				.split(/\s+/);
-			if (command === "summarize" && !extra.length) {
-				try {
-					board.summarize(ctx, scope);
-				} catch (error) {
-					ctx.ui.notify(
-						error instanceof Error ? error.message : String(error),
-						"error",
-					);
-				}
-				return;
-			}
 			if (
-				(command === "on" || command === "off" || command === "inherit") &&
+				(command === "on" || command === "off") &&
 				(scope === "session" || scope === "folder" || scope === "global") &&
 				!extra.length
 			) {
 				try {
-					if (command === "inherit" && scope === "global")
-						throw new Error("Global enablement must be on or off");
-					await board.setSetting(
-						ctx,
-						scope,
-						command === "inherit" ? undefined : command === "on",
-					);
+					await board.setSetting(ctx, scope, command === "on");
 					ctx.ui.notify(board.status(ctx), "info");
 				} catch (error) {
 					ctx.ui.notify(
@@ -98,7 +125,7 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 			}
 			if (command) {
 				ctx.ui.notify(
-					"Use /board, /board settings, /board summarize <thread-id>, /board status or /board on|off|inherit [session|folder|global]",
+					"Use /board, /board settings, /board status or /board on|off [session|folder|global]",
 					"warning",
 				);
 				return;

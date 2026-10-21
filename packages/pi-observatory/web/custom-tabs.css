@@ -1,0 +1,19 @@
+.custom-tab-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px 16px;
+}
+#custom-tabs-errors,
+#custom-tab-error {
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+#custom-tab-frame iframe {
+	display: block;
+	width: 100%;
+	height: 1px;
+	border: 0;
+	background: var(--bg);
+}

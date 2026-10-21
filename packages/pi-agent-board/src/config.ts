@@ -74,10 +74,8 @@ export function readBoardConfig(folder: string, defaultEnabled = false) {
 export function writeBoardConfig(
 	folder: string,
 	scope: "folder" | "global",
-	enabled: boolean | undefined,
+	enabled: boolean,
 ) {
-	if (scope === "global" && enabled === undefined)
-		throw new Error("Global enablement must be on or off");
 	const path = boardConfigPaths(folder)[scope];
 	if (!path)
 		throw new Error(
@@ -87,9 +85,7 @@ export function writeBoardConfig(
 	const document = readDocument(path);
 	const board = object(document["board"]) ? { ...document["board"] } : {};
 	const field = scope === "global" ? "enabledGlobally" : "enabled";
-	if (enabled === undefined) delete board[field];
-	else board[field] = enabled;
-	if (enabled === undefined && !existsSync(path)) return;
+	board[field] = enabled;
 	document["board"] = board;
 	writeDocument(path, document);
 }
@@ -127,10 +123,13 @@ export function readBoardSummaryConfig(folder: string) {
 	const summary = board["summary"];
 	if (summary !== undefined && !object(summary))
 		throw new Error(`${path}: board.summary must be an object`);
+	const automatic = summary?.["automatic"] ?? false;
+	if (typeof automatic !== "boolean")
+		throw new Error(`${path}: board.summary.automatic must be true or false`);
 	const selection = summary?.["selection"] ?? "luna";
 	if (selection !== "luna" && selection !== "custom")
 		throw new Error(`${path}: board.summary.selection must be luna or custom`);
-	return { path, selection, custom: summary?.["custom"] };
+	return { path, automatic, selection, custom: summary?.["custom"] };
 }
 
 function customSummaryModel(value: unknown, path: string): BoardSummaryModel {
@@ -176,6 +175,17 @@ export function writeBoardSummarySelection(
 	if (summary["custom"] === undefined)
 		summary["custom"] = { provider: "", model: "", reasoning: "high" };
 	summary["selection"] = selection;
+	board["summary"] = summary;
+	document["board"] = board;
+	writeDocument(config.path, document);
+}
+
+export function writeBoardSummaryAutomatic(folder: string, automatic: boolean) {
+	const config = readBoardSummaryConfig(folder);
+	const document = readDocument(config.path);
+	const board = object(document["board"]) ? { ...document["board"] } : {};
+	const summary = object(board["summary"]) ? { ...board["summary"] } : {};
+	summary["automatic"] = automatic;
 	board["summary"] = summary;
 	document["board"] = board;
 	writeDocument(config.path, document);

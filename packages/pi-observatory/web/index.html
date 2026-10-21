@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Pi Observatory</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/theme.css"><script type="module" src="/app.js"></script></head>
+<body>
+<header class="app-header">
+<div class="header-bar"><h1><button id="monitor" class="observatory-mark" type="button" data-state="paused" aria-label="Paused. Click to update once; hold 2 seconds for live monitoring."><svg viewBox="0 0 24 24" aria-hidden="true"><g class="monitor-pause"><path d="M7 5v14M17 5v14"/></g><g class="monitor-play"><path d="m8 5 11 7-11 7Z"/></g><g class="monitor-sync"><path d="M20 7v5h-5M4 17v-5h5M5.4 7a8 8 0 0 1 13-1L20 9M4 15l1.6 3a8 8 0 0 0 13-1"/></g></svg></button> Pi Observatory</h1>
+<nav id="view-nav" class="view-nav" aria-label="Dashboard views"><button type="button" data-view="overview" aria-pressed="true">Overview</button><button type="button" data-view="capability-usage" aria-pressed="false">Commands &amp; skills</button><button type="button" data-view="calls-panel" aria-pressed="false">Call explorer</button></nav>
+<button id="toggle-filters" class="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-panel">Filters <span id="filter-count" class="muted" hidden></span></button>
+</div>
+<div id="filter-panel" class="filter-content" hidden>
+<section class="session-picker" aria-label="Session selection">
+<div class="session-controls">
+<label>Search sessions<input id="session-search" type="search" placeholder="Project or session ID" aria-describedby="sessions-status"></label>
+<label class="session-choice">Session<select id="session" name="session" form="filters" aria-describedby="sessions-status"><option value="">All sessions</option></select></label>
+<button id="all-sessions" type="button">All sessions</button><button id="current-session" type="button" hidden>Current session</button>
+</div><p id="sessions-status" class="muted" role="status">Loading recent sessions…</p>
+</section>
+<form id="filters" aria-label="Filter data">
+<label>Project<select name="project"><option value="">All projects</option></select></label>
+<label>From (UTC)<input name="since" type="date"></label><label>Until (UTC)<input name="until" type="date"></label>
+<fieldset class="call-filters"><legend>Calls only</legend>
+<label>Provider<select name="provider"><option value="">All providers</option></select></label>
+<label>Model<select name="model"><option value="">All models</option></select></label>
+<label>Operation<select name="tool"><option value="">All operations</option></select></label>
+<label>Scope<select name="scope"><option value="all">Tools + model operations</option><option value="direct">Direct tools</option><option value="nested">Nested tools</option><option value="model">Model operations</option></select></label>
+<label class="search">Search calls<input name="q" type="search" placeholder="Tool or message"></label>
+<input name="signature" type="hidden"></fieldset>
+<div class="filter-actions"><button class="primary-button" type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button></div>
+</form></div>
+</header>
+<main>
+<p class="investigation-hint muted">Use <code>/observatory agent (scope)</code> to ask your agent to investigate what you see.</p>
+<p id="error" role="alert" hidden></p>
+<p id="custom-tabs-errors" class="issue" role="status" hidden></p>
+<p id="pattern" hidden><span id="pattern-text"></span> <button id="clear-pattern" type="button">Clear pattern</button></p>
+<section id="overview" aria-label="Overview">
+<div id="totals" class="metrics" role="status">Loading…</div>
+<div class="activity-grid">
+<section class="chart-panel" aria-labelledby="activity-heading"><div id="activity-plot"></div></section>
+<section class="chart-panel"><div class="chart-heading"><h2>Outcomes</h2></div><div id="outcome-chart"></div></section>
+</div>
+<div class="usage-charts">
+<section class="chart-panel"><div class="chart-heading"><h2 id="tools-heading">Top operations</h2></div><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>All operations</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Operations"></div></details></section>
+<section class="chart-panel"><div class="chart-heading"><h2 id="models-heading">Top models</h2></div><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>All models</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></section>
+</div>
+<div class="diagnostics"><details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details><details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details></div>
+<details id="coverage" class="coverage-panel"><summary>Index diagnostics <span id="coverage-indicator" class="muted"></span></summary><p id="index-status-detail" class="muted"></p><dl id="coverage-counts"></dl><ul id="index-issues"></ul></details>
+</section>
+<section id="capability-usage" aria-labelledby="capability-heading" hidden>
+<h2 id="capability-heading" class="visually-hidden" tabindex="-1">Commands &amp; skills</h2>
+<div class="capability-controls">
+<label>View<select id="usage-view"><option value="commands">Commands</option><option value="skills">Skills</option></select></label>
+<label class="search">Find a resource<input id="usage-search" type="search" placeholder="Name, owner or path"></label>
+<label>Sort<select id="usage-sort"><option value="most">Most used</option><option value="least">Least used</option><option value="recent">Most recent</option><option value="name">Name</option></select></label>
+<label id="usage-zero-label" hidden>Usage<select id="usage-zero"><option value="all">All</option><option id="usage-zero-option" value="zero">No recorded reads</option></select></label>
+</div>
+<div id="usage-partial-history" class="usage-partial-history" role="status" hidden></div>
+<section class="chart-panel usage-history-panel" aria-labelledby="usage-history-heading">
+<div id="skill-comparison-controls" class="skill-comparison-controls" hidden>
+<div id="skill-activity" class="skill-activity" role="group" aria-label="Skill activity"><label><input type="radio" name="skill-activity" value="agent" checked><span>Agent</span></label><label><input type="radio" name="skill-activity" value="user"><span>User</span></label></div>
+</div>
+<div id="usage-history"></div></section>
+<div class="usage-summary-row"><p id="usage-summary" class="muted"></p><div id="skill-selection-actions" class="skill-selection-actions" hidden><span id="skill-selection-status" class="muted" role="status"></span><button id="skill-selection-clear" type="button">Clear</button></div></div>
+<section class="resource-panel"><div id="usage-table" class="table-scroll" tabindex="0" role="region" aria-label="Command and skill usage"></div><nav id="usage-pagination" class="pagination" aria-label="Resource pages"></nav><p id="usage-coverage" class="muted"></p></section>
+</section>
+<section id="custom-tab-panel" aria-labelledby="custom-tab-heading" hidden><div class="custom-tab-heading"><h2 id="custom-tab-heading"></h2><p id="custom-tab-status" class="muted" role="status"></p></div><p id="custom-tab-error" class="issue" role="status" hidden></p><p id="custom-tab-filters" class="muted" hidden></p><p id="custom-tab-page-status" class="muted" role="status"></p><div id="custom-tab-frame"></div></section>
+<section id="calls-panel" aria-labelledby="calls-heading" hidden><div class="section-heading"><h2 id="calls-heading" class="visually-hidden" tabindex="-1">Calls</h2><button id="back-to-view" type="button" hidden>Back</button><label>Outcome<select id="outcome"><option value="all">All</option><option value="error">Errors</option><option value="nonzero">Nonzero exits</option><option value="ok">OK</option><option value="incomplete">No final result</option><option value="unknown">Unclassified result</option></select></label><button id="new-data" class="icon-button" type="button" aria-label="Refresh calls" title="Refresh calls" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></svg></button></div>
+<nav class="pagination" aria-label="Call pages"><span id="calls-status" role="status"></span><div class="page-controls"><button id="newest" class="icon-button" type="button" aria-label="First page" title="First page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M17 6l-6 6 6 6"/></svg></button><button id="newer" class="icon-button" type="button" aria-label="Previous page" title="Previous page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><span id="calls-page">Page 1</span><button id="older" class="icon-button" type="button" aria-label="Next page" title="Next page" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div></nav>
+<div id="calls" class="table-scroll" tabindex="0" role="region" aria-label="Calls"></div>
+</section>
+<section id="detail" aria-labelledby="detail-heading" hidden><div class="section-heading"><h2 id="detail-heading" tabindex="-1">Call detail</h2><button id="close-detail" type="button">Back</button></div><p id="detail-status" role="status"></p><div id="detail-content"></div></section>
+</main>
+</body></html>

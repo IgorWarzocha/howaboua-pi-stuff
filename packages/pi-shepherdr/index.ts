@@ -10,9 +10,11 @@ import { AgentFleet } from "./src/fleet.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
 import { createPeerCommands } from "./src/peer-commands.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
+import { registerProfilePrompt } from "./src/profile-prompt.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context-host.js";
 import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
+import { registerWorkerRole } from "./src/worker-role.js";
 import { registerWorkerService } from "./src/worker-service.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
@@ -21,9 +23,11 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 export default async function shepherdrExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
+	const workerRole = registerWorkerRole(pi);
 	registerPackageChangelog(pi);
 
 	await installAgentProfiles();
+	registerProfilePrompt(pi);
 	registerDeveloperDelivery(pi);
 	const peerCommands = createPeerCommands(pi);
 	const fleet = new AgentFleet(pi);
@@ -34,7 +38,7 @@ export default async function shepherdrExtension(
 	const board = AgentBoard.create(pi, fleet);
 	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
-	registerWorkerService(pi, fleet, sharedContext, board);
+	registerWorkerService(pi, fleet, sharedContext, board, workerRole);
 	let promptMode: { readonly active: boolean } | undefined;
 	const tool = createAgentsTool(
 		fleet,

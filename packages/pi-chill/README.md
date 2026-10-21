@@ -35,6 +35,8 @@ Details you open stay open when work finishes. Inline images remain under their 
 
 Assistant commentary, final answers, Board activity, notes-saved notices and host disconnection notifications remain outside the folded block. `new_context` also stays visible, keeping activity on either side of a context rollover separate.
 
+With Codex Conversion loaded, GitHub Actions completion notices stay in place as compact rows. Click a row or use `Ctrl+O` to read the full notification. Without Codex Conversion, notifications keep their native display, as do other GitHub watch messages.
+
 Reasoning bodies are hidden while Chill is on. `Ctrl+T` does not reveal them. Turn Chill off with `/chill` to restore native reasoning display. Your saved thinking preference and stored reasoning are unchanged.
 
 This is presentation only. It adds no model tools, prompt instructions, or model calls, and does not change stored messages. Non-interactive output keeps its original renderers.

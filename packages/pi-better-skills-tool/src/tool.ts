@@ -26,7 +26,9 @@ export interface SkillsToolOptions {
 export function prepareSkillsCodeModeInput(input: unknown): SkillsParameters {
 	if (input === undefined) return {};
 	if (typeof input !== "string")
-		throw new Error('Expected string: tools.skills("read <skill>")');
+		throw new Error(
+			'Expected a string command or no arguments: tools.skills() for discovery, tools.skills("read <skill>") to read',
+		);
 	return { command: input };
 }
 
@@ -40,7 +42,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 		],
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const output = runSkills(
+			const { output, skillReads } = runSkills(
 				params.command ?? "",
 				options.globalRoot ?? defaultSkillsDir(),
 				defaultSessionSkillsDir(ctx.cwd),
@@ -49,7 +51,7 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 			);
 			return {
 				content: [{ type: "text", text: output }],
-				details: {},
+				details: { skillReads },
 			};
 		},
 	});

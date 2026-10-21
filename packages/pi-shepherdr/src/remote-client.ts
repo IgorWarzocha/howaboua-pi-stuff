@@ -141,13 +141,17 @@ async function deploy(
 	child.stderr.on("data", (chunk: Buffer) => {
 		stderr = appendBounded(stderr, chunk);
 	});
-	child.stdin.end(source);
 	await new Promise<void>((resolve, reject) => {
 		const timer = setTimeout(() => {
 			child.kill();
 			reject(new Error("remote bridge deployment timed out"));
 		}, DEPLOY_TIMEOUT_MS);
 		timer.unref();
+		child.stdin.on("error", (error) => {
+			clearTimeout(timer);
+			child.kill();
+			reject(error);
+		});
 		child.on("error", (error) => {
 			clearTimeout(timer);
 			reject(error);
@@ -164,6 +168,7 @@ async function deploy(
 					),
 				);
 		});
+		child.stdin.end(source);
 	});
 }
 
@@ -196,6 +201,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		child.stderr.on("data", (chunk: Buffer) => {
 			this.diagnostics = appendBounded(this.diagnostics, chunk);
 		});
+		child.stdin.on("error", (error) => this.disconnected(error));
 		child.on("error", (error) => this.disconnected(error));
 		child.on("exit", (code) => {
 			this.disconnected(
@@ -572,7 +578,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 				`${JSON.stringify({ ...message, id })}\n`,
 				(error) => {
 					if (!error) return;
-					this.rejectPending(id, error);
+					this.disconnected(error);
 				},
 			);
 		});
@@ -712,6 +718,10 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 
 	private disconnected(error: Error): void {
 		if (this.closed) return;
+		if ("code" in error && error.code === "EPIPE")
+			error = new Error("Connection to the remote machine closed", {
+				cause: error,
+			});
 		this.closed = true;
 		this.child.kill();
 		this.failPending(error, true);

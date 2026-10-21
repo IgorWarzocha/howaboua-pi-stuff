@@ -331,8 +331,7 @@ export function useNotes(
 			);
 		}
 		return {
-			source: "pi-session",
-			file: noteMetadata(revision, root),
+			file: { path: `${root}${path}` },
 		};
 	}
 	return readNotes(notes, params, agent);

@@ -99,7 +99,7 @@ export function buildContextSettings(
 				...current,
 				compaction: { ...current.compaction, shareSubagentContext: enabled },
 			}),
-			"Share notes and history with new subagents through a compatible integration. Existing agents keep their identity.",
+			"Share notes and history with new subagents through a compatible integration. Existing agents keep their identity. Turning this off does not disable cache sharing.",
 		)] : []),
 		...(!externalNotes && continuity === "notes" ? [] : [setting(
 			{

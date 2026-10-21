@@ -82,7 +82,7 @@ export interface CodexExtensionRuntime {
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	configureDiagnostics(ctx: CodexContext, announceLog?: boolean): Promise<void>;
-	diagnosticsSink(): CodexDiagnosticsSink | undefined;
+	diagnosticsSink(sessionId: string | undefined): CodexDiagnosticsSink | undefined;
 	shutdownDiagnostics(): Promise<void>;
 }
 
@@ -574,8 +574,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				announceLog: announceLog || cacheEnvironment.logName !== undefined,
 			});
 		},
-		diagnosticsSink() {
-			return diagnostics.sink();
+		diagnosticsSink(sessionId) {
+			return diagnostics.sink({ sessionId });
 		},
 		shutdownDiagnostics() {
 			return diagnostics.shutdown();

@@ -12,6 +12,7 @@ import howabouaPiPet from "@howaboua/pi-pet";
 import howabouaPiShepherdr from "@howaboua/pi-shepherdr";
 import howabouaPiSmartBtw from "@howaboua/pi-smart-btw";
 import howabouaPiSubagentReview from "@howaboua/pi-subagent-review";
+import howabouaPiSuggestions from "@howaboua/pi-suggestions";
 import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
 
 export default async function (pi: ExtensionAPI) {
@@ -28,5 +29,6 @@ export default async function (pi: ExtensionAPI) {
 	await howabouaPiShepherdr(pi);
 	await howabouaPiSmartBtw(pi);
 	await howabouaPiSubagentReview(pi);
+	await howabouaPiSuggestions(pi);
 	await howabouaPiUnicodeCharts(pi);
 }

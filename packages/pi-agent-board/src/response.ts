@@ -12,6 +12,26 @@ export function serializeBoardResult(value: unknown): string {
 	return text;
 }
 
+/** Keep the runtime's full acknowledgements out of native and nested tool output. */
+export function serializeBoardToolResult(
+	value: unknown,
+	action: BoardParams["action"] | undefined,
+): string {
+	if (!value || typeof value !== "object" || Array.isArray(value))
+		return serializeBoardResult(value);
+	const result: Record<string, unknown> = { ...value };
+	if (action === "post" || action === "set_status") {
+		delete result["author"];
+		delete result["created_at"];
+	} else if (action === "create_channel") {
+		delete result["created_at"];
+		delete result["created_by"];
+		delete result["message_count"];
+		delete result["last_message_id"];
+	}
+	return serializeBoardResult(result);
+}
+
 export function checkMutationBudget(caller: string, params: BoardParams) {
 	// Native acknowledgement reserve, checked before opening or creating storage.
 	const target = params.target_agent ?? "";

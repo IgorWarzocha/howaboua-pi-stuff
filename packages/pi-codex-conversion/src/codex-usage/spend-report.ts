@@ -17,12 +17,14 @@ export function usageReport(account: UsageAccount, now = Date.now()) {
 	const previousMonthStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 1, 1);
 	const previousMonthKey = new Date(previousMonthStart).toISOString().slice(0, 7);
 	const previousMonth = account.months[previousMonthKey];
+	const previousMonthIncomplete = account.since > previousMonthStart;
 	// Coverage diagnostics describe estimates; they do not gate usable recorded totals.
 	const currentRate = current && now < current.expectedReset && now > current.start
 		? current.summary.total.usd / ((now - current.start) / DAY_MS) : undefined;
 	const previousRate = previous && previous.end > previous.start
 		? previous.summary.total.usd / ((previous.end - previous.start) / DAY_MS) : undefined;
-	const monthRate = previousMonth
+	// A partial month's spend cannot be averaged over the whole calendar month.
+	const monthRate = previousMonth && !previousMonthIncomplete
 		? previousMonth.total.usd / ((thisMonthStart - previousMonthStart) / DAY_MS) : undefined;
 	const quotaStale = (account.lastObservation ?? 0) > (current?.quota?.at ?? 0);
 	const quota = current && !quotaStale ? estimatedQuota(current) : undefined;
@@ -37,6 +39,7 @@ export function usageReport(account: UsageAccount, now = Date.now()) {
 		vsPreviousWindowPercent: difference(currentRate, previousRate),
 		vsPreviousMonthPercent: difference(currentRate, monthRate),
 		previousMonth: previousMonthKey,
+		previousMonthIncomplete,
 		previousMonthApproximate: Boolean(account.history && account.history.from < thisMonthStart && account.history.to > previousMonthStart),
 		models: Object.entries(current?.summary.models ?? {}).map(([key, stats]) => ({
 			model: key.slice("model:".length), ...stats,
@@ -68,6 +71,7 @@ export function formatSpendReport(report: ReturnType<typeof usageReport>): strin
 		comparisons.push(`${percent(report.vsPreviousWindowPercent)} vs last window (${duration})`);
 	}
 	if (report.vsPreviousMonthPercent !== undefined) comparisons.push(`${percent(report.vsPreviousMonthPercent)} vs last month`);
+	else if (report.previousMonthIncomplete) comparisons.push("last month: not enough history");
 	if (comparisons.length) lines.push(`Spend/day: ${comparisons.join(" · ")}`);
 	if (report.models.length) {
 		const showQuota = report.models.some((model) => model.quotaPercentEstimate !== undefined);

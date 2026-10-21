@@ -1,0 +1,10 @@
+{
+	"apiVersion": 1,
+	"id": "pcc-cache",
+	"title": "PCC cache",
+	"collector": ["node", "collect.ts"],
+	"query": ["node", "query.ts"],
+	"intervalSeconds": 10,
+	"timeoutSeconds": 120,
+	"filters": ["session", "project", "since", "until"]
+}

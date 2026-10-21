@@ -2,7 +2,7 @@ import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
 import { activityTask } from "./activity.js";
 import type { ConnectedMachine } from "./fleet.js";
 import { getSnapshot } from "./herdr.js";
-import { isDispatchRejected } from "./herdr-client.js";
+import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
 import { agentSource } from "./messages.js";
 import type { WorkAttempt } from "./monitor-state.js";
 import type { ClaimedSettlement } from "./settlement.js";
@@ -38,14 +38,38 @@ function slugify(value: string): string {
 	return named.slice(0, 32).replace(/-+$/u, "") || "agent";
 }
 
-export async function allocateAgentName(
+const startingNames = new WeakMap<HerdrConnection, Set<string>>();
+
+export async function reserveAgentName(
 	runtime: ConnectedMachine,
 	label: string,
-): Promise<string> {
+	requested?: string,
+): Promise<{ name: string; release(): void }> {
 	const snapshot = await getSnapshot(runtime.client);
-	const names = new Set(
-		snapshot.agents.map((agent) => agent.name).filter(Boolean),
-	);
+	let reserved = startingNames.get(runtime.client);
+	if (!reserved) {
+		reserved = new Set<string>();
+		startingNames.set(runtime.client, reserved);
+	}
+	const names = new Set([
+		...snapshot.agents.flatMap((agent) => (agent.name ? [agent.name] : [])),
+		...reserved,
+	]);
+	const name = requested?.trim() || availableAgentName(names, label);
+	if (names.has(name))
+		throw new Error(
+			`Agent name ${JSON.stringify(name)} is already in use; omit name or choose another`,
+		);
+	reserved.add(name);
+	return {
+		name,
+		release: () => {
+			reserved.delete(name);
+		},
+	};
+}
+
+function availableAgentName(names: ReadonlySet<string>, label: string): string {
 	const base = slugify(label);
 	if (!names.has(base)) return base;
 	for (let suffix = 2; suffix < 10_000; suffix += 1) {

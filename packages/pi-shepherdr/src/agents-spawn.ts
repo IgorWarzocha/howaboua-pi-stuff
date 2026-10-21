@@ -8,9 +8,9 @@ import {
 	shouldBlockAgentSpawn,
 } from "./agents-contract.js";
 import {
-	allocateAgentName,
 	dispatchAgentWork,
 	reportProgress,
+	reserveAgentName,
 	settlementResult,
 	toolResult,
 } from "./agents-work.js";
@@ -65,147 +65,153 @@ export async function spawnAgent(
 		);
 	}
 	const label = required(params.label, "label");
-	const name = params.name?.trim() || (await allocateAgentName(runtime, label));
-	const placement =
-		params.placement ??
-		(runtime.local && process.env["HERDR_WORKSPACE_ID"]
-			? "new_tab"
-			: "new_workspace");
-	const workspace =
-		params.workspace ??
-		(placement === "new_tab" && runtime.local
-			? process.env["HERDR_WORKSPACE_ID"]
-			: undefined);
-	const startParams = {
-		name,
-		label,
-		placement,
-		...(workspace ? { workspace } : {}),
-		...(params.pane ? { pane: params.pane } : {}),
-		...(params.cwd ? { cwd: params.cwd } : {}),
-	};
-	const cwd = await resolvePreparationDirectory(
-		runtime.client,
-		startParams,
-		runtime.fallbackCwd,
-		runtime.resolveDirectory,
-	);
-	const input = required(params.message, "message");
-	const message = await prepareProfileMessage(
-		profile,
-		{
-			cwd,
-			message: input,
-			...(params.base ? { base: params.base } : {}),
-		},
-		{ targetLocal: runtime.local },
-	);
-	const attributedMessage = await attributeAgentPrompt(
-		fleet.connected().client,
-		input.startsWith("/") ? input : message,
-		"task",
-	);
-	if (input.startsWith("/") && message !== input)
-		attributedMessage.context = [attributedMessage.context, message]
-			.filter(Boolean)
-			.join("\n\n");
-	if (boardThreadId !== undefined)
-		attributedMessage.context = [
-			attributedMessage.context,
-			`Read shared board thread with board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}) for task context`,
-		]
-			.filter(Boolean)
-			.join("\n\n");
-	reportProgress(onUpdate, `Spawning ${label}`, {
-		machine: runtime.machine,
-		name,
-		profile: profile.name,
-		status: "starting",
-	});
-	const agentArgs = profileAgentArgs(profile, { targetLocal: runtime.local });
-	const relationship = sharedContext.spawns.prepareRelationship(
-		ctx,
-		runtime,
-		agentArgs,
-	);
-	const sharing =
-		profile.shareContext === false
-			? undefined
-			: await sharedContext.spawns.prepare(ctx, runtime, name, agentArgs);
-	const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
-	const started = await startAgent(
-		runtime.client,
-		startParams,
-		runtime.fallbackCwd,
-		runtime.resolveDirectory,
-		{ agentArgs },
-	);
-	let promptSubmissionStarted = false;
-	let promptAccepted = false;
-	let dispatch;
-	let shared: { agentName?: string; warning?: string } | undefined;
-	let boardAgent: string | undefined;
-	let relationshipWarning: string | undefined;
-	const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
+	const reservation = await reserveAgentName(runtime, label, params.name);
+	const { name } = reservation;
 	try {
-		relationshipWarning = (await relationship?.accept(started.agent))?.warning;
-		boardAgent = await boardBinding?.accept(started.agent);
-		shared = await sharing?.accept(started.agent);
-		dispatch = await dispatchAgentWork(
-			runtime,
-			started.agent,
-			message,
-			blocking,
-			signal,
-			onUpdate,
-			async () => {
-				promptSubmissionStarted = true;
-				const receipt = await runtime.client.sendMessage(
-					started.agent,
-					attributedMessage,
-				);
-				promptAccepted = true;
-				return receipt;
-			},
-			{ expectUserMessage: true },
+		const placement =
+			params.placement ??
+			(runtime.local && process.env["HERDR_WORKSPACE_ID"]
+				? "new_tab"
+				: "new_workspace");
+		const workspace =
+			params.workspace ??
+			(placement === "new_tab" && runtime.local
+				? process.env["HERDR_WORKSPACE_ID"]
+				: undefined);
+		const startParams = {
+			name,
+			label,
+			placement,
+			...(workspace ? { workspace } : {}),
+			...(params.pane ? { pane: params.pane } : {}),
+			...(params.cwd ? { cwd: params.cwd } : {}),
+		};
+		const cwd = await resolvePreparationDirectory(
+			runtime.client,
+			startParams,
+			runtime.fallbackCwd,
+			runtime.resolveDirectory,
 		);
-	} catch (error) {
-		if (
-			!promptAccepted &&
-			(!promptSubmissionStarted || isDispatchRejected(error))
-		) {
-			return rollbackStartedAgent(runtime.client, started, error);
+		const input = required(params.message, "message");
+		const message = await prepareProfileMessage(
+			profile,
+			{
+				cwd,
+				message: input,
+				...(params.base ? { base: params.base } : {}),
+			},
+			{ targetLocal: runtime.local },
+		);
+		const attributedMessage = await attributeAgentPrompt(
+			fleet.connected().client,
+			input.startsWith("/") ? input : message,
+			"task",
+		);
+		if (input.startsWith("/") && message !== input)
+			attributedMessage.context = [attributedMessage.context, message]
+				.filter(Boolean)
+				.join("\n\n");
+		if (boardThreadId !== undefined)
+			attributedMessage.context = [
+				attributedMessage.context,
+				`Read shared board thread with board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}) for task context`,
+			]
+				.filter(Boolean)
+				.join("\n\n");
+		reportProgress(onUpdate, `Spawning ${label}`, {
+			machine: runtime.machine,
+			name,
+			profile: profile.name,
+			status: "starting",
+		});
+		const agentArgs = profileAgentArgs(profile);
+		const relationship = sharedContext.spawns.prepareRelationship(
+			ctx,
+			runtime,
+			agentArgs,
+		);
+		const sharing =
+			profile.shareContext === false
+				? undefined
+				: await sharedContext.spawns.prepare(ctx, runtime, name, agentArgs);
+		const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
+		const started = await startAgent(
+			runtime.client,
+			startParams,
+			runtime.fallbackCwd,
+			runtime.resolveDirectory,
+			{ agentArgs },
+		);
+		let promptSubmissionStarted = false;
+		let promptAccepted = false;
+		let dispatch;
+		let shared: { agentName?: string; warning?: string } | undefined;
+		let boardAgent: string | undefined;
+		let relationshipWarning: string | undefined;
+		const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
+		try {
+			relationshipWarning = (await relationship?.accept(started.agent))
+				?.warning;
+			boardAgent = await boardBinding?.accept(started.agent);
+			shared = await sharing?.accept(started.agent);
+			dispatch = await dispatchAgentWork(
+				runtime,
+				started.agent,
+				message,
+				blocking,
+				signal,
+				onUpdate,
+				async () => {
+					promptSubmissionStarted = true;
+					const receipt = await runtime.client.sendMessage(
+						started.agent,
+						attributedMessage,
+					);
+					promptAccepted = true;
+					return receipt;
+				},
+				{ expectUserMessage: true },
+			);
+		} catch (error) {
+			if (
+				!promptAccepted &&
+				(!promptSubmissionStarted || isDispatchRejected(error))
+			) {
+				return await rollbackStartedAgent(runtime.client, started, error);
+			}
+			throw error;
 		}
-		throw error;
-	}
-	return toolResult(
-		{
-			...(boardAgent ? { boardAgent } : {}),
-			...(shared?.agentName ? { contextAgent: shared.agentName } : {}),
-			...(dispatch.command
-				? {
-						spawned: true,
-						commandSubmitted: true,
-						machine: runtime.machine,
-						target: started.id,
-						name,
-					}
-				: dispatch.settlement
+		return toolResult(
+			{
+				...(boardAgent ? { boardAgent } : {}),
+				...(shared?.agentName ? { contextAgent: shared.agentName } : {}),
+				...(dispatch.command
 					? {
 							spawned: true,
-							...settlementResult(runtime.machine, dispatch.settlement),
-						}
-					: {
-							spawned: true,
+							commandSubmitted: true,
 							machine: runtime.machine,
 							target: started.id,
 							name,
-							status: "working",
-							next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
-						}),
-		},
-		[dispatch.warning, shared?.warning, relationshipWarning]
-			.filter(Boolean)
-			.join("\n") || undefined,
-	);
+						}
+					: dispatch.settlement
+						? {
+								spawned: true,
+								...settlementResult(runtime.machine, dispatch.settlement),
+							}
+						: {
+								spawned: true,
+								machine: runtime.machine,
+								target: started.id,
+								name,
+								status: "working",
+								next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
+							}),
+			},
+			[dispatch.warning, shared?.warning, relationshipWarning]
+				.filter(Boolean)
+				.join("\n") || undefined,
+		);
+	} finally {
+		reservation.release();
+	}
 }

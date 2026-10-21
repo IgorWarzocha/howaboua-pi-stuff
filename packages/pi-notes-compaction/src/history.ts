@@ -129,14 +129,13 @@ export function useHistory(
 		};
 	}
 	if (action === "read_item") {
-		if (
-			typeof params["window_id"] !== "string" ||
-			typeof params["item_id"] !== "string"
-		)
-			throw new Error("Supply window_id and item_id unchanged from history");
-		const item = windows
-			.get(params["window_id"])
-			?.find((item) => item.item_id === params["item_id"]);
+		const windowId = params["window_id"];
+		const itemId = params["item_id"];
+		if (typeof windowId !== "string" || typeof itemId !== "string")
+			throw new Error(
+				`history read_item requires ${typeof windowId !== "string" ? "window_id" : "item_id"} as a string. Copy window_id and item_id from the same search_contents or list_items result`,
+			);
+		const item = windows.get(windowId)?.find((item) => item.item_id === itemId);
 		if (!item) return { item: null };
 		const offset = integer(params["offset_chars"], 0, item.content.length);
 		const limit = integer(params["limit_chars"], 8000, 8000);

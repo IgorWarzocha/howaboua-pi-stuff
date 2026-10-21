@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Machine</title><link rel="stylesheet" href="/base.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="./style.css"><script type="module" src="./view.js"></script></head>
+<body>
+<p id="waiting">Waiting for the first snapshot.</p>
+<dl id="stats" hidden>
+<dt>Host</dt><dd id="host"></dd>
+<dt>System</dt><dd id="platform"></dd>
+<dt>Logical CPUs</dt><dd id="cpus"></dd>
+<dt>Memory used</dt><dd><span id="memory"></span><meter id="memory-meter" min="0" max="100" aria-label="Memory used"></meter></dd>
+<dt>Uptime</dt><dd id="uptime"></dd>
+<dt>Load, last minute</dt><dd id="load"></dd>
+</dl>
+</body></html>
