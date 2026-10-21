@@ -14,3 +14,4 @@
 - Fixed usage scans treating Unicode line separators inside valid session entries as malformed JSON.
 - New-window guidance tells agents to read task-relevant skills again.
 - Local Notes write receipts now contain only the saved path.
+- Clarified that turning off subagent context sharing does not disable cache sharing.
