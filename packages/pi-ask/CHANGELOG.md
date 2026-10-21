@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.16
+
+- Use denser question and handoff help in PCC GPT prompt mode.
+
 ## 0.0.15
 
 - Use consistent tool discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.

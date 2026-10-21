@@ -1,5 +1,9 @@
 # @howaboua/pi-github-watch
 
+## 0.0.3
+
+- Use denser watch help in PCC GPT prompt mode.
+
 ## 0.0.2
 
 - - Added GitHub Actions run watches that wake the session when a run finishes. Completed runs return their result immediately.

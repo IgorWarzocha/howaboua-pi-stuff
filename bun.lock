@@ -31,7 +31,7 @@
     },
     "packages/pi-agent-board": {
       "name": "@howaboua/pi-agent-board",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
         "dompurify": "3.4.17",
         "marked": "18.1.1",
@@ -53,7 +53,7 @@
     },
     "packages/pi-ask": {
       "name": "@howaboua/pi-ask",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-ai": "1.3.0",
@@ -76,7 +76,7 @@
     },
     "packages/pi-auto-trees": {
       "name": "@howaboua/pi-auto-trees",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",
@@ -94,7 +94,7 @@
     },
     "packages/pi-better-skills-tool": {
       "name": "@howaboua/pi-better-skills-tool",
-      "version": "0.0.10",
+      "version": "0.0.11",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",
@@ -116,7 +116,7 @@
     },
     "packages/pi-browser": {
       "name": "@howaboua/pi-browser",
-      "version": "0.0.9",
+      "version": "0.0.10",
       "bin": {
         "pi-browser-worker": "./dist/remote-worker.js",
       },
@@ -186,7 +186,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "4.0.2",
+      "version": "4.0.3",
       "dependencies": {
         "openai": "7.34.0",
         "proxy-from-env": "2.1.0",
@@ -289,7 +289,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.97",
+      "version": "0.0.98",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.15",
         "@howaboua/pi-auto-trees": "0.1.17",
@@ -340,7 +340,7 @@
     },
     "packages/pi-github-watch": {
       "name": "@howaboua/pi-github-watch",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-ai": "1.3.0",
@@ -398,7 +398,7 @@
     },
     "packages/pi-notes-compaction": {
       "name": "@howaboua/pi-notes-compaction",
-      "version": "0.0.8",
+      "version": "0.0.9",
       "dependencies": {
         "better-sqlite3": "13.0.3",
       },
@@ -500,7 +500,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.22",
+      "version": "0.2.23",
       "dependencies": {
         "@howaboua/pi-agent-board": "0.0.2",
       },
@@ -531,7 +531,7 @@
     },
     "packages/pi-skill-code": {
       "name": "@howaboua/pi-skill-code",
-      "version": "0.0.3",
+      "version": "0.0.4",
     },
     "packages/pi-skill-foundations": {
       "name": "@howaboua/pi-skill-foundations",
@@ -547,7 +547,7 @@
     },
     "packages/pi-skills": {
       "name": "@howaboua/pi-skills",
-      "version": "0.0.25",
+      "version": "0.0.26",
       "dependencies": {
         "@howaboua/pi-skill-chrome-cdp": "0.0.5",
         "@howaboua/pi-skill-code": "0.0.3",
@@ -576,7 +576,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.105",
+      "version": "0.0.106",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.15",
         "@howaboua/pi-auto-trees": "0.1.17",
@@ -646,7 +646,7 @@
     },
     "packages/pi-suggestions": {
       "name": "@howaboua/pi-suggestions",
-      "version": "0.0.0",
+      "version": "0.0.1",
       "peerDependencies": {
         "@earendil-works/pi-ai": ">=1.3.0",
         "@earendil-works/pi-coding-agent": ">=1.3.0",
@@ -655,7 +655,7 @@
     },
     "packages/pi-unicode-charts": {
       "name": "@howaboua/pi-unicode-charts",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@earendil-works/pi-coding-agent": "1.3.0",
