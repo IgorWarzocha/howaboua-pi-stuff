@@ -162,7 +162,8 @@ export function recordObservations(pi: ExtensionAPI): void {
 			// Pi wires onSubmit after the factory returns. Observe that public callback,
 			// not raw Enter, which may only accept an autocomplete/menu selection.
 			queueMicrotask(() => {
-				if (!active || ctx.ui.getEditorComponent() !== observed) return;
+				// A later factory may legitimately compose this one.
+				if (!active) return;
 				const submit = editor.onSubmit;
 				if (!submit) return;
 				const onSubmit: typeof submit = function (text) {

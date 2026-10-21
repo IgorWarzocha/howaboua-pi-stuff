@@ -56,6 +56,7 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
 | [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |
 | [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |
+| [`pi-suggestions`](./packages/pi-suggestions) | Opt-in next-prompt drafts with `/suggestions` model settings |
 | [`pi-unicode-charts`](./packages/pi-unicode-charts) | Terminal-native Unicode charts for Pi Markdown |
 | [`pi-codex-web-run`](./packages/pi-codex-web-run) | Codex web search and navigation in normal Pi, Code Mode, and Notebook Mode |
 
