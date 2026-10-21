@@ -99,6 +99,25 @@ function exitCode(value: JsonObject): number | null {
 	return null;
 }
 
+function nativeScriptError(value: JsonObject): string {
+	const content = value["content"];
+	if (
+		value["toolName"] !== "codemode" ||
+		value["isError"] !== true ||
+		!Array.isArray(object(value["details"])["calls"]) ||
+		!Array.isArray(content) ||
+		!/^Script failed\nWall time \d+\.\d seconds\nOutput:\n$/.test(
+			textContent(content.slice(0, 1)),
+		)
+	)
+		return "";
+	// Pi appends the diagnostic after partial script output, which may print its own marker.
+	const output = `\n${textContent(content.slice(1))}`;
+	const marker = "\nScript error:\n";
+	const start = output.lastIndexOf(marker);
+	return start < 0 ? "" : output.slice(start + marker.length).trim();
+}
+
 export function assess(
 	value: JsonObject,
 	traceStatus?: string,
@@ -111,7 +130,8 @@ export function assess(
 	const details = object(value["details"]);
 	const code = exitCode(value);
 	const error = string(value["error"]) || string(details["scriptError"]);
-	const text = error || textContent(value["content"]);
+	const text =
+		error || nativeScriptError(value) || textContent(value["content"]);
 	let outcome: Outcome;
 	// Tool details describe arbitrary domain data (for example, a watched agent's status).
 	// Only the enclosing trace's status describes this tool execution.

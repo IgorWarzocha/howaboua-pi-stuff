@@ -92,7 +92,9 @@ export function createOverviewView(selectCalls, getQuery) {
 						? "Direct calls"
 						: getQuery().get("scope") === "nested"
 							? "Nested calls"
-							: "Direct + nested",
+							: getQuery().get("scope") === "model"
+								? "Model operations"
+								: "Tools + model operations",
 					"all",
 				],
 				[
@@ -146,7 +148,7 @@ export function createOverviewView(selectCalls, getQuery) {
 		);
 		replaceOverview(
 			"tools",
-			table(["Tool", ...primaryHeaders], toolRows, "No calls."),
+			table(["Operation", ...primaryHeaders], toolRows, "No calls."),
 		);
 		activityDays = dailySeries(overview.daily);
 		renderActivity();
@@ -180,6 +182,7 @@ export function createOverviewView(selectCalls, getQuery) {
 			[c.nativeIncomplete, "incomplete native-call records"],
 			[c.uncorrelatedNativeOmitted, "uncorrelated native calls omitted"],
 			[c.unreadableCachedResults, "unreadable cached results"],
+			[c.unmatchedObservations, "live observations awaiting exact correlation"],
 		]).filter(([count]) => count > 0);
 		element("coverage-counts").replaceChildren(
 			...gaps.flatMap(([count, label]) => [

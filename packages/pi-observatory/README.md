@@ -43,7 +43,9 @@ Each `/observatory` opening applies that Pi session's theme to the shared viewer
 
 With the extension loaded, Observatory records submitted extension commands, skills and prompt templates through Pi's editor. Standard Pi controls such as `/new` and `/quit`, and unknown slash names, are excluded. It stores command names without arguments. Editor submissions made by automation count too. RPC and non-interactive input are not recorded by this hook.
 
-Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history.
+Command observations and loaded-resource inventories are stored in `observatory/events`, separately from Pi's session files. Command recording starts when the editor observer attaches. Earlier command usage cannot be recovered from ordinary session history.
+
+While the extension is loaded, public Pi tool events also record tool source metadata and bounded nested arguments and results in those sidecars. Call details show the captured evidence. This works with ordinary tools and native Code Mode as well as PCC. Pausing the viewer stops collection, not event recording in Pi.
 
 Skill tracking does not require Better Skills. Observatory recognises ordinary file-reader inputs and literal shell reads within known `.pi/skills`, `.pi/agent/skills` and `.agents/skills` locations. Custom and package locations require recorded loaded-skill inventory or structured receipts. An arbitrary project's `SKILL.md` does not qualify. Files read under an identified `SKILL.md` directory count as references. Flat Markdown skills match only their own file. Relative paths use the recorded working directory, never the viewer's directory. These are inferred reads, shown separately from confirmed structured receipts. A request identifies intended access, not proof that every byte reached the agent.
 
@@ -92,13 +94,13 @@ The background server writes `observatory/server.log`. Its PID is in `observator
 
 Timestamps use your browser's local timezone and date format, with the timezone shown. Daily graphs and date filters use UTC calendar days so their selections match the indexed counts.
 
-Direct calls and observed nested calls have separate scopes. All calls includes wrappers and their children, which can report the same failure. Counts describe recorded observations, not independent attempts. Aborted calls recorded as errors remain errors. A tool successfully reporting another agent's status is not itself a failed or blocked execution.
+Direct tools, nested tools and native Code Mode model operations have separate scopes. The default view includes all three, with `models.classify` and `models.generateImages` labelled as model operations rather than tools. Pi records their target model, status, duration and reported cost, but not their inputs or outputs. All calls includes wrappers and their children, which can report the same failure. Counts describe recorded observations, not independent attempts. Aborted calls recorded as errors remain errors. A tool successfully reporting another agent's status is not itself a failed or blocked execution.
 
-Native Pi nested-call records provide names, arguments when retained, and outcomes, but no result content. Matching Code and Notebook traces are counted once using their recorded Pi call identities. Older mixed records without those identities remain explicit coverage gaps rather than guessed matches.
+Native Pi session receipts provide nested names, arguments when retained, and outcomes, but no result content. Observatory's live observations enrich those receipts when available. Matching Code and Notebook traces are counted once using their recorded Pi call identities; their associated live results remain available in call details. Earlier sessions without live observations retain explicit result gaps. Unmatched observations stay visible in index diagnostics rather than being guessed into another call.
 
 Model attribution comes from the initiating assistant message, including the originating cell for known nested continuations. Dates and ordering use the initiating call time where known, not measured completion time. Backend model snapshots and extension versions are not inferred from current installations. Missing attribution stays unknown.
 
-Identical copied history is deduplicated across forked sessions. A session view includes calls in its copied history, with their latest indexed outcomes. Repeated nested snapshots update the same call instead of adding calls. Neighbouring messages show file chronology, not proof of recovery or necessarily the active branch.
+Identical copied history is deduplicated across forked sessions. Historical calls and relative skill paths retain their original project, even when the fork runs elsewhere. Missing ancestry leaves the project unknown. A session view includes calls in its copied history, with their latest indexed outcomes. Repeated nested snapshots update the same call instead of adding calls. Neighbouring messages show file chronology, not proof of recovery or necessarily the active branch.
 
 Search matches word prefixes in tool names and error messages. It does not search full arguments or outputs. Selecting an error message filters its exact stored pattern, tool and model. Use **Clear pattern** to remove that pattern filter.
 
@@ -112,6 +114,6 @@ Index diagnostics, below the Overview charts, reports malformed lines, unmatched
 
 Existing indexes are updated from cached SQLite evidence when the server starts. Native nested-call and skill-file scans run in bounded background batches. These updates preserve indexing cursors and do not reread session files.
 
-Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
+Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. Live arguments and results are each capped at 128 KiB, with truncation marked. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
 
 The built-in indexer never modifies source files. If a file is replaced, shortened or detectably rewritten behind its cursor, indexing that file stops and the dashboard reports it. Existing indexed history remains available. Choose a fresh `--db` path to rebuild from the current files. Append-only histories are the supported incremental path. Symlinked files and subdirectories are not followed.

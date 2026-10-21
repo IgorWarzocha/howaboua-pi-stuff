@@ -21,8 +21,8 @@
 <fieldset class="call-filters"><legend>Calls only</legend>
 <label>Provider<select name="provider"><option value="">All providers</option></select></label>
 <label>Model<select name="model"><option value="">All models</option></select></label>
-<label>Tool<select name="tool"><option value="">All tools</option></select></label>
-<label>Scope<select name="scope"><option value="all">Direct + nested</option><option value="direct">Direct</option><option value="nested">Nested</option></select></label>
+<label>Operation<select name="tool"><option value="">All operations</option></select></label>
+<label>Scope<select name="scope"><option value="all">Tools + model operations</option><option value="direct">Direct tools</option><option value="nested">Nested tools</option><option value="model">Model operations</option></select></label>
 <label class="search">Search calls<input name="q" type="search" placeholder="Tool or message"></label>
 <input name="signature" type="hidden"></fieldset>
 <div class="filter-actions"><button class="primary-button" type="submit">Apply filters</button><button type="reset" id="reset-filters">Reset filters</button></div>
@@ -40,7 +40,7 @@
 <section class="chart-panel"><div class="chart-heading"><h2>Outcomes</h2></div><div id="outcome-chart"></div></section>
 </div>
 <div class="usage-charts">
-<section class="chart-panel"><div class="chart-heading"><h2 id="tools-heading">Top tools</h2></div><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>All tools</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Tools"></div></details></section>
+<section class="chart-panel"><div class="chart-heading"><h2 id="tools-heading">Top operations</h2></div><div id="tool-chart" aria-labelledby="tools-heading"></div><details><summary>All operations</summary><div id="tools" class="table-scroll" tabindex="0" role="region" aria-label="Operations"></div></details></section>
 <section class="chart-panel"><div class="chart-heading"><h2 id="models-heading">Top models</h2></div><div id="model-chart" aria-labelledby="models-heading"></div><details><summary>All models</summary><div id="models" class="table-scroll" tabindex="0" role="region" aria-label="Models"></div></details></section>
 </div>
 <div class="diagnostics"><details><summary id="errors-summary">Errors</summary><div id="groups" class="table-scroll" tabindex="0" role="region" aria-label="Errors"></div></details><details id="command-exits"><summary id="exits-summary">Nonzero exits</summary><div id="exits" class="table-scroll" tabindex="0" role="region" aria-label="Nonzero exits"></div></details></div>

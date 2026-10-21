@@ -41,7 +41,8 @@ export function initialiseSummaries(db: Database.Database): void {
 			${add}
 			UPDATE coverage SET unpaired=unpaired+new.unpaired,missing=missing+new.missing_traces,dropped=dropped+new.dropped_traces WHERE id=1;
 		END;
-		CREATE TRIGGER IF NOT EXISTS tally_update AFTER UPDATE OF outcome,signature,missing_traces,dropped_traces ON calls BEGIN
+		DROP TRIGGER IF EXISTS tally_update;
+		CREATE TRIGGER tally_update AFTER UPDATE OF outcome,signature,missing_traces,dropped_traces,project ON calls BEGIN
 			UPDATE tallies SET n=n-1 WHERE ${old};
 			DELETE FROM tallies WHERE ${old} AND n=0;
 			${add}

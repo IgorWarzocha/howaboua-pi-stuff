@@ -5,7 +5,9 @@ Show historical tool usage and outcomes, including successful calls in the defau
 PCC diagnostic scope is optional; its absence must not disable exact request correlation or rebill classification. Rebill warmth belongs to versioned full-epoch metadata replay, before query filters.
 PCC log cursor rows own retained history through a cascading foreign key. Reset rewritten logs in place and clear only their replay cursor.
 
-Native Pi receipts contain no nested result payload. Correlate PCC only through nativeCallIds, never names or arguments. PCC snapshots can precede Pi scope drainage: unmatched receipts in running, dropped or historical PCC snapshots remain explicit omissions.
+Native Pi receipts contain no nested result payload. Public execution events can supply bounded live sidecars; correlate through session, initiating entry and native call IDs, never names or arguments. Preserve PCC trace results when several native observations map to one trace. PCC snapshots can precede Pi scope drainage: unmatched receipts and observations remain explicit gaps. Model API rows in native codemode details.calls have model scope, not tool scope.
+
+Copied entry ownership follows parentSession provenance, not scan order or the fork's cwd. Header recovery belongs in the indexer, never HTTP queries. Repair inferred relative skill paths and project tallies together; preserve source cursors. Capture execution identity at tool start and retain it across yielded work.
 
 Index and query workers must remain separate from each other and HTTP handling. Measure query latency during ingestion, not just after it. Common overview slices use transactional tallies; keep them equivalent to raw call counts.
 Bound replay IDs before joining calls and payloads. Sort PCC facet lists after SQL DISTINCT: combining JSON projection, DISTINCT and ORDER BY can spill full record payloads to disk.

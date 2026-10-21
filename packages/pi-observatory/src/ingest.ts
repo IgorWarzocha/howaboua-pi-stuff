@@ -9,6 +9,8 @@ import {
 	textContent,
 	timestamp,
 } from "./normalise.ts";
+import { createProvenance } from "./provenance.ts";
+import { createObservationIngestor } from "./tool-observations.ts";
 import { createUsageIngestor } from "./usage.ts";
 
 export function createIngestor(db: Database.Database) {
@@ -18,12 +20,11 @@ export function createIngestor(db: Database.Database) {
 	const linkEntry = db.prepare(
 		"INSERT INTO file_entries VALUES (@file,@line,@id,@parent,@key)",
 	);
-	const header = db.prepare(
-		"UPDATE files SET session_id=?,project=? WHERE id=?",
-	);
+	const provenance = createProvenance(db);
 	const { insertCall, recordResult } = createCallStore(db);
 	const nested = createNestedIngestor(db);
 	const usage = createUsageIngestor(db);
+	const observation = createObservationIngestor(db);
 	const pair = db.prepare<[number, string, string, string], StoredCall>(`
 		WITH RECURSIVE ancestors AS (
 			SELECT file_id,entry_key,parent_id,0 depth FROM file_entries WHERE file_id=? AND entry_id=?
@@ -39,9 +40,10 @@ export function createIngestor(db: Database.Database) {
 		line: number,
 		record: JsonObject,
 	): void {
+		if (line === 1 || record["type"] === "session")
+			provenance.recordHeader(source.id, record);
 		if (record["type"] === "session") {
 			source.project = string(record["cwd"], "unknown");
-			header.run(string(record["id"], "unknown"), source.project, source.id);
 			return;
 		}
 		const message = object(record["message"]);
@@ -63,6 +65,7 @@ export function createIngestor(db: Database.Database) {
 			key,
 		});
 		usage.entry(record, key, at);
+		observation(record, key, source, line, at);
 		if (record["type"] !== "message") return;
 		if (role === "assistant" && Array.isArray(message["content"])) {
 			for (const [index, value] of message["content"].entries()) {

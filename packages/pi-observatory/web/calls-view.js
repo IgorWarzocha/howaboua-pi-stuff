@@ -76,7 +76,7 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 			});
 			element("calls").replaceChildren(
 				table(
-					["Time", "Tool / Model", "Outcome", "Scope", "Preview"],
+					["Time", "Operation / Model", "Outcome", "Scope", "Preview"],
 					rows,
 					"No matching calls.",
 				),
@@ -158,6 +158,29 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 			const notes = document.createElement("ul");
 			for (const text of detail.notes) notes.append(node("li", text));
 			if (detail.notes.length) content.append(notes);
+			for (const observation of detail.observations) {
+				const observed = document.createElement("details");
+				observed.append(
+					node("summary", `Live observation: ${observation.callId}`),
+				);
+				observed.append(
+					node(
+						"p",
+						`${observation.source || "Tool source not recorded"}${observation.durationMs === null ? "" : ` · ${observation.durationMs} ms`}`,
+					),
+				);
+				if (observation.callId !== detail.callId) {
+					observed.append(
+						node("h3", "Arguments"),
+						node("pre", observation.arguments || "Not recorded"),
+					);
+					observed.append(
+						node("h3", "Result"),
+						node("pre", observation.result || "No final result recorded"),
+					);
+				}
+				content.append(observed);
+			}
 			content.append(
 				node("h3", "Arguments"),
 				node("pre", detail.arguments),

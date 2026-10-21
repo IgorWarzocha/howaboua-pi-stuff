@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { createIngestor } from "./ingest.ts";
 import { object } from "./normalise.ts";
+import { createProvenance } from "./provenance.ts";
 
 const CHUNK_BYTES = 256 * 1024;
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
@@ -82,6 +83,12 @@ export function createIndexer(
 	observationsRoot?: string,
 ) {
 	const ingest = createIngestor(db);
+	const provenance = createProvenance(db);
+	const missingHeaders = db.prepare<[number], FileState>(`
+		SELECT f.* FROM files f LEFT JOIN session_headers h ON h.file_id=f.id
+		WHERE h.file_id IS NULL AND f.offset>0 AND f.blocked=0 AND f.id>?
+		ORDER BY f.id LIMIT 64
+	`);
 	const getFile = db.prepare<[string], FileState>(
 		"SELECT * FROM files WHERE path=?",
 	);
@@ -105,6 +112,75 @@ export function createIndexer(
 	let bytesRead = 0;
 	let stopped = false;
 	let lastScan: string | null = null;
+
+	async function recoverHeaders(keepGoing: () => boolean): Promise<void> {
+		let cursor = 0;
+		while (!stopped && keepGoing()) {
+			const batch = missingHeaders.all(cursor);
+			if (!batch.length) return;
+			for (const file of batch) {
+				if (stopped || !keepGoing()) return;
+				cursor = file.id;
+				let handle;
+				try {
+					handle = await open(file.path, "r");
+					const info = await handle.stat();
+					if (
+						`${info.dev}:${info.ino}` !== file.identity ||
+						info.size < file.offset ||
+						(info.size === file.offset && info.mtimeMs !== file.mtime)
+					)
+						continue;
+					// Native session headers are small. Never replay bodies or alter source cursors.
+					const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, file.offset));
+					const first = await handle.read(
+						buffer,
+						0,
+						Math.min(1024, buffer.length),
+						0,
+					);
+					let length = first.bytesRead;
+					let end = buffer.subarray(0, length).indexOf(10);
+					if (end < 0 && length < buffer.length) {
+						const rest = await handle.read(
+							buffer,
+							length,
+							buffer.length - length,
+							length,
+						);
+						length += rest.bytesRead;
+						end = buffer.subarray(0, length).indexOf(10);
+					}
+					bytesRead += length;
+					let record = {};
+					if (end >= 0) {
+						try {
+							record = object(
+								JSON.parse(buffer.subarray(0, end).toString("utf8")),
+							);
+						} catch (error) {
+							if (!(error instanceof SyntaxError)) throw error;
+						}
+					}
+					db.transaction(() => {
+						provenance.recordHeader(file.id, record);
+						revision.run();
+					})();
+				} catch (error) {
+					if (
+						!(
+							error instanceof Error &&
+							"code" in error &&
+							error.code === "ENOENT"
+						)
+					)
+						throw error;
+				} finally {
+					await handle?.close();
+				}
+			}
+		}
+	}
 
 	async function changedFiles(): Promise<Candidate[]> {
 		const files = (
@@ -283,6 +359,7 @@ export function createIndexer(
 	async function scan(keepGoing: () => boolean = () => true): Promise<void> {
 		progress("indexing");
 		try {
+			await recoverHeaders(keepGoing);
 			let candidates = await changedFiles();
 			let refreshedAt = Date.now();
 			let position = 0;

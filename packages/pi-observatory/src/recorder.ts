@@ -8,6 +8,10 @@ import {
 	type SlashCommandInfo,
 } from "@earendil-works/pi-coding-agent";
 import { stateDirectory } from "./config.ts";
+import {
+	type ObservationOrigin,
+	recordToolObservations,
+} from "./tool-recorder.ts";
 
 type EditorFactory = NonNullable<
 	ReturnType<ExtensionContext["ui"]["getEditorComponent"]>
@@ -22,7 +26,7 @@ interface ObservationFile {
 
 // Pi's public inventory scopes recording to extensions, skills and templates.
 // Builtin controls and unlisted slash text are outside the usage audit.
-export function recordCommandSubmissions(pi: ExtensionAPI): void {
+export function recordObservations(pi: ExtensionAPI): void {
 	const files = new Map<string, ObservationFile>();
 	let detach: (() => void) | undefined;
 	let factory: EditorFactory | undefined;
@@ -34,7 +38,7 @@ export function recordCommandSubmissions(pi: ExtensionAPI): void {
 		if (reportedWriteError) return;
 		reportedWriteError = true;
 		ctx.ui.notify(
-			"Observatory could not save command usage. Your submission will continue. Check free space and Observatory storage permissions.",
+			"Observatory could not save an observation. Your session will continue. Check free space and Observatory storage permissions.",
 			"warning",
 		);
 	}
@@ -43,9 +47,10 @@ export function recordCommandSubmissions(pi: ExtensionAPI): void {
 		ctx: ExtensionContext,
 		customType: string,
 		data: object,
+		origin?: ObservationOrigin,
 	): boolean {
 		try {
-			const sessionId = ctx.sessionManager.getSessionId();
+			const sessionId = origin?.sessionId ?? ctx.sessionManager.getSessionId();
 			const timestamp = new Date().toISOString();
 			const record = `${JSON.stringify({
 				id: randomUUID(),
@@ -72,7 +77,7 @@ export function recordCommandSubmissions(pi: ExtensionAPI): void {
 						type: "session",
 						version: 3,
 						id: sessionId,
-						cwd: ctx.sessionManager.getCwd(),
+						cwd: origin?.cwd ?? ctx.sessionManager.getCwd(),
 						timestamp,
 					})}\n`,
 					{ flag: "wx", mode: 0o600 },
@@ -197,6 +202,7 @@ export function recordCommandSubmissions(pi: ExtensionAPI): void {
 		ctx.ui.setEditorComponent(observed);
 	}
 
+	recordToolObservations(pi, append, notifyFailure);
 	pi.on("session_start", (_event, ctx) => attach(ctx));
 	pi.on("before_agent_start", (_event, ctx) => attach(ctx));
 	pi.on("session_shutdown", () => detach?.());

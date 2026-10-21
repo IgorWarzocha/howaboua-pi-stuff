@@ -1,6 +1,8 @@
 import Database from "better-sqlite3";
 import { assess, object } from "./normalise.ts";
+import { initialiseProvenance } from "./provenance.ts";
 import { initialiseSummaries } from "./summaries.ts";
+import { initialiseToolObservations } from "./tool-observations.ts";
 import { initialiseUsage } from "./usage.ts";
 
 export function openDatabase(
@@ -97,6 +99,7 @@ export function initialiseDatabase(
 	`);
 	initialiseSummaries(db);
 	initialiseUsage(db);
+	initialiseToolObservations(db);
 	// Derive session membership from cached entries when adding this index. No source JSONL replay.
 	if (
 		!db.prepare("SELECT 1 FROM metadata WHERE key='sessionMembership'").get()
@@ -123,6 +126,7 @@ export function initialiseDatabase(
 		sourceRoot,
 	);
 	db.prepare("INSERT OR IGNORE INTO metadata VALUES ('revision', '0')").run();
+	initialiseProvenance(db);
 	if (version === 1) reclassifyRecordedResults(db);
 	else if (version === 0) db.pragma("user_version = 2");
 }

@@ -44,6 +44,7 @@ export interface IndexStatus {
 		nativeIncomplete: number;
 		uncorrelatedNativeOmitted: number;
 		unreadableCachedResults: number;
+		unmatchedObservations: number;
 	};
 }
 
@@ -64,7 +65,7 @@ export interface CallRow {
 	provider: string;
 	model: string;
 	tool: string;
-	scope: "direct" | "nested";
+	scope: "direct" | "nested" | "model";
 	outcome: Outcome;
 	exitCode: number | null;
 	signature: string;
@@ -93,4 +94,11 @@ export interface CallDetail {
 		text: string;
 	}>;
 	notes: string[];
+	observations: Array<{
+		callId: string;
+		source: string;
+		durationMs: number | null;
+		arguments: string;
+		result: string;
+	}>;
 }

@@ -199,7 +199,7 @@ export function createFiltersView(onApply) {
 		}
 		element("pattern").hidden = !query.has("signature");
 		element("pattern-text").textContent = query.has("signature")
-			? `${query.get("tool") || "All tools"} · ${query.get("model") || "All models"} · ${query.get("signature")}`
+			? `${query.get("tool") || "All operations"} · ${query.get("model") || "All models"} · ${query.get("signature")}`
 			: "";
 		const active = Array.from(query).filter(
 			([key, value]) => key !== "scope" || value !== "all",

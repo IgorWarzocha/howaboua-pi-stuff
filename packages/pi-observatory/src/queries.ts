@@ -39,7 +39,7 @@ function filters(params: URLSearchParams) {
 		values[name] = value;
 	}
 	const scope = params.get("scope") || "all";
-	if (!["all", "direct", "nested"].includes(scope))
+	if (!["all", "direct", "nested", "model"].includes(scope))
 		throw new BadRequest("Invalid call scope");
 	if (scope !== "all") {
 		conditions.push("scope=@scope");
@@ -221,6 +221,30 @@ export function createQueries(db: Database.Database) {
 				"SELECT arguments_missing,duration_ms FROM native_receipts WHERE call_id=?",
 			)
 			.get(id);
+		const recorded = db
+			.prepare<[number], { data: string }>(
+				"SELECT data FROM tool_observations WHERE linked_call=? ORDER BY timestamp,call_id LIMIT 17",
+			)
+			.all(id);
+		const observations: CallDetail["observations"] = recorded
+			.slice(0, 16)
+			.map(({ data }) => {
+				const value = object(JSON.parse(data));
+				const source = object(value["sourceInfo"]);
+				return {
+					callId: string(value["callId"]),
+					source: string(source["path"]) || string(source["source"]),
+					durationMs:
+						typeof value["durationMs"] === "number"
+							? value["durationMs"]
+							: null,
+					arguments: string(value["arguments"]),
+					result: string(value["result"]),
+				};
+			});
+		const captured = observations.some(
+			(item) => item.callId === stored.callId && item.result,
+		);
 		const context = db
 			.prepare<[number, number, number], CallDetail["context"][number]>(`
 			SELECT f.line,e.role,e.timestamp,e.text FROM file_entries f JOIN entries e ON e.key=f.entry_key
@@ -237,11 +261,19 @@ export function createQueries(db: Database.Database) {
 			callId: stored.callId,
 			parentCallId: stored.parentCallId,
 			context,
+			observations,
 			notes: [
+				...(recorded.length > 16
+					? [
+							"Showing the first 16 live observations; the complete set remains in SQLite.",
+						]
+					: []),
 				...(native
 					? [
-							"Native call status recorded; Pi does not store its result content.",
-							...(native.arguments_missing
+							captured
+								? "Nested result captured through Pi's public execution events."
+								: "Native call status recorded; result content was not captured.",
+							...(native.arguments_missing && !captured
 								? ["Arguments were not recorded."]
 								: []),
 							...(native.duration_ms === null
@@ -252,7 +284,14 @@ export function createQueries(db: Database.Database) {
 				...(stored.unpaired
 					? ["No matching initiating call. Model unknown."]
 					: []),
-				...(call.scope === "nested" ? ["Timestamp from parent call."] : []),
+				...(call.scope !== "direct"
+					? ["Timestamp and initiating model from parent call."]
+					: []),
+				...(call.scope === "model"
+					? [
+							"Native Code Mode model operation, not a registered tool call. Model input and output are not recorded by Pi.",
+						]
+					: []),
 				...(call.outcome === "incomplete" ? ["No final result recorded."] : []),
 			],
 		};
@@ -362,6 +401,12 @@ export function createQueries(db: Database.Database) {
 				uncorrelatedNativeOmitted:
 					nativeCoverage?.uncorrelatedNativeOmitted ?? 0,
 				unreadableCachedResults: nativeCoverage?.unreadableCachedResults ?? 0,
+				unmatchedObservations:
+					db
+						.prepare<[], { count: number }>(
+							"SELECT COUNT(*) count FROM tool_observations WHERE linked_call IS NULL",
+						)
+						.get()?.count ?? 0,
 			},
 		};
 	}

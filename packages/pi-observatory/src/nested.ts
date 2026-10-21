@@ -38,6 +38,49 @@ export function createNestedIngestor(db: Database.Database) {
 		const origin = cell ? findCell.get(source.id, cell) : undefined;
 		const nativeKey = (id: string) =>
 			`native:${hash(`${origin?.key ?? outer.key}:${id}`)}`;
+		// These are model API operations, not AgentTool receipts. Preserve that distinction.
+		if (tool === "codemode" && Array.isArray(details["calls"])) {
+			for (const value of details["calls"]) {
+				const operation = object(value);
+				const name = string(operation["name"]);
+				const id = string(operation["id"]);
+				const status = string(operation["status"]);
+				if (
+					!["models.classify", "models.generateImages"].includes(name) ||
+					!id ||
+					!["ok", "error", "cancelled", "running"].includes(status)
+				)
+					continue;
+				const call = insertCall(
+					{
+						key: `model:${hash(`${outer.key}:${id}`)}`,
+						callId: id,
+						initiator: null,
+						file: source.id,
+						line,
+						timestamp: outer.timestamp,
+						provider: outer.provider,
+						model: outer.model,
+						tool: name,
+						scope: "model",
+						project: outer.project,
+						parent: outer.id,
+						unpaired: 0,
+					},
+					{ model: operation["args"], note: "Model input not recorded by Pi" },
+				);
+				recordResult(
+					call,
+					{
+						nativeModelOperation: operation,
+						note: "Model output not recorded by Pi",
+						...(operation["error"] ? { error: operation["error"] } : {}),
+					},
+					{ entry: key, file: source.id, line, missing: 0, dropped: 0 },
+					status === "ok" ? "done" : status,
+				);
+			}
+		}
 		const traces = Array.isArray(details["traces"]) ? details["traces"] : [];
 		for (const [index, value] of traces.entries()) {
 			const trace = object(value);

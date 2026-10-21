@@ -1,5 +1,6 @@
 import { setTimeout } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
+import { createCodemodeBackfill } from "./codemode-backfill.ts";
 import { openDatabase } from "./database.ts";
 import { createIndexer } from "./indexer.ts";
 import type { MonitorMode } from "./monitor.ts";
@@ -8,6 +9,7 @@ import {
 	createSkillFileBackfill,
 	createSkillResultBackfill,
 } from "./skill-files-backfill.ts";
+import { createObservedToolBackfill } from "./tool-observations.ts";
 
 const { database, sessions, observationsRoot } = workerData as {
 	database: string;
@@ -17,6 +19,8 @@ const { database, sessions, observationsRoot } = workerData as {
 const db = openDatabase(database);
 const indexer = createIndexer(db, sessions, observationsRoot);
 const backfill = createNestedBackfill(db);
+const codemode = createCodemodeBackfill(db);
+const observations = createObservedToolBackfill(db);
 const fileReads = createSkillFileBackfill(db);
 const skillResults = createSkillResultBackfill(db);
 const shutdown = new AbortController();
@@ -64,7 +68,14 @@ try {
 		const progress = globalThis.setInterval(() => publish(true), 2000);
 		try {
 			await indexer.scan(keepGoing);
-			while (keepGoing() && (backfill() || skillResults() || fileReads())) {
+			while (
+				keepGoing() &&
+				(backfill() ||
+					codemode() ||
+					skillResults() ||
+					fileReads() ||
+					observations())
+			) {
 				await setTimeout(0);
 			}
 		} finally {
