@@ -238,11 +238,11 @@ export function ingest(
 				const fresh = blankCursor(identity, cursor.rewrites + 1);
 				db.exec("BEGIN IMMEDIATE");
 				try {
-					db.prepare("DELETE FROM files WHERE name=?").run(name);
-					db.prepare("INSERT INTO files VALUES (?, ?)").run(
-						name,
+					db.prepare("UPDATE files SET data=? WHERE name=?").run(
 						JSON.stringify(fresh),
+						name,
 					);
+					db.prepare("DELETE FROM rebill_files WHERE name=?").run(name);
 					db.exec(
 						"UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
 					);
