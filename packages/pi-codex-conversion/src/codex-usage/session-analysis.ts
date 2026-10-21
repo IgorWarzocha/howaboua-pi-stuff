@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { emptyStats, type CodexSpend, type SpendStats } from "./ledger-schema.ts";
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -35,7 +35,7 @@ async function* sessionFiles(root: string, from: number, unreadable: (path: stri
 	}
 }
 
-interface SessionUsageOptions { root: string; from: number; to: number; model?: string | undefined }
+interface SessionUsageOptions { root: string; from: number; to: number; cwd?: string | undefined; model?: string | undefined }
 interface SessionSpend extends CodexSpend { path: string; reasoning: string; reasoningSource: string; nonstandard: boolean }
 
 async function* jsonLines(input: AsyncIterable<string>): AsyncGenerator<string> {
@@ -53,6 +53,7 @@ async function* jsonLines(input: AsyncIterable<string>): AsyncGenerator<string> 
 }
 
 export async function scanSessionUsage(options: SessionUsageOptions, visit: (spend: SessionSpend) => void) {
+	const cwd = options.cwd === undefined ? undefined : resolve(options.cwd);
 	const seen = new Set<string>();
 	const sessions = new Set<string>();
 	let skippedCopies = 0, incompleteEntries = 0, unattributedUsage = 0, unreadablePaths = 0;
@@ -68,6 +69,7 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 		let readError: Error | undefined;
 		input.on("error", (error) => { readError = error; });
 		let lineNumber = 0;
+		let headerPending = cwd !== undefined;
 		try {
 			for await (const line of lines) {
 				lineNumber++;
@@ -80,6 +82,18 @@ export async function scanSessionUsage(options: SessionUsageOptions, visit: (spe
 					continue;
 				}
 				if (!entry) continue;
+				if (headerPending && cwd !== undefined) {
+					const sessionCwd = entry["cwd"];
+					if (entry["type"] !== "session" || typeof sessionCwd !== "string" || !isAbsolute(sessionCwd)) {
+						incompleteEntries++;
+						if (warnings.length < 10) warnings.push(`Cannot determine session working directory: ${path}`);
+						break;
+					}
+					const pathFromCwd = relative(cwd, sessionCwd);
+					if (pathFromCwd === ".." || pathFromCwd.startsWith(`..${sep}`) || isAbsolute(pathFromCwd)) break;
+					headerPending = false;
+					continue;
+				}
 				const id = entry["id"], parent = entry["parentId"];
 				const inherited = typeof parent === "string" ? levels.get(parent) : undefined;
 				const level = entry["type"] === "thinking_level_change" && typeof entry["thinkingLevel"] === "string" ? entry["thinkingLevel"] : inherited;
@@ -134,6 +148,7 @@ export async function analyseSessions(options: SessionUsageOptions & { limit: nu
 	});
 	return {
 		root: resolve(options.root),
+		...(options.cwd === undefined ? {} : { cwd: resolve(options.cwd) }),
 		from: new Date(options.from).toISOString(), toExclusive: new Date(options.to).toISOString(),
 		nonstandard,
 		scope: "Local Codex session entries, not account-isolated. Independent of the ledger; do not add these totals to it.",

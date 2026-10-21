@@ -15,7 +15,7 @@ export async function startUsageAnalysis(pi: ExtensionAPI, ctx: ExtensionCommand
 		"Analyse my Codex spending within the current working directory and its descendants. Use the bundled read-only report script, starting with its help and summary:",
 		`node ${script} --help`,
 		`node ${script} summary --file ${ledger}`,
-		`Session history root: ${JSON.stringify(usageSessionRoot(ctx.sessionManager.getSessionDir()))}`,
+		`Session scans: --root ${shellQuote(usageSessionRoot(ctx.sessionManager.getSessionDir()))} --cwd ${shellQuote(ctx.cwd)}`,
 		"Compare reset windows and month trends; use bounded session ranges for model and reasoning breakdowns. Ledger totals are machine-wide context, not directory totals. Distinguish recorded API-equivalent costs, quota estimates and missing coverage. Suggest specific folders or sessions for deeper analysis and ask before drilling down.",
 	].join("\n"));
 }

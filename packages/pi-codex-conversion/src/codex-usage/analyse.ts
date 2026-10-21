@@ -11,7 +11,7 @@ const HELP = `Read-only Codex usage analysis. Outputs JSON; never modifies the l
 node <this-file> summary --file LEDGER [--account KEY]
 node <this-file> windows --file LEDGER [--account KEY] [--from ISO] [--to ISO]
 node <this-file> months --file LEDGER [--account KEY]
-node <this-file> sessions --root DIR_OR_JSONL --from ISO --to ISO [--model ID] [--limit 20]
+node <this-file> sessions --root DIR_OR_JSONL --from ISO --to ISO [--cwd DIR] [--model ID] [--limit 20]
 node <this-file> history --root DIR_OR_JSONL --from ISO --to ISO --window-start ISO
 
 summary: current/previous window, recorded API-equivalent dollars, tokens, spend/day comparisons, coverage
@@ -22,6 +22,7 @@ history: bounded session aggregates for one-time bootstrap; prints JSON without 
 
 --file is required for ledger reports; Pi's Usage analysis action supplies its ledger path
 --root is required for session scans; pass the session directory or one JSONL file
+--cwd limits sessions to their recorded working directory and its descendants; omitted scans all directories under --root
 --account accepts an exact hashed key; omitted selects all accounts separately
 
 Ledger scope: local requests recorded by Pi-Codex, including native compaction and generated keepalive.
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
 		options: {
 			help: { type: "boolean", short: "h" }, account: { type: "string" }, file: { type: "string" },
 			from: { type: "string" }, to: { type: "string" }, root: { type: "string" }, model: { type: "string" }, limit: { type: "string" },
-			"window-start": { type: "string" },
+			"window-start": { type: "string" }, cwd: { type: "string" },
 		},
 	});
 	if (values.help) { process.stdout.write(`${HELP}\n`); return; }
@@ -58,6 +59,8 @@ async function main(): Promise<void> {
 	const to = values.to ? Date.parse(values.to) : Date.now();
 	if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) throw new Error("Provide valid ISO dates with --from before --to.");
 	if (values["window-start"] && action !== "history") throw new Error("--window-start applies only to history.");
+	if (values.cwd !== undefined && action !== "sessions") throw new Error("--cwd applies only to sessions.");
+	if (values.cwd !== undefined && !values.cwd.trim()) throw new Error("--cwd requires a directory.");
 	let result: unknown;
 	if (action === "history" || action === "sessions") {
 		if (!values.from || !values.to) throw new Error(`${action} requires --from and --to to bound the scan.`);
@@ -72,7 +75,7 @@ async function main(): Promise<void> {
 		} else {
 			const limit = values.limit === undefined ? 20 : Number(values.limit);
 			if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error("--limit must be an integer from 1 to 1000.");
-			result = await analyseSessions({ root, from, to, model: values.model, limit });
+			result = await analyseSessions({ root, from, to, cwd: values.cwd, model: values.model, limit });
 		}
 	} else {
 		if (values.root || values.model || values.limit) throw new Error("--root applies only to session scans; --model and --limit apply only to sessions.");
