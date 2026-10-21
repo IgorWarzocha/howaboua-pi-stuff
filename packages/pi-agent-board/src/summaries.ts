@@ -105,7 +105,13 @@ export class ThreadSummaries {
 }
 
 export function summaryPreview(
-	{ text, ...metadata }: ThreadSummary & { has_newer_posts: boolean },
+	{
+		text,
+		provider: _provider,
+		model: _model,
+		reasoning: _reasoning,
+		...metadata
+	}: ThreadSummary & { has_newer_posts: boolean },
 	chars: number,
 ) {
 	const points = Array.from(text);

@@ -11,7 +11,7 @@
 - Code/Notebook notes/history use registered routers with ordinary JS arguments. Only trusted remote-scope.ts host calls omit encrypted-arguments headers. Direct model contracts stay encrypted.
 - Protocol-2 host events attach encrypted outputs to the original exec ID, including after wait. Replay saved protocol-1 pairs unchanged. Never rewrite tool records or register receivers. JavaScript gets receipts. Fresh Remote notes require current-run results and protected delivery. new_context stays native, never inside exec.
 - Local/Tree use flat notes/history routers on every Responses transport. Only Remote uses reserved namespaces with exact schemas and encrypted arguments.
-- Local writes are model-invisible custom entries. Tree snapshots across cuts. Remote failures remain failures.
+- Local writes are model-invisible custom entries. Preserve `codexHistoryNotes.source` in result details as local-write proof for saved-notes.ts, even when omitted from model receipts. Tree snapshots across cuts. Remote failures remain failures.
 - Encrypted notes/history stays in top-level Responses tool results, never unwrapped inside Code/Notebook.
 - agent-identity.ts owns family identity independently of branches. Bind idle children before work. Fork-family callers explicitly assert the last inherited entry through binding-startup.ts; classify only later startup records and recheck after async auth. Never infer fork freshness from timestamps or rewrite copied records. External notes use local family routing without rewriting historical Remote identity/account provenance.
 - Sharing opt-in gates new children, not existing identity/routes. Never detach a family when sharing is disabled.
