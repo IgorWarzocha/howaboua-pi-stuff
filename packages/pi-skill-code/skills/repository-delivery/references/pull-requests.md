@@ -50,14 +50,6 @@ Focused layer: state the direct-parent change, dependency, and stack position. U
 
 Before publishing or updating, compare title and body with the final diff. Correct stale scope, evidence, links, risks, and review focus. Use `Closes #123` only for full resolution and `Refs #123` otherwise. Pass multiline Markdown with `--body-file`.
 
-## Codex review
-
-Request only when the user asks or repository instructions require it. Do not repost after routine updates. Use:
-
-```text
-@codex please review this PR and give me 10-20 issues if any. Categorize findings as required, recommended, or optional.
-```
-
 ## Release and finish
 
 Follow the repository's release system. Create only expected artifacts. Never invent version bumps, changelog history, or funding metadata. Ask when release intent is unclear.
