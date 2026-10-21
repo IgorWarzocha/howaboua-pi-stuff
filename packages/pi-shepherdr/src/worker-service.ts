@@ -18,10 +18,9 @@ import { attributeAgentPrompt } from "./messages.js";
 import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
 import type { PaneInfo } from "./types.js";
+import { PULSE_WORKER_FLAG, type registerWorkerRole } from "./worker-role.js";
 
 const ENTRY = "herdr-owned-worker-v1";
-const WORKER_MARKER = "herdr-pulse-worker-v1";
-const WORKER_FLAG = "shepherdr-pulse-worker";
 const RUNNER_PROTOCOL = "@howaboua/pi-pulses/runner/v1";
 // Structural implementation of Pulses' optional runner ABI, without a private-package dependency.
 interface PulseRun {
@@ -84,28 +83,12 @@ export function registerWorkerService(
 	fleet: AgentFleet,
 	shared: SharedAgentContext,
 	board: AgentBoard,
+	workerRole: ReturnType<typeof registerWorkerRole>,
 ): void {
 	let active: ExtensionContext | undefined;
 	let busy = false;
-	pi.registerFlag(WORKER_FLAG, {
-		type: "boolean",
-		default: false,
-		description: "Run as a detached pulse worker",
-	});
-	const markedWorker = (ctx: ExtensionContext) =>
-		ctx.sessionManager
-			.getEntries()
-			.some(
-				(entry) =>
-					entry.type === "custom" &&
-					entry.customType === WORKER_MARKER &&
-					(entry.data as { sessionId?: unknown } | undefined)?.sessionId ===
-						ctx.sessionManager.getSessionId(),
-			);
 	const isController = (ctx: ExtensionContext) =>
-		ctx.mode === "tui" &&
-		pi.getFlag(WORKER_FLAG) !== true &&
-		!markedWorker(ctx);
+		ctx.mode === "tui" && !workerRole.isPulseWorker(ctx.sessionManager);
 	function assertContext(ctx: ExtensionContext) {
 		if (!isController(ctx))
 			throw new Error("Detached workers cannot claim or schedule pulses");
@@ -271,7 +254,7 @@ export function registerWorkerService(
 							);
 						const args = [
 							...profileArgs,
-							`--${WORKER_FLAG}`,
+							`--${PULSE_WORKER_FLAG}`,
 							...(worker ? ["--session", worker.sessionPath] : []),
 						];
 						const reservation = await reserveAgentName(runtime, input.title);
@@ -404,12 +387,6 @@ export function registerWorkerService(
 	});
 	pi.on("session_start", () => {
 		active = undefined;
-	});
-	pi.on("before_agent_start", (_event, ctx) => {
-		if (pi.getFlag(WORKER_FLAG) === true && !markedWorker(ctx))
-			pi.appendEntry(WORKER_MARKER, {
-				sessionId: ctx.sessionManager.getSessionId(),
-			});
 	});
 	pi.on("resources_discover", (_event, ctx) => {
 		active = ctx;

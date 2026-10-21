@@ -252,6 +252,22 @@ Ordinary delegation stays inside `agents`. For workspace, tab, pane, process, fo
 
 Herdr still owns terminals, layout, agent processes and restored sessions. Shepherdr owns event subscriptions, remote routing, the fleet widget and purple settlement messages.
 
+## Worker role integration
+
+Every Shepherdr launch carries `--shepherdr-worker`, including remote workers, profiles without prompts and resumed workers. The role survives session resume after the first task. Forks do not inherit the saved role, but a fork opened inside a flagged worker process is still a worker. Existing agents reached through `assign` or `attach` are not automatically classified as workers. Pi Codex Conversion is not required.
+
+Other extensions can query the current role synchronously through public Pi events, including during `session_start`:
+
+```ts
+let worker = false;
+pi.events.emit("shepherdr:worker-role:v1", {
+  sessionManager: ctx.sessionManager,
+  reply: (value: boolean) => { worker = value; },
+});
+```
+
+No reply means Shepherdr is unavailable. The query adds no model instructions or tools. Worker launch flags describe the process, so new sessions opened inside that process remain workers.
+
 ## Pulse runner
 
 Shepherdr implements Pulses' optional detached-runner contract through Pi events. Pulses owns scheduling. Each worker runs in a separate Pi process, so the main agent remains available. Its final response returns through the same monitored waking delivery as asynchronous `agents` calls, including ordinary kickoff preparation and rollover admission. There is no passive-result or blocking execution mode.

@@ -2,4 +2,4 @@
 "@howaboua/pi-suggestions": patch
 ---
 
-Add opt-in next-step suggestions with editable inline drafts and /suggestions model, reasoning and on/off settings.
+Add opt-in next-step suggestions for human terminal sessions, with editable inline drafts and /suggestions model, reasoning and on/off settings. Private prediction history reuses provider caching within each chat context window.

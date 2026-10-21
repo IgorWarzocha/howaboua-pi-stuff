@@ -14,7 +14,11 @@ Requires Pi 1.3 or later. Included in `pi-extensions` and `pi-stuff`.
 
 Open `/suggestions`, choose a model and switch suggestions on. They start off, with no model selected. The menu also offers supported reasoning levels, model search and an off switch. These settings are global; they do not change the main chat model.
 
-Suggestions use the selected model's quota and may incur API charges. Each prediction sends that provider a bounded text excerpt of the current conversation, including a compaction summary when available. It excludes tool results, images and hidden reasoning. Predictions use separate requests without tools and do not enter chat history.
+Suggestions use the selected model's quota and may incur API charges. They send that provider bounded excerpts of user messages and completed assistant responses, including a compaction summary when available. Tool results, images and the main chat's hidden reasoning are excluded.
+
+Predictions keep a separate, in-memory conversation without tools. Later requests append new conversation turns and reuse its cache where the provider supports it. Cache hits are not guaranteed. This private history never enters your chat and is discarded on a new Notes context window, Pi compaction, session navigation, model changes, switching suggestions off or shutdown.
+
+Suggestions run only in interactive terminal sessions. Shepherdr-launched workers and Pi's RPC and print modes do not request them. Update Shepherdr alongside Suggestions to identify workers reliably.
 
 ## Use
 

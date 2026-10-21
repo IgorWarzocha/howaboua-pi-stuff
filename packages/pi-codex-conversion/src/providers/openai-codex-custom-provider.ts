@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	getDeclaredTools,
 	normalizeContext,
+	registerSessionResourceCleanup,
 	type Api,
 	type Context,
 	type Model,
@@ -45,6 +46,13 @@ export type { ResponsesBody } from "./openai-codex/types.ts";
 export function closeOpenAICodexKeepaliveWebSocketSession(sessionId: string): void {
 	closeOpenAICodexWebSocketSessions(codexCacheKeepaliveSocketSessionId(sessionId));
 }
+
+// Like Pi's stock provider, cleanup lives with the shared module pool, not an
+// individual extension registration that may shut down while others still use it.
+registerSessionResourceCleanup(sessionId => {
+	closeOpenAICodexWebSocketSessions(sessionId);
+	if (sessionId) closeOpenAICodexKeepaliveWebSocketSession(sessionId);
+});
 
 async function prepareCodexRequestBody<TApi extends Api>(
 	model: Model<TApi>,

@@ -5,6 +5,7 @@
 - Fixed Code and Notebook losing nested Pi tools’ termination signals after successful cells.
 - Code and Notebook execution traces retain Pi nested-call identities for accurate usage accounting.
 - Background requests no longer overwrite the session’s cache status; diagnostics logs still include them.
+- Closing an auxiliary session through Pi's public cleanup API now releases its Codex connections without affecting the main chat.
 - Notebook startup lists reusable bindings without volatile memory, age or checkpoint diagnostics; full status remains available on demand.
 - GPT prompt mode uses denser runtime guidance.
 - Notebook guidance distinguishes top-level JSON input from direct objects inside exec.

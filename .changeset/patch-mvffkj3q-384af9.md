@@ -7,3 +7,4 @@
 - Worker-notice warnings now identify the affected machine and explain how to reconnect.
 - GPT-mode Board briefings use denser guidance.
 - Blocking agent calls can run in parallel while the controller waits for their results.
+- Launched workers identify themselves to compatible extensions so human-only features can stay off.

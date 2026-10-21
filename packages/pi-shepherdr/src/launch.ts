@@ -11,6 +11,7 @@ import {
 } from "./herdr.js";
 import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type { PaneInfo } from "./types.js";
+import { WORKER_FLAG } from "./worker-role.js";
 
 export const START_PLACEMENTS = ["new_workspace", "new_tab", "pane"] as const;
 const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
@@ -227,8 +228,19 @@ export async function startAgent(
 		);
 	}
 	const label = params.label?.trim() || name;
-	const args = ["--name", label, ...(options.agentArgs ?? [])];
-	if (parseArgs(args).noSession) {
+	const args = [
+		`--${WORKER_FLAG}`,
+		"--name",
+		label,
+		...(options.agentArgs ?? []),
+	];
+	const parsed = parseArgs(args);
+	if (parsed.unknownFlags.get(WORKER_FLAG) !== true) {
+		throw new Error(
+			"spawn requires its worker role; remove --shepherdr-worker from profile pi_args",
+		);
+	}
+	if (parsed.noSession) {
 		throw new Error(
 			"spawn requires a persistent Pi session; remove --no-session from profile pi_args",
 		);

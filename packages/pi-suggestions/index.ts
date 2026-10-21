@@ -3,11 +3,12 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { readConfig, type SuggestionConfig } from "./src/config.js";
+import { conversationSnapshot, isHumanTui } from "./src/context.js";
 import {
 	attachSuggestionEditor,
 	type SuggestionEditorHandle,
 } from "./src/editor.js";
-import { predict, predictionContext } from "./src/prediction.js";
+import { Predictions } from "./src/prediction.js";
 import { showSettings } from "./src/settings.js";
 
 export default function suggestions(pi: ExtensionAPI): void {
@@ -18,6 +19,7 @@ export default function suggestions(pi: ExtensionAPI): void {
 	let generation = 0;
 	let prompts = 0;
 	let reportedFailure = false;
+	const predictions = new Predictions();
 
 	function cancel(): void {
 		generation++;
@@ -28,8 +30,13 @@ export default function suggestions(pi: ExtensionAPI): void {
 		editor?.clear();
 	}
 
-	function load(ctx: ExtensionContext): void {
+	function reset(): void {
 		cancel();
+		predictions.reset();
+	}
+
+	function load(ctx: ExtensionContext): void {
+		reset();
 		try {
 			config = readConfig();
 			reportedFailure = false;
@@ -45,9 +52,16 @@ export default function suggestions(pi: ExtensionAPI): void {
 	pi.registerCommand("suggestions", {
 		description: "Configure next-prompt suggestions",
 		handler: async (_args, ctx) => {
+			if (!isHumanTui(pi, ctx)) {
+				ctx.ui.notify(
+					"Suggestions are available only in a human-controlled terminal session.",
+					"info",
+				);
+				return;
+			}
 			cancel();
 			await showSettings(ctx, (next) => {
-				cancel();
+				reset();
 				config = next;
 				reportedFailure = false;
 			});
@@ -55,7 +69,12 @@ export default function suggestions(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", (_event, ctx) => {
-		if (ctx.mode !== "tui") return;
+		if (!isHumanTui(pi, ctx)) {
+			reset();
+			editor?.dispose();
+			editor = undefined;
+			return;
+		}
 		load(ctx);
 		// Install once. Other extensions may compose this factory on later starts.
 		editor ??= attachSuggestionEditor(ctx, cancel);
@@ -67,25 +86,25 @@ export default function suggestions(pi: ExtensionAPI): void {
 		cancel();
 	});
 	pi.on("session_before_switch", () => {
-		cancel();
+		reset();
 	});
 	pi.on("session_before_fork", () => {
-		cancel();
+		reset();
 	});
 	pi.on("session_before_tree", () => {
-		cancel();
+		reset();
 	});
 	pi.on("session_before_compact", () => {
 		cancel();
 	});
 	pi.on("session_compact", () => {
-		cancel();
+		reset();
 	});
 	pi.on("session_tree", () => {
-		cancel();
+		reset();
 	});
 	pi.on("model_select", () => {
-		cancel();
+		reset();
 	});
 	pi.on("ui_prompt_start", () => {
 		prompts++;
@@ -95,27 +114,26 @@ export default function suggestions(pi: ExtensionAPI): void {
 		prompts = Math.max(0, prompts - 1);
 	});
 	pi.on("session_shutdown", () => {
-		cancel();
+		reset();
 		editor?.dispose();
 		editor = undefined;
 	});
 
 	pi.on("agent_settled", (event, ctx) => {
 		cancel();
-		if (
-			event.aborted ||
-			ctx.mode !== "tui" ||
-			!config.enabled ||
-			!config.model ||
-			!editor
-		)
+		if (!isHumanTui(pi, ctx)) {
+			reset();
 			return;
+		}
+		predictions.sync(conversationSnapshot(pi, ctx));
+		if (event.aborted || !config.enabled || !config.model || !editor) return;
 		const selection = config.model;
 		const epoch = generation;
 		const sessionId = ctx.sessionManager.getSessionId();
 		const leaf = ctx.sessionManager.getLeafId();
 		const eligible = () =>
 			generation === epoch &&
+			isHumanTui(pi, ctx) &&
 			config.enabled &&
 			prompts === 0 &&
 			ctx.isIdle() &&
@@ -138,13 +156,32 @@ export default function suggestions(pi: ExtensionAPI): void {
 				AbortSignal.timeout(15000),
 			]);
 			try {
-				const context = predictionContext(ctx);
-				if (!context) return;
-				const text = await predict(ctx, selection, context, signal);
+				const context = conversationSnapshot(pi, ctx);
+				predictions.sync(context);
+				if (!context.ready) return;
+				const result = await predictions.predict(
+					ctx,
+					selection,
+					context,
+					signal,
+				);
 				if (!eligible() || controller.signal.aborted) return;
 				if (signal.aborted) throw new Error("Suggestion request timed out.");
+				const current = conversationSnapshot(pi, ctx);
+				predictions.sync(current);
+				if (
+					current.window !== context.window ||
+					current.turns.length !== context.turns.length ||
+					current.turns.some(
+						(turn, index) => turn.key !== context.turns[index]?.key,
+					)
+				)
+					return;
 				reportedFailure = false;
-				if (text) editor?.show(text);
+				if (result) {
+					result.commit();
+					editor?.show(result.text);
+				}
 			} catch {
 				if (!eligible() || controller.signal.aborted || reportedFailure) return;
 				reportedFailure = true;
