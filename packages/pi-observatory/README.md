@@ -29,7 +29,15 @@ pi install ./packages/pi-observatory
 
 Start a new Pi session or reload extensions, then run `/observatory`. Like `/board`, it starts or reuses a background viewer, opens your browser and prints a link. It opens on the current session. Use **All sessions** to broaden the view, or search the session selector by project or session ID. If the browser cannot open, use the printed link.
 
-All Pi sessions share one server, one index and one collection mode per agent directory. Opening another tab does not start collection or change an existing live mode. Live monitoring continues after Pi closes until you pause it or stop the server. Restarting the server returns to paused. No agent tool or prompt instructions are added.
+All Pi sessions share one server, one index and one collection mode per agent directory. Opening another tab does not start collection or change an existing live mode. Live monitoring continues after Pi closes until you pause it or stop the server. Restarting the server returns to paused. No standing agent tools or prompt instructions are added.
+
+Use `/observatory agent <scope>` to investigate something you notice:
+
+```text
+/observatory agent I've noticed lots of cache misses today. Which sessions, and can we trace why?
+```
+
+This sends your question to the current agent with the bundled investigation guide and your configured data locations. The agent investigates first, then discusses findings and next steps with you. It does not open the browser or start collection. Include the relevant dates or filters in your question; browser selections are not sent automatically.
 
 Each `/observatory` opening applies that Pi session's theme to the shared viewer, including custom colours. After changing Pi's theme, run `/observatory` again. Reload other open tabs to pick up the colours. The last applied theme survives server restarts. A standalone viewer uses the browser's light or dark preference until first opened from Pi.
 
