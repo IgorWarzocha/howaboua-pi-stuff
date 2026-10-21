@@ -45,6 +45,7 @@ export function openIndex(
 	db.prepare("INSERT OR IGNORE INTO meta VALUES ('directory', ?)").run(
 		directory,
 	);
+	db.exec("INSERT OR IGNORE INTO meta VALUES ('revision', '0')");
 	return db;
 }
 

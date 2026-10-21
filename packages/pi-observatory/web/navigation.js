@@ -11,7 +11,8 @@ import { element } from "./view-dom.js";
  * applyFilters: (push?: boolean, scroll?: number) => Promise<unknown>,
  * calls: ReturnType<typeof import('./calls-view.js').createCallsView>,
  * overview: ReturnType<typeof import('./overview-view.js').createOverviewView>,
- * customTabs: ReturnType<typeof import('./custom-tabs-view.js').createCustomTabsView>
+ * customTabs: ReturnType<typeof import('./custom-tabs-view.js').createCustomTabsView>,
+ * onViewChange: () => void
  * }} options
  */
 export function createNavigation({
@@ -21,6 +22,7 @@ export function createNavigation({
 	calls,
 	overview,
 	customTabs,
+	onViewChange,
 }) {
 	const outcome = /** @type {HTMLSelectElement} */ (element("outcome"));
 	let activeView = "overview";
@@ -72,6 +74,7 @@ export function createNavigation({
 		}
 		showView(id);
 		saveNavigation(true, 0);
+		onViewChange();
 		window.scrollTo(0, 0);
 	}
 	/** @param {string} id */

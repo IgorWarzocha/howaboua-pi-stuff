@@ -81,6 +81,7 @@ export interface CacheQueryResult {
 
 export interface CacheSnapshot {
 	version: 2;
+	revision: number;
 	coverage: {
 		directory: string;
 		directoryAvailable: boolean;

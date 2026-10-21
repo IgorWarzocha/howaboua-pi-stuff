@@ -32,6 +32,8 @@ export interface CustomTabs {
 		path: string,
 	): Promise<{ data: Buffer; type: string } | undefined>;
 	start(): void;
+	once(): Promise<void>;
+	pause(): Promise<void>;
 	close(): Promise<void>;
 }
 
@@ -117,6 +119,17 @@ export async function createCustomTabs(
 		},
 		start: () => {
 			if (!closed) for (const { collector } of tabs.values()) collector.start();
+		},
+		once: async () => {
+			if (!closed)
+				await Promise.all(
+					[...tabs.values()].map(({ collector }) => collector.once()),
+				);
+		},
+		pause: async () => {
+			await Promise.all(
+				[...tabs.values()].map(({ collector }) => collector.pause()),
+			);
 		},
 		close: async () => {
 			closed = true;

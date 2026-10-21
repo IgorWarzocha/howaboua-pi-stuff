@@ -1,4 +1,4 @@
-Built-in indexing is the only session-file reader for core views. Core HTTP queries and detail views use SQLite, never source JSONL. Custom-tab collectors run separately and publish bounded snapshots; HTTP requests never trigger collection. File cursor, partial tail, entries, calls, search index and summaries commit atomically. Preserve origin-model attribution across exec/wait snapshots and event identity across copied fork history.
+Built-in indexing is the only session-file reader for core views. Core HTTP queries and detail views use SQLite, never source JSONL. Custom-tab collectors run separately and publish bounded snapshots; only explicit monitoring controls trigger collection, never viewing. File cursor, partial tail, entries, calls, search index and summaries commit atomically. Preserve origin-model attribution across exec/wait snapshots and event identity across copied fork history.
 
 Show historical tool usage and outcomes, including successful calls in the default view. Missing final results are coverage gaps. Arbitrary tool details.status describes domain data, not the tool's execution. Reclassify cached evidence without resetting source cursors.
 

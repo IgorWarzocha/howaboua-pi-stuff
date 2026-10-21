@@ -200,7 +200,10 @@ export function createIndexer(
 		},
 	);
 
-	async function index(candidate: Candidate): Promise<boolean> {
+	async function index(
+		candidate: Candidate,
+		keepGoing: () => boolean,
+	): Promise<boolean> {
 		putFile.run(candidate.path, candidate.identity);
 		const file = getFile.get(candidate.path);
 		if (!file || file.blocked) return false;
@@ -233,6 +236,7 @@ export function createIndexer(
 			const startedAt = file.offset;
 			while (
 				!stopped &&
+				keepGoing() &&
 				file.offset + buffered < candidate.size &&
 				(file.offset - startedAt < 4 * 1024 * 1024 || buffered > 0)
 			) {
@@ -276,17 +280,17 @@ export function createIndexer(
 		}
 	}
 
-	async function scan(): Promise<void> {
+	async function scan(keepGoing: () => boolean = () => true): Promise<void> {
 		progress("indexing");
 		try {
 			let candidates = await changedFiles();
 			let refreshedAt = Date.now();
 			let position = 0;
-			while (!stopped && position < candidates.length) {
+			while (!stopped && keepGoing() && position < candidates.length) {
 				const candidate = candidates[position++];
 				if (!candidate) continue;
 				try {
-					if (await index(candidate)) candidates.push(candidate);
+					if (await index(candidate, keepGoing)) candidates.push(candidate);
 				} catch (error) {
 					const file = getFile.get(candidate.path);
 					if (file)

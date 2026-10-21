@@ -51,7 +51,7 @@ The command is an argument array, not a shell expression. Python and other execu
 
 ## Collector contract
 
-Write one complete JSON value to stdout and exit successfully. Write diagnostic logs to stderr. Observatory starts the first run when the viewer starts, then waits `intervalSeconds` after each completed run before starting another. Runs never overlap, and page requests or filter changes never trigger collection.
+Write one complete JSON value to stdout and exit successfully. Write diagnostic logs to stderr. The viewer starts paused. Update once runs each collector once; live monitoring runs it immediately, then waits `intervalSeconds` after each completed run before starting another. Runs never overlap. Browsing pages or changing filters never triggers collection. A bounded collector may need more than one update to finish historical work; expose that progress in its snapshot.
 
 The collector receives:
 
@@ -63,7 +63,7 @@ The collector receives:
 
 Treat source sessions as read-only. Keep your own incremental cursors or database under the state directory. Observatory reserves `last-good.json` and `last-good.*.tmp` there for snapshot storage. Do not depend on the core index's schema or modify it. Emit the data the page needs rather than raw session archives.
 
-Stdout is limited to 4 MiB and stderr to 64 KiB per run. Invalid JSON, excess output, a nonzero exit or a timeout fails that run. The previous successful snapshot remains available with its original update time and a visible error. Successful snapshots survive viewer restarts. Run collectors in the foreground; do not start detached daemons. Observatory terminates the collector process group on timeout and shutdown.
+Stdout is limited to 4 MiB and stderr to 64 KiB per run. Invalid JSON, excess output, a nonzero exit or a timeout fails that run. The previous successful snapshot remains available with its original update time and a visible error. Successful snapshots survive viewer restarts. Unchanged JSON is not republished: `updatedAt` is the last data change, while `lastStartedAt` records collection attempts. Include a data revision when indexed query results change without changing the snapshot's other fields. Run collectors in the foreground; do not start detached daemons. Observatory terminates the collector process group on pause, timeout and shutdown.
 
 ## Page contract
 

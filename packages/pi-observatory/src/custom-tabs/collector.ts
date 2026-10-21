@@ -29,7 +29,9 @@ export class TabCollector {
 		error: null,
 	};
 	private stopped = false;
-	private started = false;
+	private live = false;
+	private cancelled = false;
+	private json: string | undefined;
 	private timer: NodeJS.Timeout | undefined;
 	private active: CollectorRun | undefined;
 	private pending: Promise<void> | undefined;
@@ -71,6 +73,7 @@ export class TabCollector {
 			)
 				throw new Error("Invalid saved snapshot envelope");
 			this.data = envelope["data"];
+			this.json = JSON.stringify(this.data);
 			this.status.updatedAt = envelope["updatedAt"];
 		} catch (error) {
 			if (
@@ -85,16 +88,32 @@ export class TabCollector {
 	}
 
 	start(): void {
-		if (this.started || this.stopped) return;
-		this.started = true;
-		this.pending = this.collect();
+		if (this.live || this.stopped) return;
+		this.live = true;
+		void this.once();
+	}
+
+	once(): Promise<void> {
+		if (this.stopped) return Promise.resolve();
+		if (this.pending) return this.pending;
+		this.cancelled = false;
+		this.pending = this.collect().finally(() => {
+			this.pending = undefined;
+		});
+		return this.pending;
+	}
+
+	async pause(): Promise<void> {
+		this.live = false;
+		this.cancelled = true;
+		clearTimeout(this.timer);
+		this.active?.stop("Collection paused.");
+		await this.pending;
 	}
 
 	async close(): Promise<void> {
 		this.stopped = true;
-		clearTimeout(this.timer);
-		this.active?.stop();
-		await this.pending;
+		await this.pause();
 	}
 
 	private async collect(): Promise<void> {
@@ -106,23 +125,27 @@ export class TabCollector {
 				this.stateDirectory,
 				this.sessions,
 			);
-			const { data, json } = await this.active.result;
-			if (this.stopped) return;
-			const updatedAt = new Date().toISOString();
-			await this.persist(json, updatedAt);
-			this.data = data;
-			this.status.updatedAt = updatedAt;
+			const { data } = await this.active.result;
+			if (this.stopped || this.cancelled) return;
+			const json = JSON.stringify(data);
+			if (json !== this.json) {
+				const updatedAt = new Date().toISOString();
+				await this.persist(json, updatedAt);
+				this.data = data;
+				this.json = json;
+				this.status.updatedAt = updatedAt;
+			}
 			this.status.error = null;
 		} catch (error) {
-			if (!this.stopped)
+			if (!this.stopped && !this.cancelled)
 				this.status.error =
 					error instanceof Error ? error.message : String(error);
 		} finally {
 			this.active = undefined;
 			this.status.running = false;
-			if (!this.stopped)
+			if (!this.stopped && this.live)
 				this.timer = setTimeout(() => {
-					this.pending = this.collect();
+					void this.once();
 				}, this.bundle.manifest.intervalSeconds * 1000);
 		}
 	}

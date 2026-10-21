@@ -153,6 +153,9 @@ function ingestChunk(
 		db.prepare(
 			`UPDATE ${replay ? "rebill_files" : "files"} SET data=? WHERE name=?`,
 		).run(JSON.stringify(cursor), name);
+		db.exec(
+			"UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
+		);
 		db.exec("COMMIT");
 	} catch (error) {
 		db.exec("ROLLBACK");
@@ -239,6 +242,9 @@ export function ingest(
 					db.prepare("INSERT INTO files VALUES (?, ?)").run(
 						name,
 						JSON.stringify(fresh),
+					);
+					db.exec(
+						"UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
 					);
 					db.exec("COMMIT");
 				} catch (error) {

@@ -7,6 +7,7 @@ import { loadConfig, PROTOCOL, sourceId, stateDirectory } from "./config.ts";
 import { serveCustomTabQuery, serveCustomTabs } from "./custom-tab-http.ts";
 import { type CustomTabs, createCustomTabs } from "./custom-tabs/index.ts";
 import { initialiseDatabase, openDatabase } from "./database.ts";
+import { createMonitor } from "./monitor.ts";
 import { readThemeCss } from "./theme.ts";
 
 async function acquireLock(path: string): Promise<() => Promise<void>> {
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
 	let sequence = 0;
 	const server = createServer();
 	let tabs: CustomTabs | undefined;
+	let monitor: ReturnType<typeof createMonitor> | undefined;
 	try {
 		await rm(join(stateDirectory(), "access-key"), { force: true });
 		releaseDatabase = await acquireLock(`${database}.lock`);
@@ -95,6 +97,7 @@ async function main(): Promise<void> {
 		for (const [path, file, type] of [
 			["/", "index.html", "text/html; charset=utf-8"],
 			["/app.js", "app.js", "text/javascript; charset=utf-8"],
+			["/monitor-view.js", "monitor-view.js", "text/javascript; charset=utf-8"],
 			["/api.js", "api.js", "text/javascript; charset=utf-8"],
 			[
 				"/custom-tabs-view.js",
@@ -158,6 +161,8 @@ async function main(): Promise<void> {
 			},
 		});
 		workers.push(reader, writer);
+		const collection = createMonitor(writer, customTabs);
+		monitor = collection;
 		reader.on(
 			"message",
 			(message: { id: number; status: number; value: unknown }) => {
@@ -233,6 +238,7 @@ async function main(): Promise<void> {
 					.end(JSON.stringify({ url: `${publicUrl}/${selection}` }));
 				return;
 			}
+			if (collection.serve(request, url, response)) return;
 			if (serveCustomTabQuery(request, url, response, customTabs)) return;
 			if (request.method !== "GET") {
 				response.writeHead(405, { Allow: "GET" }).end();
@@ -307,9 +313,8 @@ async function main(): Promise<void> {
 				}
 				if (publicUrl === "http://127.0.0.1:0")
 					publicUrl = `http://127.0.0.1:${address.port}`;
-				customTabs.start();
 				console.log(
-					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nBackground indexing active. Ctrl+C to stop.`,
+					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nCollection paused. Use the dashboard to update once or enable live monitoring. Ctrl+C to stop.`,
 				);
 			});
 		});
@@ -320,6 +325,7 @@ async function main(): Promise<void> {
 			clearTimeout(timer);
 			response.destroy();
 		}
+		await monitor?.close();
 		await tabs?.close();
 		await Promise.all(
 			workers.map(async (worker) => {

@@ -2,6 +2,7 @@ import { setTimeout } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
 import { openDatabase } from "./database.ts";
 import { createIndexer } from "./indexer.ts";
+import type { MonitorMode } from "./monitor.ts";
 import { createNestedBackfill } from "./nested-backfill.ts";
 import {
 	createSkillFileBackfill,
@@ -19,30 +20,69 @@ const backfill = createNestedBackfill(db);
 const fileReads = createSkillFileBackfill(db);
 const skillResults = createSkillResultBackfill(db);
 const shutdown = new AbortController();
+const control: { mode: MonitorMode } = { mode: "paused" };
+let generation = 0;
+let wake: (() => void) | undefined;
+const revision = db.prepare<[], { value: string }>(
+	"SELECT value FROM metadata WHERE key='revision'",
+);
+function publish(busy: boolean): void {
+	parentPort?.postMessage({
+		generation,
+		busy,
+		revision: Number(revision.get()?.value ?? 0),
+	});
+}
 parentPort?.on("message", (message) => {
 	if (message === "stop") {
 		indexer.stop();
 		shutdown.abort();
+	} else if (
+		message?.mode === "paused" ||
+		message?.mode === "catch-up" ||
+		message?.mode === "live"
+	) {
+		control.mode = message.mode;
+		generation = message.generation;
 	}
+	wake?.();
 });
+publish(false);
 try {
-	let nextScan = 0;
 	while (!shutdown.signal.aborted) {
-		if (Date.now() >= nextScan) {
-			await indexer.scan();
-			nextScan = Date.now() + 2000;
+		if (control.mode === "paused") {
+			publish(false);
+			await new Promise<void>((resolve) => {
+				wake = resolve;
+			});
+			wake = undefined;
+			continue;
 		}
-		const pending =
-			!shutdown.signal.aborted && (backfill() || skillResults() || fileReads());
+		const run = generation;
+		const keepGoing = () => !shutdown.signal.aborted && generation === run;
+		publish(true);
+		const progress = globalThis.setInterval(() => publish(true), 2000);
 		try {
-			await setTimeout(
-				pending ? 0 : Math.max(0, nextScan - Date.now()),
-				undefined,
-				{ signal: shutdown.signal },
-			);
-		} catch (error) {
-			if (!shutdown.signal.aborted) throw error;
+			await indexer.scan(keepGoing);
+			while (keepGoing() && (backfill() || skillResults() || fileReads())) {
+				await setTimeout(0);
+			}
+		} finally {
+			clearInterval(progress);
 		}
+		if (generation === run && control.mode === "catch-up")
+			control.mode = "paused";
+		if (generation === run) publish(false);
+		if (control.mode === "live" && keepGoing())
+			await new Promise<void>((resolve) => {
+				const timer = globalThis.setTimeout(resolve, 2000);
+				wake = () => {
+					clearTimeout(timer);
+					resolve();
+				};
+			}).finally(() => {
+				wake = undefined;
+			});
 	}
 } finally {
 	db.close();

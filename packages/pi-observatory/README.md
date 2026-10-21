@@ -8,7 +8,9 @@ Commands and Skills each use one ranked table with search, sorting and paginatio
 
 Their activity graphs show daily usage before table pagination. Commands plots User submissions. Skills starts with the three most-read active skills, with a separate line for each. Tick up to six skills in the table to compare them. The Agent/User toggle switches between agent reads and user submissions. Selections persist across table pages. Hover or use the arrow keys for daily counts, then select a count to filter the table to that day. Browser Back restores the previous date range. Each graph covers up to 90 calendar days ending on the latest recorded activity in its selection. The same resource search and filters apply to the graph and table.
 
-Indexing runs in a background worker. Built-in views read SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. Overview and usage views update automatically. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
+The viewer starts paused: browsing saved data does not scan session files or run collectors. Click the pause icon beside the title to update the session index and run each custom collector once. The icon shows sync while that work runs, then returns to pause. Hold the button for two seconds to enable live monitoring; click it again to pause. Keyboard users can hold Space. Pause uses your theme's warning colour; live uses its success colour.
+
+Indexing runs in a background worker. Built-in views read SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. During collection, the visible overview or usage view updates automatically; hidden views load when opened. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
 
 Add your own tabs with a local collector and a custom web page. Observatory runs collection in the background, stores the latest successful JSON snapshot and hosts the page alongside its built-in views. See [Custom tabs](docs/custom-tabs.md) for the bundle contract and a working machine-health example.
 
@@ -27,7 +29,7 @@ pi install ./packages/pi-observatory
 
 Start a new Pi session or reload extensions, then run `/observatory`. Like `/board`, it starts or reuses a background viewer, opens your browser and prints a link. It opens on the current session. Use **All sessions** to broaden the view, or search the session selector by project or session ID. If the browser cannot open, use the printed link.
 
-All Pi sessions share one server and one index per agent directory. Opening another tab changes only its view, not the background work. The server keeps indexing after Pi closes. No agent tool or prompt instructions are added.
+All Pi sessions share one server, one index and one collection mode per agent directory. Opening another tab does not start collection or change an existing live mode. Live monitoring continues after Pi closes until you pause it or stop the server. Restarting the server returns to paused. No agent tool or prompt instructions are added.
 
 Each `/observatory` opening applies that Pi session's theme to the shared viewer, including custom colours. After changing Pi's theme, run `/observatory` again. Reload other open tabs to pick up the colours. The last applied theme survives server restarts. A standalone viewer uses the browser's light or dark preference until first opened from Pi.
 

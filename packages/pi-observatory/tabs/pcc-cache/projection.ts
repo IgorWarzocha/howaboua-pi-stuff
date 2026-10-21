@@ -7,6 +7,19 @@ export function project(
 	db: DatabaseSync,
 	ingestion: IngestionCoverage,
 ): CacheSnapshot {
+	const revision = Number(
+		db.prepare("SELECT value FROM meta WHERE key='revision'").get()?.[
+			"value"
+		] ?? 0,
+	);
+	const saved = db
+		.prepare("SELECT value FROM meta WHERE key='projection-v1'")
+		.get();
+	if (typeof saved?.["value"] === "string") {
+		const cached: CacheSnapshot = JSON.parse(saved["value"]);
+		if (cached.revision === revision)
+			return { ...cached, coverage: { ...cached.coverage, ...ingestion } };
+	}
 	const range = db
 		.prepare(`SELECT min(day) AS first, max(day) AS last,
 		coalesce(sum(json_extract(data, '$.row.correlation')='legacy'), 0) AS legacy
@@ -27,8 +40,9 @@ export function project(
 				}),
 			),
 		].sort();
-	return {
+	const snapshot: CacheSnapshot = {
 		version: 2,
+		revision,
 		coverage: {
 			...ingestion,
 			fromDay: typeof range?.["first"] === "string" ? range["first"] : null,
@@ -38,4 +52,8 @@ export function project(
 		models: values("model"),
 		scopes: values("scope"),
 	};
+	db.prepare(
+		"INSERT INTO meta VALUES ('projection-v1', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+	).run(JSON.stringify(snapshot));
+	return snapshot;
 }

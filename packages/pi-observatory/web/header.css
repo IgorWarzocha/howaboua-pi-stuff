@@ -16,10 +16,66 @@ h1 {
 	white-space: nowrap;
 }
 .observatory-mark {
-	color: var(--accent);
-	margin-right: 8px;
-	font-size: 24px;
-	vertical-align: -2px;
+	position: relative;
+	color: var(--warning);
+	width: 40px;
+	height: 40px;
+	padding: 8px;
+	margin-right: 4px;
+	vertical-align: middle;
+	border: 0;
+	background: transparent;
+	touch-action: manipulation;
+	user-select: none;
+}
+.observatory-mark[data-state="live"] {
+	color: var(--success);
+}
+.observatory-mark svg {
+	width: 24px;
+	height: 24px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.observatory-mark g {
+	display: none;
+}
+.observatory-mark[data-state="paused"] .monitor-pause,
+.observatory-mark[data-state="live"] .monitor-play,
+.observatory-mark[data-state="sync"] .monitor-sync {
+	display: initial;
+}
+.observatory-mark[data-state="sync"] svg {
+	animation: monitor-spin 1.5s linear infinite;
+}
+.observatory-mark::after {
+	content: "";
+	position: absolute;
+	inset: auto 4px 0;
+	height: 2px;
+	background: currentColor;
+	transform: scaleX(0);
+	transform-origin: left;
+}
+.observatory-mark.holding::after {
+	transform: scaleX(1);
+	transition: transform 2s linear;
+}
+@keyframes monitor-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.observatory-mark[data-state="sync"] svg {
+		animation: none;
+	}
+	.observatory-mark.holding::after {
+		transition: none;
+	}
 }
 .filter-toggle {
 	display: flex;

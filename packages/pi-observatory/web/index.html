@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Pi Observatory</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/theme.css"><script type="module" src="/app.js"></script></head>
 <body>
 <header class="app-header">
-<div class="header-bar"><h1><span class="observatory-mark" aria-hidden="true">◉</span> Pi Observatory</h1>
+<div class="header-bar"><h1><button id="monitor" class="observatory-mark" type="button" data-state="paused" aria-label="Paused. Click to update once; hold 2 seconds for live monitoring."><svg viewBox="0 0 24 24" aria-hidden="true"><g class="monitor-pause"><path d="M7 5v14M17 5v14"/></g><g class="monitor-play"><path d="m8 5 11 7-11 7Z"/></g><g class="monitor-sync"><path d="M20 7v5h-5M4 17v-5h5M5.4 7a8 8 0 0 1 13-1L20 9M4 15l1.6 3a8 8 0 0 0 13-1"/></g></svg></button> Pi Observatory</h1>
 <nav id="view-nav" class="view-nav" aria-label="Dashboard views"><button type="button" data-view="overview" aria-pressed="true">Overview</button><button type="button" data-view="capability-usage" aria-pressed="false">Commands &amp; skills</button><button type="button" data-view="calls-panel" aria-pressed="false">Call explorer</button></nav>
 <button id="toggle-filters" class="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-panel">Filters <span id="filter-count" class="muted" hidden></span></button>
 </div>
