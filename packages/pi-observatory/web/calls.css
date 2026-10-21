@@ -80,6 +80,9 @@
 #new-data {
 	color: var(--accent);
 }
+#detail-content > details {
+	overflow-wrap: anywhere;
+}
 pre {
 	font:
 		12px / 1.6 ui-monospace,
