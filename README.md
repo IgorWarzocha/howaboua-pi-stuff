@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Agent Board, Browser, Sites, Notes Compaction, Sandbox, Codex extensions, nested AGENTS loader and Omarchy support |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Agent Board, Browser, Sites, Notes Compaction, Sandbox, Codex extensions and nested AGENTS loader |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Agent Board, Browser, Sites, Notes Compaction, Observatory, Sandbox, Codex extensions, nested AGENTS loader and Omarchy support |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Agent Board, Browser, Sites, Notes Compaction, Observatory, Sandbox, Codex extensions and nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -26,6 +26,8 @@ pi install npm:@howaboua/pi-skills
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
 Install `pi-agent-board` separately for message boards and the `/board` browser viewer. Shepherdr connects its agents to boards when that extension is loaded.
+
+Install `pi-observatory` separately for local session usage, tool outcomes and custom collector dashboards. `/observatory` opens the viewer; `/observatory agent <scope>` asks your current agent to investigate recorded evidence.
 
 `pi-notes-compaction`, `pi-sandbox` and `pi-chatgpt-sites` are also separate installs for session notes and context rollover, local VMs and app previews, and ChatGPT Sites management.
 
@@ -50,6 +52,7 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/luna` and `/astra` shortcuts for Codex models with configurable reasoning defaults |
 | [`pi-codex-imagegen`](./packages/pi-codex-imagegen) | Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-notes-compaction`](./packages/pi-notes-compaction) | Provider-neutral session notes, shared-agent notes and notes-guided context rollover |
+| [`pi-observatory`](./packages/pi-observatory) | Local session usage and outcome dashboard, custom collectors and on-demand agent investigations |
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-sandbox`](./packages/pi-sandbox) | Persistent local VMs, guest commands, supervised services and app previews |
 | [`pi-shepherdr`](./packages/pi-shepherdr) | Herdr-native multi-agent orchestration |
