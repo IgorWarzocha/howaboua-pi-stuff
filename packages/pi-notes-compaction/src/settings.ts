@@ -1,8 +1,9 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const IDLE_MINUTES = [0, 5, 15, 25, 55] as const;
-export type IdleMinutes = (typeof IDLE_MINUTES)[number];
+// Hour presets store their effective duration, with five minutes of headroom.
+export const IDLE_MINUTES = [0, 25, 55, 115, 355, 715] as const;
+export type IdleMinutes = (typeof IDLE_MINUTES)[number] | 5 | 15;
 export const NEW_WINDOW_REQUESTS = [
 	"off",
 	"pi-limits",
@@ -85,9 +86,13 @@ export function readSettings(path: string): NotesSettings {
 		throw new Error(
 			"Invalid task-boundary reminder setting. Save a setting in /notes, then reload Pi.",
 		);
-	if (!IDLE_MINUTES.some((value) => value === idleMinutes))
+	if (
+		idleMinutes !== 5 &&
+		idleMinutes !== 15 &&
+		!IDLE_MINUTES.some((value) => value === idleMinutes)
+	)
 		throw new Error(
-			"Invalid idle rollover interval. Choose off, 5, 15, 25 or 55 minutes.",
+			"Invalid idle rollover interval. Set idleMinutes to 0, 25, 55, 115, 355 or 715, then reload Pi.",
 		);
 	return {
 		active,

@@ -3,7 +3,6 @@ import {
 	type CodexConversionConfig,
 	normalizeHistoryStorage,
 	IDLE_NOTES_MINUTES_OPTIONS,
-	normalizeIdleNotesMinutes,
 	normalizeV2UserMessageRetention,
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 } from "../../adapter/activation/config.ts";
@@ -31,6 +30,8 @@ export function buildContextSettings(
 	const plan = resolveCodexRuntimePlan(ctx, config, undefined, externalNotes);
 	const supportsV2 = isAdapterRuntime(plan) && plan.effectiveOpenAICodex;
 	const { continuity, historyStorage, method, v2UserMessageRetention } = config.compaction;
+	const idleValue = (minutes: number) =>
+		minutes === 0 ? "Off" : minutes < 60 ? `${minutes}m` : `${Math.ceil(minutes / 60)}h`;
 	return [
 		...(!externalNotes && continuity !== "compaction" ? [setting({
 			id: "newWindowRequests", label: "New window requests",
@@ -120,13 +121,13 @@ export function buildContextSettings(
 			{
 				id: "idleNotesRollover",
 				label: "Idle rollover",
-				currentValue: config.compaction.idleNotesRollover ? `${config.compaction.idleNotesRollover} minutes` : "Off",
-				values: IDLE_NOTES_MINUTES_OPTIONS.map(minutes => minutes ? `${minutes} minutes` : "Off"),
+				currentValue: idleValue(config.compaction.idleNotesRollover),
+				values: IDLE_NOTES_MINUTES_OPTIONS.map(idleValue),
 				description: "Before the next prompt, open a window only if the last completed run saved fresh notes. Off by default. This is an idle policy, not a cache-expiry check.",
 			},
 			(value, current) => ({
 				...current,
-				compaction: { ...current.compaction, idleNotesRollover: normalizeIdleNotesMinutes(Number.parseInt(value, 10)) },
+				compaction: { ...current.compaction, idleNotesRollover: IDLE_NOTES_MINUTES_OPTIONS.find(minutes => idleValue(minutes) === value) ?? current.compaction.idleNotesRollover },
 			}),
 		)] : []),
 		...((externalNotes || continuity !== "notes") && method !== "pi" ? [setting(
