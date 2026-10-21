@@ -211,25 +211,25 @@ export function createSkillFileIngestor(db: Database.Database) {
 	}
 
 	function replay(call: CachedFileCall): void {
-		// The caller's bounded transaction replaces old evidence atomically.
-		clearInferred.run(call.id);
-		clearGap.run(call.id);
-		clearCandidates.run(call.id);
 		const legacy = call.tool === "skills" || call.tool === "more_skills";
 		let reads = legacy ? undefined : targets(call);
-		if (!legacy && (!reads || (!reads.paths.length && !reads.unsupported)))
-			return;
-		if (reads && !reads.shell) return observe(call, reads, {});
-		let result: JsonObject;
-		try {
-			result = object(JSON.parse(payload.get(call.id)?.result || "{}"));
-		} catch (error) {
-			if (!(error instanceof SyntaxError)) throw error;
-			gap.run(call.id, "unreadable");
-			return;
+		if (!legacy && !reads) return;
+		let result: JsonObject = {};
+		if (legacy || reads?.shell) {
+			try {
+				result = object(JSON.parse(payload.get(call.id)?.result || "{}"));
+			} catch (error) {
+				if (!(error instanceof SyntaxError)) throw error;
+				gap.run(call.id, "unreadable");
+				return;
+			}
 		}
 		reads ??= targets(call, result);
-		if (reads) observe(call, reads, result);
+		if (!reads) return;
+		// Replace only reconstructible evidence, atomically in the caller's transaction.
+		clearInferred.run(call.id);
+		clearGap.run(call.id);
+		if (reads.paths.length || reads.unsupported) observe(call, reads, result);
 	}
 	return { register, discover, record, replay };
 }

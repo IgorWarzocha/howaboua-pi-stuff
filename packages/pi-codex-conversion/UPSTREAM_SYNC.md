@@ -13,6 +13,10 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## Pi 1.4 compatibility
+
+Compared released Pi `1.4.0` with `1.3.0` for request shape, headers, reasoning, service tiers, retries and stream termination. The adapter now requires Pi 1.4 and uses its enum-based `resolveTranscriptTools()` API with `foldedSystemMessages`. The `"additions"` policy keeps initial tools top-level and anchors later additions after the last removal or redeclaration. Pi's separate `"changes"` policy, initial `additional_tools` placement and tool-removal notices are not adopted here. The adapter's existing Codex headers, base-instruction placement and transport recovery remain intentional differences.
+
 ## October 17 base-instruction placement
 
 Adopted Codex `c9253c4977` (#51156), checked against `ce0323f2f2`: STANDARD and Responses Lite carry nonempty base instructions as a leading developer input message, not top-level `instructions`. Empty base instructions add no message or fallback prompt. Lite retains its preceding tool namespace item and its existing reasoning and parallel-call settings; STANDARD retains flat tools. Pi 1.3.0's stock `dist/api/openai-codex-responses.js` still uses top-level instructions and a fallback prompt; this scoped divergence is intentional. Native replay and compaction continue to accept older request layouts. Other reference pins above are unchanged.

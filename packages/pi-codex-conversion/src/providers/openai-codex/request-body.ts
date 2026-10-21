@@ -64,9 +64,11 @@ export function buildRequestBody<TApi extends Api>(
 		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
 		: CODEX_TOOL_CALL_PROVIDERS;
 	const normalizedContext = resolveCodexTranscript(model, context);
+	// Initial tools stay top-level; only additions after the last removal or
+	// redeclaration are emitted in place by our Responses serializer.
 	const transcriptTools = resolveTranscriptTools(
 		normalizedContext.messages,
-		supportsAdditionalTools || supportsToolSearch,
+		supportsAdditionalTools || supportsToolSearch ? "additions" : "none",
 	);
 	const toolOptions = { supportsStrictMode, supportsOpenAIGrammarTools: emitsOpenAIGrammarTools };
 	const messages = convertResponsesMessages(model, normalizedContext, allowedToolCallProviders, {

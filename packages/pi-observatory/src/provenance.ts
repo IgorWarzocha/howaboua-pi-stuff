@@ -16,6 +16,7 @@ export function initialiseProvenance(db: Database.Database): void {
 	db.transaction(() => {
 		// The old first-copy-wins project is not evidence of origin, even if its file vanished.
 		db.exec(`
+			DELETE FROM skill_file_sources WHERE authoritative=0;
 			INSERT OR IGNORE INTO skill_file_replay SELECT id FROM calls WHERE outcome='ok';
 			UPDATE calls SET project='unknown' WHERE project<>'unknown';
 			INSERT INTO metadata VALUES ('forkProvenance','1');
@@ -75,14 +76,18 @@ export function createProvenance(db: Database.Database) {
 	const replay = db.prepare(
 		"INSERT OR IGNORE INTO skill_file_replay VALUES (?)",
 	);
+	// Keep each header repair bounded to its descendant entries, not the whole index.
 	const affected = db.prepare<[number], { id: number }>(`
 		WITH RECURSIVE descendants(id,path) AS (
 			SELECT id,path FROM files WHERE id=?
 			UNION SELECT f.id,f.path FROM descendants d JOIN session_headers h ON h.parent_path=d.path
 			JOIN files f ON f.id=h.file_id
-		), keys AS (SELECT DISTINCT e.entry_key FROM descendants d JOIN file_entries e ON e.file_id=d.id)
-		SELECT c.id FROM keys k JOIN calls c ON c.initiator=k.entry_key
-		UNION SELECT c.id FROM keys k JOIN calls c ON c.result_entry=k.entry_key WHERE c.unpaired=1 AND c.parent_call_id IS NULL
+		), keys AS MATERIALIZED (
+			SELECT DISTINCT e.entry_key FROM descendants d
+			CROSS JOIN file_entries e INDEXED BY file_entry_identity ON e.file_id=d.id
+		)
+		SELECT c.id FROM keys k CROSS JOIN calls c INDEXED BY call_initiator ON c.initiator=k.entry_key
+		UNION SELECT c.id FROM keys k CROSS JOIN calls c INDEXED BY call_result ON c.result_entry=k.entry_key WHERE c.unpaired=1 AND c.parent_call_id IS NULL
 	`);
 
 	function entryProject(file: number, key: string, at: string): string {
