@@ -18,7 +18,7 @@ for (const path of ["web", "tabs", "examples", "docs", "investigate.md"]) {
 		recursive: true,
 		filter: (path) =>
 			!path.endsWith(".ts") &&
-			!path.endsWith(".js") &&
+			(!path.endsWith(".js") || path.startsWith("examples/")) &&
 			!path.endsWith("AGENTS.md"),
 	});
 }
