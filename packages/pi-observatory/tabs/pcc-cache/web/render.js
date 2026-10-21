@@ -10,6 +10,12 @@ export function element(id) {
 }
 /** @param {number} n */
 export const count = (n) => n.toLocaleString();
+const tokenFormat = new Intl.NumberFormat("en-US", {
+	notation: "compact",
+	maximumFractionDigits: 2,
+});
+/** @param {number | null} n */
+const tokens = (n) => (n === null ? "—" : tokenFormat.format(n));
 /** @param {number} part @param {number} total */
 const percent = (part, total) =>
 	total > 0 ? `${((100 * part) / total).toFixed(1)}%` : "—";
@@ -26,11 +32,12 @@ export function renderMetrics(totals) {
 	const input = totals.inputTokens,
 		cached = totals.cachedTokens,
 		measured = totals.measuredRequests;
-	/** @type {[string, string, string][]} */
+	/** @type {[string, string, string, string?][]} */
 	const metrics = [
 		[
 			"Cached input share",
 			percent(cached, input),
+			`${tokens(cached)} / ${tokens(input)} tokens`,
 			`${count(cached)} / ${count(input)} tokens`,
 		],
 		[
@@ -50,13 +57,14 @@ export function renderMetrics(totals) {
 		],
 	];
 	element("metrics").replaceChildren(
-		...metrics.map(([label, value, detail]) => {
+		...metrics.map(([label, value, detail, exact]) => {
 			const card = node("div", "", "metric");
-			card.append(
-				node("span", label),
-				node("strong", value),
-				node("p", detail),
-			);
+			const description = node("p", detail);
+			if (exact) {
+				description.title = exact;
+				description.setAttribute("aria-label", exact);
+			}
+			card.append(node("span", label), node("strong", value), description);
 			return card;
 		}),
 	);
@@ -96,10 +104,15 @@ export function renderRows(requests, offset, total) {
 					: "",
 			request.measurement,
 		);
-		cell(
+		const tokenCell = cell(
+			`${tokens(request.cachedTokens)} / ${tokens(request.inputTokens)}`,
+			`${tokens(request.outputTokens)} output`,
+		);
+		tokenCell.title = [
 			`${request.cachedTokens === null ? "—" : count(request.cachedTokens)} / ${request.inputTokens === null ? "—" : count(request.inputTokens)}`,
 			`${request.outputTokens === null ? "—" : count(request.outputTokens)} output`,
-		);
+		].join(" · ");
+		tokenCell.setAttribute("aria-label", tokenCell.title);
 		cell(
 			request.transport,
 			[
