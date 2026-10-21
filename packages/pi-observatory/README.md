@@ -12,19 +12,16 @@ The viewer starts paused: browsing saved data does not scan session files or run
 
 Indexing runs in a background worker. Built-in views read SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. During collection, the visible overview or usage view updates automatically; hidden views load when opened. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
 
-Add your own tabs with a local collector and a custom web page. Observatory runs collection in the background, stores the latest successful JSON snapshot and hosts the page alongside its built-in views. See [Custom tabs](docs/custom-tabs.md) for the bundle contract and a working machine-health example.
+Add your own tabs with a local collector and a custom web page. Observatory runs collection in the background, stores the latest successful JSON snapshot and hosts the page alongside its built-in views. See [Custom tabs](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/packages/pi-observatory/docs/custom-tabs.md) for the bundle contract and a working machine-health example.
 
-The [PCC cache tab](tabs/pcc-cache/README.md) reads Pi Codex Conversion's diagnostic logs to show cache hits, token reuse, retries and transport history. Enable it separately; it does not change PCC's logging settings.
+The [PCC cache tab](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/packages/pi-observatory/tabs/pcc-cache/README.md) reads Pi Codex Conversion's diagnostic logs to show cache hits, token reuse, retries and transport history. Enable it separately; it does not change PCC's logging settings. Installed bundles are under the package's `dist/tabs` and `dist/examples` directories. The guides are also included under `dist/docs` and beside each bundle.
 
 ## Run
 
-This first pass is source-only and is not published to npm. It requires Node 22.18 or newer and the repository's dependencies.
-
-From the repository root:
+Requires Node 22.18 or newer and Pi 1.3 or newer. Install separately; Observatory is not included in the aggregate bundles.
 
 ```sh
-bun install --frozen-lockfile
-pi install ./packages/pi-observatory
+pi install npm:@howaboua/pi-observatory
 ```
 
 Start a new Pi session or reload extensions, then run `/observatory`. Like `/board`, it starts or reuses a background viewer, opens your browser and prints a link. It opens on the current session. Use **All sessions** to broaden the view, or search the session selector by project or session ID. If the browser cannot open, use the printed link.
@@ -54,7 +51,7 @@ Historical reads are recovered from cached calls and recognisable Skills tool ou
 For a standalone server instead:
 
 ```sh
-bun run --cwd packages/pi-observatory start
+npx @howaboua/pi-observatory
 ```
 
 The standalone URL starts on all sessions because it has no current Pi session. Stop this foreground server with Ctrl+C. Starting it again resumes the saved indexing cursors.
@@ -62,7 +59,7 @@ The standalone URL starts on all sessions because it has no current Pi session. 
 Defaults are `~/.pi/agent/sessions`, `~/.pi/agent/observatory/index.sqlite` and port `47985`. `PI_CODING_AGENT_DIR` replaces `~/.pi/agent` when set. To select other locations:
 
 ```sh
-bun run --cwd packages/pi-observatory start --sessions /path/to/sessions --db /path/to/index.sqlite --port 47985
+npx @howaboua/pi-observatory --sessions /path/to/sessions --db /path/to/index.sqlite --port 47985
 ```
 
 The server binds to `127.0.0.1` by default. To view it from another computer, forward its port with SSH and open the printed URL on that computer:

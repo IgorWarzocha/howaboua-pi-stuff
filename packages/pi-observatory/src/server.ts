@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { mkdir, open, readFile, rm, unlink } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
@@ -55,7 +56,7 @@ async function main(): Promise<void> {
 	});
 	if (values.help) {
 		console.log(
-			"Pi Observatory\n\nnode src/server.ts [--sessions DIR] [--db FILE] [--port 47985]\n\nOr run /observatory in Pi to start and open the dashboard.\nRead-only background session indexing. The dashboard reads SQLite only.\nCtrl+C stops this standalone server; restart resumes saved cursors.\nDefaults to 127.0.0.1. Remote access is configured in observatory/config.json.",
+			"Pi Observatory\n\npi-observatory [--sessions DIR] [--db FILE] [--port 47985]\n\nOr run /observatory in Pi to start and open the dashboard.\nRead-only background session indexing. The dashboard reads SQLite only.\nCtrl+C stops this standalone server; restart resumes saved cursors.\nDefaults to 127.0.0.1. Remote access is configured in observatory/config.json.",
 		);
 		return;
 	}
@@ -150,10 +151,10 @@ async function main(): Promise<void> {
 				data: await readFile(new URL(`../web/${file}`, import.meta.url)),
 				type,
 			});
-		const reader = new Worker(new URL("./query-worker.ts", import.meta.url), {
+		const reader = new Worker(new URL("./query-worker.js", import.meta.url), {
 			workerData: database,
 		});
-		const writer = new Worker(new URL("./index-worker.ts", import.meta.url), {
+		const writer = new Worker(new URL("./index-worker.js", import.meta.url), {
 			workerData: {
 				database,
 				sessions,
