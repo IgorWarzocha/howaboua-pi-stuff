@@ -52,7 +52,7 @@
 		"@earendil-works/pi-ai": ">=1.1.0",
 		"@earendil-works/pi-coding-agent": ">=1.1.0",
 		"@earendil-works/pi-tui": ">=1.1.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.3",
+		"@howaboua/pi-codex-conversion": ">=4.0.4",
 		"typebox": "*"
 	},
 	"peerDependenciesMeta": {
@@ -64,6 +64,6 @@
 		"access": "public"
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.3"
+		"@howaboua/pi-codex-conversion": "4.0.4"
 	}
 }

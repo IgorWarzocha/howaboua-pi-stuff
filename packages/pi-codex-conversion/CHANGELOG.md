@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.4
+
+- - Requires Pi 1.4 or newer.
+  - Deferred tool loads remain anchored after tool removals or redefinitions.
+
 ## 4.0.3
 
 - - Fixed Code and Notebook losing nested Pi tools’ termination signals after successful cells.

@@ -186,7 +186,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "4.0.3",
+      "version": "4.0.4",
       "dependencies": {
         "openai": "7.34.0",
         "proxy-from-env": "2.1.0",
@@ -420,7 +420,7 @@
     },
     "packages/pi-observatory": {
       "name": "@howaboua/pi-observatory",
-      "version": "0.0.0",
+      "version": "0.0.1",
       "dependencies": {
         "better-sqlite3": "^13.0.3",
         "shell-quote": "1.11.0",

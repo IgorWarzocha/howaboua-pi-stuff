@@ -73,23 +73,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 4.0.3
+### @howaboua/pi-codex-conversion — 4.0.4
 
-- - Fixed Code and Notebook losing nested Pi tools’ termination signals after successful cells.
-  - Code and Notebook execution traces retain Pi nested-call identities for accurate usage accounting.
-  - Background requests no longer overwrite the session’s cache status; diagnostics logs still include them.
-  - Closing an auxiliary session through Pi's public cleanup API now releases its Codex connections without affecting the main chat.
-  - Notebook startup lists reusable bindings without volatile memory, age or checkpoint diagnostics; full status remains available on demand.
-  - GPT prompt mode uses denser runtime guidance.
-  - Notebook guidance distinguishes top-level JSON input from direct objects inside exec.
-  - Usage comparisons show “not enough history” instead of a monthly percentage when recording began partway through last month.
-  - Usage analysis defaults to the working directory and its descendants.
-  - Usage analysis proposes folder and session drill-downs for approval.
-  - Fixed usage scans treating Unicode line separators inside valid session entries as malformed JSON.
-  - New-window guidance tells agents to read task-relevant skills again.
-  - Local Notes write receipts now contain only the saved path.
-  - Clarified that turning off subagent context sharing does not disable cache sharing.
-  - Idle rollover offers Off, 25m, 55m, 2h, 6h and 12h. Hour presets roll over five minutes early; saved 5- and 15-minute settings remain valid.
+- - Requires Pi 1.4 or newer.
+  - Deferred tool loads remain anchored after tool removals or redefinitions.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -184,6 +171,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
   - Idle rollover offers Off, 25m, 55m, 2h, 6h and 12h. Hour presets roll over five minutes early; saved 5- and 15-minute settings remain valid.
 
 [Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
+
+### @howaboua/pi-observatory — 0.0.1
+
+- Added the initial standalone Observatory release with session usage and outcome views, custom collectors, a PCC cache tab and on-demand agent investigations. Opening the viewer updates it once, then pauses. Continuous monitoring is opt-in.
+
+[Full changelog](./packages/pi-observatory/CHANGELOG.md)
 
 ### @howaboua/pi-pet — 0.1.7
 

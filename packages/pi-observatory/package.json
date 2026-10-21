@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-observatory",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"type": "module",
 	"license": "MIT",
 	"description": "Local, SQLite-backed Pi session failure explorer",
@@ -12,7 +12,9 @@
 	"files": [
 		"dist",
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"main": "dist/index.js",
 	"bin": {
@@ -20,6 +22,7 @@
 	},
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./dist/index.js"
 		]
 	},
