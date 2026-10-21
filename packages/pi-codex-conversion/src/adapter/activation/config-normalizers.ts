@@ -25,6 +25,7 @@ export { isObject } from "./config-values.ts";
 
 export function normalizeIdleNotesMinutes(value: unknown): IdleNotesMinutes {
 	if (value === true) return 25;
+	if (value === 5 || value === 15) return value;
 	return IDLE_NOTES_MINUTES_OPTIONS.find(minutes => minutes === value) ?? 0;
 }
 

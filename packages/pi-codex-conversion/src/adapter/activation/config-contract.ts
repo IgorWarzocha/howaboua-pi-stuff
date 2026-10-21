@@ -15,8 +15,9 @@ export type ContinuityStrategy = "compaction" | "notes" | "notes-and-compaction"
 export type HistoryStorage = "local" | "tree" | "remote";
 export type ContextManagementMode = "off" | HistoryStorage;
 export type CompactionMethod = "pi" | "v2" | "both";
-export const IDLE_NOTES_MINUTES_OPTIONS = [0, 5, 15, 25, 55] as const;
-export type IdleNotesMinutes = (typeof IDLE_NOTES_MINUTES_OPTIONS)[number];
+// Hour presets store their effective duration, with five minutes of headroom.
+export const IDLE_NOTES_MINUTES_OPTIONS = [0, 25, 55, 115, 355, 715] as const;
+export type IdleNotesMinutes = (typeof IDLE_NOTES_MINUTES_OPTIONS)[number] | 5 | 15;
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
 export const MAX_NOTEBOOK_HEAP_MIB = 65_536;

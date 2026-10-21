@@ -135,7 +135,7 @@ Choose under `/codex context`:
 | **New window requests** | off · pi-limits · unrestricted (default) | Using notes |
 | **Use notes for tree summaries** | On (default) · Off | Using notes |
 | **Share subagent context** | Off (default) · On | Using notes |
-| **Idle rollover** | Off (default) · 5 · 15 · 25 · 55 minutes | Using Notes and history on an eligible route |
+| **Idle rollover** | Off (default) · 25m · 55m · 2h · 6h · 12h | Using Notes and history on an eligible route |
 | **Compaction method** | Pi summary · Codex V2 · Both | Using compaction |
 | **Preserved user messages (V2 only)** | 16k · 32k · 64k | Using Codex V2 or Both |
 
@@ -179,7 +179,7 @@ Before `new_context`, the immediately preceding tool invocation must successfull
 
 **Note save markers** in `/codex display` is off by default. When enabled, completed turns with confirmed saved notes get a **✓ Notes saved** marker. The next user prompt gets a **Notes** bookmark in `/tree` once it arrives. Select that prompt with **No summary** to return to the saved-notes boundary with your prompt back in the editor. Run plain `/compact` in **Notes and history**, then resubmit the prompt. A new window opens without another note-writing turn. Tree navigation preserves the checkpoint's original idle age. Existing user labels are preserved, and turning markers off keeps saved bookmarks.
 
-**Idle rollover** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. Choose 5, 15, 25 or 55 minutes. After that duration since a run settled, the next prompt opens a window first only if the latest completed run saved fresh notes. Otherwise the prompt starts normally in the current window, without a checkpoint request. The original prompt and attachments proceed through normal preparation. Resume uses the recorded settlement time. Older runs without a recorded settlement do not trigger idle rollover. Existing `idleNotesRollover: true` configuration retains 25 minutes; `false` remains off. This is a cache optimisation, not a cache-expiry check. If rollover fails, input and attachments remain pending. Submit another prompt to retry, or reload to cancel pending input.
+**Idle rollover** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. Choose 25m, 55m, 2h, 6h or 12h. Hour presets use a five-minute buffer, stored as 115, 355 or 715 minutes. Saved 5- and 15-minute settings remain valid. After that duration since a run settled, the next prompt opens a window first only if the latest completed run saved fresh notes. Otherwise the prompt starts normally in the current window, without a checkpoint request. The original prompt and attachments proceed through normal preparation. Resume uses the recorded settlement time. Older runs without a recorded settlement do not trigger idle rollover. Existing `idleNotesRollover: true` configuration retains 25 minutes; `false` remains off. This is a cache optimisation, not a cache-expiry check. If rollover fails, input and attachments remain pending. Submit another prompt to retry, or reload to cancel pending input.
 
 Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
 

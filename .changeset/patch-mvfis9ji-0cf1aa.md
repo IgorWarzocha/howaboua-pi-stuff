@@ -16,3 +16,4 @@
 - New-window guidance tells agents to read task-relevant skills again.
 - Local Notes write receipts now contain only the saved path.
 - Clarified that turning off subagent context sharing does not disable cache sharing.
+- Idle rollover offers Off, 25m, 55m, 2h, 6h and 12h. Hour presets roll over five minutes early; saved 5- and 15-minute settings remain valid.

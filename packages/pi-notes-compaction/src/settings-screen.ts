@@ -29,7 +29,11 @@ export async function openNotesSettings(
 			(tui, theme, _kb, done) => {
 				const settings = options.settings();
 				const idleValue = (minutes: number) =>
-					minutes === 0 ? "off" : `${minutes} min`;
+					minutes === 0
+						? "Off"
+						: minutes < 60
+							? `${minutes}m`
+							: `${Math.ceil(minutes / 60)}h`;
 				const list = new SettingsList(
 					[
 						{
