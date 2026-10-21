@@ -8,7 +8,7 @@ Requires Node 22.18 or newer. Add this bundle's absolute directory to `tabs` in 
 
 ```json
 {
-  "tabs": ["/absolute/path/to/pi-observatory/tabs/pcc-cache"]
+  "tabs": ["/absolute/path/to/pi-observatory/dist/tabs/pcc-cache"]
 }
 ```
 
@@ -19,7 +19,7 @@ Logs come from `pi-codex-logs` under `PI_CODING_AGENT_DIR`, or `~/.pi/agent` by 
 For another log directory, copy the bundle to a directory you own and change its manifest command:
 
 ```json
-"collector": ["node", "collect.ts", "--logs", "/absolute/path/to/pi-codex-logs"]
+"collector": ["node", "collect.js", "--logs", "/absolute/path/to/pi-codex-logs"]
 ```
 
 ## Read the evidence
