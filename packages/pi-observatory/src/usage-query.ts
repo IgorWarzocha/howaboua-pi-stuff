@@ -25,7 +25,12 @@ export interface UsageOverview {
 		inventorySince: string | null;
 		recordedSessions: number;
 		sessions: number;
-		fileReadScan: { phase: string; progress: number; unresolved: number };
+		fileReadScan: {
+			phase: string;
+			progress: number;
+			unresolved: number;
+			pending: number;
+		};
 		skillResultScan: { phase: string; progress: number };
 	};
 }
@@ -143,6 +148,12 @@ export function queryUsage(
 	const skillPhase = scan["skillResultBackfillPhase"] || "pending";
 	const skillTarget = Number(scan["skillResultBackfillTarget"] || 0);
 	const skillCursor = Number(scan["skillResultBackfillCursor"] || 0);
+	const pending =
+		db
+			.prepare<[], { count: number }>(
+				"SELECT COUNT(*) count FROM skill_file_replay",
+			)
+			.get()?.count || 0;
 	const unresolved =
 		db
 			.prepare<[], { count: number }>(
@@ -163,14 +174,16 @@ export function queryUsage(
 							: 0,
 			},
 			fileReadScan: {
-				phase,
-				progress:
-					phase === "complete"
+				phase: pending ? "rebuilding" : phase,
+				progress: pending
+					? 0
+					: phase === "complete"
 						? 100
 						: target
 							? Math.min(99, Math.floor((cursor / target) * 100))
 							: 0,
 				unresolved,
+				pending,
 			},
 		},
 	};

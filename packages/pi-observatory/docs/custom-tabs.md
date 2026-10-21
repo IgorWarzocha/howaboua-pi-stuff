@@ -57,7 +57,7 @@ Keep `investigate.md` brief: explain where saved data lives, accepted query inpu
 
 ## Collector contract
 
-Write one complete JSON value to stdout and exit successfully. Write diagnostic logs to stderr. The viewer starts paused. Update once runs each collector once; live monitoring runs it immediately, then waits `intervalSeconds` after each completed run before starting another. Runs never overlap. Browsing pages or changing filters never triggers collection. A bounded collector may need more than one update to finish historical work; expose that progress in its snapshot.
+Write one complete JSON value to stdout and exit successfully. Write diagnostic logs to stderr. Starting the viewer or opening it with `/observatory` requests one update, then pauses. Update once runs each collector once. Live monitoring runs it immediately, then waits `intervalSeconds` after each completed run before starting another. Runs never overlap. Browsing pages or changing filters never triggers collection. A bounded collector may need more than one update to finish historical work. Expose that progress in its snapshot.
 
 The collector receives:
 
