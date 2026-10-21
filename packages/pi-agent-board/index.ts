@@ -36,6 +36,8 @@ export default async function agentBoardExtension(pi: ExtensionAPI) {
 					return;
 				}
 				try {
+					if (binding(ctx).upstream)
+						throw new Error("Change Board settings in the owning root session");
 					const sessionId = ctx.sessionManager.getSessionId();
 					const consolidate =
 						"Consolidate one-off threads (sends a prompt to this session's agent)";

@@ -6,5 +6,5 @@ export function canExecuteNotebookControlInsideExec(request: { action: string; q
 }
 
 export function notebookExecStartupNotice(): string {
-	return `Inside exec: tools.notebook({action:${NOTEBOOK_EXEC_ACTIONS.map((action) => JSON.stringify(action)).join("|")}}); direct object, not {input:...}; status without query. Other controls: top-level notebook after exec returns`;
+	return 'Inside exec: tools.notebook({action:"status"}); also "list" or "diagnostics"; direct object, not {input:...}; status without query. Other controls: top-level notebook after exec returns';
 }
