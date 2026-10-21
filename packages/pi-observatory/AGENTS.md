@@ -7,6 +7,7 @@ PCC diagnostic scope is optional; its absence must not disable exact request cor
 Native Pi receipts contain no nested result payload. Correlate PCC only through nativeCallIds, never names or arguments. PCC snapshots can precede Pi scope drainage: unmatched receipts in running, dropped or historical PCC snapshots remain explicit omissions.
 
 Index and query workers must remain separate from each other and HTTP handling. Measure query latency during ingestion, not just after it. Common overview slices use transactional tallies; keep them equivalent to raw call counts.
+Bound replay IDs before joining calls and payloads. Sort PCC facet lists after SQL DISTINCT: combining JSON projection, DISTINCT and ORDER BY can spill full record payloads to disk.
 
 Keep /observatory's start-or-reuse, browser-open and link-only flow aligned with /board. The extension records submission sidecars and launches the viewer; it must not index in Pi's process. This is private and source-only. Add no model tools, prompts or aggregate dependencies. Do not infer failures from generic error words or call later success proof of recovery. Show unsupported or missing telemetry explicitly.
 

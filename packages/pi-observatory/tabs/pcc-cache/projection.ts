@@ -14,7 +14,7 @@ export function project(
 		.get();
 	const facets = db
 		.prepare(`SELECT DISTINCT json_extract(data, '$.row.model') AS model,
-		json_extract(data, '$.row.scope') AS scope FROM records ORDER BY model,scope`)
+		json_extract(data, '$.row.scope') AS scope FROM records`)
 		.all();
 	const values = (key: string) =>
 		[

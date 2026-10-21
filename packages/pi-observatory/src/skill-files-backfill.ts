@@ -73,9 +73,10 @@ export function createSkillFileBackfill(db: Database.Database) {
 		"UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
 	);
 	const resolved = db.prepare<[], CachedFileCall>(`
-		SELECT c.id,c.tool,c.project,c.timestamp,p.arguments FROM skill_file_replay r
+		SELECT c.id,c.tool,c.project,c.timestamp,p.arguments
+		FROM (SELECT call_id FROM skill_file_replay ORDER BY call_id LIMIT 128) r
 		JOIN calls c ON c.id=r.call_id JOIN payloads p ON p.call_id=c.id
-		ORDER BY c.id LIMIT 128
+		ORDER BY c.id
 	`);
 	const clearResolved = db.prepare(
 		"DELETE FROM skill_file_replay WHERE call_id=?",
