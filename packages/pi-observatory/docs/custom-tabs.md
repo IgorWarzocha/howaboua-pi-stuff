@@ -49,6 +49,12 @@ my-tab/
 
 The command is an argument array, not a shell expression. Python and other executables work too. Its working directory is the bundle directory. Refresh defaults to 60 seconds and can be set from 5 to 86,400 seconds. Timeout defaults to 30 seconds and can be set from 1 to 300 seconds. Invalid bundles and duplicate IDs are reported without preventing built-in views from starting.
 
+## Agent investigations
+
+`/observatory agent <scope>` gives the agent your configured bundle paths. For relevant tabs, the bundled guide directs it to read `tab.json`, `README.md` and an optional `investigate.md` beside them. No extra JSON field is needed.
+
+Keep `investigate.md` brief: explain where saved data lives, accepted query inputs and useful interpretations. The agent investigates first, then discusses findings and possible changes with the user. The command does not start collectors.
+
 ## Collector contract
 
 Write one complete JSON value to stdout and exit successfully. Write diagnostic logs to stderr. The viewer starts paused. Update once runs each collector once; live monitoring runs it immediately, then waits `intervalSeconds` after each completed run before starting another. Runs never overlap. Browsing pages or changing filters never triggers collection. A bounded collector may need more than one update to finish historical work; expose that progress in its snapshot.
