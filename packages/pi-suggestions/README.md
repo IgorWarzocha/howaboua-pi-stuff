@@ -18,7 +18,7 @@ Suggestions use the selected model's quota and may incur API charges. Each predi
 
 ## Use
 
-- **Right arrow** accepts the visible suggestion into the editor. Edit it normally and press **Enter** to send.
+- **Right arrow** accepts the visible suggestion into the editor. Fill any placeholders, edit normally and press **Enter** to send.
 - **Tab** keeps Pi's normal behaviour.
 - **Escape** dismisses it. Typing replaces it with your own input.
 - **Enter** alone never submits a suggestion.

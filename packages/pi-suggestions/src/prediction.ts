@@ -2,7 +2,7 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SuggestionConfig } from "./config.js";
 
-const instruction = `Suggest one useful next step from the conversation. Always return a concise request addressed to the assistant, not a reply to the conversation.`;
+const instruction = `Always suggest a useful next step as a concise user-to-assistant request. Use placeholders for missing details. Output only the request.`;
 
 export function predictionContext(ctx: ExtensionContext): string | undefined {
 	const messages = ctx.sessionManager.buildSessionProjection().messages;
@@ -81,7 +81,13 @@ export async function predict(
 			model,
 			{
 				systemPrompt: instruction,
-				messages: [{ role: "user", content: context, timestamp: Date.now() }],
+				messages: [
+					{
+						role: "user",
+						content: `Conversation:\n${context}\n\nDraft the next request from the user to the assistant:`,
+						timestamp: Date.now(),
+					},
+				],
 			},
 			{
 				signal,
