@@ -56,14 +56,17 @@ export function queryUsage(
 		scoped
 			? `EXISTS (SELECT 1 FROM file_entries fe JOIN files f ON f.id=fe.file_id WHERE fe.entry_key=${key} AND ${fileScope})`
 			: "1";
+	// Copied calls retain session membership, but their project is the resolved origin.
 	const callMember = scoped
-		? `EXISTS (SELECT 1 FROM file_calls fc JOIN files f ON f.id=fc.file_id WHERE fc.call_id=e.call_id AND ${fileScope})`
+		? `EXISTS (SELECT 1 FROM file_calls fc JOIN files f ON f.id=fc.file_id JOIN calls c ON c.id=fc.call_id
+			WHERE fc.call_id=e.call_id AND (@session='' OR f.session_id=@session) AND (@project='' OR c.project=@project))`
 		: "1";
 	const time =
 		"(@since='' OR substr(timestamp,1,10)>=@since) AND (@until='' OR substr(timestamp,1,10)<=@until)";
 	const dailyRows = db
 		.prepare<typeof values, UsageDayRow>(`
-		WITH selected_events AS (SELECT * FROM usage_events e WHERE kind IN ('extension','skill','prompt') AND owner<>'builtin' AND (${entryMember("e.entry_key")} OR ${callMember}) AND ${time}),
+		WITH selected_events AS (SELECT * FROM usage_events e WHERE kind IN ('extension','skill','prompt') AND owner<>'builtin'
+			AND CASE WHEN e.call_id IS NULL THEN ${entryMember("e.entry_key")} ELSE ${callMember} END AND ${time}),
 		available AS (SELECT i.*,s.timestamp FROM usage_inventory i JOIN usage_snapshots s USING(entry_key)
 			WHERE i.kind IN ('extension','skill','prompt') AND owner<>'builtin' AND ${entryMember("i.entry_key")} AND (@until='' OR substr(timestamp,1,10)<=@until)),
 		resources AS (SELECT kind,name,path,owner FROM selected_events UNION SELECT kind,name,path,owner FROM available WHERE kind='skill'),
