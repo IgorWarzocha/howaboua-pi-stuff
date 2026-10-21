@@ -1,4 +1,4 @@
-Built-in indexing is the only session-file reader for core views. Core HTTP queries and detail views use SQLite, never source JSONL. Custom-tab collectors run separately and publish bounded snapshots; only explicit monitoring controls trigger collection, never viewing. File cursor, partial tail, entries, calls, search index and summaries commit atomically. Preserve origin-model attribution across exec/wait snapshots and event identity across copied fork history.
+Built-in indexing is the only session-file reader for core views. Core HTTP queries and detail views use SQLite, never source JSONL. Server startup and /observatory opening request one catch-up, then pause; browsing and queries never start collection. Custom-tab collectors run separately and publish bounded snapshots. File cursor, partial tail, entries, calls, search index and summaries commit atomically. Preserve origin-model attribution across exec/wait snapshots and event identity across copied fork history.
 
 Show historical tool usage and outcomes, including successful calls in the default view. Missing final results are coverage gaps. Arbitrary tool details.status describes domain data, not the tool's execution. Reclassify cached evidence without resetting source cursors.
 
@@ -8,6 +8,8 @@ PCC log cursor rows own retained history through a cascading foreign key. Reset 
 Native Pi receipts contain no nested result payload. Public execution events can supply bounded live sidecars; correlate through session, initiating entry and native call IDs, never names or arguments. Preserve PCC trace results when several native observations map to one trace. PCC snapshots can precede Pi scope drainage: unmatched receipts and observations remain explicit gaps. Model API rows in native codemode details.calls have model scope, not tool scope.
 
 Copied entry ownership follows parentSession provenance, not scan order or the fork's cwd. Header recovery belongs in the indexer, never HTTP queries. Repair inferred relative skill paths and project tallies together; preserve source cursors. Capture execution identity at tool start and retain it across yielded work.
+
+Queued skill replay is unfinished coverage even after historical scans completed. Retain inferred evidence until its bounded replay transaction replaces it; never clear it ahead of paused work. Replay must preserve confirmed receipts.
 
 Index and query workers must remain separate from each other and HTTP handling. Measure query latency during ingestion, not just after it. Common overview slices use transactional tallies; keep them equivalent to raw call counts.
 Bound replay IDs before joining calls and payloads. Sort PCC facet lists after SQL DISTINCT: combining JSON projection, DISTINCT and ORDER BY can spill full record payloads to disk.

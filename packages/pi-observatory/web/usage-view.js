@@ -145,7 +145,9 @@ export function createUsageView(selectDay) {
 		zero.title = partial ? "History scan in progress" : "";
 		partialHistory.hidden = !partial;
 		partialHistory.textContent = partial
-			? `History scan in progress (${Math.min(coverage.fileReadScan.progress, coverage.skillResultScan.progress)}%). Counts are partial.`
+			? coverage.fileReadScan.pending
+				? `Skill history needs rebuilding (${coverage.fileReadScan.pending.toLocaleString()} calls pending). Counts are partial. Update once or enable live monitoring to finish.`
+				: `History scan incomplete (${Math.min(coverage.fileReadScan.progress, coverage.skillResultScan.progress)}%). Counts are partial. Update once or enable live monitoring to finish.`
 			: "";
 		const recorded =
 			coverage.recordingSince !== null && coverage.recordedSessions > 0;
@@ -192,9 +194,11 @@ export function createUsageView(selectDay) {
 			? recorded
 				? "No recorded command submissions match this selection."
 				: "No command recording evidence in this selection. Earlier usage is unknown."
-			: latest.rows.some((row) => row.kind === "skill")
-				? "No skills match this selection."
-				: "No skill records in this selection.";
+			: partial
+				? "Skill history is incomplete. Counts are not final."
+				: latest.rows.some((row) => row.kind === "skill")
+					? "No skills match this selection."
+					: "No skill records in this selection.";
 		drawSummary(rows, recorded);
 		timeline.render(rows, skills, empty);
 		const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));

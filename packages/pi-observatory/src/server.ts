@@ -234,6 +234,7 @@ async function main(): Promise<void> {
 				const selection = session
 					? `?session=${encodeURIComponent(session)}`
 					: "";
+				collection.updateOnce();
 				response
 					.writeHead(200, { "Content-Type": "application/json" })
 					.end(JSON.stringify({ url: `${publicUrl}/${selection}` }));
@@ -314,8 +315,9 @@ async function main(): Promise<void> {
 				}
 				if (publicUrl === "http://127.0.0.1:0")
 					publicUrl = `http://127.0.0.1:${address.port}`;
+				collection.updateOnce();
 				console.log(
-					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nCollection paused. Use the dashboard to update once or enable live monitoring. Ctrl+C to stop.`,
+					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nUpdating once, then pausing. Use the dashboard to enable live monitoring. Ctrl+C to stop.`,
 				);
 			});
 		});

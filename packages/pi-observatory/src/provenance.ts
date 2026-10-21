@@ -16,10 +16,6 @@ export function initialiseProvenance(db: Database.Database): void {
 	db.transaction(() => {
 		// The old first-copy-wins project is not evidence of origin, even if its file vanished.
 		db.exec(`
-			DELETE FROM usage_events WHERE evidence IN ('file_read','file_reference_read');
-			DELETE FROM skill_file_sources WHERE authoritative=0;
-			DELETE FROM skill_file_gaps;
-			DELETE FROM skill_file_candidates;
 			INSERT OR IGNORE INTO skill_file_replay SELECT id FROM calls WHERE outcome='ok';
 			UPDATE calls SET project='unknown' WHERE project<>'unknown';
 			INSERT INTO metadata VALUES ('forkProvenance','1');
@@ -76,13 +72,6 @@ export function createProvenance(db: Database.Database) {
 		)
 		UPDATE calls SET project=@project WHERE id IN family AND project<>@project RETURNING id,outcome
 	`);
-	const clearEvents = db.prepare(
-		"DELETE FROM usage_events WHERE call_id=? AND evidence IN ('file_read','file_reference_read')",
-	);
-	const clearGaps = db.prepare("DELETE FROM skill_file_gaps WHERE call_id=?");
-	const clearCandidates = db.prepare(
-		"DELETE FROM skill_file_candidates WHERE call_id=?",
-	);
 	const replay = db.prepare(
 		"INSERT OR IGNORE INTO skill_file_replay VALUES (?)",
 	);
@@ -132,9 +121,6 @@ export function createProvenance(db: Database.Database) {
 			if (known.size === 1) value = [...known][0] ?? "unknown";
 		}
 		for (const changed of update.all({ id, project: value })) {
-			clearEvents.run(changed.id);
-			clearGaps.run(changed.id);
-			clearCandidates.run(changed.id);
 			if (changed.outcome === "ok") replay.run(changed.id);
 		}
 		return value;

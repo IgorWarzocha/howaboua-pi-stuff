@@ -9,7 +9,7 @@ export interface MonitorStatus {
 	revision: number;
 }
 
-/** Shared collection control. Viewing and status polling never start work. */
+/** Launches catch up once. Browsing and status polling never start work. */
 export function createMonitor(writer: Worker, tabs: CustomTabs) {
 	let mode: MonitorMode = "paused";
 	let generation = 0;
@@ -48,6 +48,9 @@ export function createMonitor(writer: Worker, tabs: CustomTabs) {
 		});
 	}
 	return {
+		updateOnce(): void {
+			if (mode === "paused") select("catch-up");
+		},
 		serve(
 			request: IncomingMessage,
 			url: URL,

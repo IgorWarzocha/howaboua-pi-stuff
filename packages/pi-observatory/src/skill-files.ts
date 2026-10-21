@@ -79,6 +79,9 @@ export function createSkillFileIngestor(db: Database.Database) {
 		VALUES (@key,NULL,@call,@timestamp,'skill',@name,@path,'','agent',@evidence)`);
 	const gap = db.prepare("INSERT OR REPLACE INTO skill_file_gaps VALUES (?,?)");
 	const clearGap = db.prepare("DELETE FROM skill_file_gaps WHERE call_id=?");
+	const clearInferred = db.prepare(
+		"DELETE FROM usage_events WHERE call_id=? AND evidence IN ('file_read','file_reference_read')",
+	);
 	const rename = db.prepare(
 		"UPDATE usage_events SET name=? WHERE kind='skill' AND path=? AND evidence IN ('file_read','file_reference_read')",
 	);
@@ -208,6 +211,10 @@ export function createSkillFileIngestor(db: Database.Database) {
 	}
 
 	function replay(call: CachedFileCall): void {
+		// The caller's bounded transaction replaces old evidence atomically.
+		clearInferred.run(call.id);
+		clearGap.run(call.id);
+		clearCandidates.run(call.id);
 		const legacy = call.tool === "skills" || call.tool === "more_skills";
 		let reads = legacy ? undefined : targets(call);
 		if (!legacy && (!reads || (!reads.paths.length && !reads.unsupported)))
