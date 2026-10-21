@@ -223,8 +223,7 @@ class SuggestionEditor implements EditorComponent, Focusable {
 			prediction !== undefined &&
 			prediction === this.state.prediction &&
 			this.canShow();
-		const accept =
-			visible && (matchesKey(data, "tab") || matchesKey(data, "right"));
+		const accept = visible && matchesKey(data, "right");
 		const dismiss = visible && matchesKey(data, "escape");
 		this.clear();
 		this.state.onInput();
