@@ -64,7 +64,10 @@ async function ensureServer(config: ObservatoryConfig): Promise<string> {
 	try {
 		const child = spawn(
 			process.versions["bun"] ? "node" : process.execPath,
-			[fileURLToPath(new URL("./server.js", import.meta.url))],
+			[
+				fileURLToPath(new URL("./server.js", import.meta.url)),
+				"--defer-initial-update",
+			],
 			{ detached: true, stdio: ["ignore", log, log], windowsHide: true },
 		);
 		child.once("error", (error) => {

@@ -51,6 +51,7 @@ async function main(): Promise<void> {
 			sessions: { type: "string" },
 			db: { type: "string" },
 			port: { type: "string" },
+			"defer-initial-update": { type: "boolean" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
@@ -315,9 +316,9 @@ async function main(): Promise<void> {
 				}
 				if (publicUrl === "http://127.0.0.1:0")
 					publicUrl = `http://127.0.0.1:${address.port}`;
-				collection.updateOnce();
+				if (!values["defer-initial-update"]) collection.updateOnce();
 				console.log(
-					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\nUpdating once, then pausing. Use the dashboard to enable live monitoring. Ctrl+C to stop.`,
+					`Pi Observatory: ${publicUrl}/\nSessions: ${sessions}\nIndex: ${database}\n${values["defer-initial-update"] ? "Waiting for the viewer to open." : "Updating once, then pausing."} Use the dashboard to enable live monitoring. Ctrl+C to stop.`,
 				);
 			});
 		});

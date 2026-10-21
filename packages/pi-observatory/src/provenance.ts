@@ -16,6 +16,7 @@ export function initialiseProvenance(db: Database.Database): void {
 	db.transaction(() => {
 		// The old first-copy-wins project is not evidence of origin, even if its file vanished.
 		db.exec(`
+			DELETE FROM skill_file_sources WHERE authoritative=0;
 			INSERT OR IGNORE INTO skill_file_replay SELECT id FROM calls WHERE outcome='ok';
 			UPDATE calls SET project='unknown' WHERE project<>'unknown';
 			INSERT INTO metadata VALUES ('forkProvenance','1');
