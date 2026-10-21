@@ -16,7 +16,10 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 for (const path of ["web", "tabs", "examples", "docs", "investigate.md"]) {
 	cpSync(path, join("dist", path), {
 		recursive: true,
-		filter: (path) => !path.endsWith(".ts") && !path.endsWith("AGENTS.md"),
+		filter: (path) =>
+			!path.endsWith(".ts") &&
+			!path.endsWith(".js") &&
+			!path.endsWith("AGENTS.md"),
 	});
 }
 for (const tab of readdirSync("tabs")) {
