@@ -1,5 +1,11 @@
 # @howaboua/pi-skills
 
+## 0.0.26
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-code: Removed the manual Codex PR review request template from repository-delivery guidance.
+
 ## 0.0.25
 
 - Include bundled package updates:

@@ -1,5 +1,17 @@
 # @howaboua/pi-extensions
 
+## 0.0.98
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Use denser question and handoff help in PCC GPT prompt mode.
+  - @howaboua/pi-auto-trees: Use denser priming and commit-summary guidance in PCC GPT prompt mode.
+  - @howaboua/pi-better-skills-tool: - Skills help and catalog results now explain reference-only reads and batching skill bodies with references. - Invalid Code and Notebook calls now show no-argument discovery syntax. - GPT-mode catalog help uses denser guidance. - Skill results include structured read receipts for usage tracking, distinguishing references and continuation pages.
+  - @howaboua/pi-github-watch: Use denser watch help in PCC GPT prompt mode.
+  - @howaboua/pi-shepherdr: - Worker roles now follow shared project instructions, preserving a longer common startup prefix and exact role whitespace across machines. Update and reload Shepherdr on controllers and worker hosts together. - Fixed broken remote connections causing unhandled pipe errors and leaving requests pending. - Worker-notice warnings now identify the affected machine and explain how to reconnect. - GPT-mode Board briefings use denser guidance. - Blocking agent calls can run in parallel while the controller waits for their results. - Launched workers identify themselves to compatible extensions so human-only features can stay off.
+  - @howaboua/pi-suggestions: Add opt-in next-step suggestions for human terminal sessions, with editable inline drafts and /suggestions model, reasoning and on/off settings. Private prediction history reuses provider caching within each chat context window.
+  - @howaboua/pi-unicode-charts: Use denser chart guidance in PCC GPT prompt mode.
+
 ## 0.0.97
 
 - Include bundled package updates:

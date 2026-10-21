@@ -1,5 +1,12 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.11
+
+- - Skills help and catalog results now explain reference-only reads and batching skill bodies with references.
+  - Invalid Code and Notebook calls now show no-argument discovery syntax.
+  - GPT-mode catalog help uses denser guidance.
+  - Skill results include structured read receipts for usage tracking, distinguishing references and continuation pages.
+
 ## 0.0.10
 
 - Use consistent skill discovery across native, Code and Notebook modes, with compact help in PCC GPT prompt mode.
