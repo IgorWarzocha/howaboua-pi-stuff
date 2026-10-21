@@ -1,4 +1,4 @@
-- Port model-native Codex prompts, tools, transport and context into Pi. Add features only for model fit, quota efficiency or Pi integration.
+- Port model-native Codex prompts, tools, transport and context into Pi. Add features only for model fit, quota efficiency or Pi integration. Native request semantics are the compatibility baseline; document necessary Pi adaptations. Noisy cache results alone do not justify divergence.
 - Preserve cache/continuation across prompt, tool, request, replay and transport changes.
 - Own GPT harness integration, not universal compatibility, UI, enterprise or a Pi fork. Route uncommon needs to overrides, extensions or forks.
 - After a retryable connection failure, allow up to three fresh WebSocket retries within five minutes, then sticky SSE with a separate five-minute window. Preserve the healthy initial attempt. Fall back immediately on 426 or close 1009.
