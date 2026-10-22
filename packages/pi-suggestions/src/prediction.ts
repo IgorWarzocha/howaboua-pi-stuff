@@ -4,15 +4,17 @@ import {
 	type Message,
 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { SuggestionConfig } from "./config.js";
+import { readInstructions, type SuggestionConfig } from "./config.js";
 import { type ConversationSnapshot, conversationUpdate } from "./context.js";
 import { cleanupSessionResources } from "./session-resources.js";
 
-const instruction = `Always suggest a useful next step as a concise user-to-assistant request. Use placeholders for missing details. Output only the request.`;
+const instruction =
+	"Draft one concise next request from the user to the assistant. Output only the request.";
 
 interface PredictionSession {
 	id: string;
 	window: string;
+	instructions: string;
 	seen: string[];
 	messages: Message[];
 }
@@ -44,6 +46,9 @@ export class Predictions {
 		signal: AbortSignal,
 	): Promise<{ text: string; commit(): void } | undefined> {
 		this.sync(snapshot);
+		const instructions = readInstructions().trim();
+		if (this.session && this.session.instructions !== instructions)
+			this.reset();
 		const model = ctx.modelRegistry
 			.getAvailable()
 			.find(
@@ -59,6 +64,7 @@ export class Predictions {
 		const session = (this.session ??= {
 			id: randomUUID(),
 			window: snapshot.window,
+			instructions,
 			seen: [],
 			messages: [],
 		});
@@ -72,7 +78,9 @@ export class Predictions {
 			.streamSimple(
 				model,
 				{
-					systemPrompt: instruction,
+					systemPrompt: [instruction, instructions]
+						.filter(Boolean)
+						.join("\n\n"),
 					messages: [...session.messages, update],
 				},
 				{
