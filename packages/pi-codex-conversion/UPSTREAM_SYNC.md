@@ -13,6 +13,12 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## October 22 transport selection
+
+Compared released Pi `1.4.0` and Codex `c260087efe`. Pi defaults to `auto` with cached WebSocket continuation and offers explicit plain WebSocket, cached WebSocket and SSE transports. Codex enables WebSockets through provider capability and has no separate cached-continuation upgrade switch.
+
+PCC now honours Pi's transport selection without upgrading plain WebSocket. Handshake preparation follows WebSocket availability, non-generating warmup follows cached continuation, and opt-in generated keepalive retains its isolated connection independently. SSE and session fallback skip WebSocket preparation. Request serialization and PCC's existing recovery budgets are unchanged.
+
 ## Pi 1.4 compatibility
 
 Compared released Pi `1.4.0` with `1.3.0` for request shape, headers, reasoning, service tiers, retries and stream termination. The adapter now requires Pi 1.4 and uses its enum-based `resolveTranscriptTools()` API with `foldedSystemMessages`. The `"additions"` policy keeps initial tools top-level and anchors later additions after the last removal or redeclaration. Pi's separate `"changes"` policy, initial `additional_tools` placement and tool-removal notices are not adopted here. The adapter's existing Codex headers, base-instruction placement and transport recovery remain intentional differences.

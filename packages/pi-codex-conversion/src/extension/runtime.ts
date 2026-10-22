@@ -57,7 +57,6 @@ interface PreparedKeepaliveRequest {
 	body: ResponsesBody;
 	responsesLite: boolean;
 	headers: OpenAICodexStreamOptions["headers"];
-	transport: OpenAICodexStreamOptions["transport"];
 }
 
 export interface CodexExtensionRuntime {
@@ -167,7 +166,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			!model
 			|| !runtimePlan.codexTransport
 			|| !isAdapterRuntime(runtimePlan)
-			|| (!promptCacheRefresh && !config.openai.forceCachedWebSockets)
 		) return undefined;
 		// A non-generating warmup must not consume an update before the next
 		// response, otherwise more selector presses could rewrite its sent tail.
@@ -232,7 +230,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					apiKey: auth.apiKey,
 					headers: { ...auth.headers, ...preparedRequest?.headers },
 					...(auth.env ? { env: auth.env } : {}),
-					...(preparedRequest?.transport ? { transport: preparedRequest.transport } : {}),
+					transport: pi.getSettings().transport ?? "auto",
 					sessionId: ctx.sessionManager.getSessionId(),
 					signal: controller.signal,
 					...reasoning,
@@ -251,7 +249,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					turnState: state.codexTurnState,
 					getDiagnostics: () => diagnostics.sink(),
 					...(preserveContinuation ? { preserveContinuation: true } : {}),
-					...(kind === "keepalive" ? { retainSocket: config.openai.forceCachedWebSockets } : {}),
 					prewarmDiagnostics: {
 						kind,
 						...(keepaliveStrategy ? { keepaliveStrategy } : {}),
@@ -486,11 +483,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 					accountId: extractAccountId(options.apiKey),
 					body: structuredClone(body), responsesLite,
 					headers: options.headers ? { ...options.headers } : undefined,
-					transport: options.transport,
 				} : undefined;
 			if (!ordinaryPrewarmPending) return;
 			ordinaryPrewarmPending = false;
-			if (!plan.codexTransport || !state.config.openai.forceCachedWebSockets) return;
+			if (!plan.codexTransport) return;
 			prewarmController?.abort();
 			const controller = new AbortController();
 			prewarmController = controller;

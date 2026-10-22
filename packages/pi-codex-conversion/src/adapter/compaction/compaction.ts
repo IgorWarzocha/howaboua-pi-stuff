@@ -455,6 +455,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	);
 	const compactResult = await executeRemoteCompactionV2({
 		runtime,
+		...(runtime.codexTransport ? { transport: pi.getSettings().transport ?? "auto" } : {}),
 		modelRegistry: ctx.modelRegistry,
 		remoteDeliveryContext: ctx,
 		context,

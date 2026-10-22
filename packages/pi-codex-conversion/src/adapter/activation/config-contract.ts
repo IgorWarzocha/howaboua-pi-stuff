@@ -123,7 +123,6 @@ export interface CodexConversionConfig {
 		cacheKeepalive: boolean;
 		cacheKeepaliveIntervalMinutes: CacheKeepaliveIntervalMinutes;
 		proxyResponsesLite: boolean;
-		forceCachedWebSockets: boolean;
 		cacheDiagnostics: CacheDiagnosticsMode;
 		harnessIdentifierHeader: boolean | "codex";
 	};
@@ -193,7 +192,6 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		cacheKeepalive: false,
 		cacheKeepaliveIntervalMinutes: 25,
 		proxyResponsesLite: false,
-		forceCachedWebSockets: true,
 		cacheDiagnostics: "off",
 		harnessIdentifierHeader: false,
 	},

@@ -103,14 +103,10 @@ function retryAdviceRecoveryBudgetError(error: unknown): NonRetryableProviderErr
 
 export function getEffectiveCodexTransport(
 	transport: Transport | undefined,
-	config: Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined,
 	sessionId?: string | undefined,
 ): Transport {
 	const configuredTransport = transport ?? "auto";
-	const preferredTransport = config?.forceCachedWebSockets !== false && configuredTransport === "websocket"
-		? "websocket-cached"
-		: configuredTransport;
-	return preferredTransport !== "sse" && isWebSocketSseFallbackActive(sessionId) ? "sse" : preferredTransport;
+	return configuredTransport !== "sse" && isWebSocketSseFallbackActive(sessionId) ? "sse" : configuredTransport;
 }
 
 async function openCodexSSE<TApi extends Api>(
@@ -205,8 +201,8 @@ export function createCodexTransportStream<TApi extends Api>(
 		getDeclaredTools(context.messages),
 		responsesLite || modelSupportsGrammarTools,
 	);
-	const preferredTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
-	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId);
+	const preferredTransport = getEffectiveCodexTransport(options?.transport);
+	const effectiveTransport = getEffectiveCodexTransport(options?.transport, options?.sessionId);
 	const effectiveOptions: OpenAICodexStreamOptions | undefined = options
 		? {
 			...options,
@@ -245,7 +241,7 @@ export function createCodexTransportStream<TApi extends Api>(
 				: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi";
 			// Pi has completed every before_agent_start/context hook. Only the
 			// handshake overlaps payload rewrites and image preparation, never warmup.
-			if (effectiveTransport !== "sse" && runtimeConfig?.openai.forceCachedWebSockets
+			if (effectiveTransport !== "sse"
 				&& deps.beforeRequestSend && effectiveOptions.sessionId
 				&& !effectiveOptions.canonicalCompaction && effectiveOptions.cacheRetention !== "none") {
 				validateWebSocketTimeoutOptions(effectiveOptions);
@@ -267,7 +263,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			if (preconnect) {
 				const finalHeaders = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, apiKey, websocketRequestId, originator, body);
 				const failure = await preconnect.handoff(resolveCodexWebSocketUrl(model.baseUrl), finalHeaders, accountId, effectiveOptions.env,
-					getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId) !== "sse");
+					getEffectiveCodexTransport(options?.transport, options?.sessionId) !== "sse");
 				if (failure && !(failure.error instanceof CodexProtocolError)
 					&& (isWebSocketUpgradeRequiredError(failure.error) || isWebSocketMessageTooBigError(failure.error))) {
 					recordWebSocketSseFallback(effectiveOptions.sessionId);
@@ -302,7 +298,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			const sseBody = compressedBody ?? bodyJson;
 			// Final-body preparation may prewarm the main lane and discover a sticky
 			// WebSocket incompatibility. Re-read session routing before the real send.
-			const transport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId);
+			const transport = getEffectiveCodexTransport(options?.transport, options?.sessionId);
 			const streamMaxRetries = codexStreamMaxRetries(effectiveOptions);
 			let overloadRetryCount = 0;
 			let overloadWaitedMs = 0;

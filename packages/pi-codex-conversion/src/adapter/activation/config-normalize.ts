@@ -244,10 +244,6 @@ export function normalizeCodexConversionConfig(
 				openai["proxyResponsesLite"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,
 			),
-			forceCachedWebSockets: normalizeBoolean(
-				openai["forceCachedWebSockets"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
-			),
 			cacheDiagnostics:
 				normalizeCacheDiagnosticsMode(openai["cacheDiagnostics"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,

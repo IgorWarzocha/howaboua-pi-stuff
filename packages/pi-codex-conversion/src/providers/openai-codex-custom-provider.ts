@@ -86,14 +86,14 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 		preserveContinuation?: boolean | undefined;
-		retainSocket?: boolean | undefined;
 		generate?: boolean | undefined;
 		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
 		validateRequest?: ((body: ResponsesBody, responsesLite: boolean) => Promise<void>) | undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
-	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
+	const transport = getEffectiveCodexTransport(options.transport, options.sessionId);
+	if (transport === "sse" || (transport === "websocket" && !deps.preserveContinuation)) return;
 	if (!options.apiKey || !options.sessionId) return;
 	const transcript = normalizeContext(context);
 	const resolvedContext = resolveCodexTranscript(model, transcript);
@@ -123,14 +123,14 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 		preserveContinuation?: boolean | undefined;
-		retainSocket?: boolean | undefined;
 		generate?: boolean | undefined;
 		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
 		validateRequest?: ((body: ResponsesBody, responsesLite: boolean) => Promise<void>) | undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
-	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
+	const transport = getEffectiveCodexTransport(options.transport, options.sessionId);
+	if (transport === "sse" || (transport === "websocket" && !deps.preserveContinuation)) return;
 	if (!options.apiKey || !options.sessionId) return;
 	if (assertRemoteDeliveryPairs(body.input) > 0 && !deps.validateRequest)
 		throw new Error("Remote delivery requires its session validation before prewarm");
@@ -161,7 +161,6 @@ export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
 			deps.preserveContinuation,
 			deps.prewarmDiagnostics,
 			deps.generate,
-			deps.retainSocket,
 		);
 	} catch (error) {
 		if (!options.signal?.aborted && !(error instanceof CodexProtocolError) && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
