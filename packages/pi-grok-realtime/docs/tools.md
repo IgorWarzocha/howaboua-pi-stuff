@@ -8,7 +8,7 @@ Return a JSON-compatible value or a promise of one. Undefined, non-finite number
 
 Speaking over Grok does not cancel a started action. The call's shutdown signal stops waiting for a result, but cannot undo work. Handlers must cooperate with `signal` to stop asynchronous work when the call ends.
 
-Register during extension loading. The helper returns an unsubscribe function. Pi also removes subscriptions on reload. Tools are collected once at call start, regardless of extension load order. Registration changes apply to the next call. Duplicate names fail collection. `send_task`, `end_the_call` and `work_landed` are reserved.
+Register during extension loading. The helper returns an unsubscribe function. Pi also removes subscriptions on reload. Tools are collected once at call start, regardless of extension load order. Registration changes apply to the next call. Duplicate names fail collection. `send_task`, `end_the_call`, `stay_quiet` and `work_landed` are reserved.
 
 ## Try the example
 
