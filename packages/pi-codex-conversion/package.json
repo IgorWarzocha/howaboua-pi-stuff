@@ -49,9 +49,13 @@
       "types": "./dist/prompt-mode.d.ts",
       "import": "./dist/prompt-mode.js"
     },
-    "./context-sharing": {
-      "types": "./dist/context-sharing.d.ts",
-      "import": "./dist/context-sharing.js"
+    "./compaction": {
+      "types": "./dist/compaction.d.ts",
+      "import": "./dist/compaction.js"
+    },
+    "./agent-relationship": {
+      "types": "./dist/agent-relationship.d.ts",
+      "import": "./dist/agent-relationship.js"
     },
     "./apply-patch-display": {
       "types": "./dist/apply-patch-display.d.ts",

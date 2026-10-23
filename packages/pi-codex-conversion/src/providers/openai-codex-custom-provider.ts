@@ -1,24 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
-	getDeclaredTools,
-	normalizeContext,
 	registerSessionResourceCleanup,
 	type Api,
-	type Context,
 	type Model,
 	type Provider,
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
-import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
-import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
+import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
-import { nativeCompactionConfigured } from "../adapter/activation/runtime-plan.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
 import { CODEX_RESERVE_MODEL } from "../codex-usage/reserve-policy.ts";
 import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
-import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import type { BeforeCodexRequestSend, CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, CodexProviderStreamOptions, CodexUsageRecorder, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
@@ -29,16 +23,12 @@ import { CodexProtocolError } from "./openai-codex/stream-events.ts";
 import { type CodexTurnState, withCodexTurnState } from "./openai-codex/turn-state.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
-import { assertRemoteDeliveryPairs } from "../context-management/remote-delivery-protocol.ts";
+import { assertRemoteDeliveryPairs } from "../tools/code-mode/protected-delivery-protocol.ts";
 import {
 	createCodexTransportStream,
 	getEffectiveCodexTransport,
 	type CodexProviderRuntimeConfig,
 } from "./openai-codex/transport-recovery.ts";
-import {
-	hasContextNamespaceRouters,
-	routeContextNamespaceToolStream,
-} from "../context-management/namespace-tools.ts";
 
 export { closeOpenAICodexWebSocketSessions };
 export type { ResponsesBody } from "./openai-codex/types.ts";
@@ -74,43 +64,6 @@ async function prepareCodexRequestBody<TApi extends Api>(
 		if (input !== body.input) body = { ...body, input };
 	}
 	return normalizeCodexConfigurationUpdates(body);
-}
-
-export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
-	model: Model<TApi>,
-	context: Context,
-	options: OpenAICodexStreamOptions,
-	deps: {
-		getConfig?: () => CodexProviderRuntimeConfig | undefined;
-		useResponsesLite?: (model: Model<Api>) => boolean;
-		turnState?: CodexTurnState | undefined;
-		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
-		preserveContinuation?: boolean | undefined;
-		generate?: boolean | undefined;
-		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
-		validateRequest?: ((body: ResponsesBody, responsesLite: boolean) => Promise<void>) | undefined;
-	},
-): Promise<CodexPrewarmResult | undefined> {
-	const runtimeConfig = deps.getConfig?.();
-	const transport = getEffectiveCodexTransport(options.transport, options.sessionId);
-	if (transport === "sse" || (transport === "websocket" && !deps.preserveContinuation)) return;
-	if (!options.apiKey || !options.sessionId) return;
-	const transcript = normalizeContext(context);
-	const resolvedContext = resolveCodexTranscript(model, transcript);
-	const responsesLite = deps.useResponsesLite?.(model)
-		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook")
-			&& supportsResponsesLiteModel(model.id));
-	const modelSupportsGrammarTools = (model.compat as { supportsOpenAIGrammarTools?: boolean | undefined } | undefined)
-		?.supportsOpenAIGrammarTools ?? false;
-	const grammarToolInputProperties = createGrammarToolInputProperties(
-		getDeclaredTools(transcript.messages),
-		responsesLite || modelSupportsGrammarTools,
-	);
-	const effectiveOptions = nativeCompactionConfigured(runtimeConfig?.compaction)
-		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }
-		: { ...options, grammarToolInputProperties };
-	const body = await prepareCodexRequestBody(model, resolvedContext, effectiveOptions, responsesLite);
-	return prewarmPreparedOpenAICodexWebSocket(model, body, effectiveOptions, responsesLite, deps);
 }
 
 export async function prewarmPreparedOpenAICodexWebSocket<TApi extends Api>(
@@ -194,9 +147,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 			...(diagnostics ? { getDiagnostics: () => diagnostics } : {}),
 			...(options.recordUsage ? { recordUsage: options.recordUsage } : {}),
 		});
-		return hasContextNamespaceRouters(context)
-			? routeContextNamespaceToolStream(stream)
-			: stream;
+		return stream;
 	};
 	const models = openAICodexProviderModels();
 	// Native registration puts the catalog below models.json, not above it.

@@ -7,7 +7,6 @@ import { areEquivalentValues, cloneResponsesInputSlice, isRecord } from "./paylo
 import type { FreshAuthoritativePreamble } from "./payload-preamble.ts";
 import type { NativeCompactionEntry } from "../compaction/types.js";
 import { toPiReplayAgentMessage, toReplayAgentMessage } from "./replay-message-conversion.ts";
-import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
 
 export type SerializedReplaySlice = {
 	entries: SessionEntry[];
@@ -64,7 +63,7 @@ export function collectReplayMessages(entries: readonly SessionEntry[]): AgentMe
 		}
 	}
 
-	return projectTreeHandoffReads(messages, entries);
+	return messages;
 }
 
 function collectPiReplayMessages(entries: readonly SessionEntry[]): AgentMessage[] {
@@ -73,7 +72,7 @@ function collectPiReplayMessages(entries: readonly SessionEntry[]): AgentMessage
 		const message = toPiReplayAgentMessage(entry);
 		if (message) messages.push(message);
 	}
-	return projectTreeHandoffReads(messages, entries);
+	return messages;
 }
 
 export function createCompactionSummaryAgentMessage(entry: NativeCompactionEntry): AgentMessage {
@@ -125,17 +124,6 @@ function clonePayloadConversationInput(args: {
 	return cloneResponsesInputSlice(args.payloadInput.slice(args.freshPreamble.leadingInput.length, tailEndIndex));
 }
 
-function stripLeadingCompactionSummaryPlaceholder(args: {
-	conversationInput: readonly ResponsesInputItem[];
-	compactionSummaryInput: readonly ResponsesInputItem[];
-}): ResponsesInputItem[] {
-	if (args.compactionSummaryInput.length === 0) return [...args.conversationInput];
-	if (!areEquivalentValues(args.conversationInput.slice(0, args.compactionSummaryInput.length), args.compactionSummaryInput)) {
-		return [...args.conversationInput];
-	}
-	return [...args.conversationInput.slice(args.compactionSummaryInput.length)];
-}
-
 export function buildLenientNativeReplayPayload(args: {
 	payload: ResponsesCompatibleRequestPayload;
 	freshPreamble: FreshAuthoritativePreamble;
@@ -144,13 +132,19 @@ export function buildLenientNativeReplayPayload(args: {
 }): { input: unknown[]; conversationInput: ResponsesInputItem[] } | undefined {
 	const conversationInput = clonePayloadConversationInput({ payloadInput: args.payload.input, freshPreamble: args.freshPreamble });
 	if (!conversationInput) return undefined;
-	const replayConversationInput = stripLeadingCompactionSummaryPlaceholder({ conversationInput, compactionSummaryInput: args.compactionSummaryInput });
+	if (!args.compactionSummaryInput.length) return undefined;
+	const summaryIndex = conversationInput.findIndex((_, index) =>
+		areEquivalentValues(conversationInput.slice(index, index + args.compactionSummaryInput.length), args.compactionSummaryInput));
+	if (summaryIndex < 0) return undefined;
+	const preceding = conversationInput.slice(0, summaryIndex);
+	const following = conversationInput.slice(summaryIndex + args.compactionSummaryInput.length);
 	return {
-		conversationInput: replayConversationInput,
+		conversationInput: [...preceding, ...following],
 		input: [
 			...args.freshPreamble.leadingInput,
+			...preceding,
 			...args.compactedWindow,
-			...replayConversationInput,
+			...following,
 			...args.freshPreamble.trailingInput,
 		],
 	};

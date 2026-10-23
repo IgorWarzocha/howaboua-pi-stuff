@@ -7,12 +7,6 @@ import { CODEX_NOTEBOOK_STATUS_TYPE, readNotebookStatus } from "../adapter/noteb
 import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
 import { fetchCodexUsageStatus } from "../codex-usage/client.ts";
 import { CODEX_DEVELOPER_MESSAGE_TYPE } from "../developer-messages.ts";
-import {
-	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-	type CodexContextManagementMessageDetails,
-	isCodexContextManagementMessageDetails,
-} from "../context-management/messages.ts";
-import { bookmarkNotesContinuation, latestNoteSaveMarker, NOTE_SAVE_MARKER, recordNoteSaveMarker } from "../context-management/note-save-marker.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -24,7 +18,6 @@ export interface CodexUiController {
 	invalidateUsageStatus(): void;
 	applyConfig(config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig): void;
 	refreshUsageStatus(ctx: ExtensionContext): Promise<void>;
-	recordNoteSave(ctx: ExtensionContext): void;
 }
 
 export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
@@ -61,24 +54,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 
 	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
 	const renderNotice = createNoticeRenderer();
-	let noteSaveSessionManager: ExtensionContext["sessionManager"] | undefined;
-	// Cached TUI children can redraw after Pi invalidates the old context.
-	const restoreNoteSaveContext = (_event: unknown, ctx: ExtensionContext) => { noteSaveSessionManager = ctx.sessionManager; };
-	pi.on("session_start", restoreNoteSaveContext);
-	pi.on("session_tree", restoreNoteSaveContext);
-	pi.on("session_compact", restoreNoteSaveContext);
-	pi.on("session_shutdown", () => {
-		invalidateUsageStatus();
-		noteSaveSessionManager = undefined;
-	});
-	pi.on("context_with_system", (_event, ctx) => {
-		const { state } = runtime;
-		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const identity = state.externalNotes ? state.externalNotes.owner.identity(ctx) : state.contextWindows.currentIdentity();
-		if ((plan.contextManagement || plan.contextManagementExternal) && identity)
-			bookmarkNotesContinuation(pi, ctx, identity.currentWindowId, plan.contextManagementExternal ? "local" : plan.contextManagementMode);
-	});
+	pi.on("session_shutdown", () => invalidateUsageStatus());
 	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
 			typeof message.details?.title === "string" ? message.details.title : "Context update",
@@ -94,21 +70,6 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		const status = readNotebookStatus(entry.data);
 		return renderNotice(entry, status.title, status.content, expanded, theme);
 	});
-	pi.registerEntryRenderer(NOTE_SAVE_MARKER, (entry, _options, theme) => {
-		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.noteSaveMarkers) return undefined;
-		const content = theme.fg("success", "✓ Notes saved");
-		// Native entries retain their child between redraws. Check branch membership
-		// at render time so appending a marker also retires the cached older child.
-		// Pi owns the parent spacer, which an empty child cannot remove.
-		return new class extends Text {
-			override render(width: number): string[] {
-				const visible = noteSaveSessionManager && latestNoteSaveMarker(noteSaveSessionManager) === entry.id &&
-					!runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.noteSaveMarkers;
-				this.setText(visible ? content : "");
-				return visible ? super.render(width) : [];
-			}
-		}("", 0, 0);
-	});
 	const renderNativeCompaction = (
 		content: string,
 		kind: NativeCompactionDisplayEntry["kind"],
@@ -122,20 +83,6 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		box.render = (width) => render(width).map((line) => truncateToWidth(line, width, ""));
 		return box;
 	};
-	pi.registerMessageRenderer<CodexContextManagementMessageDetails>(
-		CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-		(message, { expanded, outputPad }, theme) => {
-			if (
-				!isCodexContextManagementMessageDetails(message.details) ||
-				!["window", "identity"].includes(message.details.contextManagement.kind) ||
-				typeof message.content !== "string"
-			)
-				return undefined;
-			return renderNotice(message,
-				`Context window ${message.details.contextManagement.windowNumber + 1} · Notes and history`,
-				message.content, expanded, theme, outputPad);
-		},
-	);
 	// Legacy sessions stored display-only compaction records as custom messages.
 	pi.registerMessageRenderer<{ kind?: "usage" | undefined }>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (message, _options, theme) => {
 		const content = typeof message.content === "string" ? message.content : NATIVE_COMPACTION_DISPLAY_TEXT;
@@ -166,15 +113,6 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		usageGeneration += 1;
 		runtime.state.usageStatus = undefined;
 	};
-	const recordNoteSave = (ctx: ExtensionContext) => {
-		noteSaveSessionManager = ctx.sessionManager;
-		const { state } = runtime;
-		if (state.config.voiceFeaturesOnly || !state.config.ui.noteSaveMarkers) return;
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const identity = state.externalNotes ? state.externalNotes.owner.identity(ctx) : state.contextWindows.currentIdentity();
-		if ((plan.contextManagement || plan.contextManagementExternal) && identity)
-			recordNoteSaveMarker(pi, ctx, identity.currentWindowId, plan.contextManagementExternal ? "local" : plan.contextManagementMode);
-	};
 	const refreshUsageStatus = async (ctx: ExtensionContext) => {
 		const generation = ++usageGeneration;
 		if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
@@ -201,9 +139,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		renderBackgroundWidget,
 		invalidateUsageStatus,
 		refreshUsageStatus,
-		recordNoteSave,
 		applyConfig(config, ctx, previousConfig) {
-			if (config.ui.noteSaveMarkers && !previousConfig.ui.noteSaveMarkers) recordNoteSave(ctx);
 			if (config.voiceFeaturesOnly || !config.ui.statusLine) {
 				invalidateUsageStatus();
 			} else if (

@@ -119,9 +119,9 @@ function createExecTool(
 					signal,
 					tools,
 				);
-				if (guard?.lazy && (response.opaqueOutputs?.length || response.contextNotesSource === "remote")) await guard.resolveScope();
+				if (guard?.lazy && response.opaqueOutputs?.length) await guard.resolveScope();
 				if (guard && !await guard.valid())
-					throw new Error("Remote context changed after execution; verify note state before repeating a write");
+					throw new Error("Remote context changed after execution; check completed results before retrying");
 				const visible = runtime.deliverOpaqueResponse(response, id, guard);
 				tracker.finish(
 					id,
@@ -194,11 +194,11 @@ function createWaitTool(
 							context,
 							signal,
 						);
-				if (guard?.lazy && (resumed.opaqueOutputs?.length || resumed.contextNotesSource === "remote")) await guard.resolveScope();
+				if (guard?.lazy && resumed.opaqueOutputs?.length) await guard.resolveScope();
 				if (guard && !await guard.valid())
-					throw new Error("Remote context changed after execution; verify note state before repeating a write");
+					throw new Error("Remote context changed after execution; check completed results before retrying");
 				if (resumed.missingCell && guard)
-					throw new Error("Remote cell unavailable; operations may already have executed, so verify note state before repeating a write");
+					throw new Error("Remote cell unavailable; operations may already have executed, so check completed results before retrying");
 				const response = runtime.deliverOpaqueResponse(resumed, id, guard);
 				const recovered =
 					!params.terminate &&

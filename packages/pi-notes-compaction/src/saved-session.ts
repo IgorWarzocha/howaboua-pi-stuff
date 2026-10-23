@@ -100,6 +100,11 @@ export async function readSavedNotesSession(
 			if (target === undefined) target = entry.id;
 			const active = entry.id === target;
 			if (active) target = entry.parentId;
+			if (history) {
+				entries.push(entry as SessionEntry);
+				if (active) branch.push(entry as SessionEntry);
+				continue;
+			}
 			if (Check(Custom, entry)) {
 				if (SHARING_ENTRIES.has(entry.customType)) entries.push(entry);
 				else if (active && NOTE_ENTRIES.has(entry.customType))

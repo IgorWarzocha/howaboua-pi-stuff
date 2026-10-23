@@ -13,6 +13,12 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## October 23 continuity ownership
+
+Compared released Pi `1.4.0` and Codex `8eaf5fd115f0` for the touched compaction and prewarm paths. Pi owns session preparation, compaction entries and extension hook order. Notes now owns continuity policy and projected history. PCC consumes those projections through a generic compaction-preparation API and never reconstructs retired Notes windows. Native replay replaces only the surviving compaction summary and preserves the actual filtered tail.
+
+Codex prewarms with the turn's prepared prompt through its normal WebSocket request path. PCC now takes prewarm bodies only from final provider-request capture, after Pi's preparation and extension rewrites, rather than reconstructing a prompt at session startup. Its isolated generated keepalive remains an intentional adaptation. Stock Pi's request instructions, headers, reasoning and tier handling, retry policy and stream termination were compared. This cutover does not change the previously documented differences in those areas or adopt newer Codex cache-key controls.
+
 ## October 22 transport selection
 
 Compared released Pi `1.4.0` and Codex `c260087efe`. Pi defaults to `auto` with cached WebSocket continuation and offers explicit plain WebSocket, cached WebSocket and SSE transports. Codex enables WebSockets through provider capability and has no separate cached-continuation upgrade switch.

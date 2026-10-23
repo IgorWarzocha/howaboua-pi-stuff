@@ -1,12 +1,10 @@
 import {
-	buildSessionProjection,
 	compact,
-	convertToLlm,
 	type CompactionResult,
 	type ExtensionContext,
 	type SessionBeforeCompactEvent,
-	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import {
 	uuidv7,
 	type Api,
@@ -17,9 +15,8 @@ import {
 	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { openAICodexResponsesApi, openAIResponsesApi, streamSimple } from "@earendil-works/pi-ai/compat";
-import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
 import { serializeMessagesToResponsesInput } from "./serializer.ts";
-import { encryptedToolOutputFromDetails } from "../../providers/openai-responses/native-items.ts";
+import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails } from "../../providers/openai-responses/native-items.ts";
 
 type PortableSummaryStream = (
 	model: Model<Api>,
@@ -37,34 +34,6 @@ const streamPortableSummary: PortableSummaryStream = (model, context, options) =
 	return streamSimple(model, context, options);
 };
 
-/** Summarize reconstructed history, but persist only a cut on Pi's physical branch. */
-export function projectPiCompactionEvent(
-	event: SessionBeforeCompactEvent,
-	branch: SessionEntry[],
-): SessionBeforeCompactEvent {
-	const physicalCut = event.branchEntries.findIndex((entry) => entry.id === event.preparation.firstKeptEntryId);
-	if (physicalCut < 0) throw new Error("Pi compaction kept boundary is missing");
-	const keptIds = new Set(event.branchEntries.slice(physicalCut).map((entry) => entry.id));
-	const projection = buildSessionProjection(branch);
-	const cut = projection.entries.findIndex((entry) => entry.sourceEntry.type !== "compaction" && keptIds.has(entry.sourceEntry.id));
-	if (cut < 0) throw new Error("Projected Pi compaction kept boundary is missing");
-	const summary = projection.messages.find((message) => message.role === "compactionSummary");
-	const { previousSummary: _physicalSummary, ...preparation } = event.preparation;
-	return {
-		...event,
-		preparation: {
-			...preparation,
-			firstKeptEntryId: projection.entries[cut]!.sourceEntry.id,
-			...(summary ? { previousSummary: summary.summary } : {}),
-			messagesToSummarize: projection.entries.slice(0, cut).flatMap((entry) => entry.messages)
-				.filter((message) => message.role !== "system" && message.role !== "compactionSummary"),
-			// The restored prefix is one cumulative summary, including any partial turn.
-			turnPrefixMessages: [],
-			isSplitTurn: false,
-		},
-	};
-}
-
 export async function runPortablePiCompaction(
 	event: SessionBeforeCompactEvent,
 	options: {
@@ -79,17 +48,24 @@ export async function runPortablePiCompaction(
 ): Promise<CompactionResult> {
 	const sessionId = uuidv7();
 	const summarized = [...event.preparation.messagesToSummarize, ...event.preparation.turnPrefixMessages];
-	// Pi flattens summaries to text. Keep the completed reads outside that text so
-	// Remote encrypted outputs remain native tool results on the summary lane too.
-	const reads = projectTreeHandoffReads(summarized, event.branchEntries)
-		.filter(message => !summarized.includes(message));
+	// Pi's summary transcript is text. Protected tool output must remain native,
+	// paired with its actual call, rather than turning opaque receipts into history.
+	const protectedCalls = new Set(summarized.flatMap(message => message.role === "toolResult"
+		&& (encryptedToolOutputFromDetails(message.details) || opaqueToolOutputsFromDetails(message.details).length)
+		? [message.toolCallId] : []));
+	const reads = summarized.flatMap((message): AgentMessage[] => {
+		if (message.role === "toolResult" && protectedCalls.has(message.toolCallId)) return [message];
+		if (message.role !== "assistant") return [];
+		const content = message.content.filter(part => part.type === "toolCall" && protectedCalls.has(part.id));
+		return content.length ? [{ ...message, content }] : [];
+	});
 	const responses = options.model.api === "openai-codex-responses" || options.model.api === "openai-responses";
-	if (!responses && reads.some(message => message.role === "toolResult" && encryptedToolOutputFromDetails(message.details)))
-		throw new Error("The encrypted handoff note needs its matching Responses provider before Pi compaction");
+	if (!responses && reads.length)
+		throw new Error("Encrypted tool results need their matching Responses provider before Pi compaction");
 	const prefix = responses ? serializeMessagesToResponsesInput(options.model, reads) : [];
 	const onPayload: SimpleStreamOptions["onPayload"] = prefix.length ? async (payload, model) => {
 		if (!payload || typeof payload !== "object" || !("input" in payload) || !Array.isArray(payload.input))
-			throw new Error("Pi compaction has no Responses input for the handoff note");
+			throw new Error("Pi compaction has no Responses input for encrypted tool results");
 		// The isolated stock provider does not serialize encrypted tool details.
 		const body = { ...payload, input: [...prefix, ...payload.input] };
 		return (await options.onPayload?.(body, model)) ?? body;
@@ -104,8 +80,7 @@ export async function runPortablePiCompaction(
 		options.thinkingLevel,
 		(model, context, streamOptions) => (options.stream ?? streamPortableSummary)(
 			model,
-			!responses && reads.length
-				? { ...context, messages: [context.messages[0]!, ...convertToLlm(reads), ...context.messages.slice(1)] } : context,
+			context,
 			{
 				...streamOptions,
 				transport: "sse",

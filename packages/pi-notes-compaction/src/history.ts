@@ -1,4 +1,5 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { buildTreeArchiveIndex } from "./tree-archive.js";
 import { windowDetails } from "./windows.js";
 
 interface HistoryItem {
@@ -46,7 +47,24 @@ export function useHistory(
 	entries: readonly SessionEntry[],
 	params: Record<string, unknown>,
 	sessionId: string,
+	allEntries: readonly SessionEntry[] = entries,
 ): Record<string, unknown> {
+	const archive = buildTreeArchiveIndex(allEntries, entries);
+	if (archive.invalidManifest)
+		throw new Error("Saved Tree history metadata is invalid");
+	if (archive.archives.some((item) => !item.entries))
+		throw new Error(
+			"Archived history is unavailable in this session copy. Resume the source session.",
+		);
+	const seen = new Set<string>();
+	entries = [
+		...archive.archives.flatMap((item) => item.entries ?? []),
+		...entries,
+	].filter((entry) => {
+		if (seen.has(entry.id)) return false;
+		seen.add(entry.id);
+		return true;
+	});
 	let windowId = `session:${sessionId}`;
 	const windows = new Map<string, HistoryItem[]>();
 	windows.set(windowId, []);

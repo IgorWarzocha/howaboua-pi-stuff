@@ -20,7 +20,6 @@ export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, pl
 		fast,
 		baseTierEstimate: fast === "ultrafast" && ctx.model?.id !== "gpt-6-astra" && ctx.model?.id !== "gpt-6.1-sol",
 		daybreak: plan.codexTransport ? config.openai.daybreak : undefined,
-		contextManagement: plan.contextManagementMode,
 		compaction: plan.nativeCompaction,
 		usageStatus: state.usageStatus,
 		...(isResponsesContext(ctx) ? { verbosity: config.openai.verbosity } : {}),

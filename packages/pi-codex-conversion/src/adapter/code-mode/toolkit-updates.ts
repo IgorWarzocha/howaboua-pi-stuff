@@ -2,7 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { isCodexDeveloperMessageDetails, type CodexDeveloperMessageDetails } from "../../developer-messages.ts";
-import { isContextWindowBoundary } from "../../context-management/messages.ts";
 import { formatCodeModeToolHelp, isCodeModeToolDiscoverable } from "../../tools/code-mode/custom-tool-prompt.ts";
 import { codeModeGlobalName, translateCodeModeToolReferences, translateCodeModeUsage } from "../../tools/code-mode/tool-identity.ts";
 import type { CodeModeToolDefinition } from "../../tools/code-mode/types.ts";
@@ -54,7 +53,7 @@ export function recordCodeModeToolkit(
 	catalog: readonly CodeModeToolDefinition[],
 	promptCatalog: readonly CodeModeToolDefinition[] = [],
 ): boolean {
-	const visible = messages.slice(messages.findLastIndex(isContextWindowBoundary) + 1)
+	const visible = messages
 		.flatMap((message) => message.role === "custom" && message.customType === CODEX_TOOLKIT_UPDATE_TYPE
 			? [readToolkitUpdate(message.details)] : []);
 	const compactionId = ctx.sessionManager.getBranch().findLast((entry) => entry.type === "compaction")?.id ?? null;

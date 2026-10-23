@@ -25,6 +25,8 @@ import { noteHints, sessionRef } from "./notes.js";
 import type { IdleMinutes, NewWindowRequests } from "./settings.js";
 import { savedNotesIdentity } from "./shared-notes.js";
 import type { NotesStore } from "./store.js";
+import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
+import { projectTreeHandoffBranch } from "./tree-handoff-read.js";
 import {
 	SETTLEMENT_ENTRY,
 	WINDOW_MESSAGE,
@@ -64,6 +66,7 @@ export class NotesLifecycle {
 	idleMinutes: IdleMinutes = 0;
 	taskBoundaryReminder = 0;
 	bridge: NotesBridge | undefined;
+	prepareReminder: NotesBridge["prepareReminder"];
 	runId = "";
 	private checkpoint: Checkpoint | undefined;
 	private held: HeldInput | undefined;
@@ -92,10 +95,7 @@ export class NotesLifecycle {
 			...message,
 			details: message.details ?? {},
 		};
-		this.pi.sendMessage(
-			this.bridge?.prepareReminder?.(draft) ?? draft,
-			options,
-		);
+		this.pi.sendMessage(this.prepareReminder?.(draft) ?? draft, options);
 	}
 	agent(ctx: ExtensionContext): string {
 		return (
@@ -180,7 +180,7 @@ export class NotesLifecycle {
 		)
 			this.checkpoint.runId = this.runId;
 		return message
-			? { message: this.bridge?.prepareReminder?.(message) ?? message }
+			? { message: this.prepareReminder?.(message) ?? message }
 			: undefined;
 	}
 	prepareCustomTurn(ctx: ExtensionContext): Promise<void> | undefined {
@@ -243,7 +243,6 @@ export class NotesLifecycle {
 		if (!ctx.isIdle())
 			throw new Error("Wait for the current run to settle before rollover");
 		const sessionId = ctx.sessionManager.getSessionId();
-		await this.bridge?.beforeWindow?.(ctx);
 		if (sessionId !== ctx.sessionManager.getSessionId() || !this.active)
 			throw new Error("Session changed before rollover");
 		const ids = this.windows.next();
@@ -492,11 +491,20 @@ export class NotesLifecycle {
 			return { cancel: true };
 		}
 		if (this.allowsCompaction(event.reason)) {
-			// PCC owns preparation when bridged, including native checkpoint routes.
-			if (this.bridge) return;
 			try {
-				const branch = this.windows.projectBranch(event.branchEntries);
-				if (branch.length === event.branchEntries.length) return;
+				const branch = projectTreeHandoffBranch(
+					this.windows.projectBranch(
+						projectTreeCheckpointBranch(
+							event.branchEntries,
+							ctx.sessionManager.getEntries(),
+						),
+					),
+				);
+				if (
+					branch.length === event.branchEntries.length &&
+					branch.every((entry, index) => entry === event.branchEntries[index])
+				)
+					return;
 				const physicalCut = event.branchEntries.findIndex(
 					(entry) => entry.id === event.preparation.firstKeptEntryId,
 				);
@@ -505,7 +513,7 @@ export class NotesLifecycle {
 				const keptIds = new Set(
 					event.branchEntries.slice(physicalCut).map((entry) => entry.id),
 				);
-				const projection = buildSessionProjection(branch);
+				const projection = buildSessionProjection([...branch]);
 				const projected = projection.entries;
 				const summary = projection.messages.find(
 					(message) => message.role === "compactionSummary",
@@ -529,11 +537,11 @@ export class NotesLifecycle {
 					);
 					return { cancel: true };
 				}
+				event.branchEntries = [...branch];
 				// Pi retains this object for its default summarizer after every hook.
 				// Keep that route's auth, provider hooks and retries, and physical kept IDs.
 				delete event.preparation.previousSummary;
 				Object.assign(event.preparation, {
-					firstKeptEntryId: projected[cut]!.sourceEntry.id,
 					...(summary ? { previousSummary: summary.summary } : {}),
 					messagesToSummarize: messages,
 					turnPrefixMessages: [],

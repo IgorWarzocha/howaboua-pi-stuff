@@ -12,7 +12,7 @@ pi install npm:@howaboua/pi-notes-compaction
 
 Reload Pi, then ask the agent to save a checkpoint and start a new context window. It can read those notes and search earlier session history to continue.
 
-With Pi Codex Conversion 3.0.48 or newer, local notes work alongside Codex tools, Code Mode, Notebook and normal compaction. Older PCC versions without this integration leave the extension inactive. Run `/notes` to check activation and available capabilities. Extension authors can read the [integration contract](PCC-INTEGRATION.md).
+Pi Codex Conversion is optional. Compatible releases add Code Mode, Notebook and encrypted remote delivery without taking over Notes tools or policy. Run `/notes` to check activation and available capabilities. Extension authors can read the [integration contract](PCC-INTEGRATION.md).
 
 ## Notes and windows
 
@@ -39,7 +39,7 @@ Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hou
 - **Idle rollover** selects the interval or disables it.
 - **Prune missing sessions** removes records for missing session files after confirmation. Unknown paths, permission errors and the active session are retained.
 
-Notes are stored as plaintext in `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Saved session snapshots preserve notes across forks and branch navigation, including after database pruning. Existing plaintext PCC notes remain readable without an import.
+Notes are stored as plaintext in `<Pi agent directory>/notes-compaction/notes.sqlite`, honoring `PI_CODING_AGENT_DIR`. Saved session snapshots preserve notes across forks and branch navigation, including after database pruning. Existing plaintext PCC notes remain readable without an import. On first use, saved PCC notes continuity settings migrate to Notes when no Notes settings file exists. Existing Notes settings take precedence.
 
 The whitelist is preseeded in `<Pi agent directory>/notes-compaction/settings.json` (normally `~/.pi/agent/notes-compaction/settings.json`):
 
@@ -58,7 +58,7 @@ Add or remove model IDs and reload Pi. Copy the model's exact ID, without Pi's p
 
 ## Optional remote lookup
 
-With the documented provider bridge, reads and searches automatically combine local notes or JSONL history with remote results. Remote response bytes are cached verbatim in SQLite. Cached lookups can be reused offline, with their original coverage and an explicit exact-query limit. Encrypted listings cannot be searched or expanded locally into queries that were never cached.
+With a compatible PCC provider, reads and searches automatically combine local notes or JSONL history with remote results. Remote response bytes are cached verbatim in SQLite. Cached lookups can be reused offline, with their original coverage and an explicit exact-query limit. Encrypted listings cannot be searched or expanded locally into queries that were never cached.
 
 New writes always stay local and work with any model. `write_file` replaces the local path and takes precedence over a remote read of that path. `append_to_file` adds a local overlay when no local replacement exists. Remote base content and the overlay remain separate. List and search results label local replacements as authoritative because opaque remote results can contain older versions.
 

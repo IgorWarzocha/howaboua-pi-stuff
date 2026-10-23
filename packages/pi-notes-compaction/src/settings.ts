@@ -20,25 +20,33 @@ export interface NotesSettings {
 	active: "all" | "whitelist";
 	modelWhitelist: string[];
 	normalCompaction: boolean;
+	noteSaveMarkers: boolean;
+	shareSubagentContext: boolean;
 	newWindowRequests: NewWindowRequests;
 	idleMinutes: IdleMinutes;
 	taskBoundaryReminder: number;
 }
 
-export function readSettings(path: string): NotesSettings {
+export function readSettings(path: string, legacyPath?: string): NotesSettings {
 	let source: string;
 	try {
 		source = readFileSync(path, "utf8");
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT")
-			return {
-				active: "all",
-				modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
-				normalCompaction: false,
-				newWindowRequests: "unrestricted",
-				idleMinutes: 0,
-				taskBoundaryReminder: 0,
-			};
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+			const migrated = legacyPath ? readLegacySettings(legacyPath) : undefined;
+			return (
+				migrated ?? {
+					active: "all",
+					modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
+					normalCompaction: false,
+					noteSaveMarkers: legacyPath ? readLegacyMarkers(legacyPath) : false,
+					shareSubagentContext: false,
+					newWindowRequests: "unrestricted",
+					idleMinutes: 0,
+					taskBoundaryReminder: 0,
+				}
+			);
+		}
 		throw error;
 	}
 	const settings: unknown = JSON.parse(source);
@@ -98,6 +106,18 @@ export function readSettings(path: string): NotesSettings {
 		active,
 		modelWhitelist,
 		normalCompaction: settings.normalCompaction,
+		noteSaveMarkers:
+			"noteSaveMarkers" in settings
+				? settings.noteSaveMarkers === true
+				: legacyPath
+					? readLegacyMarkers(legacyPath)
+					: false,
+		shareSubagentContext:
+			"shareSubagentContext" in settings
+				? settings.shareSubagentContext === true
+				: legacyPath
+					? readLegacyCompaction(legacyPath)?.["shareSubagentContext"] === true
+					: false,
 		newWindowRequests: newWindowRequests as NewWindowRequests,
 		idleMinutes: idleMinutes as IdleMinutes,
 		taskBoundaryReminder,
@@ -121,4 +141,76 @@ export function writeSettings(path: string, settings: NotesSettings): void {
 		mode: 0o600,
 	});
 	renameSync(temporary, path);
+}
+
+/** Import only on first use. An existing Notes settings file always wins. */
+function readLegacySettings(path: string): NotesSettings | undefined {
+	const value = readLegacyCompaction(path);
+	if (
+		!value ||
+		!["notes", "notes-and-compaction"].includes(String(value["continuity"]))
+	)
+		return;
+	const oldIdle = value["idleNotesRollover"];
+	const idle = oldIdle === true ? 25 : oldIdle === false ? 0 : (oldIdle ?? 0);
+	const requests =
+		"newWindowRequests" in value ? value["newWindowRequests"] : "unrestricted";
+	const reminder =
+		"taskBoundaryReminder" in value ? value["taskBoundaryReminder"] : 0;
+	return {
+		active: "all",
+		modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
+		normalCompaction: value["continuity"] === "notes-and-compaction",
+		noteSaveMarkers: readLegacyMarkers(path),
+		shareSubagentContext:
+			"shareSubagentContext" in value && value["shareSubagentContext"] === true,
+		newWindowRequests: NEW_WINDOW_REQUESTS.some((item) => item === requests)
+			? (requests as NewWindowRequests)
+			: "unrestricted",
+		idleMinutes: [...IDLE_MINUTES, 5, 15].some((item) => item === idle)
+			? (idle as IdleMinutes)
+			: 0,
+		taskBoundaryReminder:
+			typeof reminder === "number" &&
+			Number.isSafeInteger(reminder) &&
+			reminder >= 0
+				? reminder
+				: 0,
+	};
+}
+
+function readLegacyCompaction(
+	path: string,
+): Record<string, unknown> | undefined {
+	let document: unknown;
+	try {
+		document = JSON.parse(readFileSync(path, "utf8"));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+		throw error;
+	}
+	if (!document || typeof document !== "object" || !("compaction" in document))
+		return;
+	const value = document.compaction;
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function readLegacyMarkers(path: string): boolean {
+	let document: unknown;
+	try {
+		document = JSON.parse(readFileSync(path, "utf8"));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+		throw error;
+	}
+	if (!document || typeof document !== "object") return false;
+	for (const key of ["display", "ui"]) {
+		if (!(key in document)) continue;
+		const section = (document as Record<string, unknown>)[key];
+		if (section && typeof section === "object" && "noteSaveMarkers" in section)
+			return section.noteSaveMarkers === true;
+	}
+	return false;
 }

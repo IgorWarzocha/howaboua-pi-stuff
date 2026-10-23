@@ -14,14 +14,13 @@ import { registerVoiceHandoff } from "../voice/handoff.ts";
 import { hasCodexTransportConfigChanged, isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
-import { registerExternalNotesBridge } from "../context-management/external-notes-bridge.ts";
-import { createExternalNotesRemoteService } from "../context-management/external-notes-remote.ts";
-import { configureExternalNotesTools } from "../context-management/tools.ts";
 import { registerGptPromptModeBroker } from "../prompt-mode.ts";
+import { registerCodexAgentRelationships } from "../agent-relationship.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
+	registerCodexAgentRelationships(pi);
 	const runtime = createCodexExtensionRuntime(pi, recordCodexSpend);
 	const promptMode = registerGptPromptModeBroker(pi, ctx =>
 		runtime.state.config.prompt.heavySystemPromptOverwrite === "gpt" &&
@@ -30,11 +29,9 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	// captures tools, and before the later conversion turn hook builds its prompt.
 	pi.on("before_agent_start", (event, ctx) => promptMode.prepare(ctx, event.systemPromptOptions));
 	pi.on("session_shutdown", () => promptMode.dispose());
-	runtime.state.contextTree.register(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime, ctx => promptMode.prepare(ctx))
 		.catch(error => { promptMode.dispose(); throw error; });
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
-	let cleanupNotesBridge: (() => void) | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
 			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
@@ -47,12 +44,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames, runtime.beforeRequestSend);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
-		const unregisterNotesBridge = registerExternalNotesBridge(pi, runtime, codeMode, {
-			...createExternalNotesRemoteService(tools.contextRouter),
-			configureTools: (definitions, ctx, contracts) => configureExternalNotesTools(pi, runtime.state, definitions, ctx, contracts),
-		});
-		cleanupNotesBridge = unregisterNotesBridge;
-		pi.on("session_shutdown", () => unregisterNotesBridge());
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
@@ -62,11 +53,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			tools.applyConfig(config);
 			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 			promptMode.prepare(ctx);
-			if (!runtime.state.externalNotes) runtime.state.contextWindows.ensureInitialized(
-				pi,
-				ctx,
-				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement,
-			);
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			ui.applyConfig(config, ctx, previousConfig);
 			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {
@@ -101,7 +87,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		});
 	} catch (registrationError) {
 		promptMode.dispose();
-		cleanupNotesBridge?.();
 		try {
 			try {
 				cleanupProxyProvider?.shutdown();

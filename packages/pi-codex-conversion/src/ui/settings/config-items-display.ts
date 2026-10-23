@@ -49,16 +49,6 @@ export function buildDisplaySettings(
 			"Show Code and Notebook source previews and execution output alongside nested tool results.",
 		),
 		toggle(
-			"noteSaveMarkers",
-			"Note save markers",
-			config.ui.noteSaveMarkers,
-			(enabled, current) => ({
-				...current,
-				ui: { ...current.ui, noteSaveMarkers: enabled },
-			}),
-			"Mark saved notes and bookmark the next user prompt in /tree. Existing bookmarks are kept when switched off.",
-		),
-		toggle(
 			"backgroundShellWidget",
 			"Background shells widget",
 			config.ui.backgroundShellWidget,

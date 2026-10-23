@@ -5,6 +5,15 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { NOTE_RECEIPT, type NoteReceipt, noteReceipt } from "./notes.js";
 
+export const NESTED_NOTE_OUTCOME = "notes-compaction:nested-write:v1";
+export interface NestedNoteOutcome {
+	protocol: 1;
+	runId: string;
+	windowId: string;
+	callId: string;
+	parentCallId: string;
+	saved: boolean;
+}
 export const NOTES_RUN_ENTRY = "notes-compaction:run:v1";
 
 /** A receipt proves persistence. Current-run tool outcomes prove the checkpoint actually completed. */
@@ -13,7 +22,11 @@ export function hasFreshNotes(
 	windowId: string | undefined,
 	runId?: string,
 ): boolean {
-	const { messages, receipts } = noteEvidence(branch, windowId, runId);
+	const { messages, receipts, outcomes } = noteEvidence(
+		branch,
+		windowId,
+		runId,
+	);
 	const final = messages.findLast((message) => message.role === "assistant");
 	if (
 		final?.role !== "assistant" ||
@@ -31,6 +44,10 @@ export function hasFreshNotes(
 			message.role === "toolResult" ? [message] : [],
 		),
 		receipts,
+		outcomes,
+		messages.flatMap((message) =>
+			message.role === "toolResult" ? [message] : [],
+		),
 	);
 }
 
@@ -41,7 +58,11 @@ export function hasPrecedingNoteWrite(
 	runId: string,
 	requestCallId: string,
 ): boolean {
-	const { messages, receipts } = noteEvidence(branch, windowId, runId);
+	const { messages, receipts, outcomes } = noteEvidence(
+		branch,
+		windowId,
+		runId,
+	);
 	const request = messages.findLastIndex(
 		(message) =>
 			message.role === "assistant" &&
@@ -68,7 +89,15 @@ export function hasPrecedingNoteWrite(
 	);
 	return (
 		previous?.role === "toolResult" &&
-		completedWrites([call], [previous], receipts)
+		completedWrites(
+			[call],
+			[previous],
+			receipts,
+			outcomes,
+			messages.flatMap((message) =>
+				message.role === "toolResult" ? [message] : [],
+			),
+		)
 	);
 }
 
@@ -115,13 +144,28 @@ function noteEvidence(
 			),
 		);
 	const messages = buildSessionProjection(run).messages;
-	return { messages, receipts };
+	const outcomes = run.flatMap((entry) => {
+		if (entry.type !== "custom" || entry.customType !== NESTED_NOTE_OUTCOME)
+			return [];
+		const value = entry.data as Partial<NestedNoteOutcome> | undefined;
+		return value?.protocol === 1 &&
+			value.windowId === windowId &&
+			(!runId || value.runId === runId) &&
+			typeof value.callId === "string" &&
+			typeof value.parentCallId === "string" &&
+			typeof value.saved === "boolean"
+			? [value as NestedNoteOutcome]
+			: [];
+	});
+	return { messages, receipts, outcomes };
 }
 
 function completedWrites(
 	calls: readonly ToolCall[],
 	results: readonly ToolResultMessage[],
 	receipts: readonly NoteReceipt[],
+	outcomes: readonly NestedNoteOutcome[],
+	allResults: readonly ToolResultMessage[],
 ): boolean {
 	if (!receipts.length) return false;
 	const writes = calls.filter(
@@ -166,39 +210,79 @@ function completedWrites(
 		completedWrite = true;
 	}
 	for (const result of results) {
-		const details = result.details;
-		const saved =
-			details && typeof details === "object" && "contextNotesSaved" in details
-				? details["contextNotesSaved"]
-				: undefined;
-		// PCC's protected exec/wait host records cover nested calls outside Pi's executeTool path.
-		if (saved === false || (saved === true && result.isError)) return false;
-		if (
-			saved === true &&
-			(result.toolName === "exec" || result.toolName === "wait")
-		)
+		const cell = codeCell(result);
+		const terminal = cell
+			? allResults.findLast(
+					(item) =>
+						codeCell(item)?.id === cell.id &&
+						codeCell(item)?.status !== "yielded",
+				)
+			: undefined;
+		const parents = new Set(
+			allResults
+				.filter((item) => cell && codeCell(item)?.id === cell.id)
+				.map((item) => item.toolCallId),
+		);
+		parents.add(result.toolCallId);
+		const completed = outcomes.filter((item) => parents.has(item.parentCallId));
+		if (completed.length) {
+			if (completed.some((item) => !item.saved)) return false;
+			if (
+				result.isError ||
+				(cell &&
+					(!terminal ||
+						terminal.isError ||
+						codeCell(terminal)?.status !== "result" ||
+						codeCell(terminal)?.failed))
+			)
+				return false;
 			completedWrite = true;
+		}
+		// Older saved PCC runs used a note-specific completion field. Read it,
+		// but new executions rely on Notes-owned outcomes and public Pi events.
+		const legacy =
+			result.details &&
+			typeof result.details === "object" &&
+			"contextNotesSaved" in result.details
+				? result.details["contextNotesSaved"]
+				: undefined;
+		if (!completed.length && legacy !== undefined) {
+			if (
+				legacy === false ||
+				result.isError ||
+				(cell &&
+					(!terminal ||
+						codeCell(terminal)?.status !== "result" ||
+						codeCell(terminal)?.failed))
+			)
+				return false;
+			if (legacy === true) completedWrite = true;
+		}
 		const nested = result.nestedCalls;
 		const noteCalls =
 			nested?.calls.filter((call) => call.name === "notes") ?? [];
+		const uncovered =
+			legacy === true && !completed.length
+				? []
+				: noteCalls.filter(
+						(call) => !outcomes.some((item) => item.callId === call.id),
+					);
 		if (
-			noteCalls.some(
+			uncovered.some(
 				(call) =>
 					call.status !== "ok" &&
 					(!call.arguments ||
 						call.arguments["action"] === "write_file" ||
 						call.arguments["action"] === "append_to_file"),
 			) ||
-			(noteCalls.length && !nested?.complete)
+			(uncovered.length && !nested?.complete)
 		)
 			return false;
-		const nestedWrites =
-			nested?.calls.filter(
-				(call) =>
-					call.name === "notes" &&
-					(call.arguments?.["action"] === "write_file" ||
-						call.arguments?.["action"] === "append_to_file"),
-			) ?? [];
+		const nestedWrites = uncovered.filter(
+			(call) =>
+				call.arguments?.["action"] === "write_file" ||
+				call.arguments?.["action"] === "append_to_file",
+		);
 		if (
 			nestedWrites.some((call) => call.status !== "ok") ||
 			(nestedWrites.length && (result.isError || !nested?.complete))
@@ -207,4 +291,25 @@ function completedWrites(
 		if (nestedWrites.length) completedWrite = true;
 	}
 	return completedWrite;
+}
+
+function codeCell(
+	result: ToolResultMessage,
+): { id: string; status: unknown; failed: boolean } | undefined {
+	const details = result.details;
+	if (
+		!details ||
+		typeof details !== "object" ||
+		!("codeMode" in details) ||
+		details["codeMode"] !== true ||
+		!("cellId" in details) ||
+		typeof details["cellId"] !== "string" ||
+		!("status" in details)
+	)
+		return;
+	return {
+		id: details["cellId"],
+		status: details["status"],
+		failed: "scriptError" in details && Boolean(details["scriptError"]),
+	};
 }

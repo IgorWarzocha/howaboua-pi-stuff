@@ -360,7 +360,7 @@ function createQueryExecutor(
 	shared = false,
 ) {
 	const assertActive = () => {
-		if (!lifecycle.active)
+		if (!lifecycle.active && !shared)
 			throw new Error(
 				"Notes tools are inactive. Ask the user to check /notes.",
 			);
@@ -516,6 +516,7 @@ function createQueryExecutor(
 				ctx.sessionManager.getBranch(),
 				params,
 				ctx.sessionManager.getSessionId(),
+				ctx.sessionManager.getEntries(),
 			),
 			callId,
 			ctx,

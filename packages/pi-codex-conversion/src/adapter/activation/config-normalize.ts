@@ -1,4 +1,3 @@
-import { normalizeTaskBoundaryReminder } from "../../context-management/task-boundary.ts";
 import {
 	type CodexConversionConfig,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
@@ -12,11 +11,8 @@ import {
 	normalizeCodexVerbosity,
 	normalizeCompactionMethod,
 	normalizeCompactToolsMode,
-	normalizeContinuityStrategy,
 	normalizeCustomRustBinariesDir,
 	normalizeDictationShortcutMode,
-	normalizeHistoryStorage,
-	normalizeIdleNotesMinutes,
 	normalizeLunaCacheKeepaliveMinutes,
 	normalizeProviderList,
 	normalizeRealtimeV3Voice,
@@ -112,10 +108,6 @@ export function normalizeCodexConversionConfig(
 				ui["backgroundShellWidget"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
 			),
-			noteSaveMarkers: normalizeBoolean(
-				ui["noteSaveMarkers"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.ui.noteSaveMarkers,
-			),
 			backgroundShellToggleShortcut: normalizeString(
 				ui["backgroundShellToggleShortcut"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"],
@@ -134,22 +126,6 @@ export function normalizeCodexConversionConfig(
 			),
 		},
 		compaction: {
-			newWindowRequests: compaction["newWindowRequests"] === "off" || compaction["newWindowRequests"] === "pi-limits"
-				? compaction["newWindowRequests"] : "unrestricted",
-			continuity: normalizeContinuityStrategy(compaction["continuity"])
-				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.continuity,
-			historyStorage: normalizeHistoryStorage(compaction["historyStorage"])
-				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.historyStorage,
-			notesTreeHandoff: normalizeBoolean(
-				compaction["notesTreeHandoff"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.notesTreeHandoff,
-			),
-			shareSubagentContext: normalizeBoolean(
-				compaction["shareSubagentContext"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.shareSubagentContext,
-			),
-			idleNotesRollover: normalizeIdleNotesMinutes(compaction["idleNotesRollover"]),
-			taskBoundaryReminder: normalizeTaskBoundaryReminder(compaction["taskBoundaryReminder"]),
 			method: normalizeCompactionMethod(compaction["method"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.method,
 			v2UserMessageRetention:

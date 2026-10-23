@@ -66,7 +66,7 @@ Custom-tool contract changes and removals, including promoted tools, are announc
 | Tab | Covers |
 | --- | --- |
 | General | Settings scope, execution and extension modes, providers, heavy prompt overwrite, time reminders |
-| Context | Continuity, notes storage, subagent sharing, compaction, V2 retention |
+| Context | Compaction method and V2 retention |
 | Tools | Auto reasoning (GPT-6), image descriptions, standalone tools |
 | OpenAI | Per-family Fast and Ultrafast modes, Daybreak, verbosity, transport, diagnostics, Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail, note save markers, background shells |
@@ -126,70 +126,20 @@ Your original model and reasoning return on the next input after the backend con
 <details>
 <summary><strong>Context management</strong></summary>
 
-Choose under `/codex context`:
+Choose the compaction method under `/codex context`:
 
-| Setting | Options | Applies when |
-| --- | --- | --- |
-| **Continuity strategy** | Compaction · Notes and history · Notes + history + compaction | Always |
-| **History and notes storage** | Local · Tree · Remote | Using notes |
-| **New window requests** | off · pi-limits · unrestricted (default) | Using notes |
-| **Use notes for tree summaries** | On (default) · Off | Using notes |
-| **Share subagent context** | Off (default) · On | Using notes |
-| **Idle rollover** | Off (default) · 25m · 55m · 2h · 6h · 12h | Using Notes and history on an eligible route |
-| **Compaction method** | Pi summary · Codex V2 · Both | Using compaction |
-| **Preserved user messages (V2 only)** | 16k · 32k · 64k | Using Codex V2 or Both |
+| Setting | Options |
+| --- | --- |
+| **Compaction method** | Pi summary · Codex V2 · Both |
+| **Preserved user messages (V2 only)** | 16k · 32k · 64k |
 
-Defaults are **Compaction**, **Pi summary** and **64k** retention, with **Local** remembered for notes storage. Hidden controls retain their saved values.
+Defaults are **Pi summary** and **64k** retention. Pi summary is readable. Codex V2 is an encrypted OpenAI checkpoint. Both adds a readable summary on a separate request lane, at extra summarisation cost. V2 retention budgets recent user messages kept verbatim, not total context.
 
-- **Compaction:** Pi's manual and automatic compaction, without notes or rollover tools.
-- **Notes and history:** the model saves notes and retrieves history. Explicit new windows start without a conversation summary.
-- **Notes + history + compaction:** Pi's automatic compaction and `/compact` use the selected method while notes and history lookup remain available. Compaction stays in the current window and does not require saved notes.
+V2 and Both require Codex or an explicitly configured compatible passthrough. Other routes use Pi summary without erasing the saved method. Selecting Pi summary preserves an existing V2 checkpoint until the next successful compaction converts it. **Choose Both before the checkpoint you need across providers, or convert to Pi summary before switching.** Native response replay remains available on supported routes.
 
-**Notes-based strategies are experimental.** Purple markers identify windows. `new_context` preserves the shell, Notebook runtime, workspace and full Pi JSONL. Changing strategy preserves the current conversation and usable checkpoints. A notes-only rollover cuts the previous conversation from active context, not stored history.
+PCC does not supply notes tools, notes settings or window modes. Install optional [Notes Compaction](../pi-notes-compaction/README.md) for notes, history, checkpoint guidance, rollover and shared agent context. Configure those under `/notes`. Notes owns automatic read-only hybrid lookup. New writes stay local; the legacy Remote write mode is retired.
 
-Resume notes-based sessions with the same storage. Changing storage neither copies notes nor starts a window or disables compaction. Switching to **Compaction** removes recovery tools without turning notes into a summary.
-
-### Storage and compaction
-
-- **Local:** reads prior windows and stores model-invisible note updates in Pi's JSONL.
-- **Tree:** archives windows as Pi side branches. Archive summaries stay visible in the transcript, outside model context. History search prioritizes summaries but can retrieve every raw entry.
-- **Remote:** uses Codex's encrypted history and notes service. Requires `openai-codex-responses` and fails without switching storage. Other transports ignore it.
-
-Local and Tree require an active Responses adapter. Other provider APIs do not expose notes-based context management.
-
-**Pi summary** is readable. **Codex V2** is an encrypted checkpoint. **Both** adds a readable summary on a separate request lane, at extra summarization cost. Codex uses the checkpoint while other providers can use the summary. Both supports every storage backend and either compaction-based strategy. V2 retention budgets recent user messages kept verbatim, not total context.
-
-V2 and Both require Codex or an explicitly configured compatible passthrough. Other routes use Pi summary without erasing the saved method. Selecting Pi summary preserves an existing V2 checkpoint until the next successful compaction converts it. **Choose Both before the checkpoint you need across providers, or convert to Pi summary before switching.** Tree checkpoints remain usable by reference after changing storage.
-
-Old configurations migrate on read without rewriting the file. Hybrid becomes **Notes + history + compaction** with **Codex V2**, or **Both** when Parallel Pi summary was enabled. V2 with Parallel Pi summary becomes **Compaction** with **Both**. Saving removes the old switches.
-
-### Rollover and recovery
-
-**Use notes for tree summaries** is on by default for Local, Tree and Remote. Choosing a summary in Pi's tree navigator saves a handoff note for the destination, even before the first window marker. Local and Tree preserve existing destination notes. Remote note contents remain encrypted and cannot be independently verified. Interrupted or failed handoffs cancel the jump. Turn the setting off to use Pi's ordinary branch summary without a note-writing run, while keeping notes and history enabled. Either choice navigates to your selected destination and does not roll over the window. **No summary** remains a plain jump.
-
-The model receives history, notes, rollover and remaining-context tools. Code and Notebook modes use `tools.history({ action, ...args })` and `tools.notes({ action, ...args })` inside `exec`, with required arguments upfront and detailed help in `ALL_TOOLS`. Remote calls accept ordinary query and note text directly in JavaScript. These inputs appear in execution source and traces. Protected results reach the model automatically through their originating `exec`, including after `wait`, while JavaScript receives only receipts. Remote results cannot be inspected inside JavaScript and need no extra delivery call. Direct native Remote tools retain encrypted inputs. `wait` resumes or terminates unfinished cells. `new_context` stays native. Checkpoint reminders arrive at **85% used** and **90%**, unless the current run has already saved notes. They may request a checkpoint after a final reply but never force rollover, interrupt tools or validate notes. Percentages use the model's full configured window.
-
-Remote results remain tied to their original context family and Codex account. An account mismatch makes pinned notes unavailable without moving them to another account or store. Agents can exchange needed context through messages. Re-reading a completed result does not count as a new note checkpoint.
-
-With **Notes and history**, `/compact` reuses notes from the last completed run and opens a window without starting a new turn. New input or another run makes those notes stale. Without fresh notes, or with checkpoint instructions, it asks the agent to save state, then opens the window after that run settles. A failed or missing note leaves the current window in place. With **Notes + history + compaction**, explicit `new_context` attempts compaction before rollover.
-
-**New window requests** controls agent requests independently of the continuity strategy. **off** hides `new_context`. **pi-limits** requires Pi to accept the history for compaction, including with notes-only continuity. A declined request continues in the same window. **unrestricted** permits requests at any size. If normal compaction has nothing to summarise, it opens a new identity without trimming the existing context. Other failures do not open a window. Manual `/compact` and idle rollover are unaffected.
-
-Before `new_context`, the immediately preceding tool invocation must successfully save a context note. Direct notes writes, nested writes completed by `exec`, and writes completed through `wait` count. Failed or unfinished writes and intervening read-only calls do not count.
-
-**Note save markers** in `/codex display` is off by default. When enabled, completed turns with confirmed saved notes get a **✓ Notes saved** marker. The next user prompt gets a **Notes** bookmark in `/tree` once it arrives. Select that prompt with **No summary** to return to the saved-notes boundary with your prompt back in the editor. Run plain `/compact` in **Notes and history**, then resubmit the prompt. A new window opens without another note-writing turn. Tree navigation preserves the checkpoint's original idle age. Existing user labels are preserved, and turning markers off keeps saved bookmarks.
-
-**Idle rollover** is off by default and applies only to **Notes and history**, with Local, Tree or Remote storage. Choose 25m, 55m, 2h, 6h or 12h. Hour presets use a five-minute buffer, stored as 115, 355 or 715 minutes. Saved 5- and 15-minute settings remain valid. After that duration since a run settled, the next prompt opens a window first only if the latest completed run saved fresh notes. Otherwise the prompt starts normally in the current window, without a checkpoint request. The original prompt and attachments proceed through normal preparation. Resume uses the recorded settlement time. Older runs without a recorded settlement do not trigger idle rollover. Existing `idleNotesRollover: true` configuration retains 25 minutes; `false` remains off. This is a cache optimisation, not a cache-expiry check. If rollover fails, input and attachments remain pending. Submit another prompt to retry, or reload to cancel pending input.
-
-Automatic overflow recovery compacts in the current window. Notes-only sessions use Pi summary for this emergency recovery. Other strategies use the selected method. Pi's automatic compaction must be enabled.
-
-### Shared agent context
-
-**Share subagent context** shares notes and history with newly spawned agents through a compatible subagent extension. It is off by default. Children get unique agent paths and native Pi thread IDs under the parent's session identity, not a shared transcript.
-
-Identity survives rollover and resume. Forks start independent families. Turning sharing off affects future spawns, not existing children. Existing sessions are never rebound.
-
-Remote sharing requires the same Codex account and Remote storage throughout. Local and Tree retain notes in their owning sessions and rely on the integrating extension for transport. Remote failures never switch storage. See [Extension APIs](#extension-apis) below for integration.
+Existing saved notes, window boundaries, Tree archives and compaction checkpoints remain readable. Notes imports applicable legacy PCC preferences when its own settings are absent. Changing ownership does not copy notes or decrypt old remote content.
 
 </details>
 
@@ -493,33 +443,11 @@ Completion runs once when a recognized nested call settles. `input` precedes pre
 
 Subscribers receive independent structured clones and run in registration order, awaited even after cancellation. Settle promptly. Subscriber failures and uncloneable values go to stderr without changing the outcome. Preflight can block. Completion only observes and does not expand agent-visible output.
 
-### Context sharing
+### Agent relationships and Notes sharing
 
-The optional `context-sharing` API does not require Shepherdr.
+The optional `@howaboua/pi-codex-conversion/agent-relationship` API exposes `connectCodexAgentRelationships(pi)`. Its live `service.bind(ctx, relationship)` records immutable parent linkage, worker classification and optional cache affinity. `service.cacheAffinityId(ctx)` returns the effective routing identity. This is independent of Notes and does not grant shared history. Shepherdr binds fresh workers automatically. Resume preserves linkage; forks do not inherit it.
 
-Its optional `bindRelationship(ctx, relationship)` method links a fresh worker's native Pi thread to its parent before the first task. Parent and worker keep distinct session IDs. This linkage is independent of shared notes and the sharing setting. Shepherdr binds fresh spawns automatically with `subagentKind: "collab_spawn"`. Resume preserves linkage; forks do not inherit it. Check method availability on the live service. See the [parent and worker relationship contract](../../docs/extension-apis.md#parent-and-worker-relationships) for the signature and lifecycle.
-
-```ts
-import { connectCodexContextSharing } from "@howaboua/pi-codex-conversion/context-sharing";
-
-const connection = connectCodexContextSharing(pi);
-// In a prepared parent session:
-const service = connection.service;
-if (!service?.canCreateChild(ctx)) return; // Otherwise launch an independent child.
-// For local storage, register your host router and supply its routing descriptor.
-const prepared = await service.createChild(ctx, { name: "worker", routing });
-// Launch Pi normally and deliver binding through your integration.
-// In the fresh, idle child, before sending its first task:
-const adopted = await childService.bind(childCtx, prepared.binding);
-// Back in the parent: verify the returned child identity, then finish adoption.
-await prepared.adopt();
-```
-
-Pi owns session creation and persistence. `createChild` requires parental opt-in. `bind` accepts that explicit binding regardless of the child's setting for future spawns. It validates storage and account, rejecting used sessions or different existing bindings. `describe(ctx)` reports identity and storage. `verify(ctx)` checks Remote account compatibility.
-
-For Local and Tree, register a router in each participant with `registerRouter`, pass its opaque `routing` descriptor to `createChild`, and route incoming requests through the target's `service.execute(ctx, request, signal)`. Validate family membership, preserve errors and never write directly to another session file. Dispose the connection on shutdown.
-
-The [extension API guide](../../docs/extension-apis.md) covers the complete lifecycle, Board membership, external Notes ownership and existing-session attachment contracts.
+Notes owns family identity, child binding and routed notes/history through `connectNotesContextSharing` from `@howaboua/pi-notes-compaction/context-sharing`. Your orchestrator owns authenticated transport and process lifecycle. See the [extension API guide](../../docs/extension-apis.md#connecting-an-ordinary-subagent-extension-through-notes) for both contracts.
 
 ### Realtime announcements
 

@@ -37,7 +37,7 @@ export function registerCodexEvents(
 	const reserve = createCodexReserveController(pi);
 	const session = createCodexSessionLifecycle(pi, runtime, tools, ui, codeMode, proxyProvider, reserve.modelSelected);
 	const turn = createCodexTurnLifecycle(pi, runtime, ui, codeMode, reserve, session);
-	const compaction = createCodexCompactionLifecycle(pi, runtime, codeMode, turn.startManualNotesWindow, turn.refreshNotebookStatus);
+	const compaction = createCodexCompactionLifecycle(pi, runtime, codeMode, turn.refreshNotebookStatus);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);
@@ -49,9 +49,6 @@ export function registerCodexEvents(
 		if (supportsCodexDeveloperMessages(ctx, state)) recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx), event.previousLevel);
 	});
 	pi.on("model_select", session.modelSelected);
-	pi.on("session_before_switch", session.beforeSwitch);
-	pi.on("session_before_fork", session.beforeFork);
-	pi.on("session_before_tree", session.beforeTree);
 	pi.on("session_tree", session.tree);
 	pi.on("message_start", async (event) => {
 		if (event.message.role === "user")
@@ -68,7 +65,6 @@ export function registerCodexEvents(
 			await recordCodexProxyMessage(event.message, ctx.modelRegistry);
 		}
 	});
-	pi.on("turn_end", turn.turnEnded);
 	pi.on("message_update", async (event) => {
 		runtime.voice.streamUpdate(event.assistantMessageEvent);
 	});

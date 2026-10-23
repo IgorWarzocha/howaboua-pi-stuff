@@ -411,7 +411,7 @@
         "@earendil-works/pi-ai": ">=1.0.4",
         "@earendil-works/pi-coding-agent": ">=1.2.0",
         "@earendil-works/pi-tui": ">=1.0.4",
-        "@howaboua/pi-codex-conversion": ">=4.0.4",
+        "@howaboua/pi-codex-conversion": ">=5.0.0",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -513,6 +513,7 @@
         "@earendil-works/pi-coding-agent": "1.4.0",
         "@earendil-works/pi-tui": "1.4.0",
         "@howaboua/pi-codex-conversion": "4.0.4",
+        "@howaboua/pi-notes-compaction": "0.0.9",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -521,11 +522,13 @@
         "@earendil-works/pi-ai": ">=1.1.0",
         "@earendil-works/pi-coding-agent": ">=1.2.0",
         "@earendil-works/pi-tui": ">=1.1.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.4",
+        "@howaboua/pi-codex-conversion": ">=5.0.0",
+        "@howaboua/pi-notes-compaction": ">=0.0.10",
         "typebox": "*",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
+        "@howaboua/pi-notes-compaction",
       ],
     },
     "packages/pi-skill-chrome-cdp": {

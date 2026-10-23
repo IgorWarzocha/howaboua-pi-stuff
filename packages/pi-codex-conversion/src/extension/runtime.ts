@@ -1,5 +1,5 @@
-import { convertToLlm, type ExtensionAPI, type ExtensionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { getCurrentSystemMessage, type Api, type Context, type Model, type TranscriptContext } from "@earendil-works/pi-ai";
+import { type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getCurrentSystemMessage, type Api, type Model, type TranscriptContext } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
@@ -8,12 +8,11 @@ import { resolveDaybreakAccess } from "../providers/openai-codex/daybreak.ts";
 import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
 import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-keepalive.ts";
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
-import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
-import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "../adapter/activation/tool-set.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
-import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
+import { rewriteCodexProviderHeaders } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
-import { closeOpenAICodexKeepaliveWebSocketSession, closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket, prewarmPreparedOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
+import { closeOpenAICodexKeepaliveWebSocketSession, closeOpenAICodexWebSocketSessions, prewarmPreparedOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import { extractAccountId, PI_CODEX_CONVERSION_ORIGINATOR } from "../providers/openai-codex/headers.ts";
@@ -27,20 +26,11 @@ import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
-import { CodexContextWindowManager } from "../context-management/window-manager.ts";
-import { contextAccountScope, contextAgentIdentity } from "../context-management/agent-identity.ts";
-import { validateRemoteOutputReplay } from "../context-management/remote-scope.ts";
-import { CodexContextWindowKickoff } from "../context-management/window-kickoff.ts";
-import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
-import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
-import { hasTreeArchives } from "../context-management/tree-archive.ts";
-import { projectTreeHandoffReads } from "../context-management/tree-handoff-read.ts";
+import { validateRemoteOutputReplay } from "../tools/code-mode/protected-output.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
 import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 import { priceGeneratedPrewarm } from "../providers/openai-codex/usage.ts";
-import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
-import { projectPiCodeModeDeclarations } from "../adapter/code-mode/pi-tools.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -73,7 +63,6 @@ export interface CodexExtensionRuntime {
 	suspendOrdinaryPrewarm(): void;
 	finishTurn(): void;
 	beforeRequestSend(model: Model<Api>, context: TranscriptContext, body: ResponsesBody, options: OpenAICodexStreamOptions | undefined, responsesLite: boolean): Promise<void>;
-	startCompactionPrewarm(ctx: CodexContext): Promise<CodexPrewarmResult> | undefined;
 	startKeepalivePrewarm(ctx: CodexContext): Promise<CodexPrewarmResult> | undefined;
 	armCacheKeepalive(ctx: CodexContext): void;
 	cancelCacheKeepalive(): void;
@@ -96,17 +85,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
 	const voice = new CodexVoiceController(pi);
-	const contextWindows = new CodexContextWindowManager(undefined, async (ctx, options) => {
-		voice.announceContextTransition("rollover");
-		await voice.refreshRealtimeContext(ctx, state.config, options);
-	});
-	const contextKickoff = new CodexContextWindowKickoff(contextWindows, (input) => {
-		// Extension kickoffs bypass ordinary voice input routing, including after call replacement.
-		const text = typeof input === "string" ? input : input
-			.flatMap((part) => part.type === "text" ? [part.text] : [])
-			.join("\n");
-		voice.piInput(text.trim() ? text : "Continue.");
-	});
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),
@@ -115,12 +93,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		executionMode: initialConfig.executionMode,
 		codexTurnState: createCodexTurnState(),
 		developerMessages: new CodexDeveloperMessageBridge(),
-		contextWindows,
-		contextKickoff,
-		contextTree: new CodexContextTreeCoordinator(contextWindows, contextKickoff),
 	};
 	const tracker = createExecCommandTracker();
-	contextWindows.setExternalOwner(() => state.externalNotes?.owner);
 	const sessions = createExecSessionManager({
 		env: { ...process.env },
 		bridgeBinaryPath: () => getBundledToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
@@ -129,7 +103,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
 	let prewarmTransportSettlement: Promise<unknown> | undefined;
 	let pendingPrewarmKey: string | undefined;
-	let activePrewarmKind: "ordinary" | "compaction" | "keepalive" | undefined;
+	let activePrewarmKind: "ordinary" | "keepalive" | undefined;
 	let cacheKeepaliveTimer: ReturnType<typeof setTimeout> | undefined;
 	let cacheKeepaliveEpoch = 0;
 	let requestContext: CodexContext | undefined;
@@ -153,11 +127,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		compaction: state.config.compaction,
 		executionMode: state.executionMode,
 	});
-	const buildPrewarmPlan = (
-		ctx: CodexContext,
-		messages: Context["messages"],
-		promptCacheRefresh = false,
-	) => {
+	const buildPrewarmPlan = (ctx: CodexContext) => {
 		const model = ctx.model;
 		const config = structuredClone(state.config);
 		const executionMode = state.executionMode;
@@ -170,44 +140,33 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		// A non-generating warmup must not consume an update before the next
 		// response, otherwise more selector presses could rewrite its sent tail.
 		if (supportsCodexReasoningUpdates(model) && hasPendingCodexReasoningUpdate(projectContextMessages(ctx))) return undefined;
-		// Reconnects replay committed transcript state, never a freshly flattened
-		// prompt that has not passed through the complete extension chain.
-		if (!promptCacheRefresh && !getCurrentSystemMessage(messages)) return undefined;
 		const reasoning = prewarmReasoningOption(pi.getThinkingLevel());
 		const identity = requestIdentity(ctx);
-		const key = JSON.stringify({
-			identity,
-			messages,
-		});
 		return {
 			model,
 			config,
 			executionMode,
 			reasoning,
 			identity,
-			key,
+			key: identity,
 		};
 	};
 	const startPrewarm = (
 		ctx: CodexContext,
-		messages: Context["messages"],
-		kind: "ordinary" | "compaction" | "keepalive" = "ordinary",
-		preserveContinuation = false,
-		keepaliveStrategy?: CodexCacheKeepaliveStrategy,
-		requestSource?: "captured" | "reconstructed",
-		generate = false,
-		preparedRequest?: PreparedKeepaliveRequest,
+		keepaliveStrategy: CodexCacheKeepaliveStrategy,
+		preparedRequest: PreparedKeepaliveRequest,
 	): Promise<CodexPrewarmResult> | undefined => {
-		const plan = buildPrewarmPlan(ctx, messages, kind === "keepalive");
+		const plan = buildPrewarmPlan(ctx);
 		if (!plan) return undefined;
+		const generate = keepaliveStrategy === "generated-current";
 		const { model, config, executionMode, reasoning, key: requestKey } = plan;
-		const prewarmKey = JSON.stringify({ requestKey, preserveContinuation, generate, body: preparedRequest?.body });
+		const prewarmKey = JSON.stringify({ requestKey, generate, body: preparedRequest.body });
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
 		const previousTransportSettlement = prewarmTransportSettlement;
 		prewarmController?.abort();
 		const controller = new AbortController();
 		prewarmController = controller;
-		activePrewarmKind = kind;
+		activePrewarmKind = "keepalive";
 		pendingPrewarmKey = prewarmKey;
 		const promise = (async () => {
 			if (previousTransportSettlement) await previousTransportSettlement.catch(() => undefined);
@@ -221,14 +180,14 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			} as const;
 			const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
 			try {
-				if (preparedRequest && (
+				if (
 					preparedRequest.identity !== requestIdentity(ctx)
 					|| preparedRequest.baseUrl !== requestModel.baseUrl.replace(/\/+$/, "")
 					|| preparedRequest.accountId !== extractAccountId(auth.apiKey)
-				)) return { status: "skipped" } as const;
+				) return { status: "skipped" } as const;
 				const options: OpenAICodexStreamOptions = {
 					apiKey: auth.apiKey,
-					headers: { ...auth.headers, ...preparedRequest?.headers },
+					headers: { ...auth.headers, ...preparedRequest.headers },
 					...(auth.env ? { env: auth.env } : {}),
 					transport: pi.getSettings().transport ?? "auto",
 					sessionId: ctx.sessionManager.getSessionId(),
@@ -240,36 +199,29 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				rewriteCodexProviderHeaders(options.headers!, ctx, { ...state, config, executionMode });
 				const originator = config.openai.harnessIdentifierHeader === "codex" ? "codex_cli_rs"
 					: config.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi";
-				options.accessPrograms = await resolveDaybreakAccess(requestModel, options, config.openai.daybreak, preparedRequest?.body.model ?? model.id, originator);
+				options.accessPrograms = await resolveDaybreakAccess(requestModel, options, config.openai.daybreak, preparedRequest.body.model, originator);
 				const deps = {
 					validateRequest: (body: ResponsesBody, responsesLite: boolean) =>
-						validateRemoteRequest(ctx, requestModel, { messages }, body, options, responsesLite),
+						validateRemoteRequest(ctx, requestModel, { messages: [] }, body, options, responsesLite),
 					getConfig: () => ({ executionMode, openai: config.openai, compaction: config.compaction }),
 					useResponsesLite: (currentModel: Model<Api>) => resolveCodexRuntimePlanForState({ model: currentModel }, { ...state, config, executionMode }).transport === "responses-lite",
 					turnState: state.codexTurnState,
 					getDiagnostics: () => diagnostics.sink(),
-					...(preserveContinuation ? { preserveContinuation: true } : {}),
+					preserveContinuation: true,
 					prewarmDiagnostics: {
-						kind,
-						...(keepaliveStrategy ? { keepaliveStrategy } : {}),
-						...(requestSource ? { requestSource } : {}),
+						kind: "keepalive" as const,
+						keepaliveStrategy,
+						requestSource: "captured" as const,
 					},
 					...(generate ? { generate: true } : {}),
 				};
-				const preparedBody = preparedRequest ? structuredClone(preparedRequest.body) : undefined;
-				if (preparedBody) {
-					delete preparedBody.service_tier;
-					delete preparedBody.access_programs;
-					if (options.serviceTier) preparedBody.service_tier = options.serviceTier;
-					if (options.accessPrograms) preparedBody.access_programs = options.accessPrograms;
-					preparedBody.text = { ...preparedBody.text, verbosity: config.openai.verbosity };
-				}
-				const transportSettlement = preparedRequest && preparedBody
-					? prewarmPreparedOpenAICodexWebSocket(requestModel, preparedBody, options, preparedRequest.responsesLite, deps)
-					: prewarmOpenAICodexWebSocket(requestModel, { messages }, {
-						...options,
-						onPayload: (body) => rewriteCodexProviderRequest(body, ctx, { ...state, config, executionMode }, pi.getSettings().images?.blockImages),
-					}, deps);
+				const preparedBody = structuredClone(preparedRequest.body);
+				delete preparedBody.service_tier;
+				delete preparedBody.access_programs;
+				if (options.serviceTier) preparedBody.service_tier = options.serviceTier;
+				if (options.accessPrograms) preparedBody.access_programs = options.accessPrograms;
+				preparedBody.text = { ...preparedBody.text, verbosity: config.openai.verbosity };
+				const transportSettlement = prewarmPreparedOpenAICodexWebSocket(requestModel, preparedBody, options, preparedRequest.responsesLite, deps);
 				prewarmTransportSettlement = transportSettlement;
 				try {
 					const result = await transportSettlement;
@@ -304,62 +256,17 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		return promise;
 	};
 
-	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[], refreshNotesFrom?: readonly SessionEntry[]) => {
-		if (state.externalNotes) {
-			// Message projection preserves the committed prompt before retiring conversation.
-			const branch = ctx.sessionManager.getBranch();
-			return state.externalNotes.owner.projectMessages(projectCodexDeveloperHistory(branch, messages), refreshNotesFrom)
-				.filter(message => !isProviderContextExcludedMessage(message));
-		}
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const branch = ctx.sessionManager.getBranch();
-		const archived = hasTreeArchives(branch);
-		const allEntries = archived ? ctx.sessionManager.getEntries() : branch;
-		const checkpointBranch = archived
-			? projectTreeCheckpointBranch(branch, allEntries) : branch;
-		const projected = state.contextWindows.project(
-			projectCodexDeveloperHistory(checkpointBranch, projectTreeCheckpointMessages(branch, checkpointBranch, messages)),
-			plan.contextManagementMode,
-			branch,
-			allEntries,
-		);
-		return projectTreeHandoffReads(state.notesProjection?.projectMessages(projected, refreshNotesFrom) ?? projected, checkpointBranch)
-			.filter((message) => !isProviderContextExcludedMessage(message));
-	};
+	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[]) =>
+		projectCodexDeveloperHistory(ctx.sessionManager.getBranch(), messages)
+			.filter(message => !isProviderContextExcludedMessage(message));
 
-	const currentMessages = (ctx: CodexContext) => {
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
-		const codeMode = isCodeModeRuntime(plan) && required.every(name => pi.getActiveTools().includes(name));
-		// Reconstructed prewarm can run before Notes' session_compact hook. Do not
-		// refresh during kickoff: its successor boundary may not be persisted yet.
-		const contextMessages = projectContextMessages(ctx, undefined, ctx.sessionManager.getBranch());
-		const messages = projectCodeModeMcpSections(codeMode
-			? projectPiCodeModeDeclarations(pi, contextMessages) : contextMessages, codeMode);
-		return convertToLlm(
-			state.developerMessages.prepare(
-				messages,
-				supportsCodexDeveloperMessages(ctx, state),
-				ctx.model,
-			),
-		);
-	};
-
-	const currentContextPrewarm = (ctx: CodexContext, kind: "compaction" | "keepalive") => {
-		const keepalivePlan = kind === "keepalive"
-			? resolveCodexCacheKeepalivePlan(ctx.model?.id, state.config.openai)
-			: undefined;
-		const captured = kind === "keepalive" ? preparedKeepaliveRequest : undefined;
-		if (kind === "keepalive" && (!keepalivePlan || !captured || captured.identity !== requestIdentity(ctx))) return undefined;
-		const preserveContinuation = kind === "keepalive";
+	const currentContextPrewarm = (ctx: CodexContext) => {
+		const keepalivePlan = resolveCodexCacheKeepalivePlan(ctx.model?.id, state.config.openai);
+		const captured = preparedKeepaliveRequest;
+		if (!keepalivePlan || !captured || captured.identity !== requestIdentity(ctx)) return undefined;
 		return startPrewarm(
 			ctx,
-			captured ? [] : currentMessages(ctx),
-			kind,
-			preserveContinuation,
-			keepalivePlan?.strategy,
-			kind === "keepalive" ? "captured" : undefined,
-			keepalivePlan?.strategy === "generated-current",
+			keepalivePlan.strategy,
 			captured,
 		);
 	};
@@ -387,13 +294,14 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			strategy: plan.strategy,
 			intervalMs: plan.intervalMs,
 		});
+		const leafId = ctx.sessionManager.getLeafId();
 		cacheKeepaliveTimer = setTimeout(() => {
 			cacheKeepaliveTimer = undefined;
-			if (epoch !== cacheKeepaliveEpoch || !ctx.isIdle() || (deadline !== undefined && Date.now() > deadline)) return;
+			if (epoch !== cacheKeepaliveEpoch || !ctx.isIdle() || ctx.sessionManager.getLeafId() !== leafId || (deadline !== undefined && Date.now() > deadline)) return;
 			const nextCompletedOperations = completedOperations + 1;
 			const requestSource = "captured";
 			diagnostics.sink()?.({ type: "keepalive", phase: "started", strategy: plan.strategy, requestSource });
-			const keepalive = currentContextPrewarm(ctx, "keepalive");
+			const keepalive = currentContextPrewarm(ctx);
 			if (!keepalive) {
 				diagnostics.sink()?.({ type: "keepalive", phase: "skipped", strategy: plan.strategy, requestSource });
 				return;
@@ -459,9 +367,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				|| options.canonicalCompaction || options.cacheRetention === "none") return;
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			if (!isAdapterRuntime(plan)) return;
-			const identity = contextAgentIdentity(ctx);
-			if (identity.accountScope && (!options.apiKey || contextAccountScope(extractAccountId(options.apiKey)) !== identity.accountScope))
-				throw new Error("Shared Remote context requires the parent's Codex account");
 			const systemMessage = getCurrentSystemMessage(context.messages);
 			if (systemMessage) {
 				state.preparedPrompt = {
@@ -517,11 +422,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				}
 			}
 		},
-		startCompactionPrewarm(ctx) {
-			return currentContextPrewarm(ctx, "compaction");
-		},
 		startKeepalivePrewarm(ctx) {
-			return currentContextPrewarm(ctx, "keepalive");
+			return currentContextPrewarm(ctx);
 		},
 		armCacheKeepalive(ctx) {
 			armCacheKeepalive(ctx);
@@ -534,6 +436,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			requestContext = undefined;
 			ordinaryPrewarmPending = false;
 			state.preparedPrompt = undefined;
+			state.replayCompaction = undefined;
 			preparedKeepaliveRequest = undefined;
 			prewarmController?.abort();
 			prewarmController = undefined;

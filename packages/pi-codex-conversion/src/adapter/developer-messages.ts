@@ -7,14 +7,13 @@ import {
 	customDeveloperMessageMetadata,
 	isCodexDeveloperMessageDetails,
 } from "../developer-messages.ts";
-import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isContextWindowBoundary, rewriteContextWindowGuidance } from "../context-management/messages.ts";
 import { CODEX_REASONING_UPDATE_TYPE, codexReasoningLane, normalizeCodexConfigurationUpdates, readCodexReasoningUpdate, supportsCodexReasoningUpdates, type CodexReasoningUpdate } from "./reasoning-updates.ts";
 import { CODEX_CURRENT_TIME_REMINDER_TYPE } from "./current-time-reminder.ts";
 import { CODEX_TOOLKIT_UPDATE_TYPE } from "./code-mode/toolkit-updates.ts";
 import { CODEX_NOTEBOOK_STATUS_TYPE } from "./notebook-status.ts";
 import { CODEX_CONTEXT_BRIEFING_TYPE } from "../context-briefings.ts";
-import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER, readRemoteDelivery, remoteDeliveryItems, remoteDeliverySource, validateRemoteDelivery, type RemoteDelivery } from "../context-management/remote-delivery.ts";
-import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../context-management/remote-delivery-protocol.ts";
+import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER, readRemoteDelivery, remoteDeliveryItems, remoteDeliverySource, validateRemoteDelivery, type RemoteDelivery } from "../tools/code-mode/protected-delivery.ts";
+import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../tools/code-mode/protected-delivery-protocol.ts";
 import { normalizeResponsesId } from "../providers/openai-responses/shared.ts";
 import { prepareResponsesLiteConversationInput } from "../providers/openai-codex/responses-lite.ts";
 
@@ -22,7 +21,6 @@ import { prepareResponsesLiteConversationInput } from "../providers/openai-codex
 export class CodexDeveloperMessageBridge {
 	private readonly secret = randomBytes(32);
 	private carriers = new Map<string, string | CodexReasoningUpdate | RemoteDelivery>();
-	private readonly contextWindowCarriers = new Set<string>();
 
 	prepare(
 		messages: readonly AgentMessage[],
@@ -40,7 +38,6 @@ export class CodexDeveloperMessageBridge {
 			if (
 				message.role !== "custom" ||
 				(message.customType !== CODEX_DEVELOPER_MESSAGE_TYPE &&
-					message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
 					message.customType !== CODEX_CURRENT_TIME_REMINDER_TYPE &&
 					message.customType !== CODEX_TOOLKIT_UPDATE_TYPE &&
 					message.customType !== CODEX_NOTEBOOK_STATUS_TYPE &&
@@ -86,7 +83,6 @@ export class CodexDeveloperMessageBridge {
 			if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(value))
 				throw new Error("Persisted Codex developer message changed content");
 			this.carriers.set(marker, value);
-			if (isContextWindowBoundary(message)) this.contextWindowCarriers.add(marker);
 			projected.push({ ...message, content: marker });
 		}
 		return projected;
@@ -116,9 +112,7 @@ export class CodexDeveloperMessageBridge {
 				initialEffort ??= carrier.initialEffort;
 				return [{ type: "configuration_update", reasoning: { effort: carrier.effort } }];
 			}
-			return [toDeveloperMessage(item, this.contextWindowCarriers.has(marker)
-				? rewriteContextWindowGuidance(carrier)
-				: carrier)];
+			return [toDeveloperMessage(item, carrier)];
 		});
 		if (containsCarrier(input, this.carriers))
 			throw new Error(
@@ -130,7 +124,6 @@ export class CodexDeveloperMessageBridge {
 
 	clear(): void {
 		this.carriers.clear();
-		this.contextWindowCarriers.clear();
 	}
 
 	async validateRemotePayload(payload: unknown, account: () => string | undefined, ctx?: ExtensionContext, responsesLite = false, baseUrl?: string): Promise<void> {

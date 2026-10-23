@@ -9,7 +9,6 @@ import type {
 	VoiceContextModel,
 } from "../adapter/activation/config.ts";
 import { createNativeVoiceContextSummary } from "./native-context.ts";
-import { projectTreeCheckpointBranch } from "../context-management/tree-checkpoint.ts";
 import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
 
 const VOICE_CONTEXT_SYSTEM_PROMPT = `Summarize the current Pi conversation for a realtime voice assistant joining the same session. Preserve the user's goal, relevant preferences, decisions, current state, unresolved questions, and next step. Treat the conversation as history: do not continue its work or answer it. Return only the self-contained continuity summary.`;
@@ -91,10 +90,7 @@ async function createVoiceContextSummary(
 	signal?: AbortSignal,
 	sourceLeafId?: string,
 ): Promise<string | undefined> {
-	const entries = projectTreeCheckpointBranch(
-		ctx.sessionManager.getBranch(sourceLeafId),
-		ctx.sessionManager.getEntries(),
-	);
+	const entries = ctx.sessionManager.getBranch(sourceLeafId);
 	if (latestCompactionIsOpaque(entries))
 		return requireSummary(
 			await createNativeVoiceContextSummary({

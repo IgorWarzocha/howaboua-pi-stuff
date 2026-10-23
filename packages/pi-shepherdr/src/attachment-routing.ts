@@ -4,7 +4,7 @@ import type {
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-codex-conversion/context-sharing";
+} from "@howaboua/pi-notes-compaction/context-sharing";
 import type { AttachmentNotes } from "./attachment-notes.js";
 import {
 	type AttachmentRoute,

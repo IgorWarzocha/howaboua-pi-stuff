@@ -2,7 +2,6 @@ import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	isObject,
 	normalizeCodexVerbosity,
-	normalizeContextManagementMode,
 	normalizeProviderList,
 	normalizeV2UserMessageRetention,
 	type CodexConversionConfig,
@@ -65,7 +64,6 @@ export function migrateCodexConversionConfigIfNeeded(
 			toolRenaming: DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
 			compactTools: DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"],
 			codeModeDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],
-			noteSaveMarkers: DEFAULT_CODEX_CONVERSION_CONFIG.ui.noteSaveMarkers,
 			backgroundShellWidget: typeof value["backgroundShellWidget"] === "boolean" ? value["backgroundShellWidget"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
 			backgroundShellToggleShortcut: stringValue(value["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
 			backgroundShellPrevShortcut: stringValue(value["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),
@@ -96,29 +94,11 @@ function migrateCompactionOptions(
 	value: Record<string, unknown>,
 	inherited: CodexConversionConfig["compaction"],
 ): Record<string, unknown> {
-	if (!["contextManagement", "hybridCompaction", "responsesCompaction", "portableSummary"].some((key) => key in value)) return value;
-	const modeOverride = normalizeContextManagementMode(value["contextManagement"]);
-	const mode = modeOverride
-		?? (inherited.continuity === "compaction" ? "off" : inherited.historyStorage);
-	const hybrid = typeof value["hybridCompaction"] === "boolean"
-		? value["hybridCompaction"] : inherited.continuity === "notes-and-compaction";
-	const native = typeof value["responsesCompaction"] === "boolean"
-		? value["responsesCompaction"] : inherited.continuity === "compaction" && inherited.method !== "pi";
-	const portable = typeof value["portableSummary"] === "boolean"
-		? value["portableSummary"] : inherited.method === "both";
-	const { contextManagement: _mode, hybridCompaction: _hybrid, responsesCompaction: _native, portableSummary: _portable, ...rest } = value;
-	const overridesHybrid = typeof value["hybridCompaction"] === "boolean";
-	const overridesPortable = typeof value["portableSummary"] === "boolean";
-	const overridesMethod = mode !== "off" ? overridesHybrid || (hybrid && overridesPortable)
-		: typeof value["responsesCompaction"] === "boolean" || overridesPortable;
-	return {
-		...(modeOverride !== undefined || (mode !== "off" && overridesHybrid)
-			? { continuity: mode === "off" ? "compaction" : hybrid ? "notes-and-compaction" : "notes" } : {}),
-		...(modeOverride !== undefined && modeOverride !== "off" ? { historyStorage: modeOverride } : {}),
-		...(overridesMethod ? { method: (mode === "off" ? native : hybrid) ? portable ? "both" : "v2" : "pi" } : {}),
-		// Partial project documents override only named axes; explicit new fields win.
-		...rest,
-	};
+	if (!("responsesCompaction" in value) && !("portableSummary" in value)) return value;
+	const { responsesCompaction, portableSummary, ...rest } = value;
+	const native = typeof responsesCompaction === "boolean" ? responsesCompaction : inherited.method !== "pi";
+	const portable = typeof portableSummary === "boolean" ? portableSummary : inherited.method === "both";
+	return { method: native ? portable ? "both" : "v2" : "pi", ...rest };
 }
 
 function stringValue(value: unknown, fallback: string): string {

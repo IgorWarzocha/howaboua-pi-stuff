@@ -45,6 +45,20 @@ export async function openNotesSettings(
 							values: ["All models", "Whitelist"],
 						},
 						{
+							id: "sharing",
+							label: "Share subagent context",
+							description:
+								"Let new child agents share notes and history. Existing families remain connected when off.",
+							currentValue: settings.shareSubagentContext ? "on" : "off",
+							values: ["off", "on"],
+						},
+						{
+							id: "noteSaveMarkers",
+							label: "Note-save markers",
+							currentValue: settings.noteSaveMarkers ? "on" : "off",
+							values: ["off", "on"],
+						},
+						{
 							id: "compact",
 							label: "Normal compaction",
 							description:
@@ -116,6 +130,13 @@ export async function openNotesSettings(
 									...current,
 									active: value === "All models" ? "all" : "whitelist",
 								});
+							else if (id === "sharing")
+								options.save({
+									...current,
+									shareSubagentContext: value === "on",
+								});
+							else if (id === "noteSaveMarkers")
+								options.save({ ...current, noteSaveMarkers: value === "on" });
 							else if (id === "compact")
 								options.save({ ...current, normalCompaction: value === "on" });
 							else if (id === "newWindowRequests") {
@@ -150,11 +171,15 @@ export async function openNotesSettings(
 										? taskBoundaryLabel(current.taskBoundaryReminder)
 										: id === "newWindowRequests"
 											? current.newWindowRequests
-											: id === "compact"
-												? current.normalCompaction
+											: id === "noteSaveMarkers"
+												? current.noteSaveMarkers
 													? "on"
 													: "off"
-												: idleValue(current.idleMinutes),
+												: id === "compact"
+													? current.normalCompaction
+														? "on"
+														: "off"
+													: idleValue(current.idleMinutes),
 							);
 							ctx.ui.notify(
 								`Could not save notes settings: ${String(error)}`,

@@ -11,13 +11,7 @@ export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type LunaCacheKeepaliveIntervalMinutes = 2.5 | 4.5;
 export type CacheKeepaliveIntervalMinutes = 25 | 55;
 export type AllProvidersMode = "off" | "on" | "extras";
-export type ContinuityStrategy = "compaction" | "notes" | "notes-and-compaction";
-export type HistoryStorage = "local" | "tree" | "remote";
-export type ContextManagementMode = "off" | HistoryStorage;
 export type CompactionMethod = "pi" | "v2" | "both";
-// Hour presets store their effective duration, with five minutes of headroom.
-export const IDLE_NOTES_MINUTES_OPTIONS = [0, 25, 55, 115, 355, 715] as const;
-export type IdleNotesMinutes = (typeof IDLE_NOTES_MINUTES_OPTIONS)[number] | 5 | 15;
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
 export const MAX_NOTEBOOK_HEAP_MIB = 65_536;
@@ -71,7 +65,6 @@ export interface CodexConversionConfig {
 		toolRenaming: boolean;
 		compactTools: CompactToolsMode;
 		codeModeDetails: boolean;
-		noteSaveMarkers: boolean;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
 		backgroundShellPrevShortcut: string;
@@ -79,13 +72,6 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: {
-		newWindowRequests: "off" | "pi-limits" | "unrestricted";
-		continuity: ContinuityStrategy;
-		historyStorage: HistoryStorage;
-		notesTreeHandoff: boolean;
-		shareSubagentContext: boolean;
-		idleNotesRollover: IdleNotesMinutes;
-		taskBoundaryReminder: number;
 		method: CompactionMethod;
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
@@ -145,7 +131,6 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		toolRenaming: true,
 		compactTools: "off",
 		codeModeDetails: false,
-		noteSaveMarkers: false,
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",
 		backgroundShellPrevShortcut: "alt+q",
@@ -153,13 +138,6 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellCloseShortcut: "alt+r",
 	},
 	compaction: {
-		continuity: "compaction",
-		newWindowRequests: "unrestricted",
-		historyStorage: "local",
-		notesTreeHandoff: true,
-		shareSubagentContext: false,
-		idleNotesRollover: 0,
-		taskBoundaryReminder: 0,
 		method: "pi",
 		v2UserMessageRetention: 64,
 	},
