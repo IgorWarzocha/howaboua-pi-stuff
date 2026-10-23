@@ -44,7 +44,7 @@
 	},
 	"dependencies": {
 		"proxy-from-env": "2.1.0",
-		"undici": "8.12.2"
+		"undici": "8.12.3"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.0.0",
@@ -53,12 +53,12 @@
 		"@howaboua/pi-codex-conversion": ">=4.0.4"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.15",
+		"@biomejs/biome": "^2.6.2",
 		"@earendil-works/pi-coding-agent": "1.4.0",
 		"@earendil-works/pi-tui": "1.4.0",
 		"@types/node": "^26.6.5",
 		"tsx": "^4.23.15",
-		"typebox": "1.3.37",
+		"typebox": "1.4.3",
 		"typescript": "^7.0.2",
 		"@howaboua/pi-codex-conversion": "4.0.4"
 	},

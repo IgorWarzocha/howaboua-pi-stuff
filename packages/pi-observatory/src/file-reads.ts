@@ -219,7 +219,7 @@ function shellReads(source: string, cwd: string): ReadDetection {
 		prepared.unsafe ||
 		tokens.some(
 			(token, index) =>
-				["(", ")", "&", "||", ";;", "|&", "<(", "<<<"].includes(
+				["(", ")", "&", "||", ";;", "|&", "<(", "<<", "<<-", "<<<"].includes(
 					operator(token),
 				) ||
 				(operator(token) === "<" && operator(tokens[index + 1] ?? "") === "<"),
