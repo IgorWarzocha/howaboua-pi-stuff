@@ -3,7 +3,7 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { protectedOutputScope } from "./tools/code-mode/protected-output.ts";
-export { resolveActiveCodexProvider, resolveProtectedOutputScope, protectedAccountScope, bindProtectedOutputScope, protectedOutputScope } from "./tools/code-mode/protected-output.ts";
+export { canDeliverProtectedOutput, resolveActiveCodexProvider, resolveProtectedOutputScope, protectedAccountScope, bindProtectedOutputScope, protectedOutputScope } from "./tools/code-mode/protected-output.ts";
 
 import type { TSchema } from "typebox";
 import { toNestedTool } from "./adapter/code-mode/nested-tool-adapter.ts";

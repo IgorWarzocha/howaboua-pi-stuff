@@ -1,9 +1,11 @@
 import type {
 	AgentToolResult,
+	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
 	bindProtectedOutputScope,
+	canDeliverProtectedOutput,
 	protectedAccountScope,
 	resolveActiveCodexProvider,
 	resolveProtectedOutputScope,
@@ -163,10 +165,11 @@ async function authenticated(ctx: ExtensionContext) {
 }
 
 /** Automatic hybrid reads only. Writes and encrypted argument dispatch are deliberately absent. */
-export function createNotesRemoteService() {
+export function createNotesRemoteService(pi: ExtensionAPI) {
 	return {
 		canProject: (ctx: ExtensionContext) =>
-			ctx.model?.api === "openai-codex-responses",
+			ctx.model?.api === "openai-codex-responses" &&
+			canDeliverProtectedOutput(pi, ctx),
 		lookup: lookupRemoteHistoryNotes,
 		projectResult: projectNotesResponses,
 	};

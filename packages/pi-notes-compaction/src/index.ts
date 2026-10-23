@@ -221,7 +221,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	> = {};
 	try {
 		const { createNotesRemoteService } = await import("./remote.js");
-		remote = createNotesRemoteService();
+		remote = createNotesRemoteService(pi);
 	} catch (error) {
 		if (!optionalPccMissing(error)) throw error;
 	}

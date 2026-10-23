@@ -16,6 +16,7 @@ import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-k
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
 import { registerGptPromptModeBroker } from "../prompt-mode.ts";
 import { registerCodexAgentRelationships } from "../agent-relationship.ts";
+import { registerProtectedOutputHost } from "../tools/code-mode/protected-output.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
@@ -85,6 +86,11 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			pi, voice: runtime.voice, getConfig: () => runtime.state.config,
 			priority: () => runtime.state.enabled || runtime.state.config.voiceFeaturesOnly ? 20 : 5,
 		});
+		const stopProtectedOutput = registerProtectedOutputHost(pi, ctx => {
+			const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
+			return plan.codexTransport && isAdapterRuntime(plan);
+		});
+		pi.on("session_shutdown", stopProtectedOutput);
 	} catch (registrationError) {
 		promptMode.dispose();
 		try {

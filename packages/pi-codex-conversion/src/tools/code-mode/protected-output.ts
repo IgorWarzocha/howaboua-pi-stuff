@@ -1,8 +1,24 @@
 import { createHash } from "node:crypto";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { codexToolProviderHeaders, resolveCodexToolProvider, resolveCodexApiProviderBaseUrl } from "../../adapter/codex-tool-provider.ts";
 
 const DELIVERY_SCOPE = Symbol("Authenticated protected output scope");
+const DELIVERY_AVAILABLE = "@howaboua/pi-codex-conversion/protected-output-available/v1";
+interface DeliveryRequest { protocol: 1; ctx: ExtensionContext; available?: boolean }
+
+/** An installed package does not establish an active provider rewrite. */
+export function canDeliverProtectedOutput(pi: ExtensionAPI, ctx: ExtensionContext): boolean {
+	const request: DeliveryRequest = { protocol: 1, ctx };
+	pi.events.emit(DELIVERY_AVAILABLE, request);
+	return request.available === true;
+}
+
+export function registerProtectedOutputHost(pi: ExtensionAPI, available: (ctx: ExtensionContext) => boolean): () => void {
+	return pi.events.on(DELIVERY_AVAILABLE, value => {
+		const request = value as DeliveryRequest | undefined;
+		if (request?.protocol === 1 && request.ctx && available(request.ctx)) request.available = true;
+	});
+}
 
 /** Credentials for the active transport only, never another registered model. */
 export async function resolveActiveCodexProvider(ctx: ExtensionContext) {

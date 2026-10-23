@@ -323,7 +323,7 @@ async function hybrid(
 		...(state === "incompatible"
 			? {
 					recovery:
-						"Cached encrypted contents are unavailable on this model. Local notes remain available",
+						"Cached encrypted contents require a compatible Codex model with PCC active. Local results remain available",
 				}
 			: {}),
 	};

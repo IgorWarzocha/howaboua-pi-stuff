@@ -6,7 +6,7 @@ Notes uses PCC's public `code-mode`, `prompt-mode` and `developer-messages` expo
 
 Returned kickoff messages are annotated for developer-role delivery, not sent during preparation. Other models retain ordinary Pi custom messages. Context projection remains active for saved retirement boundaries even when Notes is disabled for the selected model.
 
-Notes owns automatic read-only hybrid retrieval and its response cache. PCC supplies provider authentication and generic protected-output delivery. JavaScript receives receipts while compatible provider requests receive the original encrypted blocks. Neither package decrypts them locally. Cached data retains account and backend provenance.
+Notes owns automatic read-only hybrid retrieval and its response cache. PCC supplies provider authentication and generic protected-output delivery. `canDeliverProtectedOutput(pi, ctx)` checks the active delivery capability, not merely whether the PCC package is installed. JavaScript receives receipts while compatible provider requests receive the original encrypted blocks. Neither package decrypts them locally. Cached data retains account and backend provenance.
 
 The optional `pi-notes-compaction:owner:v1` discovery channel exposes Notes identity, sharing and projection to consumers such as Suggestions. It does not transfer tool registration or session authority. PCC must consume ordinary Pi context hooks rather than this channel.
 
