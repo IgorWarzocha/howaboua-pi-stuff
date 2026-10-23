@@ -6,13 +6,13 @@ Import `discoverBoard` from `@howaboua/pi-agent-board/runtime` and call `discove
 
 Supply one `BoardAdapter`, from `@howaboua/pi-agent-board/integration`:
 
-| Method | Host responsibility |
-| --- | --- |
-| `request(route, request, signal)` | Send a board envelope to its owning Pi session using the host's authenticated transport |
-| `commitDirectory(own, directory, caller, request)` | Apply a validated member registration or removal and persist the resulting directory |
-| `routeNotice(ctx, request, signal)` | Route a notice toward the named member without waking an idle agent |
-| `propagateEnabled(ctx, enabled)` | Forward the root's enablement change to its children |
-| `briefing(member, population)` | Optional host-specific board guidance |
+| Method                                             | Host responsibility                                                                     |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `request(route, request, signal)`                  | Send a board envelope to its owning Pi session using the host's authenticated transport |
+| `commitDirectory(own, directory, caller, request)` | Apply a validated member registration or removal and persist the resulting directory    |
+| `routeNotice(ctx, request, signal)`                | Route a notice toward the named member without waking an idle agent                     |
+| `propagateEnabled(ctx, enabled)`                   | Forward the root's enablement change to its children                                    |
+| `briefing(member, population)`                     | Optional host-specific board guidance                                                   |
 
 The transport receiver calls `runtime.handle(ctx, envelope, signal)`. Normal board operations use `runtime.execute(ctx, input, requestId)`. Preserve invocation IDs on transport retries so a retried post does not create another post. Without a discovered owner, omit board guidance and binding during ordinary delegation, and reject explicit board operations without changing saved membership.
 

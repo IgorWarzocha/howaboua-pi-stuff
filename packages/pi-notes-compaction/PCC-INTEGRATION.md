@@ -11,16 +11,20 @@ Two request channels use synchronous callbacks:
 ```ts
 // PCC asks whether an external continuity owner is installed.
 pi.events.emit("pi-notes-compaction:owner:v1", {
-  protocol: 1,
-  ctx, // current model, including before preparation and after model selection
-  projection(owner) { /* retain historical message and branch projection */ },
-  reply(owner) { /* retain the NotesOwner for this runtime */ }
-})
+	protocol: 1,
+	ctx, // current model, including before preparation and after model selection
+	projection(owner) {
+		/* retain historical message and branch projection */
+	},
+	reply(owner) {
+		/* retain the NotesOwner for this runtime */
+	},
+});
 
 // PCC publishes its optional adapter before session_start.
-pi.events.on("pi-notes-compaction:bridge:v1", request => {
-  if (request.protocol === 1) request.reply(bridge)
-})
+pi.events.on("pi-notes-compaction:bridge:v1", (request) => {
+	if (request.protocol === 1) request.reply(bridge);
+});
 ```
 
 Every extension finishes loading before `session_start`. Both sides must discover again at that boundary. PCC must check for the external owner before its first session initialization and before every activation-plan or tool rewrite. This works in either load order. No prefix edit, timer or module-global import is discovery.
@@ -36,7 +40,6 @@ PCC may defer its legacy registrations until discovery, but it must still use th
 Add an explicit external-owner branch to `adapter/activation/runtime-plan.ts` and every continuity consumer. The external owner takes notes, history routing, context identities, reminders, manual checkpoint policy, idle input admission and window rollover. Disable PCC's corresponding Local, Tree and Remote policy owners, not its provider services.
 
 Required boundaries in the current source:
-
 - `context-management/tools.ts` and `extension/tools.ts`: replace the four tools through the registration callback. Active-tool and schema rewrites must preserve delegated definitions while Notes owns continuity. Consult optional `owner.allowsWindowRequests()` when selecting active tools. A false result hides `new_context` without removing its registration. Restore legacy routers only when Notes yields ownership.
 - `extension/session-lifecycle.ts` and `extension/turn-lifecycle.ts`: skip legacy notes/window initialization, input holding, checkpoint admission, note freshness, reminders, settlement records and continuation scheduling. Leave PCC's prompt preparation, runtime synchronization, Notebook status, voice, quota and provider lifecycle active.
 - `extension/compaction-lifecycle.ts`: consult `owner.allowsCompaction(reason)` before any compaction work. When false, return without work so the owner's hook can cancel and handle notes-only rollover, regardless of extension order. Skip legacy `contextWindows.prepareCompaction` and notes checkpoint overrides. When this extension allows normal compaction, run the unchanged installed PCC normal-compaction path. Overflow stays in the same window. Notebook checkpointing, native compaction, replay, transport reset and presentation remain PCC-owned.
@@ -51,7 +54,6 @@ Normal compaction output belongs exclusively to Pi and PCC. This package does no
 ## Code and Notebook
 
 `configureTools(tools, ctx, contracts)` receives the delegated definitions and compact `notes` and `history` usage strings. Reuse PCC's existing `toNestedTool` and `registerCodeModeExtensionTools` machinery inside PCC:
-
 - Defer notes/history schemas and full contracts through discovery. Keep them callable and discoverable in `ALL_TOOLS` without per-tool provider schemas or standing usage.
 - Calls use ordinary query and text arguments, not encrypted model arguments.
 - Plain local results remain ordinary JavaScript values. For results containing opaque remote responses, JavaScript gets a receipt and the model gets protected delivery.
@@ -66,7 +68,6 @@ Configuration is repeated on session start and model selection. It must be idemp
 Optional `lookup(query, ctx, signal?)` handles read-only notes/history operations through PCC's existing authenticated backend. The query is `{ namespace: "notes" | "history", params }`. Paths sent to lookup are fully qualified virtual paths. Writes never go to the remote backend.
 
 Return `CachedResponse[]`, with each element containing:
-
 - `query`: the exact query whose result these bytes represent.
 - `bytes`: the unchanged backend response bytes as `Uint8Array`.
 - `source`: the existing backend/source identity needed to project the response.

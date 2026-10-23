@@ -8,7 +8,7 @@ Requires Node 22.18 or newer. Add this bundle's absolute directory to `tabs` in 
 
 ```json
 {
-  "tabs": ["/absolute/path/to/pi-observatory/dist/tabs/pcc-cache"]
+	"tabs": ["/absolute/path/to/pi-observatory/dist/tabs/pcc-cache"]
 }
 ```
 

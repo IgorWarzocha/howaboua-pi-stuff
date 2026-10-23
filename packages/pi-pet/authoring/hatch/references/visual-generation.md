@@ -3,7 +3,6 @@
 ## Capability selection
 
 A suitable capability can:
-
 - generate or edit PNG/WebP from a supplied prompt;
 - accept all reference images required by a job;
 - preserve a canonical character across iterations;
@@ -14,7 +13,6 @@ Do not require a named vendor, model, API, skill, or tool. Record the capability
 ## Native generation
 
 For each ready entry in `visual-jobs.json`:
-
 1. Open its `prompt_file`.
 2. Attach every `input_images` file with its recorded role.
 3. Generate only that job.
@@ -30,13 +28,11 @@ One isolated worker per job prevents visual payloads and failed variants from fl
 ## No native generator
 
 Do not declare the workflow blocked before preparing the run. Create `visual-jobs.json`, prompts, layout guides, and reference bundles first, then offer:
-
 1. **User-operated service:** ChatGPT image generation, Gemini, Grok Imagine, or any other service that supports prompts and reference uploads.
 2. **Authorized browser assistance:** when browser control exists, offer to upload references, submit the prepared prompt, and download the selected result through the user's already logged-in session.
 3. **Manual artwork:** accept files created by an artist or another application if they satisfy the same job contract.
 
 For each external job, give the user:
-
 - service-neutral prompt file;
 - exact reference files and their roles;
 - expected number/order of poses;

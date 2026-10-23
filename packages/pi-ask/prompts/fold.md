@@ -1,7 +1,9 @@
 ---
+
 description: Fold a long report or list into interactive review
 argument-hint: "[report or instructions]"
 ---
+
 Fold this material into `ask` instead of replying with another long report:
 
 $ARGUMENTS

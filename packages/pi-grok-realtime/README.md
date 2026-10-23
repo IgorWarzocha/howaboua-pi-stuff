@@ -1,7 +1,6 @@
 # Grok Realtime
 
 Talk with Grok while your current Pi agent does the work. Use your computer's microphone or a phone browser on your LAN. Pi keeps its model, tools and working environment, and its progress and replies flow back into the conversation.
-
 - Delegate tasks by voice and keep talking while Pi works.
 - Dictate into an editable draft without automatically sending it.
 - Control calls from a Pi-themed browser page with live Pi activity.
@@ -22,7 +21,6 @@ pi install npm:@howaboua/pi-grok-realtime
 ```
 
 Run `/reload`, then `/grok` to choose settings. Start with `/grok local`, or `/grok server` to open browser control. Loading the extension does not connect voice or start a server.
-
 - `/grok` opens tabbed settings for Voice, Context and Tools. Audio devices groups the microphone and speaker pickers. Use Tab or Shift+Tab to switch sections; Help contains usage, prompt paths and billing information. Settings apply to the next call; use `/reload` after changing shortcuts.
 - `/grok local` starts local microphone and speakers.
 - `/grok server` toggles browser control. Accept the local HTTPS certificate before granting microphone access.

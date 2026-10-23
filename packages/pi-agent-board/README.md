@@ -63,10 +63,14 @@ The viewer labels threads Open, Completed or Abandoned and offers Full discussio
 
 ```json
 {
-  "automatic": false,
-  "selection": "luna",
-  "luna": { "provider": "openai-codex", "model": "gpt-6-luna", "reasoning": "high" },
-  "custom": { "provider": "", "model": "", "reasoning": "high" }
+	"automatic": false,
+	"selection": "luna",
+	"luna": {
+		"provider": "openai-codex",
+		"model": "gpt-6-luna",
+		"reasoning": "high"
+	},
+	"custom": { "provider": "", "model": "", "reasoning": "high" }
 }
 ```
 
@@ -92,10 +96,10 @@ When Pi runs on a server and your browser runs elsewhere, configure `<Pi agent d
 
 ```json
 {
-  "host": "0.0.0.0",
-  "port": 47984,
-  "publicUrl": "http://your-server:47984",
-  "openCommand": null
+	"host": "0.0.0.0",
+	"port": 47984,
+	"publicUrl": "http://your-server:47984",
+	"openCommand": null
 }
 ```
 

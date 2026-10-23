@@ -48,13 +48,13 @@ On first load, the extension creates `~/.pi/agent/pi-subagent-review.json`, or t
 
 ```json
 {
-  "model": "openai-codex/gpt-6-sol",
-  "thinking": "medium",
-  "summary": {
-    "enabled": true,
-    "model": "openai-codex/gpt-6-luna",
-    "thinking": "low"
-  }
+	"model": "openai-codex/gpt-6-sol",
+	"thinking": "medium",
+	"summary": {
+		"enabled": true,
+		"model": "openai-codex/gpt-6-luna",
+		"thinking": "low"
+	}
 }
 ```
 

@@ -16,15 +16,14 @@ Do not install this alongside `@howaboua/pi-codex-conversion`; that package alre
 
 ## Controls
 
-| Action | Default |
-| --- | --- |
-| Realtime voice | `Ctrl+Alt+Space` |
-| Mute realtime microphone | `Ctrl+Alt+M` |
-| Hold to dictate | `Ctrl+Alt+D` |
-| LAN control server | `Ctrl+Alt+G` |
+| Action                   | Default          |
+| ------------------------ | ---------------- |
+| Realtime voice           | `Ctrl+Alt+Space` |
+| Mute realtime microphone | `Ctrl+Alt+M`     |
+| Hold to dictate          | `Ctrl+Alt+D`     |
+| LAN control server       | `Ctrl+Alt+G`     |
 
 Commands:
-
 - `/gippity` — settings
 - `/gippity realtime`
 - `/gippity mute`

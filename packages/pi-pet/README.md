@@ -14,7 +14,6 @@ pi install npm:@howaboua/pi-pet
 Run `/gippity server` or its configured shortcut. With Pi Pet loaded, GipPity serves Clawa at `/_gippity/apps/pi-pet/` on every announced server URL. GipPity's bundled or explicitly configured main remote UI remains at `/`.
 
 Open `<gippity-url>/_gippity/apps/pi-pet/` and accept GipPity's local certificate. The same Clawa app provides:
-
 - working, waiting, failure, and settled animation from Pi events;
 - synchronized text prompts through `GippityRemote.send()`;
 - realtime conversation through `GippityRemote.audio`;

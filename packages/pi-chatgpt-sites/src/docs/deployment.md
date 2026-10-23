@@ -5,7 +5,6 @@ Every Sites deployment URL is production. Deploy only a saved `version_id` withi
 ## `deployment.deploy`
 
 Required facade parameters: `project_id` (or local manifest), `version_id`, and `visibility`.
-
 - `visibility: "private"` uses the owner-only deployment path. The backend refuses it unless the caller is the sole explicitly allowed viewer and no groups are allowed.
 - `visibility: "shared"` is an open-world production deployment for shared, workspace, public, or unverifiable access.
 
@@ -13,13 +12,13 @@ Calling this action is the production effect. Preserve the existing audience unl
 
 ```js
 await tools.sites({
-  resource: "deployment",
-  action: "deploy",
-  params: {
-    version_id: "<opaque-version-id>",
-    visibility: "private"
-  }
-})
+	resource: "deployment",
+	action: "deploy",
+	params: {
+		version_id: "<opaque-version-id>",
+		visibility: "private",
+	},
+});
 ```
 
 If private deployment is rejected because access is not owner-only, reread `site.get`. Never silently fall back or alter access. Report any conflict with the requested audience.
