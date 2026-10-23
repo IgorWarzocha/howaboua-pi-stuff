@@ -101,6 +101,8 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				discovery: "help",
+				usage:
+					"await tools.sandbox() // help; pass an action object or JSON text",
 				kind: "freeform",
 				prepareInput: prepareSandboxInput,
 				resultValue: (result) => {

@@ -7,8 +7,9 @@ export function prepareSandboxInput(value: unknown): { input: string } {
 		if (Object.keys(value).length === 0) return { input: "help" };
 		if ("input" in value && typeof value.input === "string")
 			return { ...value, input: value.input };
+		if (!("input" in value)) return { input: JSON.stringify(value) };
 	}
-	throw new Error("Send help or JSON text to sandbox");
+	throw new Error("Send help, an action object or JSON text to sandbox");
 }
 
 const nameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);
@@ -274,6 +275,7 @@ export const replySchema = z.discriminatedUnion("ok", [
 	z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 export const HELP = {
+	input: "Action object or JSON text; omit for help",
 	actions: {
 		help: "",
 		list: "kind?: instances|templates",
