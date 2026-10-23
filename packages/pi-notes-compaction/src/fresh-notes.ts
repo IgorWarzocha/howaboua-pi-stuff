@@ -80,16 +80,23 @@ function noteEvidence(
 	const lastUser = branch.findLastIndex(
 		(entry) => entry.type === "message" && entry.message.role === "user",
 	);
+	const lastMessage = branch.findLastIndex(
+		(entry) =>
+			entry.type === "custom_message" ||
+			(entry.type === "message" && entry.message.role !== "system"),
+	);
 	// Custom kickoffs have no user message. Scope both receipts and tool outcomes
 	// to their native preparation boundary, not an earlier custom-only run.
+	// /tree returns to a prompt's parent, which can include its preparation marker
+	// without the prompt. Only a delivered message starts a new historical run.
 	const runStart = branch.findLastIndex(
-		(entry) =>
+		(entry, index) =>
 			entry.type === "custom" &&
 			entry.customType === NOTES_RUN_ENTRY &&
 			entry.data &&
 			typeof entry.data === "object" &&
 			"runId" in entry.data &&
-			(!runId || entry.data.runId === runId),
+			(runId ? entry.data.runId === runId : index < lastMessage),
 	);
 	const run = branch.slice(Math.max(lastUser, runStart) + 1);
 	const receipts = run
