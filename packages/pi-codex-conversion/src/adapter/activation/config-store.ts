@@ -139,6 +139,21 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 	return config;
 }
 
+/** Read before normalization drops settings now owned by Notes. */
+export function readLegacyCodexNotesConfig(options: Omit<EffectiveCodexConversionConfigOptions, "env">): { path: string; continuity: string } | undefined {
+	const paths = [options.globalConfigPath ?? getCodexConversionConfigPath()];
+	if (options.projectTrusted) paths.push(getProjectCodexConversionConfigPath(options.cwd));
+	let selected: { path: string; continuity: unknown } | undefined;
+	for (const [index, path] of paths.entries()) {
+		const document = readConfigDocument(path, index === 0 ? "global" : "trusted project");
+		const compaction = isRecord(document) && isRecord(document["compaction"]) ? document["compaction"] : undefined;
+		if (compaction && "continuity" in compaction) selected = { path, continuity: compaction["continuity"] };
+	}
+	return selected && (selected.continuity === "notes" || selected.continuity === "notes-and-compaction")
+		? { path: selected.path, continuity: selected.continuity }
+		: undefined;
+}
+
 export function readProjectCodexConversionDocument(
 	cwd: string,
 	projectTrusted: boolean,

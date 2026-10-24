@@ -17,8 +17,10 @@ import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
 import { registerGptPromptModeBroker } from "../prompt-mode.ts";
 import { registerCodexAgentRelationships } from "../agent-relationship.ts";
 import { registerProtectedOutputHost } from "../tools/code-mode/protected-output.ts";
+import { registerNotesMigrationGuard } from "./notes-migration.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
+	registerNotesMigrationGuard(pi);
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
 	registerCodexAgentRelationships(pi);
