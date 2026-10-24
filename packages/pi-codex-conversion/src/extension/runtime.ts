@@ -28,7 +28,7 @@ import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { validateRemoteOutputReplay } from "../tools/code-mode/protected-output.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
-import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
+import { projectCodexDeveloperEntry, projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 import { priceGeneratedPrewarm } from "../providers/openai-codex/usage.ts";
 
@@ -277,6 +277,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 		cacheKeepaliveTimer = undefined;
 		if (activePrewarmKind === "keepalive") prewarmController?.abort();
 	};
+	// Settlement can append storage-only metadata after this extension's hook.
+	// Retain invalidation for conversation/window entries and projected instructions.
+	const keepaliveBoundary = (ctx: CodexContext) => ctx.sessionManager.getBranch()
+		.findLast(entry => projectCodexDeveloperEntry(entry).type !== "custom")?.id;
 
 	const scheduleCacheKeepalive = (
 		ctx: CodexContext,
@@ -294,10 +298,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 			strategy: plan.strategy,
 			intervalMs: plan.intervalMs,
 		});
-		const leafId = ctx.sessionManager.getLeafId();
+		const boundary = keepaliveBoundary(ctx);
 		cacheKeepaliveTimer = setTimeout(() => {
 			cacheKeepaliveTimer = undefined;
-			if (epoch !== cacheKeepaliveEpoch || !ctx.isIdle() || ctx.sessionManager.getLeafId() !== leafId || (deadline !== undefined && Date.now() > deadline)) return;
+			if (epoch !== cacheKeepaliveEpoch || !ctx.isIdle() || keepaliveBoundary(ctx) !== boundary || (deadline !== undefined && Date.now() > deadline)) return;
 			const nextCompletedOperations = completedOperations + 1;
 			const requestSource = "captured";
 			diagnostics.sink()?.({ type: "keepalive", phase: "started", strategy: plan.strategy, requestSource });
