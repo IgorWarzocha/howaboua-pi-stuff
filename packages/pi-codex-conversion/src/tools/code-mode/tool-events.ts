@@ -23,7 +23,7 @@ export function registerCodeModeEvents(
 		// Other extensions can bind this hook before conversion registers its own.
 		prepareGptPromptMode(pi, ctx, event.systemPromptOptions);
 		const executionKind = runtime.executionKind(ctx);
-		const requiredTools = executionKind === "notebook"
+		const requiredTools = executionKind !== "code"
 			? ["exec", "wait", "notebook"]
 			: ["exec", "wait"];
 		const activeProviders = runtime.activeProviders(ctx);

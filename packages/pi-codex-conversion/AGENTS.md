@@ -4,7 +4,7 @@
 - After a retryable connection failure, allow up to three fresh WebSocket retries within five minutes, then sticky SSE with a separate five-minute window. Preserve the healthy initial attempt. Fall back immediately on 426 or close 1009.
 - Retry server_is_overloaded and slow_down across WebSocket/SSE within one three-minute budget. Honour HTTP/streamed retry delays using monotonic deadlines. Fail if advice exceeds the budget, including across fallback.
 - Before npm/publish/release/merge work, compare src/providers/openai-codex-custom-provider.ts with Pi's stock openai-codex-responses provider: requests, transport/headers, reasoning/tier, retries, termination and touched behaviour.
-- Structured mode uses flat tools. Code uses exec/wait. Notebook adds host-side notebook lifecycle control. Notes/history and window policy belong to pi-notes-compaction.
+- Structured mode uses flat tools. Code uses exec/wait. Notebook and TS add host-side notebook lifecycle control. Notes/history and window policy belong to pi-notes-compaction.
 - Keep prompt guidance short and argv-shaped.
 - Native runners execute bundled helpers directly. Rebuild locally and use the checkout, never patch installed npm files. Web/image tools belong to their TypeScript packages.
 - Keep src/voice/rust/** and scripts/build-voice-helper.mjs byte-identical with pi-gippity-control. Change and changeset both together.

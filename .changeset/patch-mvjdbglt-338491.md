@@ -10,3 +10,4 @@
 - WebSocket prewarming uses the final prepared request, including after compaction; cache keepalive remains opt-in.
 - Native checkpoint replay preserves context edits made by other extensions.
 - Removed redundant instructions from Notebook help.
+- Added optional TS mode with type-checked TypeScript, concurrent cells and persistent portable state. Code and Deno Notebook remain available.

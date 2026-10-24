@@ -13,34 +13,41 @@ import type {
 	ToolExecutionContext,
 } from "./types.ts";
 
-const NOTEBOOK_ACTION_PARAMETERS = Type.Union([
-	Type.Object({
-		action: StringEnum(["status", "list"]),
-		query: Type.Optional(Type.String()),
-	}, { additionalProperties: false }),
-	Type.Object({
-		action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]),
-	}, { additionalProperties: false }),
-	Type.Object({
-		action: StringEnum(["save", "load"]),
-		name: Type.String(),
-	}, { additionalProperties: false }),
-	Type.Object({
-		action: Type.Literal("pin"),
-		names: Type.Array(Type.String(), { minItems: 1 }),
-		hook: Type.Optional(Type.Union([StringEnum(["startup", "tool_result"]), Type.Literal(false)], {
-			description: "Await self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
-		})),
-	}, { additionalProperties: false }),
-	Type.Object({
-		action: StringEnum(["unpin", "release"]),
-		names: Type.Array(Type.String(), { minItems: 1 }),
-	}, { additionalProperties: false }),
-	Type.Object({
-		action: Type.Literal("prune"),
-		query: Type.String(),
-	}, { additionalProperties: false }),
-]);
+const PIN_PARAMETERS = Type.Object({
+	action: Type.Literal("pin"),
+	names: Type.Array(Type.String(), { minItems: 1 }),
+	hook: Type.Optional(Type.Union([StringEnum(["startup", "tool_result"]), Type.Literal(false)], {
+		description: "Await self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
+	})),
+}, { additionalProperties: false });
+
+function notebookActionParameters(ts: boolean) {
+	return Type.Union([
+		Type.Object({
+			action: StringEnum(["status", "list"]),
+			query: Type.Optional(Type.String()),
+		}, { additionalProperties: false }),
+		Type.Object({
+			action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]),
+		}, { additionalProperties: false }),
+		Type.Object({
+			action: StringEnum(["save", "load"]),
+			name: Type.String(),
+		}, { additionalProperties: false }),
+		ts ? Type.Omit(PIN_PARAMETERS, ["hook"]) : PIN_PARAMETERS,
+		Type.Object({
+			action: StringEnum(["unpin", "release"]),
+			names: Type.Array(Type.String(), { minItems: 1 }),
+		}, { additionalProperties: false }),
+		Type.Object({
+			action: Type.Literal("prune"),
+			query: Type.String(),
+		}, { additionalProperties: false }),
+	]);
+}
+
+const NOTEBOOK_ACTION_PARAMETERS = notebookActionParameters(false);
+const TS_ACTION_PARAMETERS = notebookActionParameters(true);
 
 export const NOTEBOOK_PARAMETERS = Type.Object({
 	input: Type.Optional(Type.String({ description: 'help or JSON, e.g. {"action":"status"}; not a bare action name' })),
@@ -74,6 +81,30 @@ Hooks must be self-contained fn(event), awaited when invoked. startup gets {type
 
 Run management calls after exec returns. Inside exec, tools.notebook({action,...}) supports status without query, list and diagnostics only. release/prune may restart the kernel for lexical bindings, clearing runtime-only handles.`;
 
+const TS_HELP = `Actions use {"input":"<JSON action object>"}.
+Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
+
+{"action":"status","query"?:string}  Inspect committed bindings and active cells
+{"action":"list","query"?:string}  List saved profiles
+{"action":"checkpoint"}  Persist committed state
+{"action":"save","name":string}  Save committed state as a named profile
+{"action":"load","name":string}  Replace committed state with a saved profile or reported conflict candidate; save current state first if needed
+{"action":"pin","names":string[]}  Retain bindings as durable project state and protect from release/prune
+{"action":"unpin","names":string[]}  Remove pin protection, keeping bindings
+{"action":"release","names":string[]}  Remove selected unpinned bindings
+{"action":"prune","query":string}  Remove unpinned bindings matching a glob
+{"action":"restart"}  Restart TS execution without changing committed state
+{"action":"diagnostics"}  Inspect committed state and runtime health
+{"action":"reset"}  Discard session state; project pins and named profiles survive
+
+query uses case-insensitive * and ? globs. Lifecycle changes require idle cells: wait or terminate them first. Status, diagnostics, list, save and checkpoint read committed state, never running cells. Inside exec, tools.notebook({action:"status"}), list and diagnostics are available.
+
+TS state is separate from Deno Notebook. Portable data, self-contained top-level functions, types and import recipes persist. Captured closures and live handles must stay block-local. Hooks are unavailable. Failed or cancelled cells do not commit state; tool and file effects are not rolled back.`;
+
+function notebookHelp(runtime: SharedCodeModeRuntime, context: unknown): string {
+	return runtime.executionKind(context) === "ts" ? TS_HELP : NOTEBOOK_HELP;
+}
+
 type NotebookToolParameters = {
 	action: string;
 	query?: string | undefined;
@@ -95,7 +126,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			if (params.input === undefined || params.input === "help") return {
-				content: [{ type: "text", text: NOTEBOOK_HELP }],
+				content: [{ type: "text", text: notebookHelp(runtime, ctx) }],
 				details: { action: "help" },
 			};
 			let action: unknown;
@@ -104,7 +135,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 			} catch (error) {
 				throw new Error('notebook input must be help or a JSON action object; call notebook({})', { cause: error });
 			}
-			if (!Check(NOTEBOOK_ACTION_PARAMETERS, action)) {
+			if (!Check(runtime.executionKind(ctx) === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS, action)) {
 				throw new Error('Invalid notebook action arguments; call notebook({})');
 			}
 			const result = await executeNotebookControl(runtime, action, {
@@ -121,6 +152,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 
 export function createNotebookControlProxy(
 	runtime: SharedCodeModeRuntime,
+	context?: unknown,
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
@@ -129,10 +161,10 @@ export function createNotebookControlProxy(
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
-		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, NOTEBOOK_ACTION_PARAMETERS]),
+		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, runtime.executionKind(context) === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS]),
 		invoke: (input, context, signal) => {
 			if (input === undefined || Check(NOTEBOOK_DISCOVERY_PARAMETERS, input))
-				return Promise.resolve({ message: NOTEBOOK_HELP, details: { action: "help" } });
+				return Promise.resolve({ message: notebookHelp(runtime, context.extensionContext), details: { action: "help" } });
 			return executeNotebookExecControl(runtime, input as NotebookToolParameters, context, signal);
 		},
 	};

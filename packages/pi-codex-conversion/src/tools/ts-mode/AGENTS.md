@@ -1,0 +1,7 @@
+- TS is an alternate runtime. Do not migrate or read Deno Notebook state.
+- One stable host owns the tsrs compiler. Disposable Node processes own execution cwd, heap and subprocess groups; terminate them before reporting completion or shutdown.
+- Register original top-level function identities at creation, never by the final binding name. Restore recipe functions before decoding data, then initialise lexical bindings from decoded roots. Function declarations need outer lexical self-reference, not an invented named-expression self binding.
+- A committed baseline is immutable. Publish a three-way merge only after its session checkpoint is atomically written. Overlapping writes conflict even when their resulting values match; preserve the candidate separately.
+- Project pin synchronisation is secondary to the session commit. Report its failure without claiming the successful session commit rolled back.
+- Transfer must preserve graph identity or refuse the named value before commit. Never stringify closures, skip live objects or replay prior cells to manufacture state.
+- Nested tools go through CodeModeDelegateRuntime, including protected outputs, authentication, hooks and per-cell provenance.

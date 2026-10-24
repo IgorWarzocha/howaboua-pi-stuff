@@ -127,7 +127,11 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		executionKind === "notebook"
+		executionKind === "ts"
+			? gpt
+				? "exec=TypeScript cells; imports/npm/Node/Web APIs; portable state persists across cells"
+				: "exec runs TypeScript cells with imports, npm, Node and Web APIs; portable state persists across cells"
+			: executionKind === "notebook"
 			? gpt
 				? "exec=persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Smallprograms across cells; retainedglobals may originate earlieragents/sessions"
 				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"

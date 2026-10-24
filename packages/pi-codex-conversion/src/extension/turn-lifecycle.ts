@@ -35,9 +35,10 @@ export function createCodexTurnLifecycle(
 		messages?: readonly AgentMessage[],
 		selectedTools = pi.getActiveTools(),
 	): Promise<boolean> => {
-		if (resolveCodexRuntimePlanForState(ctx, state).kind !== "notebook"
+		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
+		if ((kind !== "notebook" && kind !== "ts")
 			|| !["exec", "wait", "notebook"].every((name) => selectedTools.includes(name))) return Promise.resolve(false);
-		return recordNotebookStatus(pi, ctx, state, messages ?? runtime.projectContextMessages(ctx), codeMode);
+		return recordNotebookStatus(pi, ctx, state, messages ?? runtime.projectContextMessages(ctx), codeMode, kind);
 	};
 
 	return {
@@ -54,7 +55,7 @@ export function createCodexTurnLifecycle(
 			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "notebook") state.notebookStatusMessageId = undefined;
+			if (plan.kind !== "notebook" && plan.kind !== "ts") state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
@@ -107,7 +108,7 @@ export function createCodexTurnLifecycle(
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
 				messages = runtime.projectContextMessages(ctx, event.messages);
-			const required = plan.kind === "notebook" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			const required = plan.kind === "notebook" || plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(messages, isCodeModeRuntime(plan)
 					&& required.every(name => pi.getActiveTools().includes(name)));

@@ -70,15 +70,20 @@ export function registerPublicCodeModeTools(
 	const broker = registerCodeModePreflightBroker(pi);
 	const hooks = { preflight: broker.run, completion: broker.complete };
 	const exec = createExecTool(runtime, tracker, renderResult, hooks);
+	const wait = createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks);
 	pi.registerTool(exec);
-	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks));
-	let gpt = false;
-	registerGptPromptMode(pi, active => {
-		if (active !== gpt) {
-			gpt = active;
-			pi.registerTool({ ...exec, description: active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION });
+	pi.registerTool(wait);
+	let currentExec = exec;
+	registerGptPromptMode(pi, (active, context) => {
+		const ts = context !== undefined && runtime.executionKind(context) === "ts";
+		const description = (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace("JavaScript", ts ? "TypeScript" : "JavaScript");
+		const executionMode = ts ? "parallel" : "sequential";
+		if (currentExec.description !== description || currentExec.executionMode !== executionMode) {
+			if (currentExec.executionMode !== executionMode) pi.registerTool({ ...wait, executionMode });
+			currentExec = { ...exec, description, executionMode, promptSnippet: `Compose tools with ${ts ? "TypeScript" : "JavaScript"}` };
+			pi.registerTool(currentExec);
 		}
-		return [exec];
+		return [currentExec];
 	});
 	registerNotebookTool(pi, runtime);
 }

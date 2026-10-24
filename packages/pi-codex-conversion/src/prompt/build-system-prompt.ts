@@ -43,14 +43,24 @@ const CODE_MODE_GUIDELINES = [
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
 
-const NOTEBOOK_MODE_GUIDELINES = [
+const STATEFUL_MODE_GUIDELINES = [
 	["Reuse matching retained globals", "Reuse matching retained globals"],
 	["Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning", "One-offs→blocklocal; reusable analysis/helpers→namedglobals+concise description/usage; valuablestate→pin before prune"],
 	...CODE_MODE_GUIDELINES,
 	["Notebook state management: notebook({})", "Manage state: notebook({})"],
 	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonicalartifacts→files; tools.exec_command crosscall shellstate→files/args"],
+] as const;
+
+const NOTEBOOK_MODE_GUIDELINES = [
+	...STATEFUL_MODE_GUIDELINES,
 	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Retainedhelpers=selfcontained; restart→recreate imports/closures/livehandles"],
 	["exec calls run sequentially", "exec calls sequential"],
+] as const;
+
+const TS_MODE_GUIDELINES = [
+	...STATEFUL_MODE_GUIDELINES,
+	["Each exec starts from committed state; independent cells may run concurrently. Wait for dependencies before launching dependent cells", "exec snapshots committedstate; independentcells concurrent; awaitdependencies beforelaunch"],
+	["Retain portable data and self-contained helpers; keep live handles and private closures cell-local", "Retain portabledata/selfcontainedhelpers; livehandles/privateclosures→celllocal"],
 ] as const;
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
@@ -69,6 +79,7 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
+	...TS_MODE_GUIDELINES,
 ];
 const GPT_GUIDELINES = new Map<string, string>(ALL_STATIC_CODEX_GUIDELINES);
 
@@ -84,7 +95,7 @@ const STATIC_CODEX_GUIDELINES_BY_KEY = new Map(
 	],
 );
 
-export type CodexPromptMode = "normal" | "code" | "notebook";
+export type CodexPromptMode = "normal" | "code" | "notebook" | "ts";
 
 function buildCodexGuidelines(
 	mode: CodexPromptMode,
@@ -103,7 +114,7 @@ function buildCodexGuidelines(
 	} else {
 		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || active.has("notebook"));
 		guidelines = adapterSurfaceActive
-			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : CODE_MODE_GUIDELINES).map(([guideline]) => guideline)
+			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : CODE_MODE_GUIDELINES).map(([guideline]) => guideline)
 			: [];
 	}
 	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE[0], FOLLOW_THROUGH_GUIDELINE[0]);
@@ -223,7 +234,7 @@ function formatGuidelines(guidelines: readonly string[], shell?: string, customi
 	const editing = new Set<string>([NORMAL_CODEX_GUIDELINES[2][0], CODE_MODE_GUIDELINES[4][0]]);
 	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES].map(([guideline]) => guideline));
 	execution.add("exec calls run sequentially");
-	const notebook = new Set<string>(NOTEBOOK_MODE_GUIDELINES.map(([guideline]) => guideline));
+	const notebook = new Set<string>([...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES].map(([guideline]) => guideline));
 	const general: string[] = [];
 	const groups: Record<string, string[]> = {
 		Execution: [],

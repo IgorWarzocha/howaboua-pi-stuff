@@ -139,14 +139,16 @@ export function createCodexSessionLifecycle(
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover preserves the admission that requested it.
 			state.notebookStatusMessageId = undefined;
-			if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
+			const stateful = previousMode === "notebook" || previousMode === "ts"
+				|| state.executionMode === "notebook" || state.executionMode === "ts";
+			if (stateful) appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			await trackCheckpoint(ctx);
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 			syncAdapter(pi, ctx, state);
 			prepareCodeModeHost(codeMode, ctx);
-			if (previousMode === "notebook" || state.executionMode === "notebook") {
-				ctx.ui.notify("Notebook state reset after conversation-tree navigation", "info");
+			if (stateful) {
+				ctx.ui.notify(`${state.executionMode === "ts" ? "TS" : "Notebook"} state reset after conversation-tree navigation`, "info");
 			}
 		},
 		shutdown: async (_event, ctx) => {

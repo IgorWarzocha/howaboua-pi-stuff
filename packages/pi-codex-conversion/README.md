@@ -21,7 +21,7 @@ Open `/codex` after installation. Codex-like GPT models use the structured adapt
 ## What you get
 
 - Codex-shaped `exec_command`, `write_stdin`, `apply_patch` and `view_image` tools
-- Code and Notebook modes that compose the active toolset behind `exec`
+- Code, Notebook and TS modes that compose the active toolset behind `exec`
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
@@ -30,7 +30,7 @@ Open `/codex` after installation. Codex-like GPT models use the structured adapt
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
 
-Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) for web search or image generation. Both compose into Code and Notebook Mode.
+Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) for web search or image generation. Both compose into Code, Notebook and TS modes.
 
 **GipPity has no authentication. Keep its remote server on a trusted network.**
 
@@ -45,6 +45,8 @@ Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi
 | --- | --- |
 | **Structured adapter** | Replaces Pi's file and shell tools with the Codex-shaped set. Default for Codex-like GPT models and configured providers. |
 | **Code Mode** | Exposes `exec` and `wait`. Shell, patch, image and extension tools compose inside `exec`. |
+| **Notebook** | Adds persistent Deno bindings and `notebook` state controls. |
+| **TS** | Type-checks TypeScript cells and merges concurrent changes into portable retained state. Uses Node. |
 | **Extra tools only** | Adds selected `apply_patch` or `view_image` tools without replacing the model's normal setup. |
 | **Voice only** | Retains voice and dictation without changing the model's prompt, tools, requests, compaction or adapter widgets. |
 
@@ -52,7 +54,7 @@ Structured mode reads files through the shell and edits with `apply_patch`. Ther
 
 Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding the standing Code or Notebook instructions. `ALL_TOOLS` contains complete callable contracts.
+Custom-tool contract changes and removals, including promoted tools, are announced before the next model request without rebuilding standing execution-mode instructions. `ALL_TOOLS` contains complete callable contracts.
 
 </details>
 
@@ -195,7 +197,7 @@ These are request intervals, not guaranteed cache lifetimes. Reports suggest aro
 <details>
 <summary><strong>Code Mode and custom tools</strong></summary>
 
-Select **Code** or **Notebook** under `/codex` → **General**. This applies wherever the adapter is active, including **all providers** scope. Providers retain their normal transport. Compatible Codex models use Responses Lite automatically. Configured OpenAI Responses proxies can opt in through **Proxy Responses Lite**.
+Select **Code**, **Notebook** or **TS** under `/codex` → **General**. This applies wherever the adapter is active, including **all providers** scope. Providers retain their normal transport. Compatible Codex models use Responses Lite automatically. Configured OpenAI Responses proxies can opt in through **Proxy Responses Lite**.
 
 The model composes tools in a JavaScript cell:
 
@@ -205,6 +207,18 @@ text(status);
 ```
 
 **Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Call `notebook({})` for state-management guidance, then send JSON action objects in `input`. Explicit `{ input: "help" }` also returns guidance. The first turn receives status and retained bindings automatically.
+
+### TS mode
+
+**TS** type-checks TypeScript before execution and retains bindings and type declarations between cells. It uses Node and Web APIs, not Deno. Run Pi under Node on Linux x64, Linux arm64 or an Apple Silicon Mac. TS mode is unavailable on Windows and Intel Macs.
+
+Up to four cells can run concurrently. Each starts from the latest committed state. Independent changes merge when cells finish. Conflicting writes leave the committed state intact and save a candidate for explicit recovery. Wait for a cell to finish before starting another that needs its results.
+
+Retained state supports portable data, self-contained top-level functions and import recipes. Aliases and cycles survive. Keep captured closures, streams, clients and other live handles block-local. A cell that cannot transfer its state fails without committing it. Failed and cancelled cells do not roll back tool calls or file changes.
+
+Use `notebook({})` for TS state controls, project pins and named profiles. TS storage is separate from Deno Notebook. State-changing controls require idle cells. Notebook hooks are not available in TS mode.
+
+Imports support Node built-ins, installed packages, local TypeScript files and exact `npm:package@version` specifiers. New npm dependencies require user approval. Installation scripts are disabled. Modules initialise afresh in each cell. Local TypeScript modules support literal imports, but not computed dynamic imports. Tool arguments are checked against their schemas. Results without declared types remain `unknown` and need narrowing before property access.
 
 ### Pi extension and MCP tools
 
@@ -354,7 +368,7 @@ See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) a
 
 ### Pi extension API
 
-Normal Pi registration is enough for automatic Code and Notebook access. Use this optional API to customize usage, blocking behavior, result conversion or rendering:
+Normal Pi registration is enough for automatic Code, Notebook and TS access. Use this optional API to customize usage, blocking behavior, result conversion or rendering:
 
 ```ts
 import {

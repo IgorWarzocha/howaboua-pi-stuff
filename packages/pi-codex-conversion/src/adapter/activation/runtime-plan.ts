@@ -19,7 +19,7 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code" | "notebook";
+	kind: "inactive" | "extras" | "normal" | "code" | "notebook" | "ts";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -62,7 +62,13 @@ export interface NotebookRuntimePlan extends RuntimePlanBase {
 	transport: "responses" | "responses-lite";
 }
 
-export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan;
+export interface TsRuntimePlan extends RuntimePlanBase {
+	kind: "ts";
+	prompt: "ts";
+	transport: "responses" | "responses-lite";
+}
+
+export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
@@ -162,26 +168,27 @@ export function resolveCodexRuntimePlan(
 	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
-	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
+	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook" || configuredExecutionMode === "ts"
 		? configuredExecutionMode
 		: configuredExecutionMode === "normal"
 			? undefined
 			: undefined;
 	if (requestedCodeMode) {
-		const transport = usesResponsesLite(ctx, config)
+		const transport: "responses-lite" | "responses" = usesResponsesLite(ctx, config)
 			? "responses-lite"
 			: "responses";
-		if (requestedCodeMode === "notebook") {
-			return {
+		if (requestedCodeMode === "notebook" || requestedCodeMode === "ts") {
+			const statefulPlan = {
 				...base,
-				kind: "notebook",
 				toolNames: [
 					...NOTEBOOK_MODE_TOOL_NAMES,
 				],
-				prompt: "notebook",
 				transport,
 				nativeCompaction,
 			};
+			return requestedCodeMode === "ts"
+				? { ...statefulPlan, kind: "ts", prompt: "ts" }
+				: { ...statefulPlan, kind: "notebook", prompt: "notebook" };
 		}
 		return {
 			...base,
@@ -227,12 +234,12 @@ export function resolveCodexRuntimePlanForState(
 	};
 }
 
-export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan {
-	return plan.kind === "normal" || plan.kind === "code" || plan.kind === "notebook";
+export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan {
+	return plan.kind === "normal" || plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts";
 }
 
-export function isCodeModeRuntime(plan: CodexRuntimePlan): plan is CodeRuntimePlan | NotebookRuntimePlan {
-	return plan.kind === "code" || plan.kind === "notebook";
+export function isCodeModeRuntime(plan: CodexRuntimePlan): plan is CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan {
+	return plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts";
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

@@ -1,5 +1,5 @@
 - runtime-plan.ts alone decides activation, tool surface, prompt, transport and compaction. Consumers execute its plan, never rebuild predicates.
-- Variants: inactive, extras, normal, code, notebook. Recommend Notebook, never auto-select. Ignore legacy mode: path. Never restore PATH injection or shell interception.
+- Variants: inactive, extras, normal, code, notebook, ts. Recommend Notebook, never auto-select. Ignore legacy mode: path. Never restore PATH injection or shell interception.
 - Execution mode follows adapter scope, independently of transport. Responses Lite eligibility never gates modes.
 - Startup/resume normalises config in memory only. Persist only explicit settings actions.
 - Explicit writes preserve unknown fields while updating owned config.

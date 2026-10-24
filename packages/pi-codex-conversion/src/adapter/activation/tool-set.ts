@@ -16,9 +16,9 @@ export function buildExtraToolsOnlyStatusText(tools: string[], theme?: StatusThe
 	return formatStatusText(` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`, theme);
 }
 
-export function buildStatusText(options: { mode?: "normal" | "code" | "notebook" | undefined; verbosity?: string | undefined; fast: "priority" | "ultrafast" | undefined; baseTierEstimate?: boolean | undefined; daybreak?: boolean | undefined; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: boolean | undefined; usageStatus?: CodexUsageStatus | undefined }, theme?: StatusTheme | undefined): string {
+export function buildStatusText(options: { mode?: "normal" | "code" | "notebook" | "ts" | undefined; verbosity?: string | undefined; fast: "priority" | "ultrafast" | undefined; baseTierEstimate?: boolean | undefined; daybreak?: boolean | undefined; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: boolean | undefined; usageStatus?: CodexUsageStatus | undefined }, theme?: StatusTheme | undefined): string {
 	const extras = [
-		options.mode === "notebook" ? "notebook mode" : options.mode === "code" ? "code mode" : undefined,
+		options.mode === "ts" ? "TS mode" : options.mode === "notebook" ? "notebook mode" : options.mode === "code" ? "code mode" : undefined,
 		options.useOnAllModels ? "all models" : undefined,
 		options.additionalProvider ? "additional provider" : undefined,
 		options.compaction ? "compact v2" : undefined,

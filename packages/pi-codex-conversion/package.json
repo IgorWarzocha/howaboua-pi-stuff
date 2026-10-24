@@ -139,10 +139,12 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@types/node": "26.6.5",
     "openai": "7.43.0",
     "proxy-from-env": "2.1.0",
     "selfsigned": "^5.5.0",
     "smol-toml": "^1.9.1",
+    "tsrs": "0.18.0-ts7.1.0-dev.20260929",
     "undici": "8.12.3",
     "web-tree-sitter": "^0.27.1",
     "ws": "^8.22.0"
