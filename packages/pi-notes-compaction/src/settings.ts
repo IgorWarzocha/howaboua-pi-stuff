@@ -21,6 +21,7 @@ export interface NotesSettings {
 	modelWhitelist: string[];
 	normalCompaction: boolean;
 	noteSaveMarkers: boolean;
+	rankedHistorySearch: boolean;
 	shareSubagentContext: boolean;
 	newWindowRequests: NewWindowRequests;
 	idleMinutes: IdleMinutes;
@@ -44,6 +45,7 @@ export function readSettings(
 					active: "all",
 					modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
 					normalCompaction: false,
+					rankedHistorySearch: false,
 					noteSaveMarkers: preferences().noteSaveMarkers,
 					shareSubagentContext: false,
 					newWindowRequests: "unrestricted",
@@ -81,6 +83,12 @@ export function readSettings(
 			`Invalid modelWhitelist in ${path}. Use an array of model ID strings, then reload Pi.`,
 		);
 	const idleMinutes = "idleMinutes" in settings ? settings.idleMinutes : 0;
+	const rankedHistorySearch =
+		"rankedHistorySearch" in settings ? settings.rankedHistorySearch : false;
+	if (typeof rankedHistorySearch !== "boolean")
+		throw new Error(
+			`Invalid rankedHistorySearch in ${path}. Use true or false, then reload Pi.`,
+		);
 	const newWindowRequests =
 		"newWindowRequests" in settings
 			? settings.newWindowRequests
@@ -111,6 +119,7 @@ export function readSettings(
 		active,
 		modelWhitelist,
 		normalCompaction: settings.normalCompaction,
+		rankedHistorySearch,
 		noteSaveMarkers:
 			"noteSaveMarkers" in settings
 				? settings.noteSaveMarkers === true
@@ -161,6 +170,7 @@ function readLegacySettings(
 		active: "all",
 		modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
 		normalCompaction: value["continuity"] === "notes-and-compaction",
+		rankedHistorySearch: false,
 		noteSaveMarkers: preferences.noteSaveMarkers,
 		shareSubagentContext:
 			"shareSubagentContext" in value && value["shareSubagentContext"] === true,

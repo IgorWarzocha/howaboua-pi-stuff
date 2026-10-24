@@ -43,14 +43,12 @@ function customHistoryRole(
 		: "user";
 }
 
-/** Pi's selected JSONL branch is the archive. No transcript database or Tree backend. */
-export function useHistory(
+/** Pi's selected JSONL branch is the archive. */
+function historyWindows(
 	entries: readonly SessionEntry[],
-	params: Record<string, unknown>,
 	sessionId: string,
-	search: HistorySearch,
-	allEntries: readonly SessionEntry[] = entries,
-): Record<string, unknown> {
+	allEntries: readonly SessionEntry[],
+): Map<string, HistoryItem[]> {
 	const archive = buildTreeArchiveIndex(allEntries, entries);
 	if (archive.invalidManifest)
 		throw new Error("Saved Tree history metadata is invalid");
@@ -136,6 +134,30 @@ export function useHistory(
 			});
 		}
 	}
+	return windows;
+}
+
+export function indexHistory(
+	entries: readonly SessionEntry[],
+	sessionId: string,
+	search: HistorySearch,
+	allEntries: readonly SessionEntry[] = entries,
+): void {
+	if (!search.isEnabled(sessionId)) return;
+	search.index(
+		sessionId,
+		[...historyWindows(entries, sessionId, allEntries).values()].flat(),
+	);
+}
+
+export function useHistory(
+	entries: readonly SessionEntry[],
+	params: Record<string, unknown>,
+	sessionId: string,
+	search: HistorySearch,
+	allEntries: readonly SessionEntry[] = entries,
+): Record<string, unknown> {
+	const windows = historyWindows(entries, sessionId, allEntries);
 	const action = params["action"];
 	if (action === "list_windows") {
 		let values = [...windows].filter(([, items]) => items.length);
@@ -189,7 +211,7 @@ export function useHistory(
 				(!params["tool_namespace"] ||
 					item.tool_namespace === params["tool_namespace"]),
 		);
-	if (action === "search_contents")
+	if (action === "search_contents" && search.isEnabled(sessionId))
 		items = search.search(
 			sessionId,
 			items,
@@ -197,7 +219,13 @@ export function useHistory(
 			limit,
 			params["recent_first"] === true,
 		);
-	else if (params["recent_first"] === true) items = items.reverse();
+	else {
+		if (action === "search_contents")
+			items = items.filter((item) =>
+				item.content.includes(params["query"] as string),
+			);
+		if (params["recent_first"] === true) items = items.reverse();
+	}
 	const previewChars = integer(params["max_chars_per_item"], 1000, 1000);
 	const previews = [];
 	let size = 0;

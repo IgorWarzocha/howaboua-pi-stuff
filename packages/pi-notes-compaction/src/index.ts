@@ -14,6 +14,7 @@ import {
 	TOOL_NAMES,
 } from "./bridge.js";
 import { NESTED_NOTE_OUTCOME, type NestedNoteOutcome } from "./fresh-notes.js";
+import { indexHistory } from "./history.js";
 import { HistorySearch } from "./history-search.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { registerNoteSaveMarkers } from "./note-save-marker.js";
@@ -56,6 +57,9 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	const lifecycle = new NotesLifecycle(pi, store);
 	let settings: NotesSettings;
 	let ready = false;
+	let prepareProviderWindow:
+		| ((ctx: ExtensionContext) => Promise<void>)
+		| undefined;
 	const stopAdmission = pi.events.on(
 		"pi-notes-compaction:custom-turn-admission:v1",
 		(value) => {
@@ -323,6 +327,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		if (!active) {
 			if (lifecycle.active) lifecycle.reset(ctx);
 			lifecycle.active = false;
+			search.setSession(undefined);
 			pi.setActiveTools(
 				pi
 					.getActiveTools()
@@ -336,6 +341,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			lifecycle.active = true;
 			configureTools();
 			store.updateFile(sessionRef(ctx));
+			refreshHistorySearch(ctx);
 		} catch (error) {
 			lifecycle.active = false;
 			unavailable = error instanceof Error ? error.message : String(error);
@@ -356,6 +362,31 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		]);
 		refreshNested();
 	}
+	function refreshHistorySearch(ctx: ExtensionContext, update = false): void {
+		const sessionId =
+			lifecycle.active && settings.rankedHistorySearch
+				? ctx.sessionManager.getSessionId()
+				: undefined;
+		const changed = search.setSession(sessionId);
+		if (!sessionId || (!changed && !update)) return;
+		try {
+			indexHistory(
+				ctx.sessionManager.getBranch(),
+				sessionId,
+				search,
+				ctx.sessionManager.getEntries(),
+			);
+		} catch (error) {
+			ctx.ui.notify(
+				error instanceof Error ? error.message : String(error),
+				"warning",
+			);
+		}
+	}
+	lifecycle.prepareWindow = async (ctx) => {
+		refreshHistorySearch(ctx, true);
+		await prepareProviderWindow?.(ctx);
+	};
 	function applySettings(value: NotesSettings): void {
 		settings = value;
 		lifecycle.normalCompaction = value.normalCompaction;
@@ -368,6 +399,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		() => lifecycle.active && settings.noteSaveMarkers,
 	);
 	pi.on("session_start", (_event, ctx) => {
+		search.setSession(undefined);
 		lifecycle.reset(ctx);
 		lifecycle.active = false;
 		ready = false;
@@ -516,7 +548,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			registerContextBranchProjection,
 			prepareContextWindow,
 		} = await import("@howaboua/pi-codex-conversion/compaction");
-		lifecycle.prepareWindow = (ctx) => prepareContextWindow(pi, ctx);
+		prepareProviderWindow = (ctx) => prepareContextWindow(pi, ctx);
 		const registration = registerCompactionPreparation(pi, prepareCompaction);
 		const stopProjection = registerContextBranchProjection(
 			pi,
@@ -544,8 +576,10 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		if (lifecycle.active) await lifecycle.compactFailed(event, ctx);
 	});
 	pi.on("session_compact", (_event, ctx) => {
-		if (lifecycle.active)
+		if (lifecycle.active) {
 			lifecycle.windows.restore(ctx.sessionManager.getBranch());
+			refreshHistorySearch(ctx, true);
+		}
 	});
 	pi.on("session_tree", (_event, ctx) => {
 		lifecycle.reset(ctx);
@@ -577,6 +611,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				writeSettings(settingsPath, value);
 				applySettings(value);
 				refreshActivation(ctx);
+				refreshHistorySearch(ctx);
 				if (lifecycle.active) configureTools();
 			};
 			const prune = async () => {

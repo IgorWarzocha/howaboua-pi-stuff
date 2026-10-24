@@ -202,6 +202,7 @@ function result(payload: unknown): AgentToolResult<unknown> {
 function discovery(
 	namespace: LookupQuery["namespace"],
 	input: unknown,
+	rankedHistory = false,
 ): AgentToolResult<unknown> | undefined {
 	const params = input === undefined ? {} : input;
 	if (!params || typeof params !== "object" || Array.isArray(params))
@@ -244,8 +245,9 @@ function discovery(
 				: {
 						usage:
 							"Search earlier conversation, don't browse it. Pass returned IDs unchanged",
-						search:
-							"Keywords, case/accent-insensitive, all words required. Relevance order; recent_first=true uses newest first",
+						search: rankedHistory
+							? "Current session: all keywords, case/accent-insensitive, relevance order. Other saved sessions: literal substring. recent_first=true uses newest first"
+							: "Case-sensitive literal substring. recent_first=true uses newest first",
 					}),
 		});
 	}
@@ -475,7 +477,11 @@ function createQueryExecutor(
 		signal: AbortSignal | undefined,
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<unknown>> {
-		const help = discovery("history", input);
+		const help = discovery(
+			"history",
+			input,
+			search.isEnabled(ctx.sessionManager.getSessionId()),
+		);
 		if (help) return help;
 		assertActive();
 		const params = relevant("history", input);

@@ -53,6 +53,14 @@ export async function openNotesSettings(
 							values: ["off", "on"],
 						},
 						{
+							id: "rankedHistorySearch",
+							label: "Ranked history search",
+							description:
+								"BM25 for the current session only. First indexing may take time.",
+							currentValue: settings.rankedHistorySearch ? "on" : "off",
+							values: ["off", "on"],
+						},
+						{
 							id: "noteSaveMarkers",
 							label: "Note-save markers",
 							currentValue: settings.noteSaveMarkers ? "on" : "off",
@@ -137,6 +145,11 @@ export async function openNotesSettings(
 								});
 							else if (id === "noteSaveMarkers")
 								options.save({ ...current, noteSaveMarkers: value === "on" });
+							else if (id === "rankedHistorySearch")
+								options.save({
+									...current,
+									rankedHistorySearch: value === "on",
+								});
 							else if (id === "compact")
 								options.save({ ...current, normalCompaction: value === "on" });
 							else if (id === "newWindowRequests") {
@@ -161,26 +174,32 @@ export async function openNotesSettings(
 									options.save({ ...current, idleMinutes });
 							}
 						} catch (error) {
-							list.updateValue(
-								id,
-								id === "active"
-									? current.active === "all"
-										? "All models"
-										: "Whitelist"
-									: id === "taskBoundaryReminder"
-										? taskBoundaryLabel(current.taskBoundaryReminder)
-										: id === "newWindowRequests"
-											? current.newWindowRequests
-											: id === "noteSaveMarkers"
-												? current.noteSaveMarkers
-													? "on"
-													: "off"
-												: id === "compact"
-													? current.normalCompaction
+							if (id === "rankedHistorySearch") {
+								list.updateValue(
+									id,
+									current.rankedHistorySearch ? "on" : "off",
+								);
+							} else
+								list.updateValue(
+									id,
+									id === "active"
+										? current.active === "all"
+											? "All models"
+											: "Whitelist"
+										: id === "taskBoundaryReminder"
+											? taskBoundaryLabel(current.taskBoundaryReminder)
+											: id === "newWindowRequests"
+												? current.newWindowRequests
+												: id === "noteSaveMarkers"
+													? current.noteSaveMarkers
 														? "on"
 														: "off"
-													: idleValue(current.idleMinutes),
-							);
+													: id === "compact"
+														? current.normalCompaction
+															? "on"
+															: "off"
+														: idleValue(current.idleMinutes),
+								);
 							ctx.ui.notify(
 								`Could not save notes settings: ${String(error)}`,
 								"error",

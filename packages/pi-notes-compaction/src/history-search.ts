@@ -16,9 +16,21 @@ interface IndexedItem {
 /** Rebuildable term index. JSONL owns text and the caller owns branch membership. */
 export class HistorySearch {
 	private db: Database.Database | undefined;
+	private sessionId: string | undefined;
 	private readonly path: string;
 	constructor(path: string) {
 		this.path = path;
+	}
+
+	setSession(sessionId: string | undefined): boolean {
+		if (sessionId === this.sessionId) return false;
+		this.close();
+		this.sessionId = sessionId;
+		return true;
+	}
+
+	isEnabled(sessionId: string): boolean {
+		return this.sessionId === sessionId;
 	}
 
 	private open(): Database.Database {
@@ -57,6 +69,68 @@ export class HistorySearch {
 		}
 	}
 
+	private withDatabase<T>(run: (db: Database.Database) => T): T {
+		try {
+			return run(this.open());
+		} catch (error) {
+			throw new Error(
+				"Ranked history search is unavailable. list_items and read_item still work. Ask the user to check local storage or turn off Ranked history search in /notes.",
+				{ cause: error },
+			);
+		}
+	}
+
+	private update(
+		db: Database.Database,
+		sessionId: string,
+		items: readonly SearchItem[],
+	): number[] {
+		const indexed = new Map(
+			db
+				.prepare<[string], IndexedItem>(
+					"SELECT id, item_id, fingerprint FROM history_documents WHERE session_id = ?",
+				)
+				.all(sessionId)
+				.map((item) => [item.item_id, item]),
+		);
+		const insert = db.prepare(
+			"INSERT INTO history_documents(session_id, item_id, fingerprint) VALUES (?, ?, ?)",
+		);
+		const update = db.prepare(
+			"UPDATE history_documents SET fingerprint = ? WHERE id = ?",
+		);
+		const removeTerms = db.prepare("DELETE FROM history_terms WHERE rowid = ?");
+		const addTerms = db.prepare(
+			"INSERT INTO history_terms(rowid, content) VALUES (?, ?)",
+		);
+		return items.map((item) => {
+			const fingerprint = createHash("sha256")
+				.update(item.content)
+				.digest("hex");
+			const existing = indexed.get(item.item_id);
+			const id =
+				existing?.id ??
+				Number(
+					insert.run(sessionId, item.item_id, fingerprint).lastInsertRowid,
+				);
+			if (!existing || existing.fingerprint !== fingerprint) {
+				if (existing) {
+					removeTerms.run(id);
+					update.run(fingerprint, id);
+				}
+				addTerms.run(id, item.content);
+			}
+			return id;
+		});
+	}
+
+	index(sessionId: string, items: readonly SearchItem[]): void {
+		if (!this.isEnabled(sessionId) || !items.length) return;
+		this.withDatabase((db) => {
+			db.transaction(() => this.update(db, sessionId, items)).immediate();
+		});
+	}
+
 	search<T extends SearchItem>(
 		sessionId: string,
 		items: readonly T[],
@@ -64,6 +138,8 @@ export class HistorySearch {
 		limit: number,
 		recentFirst: boolean,
 	): T[] {
+		if (!this.isEnabled(sessionId))
+			throw new Error("Ranked history search is not enabled for this session");
 		// Query text is data, never FTS operators, column selectors or prefix syntax.
 		const words = [
 			...new Set(query.toLowerCase().match(/[\p{L}\p{N}\p{M}\p{Co}]+/gu)),
@@ -72,52 +148,13 @@ export class HistorySearch {
 			throw new Error("Supply at least one word or number to search history");
 		if (!items.length) return [];
 		const match = words.map((word) => `"${word}"`).join(" AND ");
-		try {
-			const db = this.open();
+		return this.withDatabase((db) => {
 			const positions = db
 				.transaction(() => {
-					const indexed = new Map(
-						db
-							.prepare<[string], IndexedItem>(
-								"SELECT id, item_id, fingerprint FROM history_documents WHERE session_id = ?",
-							)
-							.all(sessionId)
-							.map((item) => [item.item_id, item]),
-					);
-					const insert = db.prepare(
-						"INSERT INTO history_documents(session_id, item_id, fingerprint) VALUES (?, ?, ?)",
-					);
-					const update = db.prepare(
-						"UPDATE history_documents SET fingerprint = ? WHERE id = ?",
-					);
-					const removeTerms = db.prepare(
-						"DELETE FROM history_terms WHERE rowid = ?",
-					);
-					const addTerms = db.prepare(
-						"INSERT INTO history_terms(rowid, content) VALUES (?, ?)",
-					);
+					const ids = this.update(db, sessionId, items);
 					const scope = db.prepare("INSERT INTO search_scope VALUES (?, ?)");
 					db.exec("DELETE FROM search_scope");
-					for (const [position, item] of items.entries()) {
-						const fingerprint = createHash("sha256")
-							.update(item.content)
-							.digest("hex");
-						const existing = indexed.get(item.item_id);
-						const id =
-							existing?.id ??
-							Number(
-								insert.run(sessionId, item.item_id, fingerprint)
-									.lastInsertRowid,
-							);
-						if (!existing || existing.fingerprint !== fingerprint) {
-							if (existing) {
-								removeTerms.run(id);
-								update.run(fingerprint, id);
-							}
-							addTerms.run(id, item.content);
-						}
-						scope.run(id, position);
-					}
+					for (const [position, id] of ids.entries()) scope.run(id, position);
 					return db
 						.prepare<[string, number], { position: number }>(`
 					SELECT search_scope.position FROM history_terms
@@ -130,16 +167,12 @@ export class HistorySearch {
 				})
 				.immediate();
 			return positions.map(({ position }) => items[position]!);
-		} catch (error) {
-			throw new Error(
-				"History search is unavailable. list_items and read_item still work. Ask the user to check local storage, then retry.",
-				{ cause: error },
-			);
-		}
+		});
 	}
 
 	close(): void {
 		this.db?.close();
 		this.db = undefined;
+		this.sessionId = undefined;
 	}
 }
