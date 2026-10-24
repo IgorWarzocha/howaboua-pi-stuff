@@ -216,7 +216,7 @@ async function readSharedSession(
 					)),
 			source: "saved-session",
 			read_only: true,
-			remote: { state: "not_fetched" },
+			...(namespace === "notes" ? { remote: { state: "not_fetched" } } : {}),
 			...(session.savedAt === undefined
 				? {}
 				: { saved_at: new Date(session.savedAt).toISOString() }),
@@ -413,7 +413,7 @@ async function readSharedSession(
 			["ENOENT", "EACCES", "EPERM"].includes(String(error.code))
 		)
 			throw new Error(
-				"Saved shared notes are unavailable on this machine. Restore access to the saved session, then retry.",
+				`Saved shared ${namespace} are unavailable on this machine. Restore access to the saved Pi JSONL session, then retry.`,
 				{ cause: error },
 			);
 		throw error;

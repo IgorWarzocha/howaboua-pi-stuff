@@ -104,7 +104,18 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 							discovery: "help",
 							usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
 							deferLoading: true,
-							opaqueResult: true,
+							opaqueResult: tool.name === "notes",
+							resultValue(result) {
+								const [part] = result.content;
+								if (result.content.length === 1 && part?.type === "text") {
+									try {
+										return JSON.parse(part.text);
+									} catch {
+										return part.text;
+									}
+								}
+								return { content: result.content };
+							},
 						}),
 					),
 			{ isActive: () => lifecycle.active },
@@ -251,6 +262,15 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				{ ...query, sessionId: identity.sessionId, agentName: target },
 				signal,
 			);
+			if (
+				query.namespace === "history" &&
+				result &&
+				(result.details.externalNotesResponses?.length ||
+					"protectedOutputs" in result.details)
+			)
+				throw new Error(
+					"That agent returned encrypted history instead of Pi session history. Update and reload Notes on the other agent, or open its saved Pi JSONL session locally.",
+				);
 			if (!result?.details.externalNotesResponses?.length) return result;
 			const { externalNotesResponses, ...details } = result.details;
 			if (!remote.projectResult || remote.canProject?.(ctx) === false)

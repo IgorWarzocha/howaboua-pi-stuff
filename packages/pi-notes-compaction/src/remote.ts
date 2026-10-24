@@ -23,60 +23,32 @@ import type {
 } from "./context-sharing.js";
 
 const ENDPOINTS = {
-	history: {
-		list_windows: ["agent_name", "limit", "recent_first"],
-		list_items: [
-			"agent_name",
-			"limit",
-			"max_chars_per_item",
-			"recent_first",
-			"role",
-			"tool_name",
-			"tool_namespace",
-			"window_id",
-		],
-		read_item: [
-			"agent_name",
-			"item_id",
-			"limit_chars",
-			"offset_chars",
-			"window_id",
-		],
-		search_contents: [
-			"agent_name",
-			"limit",
-			"query",
-			"recent_first",
-			"role",
-			"tool_name",
-			"tool_namespace",
-			"window_id",
-		],
-	},
-	notes: {
-		list_files_by_prefix: [
-			"file_order",
-			"file_order_by",
-			"max_results",
-			"prefix",
-		],
-		read_file: ["path", "start_line", "stop_line"],
-		search_contents: [
-			"max_files",
-			"max_matches_per_file",
-			"path_prefix",
-			"query",
-			"recent_file_first",
-		],
-	},
+	list_files_by_prefix: [
+		"file_order",
+		"file_order_by",
+		"max_results",
+		"prefix",
+	],
+	read_file: ["path", "start_line", "stop_line"],
+	search_contents: [
+		"max_files",
+		"max_matches_per_file",
+		"path_prefix",
+		"query",
+		"recent_file_first",
+	],
 } as const;
 
 function readQuery(query: LookupQuery): {
 	action: string;
 	args: Record<string, unknown>;
 } {
+	if (query.namespace !== "notes")
+		throw new Error(
+			"History is available only from saved Pi JSONL sessions. Restore access to the session on this machine, then retry.",
+		);
 	const action = query.params["action"];
-	const actions: Record<string, readonly string[]> = ENDPOINTS[query.namespace];
+	const actions: Record<string, readonly string[]> = ENDPOINTS;
 	if (typeof action !== "string" || !Object.hasOwn(actions, action))
 		throw new Error("Remote lookup requires a supported read action");
 	const fields = actions[action]!;
@@ -87,13 +59,9 @@ function readQuery(query: LookupQuery): {
 		if (value === undefined || value === null) continue;
 		if (
 			[
-				"limit",
-				"limit_chars",
-				"max_chars_per_item",
 				"max_results",
 				"max_files",
 				"max_matches_per_file",
-				"offset_chars",
 				"start_line",
 				"stop_line",
 			].includes(field)
@@ -101,23 +69,19 @@ function readQuery(query: LookupQuery): {
 			if (
 				typeof value !== "number" ||
 				!Number.isSafeInteger(value) ||
-				(field === "offset_chars"
-					? value < 0
-					: !["start_line", "stop_line"].includes(field) && value < 1)
+				(!["start_line", "stop_line"].includes(field) && value < 1)
 			)
 				throw new Error(`Invalid ${field}`);
-		} else if (["recent_first", "recent_file_first"].includes(field)) {
+		} else if (field === "recent_file_first") {
 			if (typeof value !== "boolean") throw new Error(`Invalid ${field}`);
 		} else if (typeof value !== "string") throw new Error(`Invalid ${field}`);
 	}
 	const required =
-		action === "read_item"
-			? ["item_id", "window_id"]
-			: action === "read_file"
-				? ["path"]
-				: action === "search_contents"
-					? ["query"]
-					: [];
+		action === "read_file"
+			? ["path"]
+			: action === "search_contents"
+				? ["query"]
+				: [];
 	for (const field of required)
 		if (typeof query.params[field] !== "string" || !query.params[field])
 			throw new Error(`${query.namespace} ${action} requires ${field}`);
@@ -170,12 +134,12 @@ export function createNotesRemoteService(pi: ExtensionAPI) {
 		canProject: (ctx: ExtensionContext) =>
 			ctx.model?.api === "openai-codex-responses" &&
 			canDeliverProtectedOutput(pi, ctx),
-		lookup: lookupRemoteHistoryNotes,
+		lookup: lookupRemoteNotes,
 		projectResult: projectNotesResponses,
 	};
 }
 
-export async function lookupRemoteHistoryNotes(
+export async function lookupRemoteNotes(
 	query: LookupQuery,
 	ctx: ExtensionContext,
 	signal?: AbortSignal,
@@ -198,7 +162,7 @@ async function lookup(
 		JSON.stringify({ mode: "tokens", limit: 10_000 }),
 	);
 	const response = await fetch(
-		`${auth.provider.baseUrl.replace(/\/+$/, "")}/alpha/${query.namespace}/v2/${action}`,
+		`${auth.provider.baseUrl.replace(/\/+$/, "")}/alpha/notes/v2/${action}`,
 		{
 			method: "POST",
 			headers,
@@ -269,6 +233,10 @@ export async function executeRemoteAttachment(
 	request: SharedContextRequest,
 	signal?: AbortSignal,
 ): Promise<SharedContextResult> {
+	if (request.namespace === "history")
+		throw new Error(
+			"History is unavailable from a saved remote notes attachment. Open its saved Pi JSONL session on this machine, then retry.",
+		);
 	if (
 		request.sessionId !== reference.identity.sessionId ||
 		(request.agentName !== reference.identity.agentName &&

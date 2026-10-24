@@ -475,11 +475,10 @@ function createQueryExecutor(
 		if (help) return help;
 		assertActive();
 		const params = relevant("history", input);
-		const query = { namespace: "history", params } as const;
 		if (!shared) {
 			try {
 				const routed = await lifecycle.bridge?.route?.(
-					query,
+					{ namespace: "history", params },
 					callId,
 					ctx,
 					signal,
@@ -505,23 +504,16 @@ function createQueryExecutor(
 		}
 		if (params["agent_name"] && params["agent_name"] !== lifecycle.agent(ctx))
 			throw new Error(
-				"That agent's history is not available here. Omit agent_name to search this session.",
+				"That agent's Pi session history is unavailable on this machine. Restore access to its saved JSONL session, or omit agent_name to search this session.",
 			);
-		return hybrid(
-			pi,
-			store,
-			lifecycle,
-			query,
+		signal?.throwIfAborted();
+		return result(
 			useHistory(
 				ctx.sessionManager.getBranch(),
 				params,
 				ctx.sessionManager.getSessionId(),
 				ctx.sessionManager.getEntries(),
 			),
-			callId,
-			ctx,
-			signal,
-			shared,
 		);
 	}
 	return { notes, history };

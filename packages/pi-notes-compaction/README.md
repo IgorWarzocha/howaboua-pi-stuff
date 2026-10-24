@@ -1,6 +1,6 @@
 # Pi Notes Compaction
 
-Keep working across fresh context windows with local checkpoint notes, searchable session history and optional remote lookup. Works with any Pi model.
+Keep working across fresh context windows with local checkpoint notes, searchable session history and optional remote notes lookup. Works with any Pi model.
 
 ## Install
 
@@ -18,7 +18,9 @@ Pi Codex Conversion is optional. Compatible releases add Code Mode, Notebook and
 
 The agent keeps the familiar `notes`, `history`, `new_context` and `get_context_remaining` tools. Notes use virtual paths. Relative paths belong to the current agent. History searches the selected Pi session branch, including earlier windows. It does not create a second transcript archive.
 
-Previously shared local notes and history remain readable after the other agent closes or Shepherdr is removed. Notes follows the saved family relationships and attachment aliases without requiring PCC. Reads use the other session's saved branch and preserve its history IDs. When only a retained attachment snapshot is available, notes identify it as detached or potentially stale. Snapshots do not contain history. Cross-agent writes still require their live routing service. Saved history reads do not fetch or decrypt remote history.
+Previously shared local notes and history remain readable after the other agent closes or Shepherdr is removed. Notes follows the saved family relationships and attachment aliases without requiring PCC. Reads use the other session's saved branch and preserve its history IDs. When only a retained attachment snapshot is available, notes identify it as detached or potentially stale. Snapshots do not contain history. Cross-agent writes still require their live routing service. History reads Pi JSONL sessions locally or through a live shared agent, including agents on another machine. Without live access, make the saved session available locally.
+
+In Code Mode and Notebook, plaintext notes and history return ordinary JavaScript values. Encrypted notes return delivery receipts instead of exposing their contents to JavaScript.
 
 By default, `new_context` starts a fresh window without generating a summary. The agent receives recent note paths, and Pi's saved history remains available for lookup.
 
@@ -58,7 +60,7 @@ Add or remove model IDs and reload Pi. Copy the model's exact ID, without Pi's p
 
 ## Optional remote lookup
 
-With a compatible PCC provider, reads and searches automatically combine local notes or JSONL history with remote results. Remote response bytes are cached verbatim in SQLite. Cached lookups can be reused offline, with their original coverage and an explicit exact-query limit. Encrypted listings cannot be searched or expanded locally into queries that were never cached.
+With a compatible PCC provider, note reads and searches automatically combine local notes with remote results. Remote response bytes are cached verbatim in SQLite. Cached lookups can be reused offline, with their original coverage and an explicit exact-query limit. Encrypted listings cannot be searched or expanded locally into queries that were never cached.
 
 New writes always stay local and work with any model. `write_file` replaces the local path and takes precedence over a remote read of that path. `append_to_file` adds a local overlay when no local replacement exists. Remote base content and the overlay remain separate. List and search results label local replacements as authoritative because opaque remote results can contain older versions.
 
