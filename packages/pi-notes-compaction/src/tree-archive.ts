@@ -6,7 +6,7 @@ import { windowDetails } from "./windows.js";
 
 export const TREE_ARCHIVE_ENTRY_TYPE = "codex-context-tree-archive";
 const TREE_ARCHIVE_PROTOCOL = 1;
-const MAX_ARCHIVE_DEPTH = 50_000;
+export const MAX_ARCHIVE_DEPTH = 50_000;
 
 export interface TreeArchiveManifestData {
 	protocol: 1;
@@ -112,7 +112,7 @@ function archivedPath(
 	return reverse.reverse();
 }
 
-function isTreeArchiveManifestData(
+export function isTreeArchiveManifestData(
 	value: unknown,
 ): value is TreeArchiveManifestData {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
