@@ -9,9 +9,15 @@ import {
 import { normalizeExecutionMode } from "./execution-mode.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
 
+export type CompactionMigrationInheritance = CodexConversionConfig["compaction"] & {
+	contextManagement?: unknown;
+	hybridCompaction?: unknown;
+	continuity?: unknown;
+};
+
 export function migrateCodexConversionConfigIfNeeded(
 	value: unknown,
-	inheritedCompaction = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
+	inheritedCompaction: CompactionMigrationInheritance = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
 ): { migrated: boolean; config: unknown } {
 	if (!isObject(value)) return { migrated: false, config: value };
 	if (normalizeExecutionMode(value["executionMode"]) || isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["compaction"]) || isObject(value["notebook"]) || isObject(value["beta"]) || isObject(value["openai"])) {
@@ -92,13 +98,24 @@ export function migrateCodexConversionConfigIfNeeded(
 
 function migrateCompactionOptions(
 	value: Record<string, unknown>,
-	inherited: CodexConversionConfig["compaction"],
+	inherited: CompactionMigrationInheritance,
 ): Record<string, unknown> {
-	if (!("responsesCompaction" in value) && !("portableSummary" in value)) return value;
+	if (!["contextManagement", "hybridCompaction", "responsesCompaction", "portableSummary"].some((key) => key in value)) return value;
+	const inheritedNotes = inherited.continuity !== undefined
+		? inherited.continuity === "notes" || inherited.continuity === "notes-and-compaction"
+		: inherited.contextManagement === "local" || inherited.contextManagement === "tree" || inherited.contextManagement === "remote";
+	const mode = value["contextManagement"];
+	const notes = mode === "off" ? false : mode === "local" || mode === "tree" || mode === "remote" ? true : inheritedNotes;
+	const hybrid = typeof value["hybridCompaction"] === "boolean" ? value["hybridCompaction"]
+		: inherited.continuity !== undefined ? inherited.continuity === "notes-and-compaction" : inherited.hybridCompaction === true;
 	const { responsesCompaction, portableSummary, ...rest } = value;
-	const native = typeof responsesCompaction === "boolean" ? responsesCompaction : inherited.method !== "pi";
+	const native = typeof responsesCompaction === "boolean" ? responsesCompaction : !inheritedNotes && inherited.method !== "pi";
 	const portable = typeof portableSummary === "boolean" ? portableSummary : inherited.method === "both";
-	return { method: native ? portable ? "both" : "v2" : "pi", ...rest };
+	const overridesMethod = notes
+		? typeof value["hybridCompaction"] === "boolean" || (hybrid && typeof portableSummary === "boolean")
+		: typeof responsesCompaction === "boolean" || typeof portableSummary === "boolean";
+	// Keep continuity fields for their owner; explicit methods override legacy translation.
+	return { ...(overridesMethod ? { method: (notes ? hybrid : native) ? portable ? "both" : "v2" : "pi" } : {}), ...rest };
 }
 
 function stringValue(value: unknown, fallback: string): string {

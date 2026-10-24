@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
+import { migrateCodexConversionConfigIfNeeded, type CompactionMigrationInheritance } from "./config-migration.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes, type LunaCacheKeepaliveIntervalMinutes, type CacheKeepaliveIntervalMinutes } from "./config.ts";
 import { readCodexCacheEnvironment } from "./cache-environment.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
@@ -127,7 +127,10 @@ function readConfigDocument(configPath: string, scope: "global" | "trusted proje
 }
 
 export function readCodexConversionConfig(configPath: string = getCodexConversionConfigPath()): CodexConversionConfig {
-	const parsed = readConfigDocument(configPath, "global");
+	return normalizeGlobalConfigDocument(readConfigDocument(configPath, "global"));
+}
+
+function normalizeGlobalConfigDocument(parsed: unknown): CodexConversionConfig {
 	if (parsed === undefined) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	const migration = migrateCodexConversionConfigIfNeeded(parsed);
 	const config = withoutProjectOnlyConfig(normalizeCodexConversionConfig(migration.config));
@@ -168,7 +171,7 @@ export function readLegacyCodexNotesConfig(options: Omit<EffectiveCodexConversio
 export function readProjectCodexConversionDocument(
 	cwd: string,
 	projectTrusted: boolean,
-	inheritedCompaction?: CodexConversionConfig["compaction"],
+	inheritedCompaction?: CompactionMigrationInheritance,
 ): Record<string, unknown> | undefined {
 	if (!projectTrusted) return undefined;
 	const path = getProjectCodexConversionConfigPath(cwd);
@@ -220,8 +223,11 @@ export function readEffectiveCodexConversionConfig(options: EffectiveCodexConver
 export function readLayeredCodexConversionConfig(
 	options: Omit<EffectiveCodexConversionConfigOptions, "env">,
 ): CodexConversionConfig {
-	const global = readCodexConversionConfig(options.globalConfigPath);
-	const project = readProjectCodexConversionDocument(options.cwd, options.projectTrusted, global.compaction);
+	const document = readConfigDocument(options.globalConfigPath ?? getCodexConversionConfigPath(), "global");
+	const global = normalizeGlobalConfigDocument(document);
+	// Legacy project options can inherit continuity axes normalization no longer owns.
+	const legacyCompaction = isRecord(document) && isRecord(document["compaction"]) ? document["compaction"] : {};
+	const project = readProjectCodexConversionDocument(options.cwd, options.projectTrusted, { ...global.compaction, ...legacyCompaction });
 	return project
 		? normalizeCodexConversionConfig(mergeConfigDocument(global as unknown as Record<string, unknown>, project))
 		: global;
