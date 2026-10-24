@@ -52,9 +52,8 @@ const NOTEBOOK_DISCOVERY_PARAMETERS = Type.Object({
 
 const NOTEBOOK_DESCRIPTION = "Manage persistent notebook state";
 
-const NOTEBOOK_HELP = `notebook({}) returns help; {"input":"help"} also supported. Actions use {"input":"<JSON action object>"}.
+const NOTEBOOK_HELP = `Actions use {"input":"<JSON action object>"}.
 Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
-Action objects accept only the fields shown below; ? means optional.
 
 {"action":"status","query"?:string}  Memory, checkpoint and retained-state summary; query inspects matching live bindings
 {"action":"list","query"?:string}  List saved profiles, optionally filtered by name
@@ -73,9 +72,7 @@ query uses case-insensitive * and ? globs. prune requires a nonempty query. name
 
 Hooks must be self-contained fn(event), awaited when invoked. startup gets {type:"startup"} once per fresh kernel after restoration, not when pinned; Pi tools cannot run during startup. tool_result gets {type:"tool_result",toolName,input,status:"success"|"error",result?,error?} after nested tool settlement; handlers are awaited in name order and their tool calls do not retrigger hooks. Recreate imports and live handles inside the function. Startup failures block execution; unpin remains available. External side effects are not rolled back.
 
-Run management calls after exec returns. Inside exec, the existing tools.notebook({action,...}) supports status without query, list and diagnostics only. A blocked call returns the top-level retry. release/prune may restart the kernel for lexical bindings, clearing runtime-only handles. Inspect reported cleanup failures and restore notices. For failed state/helpers, diagnose, repair or prune, then verify recovery. restart restores completed state; reset discards only session state.
-
-Reusable-global examples foo/bar are installed when neither name is occupied; inspect their .description and .usage before use.`;
+Run management calls after exec returns. Inside exec, tools.notebook({action,...}) supports status without query, list and diagnostics only. release/prune may restart the kernel for lexical bindings, clearing runtime-only handles.`;
 
 type NotebookToolParameters = {
 	action: string;

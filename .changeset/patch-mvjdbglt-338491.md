@@ -8,3 +8,4 @@
 - Removed Cached WebSocket upgrade. PCC now honours Pi's transport setting. Select auto or websocket-cached to retain cached continuation when previously using plain websocket.
 - WebSocket prewarming uses the final prepared request, including after compaction; cache keepalive remains opt-in.
 - Native checkpoint replay preserves context edits made by other extensions.
+- Removed redundant instructions from Notebook help.
