@@ -2,4 +2,4 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-Shared notes and history now require pi-notes-compaction 0.0.10 or newer. Native parent linkage and cache sharing remain independent of Notes and require PCC 4.0.5 or newer.
+Updated optional integrations to use Notes 0.0.10 or newer for shared notes and history, and PCC 4.0.5 or newer for native parent linkage and cache affinity. The agents tool is unchanged. Ordinary agent management requires neither extension.

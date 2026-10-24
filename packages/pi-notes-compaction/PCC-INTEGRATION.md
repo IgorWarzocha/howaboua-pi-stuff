@@ -8,6 +8,6 @@ Returned kickoff messages are annotated for developer-role delivery, not sent du
 
 Notes owns automatic read-only hybrid retrieval and its response cache. PCC supplies provider authentication and generic protected-output delivery. `canDeliverProtectedOutput(pi, ctx)` checks the active delivery capability, not merely whether the PCC package is installed. JavaScript receives receipts while compatible provider requests receive the original encrypted blocks. Neither package decrypts them locally. Cached data retains account and backend provenance.
 
-The optional `pi-notes-compaction:owner:v1` discovery channel exposes Notes identity, sharing and projection to consumers such as Suggestions. It does not transfer tool registration or session authority. PCC must consume ordinary Pi context hooks rather than this channel.
+The optional `pi-notes-compaction:owner:v1` discovery channel exposes Notes identity, sharing and projection to consumers such as Suggestions. It does not transfer tool registration or session authority. PCC may check this channel for Notes availability during upgrade admission. Context delivery still uses ordinary Pi context hooks.
 
 Pi owns session lifecycle. Notes decides when to request or cancel compaction. PCC implements the selected provider compaction method and respects context changes from extensions. Neither extension replaces another extension's preparation.

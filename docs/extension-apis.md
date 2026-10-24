@@ -238,6 +238,22 @@ The full provider adaptation contract is [PCC-INTEGRATION.md](../packages/pi-not
 
 Notes' `context-sharing` API does not depend on Shepherdr. It supplies family identity and storage-aware execution. Your extension supplies authenticated routes and the actual agent lifecycle.
 
+### Migrating from PCC's context-sharing API
+
+PCC 4.0.5 removes `@howaboua/pi-codex-conversion/context-sharing`. Update integrations to use the independent services below. Shared notes and history require Notes 0.0.10 or newer. Native parent linkage and cache affinity require PCC 4.0.5 or newer, without Notes.
+
+| Previous API | Replacement |
+|---|---|
+| `connectCodexContextSharing(pi)` | `connectNotesContextSharing(pi)` from `@howaboua/pi-notes-compaction/context-sharing` |
+| Shared-context types and family, routing and attachment methods | Import types and discover the service through Notes' `context-sharing` export |
+| `service.bindRelationship(ctx, relationship)` | `relationships.service.bind(ctx, relationship)` from `connectCodexAgentRelationships(pi)` |
+| `service.cacheAffinityId(ctx)` | `relationships.service.cacheAffinityId(ctx)` |
+| `CodexAgentRelationship` type | Import from `@howaboua/pi-codex-conversion/agent-relationship` |
+
+Discover each service independently and check availability before calling it. Notes' `bind` adopts a notes family. PCC's relationship `bind` establishes parent linkage or cache affinity. Neither replaces the other. Ordinary delegation needs neither service.
+
+### Connect Notes
+
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { connectNotesContextSharing } from
