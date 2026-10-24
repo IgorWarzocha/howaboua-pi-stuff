@@ -46,7 +46,7 @@ flowchart LR
 | `pi-notes-compaction:owner:v1` | Optional Notes projection discovery | [`bridge.ts`](../packages/pi-notes-compaction/src/bridge.ts) |
 | `@howaboua/pi-notes-compaction/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-notes-compaction/src/context-sharing.ts) |
 | `@howaboua/pi-codex-conversion/agent-relationship` | Native parent linkage and cache affinity | [`agent-relationship.ts`](../packages/pi-codex-conversion/src/agent-relationship.ts) |
-| `@howaboua/pi-codex-conversion/compaction` | Ordered extension preparation before provider compaction | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
+| `@howaboua/pi-codex-conversion/compaction` | Context projection and ordered provider-compaction preparation | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
 | `@howaboua/pi-codex-conversion/prompt-mode` | Select owned guidance for PCC GPT prompt mode | [`prompt-mode.ts`](../packages/pi-codex-conversion/src/prompt-mode.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-hooks` | Nested-call preflight and completion | [`code-mode-hooks.ts`](../packages/pi-codex-conversion/src/code-mode-hooks.ts) |
@@ -209,6 +209,12 @@ For `canBind`, the optional `entries: readonly SessionEntry[]` argument excludes
 Extensions whose policy or context edits must precede PCC provider work can call `registerCompactionPreparation(pi, handler)` from PCC's `compaction` export. Register the returned `prepare` with Pi's `session_before_compact` hook too. The helper memoises by event, so the handler runs once in either extension load order. It returns `{ prepare, dispose }`. Dispose the registration on shutdown.
 
 The handler uses Pi's ordinary compaction event and result, including cancellation. Notes uses this generic API to prepare its projected branch and apply its own rollover policy. It is not a Notes ownership hook or a substitute for normal turn preparation.
+
+### Context for isolated consumers
+
+PCC's `compaction` export also provides `registerContextBranchProjection(pi, project)` and `projectContextBranch(pi, ctx, entries)`. The synchronous `project(entries, ctx)` callback returns a projected branch without changing saved entries. Registration returns an unsubscribe function for shutdown. Without a registered projector, the original branch is returned.
+
+Use this read-only projection when an isolated consumer, such as voice summarisation, needs current context outside Pi's normal context hook. Notes supplies archived checkpoints, window cuts and handoff reads through this API. Projection does not run turn preparation or trigger compaction.
 
 ### Remote content and local authority
 

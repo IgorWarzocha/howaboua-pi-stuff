@@ -1,6 +1,7 @@
 import { type Context, type Model, normalizeContext, uuidv7 } from "@earendil-works/pi-ai";
 import {
 	buildSessionContext,
+	type ExtensionAPI,
 	type ExtensionContext,
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
@@ -8,6 +9,7 @@ import type {
 	CodexConversionConfig,
 	VoiceContextModel,
 } from "../adapter/activation/config.ts";
+import { projectContextBranch } from "../compaction.ts";
 import { createNativeVoiceContextSummary } from "./native-context.ts";
 import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
 
@@ -31,6 +33,7 @@ export interface RealtimeInitialMessageItem {
 }
 
 export async function buildRealtimeInitialItems(args: {
+	pi: ExtensionAPI;
 	ctx: ExtensionContext;
 	config: CodexConversionConfig;
 	onSummaryGenerated?: ((summary: string) => void) | undefined;
@@ -43,7 +46,9 @@ export async function buildRealtimeInitialItems(args: {
 	const initialItems: RealtimeInitialMessageItem[] = [];
 	if (selected) {
 		const reasoning = args.config.voice.contextReasoning;
-		const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning, args.sourceLeafId);
+		const project = () => projectContextBranch(args.pi, args.ctx, args.ctx.sessionManager.getBranch(args.sourceLeafId));
+		const entries = project();
+		const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning, entries);
 		let text = args.forceSummary ? undefined : summaryCache.get(cacheKey);
 		if (!text) {
 			args.onSummaryStatus?.(true);
@@ -52,12 +57,12 @@ export async function buildRealtimeInitialItems(args: {
 					args.ctx,
 					selected,
 					reasoning,
+					entries,
 					args.signal,
-					args.sourceLeafId,
 				);
 				if (generated) {
 					text = generated;
-					if (cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning, args.sourceLeafId)) {
+					if (cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning, project())) {
 						summaryCache.set(cacheKey, text);
 						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
 							summaryCache.delete(summaryCache.keys().next().value!);
@@ -87,10 +92,9 @@ async function createVoiceContextSummary(
 	ctx: ExtensionContext,
 	selected: VoiceContextModel,
 	reasoning: CodexConversionConfig["voice"]["contextReasoning"],
+	entries: readonly SessionEntry[],
 	signal?: AbortSignal,
-	sourceLeafId?: string,
 ): Promise<string | undefined> {
-	const entries = ctx.sessionManager.getBranch(sourceLeafId);
 	if (latestCompactionIsOpaque(entries))
 		return requireSummary(
 			await createNativeVoiceContextSummary({
@@ -260,10 +264,9 @@ function voiceContextCacheKey(
 	ctx: ExtensionContext,
 	model: VoiceContextModel,
 	reasoning: CodexConversionConfig["voice"]["contextReasoning"],
-	sourceLeafId?: string,
+	entries: readonly SessionEntry[],
 ): string {
-	const boundary = ctx.sessionManager
-		.getBranch(sourceLeafId)
+	const boundary = entries
 		.findLast(
 			(entry) =>
 				entry.type === "message" ||

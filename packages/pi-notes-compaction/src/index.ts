@@ -36,7 +36,10 @@ import {
 	projectTreeCheckpointBranch,
 	projectTreeCheckpointMessages,
 } from "./tree-checkpoint.js";
-import { projectTreeHandoffReads } from "./tree-handoff-read.js";
+import {
+	projectTreeHandoffBranch,
+	projectTreeHandoffReads,
+} from "./tree-handoff-read.js";
 import {
 	registerWindowRenderer,
 	WINDOW_MESSAGE,
@@ -486,10 +489,24 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	) =>
 		ready && !unavailable ? lifecycle.beforeCompact(event, ctx) : undefined;
 	try {
-		const { registerCompactionPreparation } = await import(
-			"@howaboua/pi-codex-conversion/compaction"
-		);
+		const { registerCompactionPreparation, registerContextBranchProjection } =
+			await import("@howaboua/pi-codex-conversion/compaction");
 		const registration = registerCompactionPreparation(pi, prepareCompaction);
+		const stopProjection = registerContextBranchProjection(
+			pi,
+			(entries, ctx) =>
+				ready && !unavailable
+					? projectTreeHandoffBranch(
+							lifecycle.windows.projectBranch(
+								projectTreeCheckpointBranch(
+									entries,
+									ctx.sessionManager.getEntries(),
+								),
+							),
+						)
+					: entries,
+		);
+		pi.on("session_shutdown", stopProjection);
 		pi.on("session_before_compact", registration.prepare);
 		pi.on("session_shutdown", () => registration.dispose());
 	} catch (error) {

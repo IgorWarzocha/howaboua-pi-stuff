@@ -1,4 +1,27 @@
-import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionBeforeCompactResult } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionEntry } from "@earendil-works/pi-coding-agent";
+
+const PROJECTION_CHANNEL = "pi-codex-conversion:context-branch-projection:v1";
+type BranchProjection = (entries: readonly SessionEntry[], ctx: ExtensionContext) => readonly SessionEntry[];
+interface ProjectionRequest {
+	protocol: 1;
+	add(project: BranchProjection): void;
+}
+
+/** Read-only context reconstruction for isolated consumers outside Pi's context hook. */
+export function registerContextBranchProjection(pi: ExtensionAPI, project: BranchProjection): () => void {
+	return pi.events.on(PROJECTION_CHANNEL, value => {
+		const request = value as Partial<ProjectionRequest> | undefined;
+		if (request?.protocol === 1 && typeof request.add === "function") request.add(project);
+	});
+}
+
+export function projectContextBranch(pi: ExtensionAPI, ctx: ExtensionContext, entries: readonly SessionEntry[]): readonly SessionEntry[] {
+	const projections: BranchProjection[] = [];
+	pi.events.emit(PROJECTION_CHANNEL, { protocol: 1, add: (project: BranchProjection) => projections.push(project) } satisfies ProjectionRequest);
+	// Pi's event bus logs handler exceptions; execute outside it so failures propagate.
+	for (const project of projections) entries = project(entries, ctx);
+	return entries;
+}
 
 const PREPARATION_CHANNEL = "pi-codex-conversion:compaction-preparation:v1";
 type Preparation = (event: SessionBeforeCompactEvent, ctx: ExtensionContext) => SessionBeforeCompactResult | void | Promise<SessionBeforeCompactResult | void>;

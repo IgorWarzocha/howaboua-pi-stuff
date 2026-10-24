@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { renderVoiceStartupContext } from "./context.ts";
 import {
@@ -34,14 +34,17 @@ interface RealtimeContextRefreshCallbacks {
 }
 
 export class RealtimeContextRefresh {
+	private readonly pi: ExtensionAPI;
 	private readonly runtime: VoiceControllerRuntime;
 	private readonly callbacks: RealtimeContextRefreshCallbacks;
 	private abortController: AbortController | undefined;
 
 	constructor(
+		pi: ExtensionAPI,
 		runtime: VoiceControllerRuntime,
 		callbacks: RealtimeContextRefreshCallbacks,
 	) {
+		this.pi = pi;
 		this.runtime = runtime;
 		this.callbacks = callbacks;
 	}
@@ -84,6 +87,7 @@ export class RealtimeContextRefresh {
 		const releaseDelegations = this.callbacks.holdDelegations();
 		try {
 			const prepared = await prepareControllerRealtimeContext({
+				pi: this.pi,
 				ctx,
 				config,
 				signal,
