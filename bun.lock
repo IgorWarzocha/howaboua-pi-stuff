@@ -411,7 +411,7 @@
         "@earendil-works/pi-ai": ">=1.0.4",
         "@earendil-works/pi-coding-agent": ">=1.2.0",
         "@earendil-works/pi-tui": ">=1.0.4",
-        "@howaboua/pi-codex-conversion": ">=5.0.0",
+        "@howaboua/pi-codex-conversion": ">=4.0.5",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -522,7 +522,7 @@
         "@earendil-works/pi-ai": ">=1.1.0",
         "@earendil-works/pi-coding-agent": ">=1.2.0",
         "@earendil-works/pi-tui": ">=1.1.0",
-        "@howaboua/pi-codex-conversion": ">=5.0.0",
+        "@howaboua/pi-codex-conversion": ">=4.0.5",
         "@howaboua/pi-notes-compaction": ">=0.0.10",
         "typebox": "*",
       },

@@ -47,7 +47,7 @@
 		"@earendil-works/pi-agent-core": ">=1.0.4",
 		"@earendil-works/pi-ai": ">=1.0.4",
 		"@earendil-works/pi-tui": ">=1.0.4",
-		"@howaboua/pi-codex-conversion": ">=5.0.0",
+		"@howaboua/pi-codex-conversion": ">=4.0.5",
 		"typebox": "*"
 	},
 	"peerDependenciesMeta": {

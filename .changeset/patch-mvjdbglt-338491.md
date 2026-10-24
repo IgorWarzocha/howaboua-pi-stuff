@@ -1,5 +1,5 @@
 ---
-"@howaboua/pi-codex-conversion": major
+"@howaboua/pi-codex-conversion": patch
 ---
 
 - Removed built-in Notes/history tools, rollover settings and legacy Remote mode. Install pi-notes-compaction for notes, history and context windows; use /notes for their settings.
