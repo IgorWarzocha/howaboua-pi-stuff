@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
+	CONFIG_DIR_NAME,
 	type ExtensionAPI,
 	type ExtensionContext,
 	getAgentDir,
@@ -347,10 +348,12 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		ready = false;
 		unavailable = undefined;
 		try {
-			settings = readSettings(
-				settingsPath,
+			settings = readSettings(settingsPath, [
 				join(getAgentDir(), "pi-codex-conversion.json"),
-			);
+				...(ctx.isProjectTrusted()
+					? [join(ctx.cwd, CONFIG_DIR_NAME, "pi-codex-conversion.json")]
+					: []),
+			]);
 			writeSettings(settingsPath, settings);
 			applySettings(settings);
 			lifecycle.bridge = family;

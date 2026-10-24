@@ -27,19 +27,24 @@ export interface NotesSettings {
 	taskBoundaryReminder: number;
 }
 
-export function readSettings(path: string, legacyPath?: string): NotesSettings {
+export function readSettings(
+	path: string,
+	legacyPaths: readonly string[] = [],
+): NotesSettings {
+	let legacy: ReturnType<typeof readLegacyPreferences> | undefined;
+	const preferences = () => (legacy ??= readLegacyPreferences(legacyPaths));
 	let source: string;
 	try {
 		source = readFileSync(path, "utf8");
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			const migrated = legacyPath ? readLegacySettings(legacyPath) : undefined;
+			const migrated = readLegacySettings(preferences());
 			return (
 				migrated ?? {
 					active: "all",
 					modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
 					normalCompaction: false,
-					noteSaveMarkers: legacyPath ? readLegacyMarkers(legacyPath) : false,
+					noteSaveMarkers: preferences().noteSaveMarkers,
 					shareSubagentContext: false,
 					newWindowRequests: "unrestricted",
 					idleMinutes: 0,
@@ -109,15 +114,11 @@ export function readSettings(path: string, legacyPath?: string): NotesSettings {
 		noteSaveMarkers:
 			"noteSaveMarkers" in settings
 				? settings.noteSaveMarkers === true
-				: legacyPath
-					? readLegacyMarkers(legacyPath)
-					: false,
+				: preferences().noteSaveMarkers,
 		shareSubagentContext:
 			"shareSubagentContext" in settings
 				? settings.shareSubagentContext === true
-				: legacyPath
-					? readLegacyCompaction(legacyPath)?.["shareSubagentContext"] === true
-					: false,
+				: preferences().compaction["shareSubagentContext"] === true,
 		newWindowRequests: newWindowRequests as NewWindowRequests,
 		idleMinutes: idleMinutes as IdleMinutes,
 		taskBoundaryReminder,
@@ -144,12 +145,11 @@ export function writeSettings(path: string, settings: NotesSettings): void {
 }
 
 /** Import only on first use. An existing Notes settings file always wins. */
-function readLegacySettings(path: string): NotesSettings | undefined {
-	const value = readLegacyCompaction(path);
-	if (
-		!value ||
-		!["notes", "notes-and-compaction"].includes(String(value["continuity"]))
-	)
+function readLegacySettings(
+	preferences: ReturnType<typeof readLegacyPreferences>,
+): NotesSettings | undefined {
+	const value = preferences.compaction;
+	if (!["notes", "notes-and-compaction"].includes(String(value["continuity"])))
 		return;
 	const oldIdle = value["idleNotesRollover"];
 	const idle = oldIdle === true ? 25 : oldIdle === false ? 0 : (oldIdle ?? 0);
@@ -161,7 +161,7 @@ function readLegacySettings(path: string): NotesSettings | undefined {
 		active: "all",
 		modelWhitelist: [...DEFAULT_MODEL_WHITELIST],
 		normalCompaction: value["continuity"] === "notes-and-compaction",
-		noteSaveMarkers: readLegacyMarkers(path),
+		noteSaveMarkers: preferences.noteSaveMarkers,
 		shareSubagentContext:
 			"shareSubagentContext" in value && value["shareSubagentContext"] === true,
 		newWindowRequests: NEW_WINDOW_REQUESTS.some((item) => item === requests)
@@ -179,38 +179,42 @@ function readLegacySettings(path: string): NotesSettings | undefined {
 	};
 }
 
-function readLegacyCompaction(
-	path: string,
-): Record<string, unknown> | undefined {
-	let document: unknown;
-	try {
-		document = JSON.parse(readFileSync(path, "utf8"));
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-		throw error;
+/** Global first, then the trusted project's explicitly configured values. */
+function readLegacyPreferences(paths: readonly string[]): {
+	compaction: Record<string, unknown>;
+	noteSaveMarkers: boolean;
+} {
+	const compaction: Record<string, unknown> = {};
+	let noteSaveMarkers = false;
+	for (const path of paths) {
+		let document: unknown;
+		try {
+			document = JSON.parse(readFileSync(path, "utf8"));
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+			throw error;
+		}
+		if (!document || typeof document !== "object" || Array.isArray(document))
+			continue;
+		if (
+			"compaction" in document &&
+			document.compaction &&
+			typeof document.compaction === "object" &&
+			!Array.isArray(document.compaction)
+		) {
+			Object.assign(compaction, document.compaction);
+		}
+		for (const key of ["display", "ui"]) {
+			const section = (document as Record<string, unknown>)[key];
+			if (
+				section &&
+				typeof section === "object" &&
+				"noteSaveMarkers" in section
+			) {
+				noteSaveMarkers = section.noteSaveMarkers === true;
+				break;
+			}
+		}
 	}
-	if (!document || typeof document !== "object" || !("compaction" in document))
-		return;
-	const value = document.compaction;
-	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-function readLegacyMarkers(path: string): boolean {
-	let document: unknown;
-	try {
-		document = JSON.parse(readFileSync(path, "utf8"));
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-		throw error;
-	}
-	if (!document || typeof document !== "object") return false;
-	for (const key of ["display", "ui"]) {
-		if (!(key in document)) continue;
-		const section = (document as Record<string, unknown>)[key];
-		if (section && typeof section === "object" && "noteSaveMarkers" in section)
-			return section.noteSaveMarkers === true;
-	}
-	return false;
+	return { compaction, noteSaveMarkers };
 }
