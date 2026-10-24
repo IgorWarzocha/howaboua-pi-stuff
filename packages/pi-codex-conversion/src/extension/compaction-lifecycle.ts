@@ -6,7 +6,7 @@ import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compactio
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnostics.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
-import { prepareExtensionCompaction } from "../compaction.ts";
+import { prepareExtensionCompaction, registerContextWindowPreparation } from "../compaction.ts";
 import type { ExtensionHandler, SessionBeforeCompactEvent, SessionCompactFailedEvent, SessionCompactEvent, SessionBeforeCompactResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexCompactionLifecycle(
@@ -16,6 +16,11 @@ export function createCodexCompactionLifecycle(
 	refreshNotebookStatus: (ctx: ExtensionContext) => Promise<boolean>,
 ) {
 	const { state } = runtime;
+	const stopWindowPreparation = registerContextWindowPreparation(pi, async ctx => {
+		runtime.voice.announceContextTransition("rollover");
+		await runtime.voice.refreshRealtimeContext(ctx, state.config);
+	});
+	pi.on("session_shutdown", stopWindowPreparation);
 
 	return {
 		beforeCompact: async (event, ctx) => {

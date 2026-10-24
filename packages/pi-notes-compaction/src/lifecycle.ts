@@ -67,6 +67,7 @@ export class NotesLifecycle {
 	taskBoundaryReminder = 0;
 	bridge: NotesBridge | undefined;
 	prepareReminder: NotesBridge["prepareReminder"];
+	prepareWindow: ((ctx: ExtensionContext) => Promise<void>) | undefined;
 	runId = "";
 	private checkpoint: Checkpoint | undefined;
 	private held: HeldInput | undefined;
@@ -243,7 +244,14 @@ export class NotesLifecycle {
 		if (!ctx.isIdle())
 			throw new Error("Wait for the current run to settle before rollover");
 		const sessionId = ctx.sessionManager.getSessionId();
-		if (sessionId !== ctx.sessionManager.getSessionId() || !this.active)
+		const windowId = this.windows.current?.currentWindowId;
+		if (trim) await this.prepareWindow?.(ctx);
+		if (
+			!ctx.isIdle() ||
+			sessionId !== ctx.sessionManager.getSessionId() ||
+			windowId !== this.windows.current?.currentWindowId ||
+			!this.active
+		)
 			throw new Error("Session changed before rollover");
 		const ids = this.windows.next();
 		const hint = noteHints(this.store, ctx, this.agent(ctx));

@@ -1,5 +1,27 @@
 import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionEntry } from "@earendil-works/pi-coding-agent";
 
+const WINDOW_PREPARATION_CHANNEL = "pi-codex-conversion:context-window-preparation:v1";
+type WindowPreparation = (ctx: ExtensionContext) => void | Promise<void>;
+interface WindowPreparationRequest {
+	protocol: 1;
+	add(prepare: WindowPreparation): void;
+}
+
+/** Await consumers of the outgoing context before retiring it without compaction. */
+export function registerContextWindowPreparation(pi: ExtensionAPI, prepare: WindowPreparation): () => void {
+	return pi.events.on(WINDOW_PREPARATION_CHANNEL, value => {
+		const request = value as Partial<WindowPreparationRequest> | undefined;
+		if (request?.protocol === 1 && typeof request.add === "function") request.add(prepare);
+	});
+}
+
+export async function prepareContextWindow(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+	const preparations: WindowPreparation[] = [];
+	pi.events.emit(WINDOW_PREPARATION_CHANNEL, { protocol: 1, add: (prepare: WindowPreparation) => preparations.push(prepare) } satisfies WindowPreparationRequest);
+	// Execute outside Pi's notification bus so completion and failures reach the owner.
+	for (const prepare of preparations) await prepare(ctx);
+}
+
 const PROJECTION_CHANNEL = "pi-codex-conversion:context-branch-projection:v1";
 type BranchProjection = (entries: readonly SessionEntry[], ctx: ExtensionContext) => readonly SessionEntry[];
 interface ProjectionRequest {

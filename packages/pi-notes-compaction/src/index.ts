@@ -509,8 +509,12 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	) =>
 		ready && !unavailable ? lifecycle.beforeCompact(event, ctx) : undefined;
 	try {
-		const { registerCompactionPreparation, registerContextBranchProjection } =
-			await import("@howaboua/pi-codex-conversion/compaction");
+		const {
+			registerCompactionPreparation,
+			registerContextBranchProjection,
+			prepareContextWindow,
+		} = await import("@howaboua/pi-codex-conversion/compaction");
+		lifecycle.prepareWindow = (ctx) => prepareContextWindow(pi, ctx);
 		const registration = registerCompactionPreparation(pi, prepareCompaction);
 		const stopProjection = registerContextBranchProjection(
 			pi,

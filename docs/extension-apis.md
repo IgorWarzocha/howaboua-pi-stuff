@@ -210,6 +210,8 @@ Extensions whose policy or context edits must precede PCC provider work can call
 
 The handler uses Pi's ordinary compaction event and result, including cancellation. Notes uses this generic API to prepare its projected branch and apply its own rollover policy. It is not a Notes ownership hook or a substitute for normal turn preparation.
 
+For context retirement without compaction, register an asynchronous consumer with `registerContextWindowPreparation(pi, handler)`. The context owner awaits `prepareContextWindow(pi, ctx)` before changing the outgoing window, then rechecks session validity. Registration returns an unsubscribe function. PCC uses this boundary to finish configured realtime voice refresh before Notes starts the successor. Ordinary compaction already has its own refresh and must not invoke this boundary again.
+
 ### Context for isolated consumers
 
 PCC's `compaction` export also provides `registerContextBranchProjection(pi, project)` and `projectContextBranch(pi, ctx, entries)`. The synchronous `project(entries, ctx)` callback returns a projected branch without changing saved entries. Registration returns an unsubscribe function for shutdown. Without a registered projector, the original branch is returned.
