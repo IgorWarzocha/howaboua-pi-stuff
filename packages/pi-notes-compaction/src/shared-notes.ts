@@ -6,6 +6,7 @@ import type {
 import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import { useHistory } from "./history.js";
+import type { HistorySearch } from "./history-search.js";
 import { collectNotes, normalizeNoteParams, readNotes } from "./notes.js";
 import {
 	readSavedNotesSession,
@@ -154,25 +155,35 @@ export async function readSharedNotes(
 	params: Record<string, unknown>,
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown> | undefined> {
-	return readSharedSession(ctx, store, params, "notes", signal);
+	return readSharedSession(ctx, store, params, { namespace: "notes" }, signal);
 }
 
 export async function readSharedHistory(
 	ctx: ExtensionContext,
 	store: Pick<NotesStore, "read">,
+	search: HistorySearch,
 	params: Record<string, unknown>,
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown> | undefined> {
-	return readSharedSession(ctx, store, params, "history", signal);
+	return readSharedSession(
+		ctx,
+		store,
+		params,
+		{ namespace: "history", search },
+		signal,
+	);
 }
 
 async function readSharedSession(
 	ctx: ExtensionContext,
 	store: Pick<NotesStore, "read">,
 	params: Record<string, unknown>,
-	namespace: "notes" | "history",
+	access:
+		| { namespace: "notes" }
+		| { namespace: "history"; search: HistorySearch },
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown> | undefined> {
+	const { namespace } = access;
 	if (
 		namespace === "notes" &&
 		!["read_file", "list_files_by_prefix", "search_contents"].includes(
@@ -207,8 +218,14 @@ async function readSharedSession(
 		native: string,
 	) {
 		return {
-			...(namespace === "history"
-				? useHistory(session.branch, query, session.threadId, session.entries)
+			...(access.namespace === "history"
+				? useHistory(
+						session.branch,
+						query,
+						session.threadId,
+						access.search,
+						session.entries,
+					)
 				: readNotes(
 						collectNotes(store, session.branch),
 						normalizeNoteParams(query, native),

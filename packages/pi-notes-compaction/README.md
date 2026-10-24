@@ -18,6 +18,10 @@ Pi Codex Conversion is optional. Compatible releases add Code Mode, Notebook and
 
 The agent keeps the familiar `notes`, `history`, `new_context` and `get_context_remaining` tools. Notes use virtual paths. Relative paths belong to the current agent. History searches the selected Pi session branch, including earlier windows. It does not create a second transcript archive.
 
+History search matches all query words, ignoring case, accents and word order, and ranks matches with BM25. Set `recent_first: true` to put the newest matches first. Its arguments and result IDs are unchanged. Notes search remains a case-sensitive substring search.
+
+History builds a local SQLite full-text index as it is searched. Unchanged messages reuse their indexed terms. The index stores terms rather than another copy of the transcript, and current branch and tool filters still decide which entries can be returned. JSONL remains the source of truth.
+
 Previously shared local notes and history remain readable after the other agent closes or Shepherdr is removed. Notes follows the saved family relationships and attachment aliases without requiring PCC. Reads use the other session's saved branch and preserve its history IDs. When only a retained attachment snapshot is available, notes identify it as detached or potentially stale. Snapshots do not contain history. Cross-agent writes still require their live routing service. History reads Pi JSONL sessions locally or through a live shared agent, including agents on another machine. Without live access, make the saved session available locally.
 
 In Code Mode and Notebook, plaintext notes and history return ordinary JavaScript values. Encrypted notes return delivery receipts instead of exposing their contents to JavaScript.

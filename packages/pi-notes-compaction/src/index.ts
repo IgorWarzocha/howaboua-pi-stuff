@@ -14,6 +14,7 @@ import {
 	TOOL_NAMES,
 } from "./bridge.js";
 import { NESTED_NOTE_OUTCOME, type NestedNoteOutcome } from "./fresh-notes.js";
+import { HistorySearch } from "./history-search.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { registerNoteSaveMarkers } from "./note-save-marker.js";
 import { exportNotesSnapshot, sessionRef } from "./notes.js";
@@ -51,6 +52,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	const dir = join(getAgentDir(), "notes-compaction");
 	const settingsPath = join(dir, "settings.json");
 	const store = new NotesStore(join(dir, "notes.sqlite"));
+	const search = new HistorySearch(join(dir, "history-search.sqlite"));
 	const lifecycle = new NotesLifecycle(pi, store);
 	let settings: NotesSettings;
 	let ready = false;
@@ -68,7 +70,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			}
 		},
 	);
-	const tools = createTools(pi, store, lifecycle);
+	const tools = createTools(pi, store, lifecycle, search);
 	try {
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
@@ -215,7 +217,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				);
 			}),
 		snapshotNotes: exportNotesSnapshot,
-		executeShared: createSharedExecutor(pi, store, lifecycle),
+		executeShared: createSharedExecutor(pi, store, lifecycle, search),
 	};
 	const route = registerContextSharingService(pi, {
 		enabled: () => ready && !unavailable,
@@ -555,6 +557,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		lifecycle.reset();
 		lifecycle.active = false;
 		store.close();
+		search.close();
 		stopOwner();
 		stopAdmission();
 	});

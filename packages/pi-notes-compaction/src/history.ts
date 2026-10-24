@@ -1,4 +1,5 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { HistorySearch } from "./history-search.js";
 import { buildTreeArchiveIndex } from "./tree-archive.js";
 import { windowDetails } from "./windows.js";
 
@@ -47,6 +48,7 @@ export function useHistory(
 	entries: readonly SessionEntry[],
 	params: Record<string, unknown>,
 	sessionId: string,
+	search: HistorySearch,
 	allEntries: readonly SessionEntry[] = entries,
 ): Record<string, unknown> {
 	const archive = buildTreeArchiveIndex(allEntries, entries);
@@ -176,6 +178,7 @@ export function useHistory(
 		(typeof params["query"] !== "string" || !params["query"])
 	)
 		throw new Error("Supply a nonempty search query");
+	const limit = integer(params["limit"], 10, 25);
 	let items = [...windows.values()]
 		.flat()
 		.filter(
@@ -184,12 +187,17 @@ export function useHistory(
 				(!params["role"] || item.role === params["role"]) &&
 				(!params["tool_name"] || item.tool_name === params["tool_name"]) &&
 				(!params["tool_namespace"] ||
-					item.tool_namespace === params["tool_namespace"]) &&
-				(action !== "search_contents" ||
-					item.content.includes(params["query"] as string)),
+					item.tool_namespace === params["tool_namespace"]),
 		);
-	if (params["recent_first"] === true) items = items.reverse();
-	const limit = integer(params["limit"], 10, 25);
+	if (action === "search_contents")
+		items = search.search(
+			sessionId,
+			items,
+			params["query"] as string,
+			limit,
+			params["recent_first"] === true,
+		);
+	else if (params["recent_first"] === true) items = items.reverse();
 	const previewChars = integer(params["max_chars_per_item"], 1000, 1000);
 	const previews = [];
 	let size = 0;

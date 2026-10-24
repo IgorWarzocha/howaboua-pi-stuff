@@ -15,6 +15,7 @@ import type {
 } from "./bridge.js";
 import { queryKey } from "./bridge.js";
 import { useHistory } from "./history.js";
+import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import {
 	CACHE_RECEIPT,
@@ -243,6 +244,8 @@ function discovery(
 				: {
 						usage:
 							"Search earlier conversation, don't browse it. Pass returned IDs unchanged",
+						search:
+							"Keywords, case/accent-insensitive, all words required. Relevance order; recent_first=true uses newest first",
 					}),
 		});
 	}
@@ -357,6 +360,7 @@ function createQueryExecutor(
 	pi: ExtensionAPI,
 	store: NotesStore,
 	lifecycle: NotesLifecycle,
+	search: HistorySearch,
 	shared = false,
 ) {
 	const assertActive = () => {
@@ -495,11 +499,17 @@ function createQueryExecutor(
 					)
 				)
 					throw error;
-				const saved = await readSharedHistory(ctx, store, params, signal);
+				const saved = await readSharedHistory(
+					ctx,
+					store,
+					search,
+					params,
+					signal,
+				);
 				if (saved) return result(saved);
 				throw error;
 			}
-			const saved = await readSharedHistory(ctx, store, params, signal);
+			const saved = await readSharedHistory(ctx, store, search, params, signal);
 			if (saved) return result(saved);
 		}
 		if (params["agent_name"] && params["agent_name"] !== lifecycle.agent(ctx))
@@ -512,6 +522,7 @@ function createQueryExecutor(
 				ctx.sessionManager.getBranch(),
 				params,
 				ctx.sessionManager.getSessionId(),
+				search,
 				ctx.sessionManager.getEntries(),
 			),
 		);
@@ -523,8 +534,9 @@ export function createSharedExecutor(
 	pi: ExtensionAPI,
 	store: NotesStore,
 	lifecycle: NotesLifecycle,
+	search: HistorySearch,
 ) {
-	const queries = createQueryExecutor(pi, store, lifecycle, true);
+	const queries = createQueryExecutor(pi, store, lifecycle, search, true);
 	return async (
 		query: LookupQuery,
 		callId: string,
@@ -548,6 +560,7 @@ export function createTools(
 	pi: ExtensionAPI,
 	store: NotesStore,
 	lifecycle: NotesLifecycle,
+	search: HistorySearch,
 ): ToolDefinition[] {
 	const assertActive = () => {
 		if (!lifecycle.active)
@@ -555,7 +568,7 @@ export function createTools(
 				"Notes tools are inactive. Ask the user to check /notes.",
 			);
 	};
-	const queries = createQueryExecutor(pi, store, lifecycle);
+	const queries = createQueryExecutor(pi, store, lifecycle, search);
 	return [
 		{
 			name: "notes",
