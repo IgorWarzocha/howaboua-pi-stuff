@@ -147,7 +147,18 @@ export function readLegacyCodexNotesConfig(options: Omit<EffectiveCodexConversio
 	for (const [index, path] of paths.entries()) {
 		const document = readConfigDocument(path, index === 0 ? "global" : "trusted project");
 		const compaction = isRecord(document) && isRecord(document["compaction"]) ? document["compaction"] : undefined;
-		if (compaction && "continuity" in compaction) selected = { path, continuity: compaction["continuity"] };
+		if (!compaction) continue;
+		// Older releases translated these fields only in memory, not on disk.
+		const mode = compaction["contextManagement"];
+		const modeOverride = mode === "off" || mode === "local" || mode === "tree" || mode === "remote";
+		const inheritedNotes = selected?.continuity === "notes" || selected?.continuity === "notes-and-compaction";
+		const notes = modeOverride ? mode !== "off" : inheritedNotes;
+		const hybrid = typeof compaction["hybridCompaction"] === "boolean"
+			? compaction["hybridCompaction"] : selected?.continuity === "notes-and-compaction";
+		if (modeOverride || (notes && typeof compaction["hybridCompaction"] === "boolean"))
+			selected = { path, continuity: notes ? hybrid ? "notes-and-compaction" : "notes" : "compaction" };
+		// Explicit current fields override the legacy translation in the same scope.
+		if ("continuity" in compaction) selected = { path, continuity: compaction["continuity"] };
 	}
 	return selected && (selected.continuity === "notes" || selected.continuity === "notes-and-compaction")
 		? { path: selected.path, continuity: selected.continuity }

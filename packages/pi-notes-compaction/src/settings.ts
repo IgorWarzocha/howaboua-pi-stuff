@@ -202,6 +202,32 @@ function readLegacyPreferences(paths: readonly string[]): {
 			typeof document.compaction === "object" &&
 			!Array.isArray(document.compaction)
 		) {
+			// Old PCC releases migrated these axes in memory only. Translate each
+			// scope before layering so project opt-outs and current fields win.
+			const value = document.compaction as Record<string, unknown>;
+			const mode = value["contextManagement"];
+			const modeOverride =
+				mode === "off" ||
+				mode === "local" ||
+				mode === "tree" ||
+				mode === "remote";
+			const inheritedNotes =
+				compaction["continuity"] === "notes" ||
+				compaction["continuity"] === "notes-and-compaction";
+			const notes = modeOverride ? mode !== "off" : inheritedNotes;
+			const hybrid =
+				typeof value["hybridCompaction"] === "boolean"
+					? value["hybridCompaction"]
+					: compaction["continuity"] === "notes-and-compaction";
+			if (
+				modeOverride ||
+				(notes && typeof value["hybridCompaction"] === "boolean")
+			)
+				compaction["continuity"] = notes
+					? hybrid
+						? "notes-and-compaction"
+						: "notes"
+					: "compaction";
 			Object.assign(compaction, document.compaction);
 		}
 		for (const key of ["display", "ui"]) {
