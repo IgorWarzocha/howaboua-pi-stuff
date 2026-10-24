@@ -1,7 +1,6 @@
 # Grok Realtime
 
 Talk with Grok while your current Pi agent does the work. Use your computer's microphone or a phone browser on your LAN. Pi keeps its model, tools and working environment, and its progress and replies flow back into the conversation.
-
 - Delegate tasks by voice and keep talking while Pi works.
 - Dictate into an editable draft without automatically sending it.
 - Control calls from a Pi-themed browser page with live Pi activity.
@@ -22,7 +21,6 @@ pi install npm:@howaboua/pi-grok-realtime
 ```
 
 Run `/reload`, then `/grok` to choose settings. Start with `/grok local`, or `/grok server` to open browser control. Loading the extension does not connect voice or start a server.
-
 - `/grok` opens tabbed settings for Voice, Context and Tools. Audio devices groups the microphone and speaker pickers. Use Tab or Shift+Tab to switch sections; Help contains usage, prompt paths and billing information. Settings apply to the next call; use `/reload` after changing shortcuts.
 - `/grok local` starts local microphone and speakers.
 - `/grok server` toggles browser control. Accept the local HTTPS certificate before granting microphone access.
@@ -58,7 +56,9 @@ Before connecting, a separate model call summarizes the current conversation for
 
 Voice transcripts appear in separate Grok voice boxes. Call diagnostics are saved alongside Pi's session history, including forwarded Pi text, response events, interruptions, playback drain acknowledgements and provider errors. They contain no credentials or raw audio. A transcript records generated speech, not proof that every word was heard. Playback diagnostics distinguish a completed drain from an interrupted one.
 
-The voice chooser includes 28 Grok Bot voice IDs and accepts custom IDs. Model choices include `grok-voice-latest` and `grok-voice-think-fast-2.0`, with custom IDs allowed. Availability depends on the selected account. Speech speed offers Grok Bot's presets from `0.5` to `2` and accepts custom values. The public realtime API documents `0.7` to `1.5`; values outside that range may be rejected by the provider. Language defaults to automatic detection and accepts tags such as `en-US`. Silence follow-up is off by default; when enabled, it uses the provider's silence timer only while Pi is idle and the microphone is unmuted. The timer switches during the call as Pi starts and settles. Changed settings require a new call.
+The voice chooser includes 28 Grok Bot voice IDs and accepts custom IDs. Model choices include `grok-voice-latest` and `grok-voice-think-fast-2.0`, with custom IDs allowed. Availability depends on the selected account. Speech speed offers Grok Bot's presets from `0.5` to `2` and accepts custom values. The public realtime API documents `0.7` to `1.5`; values outside that range may be rejected by the provider. Language defaults to automatic detection and accepts tags such as `en-US`.
+
+Silence follow-up is off by default. When enabled, Grok gets an opportunity to contribute at the configured interval while Pi is idle and the microphone is unmuted. It can choose `stay_quiet` instead of speaking. After a silent turn, the extension requests another opportunity after that interval, without requiring chatter to keep the conversation active. New speech and Pi updates take priority. These checks still make model requests and may consume quota even when nothing is spoken. Changed settings require a new call.
 
 ## Extend voice tools
 

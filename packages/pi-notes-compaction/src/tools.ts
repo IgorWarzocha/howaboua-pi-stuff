@@ -323,7 +323,7 @@ async function hybrid(
 		...(state === "incompatible"
 			? {
 					recovery:
-						"Cached encrypted contents are unavailable on this model. Local notes remain available",
+						"Cached encrypted contents require a compatible Codex model with PCC active. Local results remain available",
 				}
 			: {}),
 	};
@@ -360,7 +360,7 @@ function createQueryExecutor(
 	shared = false,
 ) {
 	const assertActive = () => {
-		if (!lifecycle.active)
+		if (!lifecycle.active && !shared)
 			throw new Error(
 				"Notes tools are inactive. Ask the user to check /notes.",
 			);
@@ -516,6 +516,7 @@ function createQueryExecutor(
 				ctx.sessionManager.getBranch(),
 				params,
 				ctx.sessionManager.getSessionId(),
+				ctx.sessionManager.getEntries(),
 			),
 			callId,
 			ctx,

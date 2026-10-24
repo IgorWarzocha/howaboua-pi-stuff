@@ -1,5 +1,4 @@
 Customise folding, exceptions, wording and style for the user's conversation, tools and terminal. These are defaults, not fixed policy.
-
 - Keep source-only, private and outside releases/aggregates unless publication is requested.
 - Choose folding policy first. index.ts owns visibility, pass-through and renderer registration. src/AGENTS.md covers summary/detail/timeline changes. new_context and notes-saved visibility are current preferences, not universal rules.
 - If pass-through changes, align renderer selection, live handlers and restored membership. Otherwise hidden duplicates or empty disclosures survive.

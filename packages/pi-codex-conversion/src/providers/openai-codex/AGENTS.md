@@ -2,5 +2,5 @@
 - `transport-recovery.ts` owns live WebSocket/SSE selection, retry budgets, fallback, diagnostics, and settlement; the provider facade retains request preparation, prewarm, and registration.
 - Preserve live tool composition. Pi 1.2 retains discarded retry panes; that needs native UI reconciliation, not delayed tool events, invented results or rewritten call IDs.
 - `session-continuity.ts` owns the completed provider request/raw-output baseline across physical socket loss. Ordinary full reconnects deliberately send validated Pi reconstruction because raw provider replay breaks global prompt-cache hits; native compaction consumes canonical state. Only explicit transport resets clear it.
-- Prompt-cache keys and generated keepalive are independent from cached WebSocket upgrade. That setting may control only physical socket retention; keepalive uses an isolated lane and must not advance main continuation.
+- Keepalive uses an isolated lane and must not advance main continuation. Honour Pi's transport selection; preconnect follows WebSocket availability, non-generating warmup requires cached continuation, and generated keepalive remains independently opt-in.
 - Auto-preserve backend-proven cache reuse; keep spendful large-context keepalive explicit and separate.

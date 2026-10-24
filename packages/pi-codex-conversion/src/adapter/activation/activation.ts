@@ -1,14 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getCodeModeExtensionToolSnapshot } from "../../code-mode-extension-tools.ts";
-import { discoverExternalNotesOwner } from "../../context-management/external-notes-bridge.ts";
-import { TOOL_NAMES as EXTERNAL_NOTES_TOOL_NAMES } from "../../context-management/external-notes-protocol.ts";
 import { renderCodexStatus } from "../../ui/status.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlanForState, type CodexRuntimePlan } from "./runtime-plan.ts";
 import type { AdapterState } from "./state.ts";
 import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
-	discoverExternalNotesOwner(pi, state, ctx);
 	state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	reconcileExternalToolLoadout(state, pi.getActiveTools());
@@ -98,8 +95,7 @@ function disableAdapter(
 	plan: CodexRuntimePlan,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
-	const owned = (state.adapterOwnedToolNames ?? plan.ownedToolNames).filter(name =>
-		!plan.contextManagementExternal || !EXTERNAL_NOTES_TOOL_NAMES.some(tool => tool === name));
+	const owned = state.adapterOwnedToolNames ?? plan.ownedToolNames;
 	if (state.enabled || (!(plan.kind === "inactive" && plan.missingToolNames) && pi.getActiveTools().some((name) => owned.includes(name)))) {
 		const currentTools = state.enabled
 			? reconcileExtensionToolProjection(
@@ -110,7 +106,7 @@ function disableAdapter(
 			: pi.getActiveTools();
 		// Registration cleanup has no prior loadout to restore, even after an earlier activation.
 		const previous = state.enabled ? state.previousToolNames ?? [] : [];
-		setActiveTools(pi, restoreTools(plan.contextManagementExternal ? mergeToolNames(previous, [...EXTERNAL_NOTES_TOOL_NAMES]) : previous, currentTools, owned));
+		setActiveTools(pi, restoreTools(previous, currentTools, owned));
 	}
 	state.enabled = false;
 	delete state.adapterOwnedToolNames;

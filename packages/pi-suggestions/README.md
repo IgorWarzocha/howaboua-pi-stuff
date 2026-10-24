@@ -30,3 +30,9 @@ Suggestions run only in interactive terminal sessions. Shepherdr-launched worker
 Input, navigation, new responses and blocking dialogs cancel pending suggestions. Long suggestions are visually shortened to fit the editor; accepting inserts the complete draft.
 
 Suggestions require the standard empty editor layout. Custom editors with a different layout remain usable but may not display suggestions. Settings are stored in `suggestions/config.json` under Pi's agent directory.
+
+## Customise suggestions
+
+Open `/suggestions` and choose **Instructions** to edit the Markdown guidance. You can also edit `suggestions/instructions.md` under Pi's agent directory directly. Changes apply to the next prediction and reset its private history. They do not change the main chat's prompt.
+
+The file starts with short defaults: suggest productive next actions, avoid repeating either participant or re-suggesting work, and skip routine requests for hashes, summaries or more verification unless they unblock progress. Add, replace or remove these instructions to suit your workflow. An empty file leaves only the built-in request-format instructions. Deleting the file restores the defaults on the next prediction or when you open **Instructions**.

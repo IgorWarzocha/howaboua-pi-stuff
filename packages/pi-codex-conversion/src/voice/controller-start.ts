@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
@@ -50,6 +50,7 @@ export interface PreparedRealtimeContext {
 }
 
 export async function prepareControllerRealtimeContext(options: {
+	pi: ExtensionAPI;
 	ctx: ExtensionContext;
 	config: CodexConversionConfig;
 	signal?: AbortSignal | undefined;
@@ -59,6 +60,7 @@ export async function prepareControllerRealtimeContext(options: {
 }): Promise<PreparedRealtimeContext> {
 	let generatedSummary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
+		pi: options.pi,
 		ctx: options.ctx,
 		config: options.config,
 		sourceLeafId: options.sourceLeafId,
@@ -78,6 +80,7 @@ export async function prepareControllerRealtimeContext(options: {
 }
 
 export async function startControllerMode(options: {
+	pi: ExtensionAPI;
 	runtime: VoiceControllerRuntime;
 	messages: CodexVoiceSessionMessages;
 	ctx: ExtensionContext;
@@ -145,6 +148,7 @@ export async function startControllerMode(options: {
 					? options.preparedRealtimeContext
 						? Promise.resolve(options.preparedRealtimeContext)
 						: prepareControllerRealtimeContext({
+							pi: options.pi,
 							ctx: options.ctx,
 							config: options.config,
 							onSummaryStatus: (active) => {

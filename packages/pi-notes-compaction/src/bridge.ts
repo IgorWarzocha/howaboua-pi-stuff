@@ -2,14 +2,10 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
 	AgentToolResult,
 	CustomMessageEntryDraft,
-	ExtensionAPI,
 	ExtensionContext,
-	SessionBeforeCompactEvent,
 	SessionEntry,
-	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
-export const BRIDGE_CHANNEL = "pi-notes-compaction:bridge:v1";
 export const OWNER_CHANNEL = "pi-notes-compaction:owner:v1";
 export const TOOL_NAMES = [
 	"notes",
@@ -74,9 +70,6 @@ export interface NotesOwner {
 		entries?: readonly SessionEntry[],
 	): AgentMessage[];
 	projectBranch(entries: readonly SessionEntry[]): SessionEntry[];
-	/** Consult before compaction work; the owner's hook performs notes-only rollover. */
-	allowsCompaction?(reason: SessionBeforeCompactEvent["reason"]): boolean;
-	allowsWindowRequests?(): boolean;
 	canBind?(ctx: ExtensionContext, entries?: readonly SessionEntry[]): boolean;
 	snapshotNotes?(
 		entries: readonly SessionEntry[],
@@ -94,23 +87,6 @@ export interface NotesBridge {
 	protocol: 1;
 	/** Preserve the owner's chronological entry while enabling developer-role delivery. */
 	prepareReminder?(entry: CustomMessageEntryDraft): CustomMessageEntryDraft;
-	/** Synchronous atomic handoff. No legacy registrations or lifecycle owners remain active. */
-	claim(owner: NotesOwner):
-		| {
-				claimed: true;
-				registerTools(
-					tools: readonly ToolDefinition[],
-					ctx: ExtensionContext,
-				): void;
-		  }
-		| { claimed: false; reason: string };
-	/** Configures PCC nested registrations, visibility and opaque-result capture. Never nests new_context. */
-	configureTools?(
-		tools: readonly ToolDefinition[],
-		ctx: ExtensionContext,
-		contracts: Readonly<Record<"notes" | "history", string>>,
-	): void;
-	beforeWindow?(ctx: ExtensionContext, signal?: AbortSignal): Promise<void>;
 	lookup?(
 		query: LookupQuery,
 		ctx: ExtensionContext,
@@ -124,6 +100,7 @@ export interface NotesBridge {
 		callId: string,
 		ctx: ExtensionContext,
 		signal?: AbortSignal,
+		relay?: boolean,
 	): Promise<AgentToolResult<unknown>>;
 	agentName?(ctx: ExtensionContext): string;
 	/** Optional family routing. undefined means this agent owns the requested path. */
@@ -135,10 +112,6 @@ export interface NotesBridge {
 	): Promise<AgentToolResult<unknown> | undefined>;
 }
 
-export interface BridgeRequest {
-	protocol: 1;
-	reply(bridge: NotesBridge): void;
-}
 export interface OwnerRequest {
 	protocol: 1;
 	ctx?: ExtensionContext;
@@ -146,21 +119,6 @@ export interface OwnerRequest {
 		owner: Pick<NotesOwner, "projectMessages" | "projectBranch">,
 	): void;
 	reply(owner: NotesOwner): void;
-}
-
-export function discoverBridge(pi: ExtensionAPI): NotesBridge | undefined {
-	let found: NotesBridge | undefined;
-	pi.events.emit(BRIDGE_CHANNEL, {
-		protocol: 1,
-		reply(bridge: NotesBridge) {
-			if (bridge?.protocol !== 1 || typeof bridge.claim !== "function")
-				throw new Error("Unsupported notes bridge");
-			if (found && found !== bridge)
-				throw new Error("Multiple notes bridges responded");
-			found = bridge;
-		},
-	} satisfies BridgeRequest);
-	return found;
 }
 
 export function queryKey(query: LookupQuery): string {

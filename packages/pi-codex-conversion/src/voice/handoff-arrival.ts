@@ -141,6 +141,7 @@ export function startVoiceArrival(options: {
 				throw new Error("Target realtime voice is not configured");
 			const [prepared] = await Promise.all([
 				prepareControllerRealtimeContext({
+					pi,
 					ctx,
 					config: options.config,
 					signal,

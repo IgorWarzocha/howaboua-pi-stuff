@@ -82,7 +82,7 @@ async function registerSkillsInCodeMode(
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareSkillsCodeModeInput,
-				discovery: "help",
+				usage: "await tools.skills() // discover skills and calling syntax",
 			}),
 		]);
 	} catch (error) {

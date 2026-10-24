@@ -11,14 +11,12 @@
 ## 0.0.8
 
 - **Continuity and integrations**
-
   - Fixed Notes guidance missing from PCC's first post-compaction cache-warming request.
   - With PCC active, Notes guidance uses developer-role delivery. Automatic rollover resumes from the window handoff itself, without a separate continuation message.
   - Initial window identity now follows the prepared system prompt, preserving the shared prefix for child-agent caching.
   - External integrations can adopt a new fork into a notes family before its first task without rewriting inherited history.
 
   **Guidance and discovery**
-
   - Added compact checkpoint guidance for PCC GPT prompt mode.
   - Simplified Notes and History discovery, with write, path and history-ID guidance in their help.
   - Tightened notes guidance to favour concise milestone checkpoints over progress logs and repeated reads.
@@ -30,7 +28,6 @@
 ## 0.0.6
 
 - Requires Pi 1.2.0 or newer.
-
   - Added per-model activation through `/notes` and an editable whitelist.
   - Added **New window requests: off | pi-limits | unrestricted**. `new_context` requires a successful note write immediately beforehand.
   - Shared local notes now remain readable after their owner closes or Shepherdr is removed.
@@ -42,7 +39,6 @@
 - We've been informed that Astra and Sol currently retain their prompt caches for around an hour. If you use notes-managed idle rollover, consider increasing it from 25 to 55 minutes. Cache retention can vary. YMMV. We'll keep monitoring. Please share your cache-retention and long-context quota observations in [the feedback thread](https://github.com/IgorWarzocha/howaboua-pi-stuff/issues/508).
 
   Added configurable task-boundary reminders and a clearer settings layout.
-
   - Added optional reminders at preset or custom token counts when context capacity exceeds 272k, showing the remaining percentage.
   - Status text and keyboard hints now wrap to fit narrow terminals.
   - Notes help now lists required arguments. Writes accept `content` when `text` is omitted.
@@ -51,7 +47,6 @@
 ## 0.0.4
 
 - Fixed note queries and manual context rollover with Codex Conversion.
-
   - Restored negative line ranges, default limits, result ordering, metadata and complete read and search content. Help now shows concrete call syntax, and invalid arguments are reported before execution.
   - `/compact` now honours the Normal compaction setting. With it off, Notes Compaction reuses fresh saved notes or requests a checkpoint, then opens a new context window without starting a continuation turn.
 

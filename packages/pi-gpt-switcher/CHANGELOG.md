@@ -11,7 +11,6 @@
 ## 0.1.3
 
 - GPT-6 Sol and Luna now share Astra's Codex support.
-
   - Removed `/terra`; use `/luna` instead.
   - Added Responses Lite, non-destructive reasoning changes and terse context guidance for GPT-6 Sol and Luna.
   - Image descriptions now use GPT-6 Luna directly instead of preferring older mini models.

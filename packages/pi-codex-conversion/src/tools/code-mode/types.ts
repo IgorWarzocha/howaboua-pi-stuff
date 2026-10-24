@@ -59,7 +59,6 @@ export interface ProgrammaticCodeModeToolDefinition
 	opaqueResult?: boolean | undefined;
 	/** Forward owned handoff completion to the outer exec/wait result. */
 	propagateTermination?: boolean | undefined;
-	isContextNoteWrite?(input: unknown): boolean;
 	inputSchema?: unknown;
 	invoke(
 		input: unknown,
@@ -207,8 +206,6 @@ export type RuntimeResponse = (
 	opaqueDeliveryId?: string | undefined;
 	originalExecCallId?: string | undefined;
 	terminate?: true | undefined;
-	contextNotesSaved?: boolean | undefined;
-	contextNotesSource?: "remote" | undefined;
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
 	execSessionIds?: number[] | undefined;

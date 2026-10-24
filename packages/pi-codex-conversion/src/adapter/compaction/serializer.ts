@@ -18,7 +18,6 @@ import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../provi
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 import { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import { projectCodexDeveloperHistory } from "../developer-history.ts";
-import { projectTreeHandoffReads } from "../../context-management/tree-handoff-read.ts";
 import type { TextSignaturePhase } from "../../providers/openai-responses/signatures.ts";
 
 /**
@@ -107,7 +106,6 @@ export type NativeCompactionRequestOptions = Pick<
 >;
 
 export type SerializeResponsesMessagesOptions = {
-	projectMessages?: ((messages: readonly AgentMessage[]) => AgentMessage[]) | undefined;
 	instructions?: string | undefined;
 	includeInstructionsInInput?: boolean | undefined;
 	blockImages?: boolean | undefined;
@@ -165,7 +163,7 @@ export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	leafId?: string | null | undefined;
 	options?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
-	const messages = projectTreeHandoffReads(projectCodexDeveloperHistory(args.entries, undefined, args.leafId), args.entries)
+	const messages = projectCodexDeveloperHistory(args.entries, undefined, args.leafId)
 		.filter((message) => !isProviderContextExcludedMessage(message));
 	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }
@@ -176,7 +174,6 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 	options: SerializeResponsesMessagesOptions = {},
 ): ResponsesInputItem[] {
 	const developerMessages = new CodexDeveloperMessageBridge();
-	if (options.projectMessages) messages = options.projectMessages(messages);
 	const llmMessages = applyBlockImages(
 		convertToLlm(developerMessages.prepare(messages, true, model)),
 		options.blockImages ?? readBlockImagesSetting(),

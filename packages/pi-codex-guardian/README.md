@@ -30,21 +30,27 @@ Status shows loaded review and block counts, whether nested preflight is availab
 ## Rules
 
 Use either file:
-
 - Global: `~/.pi/agent/pi-codex-guardian.json`, respecting `PI_CODING_AGENT_DIR`.
 - Repo: `.pi/pi-codex-guardian.json` in the Pi session's working directory. Parent directories are not searched. Pi must trust the folder.
 
 ```json
 {
-  "rules": [
-    { "tool": "bash", "args": { "command": "\\brm\\b.*-rf" }, "action": "review" },
-    { "tool": "exec_command", "args": { "cmd": "\\brm\\b.*-rf" }, "action": "block" }
-  ]
+	"rules": [
+		{
+			"tool": "bash",
+			"args": { "command": "\\brm\\b.*-rf" },
+			"action": "review"
+		},
+		{
+			"tool": "exec_command",
+			"args": { "cmd": "\\brm\\b.*-rf" },
+			"action": "block"
+		}
+	]
 }
 ```
 
 This example reviews native `bash` calls whose `command` matches the pattern and blocks nested `exec_command` calls whose `cmd` matches it. These are text patterns, not shell parsing. They do not identify every equivalent command or interpret command safety.
-
 - `tool` is a literal tool name. No glob, regex, prefix, or category matching.
 - Omit `args`, or use `{}`, to match every call to that tool.
 - `args` keys are exact top-level argument properties. Values are JavaScript regex strings without flags or `/.../` delimiters. Matching uses substring search unless you add anchors.

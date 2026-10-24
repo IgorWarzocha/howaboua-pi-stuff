@@ -1,15 +1,19 @@
 ---
+
 name: pulses
 description: "Read before creating or changing a saved pulse routine."
 ---
+
 Create `.pi/pulses/<self-explanatory-name>.md` with a lowercase kebab-case filename. In Git, use the original repository root, not a linked worktree. Otherwise use the main session's working directory.
 
 ```markdown
 ---
+
 schedule: every 5h
 enabled: true
 quietHours: 22:00-08:00
 ---
+
 Check the agreed sources for changes since the previous run.
 Post actionable findings to the designated available destination.
 ```

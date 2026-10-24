@@ -3,6 +3,7 @@ import {
 	buildSessionContext,
 	type ExtensionAPI,
 	type ExtensionContext,
+	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type {
 	CODEX_CONTEXT_BRIEFING_TYPE,
@@ -61,45 +62,62 @@ export function contextBriefingWindow(
 				entry.details.strategy === "codex-context-window"
 			),
 	);
-	const boundary = branch.findLastIndex(
-		(entry) =>
-			entry.type === "custom_message" &&
-			entry.customType === "codex-context-window" &&
-			entry.details &&
-			typeof entry.details === "object" &&
-			"contextManagement" in entry.details &&
-			entry.details.contextManagement &&
-			typeof entry.details.contextManagement === "object" &&
-			"kind" in entry.details.contextManagement &&
-			entry.details.contextManagement.kind === "window",
-	);
+	const boundary = branch.findLastIndex((entry) => briefingIdentity(entry));
 	return compaction > boundary
 		? branch[compaction]!.id
-		: (windowId ?? ctx.sessionManager.getSessionId());
+		: (windowId ??
+				(boundary >= 0
+					? briefingIdentity(branch[boundary]!)?.currentWindowId
+					: undefined) ??
+				ctx.sessionManager.getSessionId());
 }
 
 export function hasContextRollover(ctx: ExtensionContext): boolean {
 	return ctx.sessionManager.getBranch().some((entry) => {
 		if (entry.type === "compaction") return true;
-		if (
-			entry.type !== "custom_message" ||
-			entry.customType !== "codex-context-window" ||
-			!entry.details ||
-			typeof entry.details !== "object" ||
-			!("contextManagement" in entry.details)
-		)
-			return false;
-		const window = entry.details.contextManagement;
-		return Boolean(
-			window &&
-				typeof window === "object" &&
-				"kind" in window &&
-				window.kind === "window" &&
-				"windowNumber" in window &&
-				typeof window.windowNumber === "number" &&
-				window.windowNumber > 0,
-		);
+		return (briefingIdentity(entry)?.windowNumber ?? 0) > 0;
 	});
+}
+
+/** Consume owner-authored identities without depending on an optional runtime. */
+function briefingIdentity(entry: SessionEntry) {
+	if (entry.type !== "custom_message") return;
+	const details = entry.details;
+	if (!details || typeof details !== "object") return;
+	let identity: unknown;
+	if (
+		entry.customType === "notes-compaction:window:v1" &&
+		"protocol" in details &&
+		details.protocol === 1 &&
+		"kind" in details &&
+		details.kind === "window" &&
+		"identity" in details
+	)
+		identity = details.identity;
+	else if (
+		entry.customType === "codex-context-window" &&
+		"contextManagement" in details &&
+		details.contextManagement &&
+		typeof details.contextManagement === "object" &&
+		"kind" in details.contextManagement &&
+		details.contextManagement.kind === "window"
+	)
+		identity = details.contextManagement;
+	if (
+		identity &&
+		typeof identity === "object" &&
+		"currentWindowId" in identity &&
+		typeof identity.currentWindowId === "string" &&
+		identity.currentWindowId &&
+		"windowNumber" in identity &&
+		typeof identity.windowNumber === "number" &&
+		Number.isInteger(identity.windowNumber) &&
+		identity.windowNumber >= 0
+	)
+		return {
+			currentWindowId: identity.currentWindowId,
+			windowNumber: identity.windowNumber,
+		};
 }
 
 export async function recordContextBriefing(

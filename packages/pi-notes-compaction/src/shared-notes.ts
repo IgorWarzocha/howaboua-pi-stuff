@@ -208,7 +208,7 @@ async function readSharedSession(
 	) {
 		return {
 			...(namespace === "history"
-				? useHistory(session.branch, query, session.threadId)
+				? useHistory(session.branch, query, session.threadId, session.entries)
 				: readNotes(
 						collectNotes(store, session.branch),
 						normalizeNoteParams(query, native),

@@ -186,7 +186,7 @@ export default function suggestions(pi: ExtensionAPI): void {
 				if (!eligible() || controller.signal.aborted || reportedFailure) return;
 				reportedFailure = true;
 				ctx.ui.notify(
-					"Suggestions are unavailable. Chat still works; check the model and provider access in /suggestions, or switch suggestions off.",
+					"Suggestions are unavailable. Chat still works; check Instructions, the model and provider access in /suggestions, or switch suggestions off.",
 					"warning",
 				);
 			} finally {

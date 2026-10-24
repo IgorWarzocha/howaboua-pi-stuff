@@ -22,11 +22,11 @@ For a proxy that renames Codex providers or models, create `pi-codex-tools.json`
 
 ```json
 {
-  "providers": {
-    "company-codex": {
-      "gpt-image-2.5": "company-image"
-    }
-  }
+	"providers": {
+		"company-codex": {
+			"gpt-image-2.5": "company-image"
+		}
+	}
 }
 ```
 

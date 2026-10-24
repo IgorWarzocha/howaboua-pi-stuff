@@ -11,7 +11,6 @@ Use this route when the user already has a pet package from Codex, ChatGPT, or a
 ## Recover Codex built-in assets
 
 Codex also caches its built-in pets without custom manifests:
-
 - TUI assets normally appear under `${CODEX_HOME:-$HOME/.codex}/cache/tui-pets/v1/assets/` as `<pet>-spritesheet-*.webp`. These are legacy `1536×1872` atlases and need the two look-direction rows completed through the hatch guide before Pi Pet can load them.
 - Desktop assets live inside the installed or cached Codex application's `content/webview/assets/` directory as `<pet>-spritesheet-<version>-<hash>.webp`. Linux native builds commonly expose them under `~/.cache/codex-desktop-linux-native-build/codex-app/content/webview/assets/` or a `~/.cache/codex-update-manager/workspaces/<version>/codex-app/content/webview/assets/` workspace. Other roots vary by platform and install method; search the user's Codex application and cache directories for `*-spritesheet-*.webp`. Current desktop atlases may already be v2 `1536×2288` assets.
 
@@ -20,7 +19,6 @@ For a v2 desktop asset, copy the selected atlas into staging as `spritesheet.web
 ## Stage the package
 
 Resolve the package root from this guide's installed path and the durable destination as `<pi-agent-directory>/pi-pet/pets/<pet-id>`. The destination directory name and `pet.json` id must match.
-
 1. Create a fresh staging root under `<pi-agent-directory>/pi-pet/runs/<pet-id>/` with the package in a child directory named exactly `<pet-id>`; validation requires that basename to match the manifest id.
 2. Copy `pet.json`, its referenced spritesheet, and any supplied `PET.md` or `validation.json` with ordinary filesystem commands. If a supplied `pet.pi.json` references extra local PNG/WebP assets, copy those too; leave unrelated files behind.
 3. If `PET.md` is absent, create a short one recording the display name, description, `source_format: codex-v2`, known provenance, included standard actions, and any redistribution uncertainty. Do not invent ownership or licensing.

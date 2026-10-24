@@ -17,7 +17,6 @@ Read `references/pet-contract.md` and `references/animation-rows.md` before prep
 ## Visual capability
 
 Choose by capability, not vendor or tool name:
-
 1. Prefer an available image-generation capability that can accept prompts, reference images, and produce downloadable PNG/WebP files.
 2. Use one isolated generation worker per visual job when workers are available. Up to three independent standard-row jobs may run concurrently after the canonical base exists.
 3. Every row job must receive every `input_images` entry from `visual-jobs.json`. Only the base may be prompt-only.
@@ -43,7 +42,6 @@ uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/prepare_pet_ru
 Omit flags that have no input. For a bare brand/product request, first research 2–4 preferably official sources and save a compact brief; do not copy logos, slogans, UI, or readable marks. Pass the brief and source URLs to `prepare_pet_run.py`.
 
 The command creates:
-
 - `pet_request.json`: identity, style, chroma key, geometry, and provenance inputs.
 - `visual-jobs.json`: dependency graph, prompts, references, output paths, and job status.
 - `prompts/`: service-neutral prompts.
@@ -64,7 +62,6 @@ uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/derive_running
 ```
 
 The derivation leaves `running-left` staged, not complete. Run the same extraction and visual QA as any generated row, then mark it complete. Otherwise generate it independently. Generate all other standard rows independently from the canonical base.
-
 4. After copying each selected strip to its declared `decoded/` path, immediately run:
 
 ```bash
@@ -77,13 +74,11 @@ uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/inspect_frames
 ```
 
 Do not mark the job complete until deterministic inspection and a quick visual check pass. Repair known clipping, extraction, identity, or semantics immediately. `stable-slots` is allowed only when the generated strip itself has stable scale and placement but component extraction introduces popping.
-
 5. When all nine rows pass, extract all frames, inspect them, compose the intermediate 8×9 atlas, and create the contact sheet and previews using the commands in `references/standard-assembly.md`. Inspect every preview before look generation. The 8×9 atlas is never packageable.
 
 ## Look directions
 
 Read `references/look-directions.md` before this stage.
-
 1. Write `qa/look-mechanics.md`: what anchors, what leads the gaze, what follows, eye construction, body deformation, and prop constraints.
 2. Generate one four-pose strip: `000 up`, `090 screen-right`, `180 down`, `270 screen-left`. Extract it with `extract_cardinal_anchors.py`, inspect at pet size, and compose `decoded/look-anchors-approved.png`. Regenerate an ambiguous cardinal before continuing. Complete the evidence gate only after those artifacts pass:
 
@@ -92,6 +87,7 @@ uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/approve_cardin
   --run-dir "$RUN_DIR" --reviewed-by "<agent or user identity>" \
   --qa-note "<visible evidence that all four cardinals are correct>"
 ```
+
 3. Generate row 9 as one coherent eight-pose family from approved cardinals. Register it immediately with `assemble_extended_atlas.py --look-row-9`; inspect its registered cells and edge report.
 4. Generate row 10 only after row 9 passes. Attach the approved cardinals and completed row 9 so scale, registration, and the `157.5→180` / `337.5→000` boundaries remain coherent.
 5. A failed direction regenerates its complete eight-pose row. Never patch one normalized final cell into a new pet.
@@ -99,7 +95,6 @@ uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/approve_cardin
 ## Assemble and review
 
 Run the final commands in `references/final-assembly.md` in order:
-
 1. Assemble both look rows into the 8×11 atlas.
 2. Apply exactly one edge-local chroma despill pass.
 3. Validate geometry, alpha, used cells, transparent unused cells, and chroma contamination.

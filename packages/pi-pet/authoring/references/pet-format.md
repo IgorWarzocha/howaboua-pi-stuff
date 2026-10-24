@@ -53,7 +53,6 @@ The base atlas is PNG or WebP, exactly `1536x2288`: 8 columns by 11 rows, with `
 ```
 
 Rules:
-
 - `schemaVersion` is exactly `1`.
 - Unknown fields fail validation.
 - Action names are 1–64 lowercase characters: letters, numbers, `.`, `_`, `-`.
@@ -69,17 +68,17 @@ Rules:
 
 ## Standard rows
 
-| Row | Action | Frames | Durations (ms) |
-|---:|---|---:|---|
-| 0 | idle | 6 | 280, 110, 110, 140, 140, 320 |
-| 1 | running-right | 8 | 120 × 7, 220 |
-| 2 | running-left | 8 | 120 × 7, 220 |
-| 3 | waving | 4 | 140 × 3, 280 |
-| 4 | jumping | 5 | 140 × 4, 280 |
-| 5 | failed | 8 | 140 × 7, 240 |
-| 6 | waiting | 6 | 150 × 5, 260 |
-| 7 | running | 6 | 120 × 5, 220 |
-| 8 | review | 6 | 150 × 5, 280 |
+| Row | Action        | Frames | Durations (ms)               |
+| --: | ------------- | -----: | ---------------------------- |
+|   0 | idle          |      6 | 280, 110, 110, 140, 140, 320 |
+|   1 | running-right |      8 | 120 × 7, 220                 |
+|   2 | running-left  |      8 | 120 × 7, 220                 |
+|   3 | waving        |      4 | 140 × 3, 280                 |
+|   4 | jumping       |      5 | 140 × 4, 280                 |
+|   5 | failed        |      8 | 140 × 7, 240                 |
+|   6 | waiting       |      6 | 150 × 5, 260                 |
+|   7 | running       |      6 | 120 × 5, 220                 |
+|   8 | review        |      6 | 150 × 5, 280                 |
 
 `running` means active processing, not locomotion. `waiting` means Pi needs user input. `review` means output is ready to inspect.
 

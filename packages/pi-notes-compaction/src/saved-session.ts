@@ -2,6 +2,11 @@ import { type FileHandle, open } from "node:fs/promises";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
+import {
+	isTreeArchiveManifestData,
+	MAX_ARCHIVE_DEPTH,
+	TREE_ARCHIVE_ENTRY_TYPE,
+} from "./tree-archive.js";
 
 const SessionHeader = Type.Object({
 	type: Type.Literal("session"),
@@ -78,6 +83,10 @@ export async function readSavedNotesSession(
 		const before = await file.stat();
 		const entries: SessionEntry[] = [];
 		const branch: SessionEntry[] = [];
+		const archived = new Map<
+			string,
+			{ base: string | null; depth: number }[]
+		>();
 		let threadId: string | undefined;
 		let target: string | null | undefined;
 		for await (const line of reverseLines(file, before.size)) {
@@ -100,18 +109,46 @@ export async function readSavedNotesSession(
 			if (target === undefined) target = entry.id;
 			const active = entry.id === target;
 			if (active) target = entry.parentId;
+			if (history) {
+				// Pi appends descendants after their parents, including Tree manifests
+				// after their archived leaves. Follow only active manifests' ancestry.
+				const paths = archived.get(entry.id) ?? [];
+				archived.delete(entry.id);
+				for (const path of paths) {
+					if (++path.depth >= MAX_ARCHIVE_DEPTH || entry.parentId === path.base)
+						continue;
+					if (entry.parentId !== null) {
+						const parents = archived.get(entry.parentId) ?? [];
+						parents.push(path);
+						archived.set(entry.parentId, parents);
+					}
+				}
+				if (
+					active &&
+					Check(Custom, entry) &&
+					entry.customType === TREE_ARCHIVE_ENTRY_TYPE &&
+					isTreeArchiveManifestData(entry.data) &&
+					entry.data.archivedLeafId !== entry.data.branchBaseId
+				) {
+					const paths = archived.get(entry.data.archivedLeafId) ?? [];
+					paths.push({ base: entry.data.branchBaseId, depth: 0 });
+					archived.set(entry.data.archivedLeafId, paths);
+				}
+				if (
+					active ||
+					paths.length ||
+					(Check(Custom, entry) && SHARING_ENTRIES.has(entry.customType))
+				)
+					entries.push(entry as SessionEntry);
+				if (active) branch.push(entry as SessionEntry);
+				continue;
+			}
 			if (Check(Custom, entry)) {
 				if (SHARING_ENTRIES.has(entry.customType)) entries.push(entry);
 				else if (active && NOTE_ENTRIES.has(entry.customType))
 					branch.push(entry);
 				else continue;
-			} else if (
-				active &&
-				history &&
-				(entry.type === "message" || entry.type === "custom_message")
-			)
-				branch.push(entry as SessionEntry);
-			else if (active && Check(Handoff, entry)) branch.push(entry);
+			} else if (active && Check(Handoff, entry)) branch.push(entry);
 			else continue;
 		}
 		const after = await file.stat();

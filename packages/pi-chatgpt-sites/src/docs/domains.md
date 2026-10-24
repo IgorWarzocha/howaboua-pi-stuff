@@ -10,7 +10,6 @@ Use resource name `domain` in calls. Sites does not register domains; the user m
 - `domain.remove`: immediately detach the exact custom domain. Pi custom tools have no separate approval callback.
 
 Typical flow:
-
 1. Add the apex domain or subdomain.
 2. Show the returned DNS names, record types, and values to the user.
 3. Wait for the user to update DNS at their provider.

@@ -1,12 +1,12 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
-import { boundedCodeModeContent } from "../tools/code-mode/tool-result.ts";
-import { normalizeResponsesId } from "../providers/openai-responses/shared.ts";
-import type { RuntimeResponse } from "../tools/code-mode/types.ts";
-import { validateRemoteScope } from "./remote-scope.ts";
-import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER } from "./remote-delivery-protocol.ts";
-export { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER } from "./remote-delivery-protocol.ts";
+import { boundedCodeModeContent } from "./tool-result.ts";
+import { normalizeResponsesId } from "../../providers/openai-responses/shared.ts";
+import type { RuntimeResponse } from "./types.ts";
+import { validateRemoteScope } from "./protected-output.ts";
+import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER } from "./protected-delivery-protocol.ts";
+export { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER } from "./protected-delivery-protocol.ts";
 
 const LEGACY_SCHEMA = Type.Object({
 	protocol: Type.Literal(1), origin: Type.Literal("host"),
@@ -39,7 +39,7 @@ export function readRemoteDelivery(input: unknown): RemoteDelivery {
 export function appendRemoteDelivery(pi: ExtensionAPI, response: RuntimeResponse, sourceCallId: string, scope: string, ctx: ExtensionContext): string {
 	if (!response.originalExecCallId || !ctx.sessionManager.buildSessionProjection().messages.some(message => message.role === "assistant" &&
 		message.content.some(part => part.type === "toolCall" && part.name === "exec" && part.id === response.originalExecCallId)))
-		throw new Error("Remote operation executed but its original exec was removed; verify its state before repeating a write");
+		throw new Error("Protected result cannot be delivered because its original exec was removed");
 	const content = boundedCodeModeContent(response.contentItems.filter(item => item.type === "input_image"));
 	let details: RemoteDelivery;
 	try { details = readRemoteDelivery({
@@ -49,9 +49,8 @@ export function appendRemoteDelivery(pi: ExtensionAPI, response: RuntimeResponse
 		images: content.filter(item => item.type === "image"),
 		...(content.some(item => item.type === "text") ? { imageNotice: content.filter(item => item.type === "text").map(item => item.text).join("\n") } : {}),
 		...(response.kind === "result" && response.errorText ? { errorText: response.errorText } : {}),
-		...(response.contextNotesSaved === undefined ? {} : { contextNotesSaved: response.contextNotesSaved }),
 	}); } catch {
-		throw new Error("Remote operation executed but delivery exceeded its bounds; verify note state before repeating a write");
+		throw new Error("Protected result delivery exceeded its bounds");
 	}
 	// Pi flushes this new host record after the current batch's real tool results.
 	pi.sendMessage({ customType: REMOTE_DELIVERY_MESSAGE, content: "Remote results", display: false, details },
@@ -61,7 +60,7 @@ export function appendRemoteDelivery(pi: ExtensionAPI, response: RuntimeResponse
 
 export function remoteDeliveryItems(delivery: RemoteDelivery, blockImages = false): unknown[] {
 	if (delivery.protocol === 2) {
-		// Completion-only events prove the note ledger without fabricating a second receipt.
+		// Saved completion-only events have no provider output.
 		if (!delivery.outputs.length) return [];
 		const legacyOutput = remoteDeliveryItems({ ...delivery, protocol: 1 }, blockImages)[1] as { output: unknown };
 		return [{ type: "function_call_output", call_id: normalizeResponsesId(delivery.originalExecCallId.split("|")[0] ?? ""),
@@ -110,8 +109,7 @@ export function remoteDeliverySource(delivery: RemoteDelivery, ctx: {
 		(result.message.toolName !== "exec" && result.message.toolName !== "wait"))
 		throw new Error("Remote delivery is missing its original exec or wait result");
 	const details = result.message.details;
-	// A mixed cell can save local notes and return protected reads. Remote write
-	// provenance is checked separately by the saved-notes ledger.
+	// Legacy completion fields remain part of persisted-event provenance.
 	if (!details || typeof details !== "object" || !("codeMode" in details) || details["codeMode"] !== true ||
 		!("opaqueDeliveryId" in details) || details["opaqueDeliveryId"] !== delivery.id ||
 		!("cellId" in details) || details["cellId"] !== delivery.cellId ||

@@ -3,5 +3,5 @@
 - Execution mode follows adapter scope, independently of transport. Responses Lite eligibility never gates modes.
 - Startup/resume normalises config in memory only. Persist only explicit settings actions.
 - Explicit writes preserve unknown fields while updating owned config.
-- Continuity, storage and compaction method are independent. Migrate legacy coupling only on read. Hidden controls retain saved choices.
+- Compaction method selects Pi, OpenAI V2 or both. Context-window policy and Notes belong to other extensions.
 - config.ts is the facade. Keep contracts/defaults, readers and normalizers in their named config-* owners.

@@ -13,9 +13,11 @@ Rules:
 
 Output format:
 # Review Findings
+
 - `[high|medium|low] path/to/file:start-end` - issue, why it matters, and the concrete fix
 
 If there are no actionable issues, output exactly:
 
 # Review Findings
+
 No actionable issues found.

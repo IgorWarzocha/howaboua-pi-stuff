@@ -32,7 +32,6 @@ import { contextWindowPicker } from "./context-window-picker.ts";
 import { createUsageTab, type UsageTabOptions } from "./usage-tab.ts";
 
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
-	externalNotes?: boolean;
 	setModel: ExtensionAPI["setModel"];
 	waitForIdle: () => Promise<void>;
 	initialConfig: CodexConversionConfig;
@@ -152,7 +151,6 @@ export async function openCodexSettingsScreen(
 					theme,
 					availableContextModels,
 					ctx,
-					options.externalNotes,
 				).map((definition): ConfigSetting => {
 					if (definition.action !== "global-notebook-journals" && definition.action !== "global-notebook-checkpoint-cleanup") return definition;
 					return {
@@ -328,10 +326,6 @@ export async function openCodexSettingsScreen(
 					);
 				if (activeTab === "context" && !contextWindowPickerOpen)
 					settingsLines = withContextPortabilityWarning(settingsLines, theme, width);
-				if (activeTab === "context" && !contextWindowPickerOpen && !options.externalNotes && draft.compaction.continuity === "notes")
-					settingsLines = withSettingsDetails(settingsLines, [
-						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
-					]);
 				if (activeTab === "tools" && !retentionPickerOpen)
 					settingsLines = withSettingsDetails(
 						settingsLines,
@@ -521,10 +515,9 @@ function withContextPortabilityWarning(lines: string[], theme: Theme, width: num
 	return [
 		...wrap("Switching providers?").map((line) => theme.fg("warning", theme.bold(line))),
 		...[
-			"Use Notes + history + compaction with Pi summary or Both, and Local or Tree—not Remote.",
-			"V2 checkpoints and Remote history/notes are encrypted for OpenAI; other providers cannot use them.",
+			"Use Pi summary or Both for readable checkpoints when switching providers.",
+			"V2 checkpoints are encrypted for OpenAI; other providers cannot use them.",
 			"Convert existing V2-only history first: select Pi summary and run /compact on the original provider.",
-			"Changing storage does not move saved notes.",
 		].flatMap(wrap),
 		"",
 		...lines,

@@ -3,6 +3,17 @@ import type { ToolCall } from "@earendil-works/pi-ai";
 /** Recorded wire provenance survives model switches and declaration removal. */
 export type ResponsesToolCall = ToolCall & { responsesCustomInputProperty?: string; responsesNamespace?: string };
 
+/** Decode saved namespace calls only; no legacy namespace is declared or executed. */
+export function legacyNamespaceToolCall(call: ToolCall): ToolCall {
+	if ((call.namespace !== "history" && call.namespace !== "notes") || call.name !== call.namespace ||
+		typeof call.arguments["action"] !== "string") return call;
+	const actions = call.namespace === "history" ? ["list_windows", "list_items", "read_item", "search_contents"] :
+		["list_files_by_prefix", "read_file", "search_contents", "append_to_file", "write_file"];
+	if (!actions.includes(call.arguments["action"])) return call;
+	const { action, ...args } = call.arguments;
+	return { ...call, name: action, arguments: args };
+}
+
 export function recordedResponsesNamespace(block: ToolCall): string | undefined {
 	if (!("responsesNamespace" in block)) return undefined;
 	const namespace = block.responsesNamespace;
@@ -71,6 +82,7 @@ export function encryptedWebRunOutputFromDetails(details: unknown): string | und
 export function encryptedToolOutputFromDetails(details: unknown): string | undefined {
 	if (!details || typeof details !== "object") return undefined;
 	const record = details as Record<string, unknown>;
+	// Saved pre-extraction outputs retain their recorded envelope.
 	return encryptedWebRunOutputFromDetails(details)
 		?? encryptedOutputFromWebRunLike(record["codexHistoryNotes"]);
 }
@@ -78,9 +90,9 @@ export function encryptedToolOutputFromDetails(details: unknown): string | undef
 export function opaqueToolOutputsFromDetails(details: unknown): Array<{ resultId: string; name: string; encryptedOutput: string }> {
 	if (!details || typeof details !== "object") return [];
 	const record = details as Record<string, unknown>;
-	const notes = record["codexHistoryNotes"];
-	const outputs = notes && typeof notes === "object" && "cachedOutputs" in notes
-		? notes.cachedOutputs : record["codeMode"] === true ? record["opaqueOutputs"] : undefined;
+	const notes = record["codexHistoryNotes"]; // Saved-output compatibility only.
+	const outputs = record["protectedOutputs"] ?? (notes && typeof notes === "object" && "cachedOutputs" in notes
+		? notes.cachedOutputs : record["codeMode"] === true ? record["opaqueOutputs"] : undefined);
 	if (!Array.isArray(outputs)) return [];
 	return outputs.map((item: unknown) => {
 		if (!item || typeof item !== "object") throw new Error("Invalid protected tool output");

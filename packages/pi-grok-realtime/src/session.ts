@@ -46,6 +46,8 @@ export class GrokSession {
 	private piBusy = false;
 	private webSearch = false;
 	private silenceSeconds = 0;
+	private quiet = false;
+	private quietTimer: ReturnType<typeof setTimeout> | undefined;
 	private configuration: Record<string, unknown> | undefined;
 	private pendingContext: string[] = [];
 	private earlyAudio: Buffer[] = [];
@@ -187,6 +189,7 @@ export class GrokSession {
 
 	setMuted(muted: boolean): void {
 		this.muted = muted;
+		if (muted) this.clearQuietTimer();
 		if (muted) this.earlyAudio = [];
 		if (!this.ready || this.closed) return;
 		if (muted) {
@@ -202,8 +205,10 @@ export class GrokSession {
 	setPiBusy(busy: boolean): void {
 		if (this.piBusy === busy) return;
 		this.piBusy = busy;
+		if (busy) this.clearQuietTimer();
 		if (!this.ready || this.closed) return;
 		this.updateConfiguration();
+		this.flush();
 	}
 
 	private updateConfiguration(): void {
@@ -232,6 +237,8 @@ export class GrokSession {
 
 	context(text: string, speak = true): void {
 		if (this.closed || !text.trim()) return;
+		this.quiet = false;
+		this.clearQuietTimer();
 		this.pendingContext.push(text);
 		if (speak) this.responseRequested = true;
 		this.flush();
@@ -240,6 +247,7 @@ export class GrokSession {
 	close(): void {
 		if (this.closed) return;
 		this.closed = true;
+		this.clearQuietTimer();
 		this.ready = false;
 		this.pendingContext = [];
 		this.earlyAudio = [];
@@ -284,6 +292,8 @@ export class GrokSession {
 			return;
 		}
 		if (type === "response.created") {
+			this.quiet = false;
+			this.clearQuietTimer();
 			this.awaitingVadResponse = false;
 			this.responsePending = false;
 			const response = record(event["response"]);
@@ -291,8 +301,14 @@ export class GrokSession {
 			if (this.responseId) this.activeResponses.add(this.responseId);
 			this.callbacks.status("responding");
 		}
+		if (type === "input_audio_buffer.timeout_triggered") {
+			this.quiet = false;
+			this.clearQuietTimer();
+		}
 		if (type === "input_audio_buffer.speech_started") {
 			if (this.muted) return;
+			this.quiet = false;
+			this.clearQuietTimer();
 			this.ending = false;
 			this.speechActive = true;
 			this.callbacks.interrupt();
@@ -447,6 +463,7 @@ export class GrokSession {
 		}
 		this.pendingTools++;
 		let output: unknown;
+		let quiet = false;
 		try {
 			const argumentsText = textField(event, "arguments");
 			if (!argumentsText) throw new Error("Invalid task arguments");
@@ -456,6 +473,11 @@ export class GrokSession {
 					throw new Error("End call takes no arguments");
 				this.ending = true;
 				output = { hangUp: true };
+			} else if (event["name"] === "stay_quiet") {
+				if (Object.keys(args).length)
+					throw new Error("Stay quiet takes no arguments");
+				quiet = true;
+				output = { quiet: true };
 			} else if (event["name"] === "send_task") {
 				const request = textField(args, "request")?.trim();
 				if (!request || Object.keys(args).some((key) => key !== "request"))
@@ -484,8 +506,34 @@ export class GrokSession {
 				output: JSON.stringify(output),
 			},
 		});
-		this.responseRequested = true;
+		if (quiet) this.quiet = true;
+		else this.responseRequested = true;
 		this.flush();
+	}
+
+	private clearQuietTimer(): void {
+		clearTimeout(this.quietTimer);
+		this.quietTimer = undefined;
+	}
+
+	private reconsiderQuiet(): void {
+		// A quiet tool receipt leaves xAI awaiting continuation, even after speech.
+		if (
+			!this.quiet ||
+			this.quietTimer ||
+			this.muted ||
+			this.piBusy ||
+			!this.silenceSeconds
+		)
+			return;
+		this.quietTimer = setTimeout(() => {
+			this.quietTimer = undefined;
+			this.quiet = false;
+			this.responseRequested = true;
+			this.callbacks.diagnostic?.({ type: "silence.reconsider" });
+			this.flush();
+		}, this.silenceSeconds * 1000);
+		this.quietTimer.unref();
 	}
 
 	private flush(): void {
@@ -532,7 +580,10 @@ export class GrokSession {
 			this.responsePending = true;
 			this.callbacks.status("responding");
 			this.send({ type: "response.create" });
-		} else this.callbacks.status("listening");
+		} else {
+			this.callbacks.status("listening");
+			this.reconsiderQuiet();
+		}
 	}
 	private send(value: unknown): void {
 		if (this.closed || this.socket?.readyState !== WebSocket.OPEN) return;

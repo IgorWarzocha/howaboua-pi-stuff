@@ -16,7 +16,6 @@ The packaged `REALTIME-SYSTEM-PROMPT.md` beside this file is the latest referenc
 ## Schema 1
 
 Initial realtime prompt. It established:
-
 - the spoken identity and tone
 - one-assistant presentation across realtime voice and Pi
 - delegation of actions, tools, project context, and nontrivial reasoning to Pi
@@ -40,7 +39,6 @@ The extension also began appending a connected Pi runtime contract at request ti
 Marker: `<!-- codex-voice-prompt-version: 3 -->`
 
 Added conversational initiative and an interruption guard:
-
 - Treat voice as a live conversation rather than push-to-talk.
 - After the user yields the floor with a hum, mumble, sigh, laugh, false start, or trailing hesitation, respond with a brief varied and context-aware contribution instead of waiting for a formal request.
 - Distinguish a yielded floor from speech still in progress and do not talk over an active utterance.
@@ -53,7 +51,6 @@ Add or adapt a `Conversational initiative` instruction carrying those behaviors,
 Marker: `<!-- codex-voice-prompt-version: 4 -->`
 
 Strengthened presentation continuity for Pi updates and results:
-
 - Continue naturally from the voice assistant's own last spoken contribution.
 - Fold in only the new takeaway, status, or next step.
 - Never read, repeat, or closely paraphrase a Pi message line by line.
@@ -72,7 +69,6 @@ Add or adapt these behaviors in `Delegation`, `Backend results`, and `Spoken del
 Marker: `<!-- codex-voice-prompt-version: 5 -->`
 
 Strengthened interruption handling while Pi results are being spoken:
-
 - Yield immediately when the user begins speaking during a response.
 - Process the user's complete utterance before resuming the prior Pi update.
 - Delegate any correction, constraint, or new instruction even when it interrupted speech.

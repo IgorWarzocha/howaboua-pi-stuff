@@ -49,8 +49,6 @@ export class CodeModeDelegateRuntime {
 	// Continuation routing must survive bounded display traces.
 	private readonly execSessions = new Map<string, Set<number>>();
 	private readonly terminatingCells = new Set<string>();
-	private readonly contextNoteWrites = new Map<string, boolean>();
-	private readonly remoteNoteWrites = new Set<string>();
 	private readonly blockers = new Map<string, Set<string>>();
 	private readonly blockerChanges = new Map<string, Deferred>();
 	private readonly sequentialTails = new Map<string, Promise<void>>();
@@ -82,7 +80,7 @@ export class CodeModeDelegateRuntime {
 		const previous = this.cellContexts.get(cellId);
 		if (previous?.opaqueScope && (previous.opaqueScope !== context.opaqueScope ||
 			previous.opaqueContextGeneration !== context.opaqueContextGeneration))
-			throw new Error("Remote cell belongs to a different context; verify note state before repeating a write");
+			throw new Error("Remote cell belongs to a different context; check completed results before retrying");
 		this.cellContexts.set(cellId, context);
 		this.contextChanges.get(cellId)?.resolve();
 		this.contextChanges.delete(cellId);
@@ -106,8 +104,6 @@ export class CodeModeDelegateRuntime {
 			this.originalExecCalls.delete(cellId);
 			this.execSessions.delete(cellId);
 			this.terminatingCells.delete(cellId);
-			this.contextNoteWrites.delete(cellId);
-			this.remoteNoteWrites.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -126,8 +122,6 @@ export class CodeModeDelegateRuntime {
 		this.clearOpaqueResults();
 		this.execSessions.clear();
 		this.terminatingCells.clear();
-		this.contextNoteWrites.clear();
-		this.remoteNoteWrites.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
 		this.blockerChanges.clear();
@@ -237,22 +231,14 @@ export class CodeModeDelegateRuntime {
 		}
 		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
 		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
-		const noteWrites = this.contextNoteWrites.get(response.cellId);
-		const remoteNoteWrite = this.remoteNoteWrites.has(response.cellId);
-		if (response.kind !== "yielded") this.remoteNoteWrites.delete(response.cellId);
-		const terminate = response.kind === "result" && !response.errorText && noteWrites !== false && this.terminatingCells.has(response.cellId);
+		const terminate = response.kind === "result" && !response.errorText && this.terminatingCells.has(response.cellId);
 		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
-		if (response.kind !== "yielded") this.contextNoteWrites.delete(response.cellId);
 		const withTraces = this.traces.attach(response);
 		return {
 			...withTraces,
 			...(originalExecCallId ? { originalExecCallId } : {}),
 			...(opaqueOutputs?.length ? { opaqueOutputs } : {}),
 			...(terminate ? { terminate: true as const } : {}),
-			...(noteWrites !== undefined && response.kind !== "yielded"
-				? { contextNotesSaved: response.kind === "result" && !response.errorText && noteWrites }
-				: {}),
-			...(noteWrites !== undefined && remoteNoteWrite && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
 			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
@@ -326,7 +312,6 @@ export class CodeModeDelegateRuntime {
 			Boolean(tool.renderCall || tool.renderResult);
 		let finalResultCaptured = false;
 		let resultSessionId: number | undefined;
-		const contextNoteWrite = !isCustomToolDefinition(tool) && tool.isContextNoteWrite?.(input) === true;
 		if (captureRendererValues)
 			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
@@ -335,16 +320,15 @@ export class CodeModeDelegateRuntime {
 			toolCallId: trace.id,
 			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
 				this.reserveOpaqueCall(cellId);
-				if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
 				const pending = this.opaqueResults.get(cellId);
 				if (!pending || controller.signal.aborted ||
 					this.cellContexts.get(cellId)?.opaqueScope !== context.opaqueScope ||
 					this.cellContexts.get(cellId)?.opaqueContextGeneration !== context.opaqueContextGeneration)
-					throw new Error("Remote operation executed but result delivery was cancelled; verify note state before repeating a write");
+					throw new Error("Remote operation executed but result delivery was cancelled; check completed results before retrying");
 				const bytes = Buffer.byteLength(output.encryptedOutput, "utf8") + images.reduce((sum, image) => sum + (image.image_url?.length ?? 0), 0);
 				const total = [...this.opaqueResults.values()].reduce((sum, entry) => sum + entry.bytes, 0);
 				if (total + bytes > MAX_OPAQUE_BYTES)
-					throw new Error("Remote operation executed but result capacity was exceeded; verify note state before repeating a write");
+					throw new Error("Remote operation executed but result capacity was exceeded; check completed results before retrying");
 				pending.bytes += bytes;
 				pending.outputs.push(output);
 				pending.images.push(...images);
@@ -383,7 +367,6 @@ export class CodeModeDelegateRuntime {
 					throw new Error("Remote context changed; start a new exec cell");
 				if (!context.resolveOpaqueScope) {
 					this.reserveOpaqueCall(cellId);
-					if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
 				}
 			}
 			blocking =
@@ -410,7 +393,6 @@ export class CodeModeDelegateRuntime {
 			const result = !isCustomToolDefinition(tool) && tool.executionPipeline === "adapter"
 				? await invoke(invocationContext)
 				: await runCodeModeToolWithHooks(tool.name, input, invocationContext, controller.signal, invoke);
-			if (contextNoteWrite) this.contextNoteWrites.set(cellId, this.contextNoteWrites.get(cellId) !== false);
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
@@ -418,7 +400,6 @@ export class CodeModeDelegateRuntime {
 			emitTrace();
 			return result;
 		} catch (error) {
-			if (contextNoteWrite) this.contextNoteWrites.set(cellId, false);
 			const errorText =
 				error instanceof Error ? error.message : String(error);
 			if (captureRendererValues && !finalResultCaptured) {

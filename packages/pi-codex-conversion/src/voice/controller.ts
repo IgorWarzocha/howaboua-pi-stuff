@@ -34,6 +34,7 @@ import type { CodexVoiceMode } from "./ui.ts";
 import { ActiveVoiceGuard } from "./active-owner.ts";
 
 export class CodexVoiceController {
+	private readonly pi: ExtensionAPI;
 	private readonly ownership: ActiveVoiceGuard;
 	private readonly runtime: VoiceControllerRuntime = {
 		state: { type: "idle" },
@@ -51,6 +52,7 @@ export class CodexVoiceController {
 	private removeForwardedEvents: (() => void) | undefined;
 
 	constructor(pi: ExtensionAPI) {
+		this.pi = pi;
 		this.ownership = new ActiveVoiceGuard(pi, "PCC", () => this.active || Boolean(this.handoffReservation));
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
@@ -68,6 +70,7 @@ export class CodexVoiceController {
 			onWorking: () => this.renderStatus("working"),
 		});
 		this.contextRefresh = new RealtimeContextRefresh(
+			pi,
 			this.runtime,
 			{
 				inputMuted: () => this.inputMuted,
@@ -336,6 +339,7 @@ export class CodexVoiceController {
 	): Promise<CodexRealtimeConversation | undefined> {
 		return this.ownership.start(async () => {
 			const session = await startControllerMode({
+				pi: this.pi,
 				runtime: this.runtime,
 				messages: this.messages,
 				ctx,

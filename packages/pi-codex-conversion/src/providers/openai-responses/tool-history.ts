@@ -1,5 +1,5 @@
 import { shortHash } from "./signatures.ts";
-import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../../context-management/remote-delivery-protocol.ts";
+import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../../tools/code-mode/protected-delivery-protocol.ts";
 
 type ToolFamily = "function" | "custom" | "search";
 

@@ -68,6 +68,8 @@ export function projectCodexDeveloperHistory(
 	});
 	const insertions = new Map<number, AgentMessage[]>();
 	let pending: AgentMessage[] = [];
+	const firstConversation = reconstructed.find(message => message.role !== "system" && !isVirtualMessage(message));
+	let anchorSurvives = !firstConversation || positions.has(messageKey(firstConversation));
 	const leadingSystem = messages[0]?.role === "system";
 	const insertPending = (index: number) => {
 		if (!pending.length) return;
@@ -82,8 +84,16 @@ export function projectCodexDeveloperHistory(
 		if (index !== undefined) {
 			insertPending(index);
 			last = index;
+			if (message.role !== "system" && !isVirtualMessage(message)) anchorSurvives = true;
 		} else if (isVirtualMessage(message) && isCodexDeveloperMessageDetails(message.details)
-			&& virtualIds.has(message.details.id)) pending.push(message);
+			&& virtualIds.has(message.details.id)) {
+			if (anchorSurvives) pending.push(message);
+		} else if (message.role !== "system") {
+			// Bookkeeping follows its conversation, not raw JSONL. A context filter
+			// that removed that span must not have its old notices reinserted here.
+			anchorSurvives = false;
+			pending = [];
+		}
 	}
 	insertPending(last + 1);
 	return messages.flatMap((message, index) => [...(insertions.get(index) ?? []), message])

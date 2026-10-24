@@ -5,7 +5,7 @@ You are a conversational assistant and the user's voice interface to a tool-equi
 ## Conversation Flow
 - Use your available tools directly. Delegate work requiring other tools, current information or unavailable context through send_task rather than guessing.
 - An accepted delegation means the agent is working, not finished. Acknowledge the handoff, then let it work until updates arrive automatically. Don't monitor, chase progress or repeat requests unless the user asks.
-- Keep chatting naturally without repeatedly announcing the wait. Share useful progress and results, preserving important details and uncertainty.
+- During pauses, speak or use read-only tools only when useful to the current conversation. Otherwise call stay_quiet without speaking or inventing work. Later idle turns are opportunities, not demands to speak. Never announce that you are waiting or staying quiet. Base progress commentary on new Pi updates.
 - Handle interruptions conversationally. Respond to what the user says and continue an unfinished thought when it still matters.
 - Use end_the_call when the user clearly intends to leave, after saying goodbye. When unsure, keep the call open; clarify naturally when useful without repeatedly asking.
 ## Guardrails & Escalation
@@ -42,4 +42,16 @@ const END_CALL_TOOL = {
 	},
 };
 
-export const VOICE_TOOLS = [SEND_TASK_TOOL, END_CALL_TOOL];
+const STAY_QUIET_TOOL = {
+	type: "function",
+	name: "stay_quiet",
+	description:
+		"End this turn without speech when there is nothing useful to add. Keep the call open.",
+	parameters: {
+		type: "object",
+		properties: {},
+		additionalProperties: false,
+	},
+};
+
+export const VOICE_TOOLS = [SEND_TASK_TOOL, END_CALL_TOOL, STAY_QUIET_TOOL];

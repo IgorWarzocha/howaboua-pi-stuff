@@ -1,17 +1,21 @@
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
+	CONFIG_DIR_NAME,
 	type ExtensionAPI,
 	type ExtensionContext,
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import { contextAgentIdentity, contextTargetAgent } from "./agent-identity.js";
 import {
-	discoverBridge,
 	type NotesOwner,
 	OWNER_CHANNEL,
 	type OwnerRequest,
 	TOOL_NAMES,
 } from "./bridge.js";
+import { NESTED_NOTE_OUTCOME, type NestedNoteOutcome } from "./fresh-notes.js";
 import { NotesLifecycle } from "./lifecycle.js";
+import { registerNoteSaveMarkers } from "./note-save-marker.js";
 import { exportNotesSnapshot, sessionRef } from "./notes.js";
 import {
 	modelIsActive,
@@ -20,6 +24,7 @@ import {
 	writeSettings,
 } from "./settings.js";
 import { openNotesSettings } from "./settings-screen.js";
+import { registerContextSharingService } from "./sharing-service.js";
 import { NotesStore } from "./store.js";
 import {
 	createSharedExecutor,
@@ -27,6 +32,14 @@ import {
 	HISTORY_USAGE,
 	NOTES_USAGE,
 } from "./tools.js";
+import {
+	projectTreeCheckpointBranch,
+	projectTreeCheckpointMessages,
+} from "./tree-checkpoint.js";
+import {
+	projectTreeHandoffBranch,
+	projectTreeHandoffReads,
+} from "./tree-handoff-read.js";
 import {
 	registerWindowRenderer,
 	WINDOW_MESSAGE,
@@ -77,7 +90,35 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		)
 			throw error;
 	}
-	let ownSource: string | undefined;
+	let refreshNested = () => {};
+	try {
+		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
+			await import("@howaboua/pi-codex-conversion/code-mode");
+		const registration = registerCodeModeExtensionTools(
+			pi,
+			() =>
+				tools
+					.filter((tool) => tool.name === "notes" || tool.name === "history")
+					.map((tool) =>
+						adaptToolForCodeMode(tool, {
+							discovery: "help",
+							usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
+							deferLoading: true,
+							opaqueResult: true,
+						}),
+					),
+			{ isActive: () => lifecycle.active },
+		);
+		refreshNested = registration.refresh;
+		pi.on("session_shutdown", () => registration.unregister());
+		const { withCodexDeveloperMessageDetails } = await import(
+			"@howaboua/pi-codex-conversion/developer-messages"
+		);
+		lifecycle.prepareReminder = withCodexDeveloperMessageDetails;
+	} catch (error) {
+		if (!optionalPccMissing(error)) throw error;
+	}
+	for (const tool of tools) pi.registerTool(tool);
 	let unavailable: string | undefined;
 	const owner: NotesOwner = {
 		protocol: 1,
@@ -88,7 +129,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			if (entries) lifecycle.windows.restore(entries);
 			const projected = lifecycle.windows.projectMessages(
 				messages,
-				lifecycle.bridge?.prepareReminder,
+				lifecycle.prepareReminder,
 			);
 			return lifecycle.active
 				? projected
@@ -99,8 +140,6 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 					);
 		},
 		projectBranch: (entries) => lifecycle.windows.projectBranch(entries),
-		allowsCompaction: (reason) => lifecycle.allowsCompaction(reason),
-		allowsWindowRequests: () => lifecycle.newWindowRequests !== "off",
 		canBind: (ctx, entries = ctx.sessionManager.getEntries()) =>
 			lifecycle.active &&
 			ctx.isIdle() &&
@@ -167,6 +206,78 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		snapshotNotes: exportNotesSnapshot,
 		executeShared: createSharedExecutor(pi, store, lifecycle),
 	};
+	const route = registerContextSharingService(pi, {
+		enabled: () => ready && !unavailable,
+		shareSubagentContext: () =>
+			lifecycle.active && settings.shareSubagentContext,
+		owner: () => owner,
+		execute: (ctx, request, signal) =>
+			owner.executeShared!(
+				{ namespace: request.namespace, params: request.params },
+				randomUUID(),
+				ctx,
+				signal,
+			),
+	});
+	let remote: Pick<
+		import("./bridge.js").NotesBridge,
+		"lookup" | "canProject" | "projectResult"
+	> = {};
+	try {
+		const { createNotesRemoteService } = await import("./remote.js");
+		remote = createNotesRemoteService(pi);
+	} catch (error) {
+		if (!optionalPccMissing(error)) throw error;
+	}
+	const family = {
+		...remote,
+		protocol: 1 as const,
+		agentName: (ctx: ExtensionContext) => contextAgentIdentity(ctx).agentName,
+		route: async (
+			query: import("./bridge.js").LookupQuery,
+			callId: string,
+			ctx: ExtensionContext,
+			signal?: AbortSignal,
+		) => {
+			const identity = contextAgentIdentity(ctx);
+			const target = contextTargetAgent(
+				query.namespace,
+				query.params,
+				identity.agentName,
+			);
+			if (target === identity.agentName) return undefined;
+			const result = await route(
+				ctx,
+				{ ...query, sessionId: identity.sessionId, agentName: target },
+				signal,
+			);
+			if (!result?.details.externalNotesResponses?.length) return result;
+			const { externalNotesResponses, ...details } = result.details;
+			if (!remote.projectResult || remote.canProject?.(ctx) === false)
+				return {
+					...result,
+					details,
+					content: [
+						...result.content,
+						{
+							type: "text" as const,
+							text: "Shared encrypted contents are unavailable on this model. Local results remain available. Use a compatible Codex model with PCC for remote contents.",
+						},
+					],
+				};
+			return remote.projectResult(
+				{ ...result, details },
+				externalNotesResponses.map(({ bytesBase64, ...response }) => ({
+					...response,
+					bytes: Uint8Array.from(Buffer.from(bytesBase64, "base64")),
+				})),
+				callId,
+				ctx,
+				signal,
+				true,
+			);
+		},
+	};
 	const stopOwner = pi.events.on(OWNER_CHANNEL, (data) => {
 		if (!data || typeof data !== "object") return;
 		const request = data as Partial<OwnerRequest>;
@@ -190,45 +301,18 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		if (!active) {
 			if (lifecycle.active) lifecycle.reset(ctx);
 			lifecycle.active = false;
-			if (lifecycle.bridge) {
-				// PCC rediscovers ownership before deciding its native policy.
-				lifecycle.bridge.configureTools?.(tools, ctx, {
-					notes: NOTES_USAGE,
-					history: HISTORY_USAGE,
-				});
-			} else {
-				pi.setActiveTools(
-					pi
-						.getActiveTools()
-						.filter((name) => !TOOL_NAMES.some((tool) => tool === name)),
-				);
-			}
+			pi.setActiveTools(
+				pi
+					.getActiveTools()
+					.filter((name) => !TOOL_NAMES.some((tool) => tool === name)),
+			);
+			refreshNested();
 			return;
 		}
 		if (lifecycle.active) return;
 		try {
-			const claim = lifecycle.bridge?.claim(owner);
-			if (claim && !claim.claimed) throw new Error(claim.reason);
-			if (claim?.claimed) {
-				claim.registerTools(tools, ctx);
-			} else {
-				const conflicts = pi
-					.getAllTools()
-					.filter(
-						(tool) =>
-							TOOL_NAMES.some((name) => name === tool.name) &&
-							tool.sourceInfo.path !== ownSource,
-					);
-				if (conflicts.length)
-					throw new Error(
-						"Another extension already owns notes continuity. Installed PCC needs the documented takeover bridge before these extensions can run together.",
-					);
-				for (const tool of tools) pi.registerTool(tool);
-				ownSource = pi.getAllTools().find((tool) => tool.name === "notes")
-					?.sourceInfo.path;
-			}
 			lifecycle.active = true;
-			configureTools(ctx);
+			configureTools();
 			store.updateFile(sessionRef(ctx));
 		} catch (error) {
 			lifecycle.active = false;
@@ -236,14 +320,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			ctx.ui.notify(`Notes continuity inactive: ${unavailable}`, "warning");
 		}
 	}
-	function configureTools(ctx: ExtensionContext): void {
-		if (lifecycle.bridge) {
-			lifecycle.bridge.configureTools?.(tools, ctx, {
-				notes: NOTES_USAGE,
-				history: HISTORY_USAGE,
-			});
-			return;
-		}
+	function configureTools(): void {
 		const names = TOOL_NAMES.filter(
 			(name) => name !== "new_context" || lifecycle.newWindowRequests !== "off",
 		);
@@ -255,6 +332,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				...names,
 			]),
 		]);
+		refreshNested();
 	}
 	function applySettings(value: NotesSettings): void {
 		settings = value;
@@ -263,35 +341,27 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		lifecycle.idleMinutes = value.idleMinutes;
 		lifecycle.taskBoundaryReminder = value.taskBoundaryReminder;
 	}
+	const markers = registerNoteSaveMarkers(
+		pi,
+		() => lifecycle.active && settings.noteSaveMarkers,
+	);
 	pi.on("session_start", (_event, ctx) => {
 		lifecycle.reset(ctx);
 		lifecycle.active = false;
 		ready = false;
 		unavailable = undefined;
 		try {
-			settings = readSettings(settingsPath);
+			settings = readSettings(settingsPath, [
+				join(getAgentDir(), "pi-codex-conversion.json"),
+				...(ctx.isProjectTrusted()
+					? [join(ctx.cwd, CONFIG_DIR_NAME, "pi-codex-conversion.json")]
+					: []),
+			]);
 			writeSettings(settingsPath, settings);
 			applySettings(settings);
-			lifecycle.bridge = discoverBridge(pi);
+			lifecycle.bridge = family;
 			ready = true;
-			// Register standalone tools even when initially hidden, for later model switches.
-			if (!lifecycle.bridge) {
-				if (
-					pi
-						.getAllTools()
-						.some(
-							(tool) =>
-								TOOL_NAMES.some((name) => name === tool.name) &&
-								tool.sourceInfo.path !== ownSource,
-						)
-				)
-					throw new Error(
-						"Another extension already owns notes continuity. Update it to a version supporting notes integration, then reload Pi.",
-					);
-				for (const tool of tools) pi.registerTool(tool);
-				ownSource = pi.getAllTools().find((tool) => tool.name === "notes")
-					?.sourceInfo.path;
-			}
+
 			refreshActivation(ctx);
 		} catch (error) {
 			unavailable = error instanceof Error ? error.message : String(error);
@@ -300,11 +370,54 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	});
 	pi.on("before_agent_start", (event, ctx) => {
 		refreshActivation(ctx);
-		if (lifecycle.active) return lifecycle.beforeStart(ctx, event);
+		if (lifecycle.active) {
+			markers.bookmark(ctx, lifecycle.windows.current?.currentWindowId);
+			return lifecycle.beforeStart(ctx, event);
+		}
 	});
 	pi.on("input", (event, ctx) => {
 		refreshActivation(ctx);
 		return lifecycle.active ? lifecycle.input(event, ctx) : undefined;
+	});
+	const nestedWrites = new Map<
+		string,
+		{ runId: string; windowId: string; parentCallId: string; sessionId: string }
+	>();
+	pi.on("tool_execution_start", (event, ctx) => {
+		if (
+			!lifecycle.active ||
+			event.toolName !== "notes" ||
+			!event.parentToolCallId ||
+			!lifecycle.runId ||
+			!lifecycle.windows.current
+		)
+			return;
+		const input = event.args as { action?: unknown } | undefined;
+		if (input?.action !== "write_file" && input?.action !== "append_to_file")
+			return;
+		nestedWrites.set(event.toolCallId, {
+			runId: lifecycle.runId,
+			windowId: lifecycle.windows.current.currentWindowId,
+			parentCallId: event.parentToolCallId,
+			sessionId: ctx.sessionManager.getSessionId(),
+		});
+	});
+	pi.on("tool_execution_end", (event, ctx) => {
+		const write = nestedWrites.get(event.toolCallId);
+		nestedWrites.delete(event.toolCallId);
+		if (!write || write.sessionId !== ctx.sessionManager.getSessionId()) return;
+		const details = event.result?.details;
+		pi.appendEntry(NESTED_NOTE_OUTCOME, {
+			protocol: 1,
+			runId: write.runId,
+			windowId: write.windowId,
+			callId: event.toolCallId,
+			parentCallId: write.parentCallId,
+			saved:
+				!event.isError &&
+				details?.notesCompaction?.saved === true &&
+				details.notesCompaction.runId === write.runId,
+		} satisfies NestedNoteOutcome);
 	});
 	pi.on("agent_before_settle", (event) => {
 		if (lifecycle.active) lifecycle.outcome(event.outcome);
@@ -312,6 +425,12 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	pi.on("agent_settled", async (event, ctx) => {
 		if (!lifecycle.active) return;
 		try {
+			markers.record(
+				ctx,
+				lifecycle.windows.current?.currentWindowId,
+				lifecycle.runId,
+				event.aborted,
+			);
 			await lifecycle.settled(event, ctx);
 		} catch (error) {
 			ctx.ui.notify(
@@ -337,17 +456,26 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			? {
 					entries: [
 						...event.entries,
-						lifecycle.bridge?.prepareReminder?.(reminder) ?? reminder,
+						lifecycle.prepareReminder?.(reminder) ?? reminder,
 					],
 				}
 			: undefined;
 	});
 	pi.on("context", (event, ctx) => {
 		try {
+			const branch = ctx.sessionManager.getBranch();
+			const projected = projectTreeCheckpointBranch(
+				branch,
+				ctx.sessionManager.getEntries(),
+			);
 			return {
 				messages: owner.projectMessages(
-					event.messages,
-					ctx.sessionManager.getBranch(),
+					projectTreeHandoffReads(
+						projectTreeCheckpointMessages(branch, projected, event.messages) ??
+							event.messages,
+						projected,
+					),
+					projected,
 				),
 			};
 		} catch (error) {
@@ -355,9 +483,37 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			throw error;
 		}
 	});
-	pi.on("session_before_compact", (event, ctx) =>
-		ready && !unavailable ? lifecycle.beforeCompact(event, ctx) : undefined,
-	);
+	const prepareCompaction = (
+		event: import("@earendil-works/pi-coding-agent").SessionBeforeCompactEvent,
+		ctx: ExtensionContext,
+	) =>
+		ready && !unavailable ? lifecycle.beforeCompact(event, ctx) : undefined;
+	try {
+		const { registerCompactionPreparation, registerContextBranchProjection } =
+			await import("@howaboua/pi-codex-conversion/compaction");
+		const registration = registerCompactionPreparation(pi, prepareCompaction);
+		const stopProjection = registerContextBranchProjection(
+			pi,
+			(entries, ctx) =>
+				ready && !unavailable
+					? projectTreeHandoffBranch(
+							lifecycle.windows.projectBranch(
+								projectTreeCheckpointBranch(
+									entries,
+									ctx.sessionManager.getEntries(),
+								),
+							),
+						)
+					: entries,
+		);
+		pi.on("session_shutdown", stopProjection);
+		pi.on("session_before_compact", registration.prepare);
+		pi.on("session_shutdown", () => registration.dispose());
+	} catch (error) {
+		if (!optionalPccMissing(error)) throw error;
+		pi.on("session_before_compact", prepareCompaction);
+	}
+
 	pi.on("session_compact_failed", async (event, ctx) => {
 		if (lifecycle.active) await lifecycle.compactFailed(event, ctx);
 	});
@@ -370,11 +526,6 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	});
 	pi.on("model_select", (_event, ctx) => {
 		refreshActivation(ctx);
-		if (lifecycle.active)
-			lifecycle.bridge?.configureTools?.(tools, ctx, {
-				notes: NOTES_USAGE,
-				history: HISTORY_USAGE,
-			});
 	});
 	pi.on("session_shutdown", () => {
 		lifecycle.reset();
@@ -399,7 +550,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				writeSettings(settingsPath, value);
 				applySettings(value);
 				refreshActivation(ctx);
-				if (lifecycle.active) configureTools(ctx);
+				if (lifecycle.active) configureTools();
 			};
 			const prune = async () => {
 				await ctx.waitForIdle();
@@ -432,4 +583,17 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			}
 		},
 	});
+}
+
+function optionalPccMissing(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		[
+			"ERR_MODULE_NOT_FOUND",
+			"MODULE_NOT_FOUND",
+			"ERR_PACKAGE_PATH_NOT_EXPORTED",
+		].includes(String(error.code)) &&
+		error.message.includes("@howaboua/pi-codex-conversion")
+	);
 }

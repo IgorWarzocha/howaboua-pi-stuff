@@ -2,6 +2,9 @@ import type {
 	AgentToolResult,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import { protectedOutputScope } from "./tools/code-mode/protected-output.ts";
+export { canDeliverProtectedOutput, resolveActiveCodexProvider, resolveProtectedOutputScope, protectedAccountScope, bindProtectedOutputScope, protectedOutputScope } from "./tools/code-mode/protected-output.ts";
+
 import type { TSchema } from "typebox";
 import { toNestedTool } from "./adapter/code-mode/nested-tool-adapter.ts";
 import { codeModeGlobalName, codeModeNameForToolIdentity } from "./tools/code-mode/tool-identity.ts";
@@ -26,6 +29,9 @@ export function adaptToolForCodeMode<
 		deferLoading?: boolean;
 		kind?: "function" | "freeform";
 		promptMetadata?: boolean;
+		/** Capture protected outputs while permitting ordinary local results. */
+		opaqueResult?: boolean;
+		propagateTermination?: boolean;
 		prepareInput?(input: unknown): unknown;
 		toolName?: CodeModeToolIdentity;
 		resultValue?(result: AgentToolResult<NoInfer<TDetails>>): unknown;
@@ -40,6 +46,9 @@ export function adaptToolForCodeMode<
 	const usage = options.usage ?? `await tools.${codeModeGlobalName(nestedTool.name)}()`;
 	const adapted = toNestedTool(nestedTool, usage, {}, {
 		modelVisibleResult: true,
+		executeViaPi: tool.name,
+		...(options.opaqueResult ? { opaqueResult: true, allowPlainResult: true, opaqueResultScope: result => protectedOutputScope(result.details) } : {}),
+		...(options.propagateTermination ? { propagateTermination: true } : {}),
 		translatePromptMetadata: options.promptMetadata !== false,
 		...(options.kind ? { kind: options.kind } : {}),
 		...(options.prepareInput ? { prepareInput: options.prepareInput } : {}),

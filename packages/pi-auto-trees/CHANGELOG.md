@@ -11,7 +11,6 @@
 ## 0.1.16
 
 - GPT-6 Sol and Luna now share Astra's Codex support.
-
   - Removed `/terra`; use `/luna` instead.
   - Added Responses Lite, non-destructive reasoning changes and terse context guidance for GPT-6 Sol and Luna.
   - Image descriptions now use GPT-6 Luna directly instead of preferring older mini models.
@@ -25,7 +24,6 @@
 ## 0.1.14
 
 - Tree navigation and `/end` now carry conversation summaries through the active notes backend.
-
   - The agent turn ends after the requested note write, without a follow-up reply.
   - Arriving agents receive a branch summary directing them to read the note before resuming.
   - Default `/end` guidance is task-neutral.

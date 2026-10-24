@@ -7,7 +7,6 @@
 ## 0.2.24
 
 - GPT-6 Sol and Luna now share Astra's Codex support.
-
   - Removed `/terra`; use `/luna` instead.
   - Added Responses Lite, non-destructive reasoning changes and terse context guidance for GPT-6 Sol and Luna.
   - Image descriptions now use GPT-6 Luna directly instead of preferring older mini models.
@@ -19,7 +18,6 @@
 - Adapt Codex, Imagegen, review, and GipPity to Pi 0.87.
 
   Codex Conversion, Imagegen, and Subagent Review require Pi 0.87.0 or newer.
-
   - Fixed Codex prompt and tool updates rewriting the cached conversation prefix.
   - Context reminders no longer start an extra checkpoint turn if the current run already saved a note in the current window.
   - Fixed Imagegen recent-image selection ignoring context removals and replacements.
@@ -33,14 +31,12 @@
 ## 0.2.21
 
 - Restore full extension prompt preparation when continuing into a new context window or starting review triage.
-
   - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook.
   - Let active context management own review-loop navigation summaries.
 
 ## 0.2.20
 
 - Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
-
   - Add an optional custom-message API that retains caller rendering and restoration fields.
   - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
   - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
@@ -63,7 +59,6 @@
 ### Changes
 
 - [#301](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/301) [`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message.
-
   - Keep findings custom-rendered, then use a normal user turn for verification and disposition.
   - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing.
   - End cleanly without a disposition turn when the reviewer finds no actionable issues.

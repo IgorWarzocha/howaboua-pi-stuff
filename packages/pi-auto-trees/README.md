@@ -45,11 +45,11 @@ On first load, the extension creates `~/.pi/agent/pi-auto-trees.json`, or the eq
 
 ```json
 {
-  "summary": {
-    "enabled": true,
-    "model": "openai-codex/gpt-6-luna",
-    "thinking": "low"
-  }
+	"summary": {
+		"enabled": true,
+		"model": "openai-codex/gpt-6-luna",
+		"thinking": "low"
+	}
 }
 ```
 

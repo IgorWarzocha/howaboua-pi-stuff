@@ -95,7 +95,7 @@ export class SharedCodeModeRuntime {
 		return { scope, generation, lazy, get owner() { return JSON.stringify([baseOwner, backendScope ?? scope]); },
 			resolveScope: authenticate,
 			deliver: (response, callId) => {
-				if (!unchanged()) throw new Error("Remote context changed after execution; verify note state before repeating a write");
+				if (!unchanged()) throw new Error("Remote context changed after execution; check completed results before retrying");
 				if (!backendScope) throw new Error("Protected delivery is not authenticated");
 				return deliver.call(provider, response, callId, backendScope, ctx);
 			}, valid: async () => {
@@ -107,9 +107,9 @@ export class SharedCodeModeRuntime {
 	}
 
 	deliverOpaqueResponse(response: RuntimeResponse, callId: string, guard?: OpaqueContextGuard): RuntimeResponse {
-		const hasDelivery = Boolean(response.opaqueOutputs?.length || response.contextNotesSource === "remote");
+		const hasDelivery = Boolean(response.opaqueOutputs?.length);
 		if (hasDelivery && !guard)
-			throw new Error("Remote delivery is unavailable after execution; verify note state before repeating a write");
+			throw new Error("Remote delivery is unavailable after execution; check completed results before retrying");
 		const opaqueDeliveryId = hasDelivery && guard ? guard.deliver(response, callId) : undefined;
 		if (guard && (!guard.lazy || hasDelivery) && response.kind !== "yielded" && !response.missingCell) {
 			this.completedCells.delete(response.cellId);
@@ -132,7 +132,7 @@ export class SharedCodeModeRuntime {
 		if (guard.lazy) await guard.resolveScope();
 		if (this.completedCells.get(cellId) !== entry || entry.owner !== guard.owner) {
 			if (this.completedCells.get(cellId) === entry) this.completedCells.delete(cellId);
-			throw new Error("Remote context changed after execution; verify note state before repeating a write");
+			throw new Error("Remote context changed after execution; check completed results before retrying");
 		}
 		return entry.response;
 	}

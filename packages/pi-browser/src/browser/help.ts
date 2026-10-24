@@ -4,9 +4,7 @@ export function browserHelp(
 ): Record<string, unknown> {
 	const routed = hosts.length > 0;
 	return {
-		input: gpt
-			? "Request={action,...fields}; Pi {command:JSON.stringify(request)}; Code/Notebook JSON.stringify(request), JSON.parse(result)"
-			: "Request={action,...fields}; Pi: {command:JSON.stringify(request)}; Code/Notebook: JSON.stringify(request), JSON.parse(result)",
+		input: "{action,...fields}",
 		...(routed
 			? {
 					host: `${hosts.join("|")}${gpt ? " optional; user-named host→retain every call+its refs/handles" : " optional; keep a user-named host on every call and its refs/handles"}`,

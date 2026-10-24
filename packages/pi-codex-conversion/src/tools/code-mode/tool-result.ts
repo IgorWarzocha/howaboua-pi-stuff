@@ -50,8 +50,6 @@ export function toCodeModeToolResult(
 			status: response.kind,
 			...(response.opaqueDeliveryId ? { opaqueDeliveryId: response.opaqueDeliveryId } : {}),
 			statusPrefix: Boolean(status) || empty,
-			...(response.contextNotesSaved === undefined ? {} : { contextNotesSaved: response.contextNotesSaved }),
-			...(response.contextNotesSource ? { contextNotesSource: response.contextNotesSource } : {}),
 			...(response.traces ? { traces: response.traces } : {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }

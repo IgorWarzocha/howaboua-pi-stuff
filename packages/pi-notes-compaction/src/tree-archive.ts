@@ -1,13 +1,12 @@
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isCodexContextManagementMessageDetails } from "./messages.ts";
 import type {
 	BranchSummaryEntry,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { windowDetails } from "./windows.js";
 
 export const TREE_ARCHIVE_ENTRY_TYPE = "codex-context-tree-archive";
 const TREE_ARCHIVE_PROTOCOL = 1;
-const MAX_ARCHIVE_DEPTH = 50_000;
+export const MAX_ARCHIVE_DEPTH = 50_000;
 
 export interface TreeArchiveManifestData {
 	protocol: 1;
@@ -29,30 +28,7 @@ export interface TreeArchive {
 
 export interface TreeArchiveIndex {
 	archives: TreeArchive[];
-	hiddenSummarySignatures: ReadonlySet<string>;
 	invalidManifest: boolean;
-}
-
-export function hasTreeArchives(entries: readonly SessionEntry[]): boolean {
-	return entries.some((entry) => entry.type === "custom" && entry.customType === TREE_ARCHIVE_ENTRY_TYPE);
-}
-
-export function createTreeArchiveManifest(
-	windowId: string,
-	boundaryEntryId: string,
-	summary: BranchSummaryEntry,
-	compactionEntryId?: string,
-): TreeArchiveManifestData {
-	return {
-		protocol: TREE_ARCHIVE_PROTOCOL,
-		strategy: "codex-context-tree",
-		windowId,
-		boundaryEntryId,
-		summaryEntryId: summary.id,
-		archivedLeafId: summary.fromId,
-		branchBaseId: summary.parentId,
-		...(compactionEntryId ? { compactionEntryId } : {}),
-	};
 }
 
 export function buildTreeArchiveIndex(
@@ -61,15 +37,11 @@ export function buildTreeArchiveIndex(
 ): TreeArchiveIndex {
 	const byId = new Map(allEntries.map((entry) => [entry.id, entry]));
 	const archives: TreeArchive[] = [];
-	const hiddenSummarySignatures = new Set<string>();
 	const seenSummaries = new Set<string>();
 	const seenWindows = new Set<string>();
 	let invalidManifest = false;
 	for (const entry of activeBranch) {
-		if (
-			entry.type !== "custom" ||
-			entry.customType !== TREE_ARCHIVE_ENTRY_TYPE
-		)
+		if (entry.type !== "custom" || entry.customType !== TREE_ARCHIVE_ENTRY_TYPE)
 			continue;
 		if (!isTreeArchiveManifestData(entry.data)) {
 			invalidManifest = true;
@@ -95,32 +67,23 @@ export function buildTreeArchiveIndex(
 			continue;
 		}
 		const archivedEntries = archivedPath(manifest, byId);
-		if (archivedEntries && manifest.compactionEntryId !== undefined &&
-			!archivedEntries.some((entry) => entry.id === manifest.compactionEntryId && entry.type === "compaction")) {
+		if (
+			archivedEntries &&
+			manifest.compactionEntryId !== undefined &&
+			!archivedEntries.some(
+				(entry) =>
+					entry.id === manifest.compactionEntryId &&
+					entry.type === "compaction",
+			)
+		) {
 			invalidManifest = true;
 			continue;
 		}
 		seenSummaries.add(summary.id);
 		seenWindows.add(manifest.windowId);
 		archives.push({ manifest, summary, entries: archivedEntries });
-		// An archived checkpoint is not model-authoritative until its successor window commits.
-		if (!manifest.compactionEntryId || hasTreeArchiveSuccessor(activeBranch, manifest.windowId))
-			hiddenSummarySignatures.add(branchSummarySignature(summary));
 	}
-	return { archives, hiddenSummarySignatures, invalidManifest };
-}
-
-export function filterTreeArchiveSummaries(
-	messages: readonly AgentMessage[],
-	index: TreeArchiveIndex,
-): AgentMessage[] {
-	return messages.filter(
-		(message) =>
-			message.role !== "branchSummary" ||
-			!index.hiddenSummarySignatures.has(
-				branchSummaryMessageSignature(message),
-			),
-	);
+	return { archives, invalidManifest };
 }
 
 function archivedPath(
@@ -149,44 +112,38 @@ function archivedPath(
 	return reverse.reverse();
 }
 
-function branchSummarySignature(summary: BranchSummaryEntry): string {
-	return JSON.stringify([
-		summary.fromId,
-		summary.summary,
-		new Date(summary.timestamp).getTime(),
-	]);
-}
-
-function branchSummaryMessageSignature(
-	message: Extract<AgentMessage, { role: "branchSummary" }>,
-): string {
-	return JSON.stringify([message.fromId, message.summary, message.timestamp]);
-}
-
-function isTreeArchiveManifestData(
+export function isTreeArchiveManifestData(
 	value: unknown,
 ): value is TreeArchiveManifestData {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const manifest = value as Record<string, unknown>;
-	return manifest["protocol"] === TREE_ARCHIVE_PROTOCOL &&
+	return (
+		manifest["protocol"] === TREE_ARCHIVE_PROTOCOL &&
 		manifest["strategy"] === "codex-context-tree" &&
 		nonEmptyString(manifest["windowId"]) &&
 		nonEmptyString(manifest["boundaryEntryId"]) &&
 		nonEmptyString(manifest["summaryEntryId"]) &&
 		nonEmptyString(manifest["archivedLeafId"]) &&
-		(manifest["compactionEntryId"] === undefined || nonEmptyString(manifest["compactionEntryId"])) &&
+		(manifest["compactionEntryId"] === undefined ||
+			nonEmptyString(manifest["compactionEntryId"])) &&
 		(manifest["branchBaseId"] === null ||
-			nonEmptyString(manifest["branchBaseId"]));
+			nonEmptyString(manifest["branchBaseId"]))
+	);
 }
 
 function nonEmptyString(value: unknown): value is string {
 	return typeof value === "string" && value !== "";
 }
 
-export function hasTreeArchiveSuccessor(entries: readonly SessionEntry[], windowId: string): boolean {
-	return entries.some((entry) => entry.type === "custom_message" &&
-		entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
-		isCodexContextManagementMessageDetails(entry.details) &&
-		entry.details.contextManagement.kind === "window" &&
-		entry.details.contextManagement.previousWindowId === windowId);
+export function hasTreeArchiveSuccessor(
+	entries: readonly SessionEntry[],
+	windowId: string,
+): boolean {
+	return entries.some((entry) => {
+		const details = windowDetails(entry);
+		return (
+			details?.kind === "window" &&
+			details.identity.previousWindowId === windowId
+		);
+	});
 }

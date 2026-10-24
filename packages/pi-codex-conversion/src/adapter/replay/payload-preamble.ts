@@ -22,10 +22,8 @@ export function extractFreshAuthoritativePreamble(payload: ResponsesCompatibleRe
 	let trailingBoundary = payload.input.length;
 	while (trailingBoundary > leadingBoundary && isPromptEnvelopeItem(payload.input[trailingBoundary - 1]!, persisted)) trailingBoundary -= 1;
 
-	for (let index = leadingBoundary; index < trailingBoundary; index++) {
-		if (isPromptEnvelopeItem(payload.input[index]!, persisted)) return undefined;
-	}
-
+	// Chronological developer/system additions in the middle belong to the live
+	// conversation. They are not grounds to rebuild or reject another extension's context.
 	return {
 		...(typeof payload.instructions === "string" ? { instructions: payload.instructions } : {}),
 		leadingInput: payload.input.slice(0, leadingBoundary).map((item) => cloneResponsesInputMessageItem(item as ResponsesInputMessageItem)),

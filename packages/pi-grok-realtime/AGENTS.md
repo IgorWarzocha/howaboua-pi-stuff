@@ -4,5 +4,6 @@
 - session.ts owns wire sequencing, controller.ts lifecycle, controls.ts voice/dictation mic ownership. Resume sockets without closing/transferring audio ownership. Idle requests use user kickoff for full extension preparation.
 - xAI VAD cancels interruptions, sometimes without response.done. Retire on speech_started. Late completion cannot own newer turns. Never send a second response.cancel.
 - Pi updates use Grok Bot's seeded function-call/output pair, not system items or mutable prompts. Send complete tools, voice and audio configuration with Pi state. Continue only after active responses finish and playback drains, not generation alone.
+- A quiet tool receipt leaves xAI awaiting continuation, even if that turn also spoke. Delay reconsideration by the existing silence interval after playback drains; never force an immediate response.
 - Use disposable offline protocol probes. Live voice, mic, LAN, account-mint and RPC checks need separate user approval.
 - Add no audio, text, context, timeout or settings caps without concrete Grok Bot provenance. Separate wire/platform validation from product limits. Harness limits do not automatically belong in Pi's task handler.

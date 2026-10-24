@@ -12,7 +12,7 @@ The `dist/examples/machine` bundle in the installed package reports real host me
 
 ```json
 {
-  "tabs": ["/absolute/path/to/pi-observatory/dist/examples/machine"]
+	"tabs": ["/absolute/path/to/pi-observatory/dist/examples/machine"]
 }
 ```
 
@@ -34,14 +34,14 @@ my-tab/
 
 ```json
 {
-  "apiVersion": 1,
-  "id": "my-tab",
-  "title": "My tab",
-  "entry": "index.html",
-  "collector": ["node", "collect.mjs"],
-  "intervalSeconds": 60,
-  "timeoutSeconds": 30,
-  "filters": []
+	"apiVersion": 1,
+	"id": "my-tab",
+	"title": "My tab",
+	"entry": "index.html",
+	"collector": ["node", "collect.mjs"],
+	"intervalSeconds": 60,
+	"timeoutSeconds": 30,
+	"filters": []
 }
 ```
 
@@ -61,10 +61,10 @@ Write one complete JSON value to stdout and exit successfully. Write diagnostic 
 
 The collector receives:
 
-| Environment variable | Meaning |
-| --- | --- |
-| `OBSERVATORY_TAB_ID` | The manifest ID |
-| `OBSERVATORY_STATE_DIR` | A private writable directory for cursors and history |
+| Environment variable       | Meaning                                                |
+| -------------------------- | ------------------------------------------------------ |
+| `OBSERVATORY_TAB_ID`       | The manifest ID                                        |
+| `OBSERVATORY_STATE_DIR`    | A private writable directory for cursors and history   |
 | `OBSERVATORY_SESSIONS_DIR` | The configured Pi session directory, to read if needed |
 
 Treat source sessions as read-only. Keep your own incremental cursors or database under the state directory. Observatory reserves `last-good.json` and `last-good.*.tmp` there for snapshot storage. Do not depend on the core index's schema or modify it. Emit the data the page needs rather than raw session archives.
@@ -79,7 +79,7 @@ Import the host's small client bridge:
 import { connectTab } from "/tab-client.js";
 
 const disconnect = connectTab(({ data, status, filters }) => {
-  // Render your collector's data, applying any declared filters.
+	// Render your collector's data, applying any declared filters.
 });
 ```
 

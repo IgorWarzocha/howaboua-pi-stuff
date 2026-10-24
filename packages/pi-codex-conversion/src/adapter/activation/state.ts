@@ -1,15 +1,10 @@
 import type { PromptSkill } from "../../prompt/build-system-prompt.ts";
-import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { NotesOwner, NotesBridge } from "../../context-management/external-notes-protocol.ts";
 import type { SystemMessage } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "./config.ts";
 import type { ResponsesInputItem } from "../compaction/serializer.ts";
 import type { CodexTurnState } from "../../providers/openai-codex/turn-state.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
 import type { CodexDeveloperMessageBridge } from "../developer-messages.ts";
-import type { CodexContextWindowManager } from "../../context-management/window-manager.ts";
-import type { CodexContextWindowKickoff } from "../../context-management/window-kickoff.ts";
-import type { CodexContextTreeCoordinator } from "../../context-management/tree-coordinator.ts";
 import type { CodexUsageStatus } from "../../codex-usage/payload.ts";
 
 export interface PendingPiCompactionNativeWindow {
@@ -22,15 +17,6 @@ export interface PendingPiCompactionNativeWindow {
 }
 
 export interface AdapterState {
-	restoreNativeNotesTools?: () => void;
-	/** Committed retirement cuts survive the model-dependent policy handoff. */
-	notesProjection?: Pick<NotesOwner, "projectMessages" | "projectBranch">;
-	externalNotes?: {
-		owner: NotesOwner;
-		tools?: readonly ToolDefinition[] | undefined;
-		contracts?: Readonly<Record<"notes" | "history", string>> | undefined;
-	} | undefined;
-	externalNotesBridge?: NotesBridge | undefined;
 	enabled: boolean;
 	availableToolNames?: string[] | undefined;
 	cwd: string;
@@ -54,14 +40,13 @@ export interface AdapterState {
 		transport: "responses" | "responses-lite";
 		systemMessage: SystemMessage;
 	} | undefined;
+	/** Native checkpoint named by Pi's effective context, including restored branches. */
+	replayCompaction?: { sessionId: string; entryId: string } | undefined;
 	usageStatus?: CodexUsageStatus | undefined;
 	config: CodexConversionConfig;
 	executionMode: ExecutionMode;
 	notebookStatusMessageId?: string | undefined;
 	codexTurnState: CodexTurnState;
 	developerMessages: CodexDeveloperMessageBridge;
-	contextWindows: CodexContextWindowManager;
-	contextKickoff: CodexContextWindowKickoff;
-	contextTree: CodexContextTreeCoordinator;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;
 }
