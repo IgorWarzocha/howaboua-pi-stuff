@@ -45,7 +45,7 @@ const CODE_MODE_GUIDELINES = [
 
 const STATEFUL_MODE_GUIDELINES = [
 	["Reuse matching retained globals", "Reuse matching retained globals"],
-	["Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning", "One-offs→blocklocal; reusable analysis/helpers→namedglobals+concise description/usage; valuablestate→pin before prune"],
+	["Keep one-offs block-local. Retain only what you plan to reuse, and clean up when the task ends.", "One-offs→blocklocal; retain only plannedreuse; taskdone→cleanup"],
 	...CODE_MODE_GUIDELINES,
 	["Notebook state management: notebook({})", "Manage state: notebook({})"],
 	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonicalartifacts→files; tools.exec_command crosscall shellstate→files/args"],

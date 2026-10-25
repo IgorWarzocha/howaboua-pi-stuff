@@ -15,3 +15,4 @@
 - Notebook runtime failures retain recovery actions without exposing internal protocol diagnostics.
 - Conversation history preparation now allocates fewer temporary objects.
 - Fixed Code, Notebook and reasoning tools reappearing after `/tree` when disabled.
+- Notebook and TS guidance now limits retained state to planned reuse and calls for cleanup when tasks finish.
