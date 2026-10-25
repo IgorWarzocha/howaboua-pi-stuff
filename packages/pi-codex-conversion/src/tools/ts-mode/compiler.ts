@@ -18,8 +18,6 @@ const compilerOptions: CompilerOptions = {
   strict: true,
   skipLibCheck: true,
   declaration: true,
-  sourceMap: true,
-  inlineSources: true,
   preserveConstEnums: true,
   resolveJsonModule: true,
   types: ['node'],
