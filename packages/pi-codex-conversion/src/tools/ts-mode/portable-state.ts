@@ -94,6 +94,12 @@ export class PortableGraph {
 	capture(values: Record<string, unknown>, bindings: Record<string, BindingRecipe>, pins: string[], imports: string[] = []): PortableCapture {
 		const skipped = new Map<string, string>();
 		for (const [name, binding] of Object.entries(bindings)) if (binding.kind !== "type" && !Object.hasOwn(values, name)) skipped.set(name, "runtime value unavailable for capture");
+		// Most heaps are fully portable. Traverse their shared graph once; only
+		// live-only heaps need per-root probes and dependency exclusion below.
+		if (!skipped.size) {
+			try { return { state: this.encode(values, bindings, pins, imports), skipped: [] }; }
+			catch { /* Per-root probes report every live-only value and dependant. */ }
+		}
 		for (const [name, value] of Object.entries(values)) {
 			try { this.encode({ [name]: value }, bindings, pins, imports); }
 			catch (error) { skipped.set(name, error instanceof Error ? error.message : String(error)); }
