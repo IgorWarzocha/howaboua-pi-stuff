@@ -87,7 +87,7 @@ export class PortableGraph {
 		return prototype === hostPrototype || (typeof prototype === "object" && prototype !== null && this.realmPrototypes.get(name)?.has(prototype) === true);
 	}
 	private readonly identities = new WeakMap<object, string>();
-	private readonly recipes = new Map<object, { name: string; descriptors: Map<PropertyKey, PropertyDescriptor>; prototypeDescriptors?: Map<PropertyKey, PropertyDescriptor> | undefined }>();
+	private readonly recipes = new WeakMap<object, { name: string; descriptors: Map<PropertyKey, PropertyDescriptor>; prototypeDescriptors?: Map<PropertyKey, PropertyDescriptor> | undefined }>();
 	private readonly modules = new Map<object, Extract<PortableNode, { kind: "module" }>>();
 	private liveOnlyHint: string | undefined;
 
