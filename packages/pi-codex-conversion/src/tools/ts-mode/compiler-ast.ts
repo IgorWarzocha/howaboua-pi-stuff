@@ -74,18 +74,18 @@ export function importRecipe(node: Node): TsImport | undefined {
 }
 
 /** Checker symbols distinguish local parameters/properties from captured bindings. */
-export async function freeReferences(node: Node, checker: Checker): Promise<string[]> {
+export async function freeReferences(node: Node, checker: Checker, typesOnly = false): Promise<string[]> {
   const identifiers: Node[] = [];
-  const walk = (child: Node): void => {
-    if (isTypeNode(child)) return;
-    if (isIdentifier(child)) identifiers.push(child);
-    child.forEachChild(walk);
+  const walk = (child: Node, inType = false): void => {
+    const type = inType || isTypeNode(child);
+    if (isIdentifier(child) && (!typesOnly || type)) identifiers.push(child);
+    child.forEachChild(nested => walk(nested, type));
   };
   walk(node);
   const symbols = await checker.getSymbolAtLocation(identifiers);
   const free = new Set<string>();
   for (const symbol of symbols) {
-    if (!symbol || !(symbol.flags & (SymbolFlags.Value | SymbolFlags.Alias)) || symbol.flags & (SymbolFlags.Property | SymbolFlags.Method | SymbolFlags.Accessor | SymbolFlags.EnumMember)) continue;
+    if (!symbol || !(symbol.flags & (SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Alias)) || symbol.flags & (SymbolFlags.Property | SymbolFlags.Method | SymbolFlags.Accessor | SymbolFlags.EnumMember)) continue;
     const declarations = await Promise.all(symbol.declarations.map(declaration => declaration.resolve()));
     if (declarations.length && declarations.every(declaration => declaration && declaration.getSourceFile() === node.getSourceFile() && declaration.pos >= node.pos && declaration.end <= node.end)) continue;
     free.add(symbol.name);

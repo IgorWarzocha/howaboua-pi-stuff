@@ -158,14 +158,14 @@ export class TsCompiler {
         if (isImportDeclaration(binding.node)) {
           const recipe = importRecipe(binding.node);
           const imported = recipe?.bindings.find(value => value.local === binding.name);
-          if (binding.kind === 'type' && recipe && imported) {
+          if (recipe && imported) {
             const clause = imported.imported === '*' ? `* as ${binding.name}` : imported.imported === 'default' ? binding.name : `{ ${imported.imported} as ${binding.name} }`;
-            declaration = `import type ${clause} from ${JSON.stringify(recipe.specifier)};`;
+            const attributes = binding.kind !== 'type' && recipe.attributes ? ` with ${JSON.stringify(recipe.attributes)}` : '';
+            declaration = `import${binding.kind === 'type' ? ' type' : ''} ${clause} from ${JSON.stringify(recipe.specifier)}${attributes};`;
           }
-          else if (recipe && imported) declaration = `declare const ${binding.name}: typeof import(${JSON.stringify(recipe.specifier)})${imported.imported === '*' ? '' : `[${JSON.stringify(imported.imported)}]`};`;
         }
         bindings.push({ name: binding.name, kind: binding.kind, type, declaration,
-          freeReferences: binding.functionNode ? await freeReferences(binding.functionNode, checker) : [],
+          freeReferences: await freeReferences(binding.functionNode ?? binding.node, checker, !binding.functionNode && binding.kind !== 'type'),
         });
       }
       const transformed = await this.executable(javascript, bindings);
@@ -199,8 +199,10 @@ export class TsCompiler {
           if (!recipe) throw new Error('Unsupported TypeScript import.');
           const target = JSON.stringify(recipe.specifier);
           const importExpression = `await __tsImport(${target}${recipe.attributes ? `, ${JSON.stringify({ with: recipe.attributes })}` : ''})`;
-          const lines = recipe.bindings.filter(binding => !binding.typeOnly).map(binding => `const ${binding.local} = (${importExpression})${binding.imported === '*' ? '' : `[${JSON.stringify(binding.imported)}]`};`);
-          imports.push(lines.length ? lines.join('\n') : `${importExpression};`);
+          // Baseline imports retain type/namespace authority but their values are restored by the worker.
+          const lines = recipe.bindings.filter(binding => !binding.typeOnly && bindings.some(candidate => candidate.name === binding.local)).map(binding => `const ${binding.local} = (${importExpression})${binding.imported === '*' ? '' : `[${JSON.stringify(binding.imported)}]`};`);
+          if (lines.length) imports.push(lines.join('\n'));
+          else if (!recipe.bindings.length) imports.push(`${importExpression};`);
           edits.push({ start: node.getStart(file), end: node.end, text: '' });
         } else {
           for (const child of node.getChildren(file)) {

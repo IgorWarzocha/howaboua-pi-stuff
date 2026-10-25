@@ -202,6 +202,13 @@ export function mergeState(start: PortableState, current: PortableState, candida
 		const proposed: Record<string, unknown> = candidate[field];
 		const merged: Record<string, unknown> = state[field];
 		for (const key of new Set([...Object.keys(before), ...Object.keys(proposed)])) {
+			// A worker's unreachable node may still be retained by another cell's new alias.
+			// Only compact the complete merged graph, never delete nodes from a partial snapshot.
+			if (field === "nodes" && !Object.hasOwn(proposed, key)) continue;
+			if (field === "nodes" && !Object.hasOwn(latest, key)) {
+				Object.defineProperty(merged, key, { value: proposed[key], enumerable: true, writable: true, configurable: true });
+				continue;
+			}
 			if (same(before[key], proposed[key])) continue;
 			if (!same(before[key], latest[key])) { conflicts.push(field === "nodes" ? `shared data (${ownersOfNode(current, key).join(", ") || "retained value"})` : `binding ${key}`); continue; }
 			if (Object.hasOwn(proposed, key)) Object.defineProperty(merged, key, { value: proposed[key], enumerable: true, writable: true, configurable: true });
