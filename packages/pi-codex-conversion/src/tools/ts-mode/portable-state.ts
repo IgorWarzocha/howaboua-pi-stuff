@@ -89,20 +89,37 @@ export class PortableGraph {
 	private readonly identities = new WeakMap<object, string>();
 	private readonly recipes = new Map<object, { name: string; descriptors: Map<PropertyKey, PropertyDescriptor>; prototypeDescriptors?: Map<PropertyKey, PropertyDescriptor> | undefined }>();
 	private readonly modules = new Map<object, Extract<PortableNode, { kind: "module" }>>();
+	private liveOnlyHint: string | undefined;
 
 	/** Live execution is unrestricted; durability captures only independently restorable roots. */
 	capture(values: Record<string, unknown>, bindings: Record<string, BindingRecipe>, pins: string[], imports: string[] = []): PortableCapture {
 		const skipped = new Map<string, string>();
 		for (const [name, binding] of Object.entries(bindings)) if (binding.kind !== "type" && !Object.hasOwn(values, name)) skipped.set(name, "runtime value unavailable for capture");
+		const hint = this.liveOnlyHint;
+		this.liveOnlyHint = undefined;
+		let hintedFailure: { name: string; reason: string } | undefined;
 		// Most heaps are fully portable. Traverse their shared graph once; only
 		// live-only heaps need per-root probes and dependency exclusion below.
 		if (!skipped.size) {
-			try { return { state: this.encode(values, bindings, pins, imports), skipped: [] }; }
-			catch { /* Per-root probes report every live-only value and dependant. */ }
+			// A prior failure only changes probe order: nested mutations can make
+			// that root portable again, so always inspect its current graph.
+			if (hint && Object.hasOwn(values, hint)) {
+				try { this.encode({ [hint]: values[hint] }, bindings, pins, imports); }
+				catch (error) { hintedFailure = { name: hint, reason: error instanceof Error ? error.message : String(error) }; }
+			}
+			if (!hintedFailure) {
+				try { return { state: this.encode(values, bindings, pins, imports), skipped: [] }; }
+				catch { /* Per-root probes report every live-only value and dependant. */ }
+			}
 		}
 		for (const [name, value] of Object.entries(values)) {
+			if (hintedFailure?.name === name) {
+				skipped.set(name, hintedFailure.reason);
+				this.liveOnlyHint ??= name;
+				continue;
+			}
 			try { this.encode({ [name]: value }, bindings, pins, imports); }
-			catch (error) { skipped.set(name, error instanceof Error ? error.message : String(error)); }
+			catch (error) { skipped.set(name, error instanceof Error ? error.message : String(error)); this.liveOnlyHint ??= name; }
 		}
 		// A portable recipe cannot restore if one of its retained lexical dependencies cannot.
 		let changed = true;
