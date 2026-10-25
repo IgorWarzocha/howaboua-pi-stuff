@@ -41,6 +41,8 @@ export class TsCompiler {
   private readonly options: CompilerOptions;
   private snapshot: Snapshot | undefined;
   private snapshotHasDependencies = false;
+  private globals: { declaration: string; source: string; prefix: string } | undefined;
+  private snapshotGlobals: string | undefined;
   private resolver: { mappings: ReadonlyMap<string, string>; moduleResolver: ModuleResolver } | undefined;
   private programId: SyntheticProjectId | undefined;
   private queue: Promise<void> = Promise.resolve();
@@ -107,7 +109,21 @@ export class TsCompiler {
   }
 
   private async compileCell(input: TsCompileInput): Promise<TsCompileResult> {
-    const prefix = `${input.globalsDeclaration ?? ''}\n${input.baselineDeclarations}\n`;
+    // A checked module reuses toolkit types without leaking them into user imports.
+    // Keep .mts: skipLibCheck would suppress errors in a declaration-only file.
+    const globalsFile = join(dirname(this.fileName), '__pi_ts_globals.mts');
+    const globalsDeclaration = input.globalsDeclaration ?? '';
+    if (this.globals?.declaration !== globalsDeclaration) {
+      const lease = await this.api.createSourceFile(globalsFile, globalsDeclaration);
+      try {
+        const names = [...new Set(inventory(lease.sourceFile).map(binding => binding.name))];
+        this.globals = { declaration: globalsDeclaration,
+          source: `${globalsDeclaration}\nexport { ${names.join(', ')} };`,
+          prefix: names.length ? `import { ${names.join(', ')} } from "./__pi_ts_globals.mjs";\n` : '' };
+      } finally { await lease.dispose(); }
+    }
+    const globals = this.globals;
+    const prefix = `${globals.prefix}${input.baselineDeclarations}\n`;
     const prefixLines = prefix.split('\n').length - 1;
     const report = (value: Diagnostic): TsDiagnostic => diagnostic(value, this.fileName, prefixLines);
     const lease = await this.api.createSourceFile(this.fileName, prefix + input.source);
@@ -118,7 +134,8 @@ export class TsCompiler {
       const file = lease.sourceFile;
       hasDependencies ||= Boolean(file.referencedFiles.length || file.typeReferenceDirectives.length || file.libReferenceDirectives.length);
       const walk = (node: Node): void => {
-        if (hasDependencies) return;
+        // The virtual toolkit import is owned here, not a disk dependency.
+        if (hasDependencies || (node !== file && node.getStart(file) < globals.prefix.length)) return;
         if (isImportDeclaration(node) || isImportTypeNode(node) || node.kind === SyntaxKind.ImportEqualsDeclaration ||
           (isExportDeclaration(node) && node.moduleSpecifier) ||
           (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword)) hasDependencies = true;
@@ -150,15 +167,16 @@ export class TsCompiler {
       // A fresh program avoids updating a graph whose caches are discarded anyway.
       const refresh = hasDependencies || this.snapshotHasDependencies;
       const next = old && this.programId && !refresh ? await old.update({
-        fileSystem: createFileSystemLayer([[this.fileName, source]]),
-        fileNotifications: { changed: [this.fileName] },
+        fileSystem: createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
+        fileNotifications: { changed: [this.fileName, ...(this.snapshotGlobals !== globals.source ? [globalsFile] : [])] },
         reconfigurePrograms: [{ id: this.programId, rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       }) : await this.api.createSnapshot({
-        fileSystem: createFileSystemLayer([[this.fileName, source]]),
+        fileSystem: createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
         fileNotifications: { invalidateAll: refresh },
         createPrograms: [{ rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       });
       this.snapshot = next;
+      this.snapshotGlobals = globals.source;
       this.snapshotHasDependencies = hasDependencies;
       this.resolver = resolver;
       await old?.dispose();
