@@ -8,6 +8,7 @@ import { createProvenance } from "./provenance.ts";
 import { withSource } from "./source-records.ts";
 
 const CHUNK_BYTES = 256 * 1024;
+const BATCH_BYTES = 4 * 1024 * 1024;
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
 
 interface FileState {
@@ -335,7 +336,7 @@ export function createIndexer(
 				!stopped &&
 				keepGoing() &&
 				file.offset + buffered < candidate.size &&
-				(file.offset - startedAt < 4 * 1024 * 1024 || buffered > 0)
+				(file.offset - startedAt < BATCH_BYTES || buffered > 0)
 			) {
 				const buffer = Buffer.allocUnsafe(
 					Math.min(CHUNK_BYTES, candidate.size - file.offset - buffered),
@@ -356,7 +357,7 @@ export function createIndexer(
 				bytesRead += read.bytesRead;
 				// Persist complete lines in batches; do not rewrite a growing multi-megabyte image line for every chunk.
 				if (
-					chunk.includes(10) ||
+					(buffered >= BATCH_BYTES && chunk.includes(10)) ||
 					buffered + file.tail.length > MAX_LINE_BYTES ||
 					file.offset + buffered === candidate.size
 				) {

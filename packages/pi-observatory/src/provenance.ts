@@ -59,7 +59,7 @@ export function createProvenance(db: Database.Database) {
 	>(`
 		SELECT COALESCE(c.initiator,c.result_entry) key,
 			COALESCE(e.timestamp,c.timestamp) timestamp,c.parent_call_id
-		FROM calls c LEFT JOIN entries e ON e.key=COALESCE(c.initiator,c.result_entry) WHERE c.id=?
+		FROM calls c LEFT JOIN entry_refs e ON e.key=COALESCE(c.initiator,c.result_entry) WHERE c.id=?
 	`);
 	const project = db.prepare<[number], { project: string }>(
 		"SELECT project FROM calls WHERE id=?",

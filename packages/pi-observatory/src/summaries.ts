@@ -25,7 +25,7 @@ export function initialiseSummaries(db: Database.Database): void {
 	const add = `INSERT INTO tallies(${dimensions.join(",")},n,last_seen) VALUES(${fresh.join(",")},1,new.timestamp)
 		ON CONFLICT(${dimensions.join(",")}) DO UPDATE SET n=n+1,last_seen=MAX(last_seen,new.timestamp);`;
 	db.exec(`
-		INSERT OR IGNORE INTO metadata VALUES('entries', (SELECT COUNT(*) FROM entries));
+		INSERT OR IGNORE INTO metadata VALUES('entries', (SELECT COUNT(*) FROM entry_refs));
 		CREATE TRIGGER IF NOT EXISTS entry_count AFTER INSERT ON entry_refs BEGIN
 			UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='entries';
 		END;

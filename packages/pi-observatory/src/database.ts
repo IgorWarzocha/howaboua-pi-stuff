@@ -24,7 +24,7 @@ export function initialiseDatabase(
 	const version = db.pragma("user_version", { simple: true });
 	if (version !== 0 && version !== 3)
 		throw new Error(
-			"Obsolete index. Stop Observatory and run pi-observatory --rebuild to recreate it from source files.",
+			"Obsolete index. Start the updated viewer once to rebuild it automatically from source files.",
 		);
 	if (version === 3) {
 		const source = db

@@ -111,7 +111,7 @@ During live monitoring, the indexer checks file metadata every two seconds and c
 
 Index diagnostics, below the Overview charts, reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
 
-Indexes created before source-backed storage require a one-time rebuild. Stop the server, then run `pi-observatory --rebuild` with the same location options. This deletes only the derived core index and rebuilds it from the original session and event files. It does not delete custom-tab databases or source files.
+Indexes created before source-backed storage rebuild automatically once when the updated server starts. Only the derived core index is replaced. Source files and custom-tab databases are not deleted. Later starts resume the saved indexing cursors, including after an interrupted rebuild. If an older server is still running, stop it and reopen Observatory to start the updated version.
 
 Historical skill scans run in bounded background batches. These updates preserve indexing cursors and read only the source records they need.
 

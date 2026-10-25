@@ -42,6 +42,44 @@ async function acquireLock(path: string): Promise<() => Promise<void>> {
 	return () => unlink(path);
 }
 
+async function prepareIndex(
+	database: string,
+	sessions: string,
+	force: boolean,
+): Promise<void> {
+	let version: number | undefined;
+	try {
+		await stat(database);
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT")
+			return;
+		throw error;
+	}
+	const previous = openDatabase(database, true);
+	try {
+		version = Number(previous.pragma("user_version", { simple: true }));
+		const source = previous
+			.prepare<[], { value: string }>(
+				"SELECT value FROM metadata WHERE key='sourceRoot'",
+			)
+			.get();
+		if (![1, 2, 3].includes(version) || source?.value !== sessions)
+			throw new Error(
+				"Refusing to replace a file that is not an Observatory index for this session directory.",
+			);
+	} finally {
+		previous.close();
+	}
+	if (!force && version === 3) return;
+	console.log(
+		force
+			? "Rebuilding the Observatory index from source files (--rebuild)."
+			: "Upgrading the Observatory index: rebuilding the old payload-copy format once from source files.",
+	);
+	for (const suffix of ["", "-wal", "-shm"])
+		await rm(`${database}${suffix}`, { force: true });
+}
+
 function loopbackHost(host: string): boolean {
 	return /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host);
 }
@@ -80,7 +118,7 @@ async function main(): Promise<void> {
 		try {
 			if (db.pragma("user_version", { simple: true }) !== 3)
 				throw new Error(
-					"Obsolete index. Rebuild it before reading source-backed details.",
+					"Obsolete index. Start the updated viewer once to rebuild it automatically, then retry --detail.",
 				);
 			const detail = createQueries(db)(
 				`/api/calls/${values.detail}`,
@@ -115,42 +153,7 @@ async function main(): Promise<void> {
 	try {
 		await rm(join(stateDirectory(), "access-key"), { force: true });
 		releaseDatabase = await acquireLock(`${database}.lock`);
-		if (values.rebuild) {
-			let exists = true;
-			try {
-				await stat(database);
-			} catch (error) {
-				if (
-					error instanceof Error &&
-					"code" in error &&
-					error.code === "ENOENT"
-				)
-					exists = false;
-				else throw error;
-			}
-			if (exists) {
-				const previous = openDatabase(database, true);
-				try {
-					const version = previous.pragma("user_version", { simple: true });
-					const source = previous
-						.prepare<[], { value: string }>(
-							"SELECT value FROM metadata WHERE key='sourceRoot'",
-						)
-						.get();
-					if (
-						![1, 2, 3].includes(Number(version)) ||
-						source?.value !== sessions
-					)
-						throw new Error(
-							"Refusing to rebuild a file that is not an Observatory index for this session directory.",
-						);
-				} finally {
-					previous.close();
-				}
-			}
-			for (const suffix of ["", "-wal", "-shm"])
-				await rm(`${database}${suffix}`, { force: true });
-		}
+		await prepareIndex(database, sessions, values.rebuild ?? false);
 		const db = openDatabase(database);
 		try {
 			initialiseDatabase(db, sessions);

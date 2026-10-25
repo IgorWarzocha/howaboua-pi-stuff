@@ -10,6 +10,7 @@ type Recipe =
 	| { array: Recipe[] }
 	| { fields: [string, Recipe][] };
 interface Context {
+	record: unknown;
 	file: number;
 	line: number;
 	paths: Map<unknown, Path>;
@@ -45,7 +46,7 @@ export function withSource<T>(
 			}
 		}
 	}
-	contexts.set(db, { file, line, paths });
+	contexts.set(db, { file, line, paths, record });
 	try {
 		return run();
 	} finally {
@@ -163,13 +164,17 @@ export function installSourceReader(db: Database.Database): void {
 					mode: string;
 					recipe: Recipe;
 				};
-				const record = readRange({
-					path: String(path),
-					identity: String(identity),
-					start: Number(start),
-					length: Number(length),
-					digest: String(digest),
-				});
+				const active = contexts.get(db);
+				const record =
+					active?.file === ref.file && active.line === ref.line
+						? active.record
+						: readRange({
+								path: String(path),
+								identity: String(identity),
+								start: Number(start),
+								length: Number(length),
+								digest: String(digest),
+							});
 				const parsed = new Map<string, unknown>();
 				function parse(value: unknown): unknown {
 					const raw = String(value);
