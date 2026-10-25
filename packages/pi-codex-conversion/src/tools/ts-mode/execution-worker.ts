@@ -21,6 +21,7 @@ export class TsExecutionWorker {
 	private active: { id: number; callbacks: WorkerCallbacks; resolve(value: TsWorkerOutcome): void; reject(error: unknown): void } | undefined;
 	private failure: Error | undefined;
 	private live = false;
+	private liveReady = false;
 
 	constructor(options: { cwd: string; heapMiB: number }) {
 		this.worker = fork(fileURLToPath(import.meta.url.endsWith(".ts") ? new URL("./worker.ts", import.meta.url) : new URL("./worker.js", import.meta.url)), [], {
@@ -47,7 +48,9 @@ export class TsExecutionWorker {
 							void request.finally(() => this.requests.delete(request));
 							break;
 						}
-						case "done": case "live-done": this.active = undefined; active.resolve(value); break;
+						case "done": case "live-done":
+							if (value.kind === "live-done") this.liveReady = !value.restoreFailed;
+							this.active = undefined; active.resolve(value); break;
 						case "error": this.active = undefined; active.reject(new Error(value.error)); break;
 					}
 				} catch (error) { fail(error instanceof Error ? error : new Error(String(error))); }
@@ -65,10 +68,14 @@ export class TsExecutionWorker {
 		if (this.stopPromise) return Promise.reject(new Error("TS execution has stopped; restart the notebook"));
 		if (this.active) return Promise.reject(new Error("A TS cell is already executing"));
 		this.live ||= input.mode === "live";
+		// Warm live cells already own their graph. Initial restoration, explicit
+		// additions and failed-restore retries still carry the full saved state.
+		const requestInput = input.mode === "live" && this.liveReady && !input.restore
+			? { ...input, state: { ...input.state, roots: {}, nodes: {} } } : input;
 		return new Promise((resolve, reject) => {
 			const id = ++this.nextRun;
 			this.active = { id, callbacks, resolve, reject };
-			this.worker.send({ kind: "start", runId: id, input }, error => { if (error) { this.active = undefined; reject(error); } });
+			this.worker.send({ kind: "start", runId: id, input: requestInput }, error => { if (error) { this.active = undefined; reject(error); } });
 		});
 	}
 
