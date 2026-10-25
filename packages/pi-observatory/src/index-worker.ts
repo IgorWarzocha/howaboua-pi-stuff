@@ -15,6 +15,9 @@ const { database, sessions, observationsRoot } = workerData as {
 	observationsRoot?: string;
 };
 const db = openDatabase(database);
+// Keep dirty index pages and short-lived replay btrees off the temporary-file path.
+db.pragma("cache_size = -32768");
+db.pragma("temp_store = MEMORY");
 const indexer = createIndexer(db, sessions, observationsRoot);
 const observations = createObservedToolBackfill(db);
 const fileReads = createSkillFileBackfill(db);
