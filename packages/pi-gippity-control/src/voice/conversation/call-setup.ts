@@ -4,7 +4,7 @@ import { resolveWebSocketProxyForTarget } from "../../openai/websocket-connectio
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import { MAX_REALTIME_SDP_BYTES } from "./peer.ts";
 
-const V3_MODEL = "gpt-live-1-codex";
+const V3_MODEL = "gpt-live-1.1-codex";
 
 type RealtimeCallResult = { status: number; answer: string };
 
