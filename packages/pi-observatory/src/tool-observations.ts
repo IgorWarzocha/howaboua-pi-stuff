@@ -1,25 +1,28 @@
 import type Database from "better-sqlite3";
 import { createCallStore, type Source, type StoredCall } from "./calls.ts";
 import { hash, type JsonObject, object, string } from "./normalise.ts";
+import { readRecord, sourceRecipe, withSource } from "./source-records.ts";
 
 export function initialiseToolObservations(db: Database.Database): void {
-	db.exec(`CREATE TABLE IF NOT EXISTS tool_observations (
+	db.exec(`CREATE TABLE IF NOT EXISTS observation_refs (
 		key TEXT PRIMARY KEY, session_id TEXT NOT NULL, entry_id TEXT NOT NULL,
 		root_id TEXT NOT NULL, call_id TEXT NOT NULL, parent_id TEXT, timestamp TEXT NOT NULL,
-		entry_key TEXT NOT NULL REFERENCES entries(key), file_id INTEGER NOT NULL REFERENCES files(id),
+		entry_key TEXT NOT NULL REFERENCES entry_refs(key), file_id INTEGER NOT NULL REFERENCES files(id),
 		line INTEGER NOT NULL, data TEXT NOT NULL, linked_call INTEGER REFERENCES calls(id), issue TEXT
 	);
-	CREATE INDEX IF NOT EXISTS observation_call ON tool_observations(linked_call);
-	CREATE INDEX IF NOT EXISTS observation_pending ON tool_observations(key) WHERE linked_call IS NULL;`);
+	CREATE INDEX IF NOT EXISTS observation_call ON observation_refs(linked_call);
+	CREATE INDEX IF NOT EXISTS observation_pending ON observation_refs(key) WHERE linked_call IS NULL;
+ CREATE VIEW IF NOT EXISTS tool_observations AS SELECT o.key,o.session_id,o.entry_id,o.root_id,o.call_id,o.parent_id,o.timestamp,o.entry_key,o.file_id,o.line,source_value(o.data,f.path,f.identity,r.start,r.length,r.digest) data,o.linked_call,o.issue FROM observation_refs o
+ JOIN source_records r ON r.file_id=o.file_id AND r.line=o.line JOIN files f ON f.id=o.file_id;`);
 }
 
 export function createObservationIngestor(db: Database.Database) {
-	const put = db.prepare(`INSERT INTO tool_observations
+	const put = db.prepare(`INSERT INTO observation_refs
 		(key,session_id,entry_id,root_id,call_id,parent_id,timestamp,entry_key,file_id,line,data)
 		VALUES (@key,@session,@entry,@root,@call,@parent,@timestamp,@entryKey,@file,@line,@data)
 		ON CONFLICT(key) DO UPDATE SET timestamp=excluded.timestamp,entry_key=excluded.entry_key,
 		file_id=excluded.file_id,line=excluded.line,data=excluded.data,linked_call=NULL,issue=NULL
-		WHERE excluded.timestamp>=tool_observations.timestamp`);
+		WHERE excluded.timestamp>=observation_refs.timestamp`);
 	return (
 		record: JsonObject,
 		entryKey: string,
@@ -57,7 +60,7 @@ export function createObservationIngestor(db: Database.Database) {
 			entryKey,
 			file: source.id,
 			line,
-			data: JSON.stringify(data),
+			data: sourceRecipe(db, data, "raw"),
 		});
 	};
 }
@@ -100,13 +103,13 @@ export function createObservedToolBackfill(db: Database.Database) {
 		"SELECT call_id id FROM native_links WHERE key=?",
 	);
 	const link = db.prepare(
-		"UPDATE tool_observations SET linked_call=?,issue=NULL WHERE key=?",
+		"UPDATE observation_refs SET linked_call=?,issue=NULL WHERE key=?",
 	);
 	const issue = db.prepare(
-		"UPDATE tool_observations SET issue=? WHERE key=? AND issue IS NOT ?",
+		"UPDATE observation_refs SET issue=? WHERE key=? AND issue IS NOT ?",
 	);
 	const argumentsUpdate = db.prepare(
-		"UPDATE payloads SET arguments=? WHERE call_id=?",
+		"UPDATE payload_refs SET arguments_ref=? WHERE call_id=?",
 	);
 	const revision = db.prepare(
 		"UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
@@ -117,101 +120,116 @@ export function createObservedToolBackfill(db: Database.Database) {
 		let changed = false;
 		for (const row of batch) {
 			cursor = row.key;
-			const data = object(JSON.parse(row.data));
-			let root = parent.get(row.root);
-			if (!root) continue;
-			if (!row.parent_id) {
-				link.run(root.id, row.key);
-				changed = true;
-				continue;
-			}
-			let result: JsonObject;
+			let original: unknown;
 			try {
-				result = object(JSON.parse(root.result));
-			} catch {
-				continue;
-			}
-			const details = object(result["details"]);
-			const cellId = string(details["cellId"]);
-			if (cellId) {
-				const origin = cell.get(root.file_id, cellId)?.origin;
-				if (origin) root = parent.get(origin) ?? root;
-			}
-			const key = `native:${hash(`${root.key}:${row.call_id}`)}`;
-			const target = mapped.get(key);
-			if (target) {
-				link.run(target.id, row.key);
-				changed = true;
-				continue;
-			}
-			const traces = Array.isArray(details["traces"]) ? details["traces"] : [];
-			if (
-				(Array.isArray(details["traces"]) &&
-					(traces.length === 0 ||
-						traces.some((value) => {
-							const trace = object(value);
-							return (
-								!Array.isArray(trace["nativeCallIds"]) ||
-								["running", "blocked"].includes(string(trace["status"]))
-							);
-						}))) ||
-				Number(details["droppedTraceCount"]) > 0
-			) {
-				const message =
-					"Live native result retained; no exact trace correlation is available yet.";
+				original = readRecord(db, row.file_id, row.line);
+			} catch (error) {
+				const message = `Source unavailable: ${error instanceof Error ? error.message : String(error)}`;
 				changed = issue.run(message, row.key, message).changes > 0 || changed;
 				continue;
 			}
-			const args = string(data["arguments"], "[Arguments not recorded]");
-			const call = store.insertCall(
-				{
-					key,
-					callId: row.call_id,
-					initiator: null,
-					file: row.file_id,
-					line: row.line,
-					timestamp: root.timestamp,
-					provider: root.provider,
-					model: root.model,
-					tool: string(data["name"]),
-					scope: "nested",
-					project: root.project,
-					parent: root.id,
-					unpaired: 0,
-				},
-				null,
-			);
-			argumentsUpdate.run(args || "[Arguments not recorded]", call.id);
-			const raw = string(data["result"]);
-			if (raw) {
-				let observed: JsonObject;
-				try {
-					observed = object(JSON.parse(raw));
-				} catch {
-					observed = {
-						content: [{ type: "text", text: raw }],
-						note: "Live result truncated",
-					};
+			withSource(db, row.file_id, row.line, original, () => {
+				const data = object(JSON.parse(row.data));
+				let root = parent.get(row.root);
+				if (!root) return;
+				if (!row.parent_id) {
+					link.run(root.id, row.key);
+					changed = true;
+					return;
 				}
-				store.recordResult(
-					call,
+				let result: JsonObject;
+				try {
+					result = object(JSON.parse(root.result));
+				} catch {
+					return;
+				}
+				const details = object(result["details"]);
+				const cellId = string(details["cellId"]);
+				if (cellId) {
+					const origin = cell.get(root.file_id, cellId)?.origin;
+					if (origin) root = parent.get(origin) ?? root;
+				}
+				const key = `native:${hash(`${root.key}:${row.call_id}`)}`;
+				const target = mapped.get(key);
+				if (target) {
+					link.run(target.id, row.key);
+					changed = true;
+					return;
+				}
+				const traces = Array.isArray(details["traces"])
+					? details["traces"]
+					: [];
+				if (
+					(Array.isArray(details["traces"]) &&
+						(traces.length === 0 ||
+							traces.some((value) => {
+								const trace = object(value);
+								return (
+									!Array.isArray(trace["nativeCallIds"]) ||
+									["running", "blocked"].includes(string(trace["status"]))
+								);
+							}))) ||
+					Number(details["droppedTraceCount"]) > 0
+				) {
+					const message =
+						"Live native result retained; no exact trace correlation is available yet.";
+					changed = issue.run(message, row.key, message).changes > 0 || changed;
+					return;
+				}
+				const args = string(data["arguments"], "[Arguments not recorded]");
+				const call = store.insertCall(
 					{
-						...observed,
-						toolName: string(data["name"]),
-						isError: data["isError"],
-					},
-					{
-						entry: row.entry_key,
+						key,
+						callId: row.call_id,
+						initiator: null,
 						file: row.file_id,
 						line: row.line,
-						missing: 0,
-						dropped: 0,
-						observed: true,
+						timestamp: root.timestamp,
+						provider: root.provider,
+						model: root.model,
+						tool: string(data["name"]),
+						scope: "nested",
+						project: root.project,
+						parent: root.id,
+						unpaired: 0,
 					},
+					null,
 				);
-			}
-			link.run(call.id, row.key);
-			changed = true;
+				argumentsUpdate.run(
+					sourceRecipe(db, args || "[Arguments not recorded]", "raw"),
+					call.id,
+				);
+				const raw = string(data["result"]);
+				if (raw) {
+					let observed: JsonObject;
+					try {
+						observed = object(JSON.parse(raw));
+					} catch {
+						observed = {
+							content: [{ type: "text", text: raw }],
+							note: "Live result truncated",
+						};
+					}
+					store.recordResult(
+						call,
+						{
+							...observed,
+							toolName: string(data["name"]),
+							isError: data["isError"],
+						},
+						{
+							entry: row.entry_key,
+							file: row.file_id,
+							line: row.line,
+							missing: 0,
+							dropped: 0,
+							observed: true,
+						},
+					);
+				}
+				link.run(call.id, row.key);
+				changed = true;
+			});
 		}
 		if (changed) revision.run();
 		if (batch.length < 64) cursor = "";

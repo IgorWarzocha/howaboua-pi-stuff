@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, open, readFile, rm, unlink } from "node:fs/promises";
+import { mkdir, open, readFile, rm, stat, unlink } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
@@ -9,6 +9,7 @@ import { serveCustomTabQuery, serveCustomTabs } from "./custom-tab-http.ts";
 import { type CustomTabs, createCustomTabs } from "./custom-tabs/index.ts";
 import { initialiseDatabase, openDatabase } from "./database.ts";
 import { createMonitor } from "./monitor.ts";
+import { createQueries } from "./queries.ts";
 import { readThemeCss } from "./theme.ts";
 
 async function acquireLock(path: string): Promise<() => Promise<void>> {
@@ -51,18 +52,48 @@ async function main(): Promise<void> {
 			sessions: { type: "string" },
 			db: { type: "string" },
 			port: { type: "string" },
+			rebuild: { type: "boolean" },
+			detail: { type: "string" },
 			"defer-initial-update": { type: "boolean" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
 	if (values.help) {
 		console.log(
-			"Pi Observatory\n\npi-observatory [--sessions DIR] [--db FILE] [--port 47985]\n\nOr run /observatory in Pi to start and open the dashboard.\nRead-only background session indexing. The dashboard reads SQLite only.\nCtrl+C stops this standalone server; restart resumes saved cursors.\nDefaults to 127.0.0.1. Remote access is configured in observatory/config.json.",
+			"Pi Observatory\n\npi-observatory [--sessions DIR] [--db FILE] [--port 47985] [--rebuild]\n\nOr run /observatory in Pi to start and open the dashboard.\nRead-only background session indexing. Lists read SQLite; details read bounded source records. --rebuild discards the index, never source files. Stop the running server first.\npi-observatory --detail ID [--db FILE] reads one call without starting the viewer or collection.\nCtrl+C stops this standalone server; restart resumes saved cursors.\nDefaults to 127.0.0.1. Remote access is configured in observatory/config.json.",
 		);
 		return;
 	}
 	const config = await loadConfig(values);
 	const { port, sessions, database } = config;
+	if (values.detail !== undefined) {
+		if (values.rebuild)
+			throw new Error(
+				"--detail is read-only and cannot be combined with --rebuild",
+			);
+		if (
+			!/^[1-9]\d*$/.test(values.detail) ||
+			!Number.isSafeInteger(Number(values.detail))
+		)
+			throw new Error("--detail requires a positive call ID");
+		const db = openDatabase(database, true);
+		try {
+			if (db.pragma("user_version", { simple: true }) !== 3)
+				throw new Error(
+					"Obsolete index. Rebuild it before reading source-backed details.",
+				);
+			const detail = createQueries(db)(
+				`/api/calls/${values.detail}`,
+				new URLSearchParams(),
+			);
+			if (detail === null) throw new Error("Call not found");
+			console.log(JSON.stringify(detail, null, 2));
+		} finally {
+			db.close();
+		}
+		return;
+	}
+
 	let publicUrl = config.publicUrl;
 	const identity = sourceId(config);
 	process.umask(0o077);
@@ -84,6 +115,42 @@ async function main(): Promise<void> {
 	try {
 		await rm(join(stateDirectory(), "access-key"), { force: true });
 		releaseDatabase = await acquireLock(`${database}.lock`);
+		if (values.rebuild) {
+			let exists = true;
+			try {
+				await stat(database);
+			} catch (error) {
+				if (
+					error instanceof Error &&
+					"code" in error &&
+					error.code === "ENOENT"
+				)
+					exists = false;
+				else throw error;
+			}
+			if (exists) {
+				const previous = openDatabase(database, true);
+				try {
+					const version = previous.pragma("user_version", { simple: true });
+					const source = previous
+						.prepare<[], { value: string }>(
+							"SELECT value FROM metadata WHERE key='sourceRoot'",
+						)
+						.get();
+					if (
+						![1, 2, 3].includes(Number(version)) ||
+						source?.value !== sessions
+					)
+						throw new Error(
+							"Refusing to rebuild a file that is not an Observatory index for this session directory.",
+						);
+				} finally {
+					previous.close();
+				}
+			}
+			for (const suffix of ["", "-wal", "-shm"])
+				await rm(`${database}${suffix}`, { force: true });
+		}
 		const db = openDatabase(database);
 		try {
 			initialiseDatabase(db, sessions);

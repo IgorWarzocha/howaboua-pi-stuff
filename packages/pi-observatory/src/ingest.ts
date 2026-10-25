@@ -6,16 +6,16 @@ import {
 	type JsonObject,
 	object,
 	string,
-	textContent,
 	timestamp,
 } from "./normalise.ts";
 import { createProvenance } from "./provenance.ts";
+import { sourceRecipe } from "./source-records.ts";
 import { createObservationIngestor } from "./tool-observations.ts";
 import { createUsageIngestor } from "./usage.ts";
 
 export function createIngestor(db: Database.Database) {
 	const putEntry = db.prepare(
-		"INSERT OR IGNORE INTO entries VALUES (@key,@timestamp,@role,@text)",
+		"INSERT OR IGNORE INTO entry_refs VALUES (@key,@timestamp,@role,@text)",
 	);
 	const linkEntry = db.prepare(
 		"INSERT INTO file_entries VALUES (@file,@line,@id,@parent,@key)",
@@ -55,7 +55,7 @@ export function createIngestor(db: Database.Database) {
 			key,
 			timestamp: at,
 			role,
-			text: textContent(message["content"]).slice(0, 32768),
+			text: sourceRecipe(db, record, "context"),
 		});
 		linkEntry.run({
 			file: source.id,

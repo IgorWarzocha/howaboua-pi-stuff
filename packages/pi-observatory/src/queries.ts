@@ -229,7 +229,18 @@ export function createQueries(db: Database.Database) {
 		const observations: CallDetail["observations"] = recorded
 			.slice(0, 16)
 			.map(({ data }) => {
-				const value = object(JSON.parse(data));
+				let value;
+				try {
+					value = object(JSON.parse(data));
+				} catch {
+					return {
+						callId: "",
+						source: "",
+						durationMs: null,
+						arguments: "",
+						result: data,
+					};
+				}
 				const source = object(value["sourceInfo"]);
 				return {
 					callId: string(value["callId"]),
@@ -265,7 +276,7 @@ export function createQueries(db: Database.Database) {
 			notes: [
 				...(recorded.length > 16
 					? [
-							"Showing the first 16 live observations; the complete set remains in SQLite.",
+							"Showing the first 16 live observations; the complete set remains in source sidecars.",
 						]
 					: []),
 				...(native

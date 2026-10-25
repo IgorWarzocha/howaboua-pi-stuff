@@ -16,6 +16,7 @@ export async function investigateObservatory(
 		const config = await loadConfig();
 		const guide = fileURLToPath(new URL("../investigate.md", import.meta.url));
 		const locations = {
+			server: fileURLToPath(new URL("./server.js", import.meta.url)),
 			database: config.database,
 			sessions: config.sessions,
 			tabStateRoot: join(stateDirectory(), "tabs"),
