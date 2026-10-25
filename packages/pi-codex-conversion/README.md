@@ -218,7 +218,7 @@ Add `"isolated": true` to the `// @exec:` options for concurrent work in a separ
 
 Use `notebook({})` for state controls, project pins, named profiles and startup or tool-result hooks. Durable capture preserves supported data, aliases, cycles, types and self-contained helper recipes. It reports live-only values that cannot be saved. Profiles load by value and refuse colliding bindings. Release and prune rebuild the kernel so names can be reused, clearing live-only values. State changes, save and checkpoint require idle cells. TS storage remains separate from Deno Notebook. TS does not export `.ipynb` history or retain a cell journal for historical diagnostics.
 
-Imports support Node built-ins, installed packages, local TypeScript files and exact `npm:package@version` specifiers. New npm dependencies require user approval. Installation scripts are disabled. Module instances persist in the live kernel; isolated cells initialise their own copies. Local TypeScript modules support literal imports, but not computed dynamic imports. Tool arguments are checked against their schemas. Results without declared types remain `unknown` and need narrowing before property access.
+Imports support Node built-ins, installed packages, local TypeScript files and exact `npm:package@version` specifiers. New npm dependencies require user approval. Installation scripts are disabled. Module instances persist in the live kernel; isolated cells initialise their own copies. Local TypeScript modules support literal imports, but not computed dynamic imports. Tool arguments are checked against their schemas. Nested tool results remain dynamically typed, so ordinary result access needs no extra guards or casts.
 
 ### Pi extension and MCP tools
 

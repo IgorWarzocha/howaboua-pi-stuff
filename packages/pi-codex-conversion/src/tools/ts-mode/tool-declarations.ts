@@ -141,7 +141,7 @@ class SchemaTypes {
 	}
 }
 
-/** Exact registry names and schema-backed inputs; results have no declared output contract. */
+/** Check schema-backed inputs; untyped nested results stay dynamic, as in Code/Notebook. */
 export function buildTsToolDeclarations(tools: readonly CodeModeToolDefinition[]): string {
 	const declarations: string[] = [];
 	const fields = tools.map((tool, index) => {
@@ -151,7 +151,7 @@ export function buildTsToolDeclarations(tools: readonly CodeModeToolDefinition[]
 			input = `__TsToolInput${index}`;
 			declarations.push(new SchemaTypes(tool.inputSchema, input).declaration());
 		}
-		return `readonly ${JSON.stringify(codeModeGlobalName(tool.name))}: (input${optional ? "?" : ""}: ${input}) => Promise<unknown>`;
+		return `readonly ${JSON.stringify(codeModeGlobalName(tool.name))}: (input${optional ? "?" : ""}: ${input}) => Promise<any>`;
 	});
 	return [...declarations, `declare const tools: { ${fields.join("; ")} };`].join("\n");
 }
