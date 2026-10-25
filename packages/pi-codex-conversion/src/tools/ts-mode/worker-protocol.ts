@@ -23,7 +23,7 @@ export type TsWorkerMessage =
 	| { kind: "yield" }
 	| { kind: "request"; id: number; operation: "tool" | "import"; name: string; input: unknown }
 	| { kind: "done"; state: PortableState }
-	| { kind: "live-done"; state: PortableState; skipped: { name: string; reason: string }[]; sourceStarted: boolean; error?: string; captureError?: string }
+	| { kind: "live-done"; state: PortableState; skipped: { name: string; reason: string }[]; sourceStarted: boolean; error?: string; captureError?: string; restoreFailed?: string[] }
 	| { kind: "error"; error: string };
 export type TsWorkerEnvelope = { runId: number; message: TsWorkerMessage };
 export type TsWorkerOutcome = Extract<TsWorkerMessage, {kind: "done" | "live-done"}>;

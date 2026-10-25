@@ -218,6 +218,22 @@ Add `"isolated": true` to the `// @exec:` options for concurrent work in a separ
 
 Use `notebook({})` for state controls, project pins, named profiles and startup or tool-result hooks. Durable capture preserves supported data, aliases, cycles, types and self-contained helper recipes. It reports live-only values that cannot be saved. Profiles load by value and refuse colliding bindings. Release and prune rebuild the kernel so names can be reused, clearing live-only values. State changes, save and checkpoint require idle cells. TS storage remains separate from Deno Notebook. TS does not export `.ipynb` history or retain a cell journal for historical diagnostics.
 
+Register snapshot and restore helpers to retain objects that cannot otherwise be saved. For example, this counter keeps private state in a closure:
+
+```ts
+function restoreCounter(n: number): { next(): number; current(): number } {
+  return { next: () => ++n, current: () => n };
+}
+function snapshotCounter(counter: { current(): number }): number {
+  return counter.current();
+}
+const counter = restoreCounter(0);
+```
+
+After the cell finishes, call `notebook` with `{"input":"{\"action\":\"pin\",\"names\":[\"counter\"],\"checkpoint\":{\"snapshot\":\"snapshotCounter\",\"restore\":\"restoreCounter\"}}"}`. Later captures save its current count. Restart reconstructs the counter and preserves aliases to it, without replaying previous cells. Both helpers may be async. Define classes inside the restore helper or import their constructors, and give factories for private-field classes an explicit structural return type.
+
+Restoration also runs when loading profiles and starting isolated cells. Reconnecting clients can have external effects. Snapshot failures preserve the last good checkpoint. Restore failures block execution and report the names to unpin for recovery. Ordinary unpinning removes registration without destroying the live object. Arbitrary unregistered closures and handles remain live-only.
+
 Imports support Node built-ins, installed packages, local TypeScript files and exact `npm:package@version` specifiers. New npm dependencies require user approval. Installation scripts are disabled. Module instances persist in the live kernel; isolated cells initialise their own copies. Local TypeScript modules support literal imports, but not computed dynamic imports. Tool arguments are checked against their schemas. Nested tool results remain dynamically typed, so ordinary result access needs no extra guards or casts.
 
 ### Pi extension and MCP tools

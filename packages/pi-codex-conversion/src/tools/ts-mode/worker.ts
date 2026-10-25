@@ -1,7 +1,7 @@
 import { inspect } from "node:util";
 import { serialize } from "node:v8";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { PortableGraph } from "./portable-state.ts";
+import { CheckpointRestoreError, checkpointRoots, PortableGraph } from "./portable-state.ts";
 import { LiveEvaluator } from "./live-evaluator.ts";
 import type { TsWorkerCommand, TsWorkerEnvelope, TsWorkerInput, TsWorkerMessage } from "./worker-protocol.ts";
 
@@ -31,6 +31,8 @@ type LiveHook = { name: string; type: "startup" | "tool_result"; invoke: (event:
 let liveHooks: LiveHook[] = [];
 const liveToolResults = new WeakMap<object, string>();
 let liveConsoleOutput: (text: string) => void = () => {};
+let restoreFailure: string | undefined;
+let failedRestoreBindings: string[] = [];
 process.on("message", (reply: TsWorkerCommand) => {
 	if ("kind" in reply) {
 		if (activeRun !== undefined || (started && reply.input.mode !== "live")) throw new Error("TS worker already started");
@@ -67,6 +69,7 @@ function record(value: unknown): value is Record<string, unknown> { return typeo
 
 async function run(input: TsWorkerInput): Promise<void> {
 	const live = input.mode === "live";
+	if (live && restoreFailure) { send({ kind: "live-done", state: input.state, skipped: [], sourceStarted: false, error: restoreFailure, restoreFailed: failedRestoreBindings }); return; }
 	const graph = live ? liveGraph : new PortableGraph();
 	const initialGlobals = new Set(Reflect.ownKeys(globalThis));
 	let outputChars = 0;
@@ -189,23 +192,26 @@ async function run(input: TsWorkerInput): Promise<void> {
 		const recipe = `__recipes[${JSON.stringify(binding.name)}]`;
 		return `${recipe} = __tsPrepareRecipe(${JSON.stringify(binding.name)}, ${binding.source}, ${binding.kind === "function"});`;
 	}).join("\n");
-	const dataPrelude = retained.map(binding => `${binding.kind === "const" || binding.kind === "import" ? "const" : "let"} ${binding.name} = __values[${JSON.stringify(binding.name)}];`).join("\n");
+	const deferred = new Set(checkpointRoots(restoredState));
+	const declarations = (late: boolean): string => retained.filter(binding => deferred.has(binding.name) === late).map(binding => `${binding.kind === "const" || binding.kind === "import" ? "const" : "let"} ${binding.name} = __values[${JSON.stringify(binding.name)}];`).join("\n");
+	const dataPrelude = declarations(false);
+	const checkpointPrelude = declarations(true);
 	const names = Object.keys(input.bindings).filter(name => input.bindings[name]?.kind !== "type");
 	const hookBindings = Object.values(input.bindings).filter(binding => binding.hook && input.state.pins.includes(binding.name)).sort((a, b) => a.name.localeCompare(b.name));
-	const body = `"use strict";\n${lexicalPrelude}\nconst __values = __decode(__recipes);\n${dataPrelude}\nawait __tsInitializeHooks({${hookBindings.map(binding => binding.name).join(",")}});\n${input.javascript}\nreturn {${names.join(",")}};`;
+	const body = `"use strict";\n${lexicalPrelude}\nconst __decoded = __decode(__recipes); const __values = __decoded.values;\n${dataPrelude}\nawait __decoded.restoreCheckpoints(name => eval(name));\n${checkpointPrelude}\nawait __tsInitializeHooks({${hookBindings.map(binding => binding.name).join(",")}});\n${input.javascript}\nreturn {${names.join(",")}};`;
 	const AsyncFunction: new (...parameters: string[]) => (...args: unknown[]) => Promise<Record<string, unknown>> = Object.getPrototypeOf(async function () {}).constructor;
 	let storeValues: Record<string, unknown> = {};
 	const store = (key: string, value: unknown): void => { Object.defineProperty(storeValues, key, { value, enumerable: true, writable: true, configurable: true }); };
 	const load = (key: string): unknown => Object.hasOwn(storeValues, key) ? storeValues[key] : undefined;
 	if (live) {
 		storeValues = liveStore;
-		const decode = (resolved: Record<string, unknown>): Record<string, unknown> => {
+		const decode = (resolved: Record<string, unknown>): ReturnType<PortableGraph["decode"]> => {
 			const decoded = graph.decode(restoredState, name => resolved[name], node => {
 				const module = moduleBindings.get(JSON.stringify([node.specifier, node.attributes ? { with: node.attributes } : undefined]));
 				if (typeof module !== "object" || module === null) throw new Error(`Cannot restore module ${node.specifier}`);
 				return node.imported === "*" ? module : Reflect.get(module, node.imported);
 			});
-			if (record(decoded["__tsStore"])) storeValues = decoded["__tsStore"];
+			if (record(decoded.values["__tsStore"])) storeValues = decoded.values["__tsStore"];
 			return decoded;
 		};
 		if (!evaluator) { evaluator = new LiveEvaluator(text => liveConsoleOutput(text)); graph.registerRealm(evaluator.intrinsics); }
@@ -228,9 +234,18 @@ async function run(input: TsWorkerInput): Promise<void> {
 		let sourceStarted = false;
 		try {
 			if (restore) {
-				if (lexicalPrelude) await evaluator.evaluate(lexicalPrelude);
-				evaluator.install({ __restoredValues: decode(recipes) });
-				if (dataPrelude) await evaluator.evaluate(dataPrelude.replaceAll("__values[", "__restoredValues["));
+				try {
+					if (lexicalPrelude) await evaluator.evaluate(lexicalPrelude);
+					const decoded = decode(recipes);
+					evaluator.install({ __restoredValues: decoded.values });
+					if (dataPrelude) await evaluator.evaluate(dataPrelude.replaceAll("__values[", "__restoredValues["));
+					await decoded.restoreCheckpoints(name => recipes[name]);
+					if (checkpointPrelude) await evaluator.evaluate(checkpointPrelude.replaceAll("__values[", "__restoredValues["));
+				} catch (cause) {
+					failedRestoreBindings = cause instanceof CheckpointRestoreError ? cause.bindings : [...deferred];
+					restoreFailure = `TS checkpoint restoration failed: ${cause instanceof Error ? cause.message : String(cause)}. The cell body did not run and the saved checkpoint was preserved. Unpin the affected checkpoint binding or reset before retrying`;
+					throw new Error(restoreFailure);
+				}
 			}
 			for (const binding of hookBindings) {
 				const invoke: unknown = await evaluator.evaluate(binding.name);
@@ -240,6 +255,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 			if (!input.captureOnly) { sourceStarted = true; await evaluator.evaluate(input.javascript); }
 			if (pending.size) throw new Error("TS cell has unawaited tool/import requests; await them before finishing a cell");
 		} catch (cause) { error = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause); }
+		if (restoreFailure) { send({ kind: "live-done", state: input.state, skipped: [], sourceStarted: false, error: restoreFailure, restoreFailed: failedRestoreBindings }); return; }
 		liveStore = storeValues;
 		const values: Record<string, unknown> = {};
 		const unreadable: { name: string; reason: string }[] = [];
@@ -250,6 +266,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 		}
 		if (Object.keys(storeValues).length) values["__tsStore"] = storeValues;
 		try {
+			await graph.prepareCheckpoints(values, captureBindings);
 			const capture = graph.capture(values, captureBindings, input.state.pins, input.state.imports);
 			if (serialize(capture.state).byteLength > input.maxStateBytes) throw new Error("TS checkpoint exceeds the storage budget; retain less data or increase the heap budget");
 			send({ kind: "live-done", ...capture, sourceStarted, skipped: [...unreadable, ...capture.skipped], ...(error ? { error } : {}) });
@@ -266,7 +283,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 			if (typeof module !== "object" || module === null) throw new Error(`Cannot restore module ${node.specifier}`);
 			return node.imported === "*" ? module : Reflect.get(module, node.imported);
 		});
-		const stored = decoded["__tsStore"];
+		const stored = decoded.values["__tsStore"];
 		if (record(stored)) storeValues = stored;
 		return decoded;
 	}, importModule, (name: string, value: unknown) => {
@@ -288,6 +305,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 	for (const binding of Object.values(input.bindings)) if (binding.module) graph.registerRecipe(values[binding.name], binding.name);
 	// An unused fresh store is not a write: overlapping cells must not invent competing roots.
 	if (Object.hasOwn(input.state.roots, "__tsStore") || Object.keys(storeValues).length) values["__tsStore"] = storeValues;
+	await graph.prepareCheckpoints(values, input.bindings);
 	const candidate = graph.encode(values, input.bindings, input.state.pins, input.state.imports);
 	if (serialize(candidate).byteLength > input.maxStateBytes) throw new Error("TS retained state exceeds the session storage budget; retain less data or increase the heap budget");
 	send({ kind: "done", state: candidate });

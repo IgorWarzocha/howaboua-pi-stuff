@@ -16,7 +16,7 @@ import { TsCompiler } from "./compiler.ts";
 import { TsExecutionWorker } from "./execution-worker.ts";
 import { resolveTsImports, resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
 import { selectProjectPins, TsStateLifecycle } from "./lifecycle.ts";
-import { compactState, emptyState, type BindingRecipe, type PortableCapture, type PortableState } from "./portable-state.ts";
+import { bindingDependencies, compactState, emptyState, type BindingRecipe, type PortableCapture, type PortableState } from "./portable-state.ts";
 import { TsStateStorage } from "./state-storage.ts";
 import { buildTsToolDeclarations } from "./tool-declarations.ts";
 import { TS_GLOBAL_DECLARATIONS, type TsWorkerInput, type TsWorkerOutcome } from "./worker-protocol.ts";
@@ -43,6 +43,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private durable = emptyState();
 	private kernel: TsExecutionWorker | undefined;
 	private kernelUnavailable = false;
+	private restoreFailed: string[] | undefined;
 	private liveQueue: Promise<void> = Promise.resolve();
 	private latestTools: CodeModeToolDefinition[] = [];
 	private controlRequest: NotebookControlRequest | undefined;
@@ -69,7 +70,8 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		this.importOptions = { cwd: process.cwd(), cacheDir: join(options.agentDir, "ts-imports"), sourceModules: this.liveSourceModules };
 		this.lifecycle = new TsStateLifecycle({
 			state: () => this.state,
-			capture: () => this.capture(),
+			capture: bindings => this.capture(bindings),
+			validateCheckpoint: (name, checkpoint) => this.validateCheckpoint(name, checkpoint),
 			storage: () => this.requireStorage(),
 			activeCells: () => [...this.cells.values()].filter(execution => !execution.cell.isCompleted()).map(execution => execution.cell.id),
 			commit: (state, action) => this.commitState(state, action),
@@ -147,7 +149,10 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	async controlNotebook(request: NotebookControlRequest, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		signal?.throwIfAborted();
 		await this.prepare(context);
-		return this.transaction(async () => { signal?.throwIfAborted(); this.controlRequest = request; try { return await this.lifecycle.control(request); } finally { this.controlRequest = undefined; } });
+		return this.transaction(async () => { signal?.throwIfAborted(); this.controlRequest = request; try {
+			if (request.action === "unpin" && this.restoreFailed) return await this.recoverRestore(request.names);
+			return await this.lifecycle.control(request);
+		} finally { this.controlRequest = undefined; } });
 	}
 
 	async shutdown(): Promise<void> {
@@ -166,6 +171,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		await this.kernel?.stop();
 		this.kernel = undefined;
 		this.kernelUnavailable = false;
+		this.restoreFailed = undefined;
 		this.liveSourceModules.clear();
 		await this.compiler?.close();
 		this.compiler = undefined;
@@ -250,6 +256,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 					return;
 				}
 				this.state = { ...candidate, bindings: outcome.kind === "live-done" && !outcome.sourceStarted ? start.bindings : bindings, pins: start.pins };
+				if (outcome.kind === "live-done" && outcome.restoreFailed) this.restoreFailed = outcome.restoreFailed;
 				if (outcome.kind === "live-done" && outcome.error) throw new Error(outcome.error);
 				if (outcome.kind === "live-done" && outcome.captureError) { cell.emit([{ type: "input_text", text: `Live cell succeeded, but its durable checkpoint and project pins were not updated: ${outcome.captureError}. Live values remain available.` }]); return; }
 				const lostPins = outcome.kind === "live-done" ? outcome.skipped.filter(item => start.pins.includes(item.name)) : [];
@@ -316,10 +323,11 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			outputHints: Object.fromEntries(this.latestTools.flatMap(tool => "textOutput" in tool && tool.textOutput ? [[tool.name, tool.textOutput]] : [])),
 			commandFormatter: commandOutputFormatterSource, maxStateBytes: this.options.maxHeapMiB * 1024 * 1024 / 8 };
 	}
-	private async capture(): Promise<PortableCapture> {
+	private async capture(bindings?: Record<string, BindingRecipe>): Promise<PortableCapture> {
 		if (this.kernelUnavailable) throw new Error("The TS live kernel stopped; use notebook restart to restore the last durable checkpoint");
-		if (!this.kernel) return { state: this.durable, skipped: [] };
-		const result = await this.kernel.execute(this.captureInput(), {
+		if (!this.kernel && !bindings) return { state: this.durable, skipped: [] };
+		this.kernel ??= new TsExecutionWorker({ cwd: this.importOptions.cwd, heapMiB: Math.floor(this.options.maxHeapMiB / 2) });
+		const result = await this.kernel.execute({ ...this.captureInput(), ...(bindings ? { bindings } : {}) }, {
 			output: () => {}, notify: () => {}, yield: () => {},
 			request: async (operation, _id, name) => {
 				if (operation === "tool") throw new Error("Tools cannot run during TS state capture; run a normal cell instead");
@@ -327,17 +335,36 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			},
 		});
 		if (result.kind !== "live-done") throw new Error("The TS live kernel did not return a capture");
+		if (result.restoreFailed) this.restoreFailed = result.restoreFailed;
 		if (result.error) throw new Error(result.error);
 		if (result.captureError) throw new Error(`${result.captureError}. Live values remain available; the durable checkpoint was not updated`);
-		this.state = { ...result.state, bindings: this.state.bindings, pins: this.state.pins };
+		if (!bindings) this.state = { ...result.state, bindings: this.state.bindings, pins: this.state.pins };
 		return result;
 	}
 	private async resetKernel(state: PortableState): Promise<void> {
 		await this.kernel?.stop();
 		this.kernel = undefined;
 		this.kernelUnavailable = false;
+		this.restoreFailed = undefined;
 		this.liveSourceModules.clear();
 		this.state = state;
+	}
+	private async recoverRestore(names: string[]): Promise<NotebookControlResult> {
+		if (this.running) throw new Error("Wait for active TS cells before recovering a failed restore");
+		const removed = new Set(this.restoreFailed);
+		let previousSize = -1;
+		while (previousSize !== removed.size) {
+			previousSize = removed.size;
+			for (const binding of Object.values(this.durable.bindings)) if (bindingDependencies(binding).some(name => removed.has(name))) removed.add(binding.name);
+		}
+		for (const name of removed) if (!names.includes(name)) throw new Error(`TS restore recovery discards unavailable bindings, aliases and dependants: ${[...removed].join(", ")}. Explicitly unpin all these names together, or reset`);
+		const next = structuredClone(this.durable);
+		for (const name of removed) { delete next.bindings[name]; delete next.roots[name]; }
+		for (const name of names) if (next.bindings[name]) { delete next.bindings[name].checkpoint; delete next.bindings[name].hook; }
+		next.pins = next.pins.filter(name => !names.includes(name));
+		compactState(next);
+		const notice = await this.commitState(next, "adopt");
+		return { message: `TS restore recovery discarded unavailable bindings: ${[...removed].join(", ")}. Other saved bindings were preserved${notice ? `\n${notice}` : ""}`, details: { discarded: [...removed] } };
 	}
 	private async commitState(next: PortableState, action?: NotebookControlRequest["action"] | "adopt"): Promise<string | undefined> {
 		await this.validateDeclarations(next);
@@ -353,10 +380,14 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 						return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: this.requireCompiler() });
 					},
 				});
+				if (result.kind === "live-done" && result.restoreFailed) this.restoreFailed = result.restoreFailed;
 				if (result.kind === "live-done" && result.error) throw new Error(`TS profile load partially executed: ${result.error}. Inspect the live state or restart; no rollback occurred`);
 			}
 			this.state = { ...next, bindings: { ...this.state.bindings, ...next.bindings } };
-			if (action === "unpin" && this.controlRequest?.action === "unpin") for (const name of this.controlRequest.names) if (this.state.bindings[name]) delete this.state.bindings[name].hook;
+			if (action === "unpin" && this.controlRequest?.action === "unpin") for (const name of this.controlRequest.names) {
+				const binding = this.state.bindings[name];
+				if (binding) { const retained = { ...binding }; delete retained.hook; delete retained.checkpoint; this.state.bindings[name] = retained; }
+			}
 		}
 		await this.requireStorage().write(next);
 		this.durable = next;
@@ -375,6 +406,18 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private async scanImports(compiler: TsCompiler, source: string): Promise<string[]> {
 		try { return await compiler.scanImports(source); }
 		catch (error) { throw this.compilerFailure(error); }
+	}
+	private async validateCheckpoint(name: string, checkpoint: NonNullable<BindingRecipe["checkpoint"]>): Promise<void> {
+		for (const helper of [checkpoint.snapshot, checkpoint.restore]) {
+			const binding = this.state.bindings[helper];
+			if (!binding?.source && !binding?.module) throw new Error(`TS checkpoint helper ${helper} must be a named portable top-level function or import`);
+			if (helper === name) throw new Error("TS checkpoint helpers must differ from the registered binding");
+		}
+		const compiler = this.requireCompiler();
+		const baselineDeclarations = Object.values(this.state.bindings).map(binding => binding.declaration).join("\n");
+		const imports = await resolveTsImports(await this.scanImports(compiler, baselineDeclarations), { ...this.importOptions, compiler });
+		const result = await compiler.compile({ source: `const __checkpointData = await ${checkpoint.snapshot}(${name}); const __checkpointValue: typeof ${name} = await ${checkpoint.restore}(__checkpointData);`, baselineDeclarations, globalsDeclaration: TS_GLOBAL_DECLARATIONS + "\ndeclare const tools: Record<string, unknown>;", ...imports });
+		if (!result.ok) throw new Error(`TS checkpoint helpers are incompatible: ${result.diagnostics.map(diagnostic => `TS${diagnostic.code} ${diagnostic.message}`).join("; ")}`);
 	}
 	private async validateDeclarations(state: PortableState): Promise<void> {
 		const baselineDeclarations = Object.values(state.bindings).map(binding => binding.declaration).join("\n");

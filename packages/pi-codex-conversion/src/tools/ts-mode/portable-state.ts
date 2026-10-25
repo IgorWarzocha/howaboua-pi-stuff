@@ -13,6 +13,7 @@ export type PortableNode =
 	| { kind: "regexp"; source: string; flags: string; lastIndex: number }
 	| { kind: "view"; constructor: string; buffer: PortableValue; byteOffset: number; length: number }
 	| { kind: "recipe"; name: string; properties: Record<string, PortableValue> }
+	| { kind: "checkpoint"; snapshot: string; restore: string; data: PortableValue }
 	| { kind: "module"; specifier: string; imported: string; attributes?: Record<string, string> | undefined };
 
 export interface BindingRecipe {
@@ -23,11 +24,17 @@ export interface BindingRecipe {
 	references?: string[] | undefined;
 	module?: { specifier: string; imported: string; attributes?: Record<string, string> | undefined } | undefined;
 	hook?: "startup" | "tool_result" | undefined;
+	checkpoint?: { snapshot: string; restore: string } | undefined;
 }
 
 export interface PortableCapture {
 	state: PortableState;
 	skipped: { name: string; reason: string }[];
+}
+
+export class CheckpointRestoreError extends Error {
+	readonly bindings: string[];
+	constructor(message: string, bindings: string[]) { super(message); this.bindings = bindings; }
 }
 
 export interface PortableState {
@@ -45,8 +52,12 @@ export function emptyState(): PortableState {
 
 /** Profiles are loaded by value: their graph IDs must not alias an existing session graph. */
 export function forkPortableState(original: PortableState): PortableState {
+	return remapPortableState(original, () => randomUUID());
+}
+
+function remapPortableState(original: PortableState, identity: (index: number) => string): PortableState {
 	const state: PortableState = deserialize(serialize(original));
-	const ids = new Map(Object.keys(state.nodes).map(id => [id, randomUUID()]));
+	const ids = new Map(Object.keys(state.nodes).map((id, index) => [id, identity(index)]));
 	const remap = (value: PortableValue): PortableValue => value !== null && typeof value === "object" ? { ref: ids.get(value.ref) ?? value.ref } : value;
 	const properties = (values: Record<string, PortableValue>): Record<string, PortableValue> => Object.fromEntries(Object.entries(values).map(([name, value]) => [name, remap(value)]));
 	state.roots = properties(state.roots);
@@ -56,6 +67,7 @@ export function forkPortableState(original: PortableState): PortableState {
 			case "map": node.entries = node.entries.map(([key, value]) => [remap(key), remap(value)]); break;
 			case "set": node.entries = node.entries.map(remap); break;
 			case "view": node.buffer = remap(node.buffer); break;
+			case "checkpoint": node.data = remap(node.data); break;
 		}
 		return [ids.get(id) ?? id, node];
 	}));
@@ -89,7 +101,28 @@ export class PortableGraph {
 	private readonly identities = new WeakMap<object, string>();
 	private readonly recipes = new WeakMap<object, { name: string; descriptors: Map<PropertyKey, PropertyDescriptor>; prototypeDescriptors?: Map<PropertyKey, PropertyDescriptor> | undefined }>();
 	private readonly modules = new Map<object, Extract<PortableNode, { kind: "module" }>>();
+	private checkpoints = new Map<object, { snapshot: string; restore: string; data: unknown }>();
 	private liveOnlyHint: string | undefined;
+
+	/** Snapshot current values once, before the graph's per-root portability probes. */
+	async prepareCheckpoints(values: Record<string, unknown>, bindings: Record<string, BindingRecipe>): Promise<void> {
+		this.checkpoints = new Map();
+		for (const [name, binding] of Object.entries(bindings)) {
+			if (!binding.checkpoint) continue;
+			const value = values[name];
+			if ((typeof value !== "object" || value === null) && typeof value !== "function") throw new Error(`TS checkpoint ${name} requires an object or function`);
+			const previous = this.checkpoints.get(value);
+			if (previous) {
+				if (previous.snapshot !== binding.checkpoint.snapshot || previous.restore !== binding.checkpoint.restore) throw new Error(`TS checkpoint ${name} aliases an object with different checkpoint helpers`);
+				continue;
+			}
+			const snapshot = values[binding.checkpoint.snapshot];
+			const restore = values[binding.checkpoint.restore];
+			if (typeof snapshot !== "function" || typeof restore !== "function") throw new Error(`TS checkpoint ${name} requires available snapshot and restore helpers`);
+			try { this.checkpoints.set(value, { ...binding.checkpoint, data: await snapshot(value) }); }
+			catch (cause) { throw new Error(`TS snapshot ${name} failed: ${cause instanceof Error ? cause.message : String(cause)}`); }
+		}
+	}
 
 	/** Live execution is unrestricted; durability captures only independently restorable roots. */
 	capture(values: Record<string, unknown>, bindings: Record<string, BindingRecipe>, pins: string[], imports: string[] = []): PortableCapture {
@@ -127,12 +160,14 @@ export class PortableGraph {
 			changed = false;
 			for (const [name, binding] of Object.entries(bindings)) {
 				if (skipped.has(name)) continue;
-				const dependency = binding.references?.find(reference => skipped.has(reference));
+				const dependency = bindingDependencies(binding).find(reference => skipped.has(reference));
 				if (dependency) { skipped.set(name, `requires live-only binding ${dependency}`); changed = true; continue; }
 				if (!Object.hasOwn(values, name)) continue;
 				const probe = this.encode({ [name]: values[name] }, bindings, pins, imports);
 				const recipe = Object.values(probe.nodes).find(node => node.kind === "recipe" && skipped.has(node.name));
 				if (recipe?.kind === "recipe") { skipped.set(name, `requires live-only recipe ${recipe.name}`); changed = true; }
+				const checkpoint = Object.values(probe.nodes).find(node => node.kind === "checkpoint" && (skipped.has(node.snapshot) || skipped.has(node.restore)));
+				if (checkpoint?.kind === "checkpoint") { skipped.set(name, "requires live-only checkpoint helper"); changed = true; }
 			}
 		}
 		const retained = Object.fromEntries(Object.entries(bindings).filter(([name]) => !skipped.has(name)));
@@ -163,6 +198,22 @@ export class PortableGraph {
 			if (Object.hasOwn(state.nodes, id)) return { ref: id };
 			const recipe = this.recipes.get(value);
 			const module = this.modules.get(value);
+			const checkpoint = this.checkpoints.get(value);
+			if (checkpoint) {
+				// Snapshot data must be ordinary portable data, never a path back to a live handle.
+				const registered = this.checkpoints;
+				this.checkpoints = new Map();
+				try {
+					const data = this.encode({ data: checkpoint.data }, bindings, [], []);
+					for (const object of registered.keys()) { const liveId = this.identities.get(object); if (liveId && Object.hasOwn(data.nodes, liveId)) throw new Error(`${path}: snapshot data contains a registered live object; return its data instead`); }
+					// Snapshots are by-value payloads, not fresh live identities on every capture.
+					// Stable local IDs let unchanged captures merge across independent sessions.
+					const payload = remapPortableState(data, index => `${id}:snapshot:${index}`);
+					Object.assign(state.nodes, payload.nodes);
+					state.nodes[id] = { kind: "checkpoint", snapshot: checkpoint.snapshot, restore: checkpoint.restore, data: payload.roots["data"] };
+				} finally { this.checkpoints = registered; }
+				return { ref: id };
+			}
 			if (module) { state.nodes[id] = module; return { ref: id }; }
 			if (recipe) {
 				const prototype: unknown = Reflect.get(value, "prototype");
@@ -225,7 +276,7 @@ export class PortableGraph {
 		return state;
 	}
 
-	decode(state: PortableState, resolveRecipe: (name: string) => unknown, resolveModule: (node: Extract<PortableNode, { kind: "module" }>) => unknown = () => { throw new Error("Module recipe resolver unavailable"); }): Record<string, unknown> {
+	decode(state: PortableState, resolveRecipe: (name: string) => unknown, resolveModule: (node: Extract<PortableNode, { kind: "module" }>) => unknown = () => { throw new Error("Module recipe resolver unavailable"); }): { values: Record<string, unknown>; restoreCheckpoints(resolve: (name: string) => unknown): Promise<void> } {
 		const objects = new Map<string, unknown>();
 		for (const [id, node] of Object.entries(state.nodes)) {
 			let value: unknown;
@@ -246,6 +297,7 @@ export class PortableGraph {
 				case "recipe": value = resolveRecipe(node.name); this.registerRecipe(value, node.name); break;
 				case "module": value = resolveModule(node); this.registerModule(value, node.specifier, node.imported, node.attributes); break;
 				case "view": continue;
+				case "checkpoint": value = undefined; break;
 			}
 			objects.set(id, value);
 			if ((typeof value === "object" && value !== null) || typeof value === "function") this.identities.set(value, id);
@@ -272,16 +324,56 @@ export class PortableGraph {
 			objects.set(id, object);
 			this.identities.set(object, id);
 		}
-		for (const [id, node] of Object.entries(state.nodes)) {
+		const fill = (restored = false): void => { for (const [id, node] of Object.entries(state.nodes)) {
+			const pending = (value: PortableValue): boolean => value !== null && typeof value === "object" && state.nodes[value.ref]?.kind === "checkpoint";
+			if (restored && !(node.kind === "object" || node.kind === "array" || node.kind === "recipe" ? Object.values(node.properties).some(pending) : node.kind === "map" ? node.entries.some(([key, value]) => pending(key) || pending(value)) : node.kind === "set" && node.entries.some(pending))) continue;
 			const object = objects.get(id);
 			if (node.kind === "object" || node.kind === "array" || node.kind === "recipe") {
 				if ((typeof object !== "object" || object === null) && typeof object !== "function") throw new Error("Invalid portable object");
 				for (const [key, value] of Object.entries(node.properties)) Object.defineProperty(object, key, { value: read(value), writable: true, enumerable: true, configurable: true });
-			} else if (node.kind === "map" && types.isMap(object)) for (const [key, value] of node.entries) object.set(read(key), read(value));
-			else if (node.kind === "set" && types.isSet(object)) for (const value of node.entries) object.add(read(value));
-		}
-		return Object.fromEntries(Object.entries(state.roots).map(([name, value]) => [name, read(value)]));
+			} else if (node.kind === "map" && types.isMap(object)) { object.clear(); for (const [key, value] of node.entries) object.set(read(key), read(value)); }
+			else if (node.kind === "set" && types.isSet(object)) { object.clear(); for (const value of node.entries) object.add(read(value)); }
+		} };
+		fill();
+		const values = Object.fromEntries(Object.entries(state.roots).map(([name, value]) => [name, read(value)]));
+		return { values, restoreCheckpoints: async resolve => {
+			for (const [id, node] of Object.entries(state.nodes)) {
+				if (node.kind !== "checkpoint") continue;
+				const restore = resolve(node.restore);
+				if (typeof restore !== "function") throw new Error(`TS restore helper ${node.restore} is unavailable`);
+				let value: unknown;
+				try { value = await restore(read(node.data)); }
+				catch (cause) { throw new CheckpointRestoreError(`TS restore ${node.restore} failed: ${cause instanceof Error ? cause.message : String(cause)}`, ownersOfNode(state, id)); }
+				if ((typeof value !== "object" || value === null) && typeof value !== "function") throw new CheckpointRestoreError(`TS restore ${node.restore} must return an object or function`, ownersOfNode(state, id));
+				objects.set(id, value); this.identities.set(value, id);
+			}
+			fill(true);
+			for (const [name, value] of Object.entries(state.roots)) values[name] = read(value);
+		} };
 	}
+}
+
+export function bindingDependencies(binding: BindingRecipe): string[] {
+	return [...(binding.references ?? []), ...(binding.checkpoint ? [binding.checkpoint.snapshot, binding.checkpoint.restore] : [])];
+}
+
+/** Roots containing checkpoint identities must be initialised after reconstruction. */
+export function checkpointRoots(state: PortableState): string[] {
+	return Object.keys(state.roots).filter(name => {
+		const visited = new Set<string>();
+		const contains = (value: PortableValue): boolean => {
+			if (value === null || typeof value !== "object" || visited.has(value.ref)) return false;
+			visited.add(value.ref);
+			const node = state.nodes[value.ref];
+			if (node?.kind === "checkpoint") return true;
+			if (node?.kind === "object" || node?.kind === "array" || node?.kind === "recipe") return Object.values(node.properties).some(contains);
+			if (node?.kind === "map") return node.entries.some(([key, item]) => contains(key) || contains(item));
+			if (node?.kind === "set") return node.entries.some(contains);
+			if (node?.kind === "view") return contains(node.buffer);
+			return false;
+		};
+		return contains(state.roots[name]);
+	});
 }
 
 function descriptors(value: object): Map<PropertyKey, PropertyDescriptor> { return new Map(Reflect.ownKeys(value).map(key => [key, Object.getOwnPropertyDescriptor(value, key) ?? {}])); }
@@ -336,6 +428,7 @@ function ownersOfNode(state: PortableState, target: string): string[] {
 			if (node?.kind === "map") return node.entries.some(([key, item]) => contains(key) || contains(item));
 			if (node?.kind === "set") return node.entries.some(contains);
 			if (node?.kind === "view") return contains(node.buffer);
+			if (node?.kind === "checkpoint") return contains(node.data);
 			return false;
 		};
 		return contains(root);
@@ -353,6 +446,7 @@ export function compactState(state: PortableState): PortableState {
 		else if (node.kind === "map") node.entries.forEach(([key, item]) => { visit(key); visit(item); });
 		else if (node.kind === "set") node.entries.forEach(visit);
 		else if (node.kind === "view") visit(node.buffer);
+		else if (node.kind === "checkpoint") visit(node.data);
 	};
 	Object.values(state.roots).forEach(visit);
 	state.nodes = Object.fromEntries(Object.entries(state.nodes).filter(([id]) => reachable.has(id)));

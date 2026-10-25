@@ -1,12 +1,13 @@
 import { deserialize, serialize } from "node:v8";
 import type { NotebookControlRequest, NotebookControlResult } from "../code-mode/types.ts";
 import { globMatcher } from "../notebook-mode/glob.ts";
-import { compactState, emptyState, forkPortableState, type PortableCapture, type PortableState } from "./portable-state.ts";
+import { bindingDependencies, compactState, emptyState, forkPortableState, type BindingRecipe, type PortableCapture, type PortableState } from "./portable-state.ts";
 import type { TsStateStorage } from "./state-storage.ts";
 
 export interface TsLifecycleHost {
 	state(): PortableState;
-	capture(): Promise<PortableCapture>;
+	capture(bindings?: Record<string, BindingRecipe>): Promise<PortableCapture>;
+	validateCheckpoint(name: string, checkpoint: NonNullable<BindingRecipe["checkpoint"]>): Promise<void>;
 	storage(): TsStateStorage;
 	activeCells(): string[];
 	commit(state: PortableState, action?: NotebookControlRequest["action"] | "adopt", released?: string[]): Promise<string | undefined>;
@@ -34,7 +35,20 @@ export class TsStateLifecycle {
 		// Reset and restart must also work when the live kernel is unavailable.
 		if (request.action === "reset") { await this.host.reset(); return { message: "TS session reset to project pins; live-only values discarded; saved profiles unchanged", details: {} }; }
 		if (request.action === "restart") { await this.host.restart(); return { message: "TS restarted from its last durable checkpoint; live-only values and changes since that checkpoint cannot be restored", details: {} }; }
-		const capture = await this.host.capture();
+		let registration: Record<string, BindingRecipe> | undefined;
+		if (request.action === "pin" && request.checkpoint) {
+			if (request.names.length !== 1 || request.hook !== undefined) throw new Error("TS checkpoint requires one binding and no hook");
+			const name = request.names[0];
+			const binding = name ? state.bindings[name] : undefined;
+			if (!binding || !name) throw new Error(`No TS binding ${name}`);
+			await this.host.validateCheckpoint(name, request.checkpoint);
+			registration = { ...state.bindings, [name]: { ...binding, checkpoint: request.checkpoint } };
+		}
+		if (request.action === "unpin") {
+			registration = structuredClone(state.bindings);
+			for (const name of request.names) if (registration[name]) delete registration[name].checkpoint;
+		}
+		const capture = await this.host.capture(registration);
 		const skippedNotice = formatSkipped(capture);
 		if (request.action === "save") {
 			await storage.writeProfile(request.name, capture.state);
@@ -70,7 +84,7 @@ export class TsStateLifecycle {
 				break;
 			case "unpin":
 				next.pins = next.pins.filter(name => !request.names.includes(name));
-				for (const name of request.names) if (next.bindings[name]) delete next.bindings[name].hook;
+				for (const name of request.names) if (next.bindings[name]) { delete next.bindings[name].hook; delete next.bindings[name].checkpoint; }
 				break;
 			case "release": case "prune": {
 				const matches = request.action === "release" ? (name: string) => request.names.includes(name) : globMatcher(request.query);
@@ -79,10 +93,11 @@ export class TsStateLifecycle {
 				for (const name of removed) { delete next.bindings[name]; delete next.roots[name]; }
 				compactState(next);
 				for (const binding of Object.values(state.bindings).filter(binding => !removed.has(binding.name))) {
-					const dependency = binding.references?.find(name => removed.has(name));
+					const dependency = bindingDependencies(binding).find(name => removed.has(name));
 					if (dependency) throw new Error(`Cannot release ${dependency}: retained function ${binding.name} needs it. Release both together or redefine the helper first.`);
 				}
 				for (const node of Object.values(next.nodes)) if (node.kind === "recipe" && removed.has(node.name)) throw new Error(`Cannot release ${node.name}: a retained alias needs its function recipe. Release the alias too.`);
+				for (const node of Object.values(next.nodes)) if (node.kind === "checkpoint" && (removed.has(node.snapshot) || removed.has(node.restore))) throw new Error(`Cannot release checkpoint helpers ${node.snapshot}, ${node.restore}: a retained checkpoint or alias needs them. Release its unpinned bindings too`);
 				break;
 			}
 		}
@@ -117,9 +132,9 @@ export function selectProjectPins(state: PortableState): PortableState {
 	let selected = emptyState();
 	while (names.size !== previousSize) {
 		previousSize = names.size;
-		for (const name of names) for (const dependency of state.bindings[name]?.references ?? []) if (Object.hasOwn(state.bindings, dependency)) names.add(dependency);
+		for (const name of names) { const binding = state.bindings[name]; if (binding) for (const dependency of bindingDependencies(binding)) if (Object.hasOwn(state.bindings, dependency)) names.add(dependency); }
 		selected = compactState({ ...state, roots: Object.fromEntries(Object.entries(state.roots).filter(([name]) => names.has(name))), bindings: Object.fromEntries(Object.entries(state.bindings).filter(([name]) => names.has(name))), nodes: { ...state.nodes } });
-		for (const node of Object.values(selected.nodes)) if (node.kind === "recipe") names.add(node.name);
+		for (const node of Object.values(selected.nodes)) { if (node.kind === "recipe") names.add(node.name); if (node.kind === "checkpoint") { names.add(node.snapshot); names.add(node.restore); } }
 	}
 	return selected;
 }

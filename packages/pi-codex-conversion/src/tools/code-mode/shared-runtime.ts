@@ -340,7 +340,7 @@ export class SharedCodeModeRuntime {
 		if (this.executionKind(ctx) === "code") return tools;
 		if (tools.some((tool) => tool.name === "notebook"))
 			throw new Error("Duplicate code-mode tool: notebook");
-		return [...tools, createNotebookControlProxy(this)];
+		return [...tools, createNotebookControlProxy(this, this.executionKind(ctx) === "ts")];
 	}
 }
 

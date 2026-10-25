@@ -118,6 +118,7 @@ function assertMessage(value: unknown): asserts value is TsWorkerMessage {
 		case "done": assertPortableState(value["state"]); return;
 		case "live-done":
 			assertPortableState(value["state"]);
+			if (value["restoreFailed"] !== undefined && (!Array.isArray(value["restoreFailed"]) || !value["restoreFailed"].every(name => typeof name === "string"))) break;
 			if (typeof value["sourceStarted"] === "boolean" && Array.isArray(value["skipped"]) && value["skipped"].every(item => record(item) && typeof item["name"] === "string" && typeof item["reason"] === "string") && (value["error"] === undefined || typeof value["error"] === "string") && (value["captureError"] === undefined || typeof value["captureError"] === "string")) return;
 			break;
 	}

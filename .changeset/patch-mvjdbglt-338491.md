@@ -10,7 +10,7 @@
 - WebSocket prewarming uses the final prepared request, including after compaction; cache keepalive remains opt-in.
 - Native checkpoint replay preserves context edits made by other extensions.
 - Removed redundant instructions from Notebook help.
-- Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and durable state controls. Code and Deno Notebook remain available.
+- Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and snapshot/restore helpers for retained objects. Code and Deno Notebook remain available.
 - Realtime voice now uses gpt-live-1.1-codex.
 - Notebook runtime failures retain recovery actions without exposing internal protocol diagnostics.
 - Conversation history preparation now allocates fewer temporary objects.

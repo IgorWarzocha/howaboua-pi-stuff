@@ -21,7 +21,7 @@ const PIN_PARAMETERS = Type.Object({
 	})),
 }, { additionalProperties: false });
 
-function notebookActionParameters() {
+function notebookActionParameters(allowCheckpoint = false) {
 	return Type.Union([
 		Type.Object({
 			action: StringEnum(["status", "list"]),
@@ -34,7 +34,7 @@ function notebookActionParameters() {
 			action: StringEnum(["save", "load"]),
 			name: Type.String(),
 		}, { additionalProperties: false }),
-		PIN_PARAMETERS,
+		allowCheckpoint ? Type.Object({ ...PIN_PARAMETERS.properties, checkpoint: Type.Optional(Type.Object({ snapshot: Type.String(), restore: Type.String() }, { additionalProperties: false })) }, { additionalProperties: false }) : PIN_PARAMETERS,
 		Type.Object({
 			action: StringEnum(["unpin", "release"]),
 			names: Type.Array(Type.String(), { minItems: 1 }),
@@ -47,6 +47,7 @@ function notebookActionParameters() {
 }
 
 const NOTEBOOK_ACTION_PARAMETERS = notebookActionParameters();
+const TS_ACTION_PARAMETERS = notebookActionParameters(true);
 
 export const NOTEBOOK_PARAMETERS = Type.Object({
 	input: Type.Optional(Type.String({ description: 'help or JSON, e.g. {"action":"status"}; not a bare action name' })),
@@ -88,8 +89,8 @@ Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 {"action":"checkpoint"}  Capture durable state; report live-only values not saved
 {"action":"save","name":string}  Save durable state as a named profile
 {"action":"load","name":string}  Add a profile by value; release colliding bindings first. A candidate-* name instead replaces the live kernel
-{"action":"pin","names":string[],"hook"?:"startup"|"tool_result"|false}  Retain durable bindings and protect from release/prune; omit hook to preserve it, false removes it
-{"action":"unpin","names":string[]}  Remove pin protection and hooks, keeping bindings
+{"action":"pin","names":string[],"hook"?:"startup"|"tool_result"|false,"checkpoint"?:{snapshot:string,restore:string}}  Retain durable bindings and protect from release/prune; omit hook to preserve it, false removes it
+{"action":"unpin","names":string[]}  Remove pin protection, hooks and checkpoint registration, keeping live bindings
 {"action":"release","names":string[]}  Remove selected unpinned bindings
 {"action":"prune","query":string}  Remove unpinned bindings matching a glob
 {"action":"restart"}  Restore the last durable checkpoint; live-only values and later changes are lost
@@ -99,6 +100,8 @@ Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 query uses case-insensitive * and ? globs. Lifecycle changes, save and checkpoint require idle cells. Inside exec, tools.notebook({action:"status"}), list and diagnostics are available. Release/prune rebuild the kernel so names are reusable; live-only values are discarded.
 
 Hooks use self-contained fn(event). startup runs once per fresh kernel, including isolated workers, after restoration, not when pinned; Pi tools are unavailable during startup. tool_result runs after nested tool settlement with {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger hooks.
+
+checkpoint accepts one binding, no hook: named durable helpers snapshot(value) → portable current data, restore(data) → rebuilt value; both may be async. Restorers also run for profiles and isolated cells, so reconnecting resources can have external effects. Failed restoration blocks execution and preserves the checkpoint; unpin the names reported for recovery.
 
 TS state is separate from Deno Notebook. Normal cells share live bindings, closures and module instances. Durable snapshots retain supported data and helper recipes, reporting skipped live-only values. Live errors can leave mutations; tool and file effects are not rolled back. Isolated cells use a checkpoint copy and save a candidate without changing live state. Loading a candidate replaces the kernel and discards current live-only values and unsaved changes.`;
 
@@ -112,6 +115,7 @@ type NotebookToolParameters = {
 	name?: string | undefined;
 	names?: string[] | undefined;
 	hook?: string | false | undefined;
+	checkpoint?: { snapshot: string; restore: string } | undefined;
 };
 
 export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRuntime): void {
@@ -137,7 +141,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 			} catch (error) {
 				throw new Error('notebook input must be help or a JSON action object; call notebook({})', { cause: error });
 			}
-			if (!Check(NOTEBOOK_ACTION_PARAMETERS, action)) {
+			if (!Check(runtime.executionKind(ctx) === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS, action)) {
 				throw new Error('Invalid notebook action arguments; call notebook({})');
 			}
 			const result = await executeNotebookControl(runtime, action, {
@@ -154,6 +158,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 
 export function createNotebookControlProxy(
 	runtime: SharedCodeModeRuntime,
+	allowCheckpoint = false,
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
@@ -162,7 +167,7 @@ export function createNotebookControlProxy(
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
-		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, NOTEBOOK_ACTION_PARAMETERS]),
+		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, allowCheckpoint ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS]),
 		invoke: (input, context, signal) => {
 			if (input === undefined || Check(NOTEBOOK_DISCOVERY_PARAMETERS, input))
 				return Promise.resolve({ message: notebookHelp(runtime, context.extensionContext), details: { action: "help" } });
@@ -177,7 +182,7 @@ export async function executeNotebookControl(
 	context: ToolExecutionContext,
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
-	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params), context, signal);
+	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts"), context, signal);
 }
 
 export async function executeNotebookExecControl(
@@ -186,7 +191,7 @@ export async function executeNotebookExecControl(
 	context: ToolExecutionContext,
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
-	const request = normalizeNotebookRequest(params);
+	const request = normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts");
 	if (!canExecuteNotebookControlInsideExec(request))
 		return {
 			message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
@@ -204,14 +209,16 @@ function executeNormalizedNotebookControl(
 	return runtime.controlNotebook(request, context, signal);
 }
 
-export function normalizeNotebookRequest(params: NotebookToolParameters): NotebookControlRequest {
+export function normalizeNotebookRequest(params: NotebookToolParameters, allowCheckpoint = false): NotebookControlRequest {
 	params = {
 		action: params.action,
 		...(params.query == null ? {} : { query: params.query }),
 		...(params.name == null ? {} : { name: params.name }),
 		...(params.names == null ? {} : { names: params.names }),
 		...(params.hook == null ? {} : { hook: params.hook }),
+		...(params.checkpoint === undefined ? {} : { checkpoint: params.checkpoint }),
 	};
+	if (params.checkpoint !== undefined && (!allowCheckpoint || params.action !== "pin" || params.names?.length !== 1 || params.hook !== undefined || !params.checkpoint || typeof params.checkpoint.snapshot !== "string" || typeof params.checkpoint.restore !== "string")) throw new Error("TS checkpoint requires pin, one binding, named snapshot and restore helpers, and no hook");
 	if (params.hook !== undefined && (params.action !== "pin" || params.hook !== false && params.hook !== "startup" && params.hook !== "tool_result")) {
 		throw new Error("notebook hook requires pin and startup, tool_result, or false");
 	}
@@ -227,7 +234,7 @@ export function normalizeNotebookRequest(params: NotebookToolParameters): Notebo
 	if (params.action === "release" || params.action === "pin" || params.action === "unpin") {
 		if (params.query !== undefined || params.name !== undefined) throw new Error(`notebook ${params.action} accepts names only`);
 		if (!params.names?.length) throw new Error(`notebook ${params.action} requires at least one name`);
-		return { action: params.action, names: [...new Set(params.names)], ...(params.action === "pin" && params.hook !== undefined ? { hook: params.hook } : {}) };
+		return { action: params.action, names: [...new Set(params.names)], ...(params.action === "pin" && params.hook !== undefined ? { hook: params.hook } : {}), ...(params.action === "pin" && params.checkpoint ? { checkpoint: params.checkpoint } : {}) };
 	}
 	if (params.action === "prune") {
 		if (params.name !== undefined || params.names !== undefined) throw new Error("notebook prune accepts query only");
