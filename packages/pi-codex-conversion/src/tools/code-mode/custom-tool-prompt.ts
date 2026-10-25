@@ -136,6 +136,9 @@ export function buildCodeModeToolsPrompt(
 				? "exec=persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Smallprograms across cells; retainedglobals may originate earlieragents/sessions"
 				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+		executionKind === "ts"
+			? "Strict typechecking includes tool arguments. Type errors prevent cell execution"
+			: undefined,
 		gpt ? "Tools without callsignature: noargs→usage only≠operation; structured→{}"
 			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
