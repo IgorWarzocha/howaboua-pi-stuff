@@ -246,7 +246,7 @@ function discovery(
 						usage:
 							"Search earlier conversation, don't browse it. Pass returned IDs unchanged",
 						search: rankedHistory
-							? "Current session: all keywords, case/accent-insensitive, relevance order. Other saved sessions: literal substring. recent_first=true uses newest first"
+							? "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
 							: "Case-sensitive literal substring. recent_first=true uses newest first",
 					}),
 		});
@@ -524,12 +524,14 @@ function createQueryExecutor(
 			);
 		signal?.throwIfAborted();
 		return result(
-			useHistory(
+			await useHistory(
 				ctx.sessionManager.getBranch(),
 				params,
 				ctx.sessionManager.getSessionId(),
 				search,
 				ctx.sessionManager.getEntries(),
+				signal,
+				shared,
 			),
 		);
 	}

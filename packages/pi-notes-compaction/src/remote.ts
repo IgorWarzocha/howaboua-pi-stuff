@@ -139,7 +139,7 @@ export function createNotesRemoteService(pi: ExtensionAPI) {
 	};
 }
 
-export async function lookupRemoteNotes(
+async function lookupRemoteNotes(
 	query: LookupQuery,
 	ctx: ExtensionContext,
 	signal?: AbortSignal,
@@ -270,7 +270,7 @@ export async function executeRemoteAttachment(
 	};
 }
 
-export async function projectNotesResponses(
+async function projectNotesResponses(
 	result: AgentToolResult<unknown>,
 	responses: readonly CachedResponse[],
 	callId: string,

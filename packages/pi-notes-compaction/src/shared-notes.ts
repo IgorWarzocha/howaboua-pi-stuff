@@ -212,19 +212,20 @@ async function readSharedSession(
 	if (savedNotesIdentity(current).agentName === target) return;
 	const visited = new Set<string>();
 
-	function read(
+	async function read(
 		session: SavedNotesSession,
 		query: Record<string, unknown>,
 		native: string,
 	) {
 		return {
 			...(access.namespace === "history"
-				? useHistory(
+				? await useHistory(
 						session.branch,
 						query,
 						session.threadId,
 						access.search,
 						session.entries,
+						signal,
 					)
 				: readNotes(
 						collectNotes(store, session.branch),
@@ -294,11 +295,11 @@ async function readSharedSession(
 			},
 		};
 		return {
-			...read(
+			...(await read(
 				{ threadId: identity.threadId, entries: [], branch: [entry] },
 				query,
 				identity.agentName,
-			),
+			)),
 			source: "retained-checkpoints",
 			captured_at: new Date(retained.timestamp).toISOString(),
 			...(detached ? { detached: true } : { stale: true }),

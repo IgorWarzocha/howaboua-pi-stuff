@@ -12,6 +12,23 @@ interface HistoryItem {
 	content: string;
 }
 
+// Pi entries are immutable once persisted. Rendering is lazy so indexing never
+// serializes the ongoing context, and repeated lookups reuse unchanged text.
+const rendered = new WeakMap<SessionEntry, string>();
+const cachedItems = new WeakMap<SessionEntry, HistoryItem>();
+const indexItems = new WeakMap<
+	HistoryItem,
+	Pick<HistoryItem, "item_id" | "content">
+>();
+function content(entry: SessionEntry, render: () => string): string {
+	let value = rendered.get(entry);
+	if (value === undefined) {
+		value = render();
+		rendered.set(entry, value);
+	}
+	return value;
+}
+
 function customHistoryRole(
 	entry: Extract<SessionEntry, { type: "custom_message" }>,
 ): string {
@@ -44,11 +61,12 @@ function customHistoryRole(
 }
 
 /** Pi's selected JSONL branch is the archive. */
-function historyWindows(
+async function historyWindows(
 	entries: readonly SessionEntry[],
 	sessionId: string,
 	allEntries: readonly SessionEntry[],
-): Map<string, HistoryItem[]> {
+	signal?: AbortSignal,
+): Promise<{ windows: Map<string, HistoryItem[]>; retired: Set<string> }> {
 	const archive = buildTreeArchiveIndex(allEntries, entries);
 	if (archive.invalidManifest)
 		throw new Error("Saved Tree history metadata is invalid");
@@ -66,15 +84,42 @@ function historyWindows(
 		return true;
 	});
 	let windowId = `session:${sessionId}`;
+	let activeStart = 0;
+	const positions = new Map(
+		entries.map((entry, position) => [entry.id, position]),
+	);
+	for (const [position, entry] of entries.entries()) {
+		const boundary = windowDetails(entry);
+		if (boundary?.kind === "window" && boundary.trim)
+			activeStart = position + 1;
+		if (entry.type === "compaction") {
+			const kept = positions.get(entry.firstKeptEntryId);
+			if (kept !== undefined && kept <= position)
+				activeStart = Math.max(activeStart, kept);
+		}
+	}
+	const retired = new Set(
+		entries.slice(0, activeStart).map((entry) => entry.id),
+	);
 	const windows = new Map<string, HistoryItem[]>();
 	windows.set(windowId, []);
-	for (const entry of entries) {
+	for (const [position, entry] of entries.entries()) {
+		if (position % 512 === 0) {
+			await setImmediate();
+			signal?.throwIfAborted();
+		}
 		const boundary = windowDetails(entry);
 		if (boundary?.kind === "window") {
 			windowId = boundary.identity.currentWindowId;
 			if (!windows.has(windowId)) windows.set(windowId, []);
 			continue;
 		}
+		const cached = cachedItems.get(entry);
+		if (cached?.window_id === windowId) {
+			windows.get(windowId)!.push(cached);
+			continue;
+		}
+		let item: HistoryItem | undefined;
 		if (entry.type === "message") {
 			const message = entry.message;
 			const call =
@@ -87,24 +132,26 @@ function historyWindows(
 					: call?.type === "toolCall"
 						? call.name
 						: undefined;
-			const content = !("content" in message)
-				? JSON.stringify(message)
-				: typeof message.content === "string"
-					? message.content
-					: message.content
-							.map((block) => {
-								if (block.type === "text") return block.text;
-								if (block.type === "thinking") return block.thinking;
-								if (block.type === "toolCall")
-									return JSON.stringify({
-										tool: block.name,
-										arguments: block.arguments,
-									});
-								if (block.type === "image") return `[image ${block.mimeType}]`;
-								return JSON.stringify(block);
-							})
-							.join("\n");
-			windows.get(windowId)!.push({
+			const render = () =>
+				!("content" in message)
+					? JSON.stringify(message)
+					: typeof message.content === "string"
+						? message.content
+						: message.content
+								.map((block) => {
+									if (block.type === "text") return block.text;
+									if (block.type === "thinking") return block.thinking;
+									if (block.type === "toolCall")
+										return JSON.stringify({
+											tool: block.name,
+											arguments: block.arguments,
+										});
+									if (block.type === "image")
+										return `[image ${block.mimeType}]`;
+									return JSON.stringify(block);
+								})
+								.join("\n");
+			item = {
 				window_id: windowId,
 				item_id: entry.id,
 				role: message.role === "toolResult" ? "tool" : message.role,
@@ -116,48 +163,100 @@ function historyWindows(
 								: {}),
 						}
 					: {}),
-				content,
-			});
+				get content() {
+					return content(entry, render);
+				},
+			};
+			if (message.role === "user" || message.role === "assistant") {
+				const body = message.content;
+				const hasText =
+					typeof body === "string"
+						? body.length > 0
+						: body.some(
+								(block) => block.type === "text" && block.text.length > 0,
+							);
+				let indexedContent: string | undefined;
+				if (hasText)
+					indexItems.set(item, {
+						item_id: item.item_id,
+						get content() {
+							return (indexedContent ??=
+								typeof body === "string"
+									? body
+									: body
+											.filter((block) => block.type === "text")
+											.map((block) => block.text)
+											.join("\n"));
+						},
+					});
+			}
 		} else if (entry.type === "custom_message" && !boundary) {
-			windows.get(windowId)!.push({
+			item = {
 				window_id: windowId,
 				item_id: entry.id,
 				role: customHistoryRole(entry),
-				content:
-					typeof entry.content === "string"
-						? entry.content
-						: entry.content
-								.map((block) =>
-									block.type === "text" ? block.text : "[image]",
-								)
-								.join("\n"),
-			});
+				get content() {
+					return content(entry, () =>
+						typeof entry.content === "string"
+							? entry.content
+							: entry.content
+									.map((block) =>
+										block.type === "text" ? block.text : "[image]",
+									)
+									.join("\n"),
+					);
+				},
+			};
+		}
+		if (item) {
+			cachedItems.set(entry, item);
+			windows.get(windowId)!.push(item);
 		}
 	}
-	return windows;
+	return { windows, retired };
 }
 
-export function indexHistory(
+export async function indexHistory(
 	entries: readonly SessionEntry[],
 	sessionId: string,
 	search: HistorySearch,
 	allEntries: readonly SessionEntry[] = entries,
-): void {
+): Promise<void> {
 	if (!search.isEnabled(sessionId)) return;
-	search.index(
+	const { windows, retired } = await historyWindows(
+		entries,
 		sessionId,
-		[...historyWindows(entries, sessionId, allEntries).values()].flat(),
+		allEntries,
+	);
+	const items = [...windows.values()].flat();
+	await search.index(
+		sessionId,
+		items
+			.filter((item) => retired.has(item.item_id))
+			.flatMap((item) => indexItems.get(item) ?? []),
+		undefined,
+		items
+			.filter((item) => !retired.has(item.item_id) || !indexItems.has(item))
+			.map((item) => item.item_id),
 	);
 }
 
-export function useHistory(
+export async function useHistory(
 	entries: readonly SessionEntry[],
 	params: Record<string, unknown>,
 	sessionId: string,
 	search: HistorySearch,
 	allEntries: readonly SessionEntry[] = entries,
-): Record<string, unknown> {
-	const windows = historyWindows(entries, sessionId, allEntries);
+	signal?: AbortSignal,
+	liveAccess = false,
+): Promise<Record<string, unknown>> {
+	signal?.throwIfAborted();
+	const { windows, retired } = await historyWindows(
+		entries,
+		sessionId,
+		allEntries,
+		signal,
+	);
 	const action = params["action"];
 	if (action === "list_windows") {
 		let values = [...windows].filter(([, items]) => items.length);
@@ -211,15 +310,30 @@ export function useHistory(
 				(!params["tool_namespace"] ||
 					item.tool_namespace === params["tool_namespace"]),
 		);
-	if (action === "search_contents" && search.isEnabled(sessionId))
-		items = search.search(
+	const ranked =
+		search.isEnabled(sessionId) &&
+		!liveAccess &&
+		!params["agent_name"] &&
+		(!params["role"] ||
+			params["role"] === "user" ||
+			params["role"] === "assistant") &&
+		!params["tool_name"] &&
+		!params["tool_namespace"] &&
+		(!params["window_id"] || items.every((item) => retired.has(item.item_id)));
+	if (action === "search_contents" && ranked) {
+		const canonical = new Map(items.map((item) => [item.item_id, item]));
+		const matches = await search.search(
 			sessionId,
-			items,
+			items
+				.filter((item) => retired.has(item.item_id))
+				.flatMap((item) => indexItems.get(item) ?? []),
 			params["query"] as string,
 			limit,
 			params["recent_first"] === true,
+			signal,
 		);
-	else {
+		items = matches.map((item) => canonical.get(item.item_id)!);
+	} else {
 		if (action === "search_contents")
 			items = items.filter((item) =>
 				item.content.includes(params["query"] as string),
@@ -241,7 +355,13 @@ export function useHistory(
 		previews.push(preview);
 		size += chars;
 	}
-	return { items: previews, truncated: previews.length < items.length };
+	return {
+		items: previews,
+		truncated: previews.length < items.length,
+		...(action === "search_contents"
+			? { search_mode: ranked ? "ranked_earlier_context" : "literal" }
+			: {}),
+	};
 }
 
 function integer(value: unknown, fallback: number, max: number): number {
@@ -249,3 +369,5 @@ function integer(value: unknown, fallback: number, max: number): number {
 		? Math.max(0, Math.min(value, max))
 		: fallback;
 }
+
+import { setImmediate } from "node:timers/promises";

@@ -28,13 +28,3 @@ export function bindingStartupEntries(
 		);
 	return entries.slice(boundary + 1);
 }
-
-export function hasConversation(entries: readonly SessionEntry[]): boolean {
-	return entries.some(
-		(entry) =>
-			entry.type === "message" ||
-			entry.type === "custom_message" ||
-			entry.type === "compaction" ||
-			entry.type === "branch_summary",
-	);
-}

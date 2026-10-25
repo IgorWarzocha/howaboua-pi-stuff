@@ -19,7 +19,7 @@ export interface TreeArchiveManifestData {
 	compactionEntryId?: string;
 }
 
-export interface TreeArchive {
+interface TreeArchive {
 	manifest: TreeArchiveManifestData;
 	summary: BranchSummaryEntry;
 	// Pi forks copy the active branch, not the archived paths it references.

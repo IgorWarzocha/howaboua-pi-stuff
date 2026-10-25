@@ -10,7 +10,7 @@ export const NEW_WINDOW_REQUESTS = [
 	"unrestricted",
 ] as const;
 export type NewWindowRequests = (typeof NEW_WINDOW_REQUESTS)[number];
-export const DEFAULT_MODEL_WHITELIST = [
+const DEFAULT_MODEL_WHITELIST = [
 	"gpt-6-astra",
 	"gpt-6-sol",
 	"gpt-6-luna",

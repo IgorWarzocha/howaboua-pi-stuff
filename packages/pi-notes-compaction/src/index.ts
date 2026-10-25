@@ -367,21 +367,23 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			lifecycle.active && settings.rankedHistorySearch
 				? ctx.sessionManager.getSessionId()
 				: undefined;
-		const changed = search.setSession(sessionId);
+		const changed = search.setSession(
+			sessionId,
+			ctx.sessionManager.getSessionFile(),
+		);
 		if (!sessionId || (!changed && !update)) return;
-		try {
-			indexHistory(
-				ctx.sessionManager.getBranch(),
-				sessionId,
-				search,
-				ctx.sessionManager.getEntries(),
-			);
-		} catch (error) {
+		void indexHistory(
+			ctx.sessionManager.getBranch(),
+			sessionId,
+			search,
+			ctx.sessionManager.getEntries(),
+		).catch((error: unknown) => {
+			if (!search.isEnabled(sessionId)) return;
 			ctx.ui.notify(
 				error instanceof Error ? error.message : String(error),
 				"warning",
 			);
-		}
+		});
 	}
 	lifecycle.prepareWindow = async (ctx) => {
 		refreshHistorySearch(ctx, true);
@@ -583,7 +585,11 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	});
 	pi.on("session_tree", (_event, ctx) => {
 		lifecycle.reset(ctx);
+		refreshHistorySearch(ctx, true);
 	});
+	// The successor window marker has been persisted by agent_start, unlike
+	// before_agent_start where it may still be the incoming custom kickoff.
+	pi.on("agent_start", (_event, ctx) => refreshHistorySearch(ctx, true));
 	pi.on("model_select", (_event, ctx) => {
 		refreshActivation(ctx);
 	});
@@ -617,9 +623,14 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			const prune = async () => {
 				await ctx.waitForIdle();
 				store.updateFile(sessionRef(ctx));
+				const sources = store.sessionFiles();
 				const result = store.prune(ctx.sessionManager.getSessionId());
+				const indexed = await search.prune(
+					ctx.sessionManager.getSessionId(),
+					sources,
+				);
 				ctx.ui.notify(
-					`Pruned ${result.removed} sessions. Retained ${result.unknownPaths} unknown paths and ${result.inaccessible} inaccessible files.`,
+					`Pruned ${result.removed} Notes sessions and ${indexed.removed} indexed sessions. Retained ${result.unknownPaths + indexed.unknownPaths} unknown paths and ${result.inaccessible + indexed.inaccessible} inaccessible files.${indexed.storageBusy ? " Index storage cleanup is pending; run Prune again when other agents are idle." : ""}`,
 					"info",
 				);
 			};

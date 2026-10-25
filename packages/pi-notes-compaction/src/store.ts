@@ -203,6 +203,15 @@ export class NotesStore {
 			cachedResponses: count("remote_cache"),
 		};
 	}
+	sessionFiles(): Record<string, string | null> {
+		const rows =
+			this.open()
+				?.prepare<[], { id: string; file_path: string | null }>(
+					"SELECT id, file_path FROM sessions",
+				)
+				.all() ?? [];
+		return Object.fromEntries(rows.map((row) => [row.id, row.file_path]));
+	}
 	prune(activeSessionId: string): {
 		removed: number;
 		unknownPaths: number;

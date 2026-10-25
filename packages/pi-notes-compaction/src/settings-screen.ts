@@ -56,7 +56,7 @@ export async function openNotesSettings(
 							id: "rankedHistorySearch",
 							label: "Ranked history search",
 							description:
-								"BM25 for the current session only. First indexing may take time.",
+								"BM25 for earlier user messages and assistant replies. Skips current context and tool activity.",
 							currentValue: settings.rankedHistorySearch ? "on" : "off",
 							values: ["off", "on"],
 						},
@@ -105,7 +105,7 @@ export async function openNotesSettings(
 							id: "prune",
 							label: "Prune missing sessions",
 							description:
-								"Remove stored records only for missing session files. Keeps active sessions, unknown paths and inaccessible files. Confirmation required.",
+								"Remove notes, cached responses and history index entries for missing session files. Keeps the active session, unknown paths and inaccessible files. Confirmation required.",
 							currentValue: "select…",
 							values: ["select…", "prune…"],
 						},
@@ -254,7 +254,7 @@ export async function openNotesSettings(
 		if (
 			await ctx.ui.confirm(
 				"Prune missing sessions?",
-				"Delete local notes and cached responses for missing session files? The active session, unknown paths and inaccessible files are retained.",
+				"Delete local notes, cached responses and history index entries for missing session files? The active session, unknown paths and inaccessible files are retained.",
 			)
 		)
 			await options.prune();

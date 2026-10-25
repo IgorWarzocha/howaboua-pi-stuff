@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const CONTEXT_AGENT_ENTRY = "codex-context-agent";
-export const CONTEXT_BACKEND_ENTRY = "codex-context-backend";
+const CONTEXT_BACKEND_ENTRY = "codex-context-backend";
 
 export interface ContextAgentIdentity {
 	protocol: 1;
@@ -92,10 +91,6 @@ export function contextAgentIdentity(
 			agentName: "/root",
 		}
 	);
-}
-
-export function contextAccountScope(accountId: string): string {
-	return createHash("sha256").update(accountId).digest("hex");
 }
 
 export function contextTargetAgent(
