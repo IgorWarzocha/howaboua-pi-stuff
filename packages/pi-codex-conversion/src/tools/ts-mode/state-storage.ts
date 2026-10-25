@@ -103,6 +103,7 @@ export function assertPortableState(value: unknown): asserts value is PortableSt
 	for (const [name, binding] of Object.entries(value["bindings"])) {
 		if (!/^[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*$/u.test(name) || !record(binding) || binding["name"] !== name || !["let", "const", "function", "class", "enum", "namespace", "type", "import"].includes(String(binding["kind"])) || typeof binding["declaration"] !== "string" || (binding["source"] !== undefined && typeof binding["source"] !== "string")) throw new Error(`Invalid TS binding ${name}`);
 		if (binding["references"] !== undefined && (!Array.isArray(binding["references"]) || !binding["references"].every(item => typeof item === "string"))) throw new Error(`Invalid TS references for ${name}`);
+		if (binding["hook"] !== undefined && (!["startup", "tool_result"].includes(String(binding["hook"])) || binding["kind"] !== "function" || !value["pins"].includes(name))) throw new Error(`Invalid TS hook ${name}; hooks require pinned functions`);
 		if (binding["module"] !== undefined && (!record(binding["module"]) || typeof binding["module"]["specifier"] !== "string" || typeof binding["module"]["imported"] !== "string")) throw new Error(`Invalid TS module recipe ${name}`);
 	}
 	if (!Object.values(roots).every(isValue)) throw new Error("Invalid TS root reference");

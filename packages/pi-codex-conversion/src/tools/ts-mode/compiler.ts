@@ -1,10 +1,11 @@
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { API, ModuleKind, ModuleResolutionKind, SymbolFlags, TypeFormatFlags, type CompilerOptions, type Diagnostic, type Snapshot, type SyntheticProjectId } from 'tsrs/unstable/async';
 import { createFileSystemLayer } from 'tsrs/unstable/fs';
 import {
   isExportDeclaration, isCallExpression, isImportDeclaration, isFunctionDeclaration,
-  isStringLiteral, isImportTypeNode, isLiteralTypeNode, SyntaxKind, ScriptTarget, type Node,
+  isStringLiteral, isImportTypeNode, isLiteralTypeNode, isMetaProperty, isPropertyAccessExpression, SyntaxKind, ScriptTarget, type Node,
 } from 'tsrs/unstable/ast';
 import { applyEdits, freeReferences, importRecipe, inventory } from './compiler-ast.js';
 import type { TsBinding, TsCompileInput, TsCompileResult, TsDiagnostic, TsImportReference } from './compiler-contract.js';
@@ -112,10 +113,12 @@ export class TsCompiler {
       ok: false, diagnostics: [{ code: 0, message: 'Names __tsImport and __tsRegisterRecipe are reserved. Choose another binding name.' }],
     };
     const source = prefix + input.source + `\nexport { ${names.join(', ')} };\n`;
+    const nativeResolver = await this.api.createModuleResolver(this.options);
     const moduleResolver = await this.api.createModuleResolver(this.options, {
-      resolveModuleName: name => {
+      resolveModuleName: async (name, containingDirectory, resolutionMode, options) => {
         const resolvedFileName = input.moduleResolutions?.get(name);
-        return resolvedFileName ? { resolvedFileName } : undefined;
+        if (resolvedFileName) return { resolvedFileName };
+        return (await nativeResolver.resolveModuleName(name, containingDirectory, resolutionMode, options)).resolvedModule;
       },
     });
     try {
@@ -172,7 +175,10 @@ export class TsCompiler {
       return { ok: true, javascript: transformed, declarations: bindings.map(binding => binding.declaration).join('\n'), bindings,
         imports: file.statements.filter(node => node.getStart(file) >= prefix.length).flatMap(node => { const recipe = importRecipe(node); return recipe ? [recipe] : []; }),
       };
-    } finally { await moduleResolver.dispose(); }
+    } finally {
+      try { await moduleResolver.dispose(); }
+      finally { await nativeResolver.dispose(); }
+    }
   }
 
   private async bindingDeclaration(name: string, kind: TsBinding['kind'], type: string, source: string): Promise<string> {
@@ -211,11 +217,16 @@ export class TsCompiler {
         }
       }
       const walk = (node: Node): void => {
+        if (isPropertyAccessExpression(node) && isMetaProperty(node.expression) && node.expression.keywordToken === SyntaxKind.ImportKeyword && node.name.text === 'url') {
+          edits.push({ start: node.getStart(file), end: node.end, text: JSON.stringify(pathToFileURL(this.fileName).href) });
+        }
         if (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword) edits.push({ start: node.expression.getStart(file), end: node.expression.end, text: '__tsImport' });
         node.forEachChild(walk);
       };
       walk(file);
       const registrations: string[] = [];
+      // Register only direct top-level functions, never closures returned by calls.
+      // Registration preserves the original live function and its lexical environment.
       for (const node of inventory(file)) {
         const binding = bindings.find(value => value.name === node.name);
         if (!binding || !node.functionNode) continue;

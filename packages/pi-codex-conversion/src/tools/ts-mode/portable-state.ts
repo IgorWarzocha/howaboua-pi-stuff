@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { deserialize, serialize } from "node:v8";
+import { types } from "node:util";
 
 export type PortableValue = null | undefined | string | number | boolean | bigint | { ref: string };
 export type PortableNode =
@@ -21,6 +22,12 @@ export interface BindingRecipe {
 	source?: string | undefined;
 	references?: string[] | undefined;
 	module?: { specifier: string; imported: string; attributes?: Record<string, string> | undefined } | undefined;
+	hook?: "startup" | "tool_result" | undefined;
+}
+
+export interface PortableCapture {
+	state: PortableState;
+	skipped: { name: string; reason: string }[];
 }
 
 export interface PortableState {
@@ -36,11 +43,79 @@ export function emptyState(): PortableState {
 	return { version: 1, roots: {}, nodes: {}, bindings: {}, pins: [], imports: [] };
 }
 
+/** Profiles are loaded by value: their graph IDs must not alias an existing session graph. */
+export function forkPortableState(original: PortableState): PortableState {
+	const state: PortableState = deserialize(serialize(original));
+	const ids = new Map(Object.keys(state.nodes).map(id => [id, randomUUID()]));
+	const remap = (value: PortableValue): PortableValue => value !== null && typeof value === "object" ? { ref: ids.get(value.ref) ?? value.ref } : value;
+	const properties = (values: Record<string, PortableValue>): Record<string, PortableValue> => Object.fromEntries(Object.entries(values).map(([name, value]) => [name, remap(value)]));
+	state.roots = properties(state.roots);
+	state.nodes = Object.fromEntries(Object.entries(state.nodes).map(([id, node]) => {
+		switch (node.kind) {
+			case "object": case "array": case "recipe": node.properties = properties(node.properties); break;
+			case "map": node.entries = node.entries.map(([key, value]) => [remap(key), remap(value)]); break;
+			case "set": node.entries = node.entries.map(remap); break;
+			case "view": node.buffer = remap(node.buffer); break;
+		}
+		return [ids.get(id) ?? id, node];
+	}));
+	return state;
+}
+
 /** IDs survive worker restoration so a mutation of an aliased object has one merge owner. */
 export class PortableGraph {
+	private readonly realmPrototypes = new Map<string, Set<object>>();
+	private readonly realmConstructors = new Map<string, Function>();
+
+	/** Register trusted intrinsics before user code can shadow realm globals. */
+	registerRealm(intrinsics: Record<string, Function>): void {
+		for (const [name, constructor] of Object.entries(intrinsics)) {
+			if (typeof constructor !== "function") throw new Error(`Invalid TS realm intrinsic ${name}`);
+			this.realmConstructors.set(name, constructor);
+			const prototypes = this.realmPrototypes.get(name) ?? new Set<object>();
+			prototypes.add(constructor.prototype);
+			this.realmPrototypes.set(name, prototypes);
+		}
+	}
+
+	private create<T>(name: string, fallback: Function, args: unknown[]): T {
+		return Reflect.construct(this.realmConstructors.get(name) ?? fallback, args) as T;
+	}
+
+	private hasPrototype(value: object, name: string, hostPrototype: object): boolean {
+		const prototype: unknown = Object.getPrototypeOf(value);
+		return prototype === hostPrototype || (typeof prototype === "object" && prototype !== null && this.realmPrototypes.get(name)?.has(prototype) === true);
+	}
 	private readonly identities = new WeakMap<object, string>();
 	private readonly recipes = new Map<object, { name: string; descriptors: Map<PropertyKey, PropertyDescriptor>; prototypeDescriptors?: Map<PropertyKey, PropertyDescriptor> | undefined }>();
 	private readonly modules = new Map<object, Extract<PortableNode, { kind: "module" }>>();
+
+	/** Live execution is unrestricted; durability captures only independently restorable roots. */
+	capture(values: Record<string, unknown>, bindings: Record<string, BindingRecipe>, pins: string[], imports: string[] = []): PortableCapture {
+		const skipped = new Map<string, string>();
+		for (const [name, binding] of Object.entries(bindings)) if (binding.kind !== "type" && !Object.hasOwn(values, name)) skipped.set(name, "runtime value unavailable for capture");
+		for (const [name, value] of Object.entries(values)) {
+			try { this.encode({ [name]: value }, bindings, pins, imports); }
+			catch (error) { skipped.set(name, error instanceof Error ? error.message : String(error)); }
+		}
+		// A portable recipe cannot restore if one of its retained lexical dependencies cannot.
+		let changed = true;
+		while (changed) {
+			changed = false;
+			for (const [name, binding] of Object.entries(bindings)) {
+				if (skipped.has(name)) continue;
+				const dependency = binding.references?.find(reference => skipped.has(reference));
+				if (dependency) { skipped.set(name, `requires live-only binding ${dependency}`); changed = true; continue; }
+				if (!Object.hasOwn(values, name)) continue;
+				const probe = this.encode({ [name]: values[name] }, bindings, pins, imports);
+				const recipe = Object.values(probe.nodes).find(node => node.kind === "recipe" && skipped.has(node.name));
+				if (recipe?.kind === "recipe") { skipped.set(name, `requires live-only recipe ${recipe.name}`); changed = true; }
+			}
+		}
+		const retained = Object.fromEntries(Object.entries(bindings).filter(([name]) => !skipped.has(name)));
+		const state = this.encode(Object.fromEntries(Object.entries(values).filter(([name]) => !skipped.has(name))), retained, pins.filter(name => !skipped.has(name)), imports);
+		return { state, skipped: [...skipped].map(([name, reason]) => ({ name, reason })) };
+	}
 
 	registerRecipe(value: unknown, name: string): void {
 		if (typeof value === "function") {
@@ -83,34 +158,34 @@ export class PortableGraph {
 			if (!Object.isExtensible(value)) throw new Error(`${path}: frozen/sealed objects cannot transfer yet; retain ordinary data instead`);
 			// Install a placeholder before traversing cycles.
 			state.nodes[id] = { kind: "object", nullPrototype: false, properties: {} };
-			if (value instanceof Map || value instanceof Set || value instanceof Date || value instanceof RegExp || value instanceof ArrayBuffer) {
-				const expected = value instanceof Map ? Map.prototype : value instanceof Set ? Set.prototype : value instanceof Date ? Date.prototype : value instanceof RegExp ? RegExp.prototype : ArrayBuffer.prototype;
-				if (Object.getPrototypeOf(value) !== expected) throw new Error(`${path}: custom built-in subclasses cannot transfer; store ordinary built-in values`);
-				const unexpected = Reflect.ownKeys(value).filter(key => !(value instanceof RegExp && key === "lastIndex"));
+			if (types.isMap(value) || types.isSet(value) || types.isDate(value) || types.isRegExp(value) || types.isArrayBuffer(value)) {
+				const Constructor = types.isMap(value) ? Map : types.isSet(value) ? Set : types.isDate(value) ? Date : types.isRegExp(value) ? RegExp : ArrayBuffer;
+				if (!this.hasPrototype(value, Constructor.name, Constructor.prototype)) throw new Error(`${path}: custom built-in subclasses cannot transfer; store ordinary built-in values`);
+				const unexpected = Reflect.ownKeys(value).filter(key => !(types.isRegExp(value) && key === "lastIndex"));
 				if (unexpected.length) throw new Error(`${path}: extra properties on built-in values cannot transfer; store them separately`);
 			}
-			if (value instanceof Map) state.nodes[id] = { kind: "map", entries: [...value].map(([key, item], i) => [visit(key, `${path}.key${i}`), visit(item, `${path}.value${i}`)]) };
-			else if (value instanceof Set) state.nodes[id] = { kind: "set", entries: [...value].map((item, i) => visit(item, `${path}[${i}]`)) };
-			else if (value instanceof Date) state.nodes[id] = { kind: "date", time: value.getTime() };
-			else if (value instanceof RegExp) state.nodes[id] = { kind: "regexp", source: value.source, flags: value.flags, lastIndex: value.lastIndex };
-			else if (value instanceof ArrayBuffer) {
+			if (types.isMap(value)) state.nodes[id] = { kind: "map", entries: [...value].map(([key, item], i) => [visit(key, `${path}.key${i}`), visit(item, `${path}.value${i}`)]) };
+			else if (types.isSet(value)) state.nodes[id] = { kind: "set", entries: [...value].map((item, i) => visit(item, `${path}[${i}]`)) };
+			else if (types.isDate(value)) state.nodes[id] = { kind: "date", time: value.getTime() };
+			else if (types.isRegExp(value)) state.nodes[id] = { kind: "regexp", source: value.source, flags: value.flags, lastIndex: value.lastIndex };
+			else if (types.isArrayBuffer(value)) {
 				if (value.resizable) throw new Error(`${path}: resizable buffers cannot transfer; use a fixed ArrayBuffer`);
 				state.nodes[id] = { kind: "binary", bytes: serialize(value) };
 			}
 			else if (ArrayBuffer.isView(value)) {
-				if (!(value.buffer instanceof ArrayBuffer)) throw new Error(`${path}: shared buffers cannot transfer safely`);
+				if (!types.isArrayBuffer(value.buffer)) throw new Error(`${path}: shared buffers cannot transfer safely`);
 				const constructors = [Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array, DataView, Buffer];
-				const Constructor = constructors.find(candidate => Object.getPrototypeOf(value) === candidate.prototype);
+				const Constructor = constructors.find(candidate => this.hasPrototype(value, candidate.name, candidate.prototype));
 				if (!Constructor) throw new Error(`${path}: custom typed-array subclasses cannot transfer`);
 				const bytes: unknown = Reflect.get(Constructor, "BYTES_PER_ELEMENT");
-				const length = value instanceof DataView ? value.byteLength : typeof bytes === "number" ? value.byteLength / bytes : 0;
-				if (Object.getOwnPropertyNames(value).length !== (value instanceof DataView ? 0 : length)) throw new Error(`${path}: extra typed-array properties cannot transfer`);
+				const length = types.isDataView(value) ? value.byteLength : typeof bytes === "number" ? value.byteLength / bytes : 0;
+				if (Object.getOwnPropertyNames(value).length !== (types.isDataView(value) ? 0 : length)) throw new Error(`${path}: extra typed-array properties cannot transfer`);
 				if (Object.getOwnPropertySymbols(value).length) throw new Error(`${path}: symbol properties cannot transfer`);
 				state.nodes[id] = { kind: "view", constructor: Constructor.name, buffer: visit(value.buffer, `${path}.buffer`), byteOffset: value.byteOffset, length };
 			}
 			else {
 				const prototype: unknown = Object.getPrototypeOf(value);
-				if ((Array.isArray(value) && prototype !== Array.prototype) || (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null)) throw new Error(`${path}: ${value.constructor?.name ?? "custom"} instances/live handles cannot transfer; retain plain data or an exact module import`);
+				if ((Array.isArray(value) && !this.hasPrototype(value, "Array", Array.prototype)) || (!Array.isArray(value) && !this.hasPrototype(value, "Object", Object.prototype) && prototype !== null)) throw new Error(`${path}: ${value.constructor?.name ?? "custom"} instances/live handles cannot transfer; retain plain data or an exact module import`);
 				const properties: Record<string, PortableValue> = {};
 				for (const key of Reflect.ownKeys(value)) {
 					if (typeof key !== "string") throw new Error(`${path}: symbol properties cannot transfer`);
@@ -132,13 +207,19 @@ export class PortableGraph {
 		for (const [id, node] of Object.entries(state.nodes)) {
 			let value: unknown;
 			switch (node.kind) {
-				case "array": value = new Array(node.length); break;
-				case "object": value = node.nullPrototype ? Object.create(null) : {}; break;
-				case "map": value = new Map(); break;
-				case "set": value = new Set(); break;
-				case "binary": value = deserialize(node.bytes); break;
-				case "date": value = new Date(node.time); break;
-				case "regexp": { const expression = new RegExp(node.source, node.flags); expression.lastIndex = node.lastIndex; value = expression; break; }
+				case "array": value = this.create("Array", Array, [node.length]); break;
+				case "object": value = node.nullPrototype ? Object.create(null) : this.create("Object", Object, []); break;
+				case "map": value = this.create("Map", Map, []); break;
+				case "set": value = this.create("Set", Set, []); break;
+				case "binary": {
+					const decoded: unknown = deserialize(node.bytes);
+					if (!types.isArrayBuffer(decoded)) throw new Error("Invalid TS binary buffer");
+					const buffer = this.create<ArrayBuffer>("ArrayBuffer", ArrayBuffer, [decoded.byteLength]);
+					new Uint8Array(buffer).set(new Uint8Array(decoded));
+					value = buffer; break;
+				}
+				case "date": value = this.create("Date", Date, [node.time]); break;
+				case "regexp": { const expression = this.create<RegExp>("RegExp", RegExp, [node.source, node.flags]); expression.lastIndex = node.lastIndex; value = expression; break; }
 				case "recipe": value = resolveRecipe(node.name); this.registerRecipe(value, node.name); break;
 				case "module": value = resolveModule(node); this.registerModule(value, node.specifier, node.imported, node.attributes); break;
 				case "view": continue;
@@ -156,7 +237,7 @@ export class PortableGraph {
 		for (const [id, node] of Object.entries(state.nodes)) {
 			if (node.kind !== "view") continue;
 			const buffer = read(node.buffer);
-			if (!(buffer instanceof ArrayBuffer)) throw new Error("Invalid typed-array buffer");
+			if (!types.isArrayBuffer(buffer)) throw new Error("Invalid typed-array buffer");
 			const constructors: Record<string, new (buffer: ArrayBuffer, offset: number, length: number) => ArrayBufferView> = { Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array, DataView };
 			if (node.constructor === "Buffer") {
 				const object = Buffer.from(buffer, node.byteOffset, node.length);
@@ -164,7 +245,7 @@ export class PortableGraph {
 			}
 			const Constructor = constructors[node.constructor];
 			if (!Constructor) throw new Error(`Unsupported typed array ${node.constructor}`);
-			const object = new Constructor(buffer, node.byteOffset, node.length);
+			const object = this.create<ArrayBufferView>(node.constructor, Constructor, [buffer, node.byteOffset, node.length]);
 			objects.set(id, object);
 			this.identities.set(object, id);
 		}
@@ -173,8 +254,8 @@ export class PortableGraph {
 			if (node.kind === "object" || node.kind === "array" || node.kind === "recipe") {
 				if ((typeof object !== "object" || object === null) && typeof object !== "function") throw new Error("Invalid portable object");
 				for (const [key, value] of Object.entries(node.properties)) Object.defineProperty(object, key, { value: read(value), writable: true, enumerable: true, configurable: true });
-			} else if (node.kind === "map" && object instanceof Map) for (const [key, value] of node.entries) object.set(read(key), read(value));
-			else if (node.kind === "set" && object instanceof Set) for (const value of node.entries) object.add(read(value));
+			} else if (node.kind === "map" && types.isMap(object)) for (const [key, value] of node.entries) object.set(read(key), read(value));
+			else if (node.kind === "set" && types.isSet(object)) for (const value of node.entries) object.add(read(value));
 		}
 		return Object.fromEntries(Object.entries(state.roots).map(([name, value]) => [name, read(value)]));
 	}

@@ -1,14 +1,15 @@
 import { deserialize, serialize } from "node:v8";
 import type { NotebookControlRequest, NotebookControlResult } from "../code-mode/types.ts";
 import { globMatcher } from "../notebook-mode/glob.ts";
-import { compactState, emptyState, type PortableState } from "./portable-state.ts";
+import { compactState, emptyState, forkPortableState, type PortableCapture, type PortableState } from "./portable-state.ts";
 import type { TsStateStorage } from "./state-storage.ts";
 
 export interface TsLifecycleHost {
 	state(): PortableState;
+	capture(): Promise<PortableCapture>;
 	storage(): TsStateStorage;
 	activeCells(): string[];
-	commit(state: PortableState): Promise<string | undefined>;
+	commit(state: PortableState, action?: NotebookControlRequest["action"] | "adopt", released?: string[]): Promise<string | undefined>;
 	syncProject(): Promise<string | undefined>;
 	restart(): Promise<void>;
 	reset(): Promise<void>;
@@ -29,35 +30,55 @@ export class TsStateLifecycle {
 			const candidates = saved.candidates.filter(matches);
 			return { message: `TS profiles: ${profiles.join(", ") || "none"}\nRecovery candidates in this session: ${candidates.join(", ") || "none"}`, details: { profiles, candidates } };
 		}
+		if (this.host.activeCells().length) throw new Error("TS lifecycle changes require idle state; wait for or terminate active cells first. Status remains available.");
+		// Reset and restart must also work when the live kernel is unavailable.
+		if (request.action === "reset") { await this.host.reset(); return { message: "TS session reset to project pins; live-only values discarded; saved profiles unchanged", details: {} }; }
+		if (request.action === "restart") { await this.host.restart(); return { message: "TS restarted from its last durable checkpoint; live-only values and changes since that checkpoint cannot be restored", details: {} }; }
+		const capture = await this.host.capture();
+		const skippedNotice = formatSkipped(capture);
 		if (request.action === "save") {
-			await storage.writeProfile(request.name, state);
-			return { message: `TS profile ${request.name} saved from committed state`, details: {} };
+			await storage.writeProfile(request.name, capture.state);
+			return { message: `TS profile ${request.name} saved${skippedNotice}`, details: { skipped: capture.skipped } };
 		}
+		const lostPins = capture.skipped.filter(({ name }) => state.pins.includes(name) && !(request.action === "unpin" && request.names.includes(name)));
+		if (lostPins.length && !(request.action === "load" && request.name.startsWith("candidate-"))) throw new Error(`Cannot update durable TS pins: ${lostPins.map(({ name, reason }) => `${name} (${reason})`).join("; ")}. Live state is unchanged; restore a portable value or explicitly unpin it first`);
 		if (request.action === "checkpoint") {
-			await storage.write(state);
-			const notice = await this.host.syncProject();
-			return { message: `TS committed state saved${notice ? `\n${notice}` : ""}`, details: {} };
+			const notice = await this.host.commit(capture.state, "checkpoint");
+			return { message: `TS durable state saved${skippedNotice}${notice ? `\n${notice}` : ""}`, details: { skipped: capture.skipped } };
 		}
-		if (this.host.activeCells().length) throw new Error("TS lifecycle changes require idle state; wait for or terminate active cells first. Status and save read committed state.");
-		let next: PortableState = deserialize(serialize(state));
+		let next: PortableState = deserialize(serialize(capture.state));
+		let released: string[] | undefined;
 		switch (request.action) {
-			case "load": next = request.name.startsWith("candidate-") ? await storage.read(request.name) : await storage.readProfile(request.name); break;
-			case "reset": await this.host.reset(); return { message: "TS session reset to committed project pins; saved profiles are unchanged", details: {} };
-			case "restart": await this.host.restart(); return { message: "TS restarted from its unchanged committed baseline", details: {} };
+			case "load": {
+				const loaded = request.name.startsWith("candidate-") ? await storage.read(request.name) : forkPortableState(await storage.readProfile(request.name));
+				if (request.name.startsWith("candidate-")) { next = loaded; break; }
+				const collisions = Object.keys(loaded.bindings).filter(name => Object.hasOwn(state.bindings, name));
+				if (collisions.length) throw new Error(`TS profile ${request.name} conflicts with existing bindings: ${collisions.join(", ")}. Release or rename them before loading`);
+				next = { ...next, roots: { ...next.roots, ...loaded.roots }, nodes: { ...next.nodes, ...loaded.nodes }, bindings: { ...next.bindings, ...loaded.bindings }, pins: [...new Set([...next.pins, ...loaded.pins])], imports: [...new Set([...next.imports, ...loaded.imports])] };
+				break;
+			}
 			case "pin":
-				if (request.hook) throw new Error("TS lifecycle hooks are unavailable; call the retained function explicitly. Code and Deno Notebook remain available.");
 				for (const name of request.names) {
-					if (!Object.hasOwn(next.bindings, name)) throw new Error(`No committed TS binding ${name}`);
+					const skipped = capture.skipped.find(entry => entry.name === name);
+					if (skipped) throw new Error(`Cannot pin live-only TS binding ${name}: ${skipped.reason}. It remains available in this session`);
+					const binding = next.bindings[name];
+					if (!binding) throw new Error(`No TS binding ${name}`);
+					if (request.hook && binding.kind !== "function") throw new Error(`TS hooks require a pinned function: ${name}`);
+					if (request.hook !== undefined) { if (request.hook) binding.hook = request.hook; else delete binding.hook; }
 					if (!next.pins.includes(name)) next.pins.push(name);
 				}
 				break;
-			case "unpin": next.pins = next.pins.filter(name => !request.names.includes(name)); break;
+			case "unpin":
+				next.pins = next.pins.filter(name => !request.names.includes(name));
+				for (const name of request.names) if (next.bindings[name]) delete next.bindings[name].hook;
+				break;
 			case "release": case "prune": {
 				const matches = request.action === "release" ? (name: string) => request.names.includes(name) : globMatcher(request.query);
-				const removed = new Set(Object.keys(next.bindings).filter(name => matches(name) && !next.pins.includes(name)));
+				const removed = new Set(Object.keys(state.bindings).filter(name => matches(name) && !state.pins.includes(name)));
+				released = [...removed];
 				for (const name of removed) { delete next.bindings[name]; delete next.roots[name]; }
 				compactState(next);
-				for (const binding of Object.values(next.bindings)) {
+				for (const binding of Object.values(state.bindings).filter(binding => !removed.has(binding.name))) {
 					const dependency = binding.references?.find(name => removed.has(name));
 					if (dependency) throw new Error(`Cannot release ${dependency}: retained function ${binding.name} needs it. Release both together or redefine the helper first.`);
 				}
@@ -65,19 +86,26 @@ export class TsStateLifecycle {
 				break;
 			}
 		}
-		const notice = await this.host.commit(next);
-		return { message: `TS ${request.action} complete${notice ? `\n${notice}` : ""}`, details: { retainedBindings: Object.keys(next.bindings).length, pinnedBindings: next.pins.length } };
+		const adopting = request.action === "load" && request.name.startsWith("candidate-");
+		const notice = await this.host.commit(next, adopting ? "adopt" : request.action, released);
+		const releaseNotice = request.action === "release" || request.action === "prune" ? `\nKernel rebuilt so released names are reusable${capture.skipped.length ? `; live-only bindings discarded: ${capture.skipped.map(({ name }) => name).join(", ")}` : ""}` : "";
+		const adoptNotice = adopting ? "\nCandidate replaced the live kernel; previous live-only values and unsaved changes were discarded" : "";
+		return { message: `TS ${request.action} complete${skippedNotice}${releaseNotice}${adoptNotice}${notice ? `\n${notice}` : ""}`, details: { retainedBindings: Object.keys(next.bindings).length, pinnedBindings: next.pins.length, skipped: capture.skipped } };
 	}
 
 	private status(request: Extract<NotebookControlRequest, { action: "status" | "diagnostics" }>): NotebookControlResult {
 		const state = this.host.state();
 		const query = "query" in request ? request.query : undefined;
-		const bindings = Object.values(state.bindings).filter(binding => !query || globMatcher(query)(binding.name)).map(binding => ({ name: binding.name, kind: binding.kind, declaration: binding.declaration, pinned: state.pins.includes(binding.name) }));
+		const bindings = Object.values(state.bindings).filter(binding => !query || globMatcher(query)(binding.name)).map(binding => ({ name: binding.name, kind: binding.kind, declaration: binding.declaration, pinned: state.pins.includes(binding.name), hook: binding.hook }));
 		const imports = state.imports.filter(specifier => specifier.startsWith("npm:"));
-		const startupStatus = `TS state: ${Object.keys(state.bindings).length} bindings, ${state.pins.length} pinned${bindings.length ? `\n${bindings.map(binding => `${binding.name}: ${binding.kind}${binding.pinned ? " [pinned]" : ""}`).join("\n")}` : ""}\nAvailable npm imports in TS: ${imports.length ? imports.join(", ") : "none"}. Ask before adding another, then use an exact-version npm: specifier`;
-		return { message: `${startupStatus}${query ? `\n${bindings.map(binding => binding.declaration).join("\n")}` : ""}\n${this.host.activeCells().length}/4 active cells. Plain data, top-level functions and import recipes transfer; captured closures/live handles do not. Tool and file effects are not rolled back.`,
+		const startupStatus = `TS state: ${Object.keys(state.bindings).length} bindings, ${state.pins.length} pinned${bindings.length ? `\n${bindings.map(binding => `${binding.name}: ${binding.kind}${binding.pinned ? " [pinned]" : ""}${binding.hook ? ` [${binding.hook}]` : ""}`).join("\n")}` : ""}\nAvailable npm imports in TS: ${imports.length ? imports.join(", ") : "none"}. Ask before adding another, then use an exact-version npm: specifier`;
+		return { message: `${startupStatus}${query ? `\n${bindings.map(binding => binding.declaration).join("\n")}` : ""}\n${this.host.activeCells().length} active cells. Live closures and handles remain usable until restart; durable capture reports skipped bindings. Tool and file effects are not rolled back.`,
 			details: { mode: "ts", startupStatus, bindings, retainedBindings: Object.keys(state.bindings).length, pinnedBindings: state.pins.length, activeCells: this.host.activeCells(), imports, ...(request.action === "diagnostics" ? { storage: this.host.storage().directory } : {}) } };
 	}
+}
+
+function formatSkipped(capture: PortableCapture): string {
+	return capture.skipped.length ? `\nLive-only bindings not saved: ${capture.skipped.map(({ name, reason }) => `${name} (${reason})`).join("; ")}` : "";
 }
 
 /** Enums have both value and type authority; retain them with type declarations for pinned values. */

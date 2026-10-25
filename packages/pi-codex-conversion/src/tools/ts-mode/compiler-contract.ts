@@ -32,6 +32,8 @@ export interface TsBinding {
 
 export interface TsCompileInput {
   source: string;
+  /** Live cells execute in a retained lexical kernel, not a portable snapshot worker. */
+  mode?: 'live' | 'isolated';
   baselineDeclarations: string;
   globalsDeclaration?: string;
   /** Original import specifier to resolved type entry point. */

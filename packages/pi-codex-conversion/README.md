@@ -212,13 +212,13 @@ text(status);
 
 **TS** type-checks TypeScript before execution and retains bindings and type declarations between cells. It uses Node and Web APIs, not Deno. Run Pi under Node on Linux x64, Linux arm64 or an Apple Silicon Mac. TS mode is unavailable on Windows and Intel Macs.
 
-Up to four cells can run concurrently. Each starts from the latest committed state. Independent changes merge when cells finish. Conflicting writes leave the committed state intact and save a candidate for explicit recovery. Wait for a cell to finish before starting another that needs its results.
+Normal cells execute sequentially in one live kernel. Variables, closures, class instances and module state remain available across cells. Runtime errors can leave earlier mutations in place. Cancelling an executing cell stops the kernel; restart restores its last durable checkpoint, not its live-only values.
 
-Retained state supports portable data, self-contained top-level functions and import recipes. Aliases and cycles survive. Keep captured closures, streams, clients and other live handles block-local. A cell that cannot transfer its state fails without committing it. Failed and cancelled cells do not roll back tool calls or file changes.
+Add `"isolated": true` to the `// @exec:` options for concurrent work in a separate process. Isolated cells start from the last portable checkpoint, not the live heap. Their state is saved as a named candidate and never automatically merged into the kernel. Loading a candidate deliberately replaces the kernel, discarding its live-only values and unsaved changes. Tool and file effects are not rolled back in either execution path.
 
-Use `notebook({})` for TS state controls, project pins and named profiles. TS storage is separate from Deno Notebook. State-changing controls require idle cells. Notebook hooks are not available in TS mode.
+Use `notebook({})` for state controls, project pins, named profiles and startup or tool-result hooks. Durable capture preserves supported data, aliases, cycles, types and self-contained helper recipes. It reports live-only values that cannot be saved. Profiles load by value and refuse colliding bindings. Release and prune rebuild the kernel so names can be reused, clearing live-only values. State changes, save and checkpoint require idle cells. TS storage remains separate from Deno Notebook. TS does not export `.ipynb` history or retain a cell journal for historical diagnostics.
 
-Imports support Node built-ins, installed packages, local TypeScript files and exact `npm:package@version` specifiers. New npm dependencies require user approval. Installation scripts are disabled. Modules initialise afresh in each cell. Local TypeScript modules support literal imports, but not computed dynamic imports. Tool arguments are checked against their schemas. Results without declared types remain `unknown` and need narrowing before property access.
+Imports support Node built-ins, installed packages, local TypeScript files and exact `npm:package@version` specifiers. New npm dependencies require user approval. Installation scripts are disabled. Module instances persist in the live kernel; isolated cells initialise their own copies. Local TypeScript modules support literal imports, but not computed dynamic imports. Tool arguments are checked against their schemas. Results without declared types remain `unknown` and need narrowing before property access.
 
 ### Pi extension and MCP tools
 

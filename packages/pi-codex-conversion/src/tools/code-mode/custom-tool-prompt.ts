@@ -129,8 +129,8 @@ export function buildCodeModeToolsPrompt(
 	const sections = [
 		executionKind === "ts"
 			? gpt
-				? "exec=TypeScript cells; imports/npm/Node/Web APIs; portable state persists across cells"
-				: "exec runs TypeScript cells with imports, npm, Node and Web APIs; portable state persists across cells"
+				? "exec=persistent TypeScript kernel; imports/npm/Node/Web APIs; live bindings and modules persist across cells"
+				: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
 			: executionKind === "notebook"
 			? gpt
 				? "exec=persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Smallprograms across cells; retainedglobals may originate earlieragents/sessions"

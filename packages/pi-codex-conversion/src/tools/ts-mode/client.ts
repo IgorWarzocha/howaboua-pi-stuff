@@ -16,14 +16,15 @@ import { TsCompiler } from "./compiler.ts";
 import { TsExecutionWorker } from "./execution-worker.ts";
 import { resolveTsImports, resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
 import { selectProjectPins, TsStateLifecycle } from "./lifecycle.ts";
-import { compactState, emptyState, mergeState, type BindingRecipe, type PortableState } from "./portable-state.ts";
+import { compactState, emptyState, type BindingRecipe, type PortableCapture, type PortableState } from "./portable-state.ts";
 import { TsStateStorage } from "./state-storage.ts";
 import { buildTsToolDeclarations } from "./tool-declarations.ts";
-import { TS_GLOBAL_DECLARATIONS, type TsWorkerInput } from "./worker-protocol.ts";
+import { TS_GLOBAL_DECLARATIONS, type TsWorkerInput, type TsWorkerOutcome } from "./worker-protocol.ts";
 
 interface Execution {
 	cell: NotebookCell;
 	start: PortableState;
+	isolated: boolean;
 	worker?: TsExecutionWorker | undefined;
 	imports: TsImportOptions;
 	usedImports: Set<string>;
@@ -39,6 +40,12 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private readonly lifecycle: TsStateLifecycle;
 	private readonly cells = new Map<string, Execution>();
 	private state = emptyState();
+	private durable = emptyState();
+	private kernel: TsExecutionWorker | undefined;
+	private kernelUnavailable = false;
+	private liveQueue: Promise<void> = Promise.resolve();
+	private latestTools: CodeModeToolDefinition[] = [];
+	private controlRequest: NotebookControlRequest | undefined;
 	private observedProject = emptyState();
 	private storage: TsStateStorage | undefined;
 	private compiler: TsCompiler | undefined;
@@ -51,25 +58,28 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private phase: "ready" | "closing" = "ready";
 	private shutdownPromise: Promise<void> | undefined;
 	private readonly importOptions: TsImportOptions;
+	private readonly liveSourceModules = new Map<string, string>();
 
 	constructor(options: NotebookRuntimeOptions, renderStore?: CodeModeNestedRenderStore) {
 		if (!((process.platform === "linux" && (process.arch === "x64" || process.arch === "arm64")) || (process.platform === "darwin" && process.arch === "arm64"))) throw new Error(`TS is unavailable on ${process.platform}/${process.arch}; choose Code or Deno Notebook. TS supports Linux x64/arm64 and Apple Silicon Macs.`);
 		if (process.versions["bun"]) throw new Error("TS execution requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available.");
-		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 64) throw new Error("TS requires a session heap budget of at least 64 MiB");
+		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128) throw new Error("TS requires a session heap budget of at least 128 MiB; increase the Notebook heap setting before selecting TS. Half is reserved for live execution and half for up to four isolated cells");
 		this.options = options;
 		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
-		this.importOptions = { cwd: process.cwd(), cacheDir: join(options.agentDir, "ts-imports") };
+		this.importOptions = { cwd: process.cwd(), cacheDir: join(options.agentDir, "ts-imports"), sourceModules: this.liveSourceModules };
 		this.lifecycle = new TsStateLifecycle({
 			state: () => this.state,
+			capture: () => this.capture(),
 			storage: () => this.requireStorage(),
 			activeCells: () => [...this.cells.values()].filter(execution => !execution.cell.isCompleted()).map(execution => execution.cell.id),
-			commit: async state => { await this.validateDeclarations(state); await this.requireStorage().write(state); this.state = state; return this.syncProject(); },
+			commit: (state, action) => this.commitState(state, action),
 			syncProject: () => this.syncProject(),
-			restart: async () => { const compiler = this.compiler; this.compiler = undefined; await compiler?.close(); },
+			restart: async () => { await this.resetKernel(this.durable); const compiler = this.compiler; this.compiler = undefined; await compiler?.close(); },
 			reset: async () => {
 				const project = await this.requireStorage().readProject();
 				await this.requireStorage().write(project);
-				this.state = project;
+				await this.resetKernel(project);
+				this.durable = project;
 				this.observedProject = project;
 				await this.requireStorage().write(project, "observed-project");
 			},
@@ -84,18 +94,23 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		if (this.phase === "closing" || this.identity !== this.contextKey(context)) throw new Error("TS session changed before execution; start a new cell");
 		if (this.running >= MAX_WORKERS) throw new Error(`TS has ${MAX_WORKERS} active cells; wait for or terminate one before starting another`);
 		if (this.cells.size >= 32) throw new Error("TS has 32 uncollected cell results; use wait to collect completed results before starting another cell");
-		const parsed = parseExecSource(source);
+		const parsed = parseExecSource(source, { allowIsolated: true });
+		const isolated = parsed.isolated === true;
+		if (!isolated && this.kernelUnavailable) throw new Error("The TS live kernel stopped. Use notebook restart to restore its last durable checkpoint; live-only values and later changes cannot be recovered");
+		this.latestTools = tools;
 		const cell = new NotebookCell({ id: `ts-${++this.nextId}-${randomUUID().slice(0, 8)}`, source: parsed.code, context, maxOutputTokens: parsed.maxOutputTokens ?? 10000 });
 		cell.context = { ...context, setBlocked: (id, active) => cell.setBlocked(id, active) };
 		const usedImports = new Set<string>();
-		const execution: Execution = { cell, start: this.state, done: Promise.resolve(), usedImports,
-			imports: { ...this.importOptions, ...(this.compiler ? { compiler: this.compiler } : {}), signal: cell.controller.signal, sourceModules: new Map(), onNpmImport: specifier => usedImports.add(specifier) } };
+		const execution: Execution = { cell, start: isolated ? this.durable : this.state, isolated, done: Promise.resolve(), usedImports,
+			imports: { ...this.importOptions, ...(this.compiler ? { compiler: this.compiler } : {}), signal: cell.controller.signal, sourceModules: isolated ? new Map() : this.liveSourceModules, onNpmImport: specifier => usedImports.add(specifier) } };
 		this.cells.set(cell.id, execution);
 		this.running++;
 		this.delegate.bindCell(cell.id, cell.context, new Map(tools.map(tool => [tool.name, tool])));
 		const abort = () => { void this.stop(execution); };
 		signal?.addEventListener("abort", abort, { once: true });
-		execution.done = this.run(execution, tools).finally(() => signal?.removeEventListener("abort", abort));
+		const run = async (): Promise<void> => { if (!isolated) execution.start = this.state; await this.run(execution, tools); };
+		execution.done = (isolated ? run() : this.liveQueue.then(run)).finally(() => signal?.removeEventListener("abort", abort));
+		if (!isolated) this.liveQueue = execution.done.catch(() => {});
 		return this.observe(execution, directToolYieldTime(parsed.code, tools) ?? parsed.yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS, signal);
 	}
 
@@ -118,13 +133,21 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	async checkpoint(): Promise<void> {
-		await this.transaction(async () => { await this.storage?.write(this.state); const notice = await this.syncProject(); if (notice) throw new Error(notice); });
+		await this.liveQueue;
+		await this.transaction(async () => {
+			if (!this.storage || this.kernelUnavailable) return;
+			const capture = await this.capture();
+			const lostPins = capture.skipped.filter(item => this.state.pins.includes(item.name));
+			if (lostPins.length) throw new Error(`TS checkpoint not updated: pinned bindings are live-only (${lostPins.map(item => item.name).join(", ")}). Restore portable values or explicitly unpin them first`);
+			const notice = await this.commitState(capture.state, "checkpoint");
+			if (notice) throw new Error(notice);
+		});
 	}
 
 	async controlNotebook(request: NotebookControlRequest, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		signal?.throwIfAborted();
 		await this.prepare(context);
-		return this.transaction(async () => { signal?.throwIfAborted(); return this.lifecycle.control(request); });
+		return this.transaction(async () => { signal?.throwIfAborted(); this.controlRequest = request; try { return await this.lifecycle.control(request); } finally { this.controlRequest = undefined; } });
 	}
 
 	async shutdown(): Promise<void> {
@@ -140,6 +163,10 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		await Promise.all([...this.cells.values()].map(execution => this.stop(execution)));
 		await Promise.all([...this.cells.values()].map(execution => execution.done));
 		await this.committing;
+		await this.kernel?.stop();
+		this.kernel = undefined;
+		this.kernelUnavailable = false;
+		this.liveSourceModules.clear();
 		await this.compiler?.close();
 		this.compiler = undefined;
 		this.delegate.clear();
@@ -147,6 +174,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		this.storage = undefined;
 		this.identity = undefined;
 		this.state = emptyState();
+		this.durable = emptyState();
 		this.observedProject = emptyState();
 		if (this.importOptions.sourceDir) await rm(this.importOptions.sourceDir, { recursive: true, force: true });
 		delete this.importOptions.sourceDir;
@@ -167,6 +195,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			if (this.isClosing()) throw new Error("TS session changed during startup; start a new cell");
 			this.storage = storage;
 			this.state = initial.state;
+			this.durable = initial.state;
 			this.observedProject = initial.observedProject;
 			this.identity = id;
 		});
@@ -188,14 +217,14 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			const baselineDeclarations = Object.values(start.bindings).map(binding => binding.declaration).join("\n");
 			const imports = await resolveTsImports(await this.scanImports(compiler, `${baselineDeclarations}\n${cell.source}`), execution.imports);
 			cell.controller.signal.throwIfAborted();
-			const compiled = await compiler.compile({ source: cell.source, baselineDeclarations, globalsDeclaration: `${TS_GLOBAL_DECLARATIONS}\n${buildTsToolDeclarations(tools)}`, ...imports }).catch(error => { throw this.compilerFailure(error); });
+			const compiled = await compiler.compile({ source: cell.source, mode: execution.isolated ? "isolated" : "live", baselineDeclarations, globalsDeclaration: `${TS_GLOBAL_DECLARATIONS}\n${buildTsToolDeclarations(tools)}`, ...imports }).catch(error => { throw this.compilerFailure(error); });
 			if (!compiled.ok) throw new Error(compiled.diagnostics.map(diagnostic => `TS${diagnostic.code}${diagnostic.line ? `:${diagnostic.line}:${diagnostic.column}` : ""} ${diagnostic.message}`).join("\n"));
 			cell.controller.signal.throwIfAborted();
 			const bindings: Record<string, BindingRecipe> = { ...start.bindings };
 			for (const binding of compiled.bindings) {
 				if (binding.name.startsWith("__") || ["tools", "text", "image", "generatedImage", "notify", "store", "load", "ALL_TOOLS", "exit", "yield_control"].includes(binding.name)) throw new Error(`TS binding ${binding.name} is reserved; choose another name`);
 				if (Object.hasOwn(start.bindings, binding.name)) throw new Error(`TS binding ${binding.name} already exists; assign to a let binding, or release it before declaring it again`);
-				if (binding.kind === "class" || binding.kind === "namespace") throw new Error(`${binding.name}: ${binding.kind} bindings cannot transfer yet; use plain data and top-level functions`);
+				if (execution.isolated && (binding.kind === "class" || binding.kind === "namespace")) throw new Error(`${binding.name}: ${binding.kind} bindings cannot transfer from isolated execution; use a normal live cell`);
 				bindings[binding.name] = { name: binding.name, kind: binding.kind, declaration: binding.declaration, references: binding.freeReferences, ...(binding.source ? { source: binding.source } : {}) };
 			}
 			for (const imported of compiled.imports) if (!imported.typeOnly) for (const binding of imported.bindings) {
@@ -203,41 +232,49 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 				const recipe = bindings[binding.local];
 				if (recipe) recipe.module = { specifier: imported.specifier, imported: binding.imported, ...(imported.attributes ? { attributes: imported.attributes } : {}) };
 			}
-			const input: TsWorkerInput = { state: start, javascript: compiled.javascript, bindings,
+			const input: TsWorkerInput = { mode: execution.isolated ? "isolated" : "live", state: start, javascript: compiled.javascript, bindings,
 				toolNames: Object.fromEntries(tools.map(tool => [codeModeGlobalName(tool.name), tool.name])),
 				toolMetadata: tools.filter(isCodeModeToolDiscoverable).map(tool => ({ name: codeModeGlobalName(tool.name), description: formatCodeModeToolHelp(tool) })),
 				outputHints: Object.fromEntries(tools.flatMap(tool => "textOutput" in tool && tool.textOutput ? [[tool.name, tool.textOutput]] : [])),
 				commandFormatter: commandOutputFormatterSource, maxStateBytes: this.options.maxHeapMiB * 1024 * 1024 / 8 };
-			const candidate = await this.launch(execution, input);
+			const outcome = await this.launch(execution, input);
+			const candidate = outcome.state;
 			candidate.imports = [...new Set([...start.imports, ...execution.usedImports])];
 			cell.controller.signal.throwIfAborted();
 			await this.transaction(async () => {
-				if (generation !== this.generation || cell.controller.signal.aborted) throw new Error("TS cell cancelled before commit; committed state is unchanged");
-				const merged = mergeState(start, this.state, candidate);
-				if (merged.conflicts.length) {
+				if (generation !== this.generation || cell.controller.signal.aborted) throw new Error("TS cell was cancelled");
+				if (execution.isolated) {
 					const name = `candidate-${cell.id}`;
 					await this.storage?.write(candidate, name);
-					throw new Error(`TS state conflict (${merged.conflicts.join(", ")}); committed state is unchanged. Candidate saved as ${name}. Loading it while idle replaces the entire baseline, including newer writes from other cells; save current state first if needed.`);
+					cell.emit([{ type: "input_text", text: `Isolated result saved as ${name}; the live notebook was not changed. Loading this candidate explicitly replaces the live kernel and discards its live-only values and later changes.` }]);
+					return;
 				}
-				compactState(merged.state);
-				await this.storage?.write(merged.state);
-				this.state = merged.state;
+				this.state = { ...candidate, bindings: outcome.kind === "live-done" && !outcome.sourceStarted ? start.bindings : bindings, pins: start.pins };
+				if (outcome.kind === "live-done" && outcome.error) throw new Error(outcome.error);
+				if (outcome.kind === "live-done" && outcome.captureError) { cell.emit([{ type: "input_text", text: `Live cell succeeded, but its durable checkpoint and project pins were not updated: ${outcome.captureError}. Live values remain available.` }]); return; }
+				const lostPins = outcome.kind === "live-done" ? outcome.skipped.filter(item => start.pins.includes(item.name)) : [];
+				if (lostPins.length) { cell.emit([{ type: "input_text", text: `Live cell succeeded, but its durable checkpoint and project pins were not updated: ${lostPins.map(item => `${item.name} (${item.reason})`).join("; ")}. Restore portable values or explicitly unpin them before checkpointing.` }]); return; }
+				compactState(candidate);
+				await this.storage?.write(candidate);
+				this.durable = candidate;
 				const notice = await this.syncProject();
 				if (notice) cell.emit([{ type: "input_text", text: notice }]);
 			});
 			cell.result = { status: "ok", items: [] };
-		} catch (error) { cell.result = { status: "error", items: [], errorText: `${error instanceof Error ? error.message : String(error)}\nTS state was not committed; tool and file effects were not rolled back.` }; }
+		} catch (error) { cell.result = { status: "error", items: [], errorText: `${error instanceof Error ? error.message : String(error)}\n${execution.isolated ? "Isolated state was not adopted." : this.kernelUnavailable ? "The live kernel stopped; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint." : execution.worker ? "Earlier live mutations may remain; no rollback occurred. Continue inspecting the live notebook, or restart from its last durable checkpoint." : "The cell did not execute."} Tool and file effects were not rolled back.` }; }
 		finally {
 			this.delegate.cancelCell(cell.id);
-			await execution.worker?.stop();
+			if (execution.isolated) await execution.worker?.stop();
 			this.running--;
 			cell.markCompleted();
 		}
 	}
 
-	private launch(execution: Execution, input: TsWorkerInput): Promise<PortableState> {
-		execution.worker = new TsExecutionWorker({ cwd: execution.cell.context.cwd, heapMiB: Math.floor(this.options.maxHeapMiB / MAX_WORKERS), input,
-			callbacks: {
+	private launch(execution: Execution, input: TsWorkerInput): Promise<TsWorkerOutcome> {
+		if (!execution.isolated && this.kernelUnavailable) throw new Error("The live kernel is unavailable; use notebook restart");
+		// Reserve half for the persistent heap and split the other half across bounded isolated runs.
+		execution.worker = execution.isolated ? new TsExecutionWorker({ cwd: execution.cell.context.cwd, heapMiB: Math.floor(this.options.maxHeapMiB / (MAX_WORKERS * 2)) }) : this.kernel ??= new TsExecutionWorker({ cwd: execution.cell.context.cwd, heapMiB: Math.floor(this.options.maxHeapMiB / 2) });
+		return execution.worker.execute(input, {
 				output: items => execution.cell.emit(items),
 				notify: text => this.delegate.notifyDirect(execution.cell.id, text),
 				yield: () => execution.cell.requestYield(),
@@ -245,8 +282,10 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 					execution.cell.controller.signal.throwIfAborted();
 					return operation === "tool" ? this.delegate.invokeDirect(execution.cell.id, id, name, value) : resolveTsRuntimeImport(name, execution.imports);
 				},
-			} });
-		return execution.worker.result;
+			}).catch(async error => {
+				if (!execution.isolated) { this.kernelUnavailable = true; await execution.worker?.stop(); }
+				throw error;
+			});
 	}
 
 	private async stop(execution: Execution): Promise<void> {
@@ -256,6 +295,10 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			execution.cell.terminated = true;
 			execution.cell.controller.abort();
 			this.delegate.cancelCell(execution.cell.id);
+			if (!execution.isolated && execution.worker) {
+				this.kernelUnavailable = true;
+				execution.cell.emit([{ type: "input_text", text: "The TS live kernel was terminated; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint. Tool and file effects were not rolled back." }]);
+			}
 			await execution.worker?.stop();
 			await execution.done;
 		})();
@@ -265,6 +308,59 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		const result = this.committing.then(operation);
 		this.committing = result.then(() => {}, () => {});
 		return result;
+	}
+	private captureInput(): TsWorkerInput {
+		return { mode: "live", captureOnly: true, state: this.state, javascript: "", bindings: this.state.bindings,
+			toolNames: Object.fromEntries(this.latestTools.map(tool => [codeModeGlobalName(tool.name), tool.name])),
+			toolMetadata: this.latestTools.filter(isCodeModeToolDiscoverable).map(tool => ({ name: codeModeGlobalName(tool.name), description: formatCodeModeToolHelp(tool) })),
+			outputHints: Object.fromEntries(this.latestTools.flatMap(tool => "textOutput" in tool && tool.textOutput ? [[tool.name, tool.textOutput]] : [])),
+			commandFormatter: commandOutputFormatterSource, maxStateBytes: this.options.maxHeapMiB * 1024 * 1024 / 8 };
+	}
+	private async capture(): Promise<PortableCapture> {
+		if (this.kernelUnavailable) throw new Error("The TS live kernel stopped; use notebook restart to restore the last durable checkpoint");
+		if (!this.kernel) return { state: this.durable, skipped: [] };
+		const result = await this.kernel.execute(this.captureInput(), {
+			output: () => {}, notify: () => {}, yield: () => {},
+			request: async (operation, _id, name) => {
+				if (operation === "tool") throw new Error("Tools cannot run during TS state capture; run a normal cell instead");
+				return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: this.requireCompiler() });
+			},
+		});
+		if (result.kind !== "live-done") throw new Error("The TS live kernel did not return a capture");
+		if (result.error) throw new Error(result.error);
+		if (result.captureError) throw new Error(`${result.captureError}. Live values remain available; the durable checkpoint was not updated`);
+		this.state = { ...result.state, bindings: this.state.bindings, pins: this.state.pins };
+		return result;
+	}
+	private async resetKernel(state: PortableState): Promise<void> {
+		await this.kernel?.stop();
+		this.kernel = undefined;
+		this.kernelUnavailable = false;
+		this.liveSourceModules.clear();
+		this.state = state;
+	}
+	private async commitState(next: PortableState, action?: NotebookControlRequest["action"] | "adopt"): Promise<string | undefined> {
+		await this.validateDeclarations(next);
+		if (action === "adopt" || action === "release" || action === "prune") await this.resetKernel(next);
+		else {
+			if (action === "load" && this.kernel) {
+				const added = Object.fromEntries(Object.entries(next.bindings).filter(([name]) => !Object.hasOwn(this.state.bindings, name)));
+				const restore = compactState({ ...next, bindings: added, roots: Object.fromEntries(Object.entries(next.roots).filter(([name]) => Object.hasOwn(added, name))) });
+				const result = await this.kernel.execute({ ...this.captureInput(), bindings: { ...this.state.bindings, ...next.bindings }, restore }, {
+					output: () => {}, notify: () => {}, yield: () => {},
+					request: async (operation, _id, name) => {
+						if (operation === "tool") throw new Error("Tools cannot run while loading TS state");
+						return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: this.requireCompiler() });
+					},
+				});
+				if (result.kind === "live-done" && result.error) throw new Error(`TS profile load partially executed: ${result.error}. Inspect the live state or restart; no rollback occurred`);
+			}
+			this.state = { ...next, bindings: { ...this.state.bindings, ...next.bindings } };
+			if (action === "unpin" && this.controlRequest?.action === "unpin") for (const name of this.controlRequest.names) if (this.state.bindings[name]) delete this.state.bindings[name].hook;
+		}
+		await this.requireStorage().write(next);
+		this.durable = next;
+		return this.syncProject();
 	}
 	private requireStorage(): TsStateStorage {
 		if (!this.storage) throw new Error("TS state storage is unavailable; start a new cell");
@@ -291,7 +387,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private async syncProject(): Promise<string | undefined> {
 		if (!this.storage) return undefined;
 		try {
-			const candidate = selectProjectPins(this.state);
+			const candidate = selectProjectPins(this.durable);
 			await this.validateDeclarations(candidate);
 			const result = await this.storage.mergeProject(this.observedProject, candidate);
 			if (result.conflicts.length) {

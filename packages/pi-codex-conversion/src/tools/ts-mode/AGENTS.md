@@ -1,10 +1,12 @@
 - TS is an alternate runtime. Do not migrate or read Deno Notebook state.
-- One stable host owns the tsrs compiler. Disposable Node processes own execution cwd, heap and subprocess groups; terminate them before reporting completion or shutdown.
+- One stable host owns the tsrs compiler. Normal cells share a serial Node REPL kernel through public APIs; isolated cells own disposable processes. Each process owns cwd, heap and subprocess cleanup.
 - Register original top-level function identities at creation, never by the final binding name. Restore recipe functions before decoding data, then initialise lexical bindings from decoded roots. Function declarations need outer lexical self-reference, not an invented named-expression self binding.
-- A committed baseline is immutable. Publish a three-way merge only after its session checkpoint is atomically written. Overlapping writes conflict even when their resulting values match; preserve the candidate separately.
+- Live errors can retain mutations. Cancellation of executing live code invalidates the kernel; recovery uses the last durable checkpoint. Isolated candidates never merge automatically into the live heap.
+- Durable project baselines are immutable. Publish merges only after atomic persistence; preserve conflicting candidates separately.
 - A worker's unreachable node is not a deletion. Preserve nodes from either snapshot, then compact against the merged roots.
 - Retained imports keep TypeScript type/namespace authority. Restore their values once in the worker, not again in cell emission. Pin dependencies include erased type references.
 - Project pin synchronisation is secondary to the session commit. Report its failure without claiming the successful session commit rolled back.
 - After project synchronisation, persist the submitted session candidate as its observed baseline, never the merged project containing other sessions' unseen pins.
-- Transfer must preserve graph identity or refuse the named value before commit. Never stringify closures, skip live objects or replay prior cells to manufacture state.
+- Capture preserves graph identity and reports every unsupported live-only binding and dependent recipe. Keep the live heap intact; never replay cells or stringify closures to manufacture persistence. A skipped pin must not delete its previously durable project value.
+- Ordinary profile loads add noncolliding bindings without rebuilding the live heap. Candidate adoption and release/prune rebuild it and disclose live-only losses.
 - Nested tools go through CodeModeDelegateRuntime, including protected outputs, authentication, hooks and per-cell provenance.

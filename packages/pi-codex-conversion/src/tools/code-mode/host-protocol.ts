@@ -43,27 +43,31 @@ export function isCustomToolDefinition(
 	return "command" in tool;
 }
 
-export function parseExecSource(source: string): {
+export function parseExecSource(source: string, features: { allowIsolated?: boolean } = {}): {
 	code: string;
 	yieldTimeMs: number | null;
 	maxOutputTokens: number | null;
+	isolated: boolean;
 } {
 	if (!source.trim())
 		throw new Error("exec requires non-empty JavaScript source");
 	const [first, ...rest] = source.split("\n");
 	const trimmed = first?.trimStart() ?? "";
 	if (!trimmed.startsWith("// @exec:"))
-		return { code: source, yieldTimeMs: null, maxOutputTokens: null };
+		return { code: source, yieldTimeMs: null, maxOutputTokens: null, isolated: false };
 	if (rest.join("\n").trim() === "")
 		throw new Error("exec pragma must be followed by JavaScript source");
 	const options = JSON.parse(
 		trimmed.slice("// @exec:".length).trim(),
 	) as Record<string, unknown>;
 	for (const key of Object.keys(options))
-		if (key !== "yield_time_ms" && key !== "max_output_tokens")
+		if (key !== "yield_time_ms" && key !== "max_output_tokens" && !(features.allowIsolated && key === "isolated"))
 			throw new Error(`Unsupported exec pragma field: ${key}`);
+	if (options["isolated"] !== undefined && typeof options["isolated"] !== "boolean")
+		throw new Error("isolated must be a boolean");
 	return {
 		code: rest.join("\n"),
+		isolated: options["isolated"] === true,
 		yieldTimeMs: parseInteger(options["yield_time_ms"], "yield_time_ms"),
 		maxOutputTokens: parseInteger(
 			options["max_output_tokens"],

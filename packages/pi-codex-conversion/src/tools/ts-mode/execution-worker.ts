@@ -1,9 +1,8 @@
 import { execFile, fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
-import type { PortableState } from "./portable-state.ts";
 import { assertPortableState } from "./state-storage.ts";
-import type { TsWorkerInput, TsWorkerMessage } from "./worker-protocol.ts";
+import type { TsWorkerInput, TsWorkerMessage, TsWorkerOutcome } from "./worker-protocol.ts";
 
 interface WorkerCallbacks {
 	output(items: RuntimeContentItem[]): void;
@@ -14,48 +13,62 @@ interface WorkerCallbacks {
 
 /** A process owns cwd, its heap, timers and its ordinary subprocess tree. The compiler stays in Pi. */
 export class TsExecutionWorker {
-	readonly result: Promise<PortableState>;
 	private readonly worker: ChildProcess;
 	private readonly requests = new Set<Promise<void>>();
 	private stopPromise: Promise<void> | undefined;
 	private readonly closed: Promise<void>;
+	private nextRun = 0;
+	private active: { id: number; callbacks: WorkerCallbacks; resolve(value: TsWorkerOutcome): void; reject(error: unknown): void } | undefined;
+	private failure: Error | undefined;
+	private live = false;
 
-	constructor(options: { cwd: string; heapMiB: number; input: TsWorkerInput; callbacks: WorkerCallbacks }) {
+	constructor(options: { cwd: string; heapMiB: number }) {
 		this.worker = fork(fileURLToPath(import.meta.url.endsWith(".ts") ? new URL("./worker.ts", import.meta.url) : new URL("./worker.js", import.meta.url)), [], {
 			cwd: options.cwd, detached: process.platform !== "win32", serialization: "advanced",
 			execPath: process.execPath, execArgv: [`--max-old-space-size=${options.heapMiB}`],
 			stdio: ["ignore", "pipe", "pipe", "ipc"],
 		});
 		this.closed = new Promise(resolve => this.worker.once("close", () => resolve()));
-		this.result = new Promise((resolve, reject) => {
-			let settled = false;
-			const fail = (error: unknown): void => { if (!settled) { settled = true; reject(error); } };
-			this.worker.on("message", (value: unknown) => {
-				if (settled) return;
+		const fail = (error: Error): void => { this.failure = error; this.active?.reject(error); this.active = undefined; };
+		this.worker.on("message", (envelope: unknown) => {
+				if (!record(envelope) || typeof envelope["runId"] !== "number") { fail(new Error("TS execution returned an invalid response")); return; }
+				const active = this.active;
+				if (!active || envelope["runId"] !== active.id) return;
+				const value = envelope["message"];
 				try {
 					assertMessage(value);
 					switch (value.kind) {
-						case "output": options.callbacks.output(value.items); break;
-						case "notify": options.callbacks.notify(value.text); break;
-						case "yield": options.callbacks.yield(); break;
+						case "output": active.callbacks.output(value.items); break;
+						case "notify": active.callbacks.notify(value.text); break;
+						case "yield": active.callbacks.yield(); break;
 						case "request": {
-							const request = this.request(value, options.callbacks);
+							const request = this.request(value, active.callbacks);
 							this.requests.add(request);
 							void request.finally(() => this.requests.delete(request));
 							break;
 						}
-						case "done": settled = true; resolve(value.state); break;
-						case "error": fail(new Error(value.error)); break;
+						case "done": case "live-done": this.active = undefined; active.resolve(value); break;
+						case "error": this.active = undefined; active.reject(new Error(value.error)); break;
 					}
-				} catch (error) { fail(error); }
+				} catch (error) { fail(error instanceof Error ? error : new Error(String(error))); }
 			});
 			this.worker.once("error", fail);
 			this.worker.once("exit", (code, signal) => fail(new Error(`TS worker stopped (${signal ?? code}); reduce retained data or increase the heap budget if it exhausted memory`)));
 			for (const stream of [this.worker.stdout, this.worker.stderr]) {
 				stream?.setEncoding("utf8");
-				stream?.on("data", (text: string) => options.callbacks.output([{ type: "input_text", text }]));
+				stream?.on("data", (text: string) => this.active?.callbacks.output([{ type: "input_text", text: this.live ? `[Notebook process output; originating cell unavailable]\n${text}` : text }]));
 			}
-			this.worker.send({ kind: "start", input: options.input }, error => { if (error) fail(error); });
+	}
+
+	execute(input: TsWorkerInput, callbacks: WorkerCallbacks): Promise<TsWorkerOutcome> {
+		if (this.failure) return Promise.reject(this.failure);
+		if (this.stopPromise) return Promise.reject(new Error("TS execution has stopped; restart the notebook"));
+		if (this.active) return Promise.reject(new Error("A TS cell is already executing"));
+		this.live ||= input.mode === "live";
+		return new Promise((resolve, reject) => {
+			const id = ++this.nextRun;
+			this.active = { id, callbacks, resolve, reject };
+			this.worker.send({ kind: "start", runId: id, input }, error => { if (error) { this.active = undefined; reject(error); } });
 		});
 	}
 
@@ -88,7 +101,7 @@ export class TsExecutionWorker {
 
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function assertMessage(value: unknown): asserts value is TsWorkerMessage {
-	if (!record(value)) throw new Error("TS worker returned an invalid message; committed state is unchanged");
+	if (!record(value)) throw new Error("TS execution returned an invalid response; restart the notebook from its durable checkpoint");
 	switch (value["kind"]) {
 		case "yield": return;
 		case "error": if (typeof value["error"] === "string") return; break;
@@ -96,6 +109,10 @@ function assertMessage(value: unknown): asserts value is TsWorkerMessage {
 		case "request": if ((value["operation"] === "tool" || value["operation"] === "import") && Number.isSafeInteger(value["id"]) && typeof value["name"] === "string") return; break;
 		case "output": if (Array.isArray(value["items"]) && value["items"].every(item => record(item) && ((item["type"] === "input_text" && typeof item["text"] === "string") || (item["type"] === "input_image" && typeof item["image_url"] === "string")))) return; break;
 		case "done": assertPortableState(value["state"]); return;
+		case "live-done":
+			assertPortableState(value["state"]);
+			if (typeof value["sourceStarted"] === "boolean" && Array.isArray(value["skipped"]) && value["skipped"].every(item => record(item) && typeof item["name"] === "string" && typeof item["reason"] === "string") && (value["error"] === undefined || typeof value["error"] === "string") && (value["captureError"] === undefined || typeof value["captureError"] === "string")) return;
+			break;
 	}
-	throw new Error("TS worker returned an invalid message; committed state is unchanged");
+	throw new Error("TS execution returned an invalid response; restart the notebook from its durable checkpoint");
 }

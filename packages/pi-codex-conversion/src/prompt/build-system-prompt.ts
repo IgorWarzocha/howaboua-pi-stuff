@@ -59,8 +59,8 @@ const NOTEBOOK_MODE_GUIDELINES = [
 
 const TS_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
-	["Each exec starts from committed state; independent cells may run concurrently. Wait for dependencies before launching dependent cells", "exec snapshots committedstate; independentcells concurrent; awaitdependencies beforelaunch"],
-	["Retain portable data and self-contained helpers; keep live handles and private closures cell-local", "Retain portabledata/selfcontainedhelpers; livehandles/privateclosures→celllocal"],
+	["Normal exec calls share a live kernel and run sequentially; errors can leave mutations", "Normalexec serial/livekernel; errors mayretainmutations"],
+	["Durable captures report unsupported live-only values; recreate skipped closures and handles after restart", "Durablecapture reports live-onlyskips; restart→recreate skippedclosures/handles"],
 ] as const;
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([

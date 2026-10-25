@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ModuleKind, ModuleResolutionKind } from "tsrs/unstable/async";
+import { ModuleKind, ModuleResolutionKind, type API } from "tsrs/unstable/async";
 import { isCallExpression, isExportDeclaration, isImportDeclaration, isMetaProperty, isPropertyAccessExpression, isStringLiteral, ScriptTarget, SyntaxKind, type Node } from "tsrs/unstable/ast";
 import type { TsImportOptions } from "./imports.ts";
 import { withTsImportApi } from "./imports-api.ts";
@@ -12,7 +12,7 @@ import { cacheExactNpmImport } from "./imports-cache.ts";
 export async function compileTsImportSource(
 	url: string,
 	options: TsImportOptions,
-	resolveImport: (specifier: string, options: TsImportOptions) => Promise<string>,
+	resolveImport: (specifier: string, options: TsImportOptions, api?: API) => Promise<string>,
 	onNpmTypes?: (specifier: string, path: string) => void,
 ): Promise<string> {
 	const directory = join(options.sourceDir ?? join(options.cacheDir, "source"), randomUUID());
@@ -63,7 +63,8 @@ export async function compileTsImportSource(
 					} finally { await resolver.dispose(); }
 				}
 				if (reference.typeOnly) continue;
-				const resolved = await resolveImport(reference.specifier, { ...options, cwd: dirname(path) });
+				// Reuse the leased API: borrowing the compiler queue again would deadlock.
+				const resolved = await resolveImport(reference.specifier, { ...options, cwd: dirname(path) }, api);
 				const compiled = resolved.startsWith("file:") && /(?<!\.d)\.(?:ts|mts|cts)$/.test(fileURLToPath(resolved)) ? await visit(resolved) : resolved;
 				edits.push({ ...reference, text: JSON.stringify(commonjs && !reference.dynamic && compiled.startsWith("file:") ? fileURLToPath(compiled) : compiled) });
 			}

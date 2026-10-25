@@ -2,7 +2,7 @@ import { isBuiltin } from "node:module";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ModuleKind, ModuleResolutionKind } from "tsrs/unstable/async";
+import { ModuleKind, ModuleResolutionKind, type API } from "tsrs/unstable/async";
 import type { TsCompiler } from "./compiler.ts";
 import { withTsImportApi } from "./imports-api.ts";
 import { cacheExactNpmImport, runImportCommand } from "./imports-cache.ts";
@@ -13,7 +13,7 @@ export interface TsImportOptions {
 	cacheDir: string;
 	/** Caller-owned disposable directory, separate from the persistent npm cache. */
 	sourceDir?: string;
-	/** Per-cell module identity; share between static and dynamic resolution. */
+	/** Caller-owned module identity shared by static/dynamic imports throughout a live kernel. */
 	sourceModules?: Map<string, string>;
 	compiler?: Pick<TsCompiler, "withApi">;
 	signal?: AbortSignal;
@@ -38,7 +38,7 @@ async function importLocation(specifier: string, options: TsImportOptions): Prom
 	return { cwd: resolve(options.cwd), bare: specifier };
 }
 
-async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal): Promise<string> {
+async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal, resolveSource?: () => Promise<string | undefined>): Promise<string> {
 	signal?.throwIfAborted();
 	if (isBuiltin(bare)) return bare.startsWith("node:") ? bare : `node:${bare}`;
 	// Resolution runs in Node's ESM loader without executing the requested package.
@@ -49,13 +49,29 @@ async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal):
 	], { cwd, timeout: 15_000, maxBuffer: 1024 * 1024, signal });
 	const url = stdout.trim();
 	if (!url.startsWith("file:") && !url.startsWith("node:")) throw new Error(`Unsupported resolved import: ${url}`);
-	if (url.startsWith("file:")) await access(fileURLToPath(url));
+	if (url.startsWith("file:")) {
+		try { await access(fileURLToPath(url)); }
+		catch (error) {
+			if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT" || !/^\.{1,2}\//.test(bare) || !/\.(?:js|mjs|cjs)$/.test(bare)) throw error;
+			const source = await resolveSource?.();
+			if (!source || !/(?<!\.d)\.(?:ts|mts|cts)$/.test(source)) throw error;
+			await access(source);
+			return pathToFileURL(source).href;
+		}
+	}
 	return url;
 }
 
-async function resolveRawImport(specifier: string, options: TsImportOptions): Promise<string> {
+async function resolveRawImport(specifier: string, options: TsImportOptions, api?: API): Promise<string> {
 	const location = await importLocation(specifier, options);
-	return runtimeLocation(location.bare, location.cwd, options.signal);
+	return runtimeLocation(location.bare, location.cwd, options.signal, async () => {
+		const resolveSource = async (owner: API): Promise<string | undefined> => {
+			const resolver = await owner.createModuleResolver({ module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext });
+			try { return (await resolver.resolveModuleName(location.bare, location.cwd, ModuleKind.ESNext)).resolvedModule?.resolvedFileName; }
+			finally { await resolver.dispose(); }
+		};
+		return api ? resolveSource(api) : withTsImportApi(options, resolveSource);
+	});
 }
 
 export async function resolveTsRuntimeImport(specifier: string, options: TsImportOptions): Promise<string> {
@@ -85,7 +101,7 @@ export async function resolveTsImports(specifiers: readonly string[], options: T
 					moduleResolutions.set(specifier, path);
 				}
 				try {
-					runtimeSpecifiers.set(specifier, await runtimeLocation(bare, cwd, options.signal));
+					runtimeSpecifiers.set(specifier, await runtimeLocation(bare, cwd, options.signal, async () => types?.resolvedFileName));
 				} catch (error) {
 					options.signal?.throwIfAborted();
 					// Type-only packages/exports need no executable entry. A value import still
