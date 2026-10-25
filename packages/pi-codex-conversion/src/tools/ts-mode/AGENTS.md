@@ -5,5 +5,6 @@
 - A worker's unreachable node is not a deletion. Preserve nodes from either snapshot, then compact against the merged roots.
 - Retained imports keep TypeScript type/namespace authority. Restore their values once in the worker, not again in cell emission. Pin dependencies include erased type references.
 - Project pin synchronisation is secondary to the session commit. Report its failure without claiming the successful session commit rolled back.
+- After project synchronisation, persist the submitted session candidate as its observed baseline, never the merged project containing other sessions' unseen pins.
 - Transfer must preserve graph identity or refuse the named value before commit. Never stringify closures, skip live objects or replay prior cells to manufacture state.
 - Nested tools go through CodeModeDelegateRuntime, including protected outputs, authentication, hooks and per-cell provenance.

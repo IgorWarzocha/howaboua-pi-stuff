@@ -299,8 +299,8 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 				await this.storage.write(this.state, name);
 				return `TS session state committed, but project pins conflict (${result.conflicts.join(", ")}). Project state was preserved; candidate saved as ${name}. Load it while this session is idle to recover the candidate, or unpin the conflicting binding before checkpointing.`;
 			}
-			await this.storage.write(result.state, "observed-project");
-			this.observedProject = result.state;
+			await this.storage.write(candidate, "observed-project");
+			this.observedProject = candidate;
 		} catch (error) { return `TS session state committed, but project pins were not saved: ${error instanceof Error ? error.message : String(error)}. Retry notebook checkpoint.`; }
 		return undefined;
 	}
