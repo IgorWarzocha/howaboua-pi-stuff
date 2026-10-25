@@ -28,12 +28,8 @@ import {
 import { openNotesSettings } from "./settings-screen.js";
 import { registerContextSharingService } from "./sharing-service.js";
 import { NotesStore } from "./store.js";
-import {
-	createSharedExecutor,
-	createTools,
-	HISTORY_USAGE,
-	NOTES_USAGE,
-} from "./tools.js";
+import { HISTORY_USAGE, NOTES_USAGE } from "./tool-contracts.js";
+import { createSharedExecutor, createTools } from "./tools.js";
 import {
 	projectTreeCheckpointBranch,
 	projectTreeCheckpointMessages,
