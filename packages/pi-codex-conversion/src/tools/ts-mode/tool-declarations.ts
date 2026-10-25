@@ -145,13 +145,13 @@ class SchemaTypes {
 export function buildTsToolDeclarations(tools: readonly CodeModeToolDefinition[]): string {
 	const declarations: string[] = [];
 	const fields = tools.map((tool, index) => {
-		const help = "discovery" in tool && tool.discovery === "help";
+		const optional = "invoke" in tool && (tool.discovery === "help" || tool.inputOptional === true);
 		let input = "string";
 		if (!("command" in tool) && tool.kind === "function") {
 			input = `__TsToolInput${index}`;
 			declarations.push(new SchemaTypes(tool.inputSchema, input).declaration());
 		}
-		return `readonly ${JSON.stringify(codeModeGlobalName(tool.name))}: (input${help ? "?" : ""}: ${input}) => Promise<unknown>`;
+		return `readonly ${JSON.stringify(codeModeGlobalName(tool.name))}: (input${optional ? "?" : ""}: ${input}) => Promise<unknown>`;
 	});
 	return [...declarations, `declare const tools: { ${fields.join("; ")} };`].join("\n");
 }

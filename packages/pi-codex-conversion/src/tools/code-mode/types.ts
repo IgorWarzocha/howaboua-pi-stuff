@@ -51,6 +51,8 @@ export interface ProgrammaticCodeModeToolDefinition
 	discoveryUsage?: string | undefined;
 	/** Help entries accept an empty call without performing an operation. Server summaries own MCP discovery. */
 	discovery?: "help" | "server" | undefined;
+	/** The nested input adapter accepts an omitted argument, independently of help-only discovery. */
+	inputOptional?: boolean | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi or the adapter owns argument preparation and admission hooks. */

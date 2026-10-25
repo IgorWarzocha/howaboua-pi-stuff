@@ -81,6 +81,7 @@ async function registerSkillsInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
+				inputOptional: true,
 				prepareInput: prepareSkillsCodeModeInput,
 				usage: "await tools.skills() // discover skills and calling syntax",
 			}),

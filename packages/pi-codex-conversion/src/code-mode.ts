@@ -28,6 +28,7 @@ export function adaptToolForCodeMode<
 		blocking?: boolean | ((input: unknown) => boolean);
 		deferLoading?: boolean;
 		kind?: "function" | "freeform";
+		inputOptional?: boolean;
 		promptMetadata?: boolean;
 		/** Capture protected outputs while permitting ordinary local results. */
 		opaqueResult?: boolean;
@@ -62,5 +63,5 @@ export function adaptToolForCodeMode<
 			? { deferLoading: true, discoverWhenDeferred: true }
 			: {}),
 	});
-	return { ...adapted, ...(options.discovery ? { discovery: options.discovery } : {}), topLevelName: tool.name };
+	return { ...adapted, ...(options.discovery ? { discovery: options.discovery } : {}), ...(options.inputOptional ? { inputOptional: true } : {}), topLevelName: tool.name };
 }
