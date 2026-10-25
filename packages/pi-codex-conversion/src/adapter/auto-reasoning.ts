@@ -38,6 +38,7 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 		},
 		tool: {
 			name: "change_reasoning",
+			defaultActive: false,
 			label: "Change Reasoning",
 			description: "Adaptive reasoning control. Set an initial level; raise it for difficulty or uncertainty, lower it for routine work.",
 			parameters: PARAMETERS,

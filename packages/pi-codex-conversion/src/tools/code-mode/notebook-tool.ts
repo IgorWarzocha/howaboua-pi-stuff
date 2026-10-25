@@ -118,6 +118,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	const constrainedSampling = getExperimentalToolSampling("notebook");
 	pi.registerTool({
 		name: "notebook",
+		defaultActive: false,
 		exposure: "model-only",
 		executionMode: "sequential",
 		label: "Notebook",
