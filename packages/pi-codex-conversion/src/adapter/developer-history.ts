@@ -30,7 +30,8 @@ export function projectCodexDeveloperHistory(
 	if (messages && !entries.some((entry) =>
 		(entry.type === "custom" && isVirtualCustomType(entry.customType))
 		|| (entry.type === "custom_message" && entry.customType === CODEX_REASONING_UPDATE_TYPE))) return messages.filter(survives);
-	const byId = new Map(entries.map((entry) => [entry.id, entry]));
+	const byId = new Map<string, SessionEntry>();
+	for (const entry of entries) byId.set(entry.id, entry);
 	let ancestor = leafId === null ? undefined : leafId ? byId.get(leafId) : entries.at(-1);
 	let compacted = false;
 	while (ancestor) {
@@ -45,12 +46,15 @@ export function projectCodexDeveloperHistory(
 	const virtualIds = new Set<string>();
 	const projectedEntries = entries.map((entry): SessionEntry => {
 		const projected = projectCodexDeveloperEntry(entry);
+		byId.set(projected.id, projected);
 		if (projected !== entry && projected.type === "custom_message" && isCodexDeveloperMessageDetails(projected.details)
 			&& !retired.has(projected.details.id)) virtualIds.add(projected.details.id);
 		return projected;
 	});
 	if (messages && virtualIds.size === 0) return [...messages];
-	const reconstructed = buildSessionContext(projectedEntries, leafId).messages.filter(survives);
+	// The SDK traverses the same index twice. Reuse this operation's index, now
+	// pointing at projected entries, rather than rebuilding it for each traversal.
+	const reconstructed = buildSessionContext(projectedEntries, leafId, byId).messages.filter(survives);
 	// Pi's initial prompt must lead the transcript; only virtual bookkeeping may precede it in storage.
 	const headSystemIndex = reconstructed.findIndex((message) => message.role === "system");
 	if (headSystemIndex > 0 && reconstructed.slice(0, headSystemIndex).every(isVirtualMessage)) {
@@ -96,8 +100,14 @@ export function projectCodexDeveloperHistory(
 		}
 	}
 	insertPending(last + 1);
-	return messages.flatMap((message, index) => [...(insertions.get(index) ?? []), message])
-		.concat(insertions.get(messages.length) ?? []);
+	const result: AgentMessage[] = [];
+	for (let index = 0; index < messages.length; index++) {
+		const inserted = insertions.get(index);
+		if (inserted) for (const message of inserted) result.push(message);
+		result.push(messages[index]!);
+	}
+	for (const message of insertions.get(messages.length) ?? []) result.push(message);
+	return result;
 }
 
 function messageKey(message: AgentMessage): string {

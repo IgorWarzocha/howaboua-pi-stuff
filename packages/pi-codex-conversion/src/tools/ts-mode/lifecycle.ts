@@ -111,7 +111,8 @@ function formatSkipped(capture: PortableCapture): string {
 /** Enums have both value and type authority; retain them with type declarations for pinned values. */
 export function selectProjectPins(state: PortableState): PortableState {
 	const names = new Set(state.pins);
-	if (names.size) for (const binding of Object.values(state.bindings)) if (binding.kind === "type" || binding.kind === "enum") names.add(binding.name);
+	if (!names.size) return { ...state, roots: {}, nodes: {}, bindings: {} };
+	for (const binding of Object.values(state.bindings)) if (binding.kind === "type" || binding.kind === "enum") names.add(binding.name);
 	let previousSize = -1;
 	let selected = emptyState();
 	while (names.size !== previousSize) {
