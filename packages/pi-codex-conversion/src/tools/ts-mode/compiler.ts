@@ -146,15 +146,16 @@ export class TsCompiler {
     const moduleResolver = resolver?.moduleResolver;
     try {
       const old = this.snapshot;
-      const next = old && this.programId ? await old.update({
+      // Disk imports need a full refresh, including when leaving their graph.
+      // A fresh program avoids updating a graph whose caches are discarded anyway.
+      const refresh = hasDependencies || this.snapshotHasDependencies;
+      const next = old && this.programId && !refresh ? await old.update({
         fileSystem: createFileSystemLayer([[this.fileName, source]]),
-        // Explicit imports/references (including retained declarations) can change
-        // on disk. Ambient compiler dependencies alone keep their warm caches.
-        // Clear the old graph once when leaving a dependency-bearing cell too.
-        fileNotifications: { invalidateAll: hasDependencies || this.snapshotHasDependencies, changed: [this.fileName] },
+        fileNotifications: { changed: [this.fileName] },
         reconfigurePrograms: [{ id: this.programId, rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       }) : await this.api.createSnapshot({
         fileSystem: createFileSystemLayer([[this.fileName, source]]),
+        fileNotifications: { invalidateAll: refresh },
         createPrograms: [{ rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       });
       this.snapshot = next;
@@ -162,7 +163,7 @@ export class TsCompiler {
       this.resolver = resolver;
       await old?.dispose();
       if (previousResolver !== resolver) await previousResolver?.moduleResolver.dispose();
-      const program = this.programId ? next.getProgram(this.programId) : next.operation.createdPrograms?.[0];
+      const program = next.operation.createdPrograms?.[0] ?? (this.programId ? next.getProgram(this.programId) : undefined);
       if (!program) throw new Error('TypeScript could not prepare the cell.');
       this.programId = program.getProject().id;
       const errors = [
