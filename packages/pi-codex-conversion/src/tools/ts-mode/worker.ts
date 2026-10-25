@@ -142,7 +142,8 @@ async function run(input: TsWorkerInput): Promise<void> {
 	if (pending.size) throw new Error("TS cell has unawaited tool/import requests; await them before committing state");
 	for (const key of Reflect.ownKeys(globalThis)) if (!initialGlobals.has(key)) throw new Error(`globalThis.${String(key)} cannot transfer; declare a top-level binding instead`);
 	for (const binding of Object.values(input.bindings)) if (binding.module) graph.registerRecipe(values[binding.name], binding.name);
-	values["__tsStore"] = storeValues;
+	// An unused fresh store is not a write: overlapping cells must not invent competing roots.
+	if (Object.hasOwn(input.state.roots, "__tsStore") || Object.keys(storeValues).length) values["__tsStore"] = storeValues;
 	const candidate = graph.encode(values, input.bindings, input.state.pins, input.state.imports);
 	if (serialize(candidate).byteLength > input.maxStateBytes) throw new Error("TS retained state exceeds the session storage budget; retain less data or increase the heap budget");
 	send({ kind: "done", state: candidate });
