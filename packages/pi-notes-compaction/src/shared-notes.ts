@@ -232,9 +232,13 @@ async function readSharedSession(
 						normalizeNoteParams(query, native),
 						outputAgent,
 					)),
-			source: "saved-session",
-			read_only: true,
-			...(namespace === "notes" ? { remote: { state: "not_fetched" } } : {}),
+			...(namespace === "notes"
+				? {
+						read_only: true,
+						warning:
+							"Only saved notes are included; other notes may be missing",
+					}
+				: {}),
 			...(session.savedAt === undefined
 				? {}
 				: { saved_at: new Date(session.savedAt).toISOString() }),
@@ -300,9 +304,10 @@ async function readSharedSession(
 				query,
 				identity.agentName,
 			)),
-			source: "retained-checkpoints",
 			captured_at: new Date(retained.timestamp).toISOString(),
-			...(detached ? { detached: true } : { stale: true }),
+			warning: detached
+				? "Read-only notes captured when sharing ended; later changes are not included"
+				: "The latest notes are unavailable; this read-only copy may be outdated",
 		};
 	}
 	async function resolve(

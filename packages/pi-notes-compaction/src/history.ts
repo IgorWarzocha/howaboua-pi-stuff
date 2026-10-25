@@ -69,7 +69,9 @@ async function historyWindows(
 ): Promise<{ windows: Map<string, HistoryItem[]>; retired: Set<string> }> {
 	const archive = buildTreeArchiveIndex(allEntries, entries);
 	if (archive.invalidManifest)
-		throw new Error("Saved Tree history metadata is invalid");
+		throw new Error(
+			"Saved history could not be read. Open an intact copy of the source session.",
+		);
 	if (archive.archives.some((item) => !item.entries))
 		throw new Error(
 			"Archived history is unavailable in this session copy. Resume the source session.",

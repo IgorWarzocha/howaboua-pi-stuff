@@ -264,6 +264,7 @@ async function hybrid(
 	ctx: ExtensionContext,
 	signal?: AbortSignal,
 	shared = false,
+	replacementsInScope = false,
 ): Promise<AgentToolResult<unknown>> {
 	let responses: readonly CachedResponse[] = store.cached(
 		sourceSessionIds(ctx),
@@ -307,32 +308,24 @@ async function hybrid(
 		shared ||
 		(Boolean(bridge?.projectResult) && bridge?.canProject?.(ctx) !== false);
 	if (responses.length && !canProject) state = "incompatible";
-	const remote = {
-		state,
-		...(lookupFailed
-			? {
-					lookup: "failed",
-					recovery: "Retry this lookup when remote access is available",
-				}
-			: {}),
-		coverage: responses.length
-			? responses.map((response) => ({
-					source: response.source,
-					fetched_at: response.fetchedAt,
-					coverage: response.coverage,
-				}))
-			: "No cached response for this exact query",
-		...(state === "cache"
-			? { scope: "Exact cached query only, not a complete offline archive" }
-			: {}),
-		...(state === "incompatible"
-			? {
-					recovery:
-						"Cached encrypted contents require a compatible Codex model with PCC active. Local results remain available",
-				}
-			: {}),
-	};
-	const output = result({ source: "local", local, remote });
+	const warnings: string[] = [];
+	if (state === "incompatible")
+		warnings.push(
+			"Some notes cannot be read with this model. Available notes are shown; ask the user to select a compatible Codex model to read the rest.",
+		);
+	else if (state === "cache")
+		warnings.push(
+			"These results could not be refreshed and may be outdated. Retry when access is restored.",
+		);
+	else if (lookupFailed)
+		warnings.push(
+			"Some notes could not be retrieved. Available notes are shown; retry the lookup to check for missing results.",
+		);
+	if (responses.length && canProject && replacementsInScope)
+		warnings.push(
+			"Older matches may refer to replaced notes. Read a note before relying on its excerpt; read_file returns the current saved version.",
+		);
+	const output = result({ ...local, ...(warnings.length ? { warnings } : {}) });
 	if (shared)
 		return {
 			...output,
@@ -438,14 +431,13 @@ function createQueryExecutor(
 			params["action"] === "read_file" &&
 			notes.get(params["path"] as string)?.mode === "replace"
 		)
-			return result({
-				source: "local",
-				local,
-				remote: { state: "superseded_by_local_replacement" },
-			});
-		const replacements = [...notes.values()]
-			.filter((note) => note.mode === "replace")
-			.map((note) => `${lifecycle.agent(ctx)}/notes/${note.path}`);
+			return result(local);
+		const prefix = String(params["prefix"] ?? params["path_prefix"] ?? "");
+		const replacementsInScope =
+			params["action"] !== "read_file" &&
+			[...notes.values()].some(
+				(note) => note.mode === "replace" && note.path.startsWith(prefix),
+			);
 		const remoteParams = { ...params };
 		for (const field of ["path", "prefix", "path_prefix"])
 			if (typeof remoteParams[field] === "string")
@@ -456,19 +448,12 @@ function createQueryExecutor(
 			store,
 			lifecycle,
 			{ namespace: "notes", params: remoteParams },
-			{
-				...local,
-				...(replacements.length
-					? {
-							local_replacements_authoritative: replacements.slice(0, 100),
-							replacements_truncated: replacements.length > 100,
-						}
-					: {}),
-			},
+			local,
 			callId,
 			ctx,
 			signal,
 			shared,
+			replacementsInScope,
 		);
 	}
 	async function history(

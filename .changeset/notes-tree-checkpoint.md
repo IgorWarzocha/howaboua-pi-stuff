@@ -4,6 +4,7 @@
 
 - PCC integration now requires PCC 4.0.5 or newer.
 - Notes and history now return plaintext results as objects in Code and Notebook. Remove JSON.parse around these results in saved helpers. Encrypted notes still return delivery receipts.
+- Notes results omit storage and routing bookkeeping while retaining read ranges, truncation and warnings about incomplete or outdated results.
 - Added the context-sharing API for orchestrators to connect shared notes and history independently of PCC.
 - History now reads Pi JSONL sessions instead of fetching encrypted backend history.
 - Added opt-in Ranked history search in /notes for earlier user messages and assistant replies. Indexing runs off the UI thread and skips current context, tool activity and reasoning. Explicit tool-history, live-window and cross-agent searches retain literal matching.
