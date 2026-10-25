@@ -77,7 +77,7 @@ export function registerPublicCodeModeTools(
 	registerGptPromptMode(pi, (active, context) => {
 		const ts = context !== undefined && runtime.executionKind(context) === "ts";
 		const description = (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace("JavaScript", ts ? "TypeScript" : "JavaScript")
-			+ (ts ? '\nTS pragma: "isolated":true runs a concurrent checkpoint copy; results never merge into live state' : "");
+			+ (ts ? '\nFor independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged' : "");
 		const executionMode = ts ? "parallel" : "sequential";
 		if (currentExec.description !== description || currentExec.executionMode !== executionMode) {
 			if (currentExec.executionMode !== executionMode) pi.registerTool({ ...wait, executionMode });
