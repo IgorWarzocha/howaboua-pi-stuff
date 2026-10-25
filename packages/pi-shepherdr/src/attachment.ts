@@ -202,7 +202,6 @@ export class AgentAttachment {
 			...(route.plan.board
 				? {
 						boardAgent: route.plan.board.desired.agentName,
-						previousBoard: route.plan.board.previous.boardId,
 					}
 				: {}),
 		};

@@ -70,16 +70,15 @@ export function readCodexToolRouteConfig(
 			error.code === "ENOENT"
 		)
 			return { providers: Object.create(null) };
-		throw error;
+		throw new Error(
+			"Tool configuration could not be read. Ask the user to check " + path,
+		);
 	}
 	try {
 		return normalizeCodexToolRouteConfig(JSON.parse(source));
-	} catch (error) {
+	} catch {
 		throw new Error(
-			"Invalid pi-codex-tools config at " +
-				path +
-				": " +
-				(error instanceof Error ? error.message : String(error)),
+			"Tool configuration is invalid. Ask the user to check " + path,
 		);
 	}
 }

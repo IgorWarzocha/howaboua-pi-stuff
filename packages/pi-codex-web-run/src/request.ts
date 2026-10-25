@@ -34,7 +34,14 @@ export function normalizeSearchResponse(value: unknown): WebRunOutput {
 		typeof parsed["output_text"] === "string" ||
 		Array.isArray(parsed["search_results"])
 	)
-		return parsed as WebRunOutput;
+		return {
+			...(typeof parsed["output_text"] === "string"
+				? { output_text: parsed["output_text"] }
+				: {}),
+			...(Array.isArray(parsed["search_results"])
+				? { search_results: parsed["search_results"] }
+				: {}),
+		};
 	if (typeof parsed["output"] !== "string")
 		throw new Error("web_run search returned no output");
 	return {

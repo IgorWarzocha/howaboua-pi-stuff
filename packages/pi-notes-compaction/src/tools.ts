@@ -113,7 +113,7 @@ export function createTools(
 				assertActive();
 				const remaining = lifecycle.windows.remaining(ctx);
 				return result({
-					...remaining,
+					contextWindow: remaining.contextWindow,
 					remainingTokens: remaining.remainingTokens ?? null,
 					remainingPercent: remaining.remainingPercent ?? null,
 				});

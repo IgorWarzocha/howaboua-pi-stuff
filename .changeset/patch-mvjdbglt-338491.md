@@ -12,3 +12,4 @@
 - Removed redundant instructions from Notebook help.
 - Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and durable state controls. Code and Deno Notebook remain available.
 - Realtime voice now uses gpt-live-1.1-codex.
+- Notebook runtime failures retain recovery actions without exposing internal protocol diagnostics.

@@ -47,7 +47,7 @@ export async function lookupNotes(
 				store.cache(sessionRef(ctx), fetched);
 			} catch {
 				throw new Error(
-					"Remote results could not be retained locally. Retry this lookup when local storage is available.",
+					"Notes lookup could not finish. Retry when local storage is available.",
 				);
 			}
 			if (fetched.length)
@@ -104,7 +104,7 @@ export async function lookupNotes(
 			return await bridge.projectResult(output, responses, callId, ctx, signal);
 		} catch {
 			throw new Error(
-				"Remote contents were cached, but delivery failed. Retry this lookup on a compatible model.",
+				"Notes could not be displayed. Retry the lookup with a compatible Codex model.",
 			);
 		}
 	}

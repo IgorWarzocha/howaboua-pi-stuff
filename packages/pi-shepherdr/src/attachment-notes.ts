@@ -174,7 +174,19 @@ export class AttachmentNotes {
 					}),
 		};
 		return {
-			content: [{ type: "text", text: JSON.stringify(details) }],
+			content: [
+				...result.content,
+				{
+					type: "text",
+					text: `Read-only checkpoints captured ${details.captured_at}.${
+						detached
+							? " Counterpart detached."
+							: unavailable
+								? " Live owner and saved updates unavailable; these checkpoints may be stale. Resume the counterpart for current notes."
+								: " Live owner unavailable; reading saved checkpoints."
+					}`,
+				},
+			],
 			details: { codexHistoryNotes: details },
 		};
 	}

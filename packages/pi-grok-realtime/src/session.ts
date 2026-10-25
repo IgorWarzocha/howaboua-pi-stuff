@@ -570,7 +570,6 @@ export class GrokSession {
 					output: JSON.stringify({
 						status: "landed",
 						updates: this.pendingContext.splice(0),
-						at: new Date().toISOString(),
 					}),
 				},
 			});

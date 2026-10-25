@@ -69,7 +69,7 @@ export class DenoJupyterKernel {
 
 	async start(signal?: AbortSignal): Promise<void> {
 		if (this.terminalFailure) {
-			throw new Error(`Deno Jupyter kernel is unavailable: ${this.terminalFailure.message}`, { cause: this.terminalFailure });
+			throw new Error(withNotebookRecoveryGuidance("Notebook runtime is unavailable"), { cause: this.terminalFailure });
 		}
 		if (!this.startup) this.startup = this.startInner(signal).catch((error) => {
 			this.startup = undefined;
@@ -148,7 +148,7 @@ export class DenoJupyterKernel {
 					await withTimeout(
 						completionState,
 						REQUEST_TIMEOUT_MS,
-						() => new Error(`Deno Jupyter did not become idle after execute_reply within ${REQUEST_TIMEOUT_MS}ms`),
+						() => new Error(withNotebookRecoveryGuidance(`Notebook execution did not finish within ${REQUEST_TIMEOUT_MS}ms`)),
 					);
 				}
 			} catch (error) {
@@ -156,7 +156,7 @@ export class DenoJupyterKernel {
 				throw error;
 			}
 			if (reply.header.msg_type !== "execute_reply") {
-				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
+				throw new Error(withNotebookRecoveryGuidance("Notebook execution returned an unexpected response"));
 			}
 			await this.drainOutput(execution);
 			const replied = applyExecuteReplyError(finishKernelExecution(execution), reply);
@@ -267,7 +267,7 @@ export class DenoJupyterKernel {
 		child.on("error", (error) => this.failKernel(new Error(`Deno Jupyter process failed: ${error.message}`)));
 		child.on("exit", (code, childSignal) => {
 			if (this.process !== child) return;
-			this.failKernel(new Error(`Deno Jupyter exited unexpectedly (code=${code}, signal=${childSignal})${this.stderr ? `\n${this.stderr}` : ""}`));
+			this.failKernel(new Error(withNotebookRecoveryGuidance(`Notebook runtime exited unexpectedly (${childSignal ? `signal ${childSignal}` : `exit code ${code ?? "unknown"}`})`), { cause: new Error(this.stderr) }));
 		});
 		const connection = info;
 		this.connection = connection;
@@ -288,7 +288,7 @@ export class DenoJupyterKernel {
 			signal?.throwIfAborted();
 			const remaining = deadline - Date.now();
 			if (remaining <= 0) {
-				throw new Error(`Deno Jupyter IOPub did not become ready within ${STARTUP_TIMEOUT_MS}ms${this.stderr ? `\n${this.stderr}` : ""}`);
+				throw new Error(withNotebookRecoveryGuidance(`Notebook runtime did not become ready within ${STARTUP_TIMEOUT_MS}ms`), { cause: new Error(this.stderr) });
 			}
 			await this.shellRequest("kernel_info_request", {}, remaining, signal);
 			const ready = await Promise.race([
@@ -307,7 +307,7 @@ export class DenoJupyterKernel {
 	): Promise<JupyterMessage> {
 		const shell = this.shell;
 		const connection = this.connection;
-		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
+		if (!shell || !connection) throw new Error(withNotebookRecoveryGuidance("Notebook runtime is disconnected"));
 		const request = createJupyterMessage(type, content, this.session);
 		return this.sendShellRequest(request, timeoutMs, type, signal);
 	}
@@ -320,9 +320,9 @@ export class DenoJupyterKernel {
 	): Promise<JupyterMessage> {
 		const shell = this.shell;
 		const connection = this.connection;
-		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
+		if (!shell || !connection) throw new Error(withNotebookRecoveryGuidance("Notebook runtime is disconnected"));
 		const requestId = request.header.msg_id;
-		if (this.shellReplies.has(requestId)) throw new Error(`Duplicate Deno Jupyter shell request: ${requestId}`);
+		if (this.shellReplies.has(requestId)) throw new Error(withNotebookRecoveryGuidance("Notebook operation could not be started"));
 		let waiter!: ShellReplyWaiter;
 		const reply = new Promise<JupyterMessage>((resolve, reject) => {
 			waiter = { resolve, reject };
@@ -331,7 +331,7 @@ export class DenoJupyterKernel {
 			waiter.timer = setTimeout(() => {
 				if (this.shellReplies.get(requestId) !== waiter) return;
 				this.shellReplies.delete(requestId);
-				waiter.reject(new Error(`Deno Jupyter did not answer ${requestType} within ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`));
+				waiter.reject(new Error(withNotebookRecoveryGuidance(`Notebook runtime did not respond within ${timeoutMs}ms`), { cause: new Error(`${requestType}\n${this.stderr}`) }));
 			}, timeoutMs);
 		}
 		if (signal) {
@@ -468,7 +468,7 @@ export class DenoJupyterKernel {
 		this.shell = undefined;
 		for (const waiter of this.shellReplies.values()) {
 			if (waiter.timer) clearTimeout(waiter.timer);
-			waiter.reject(new Error("Deno Jupyter shell disconnected"));
+			waiter.reject(new Error(withNotebookRecoveryGuidance("Notebook runtime disconnected")));
 		}
 		this.shellReplies.clear();
 		shell?.close();
