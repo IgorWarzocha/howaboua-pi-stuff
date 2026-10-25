@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { API, ModuleKind, ModuleResolutionKind, SymbolFlags, TypeFormatFlags, type CompilerOptions, type Diagnostic, type Snapshot, type SyntheticProjectId } from 'tsrs/unstable/async';
+import { API, ModuleKind, ModuleResolutionKind, SymbolFlags, TypeFormatFlags, type CompilerOptions, type Diagnostic, type ModuleResolver, type Snapshot, type SyntheticProjectId } from 'tsrs/unstable/async';
 import { createFileSystemLayer } from 'tsrs/unstable/fs';
 import {
   isExportDeclaration, isCallExpression, isImportDeclaration, isFunctionDeclaration,
@@ -40,6 +40,8 @@ export class TsCompiler {
   private readonly fileName: string;
   private readonly options: CompilerOptions;
   private snapshot: Snapshot | undefined;
+  private snapshotHasDependencies = false;
+  private resolver: { mappings: ReadonlyMap<string, string>; moduleResolver: ModuleResolver } | undefined;
   private programId: SyntheticProjectId | undefined;
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
@@ -98,7 +100,10 @@ export class TsCompiler {
     this.closed = true;
     await this.queue;
     try { await this.snapshot?.dispose(); }
-    finally { await this.api.close(); }
+    finally {
+      try { await this.resolver?.moduleResolver.dispose(); }
+      finally { await this.api.close(); }
+    }
   }
 
   private async compileCell(input: TsCompileInput): Promise<TsCompileResult> {
@@ -107,32 +112,56 @@ export class TsCompiler {
     const report = (value: Diagnostic): TsDiagnostic => diagnostic(value, this.fileName, prefixLines);
     const lease = await this.api.createSourceFile(this.fileName, prefix + input.source);
     let names: string[];
-    try { names = [...new Set(inventory(lease.sourceFile, prefix.length).map(binding => binding.name))]; }
+    let hasDependencies = Boolean(input.moduleResolutions?.size);
+    try {
+      names = [...new Set(inventory(lease.sourceFile, prefix.length).map(binding => binding.name))];
+      const file = lease.sourceFile;
+      hasDependencies ||= Boolean(file.referencedFiles.length || file.typeReferenceDirectives.length || file.libReferenceDirectives.length);
+      const walk = (node: Node): void => {
+        if (hasDependencies) return;
+        if (isImportDeclaration(node) || isImportTypeNode(node) || node.kind === SyntaxKind.ImportEqualsDeclaration ||
+          (isExportDeclaration(node) && node.moduleSpecifier) ||
+          (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword)) hasDependencies = true;
+        else node.forEachChild(walk);
+      };
+      walk(file);
+    }
     finally { await lease.dispose(); }
     if (names.some(name => name === '__tsImport' || name === '__tsRegisterRecipe')) return {
       ok: false, diagnostics: [{ code: 0, message: 'Names __tsImport and __tsRegisterRecipe are reserved. Choose another binding name.' }],
     };
     const source = prefix + input.source + `\nexport { ${names.join(', ')} };\n`;
-    const nativeResolver = await this.api.createModuleResolver(this.options);
-    const moduleResolver = await this.api.createModuleResolver(this.options, {
-      resolveModuleName: async (name, containingDirectory, resolutionMode, options) => {
-        const resolvedFileName = input.moduleResolutions?.get(name);
-        if (resolvedFileName) return { resolvedFileName };
-        return (await nativeResolver.resolveModuleName(name, containingDirectory, resolutionMode, options)).resolvedModule;
-      },
-    });
+    const mappings = new Map(input.moduleResolutions);
+    const previousResolver = this.resolver;
+    // Native static entries preserve the old name-only override and native fallback,
+    // without sending the entire Node type graph through callback RPCs each cell.
+    const resolver = previousResolver && mappings.size === previousResolver.mappings.size &&
+      [...mappings].every(([name, path]) => previousResolver.mappings.get(name) === path)
+      ? previousResolver : mappings.size ? {
+        mappings,
+        moduleResolver: await this.api.createModuleResolver(this.options, {
+          moduleResolutions: { fallback: 'resolve', entries: [...mappings].map(([moduleName, resolvedFileName]) => ({ moduleName, result: { resolvedFileName } })) },
+        }),
+      } : undefined;
+    const moduleResolver = resolver?.moduleResolver;
     try {
       const old = this.snapshot;
       const next = old && this.programId ? await old.update({
         fileSystem: createFileSystemLayer([[this.fileName, source]]),
-        fileNotifications: { changed: [this.fileName] },
+        // Explicit imports/references (including retained declarations) can change
+        // on disk. Ambient compiler dependencies alone keep their warm caches.
+        // Clear the old graph once when leaving a dependency-bearing cell too.
+        fileNotifications: { invalidateAll: hasDependencies || this.snapshotHasDependencies, changed: [this.fileName] },
         reconfigurePrograms: [{ id: this.programId, rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       }) : await this.api.createSnapshot({
         fileSystem: createFileSystemLayer([[this.fileName, source]]),
         createPrograms: [{ rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       });
       this.snapshot = next;
+      this.snapshotHasDependencies = hasDependencies;
+      this.resolver = resolver;
       await old?.dispose();
+      if (previousResolver !== resolver) await previousResolver?.moduleResolver.dispose();
       const program = this.programId ? next.getProgram(this.programId) : next.operation.createdPrograms?.[0];
       if (!program) throw new Error('TypeScript could not prepare the cell.');
       this.programId = program.getProject().id;
@@ -176,8 +205,8 @@ export class TsCompiler {
         imports: file.statements.filter(node => node.getStart(file) >= prefix.length).flatMap(node => { const recipe = importRecipe(node); return recipe ? [recipe] : []; }),
       };
     } finally {
-      try { await moduleResolver.dispose(); }
-      finally { await nativeResolver.dispose(); }
+      // Failed snapshot creation still owns its unadopted resolver generation.
+      if (this.resolver !== resolver) await resolver?.moduleResolver.dispose();
     }
   }
 
