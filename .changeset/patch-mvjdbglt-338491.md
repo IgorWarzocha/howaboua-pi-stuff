@@ -12,7 +12,7 @@
 - Native checkpoint replay preserves context edits made by other extensions.
 - Removed redundant instructions from Notebook help.
 - Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and snapshot/restore helpers for retained objects. Code and Deno Notebook remain available.
-- Added JS Notebook with persistent JavaScript, retained-binding inspection, full VM checkpoints, isolated snapshot candidates and separate named profiles.
+- Added JS Notebook with persistent JavaScript, full VM checkpoints, isolated candidates, selective data profiles, project pins, release controls and closure-preserving hooks.
 - Realtime voice now uses gpt-live-1.1-codex.
 - Notebook runtime failures retain recovery actions without exposing internal protocol diagnostics.
 - Conversation history preparation now allocates fewer temporary objects.

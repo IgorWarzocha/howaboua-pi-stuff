@@ -405,8 +405,8 @@ export function mergeState(start: PortableState, current: PortableState, candida
 				Object.defineProperty(merged, key, { value: proposed[key], enumerable: true, writable: true, configurable: true });
 				continue;
 			}
-			if (same(before[key], proposed[key])) continue;
-			if (!same(before[key], latest[key])) { conflicts.push(field === "nodes" ? `shared data (${ownersOfNode(current, key).join(", ") || "retained value"})` : `binding ${key}`); continue; }
+			if (Object.hasOwn(before, key) === Object.hasOwn(proposed, key) && same(before[key], proposed[key])) continue;
+			if (Object.hasOwn(before, key) !== Object.hasOwn(latest, key) || !same(before[key], latest[key])) { conflicts.push(field === "nodes" ? `shared data (${ownersOfNode(current, key).join(", ") || "retained value"})` : `binding ${key}`); continue; }
 			if (Object.hasOwn(proposed, key)) Object.defineProperty(merged, key, { value: proposed[key], enumerable: true, writable: true, configurable: true });
 			else delete merged[key];
 		}

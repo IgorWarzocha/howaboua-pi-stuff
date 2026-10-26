@@ -19,8 +19,10 @@ export class JsKernel {
 	private failure: Error | undefined;
 	private stopping: Promise<void> | undefined;
 
-	static async create(heapBytes: number, snapshot?: JsSnapshot): Promise<JsKernel> {
-		return new JsKernel({ wasm: await loadQuickJSWasm(), interrupt: new SharedArrayBuffer(4), heapBytes, ...(snapshot ? { snapshot } : {}) });
+	static async create(heapBytes: number, snapshot?: JsSnapshot, managementClone = false): Promise<JsKernel> {
+		const restored = snapshot ? { ...snapshot } : undefined;
+		if (restored && !managementClone) delete restored.startup;
+		return new JsKernel({ wasm: await loadQuickJSWasm(), interrupt: new SharedArrayBuffer(4), heapBytes, ...(restored ? { snapshot: restored } : {}) });
 	}
 	private constructor(data: JsWorkerData) {
 		this.interrupt = new Int32Array(data.interrupt);

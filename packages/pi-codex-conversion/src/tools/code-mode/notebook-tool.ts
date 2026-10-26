@@ -47,23 +47,34 @@ function notebookActionParameters(allowCheckpoint = false) {
 }
 
 const JS_ACTION_PARAMETERS = Type.Union([
+	Type.Object({ action: Type.Literal("hook"), name: Type.String(), event: Type.Union([StringEnum(["startup", "tool_result"]), Type.Literal(false)]) }, { additionalProperties: false }),
 	Type.Object({ action: StringEnum(["status", "list"]), query: Type.Optional(Type.String()) }, { additionalProperties: false }),
 	Type.Object({ action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]) }, { additionalProperties: false }),
-	Type.Object({ action: StringEnum(["save", "load"]), name: Type.String() }, { additionalProperties: false }),
+	Type.Object({ action: Type.Literal("save"), name: Type.String(), names: Type.Optional(Type.Array(Type.String(), { minItems: 1 })) }, { additionalProperties: false }),
+	Type.Object({ action: Type.Literal("load"), name: Type.String() }, { additionalProperties: false }),
+	Type.Object({ action: StringEnum(["pin", "unpin", "release"]), names: Type.Array(Type.String(), { minItems: 1 }) }, { additionalProperties: false }),
+	Type.Object({ action: Type.Literal("prune"), query: Type.String() }, { additionalProperties: false }),
 ]);
 
 const JS_HELP = `Actions use {"input":"<JSON action object>"}.
 {"action":"status","query"?:string}  Inspect retained binding names, kinds and types; query filters with * and ? globs
 {"action":"diagnostics"}  Inspect runtime health
+{"action":"hook","name":string,"event":"startup"|"tool_result"|false}  Register an existing function or remove its registration
 {"action":"checkpoint"}  Save the entire VM state
-{"action":"save","name":string}  Save a JS-only named profile
-{"action":"load","name":string}  Replace the ENTIRE live state with a profile or isolated candidate
+{"action":"save","name":string,"names"?:string[]}  Save selected data, or omit names for a whole-notebook profile without project pin registrations
+{"action":"load","name":string}  Add selected data by value; a whole-notebook profile or isolated candidate REPLACES the live state
+{"action":"pin","names":string[]}  Persist plain data across project sessions and protect its bindings
+{"action":"unpin","names":string[]}  Remove project pins, keeping live bindings
+{"action":"release","names":string[]}  Clear mutable bindings or delete configurable globals; immutable bindings are skipped
+{"action":"prune","query":string}  Release bindings matching an explicit glob; pins and registered hooks survive
 {"action":"list","query"?:string}  List JS profiles and isolated candidates
 {"action":"restart"}  Stop active cells and restore the last checkpoint
-{"action":"reset"}  Discard session state; named profiles survive
+{"action":"reset"}  Discard session state; project pins and named profiles survive
 
 Normal cells share one serial live kernel. Successful settled cells checkpoint closures, classes and cycles. Failed cells may leave live mutations. Cancellation stops the kernel; restart restores its checkpoint. External effects are not rolled back. Await all host calls; dangling calls prevent checkpointing. isolated:true runs a snapshot clone and saves a candidate for explicit load. JS storage is separate from other modes.
-Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}), list and diagnostics are available.`;
+Selective profiles and project pins support primitives, mutable plain objects and arrays with aliases/cycles, not functions, classes, accessors or proxies. Unsupported pins leave the session checkpoint intact and report failed project sync. Data loads reject name collisions. Release clears references, not lexical declarations: names remain reserved and aliases/closures survive. Use assignment to reuse mutable names or reset for a fresh scope.
+Hooks retain local closures and travel with full profiles and isolated images. startup runs once per fresh execution kernel before its first user cell, without Pi tools; failure blocks user code until removal or restart. tool_result receives {type,toolName,input,status,result?,error?} after nested tools settle; hooks run in name order, awaited, without recursive triggering. Hook failures fail the cell and preserve live state. Registration does not run hooks.
+Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}) without query, list and diagnostics are available.`;
 
 function actionParameters(kind: string) {
 	return kind === "js" ? JS_ACTION_PARAMETERS : kind === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS;
@@ -139,6 +150,7 @@ type NotebookToolParameters = {
 	name?: string | undefined;
 	names?: string[] | undefined;
 	hook?: string | false | undefined;
+	event?: string | false | undefined;
 	checkpoint?: { snapshot: string; restore: string } | undefined;
 };
 
@@ -207,7 +219,7 @@ export async function executeNotebookControl(
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
 	validateModeRequest(runtime, params, context);
-	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts"), context, signal);
+	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts", runtime.executionKind(context.extensionContext) === "js"), context, signal);
 }
 
 export async function executeNotebookExecControl(
@@ -217,7 +229,7 @@ export async function executeNotebookExecControl(
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
 	validateModeRequest(runtime, params, context);
-	const request = normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts");
+	const request = normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts", runtime.executionKind(context.extensionContext) === "js");
 	if (!canExecuteNotebookControlInsideExec(request))
 		return {
 			message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
@@ -240,15 +252,21 @@ function executeNormalizedNotebookControl(
 	return runtime.controlNotebook(request, context, signal);
 }
 
-export function normalizeNotebookRequest(params: NotebookToolParameters, allowCheckpoint = false): NotebookControlRequest {
+export function normalizeNotebookRequest(params: NotebookToolParameters, allowCheckpoint = false, allowSelectedData = false): NotebookControlRequest {
 	params = {
 		action: params.action,
 		...(params.query == null ? {} : { query: params.query }),
 		...(params.name == null ? {} : { name: params.name }),
 		...(params.names == null ? {} : { names: params.names }),
 		...(params.hook == null ? {} : { hook: params.hook }),
+		...(params.event === undefined ? {} : { event: params.event }),
 		...(params.checkpoint === undefined ? {} : { checkpoint: params.checkpoint }),
 	};
+	if (params.action === "hook") {
+		if (!params.name || params.query !== undefined || params.names !== undefined || params.hook !== undefined || params.checkpoint !== undefined || params.event !== false && params.event !== "startup" && params.event !== "tool_result") throw new Error("notebook hook requires name and event: startup, tool_result, or false");
+		return { action: "hook", name: params.name, event: params.event };
+	}
+	if (params.event !== undefined) throw new Error("event requires notebook hook");
 	if (params.checkpoint !== undefined && (!allowCheckpoint || params.action !== "pin" || params.names?.length !== 1 || params.hook !== undefined || !params.checkpoint || typeof params.checkpoint.snapshot !== "string" || typeof params.checkpoint.restore !== "string")) throw new Error("TS checkpoint requires pin, one binding, named snapshot and restore helpers, and no hook");
 	if (params.hook !== undefined && (params.action !== "pin" || params.hook !== false && params.hook !== "startup" && params.hook !== "tool_result")) {
 		throw new Error("notebook hook requires pin and startup, tool_result, or false");
@@ -258,6 +276,10 @@ export function normalizeNotebookRequest(params: NotebookToolParameters, allowCh
 		return { action: params.action, ...(params.query === undefined ? {} : { query: params.query }) };
 	}
 	if (params.action === "save" || params.action === "load") {
+		if (allowSelectedData && params.action === "save" && params.names !== undefined) {
+			if (!params.name || !params.names.length || params.query !== undefined) throw new Error("Selective JS save requires name and nonempty names");
+			return { action: "save", name: params.name, names: [...new Set(params.names)] };
+		}
 		if (params.query !== undefined || params.names !== undefined) throw new Error(`notebook ${params.action} accepts name only`);
 		if (!params.name) throw new Error(`notebook ${params.action} requires name`);
 		return { action: params.action, name: params.name };

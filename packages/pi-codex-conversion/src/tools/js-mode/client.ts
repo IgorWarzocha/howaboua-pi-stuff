@@ -12,7 +12,9 @@ import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
 import { globMatcher } from "../notebook-mode/glob.ts";
 import { JsKernel } from "./kernel.ts";
 import { JsStateStorage } from "./storage.ts";
-import type { JsBindingStatus, JsOutcome, JsSnapshot, JsTool } from "./protocol.ts";
+import { JsDataStorage } from "./data-storage.ts";
+import { emptyState, forkPortableState } from "../ts-mode/portable-state.ts";
+import type { JsBindingStatus, JsInput, JsOutcome, JsSnapshot, JsTool } from "./protocol.ts";
 
 interface Execution { cell: NotebookCell; isolated: boolean; kernel?: JsKernel; done: Promise<void>; stopping?: Promise<void> }
 const MAX_CELLS = 4;
@@ -24,6 +26,10 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private readonly cells = new Map<string, Execution>();
 	private identity: string | undefined;
 	private storage: JsStateStorage | undefined;
+	private dataStorage: JsDataStorage | undefined;
+	private observedProject = emptyState();
+	private pins: string[] = [];
+	private projectWarning: string | undefined;
 	private durable: JsSnapshot | undefined;
 	private kernel: JsKernel | undefined;
 	private unavailable = false;
@@ -37,6 +43,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private latestTools: JsTool[] = [];
 	private bindings: JsBindingStatus[] = [];
 	private inventoryComplete = true;
+	private hooks: NonNullable<JsOutcome["hooks"]> = [];
 
 	constructor(options: NotebookRuntimeOptions, renderStore?: CodeModeNestedRenderStore) {
 		if (process.versions["bun"]) throw new Error("JS Notebook requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available");
@@ -112,33 +119,62 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			if (request.action === "restart" || request.action === "reset") {
 				await Promise.all([...this.cells.values()].map(execution => this.stop(execution)));
 				await this.kernel?.stop(); this.kernel = undefined;
-				if (request.action === "reset") { await this.requireStorage().reset(); this.durable = undefined; this.startupError = undefined; }
-				else { this.durable = await this.requireStorage().read(); this.startupError = undefined; }
+				if (request.action === "reset") { await this.requireStorage().reset(); this.durable = undefined; }
+				else this.durable = await this.requireStorage().read();
+				this.startupError = undefined; this.observedProject = emptyState(); this.pins = []; this.hooks = []; this.projectWarning = undefined;
+				try { await this.restoreInitial(); } catch (error) { this.startupError = error instanceof Error ? error.message : String(error); throw error; }
 				this.bindings = []; this.inventoryComplete = this.durable?.inventory?.complete ?? !this.durable;
 				this.unavailable = false;
-				return { message: request.action === "reset" ? "JS Notebook session reset; named profiles remain" : "JS Notebook will resume from its last checkpoint; later changes were discarded. Tool and file effects were not rolled back", details: { mode: "js", action: request.action } };
+				return { message: request.action === "reset" ? "JS Notebook session reset; project pins and named profiles remain" : "JS Notebook will resume from its last checkpoint; later changes were discarded. Tool and file effects were not rolled back", details: { mode: "js", action: request.action } };
 			}
 			this.assertReady();
 			if (this.running) throw new Error("Wait for active JS Notebook cells before changing saved state");
+			if (request.action === "hook") {
+				await this.mutate({ hook: { name: request.name, event: request.event } });
+				return this.managedResult(request.event === false ? `Removed hook ${request.name}` : `Registered ${request.name} for ${request.event}`, { hooks: this.hooks });
+			}
+			if (request.action === "pin" || request.action === "unpin" || request.action === "release" || request.action === "prune") {
+				if (request.action === "pin" && (request.hook !== undefined || request.checkpoint !== undefined)) throw new Error("Use notebook hook for JS hooks; pins support plain data only");
+				const current = await this.liveSnapshot();
+				const names = request.action === "prune" ? (current.bindings ?? []).filter(binding => globMatcher(request.query)(binding.name)).map(binding => binding.name) : request.names;
+				const result = await this.mutate({ data: { action: request.action === "prune" ? "release" : request.action, names } }, current.snapshot);
+				return this.managedResult(result.release ? `${JSON.stringify(result.release)}\nCleared lexical names remain reserved; assign to reuse them. Other aliases and closures are retained.` : `${request.action === "pin" ? "Pinned" : "Unpinned"} ${names.join(", ")}`, { pins: this.pins, ...(result.release ? { release: result.release } : {}) });
+			}
 			if (request.action === "load") {
+				const selected = await this.requireDataStorage().readProfile(request.name);
+				if (selected) {
+					await this.mutate({ data: { action: "import", state: forkPortableState(selected) } });
+					return this.managedResult(`Loaded selected data from ${request.name}; existing bindings were preserved`, { action: "load", name: request.name });
+				}
 				const saved = await this.requireStorage().read(request.name);
 				if (!saved) throw new Error("JS Notebook profile is unavailable");
+				if (saved.observedProject && saved.observedProject.key !== this.requireDataStorage().projectKey) throw new Error("This isolated candidate belongs to a different project; save a whole-notebook profile there before loading it here");
 				const candidate = await JsKernel.create(this.liveBudget(), saved);
 				try {
 					const result = await candidate.execute({ tools: this.latestTools }, NO_TOOLS);
 					if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "The saved notebook could not be restored");
-					await this.requireStorage().write(result.snapshot);
-					await this.kernel?.stop(); this.kernel = candidate; this.durable = result.snapshot; this.unavailable = false; this.heapBytes = result.heapBytes;
+					const snapshot = { ...result.snapshot, observedProject: saved.observedProject ?? { key: this.requireDataStorage().projectKey, state: emptyState() } };
+					await this.requireStorage().write(snapshot);
+					await this.kernel?.stop(); this.kernel = candidate; this.durable = snapshot; this.observedProject = snapshot.observedProject.state; this.unavailable = false;
 					this.recordInventory(result);
+					await this.syncProject(result);
 				} catch (error) { await candidate.stop(); throw error; }
-				return { message: `Loaded ${request.name}; the entire JS Notebook state was replaced`, details: { mode: "js", action: "load", name: request.name } };
+				return this.managedResult(`Loaded ${request.name}; the entire JS Notebook state was replaced`, { action: "load", name: request.name });
 			}
 			if (request.action === "checkpoint" || request.action === "save") {
+				if (request.action === "save" && request.names) {
+					if (this.unavailable) throw new Error("JS Notebook stopped; restart before saving");
+					this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
+					const result = await this.kernel.execute({ tools: this.latestTools, data: { action: "export", names: request.names } }, NO_TOOLS);
+					if (result.error !== undefined || !result.data) throw new Error(result.error ?? "Selected JS data could not be saved");
+					await this.requireDataStorage().writeProfile(request.name, result.data);
+					return { message: `Saved selected JS data as ${request.name}`, details: { mode: "js", names: request.names } };
+				}
 				const snapshot = await this.capture();
-				if (request.action === "save") await this.requireStorage().write(snapshot, request.name);
-				return { message: request.action === "save" ? `Saved complete JS Notebook as ${request.name}` : "JS Notebook checkpoint saved", details: { mode: "js", action: request.action, checkpointBytes: snapshot.bytes.length } };
+				if (request.action === "save") { const profile = { ...snapshot, pins: [] }; delete profile.observedProject; await this.requireStorage().write(profile, request.name); }
+				return this.managedResult(request.action === "save" ? `Saved complete JS Notebook as ${request.name}; project pin registrations are not included` : "JS Notebook checkpoint saved", { action: request.action, checkpointBytes: snapshot.bytes.length });
 			}
-			throw new Error("JS Notebook saves and restores whole notebooks; per-binding pins, hooks and release are unavailable. Call notebook for supported actions");
+			throw new Error("This JS Notebook control is unavailable. Call notebook for supported actions");
 		});
 	}
 
@@ -150,10 +186,21 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			if (identity === this.identity) return;
 			await this.stopSession();
 			this.storage = new JsStateStorage(this.options.agentDir, context.cwd, identity, this.liveBudget() * 2);
+			this.dataStorage = new JsDataStorage(this.options.agentDir, context.cwd, this.liveBudget() * 2);
 			this.identity = identity;
 			try {
 				this.durable = await this.storage.read();
-				if (!this.durable && this.options.profile) this.durable = await this.storage.read(this.options.profile);
+				if (!this.durable && this.options.profile) {
+					const selected = await this.dataStorage.readProfile(this.options.profile);
+					if (selected) {
+						this.kernel = await JsKernel.create(this.liveBudget());
+						const result = await this.kernel.execute({ tools: [], data: { action: "import", state: forkPortableState(selected) } }, NO_TOOLS);
+						if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS data profile could not be restored");
+						this.durable = result.snapshot;
+					} else this.durable = await this.storage.read(this.options.profile);
+					if (this.durable) { this.durable = { ...this.durable, pins: [] }; delete this.durable.observedProject; await this.storage.write(this.durable); }
+				}
+				await this.restoreInitial();
 			} catch (error) { this.startupError = error instanceof Error ? error.message : String(error); }
 		});
 		this.preparing = preparing.catch(() => {}); await preparing;
@@ -161,10 +208,11 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private async stopSession(): Promise<void> {
 		await Promise.all([...this.cells.values()].map(execution => this.stop(execution)));
 		await this.controls; await this.kernel?.stop();
-		this.kernel = undefined; this.identity = undefined; this.storage = undefined; this.durable = undefined;
+		this.kernel = undefined; this.identity = undefined; this.storage = undefined; this.dataStorage = undefined; this.durable = undefined;
+		this.observedProject = emptyState(); this.pins = []; this.projectWarning = undefined;
 		this.startupError = undefined; this.unavailable = false; this.heapBytes = 0;
 		this.cells.clear(); this.delegate.clear(); this.latestTools = [];
-		this.bindings = []; this.inventoryComplete = true;
+		this.bindings = []; this.inventoryComplete = true; this.hooks = [];
 	}
 	private contextKey(context: ToolExecutionContext): string {
 		if (!context.extensionContext) throw new Error("JS Notebook requires an extension session context");
@@ -172,6 +220,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	}
 	private assertReady(): void { if (this.closing) throw new Error("JS Notebook is shutting down"); if (this.startupError) throw new Error(this.startupError); }
 	private requireStorage(): JsStateStorage { if (!this.storage) throw new Error("JS Notebook session is unavailable"); return this.storage; }
+	private requireDataStorage(): JsDataStorage { if (!this.dataStorage) throw new Error("JS Notebook project is unavailable"); return this.dataStorage; }
 	private liveBudget(): number { return Math.floor(this.options.maxHeapMiB * 1024 * 1024 / 2); }
 	private transaction<T>(operation: () => Promise<T>): Promise<T> {
 		const result = this.controls.then(operation); this.controls = result.then(() => {}, () => {}); return result;
@@ -187,22 +236,76 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			...(this.inventoryComplete ? [] : ["This older checkpoint predates binding tracking; earlier names still exist but are not listed"]),
 			...(activeCells.length ? ["Inventory is from the last completed cell"] : []),
 		].join("\n"));
-		const details = { mode: "js", startupStatus, bindings, retainedBindings: this.bindings.length, inventoryComplete: this.inventoryComplete, activeCells, checkpointBytes: this.durable?.bytes.length ?? 0, heapBytes: this.heapBytes, ...(this.startupError ? { error: this.startupError } : {}) };
+		const details = { mode: "js", startupStatus, bindings, hooks: this.hooks, pins: this.pins, projectWarning: this.projectWarning, retainedBindings: this.bindings.length, inventoryComplete: this.inventoryComplete, activeCells, checkpointBytes: this.durable?.bytes.length ?? 0, heapBytes: this.heapBytes, ...(this.startupError ? { error: this.startupError } : {}) };
 		return { message: JSON.stringify(details), details };
 	}
 	private recordInventory(result: JsOutcome): void {
+		if (result.pins) this.pins = result.pins;
+		if (result.hooks) this.hooks = result.hooks;
 		if (result.bindings) this.bindings = result.bindings;
 		if (result.inventoryComplete !== undefined) this.inventoryComplete = result.inventoryComplete;
 		this.heapBytes = result.heapBytes;
 	}
 	private async capture(): Promise<JsSnapshot> {
-		if (this.unavailable) throw new Error("JS Notebook stopped; restart before checkpointing");
+		const result = await this.liveSnapshot(false);
+		await this.commit(result); return this.durable!;
+	}
+	private async liveSnapshot(management = true): Promise<JsOutcome & { snapshot: JsSnapshot }> {
+		if (this.unavailable) throw new Error("JS Notebook stopped; restart before changing saved state");
 		this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
-		const result = await this.kernel.execute({ tools: this.latestTools }, NO_TOOLS);
+		const result = await this.kernel.execute({ tools: this.latestTools, management }, NO_TOOLS);
 		if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS Notebook checkpoint failed");
-		this.recordInventory(result);
-		await this.requireStorage().write(result.snapshot); this.durable = result.snapshot; this.heapBytes = result.heapBytes;
-		return result.snapshot;
+		return { ...result, snapshot: result.snapshot };
+	}
+	private async mutate(input: Pick<JsInput, "data" | "hook">, snapshot?: JsSnapshot): Promise<JsOutcome> {
+		const before = snapshot ?? (await this.liveSnapshot()).snapshot;
+		const candidate = await JsKernel.create(this.liveBudget(), before, true);
+		let adopted = false;
+		try {
+			const result = await candidate.execute({ tools: this.latestTools, ...input }, NO_TOOLS);
+			if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS Notebook state change failed");
+			await this.commit(result);
+			await this.kernel?.stop(); this.kernel = candidate; adopted = true;
+			return result;
+		} finally { if (!adopted) await candidate.stop(); }
+	}
+	private async restoreInitial(): Promise<void> {
+		const storage = this.requireDataStorage();
+		if (this.durable) {
+			if (this.durable.observedProject && this.durable.observedProject.key !== storage.projectKey) throw new Error("Saved JS Notebook project differs from this session; use a named whole-notebook profile to transfer state");
+			this.observedProject = this.durable.observedProject?.state ?? emptyState(); this.pins = this.durable.pins ?? [];
+			return;
+		}
+		const project = await storage.readProject(); this.observedProject = project;
+		if (!project.pins.length) return;
+		const candidate = await JsKernel.create(this.liveBudget());
+		try {
+			const result = await candidate.execute({ tools: [], data: { action: "import", state: project, pins: project.pins } }, NO_TOOLS);
+			if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "Project pins could not be restored");
+			await this.commit(result, false); this.kernel = candidate;
+		} catch (error) { await candidate.stop(); throw error; }
+	}
+	private async commit(result: JsOutcome, sync = true): Promise<void> {
+		if (!result.snapshot) throw new Error("JS Notebook checkpoint is unavailable");
+		const snapshot = { ...result.snapshot, observedProject: { key: this.requireDataStorage().projectKey, state: this.observedProject } };
+		await this.requireStorage().write(snapshot); this.durable = snapshot; this.recordInventory(result);
+		if (sync) await this.syncProject(result);
+	}
+	private async syncProject(result: JsOutcome): Promise<void> {
+		this.projectWarning = undefined;
+		try {
+			if (result.pinError) throw new Error(result.pinError);
+			if (!this.pins.length && !this.observedProject.pins.length) return;
+			const candidate = result.pinState ?? emptyState();
+			const merged = await this.requireDataStorage().mergeProject(this.observedProject, candidate);
+			if (merged.conflicts.length) throw new Error(`Project pin conflicts: ${merged.conflicts.join(", ")}. Local data saved as ${merged.recoveryProfile}; shared pins were not overwritten. Unpin the conflicting names or use a fresh session to inspect current project data`);
+			this.observedProject = candidate;
+			if (this.durable) { this.durable = { ...this.durable, observedProject: { key: this.requireDataStorage().projectKey, state: candidate } }; await this.requireStorage().write(this.durable); }
+		} catch (error) { this.projectWarning = `Session checkpoint saved, but project pins were not fully synchronized: ${error instanceof Error ? error.message : String(error)}`; }
+	}
+	private managedResult(message: string, details: Record<string, unknown>): NotebookControlResult {
+		if (this.projectWarning) throw new Error(`${message}\n${this.projectWarning}`);
+		return { message, details: { mode: "js", ...details } };
 	}
 	private async run(execution: Execution, tools: JsTool[], baseline?: JsSnapshot): Promise<void> {
 		const { cell, isolated } = execution;
@@ -224,10 +327,11 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			try {
 				if (isolated) {
 					const name = `candidate-${cell.id}`;
-					await this.requireStorage().write(result.snapshot, name);
+					await this.requireStorage().write({ ...result.snapshot, observedProject: baseline?.observedProject ?? { key: this.requireDataStorage().projectKey, state: emptyState() } }, name);
 					cell.emit([{ type: "input_text", text: `Isolated state saved as ${name}; the live notebook was not changed. Loading it replaces the entire live notebook.` }]);
-				} else { await this.requireStorage().write(result.snapshot); this.durable = result.snapshot; }
+				} else await this.commit(result);
 			} catch (cause) { throw new Error(`The cell finished, but its checkpoint was not saved: ${cause instanceof Error ? cause.message : String(cause)}`); }
+			if (!isolated && this.projectWarning) throw new Error(this.projectWarning);
 			cell.result = { status: "ok", items: [] };
 		} catch (error) {
 			cell.result = { status: "error", items: [], errorText: `${error instanceof Error ? error.message : String(error)}\n${isolated ? "Isolated state was not adopted." : this.unavailable ? "Use notebook restart to restore the last checkpoint; later changes were lost." : "Earlier live mutations may remain; no rollback occurred."} Tool and file effects were not rolled back.` };

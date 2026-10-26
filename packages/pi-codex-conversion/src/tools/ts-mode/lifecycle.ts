@@ -21,6 +21,7 @@ export class TsStateLifecycle {
 	constructor(host: TsLifecycleHost) { this.host = host; }
 
 	async control(request: NotebookControlRequest): Promise<NotebookControlResult> {
+		if (request.action === "hook") throw new Error("The hook action is available in JS Notebook only; use pin with hook in TS");
 		const state = this.host.state();
 		const storage = this.host.storage();
 		if (request.action === "status" || request.action === "diagnostics") return this.status(request);

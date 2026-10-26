@@ -217,7 +217,13 @@ Normal cells share serial live state. Successful settled cells save a full VM ch
 
 Startup lists retained binding names and kinds. `notebook` status also reports their current types and accepts a `query` glob. Failed initialisation is reported as unavailable. Checkpoints created before binding tracking still restore their state, but their earlier names cannot be listed.
 
-Add `"isolated":true` to the `// @exec` options to run a snapshot clone. Its saved candidate can replace the live state through `notebook` load. Named profiles also replace the entire state and are separate from other execution modes. Call `notebook({})` for status, diagnostics, checkpoint, save, load, list, restart and reset. JS Notebook does not offer per-binding pins, hooks or release controls.
+Add `"isolated":true` to the `// @exec` options to run a snapshot clone. Its saved candidate can replace the live state through `notebook` load. Saving a named profile without `names` also captures the entire state, including hooks but excluding project pin registrations. Loading it replaces the live notebook. JS profiles are separate from other execution modes.
+
+Pass `names` to save selected data instead. Selective profiles load by value into unused names without disturbing existing closures. They support primitives, mutable plain objects and arrays, including aliases and cycles. Functions, class instances, accessors, proxies and other specialised objects require a whole-notebook profile. Pin supported data to retain it across sessions in the same project. Concurrent project changes are merged against each session's observed state. Conflicts preserve the shared data and save the local candidate separately. A failed project synchronisation does not discard the full session checkpoint.
+
+Release and prune clear mutable bindings and delete configurable globals. They preserve project pins and registered hooks, and report immutable bindings they cannot clear. Cleared lexical names remain reserved. Assign to reuse them, or reset for a fresh scope. Other aliases and closures remain intact. Reset preserves project pins and named profiles.
+
+Register a retained function with `notebook` hook for `startup` or `tool_result`, or pass `event:false` to remove it. Hooks may capture local closures. Startup hooks run once before the first user cell in each fresh kernel, without Pi tools. Tool-result hooks run after nested tools settle and may call tools without recursively triggering themselves. Hooks are awaited in name order. Failures stop the cell while preserving live state. Call `notebook({})` for the action syntax.
 
 ### TS mode
 

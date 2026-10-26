@@ -178,7 +178,8 @@ export type NotebookControlRequest =
 	| { action: "status"; query?: string | undefined }
 	| { action: "list"; query?: string | undefined }
 	| { action: "checkpoint" }
-	| { action: "save"; name: string }
+	| { action: "hook"; name: string; event: NotebookHook | false }
+	| { action: "save"; name: string; names?: string[] }
 	| { action: "load"; name: string }
 	| { action: "pin"; names: string[]; hook?: NotebookHook | false | undefined; checkpoint?: { snapshot: string; restore: string } | undefined }
 	| { action: "unpin"; names: string[] }

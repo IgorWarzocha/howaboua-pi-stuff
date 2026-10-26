@@ -83,6 +83,7 @@ export class NotebookLifecycleController {
 		if (request.action === "restart" && this.host.runtimeHealth().state !== "ready") return this.restart(context, signal);
 		await this.host.prepare(context, signal);
 		switch (request.action) {
+			case "hook": throw new Error("The hook action is available in JS Notebook only; use pin with hook in this mode");
 			case "status": return this.status(request.query, signal);
 			case "checkpoint": return this.checkpoint();
 			case "save": return this.profiles.save(request.name, context, signal);
