@@ -2,5 +2,5 @@
 "@howaboua/pi-chatgpt-sites": patch
 ---
 
-- Sites results omit redundant success wrappers. Saved code using the extension's outer `result` field should read the returned Sites payload directly.
+- **BREAKING CHANGE:** Sites results no longer have an outer `result` wrapper. Update saved code to read the returned Sites payload directly.
 - Errors show the problem and recovery information without diagnostic envelopes.

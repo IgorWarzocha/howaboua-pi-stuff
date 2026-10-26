@@ -2,22 +2,29 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-- Removed built-in Notes/history tools, rollover settings and legacy Remote mode. Install pi-notes-compaction for notes, history and context windows; use /notes for their settings.
-- Existing PCC Notes configurations block turns until Notes is loaded or Notes continuity is explicitly disabled in the old configuration.
-- Removed the context-sharing API. Integrations must use pi-notes-compaction/context-sharing for shared notes and history, and pi-codex-conversion/agent-relationship for native parent linkage and cache affinity. Parent linkage and cache affinity do not require Notes.
-- Added read-only context projection for isolated consumers through the compaction API.
-- Removed Cached WebSocket upgrade. PCC now honours Pi's transport setting. Select auto or websocket-cached to retain cached continuation when previously using plain websocket.
-- WebSocket prewarming uses the final prepared request, including after compaction; cache keepalive remains opt-in.
+### Breaking changes
+
+- **BREAKING CHANGE:** Removed built-in notes, history, rollover settings and legacy Remote mode. Install `pi-notes-compaction` and use `/notes`. Existing Notes-enabled configurations block turns until Notes is loaded or continuity is explicitly disabled in the old configuration.
+- **BREAKING CHANGE:** Removed the context-sharing API. Integrations must use `pi-notes-compaction/context-sharing` for shared notes and history, and `pi-codex-conversion/agent-relationship` for native parent linkage and cache affinity. Parent linkage does not require Notes.
+- **BREAKING CHANGE:** Removed Cached WebSocket upgrade. Select `auto` or `websocket-cached` in Pi's transport setting to retain cached continuation when previously using plain `websocket`.
+
+### Features
+
+- Added TS Notebook with strict TypeScript checking, persistent bindings, isolated concurrent cells and custom snapshot and restore helpers.
+- Added project-shared JS Notebook with full-state checkpoints that preserve closures, classes and cycles, plus reusable released bindings, profiles, pins and hooks.
+- Added GPT-6.1 Terra with Responses Lite and live reasoning adjustments.
+- TS and JS Notebook runtimes now install on demand and reuse matching installed packages or cached downloads.
+- Realtime voice now uses `gpt-live-1.1-codex`.
+- Auto-reasoning guidance now requires an initial effort selection and adjustments at task phase changes.
+
+### Reliability and usability
+
 - Fixed temporary SSE fallback surviving a context-window rollover. New windows retry the configured WebSocket transport.
-- Native checkpoint replay preserves context edits made by other extensions.
-- Removed redundant instructions from Notebook help.
-- Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and snapshot/restore helpers for retained objects. Code and Deno Notebook remain available.
-- Added project-scoped JS Notebook with persistent JavaScript, full VM checkpoints, isolated candidates, selective data profiles, project pins, reusable released bindings and closure-preserving hooks.
-- TS and JS Notebook runtime packages install on demand rather than with the extension, reusing matching installed packages and cached downloads.
-- Added GPT-6.1 Terra with Responses Lite, dynamic reasoning updates and Codex-specific model limits.
-- Auto-reasoning guidance now requires a starting level each turn and mid-task adjustments as difficulty changes.
-- Realtime voice now uses gpt-live-1.1-codex.
-- Notebook runtime failures retain recovery actions without exposing internal protocol diagnostics.
-- Conversation history preparation now allocates fewer temporary objects.
 - Fixed Code, Notebook and reasoning tools reappearing after `/tree` when disabled.
+- WebSocket prewarming now uses the final prepared request, including after compaction.
+- Native checkpoint replay now preserves context edits made by other extensions.
+- Notebook failures now retain recovery actions without exposing internal protocol diagnostics.
+- Conversation history preparation now allocates fewer temporary objects.
 - Notebook and TS guidance now limits retained state to planned reuse and calls for cleanup when tasks finish.
+- Removed redundant instructions from Notebook help.
+- Added read-only context projection for isolated consumers through the compaction API.
