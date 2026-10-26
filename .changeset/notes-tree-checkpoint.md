@@ -16,7 +16,6 @@
 
 ### History and recovery
 
-- Notes window rollover now reduces memory pressure in long sessions without removing saved history.
 - History now reads Pi JSONL sessions instead of fetching encrypted backend history.
 - Fixed returning to a saved-notes point in the session tree unnecessarily requesting another checkpoint instead of opening a new context window.
 - Prune missing sessions now also removes history index entries for missing session files.

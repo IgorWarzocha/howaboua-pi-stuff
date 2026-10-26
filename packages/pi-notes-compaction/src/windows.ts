@@ -2,11 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import type {
-	ContextEditEntryDraft,
 	CustomMessageEntryDraft,
 	ExtensionAPI,
 	ExtensionContext,
-	ProjectedSessionEntry,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { keyHint } from "@earendil-works/pi-coding-agent";
@@ -413,36 +411,5 @@ export class Windows {
 			if (entries[i]!.type === "compaction") boundary = -1;
 		}
 		return entries.slice(Math.max(0, boundary));
-	}
-	retirementEdits(
-		entries: readonly SessionEntry[],
-		projected: readonly ProjectedSessionEntry[],
-	): ContextEditEntryDraft[] {
-		const kept = this.projectBranch(entries);
-		const retired = new Set(
-			entries.slice(0, entries.length - kept.length).map((entry) => entry.id),
-		);
-		const edits: ContextEditEntryDraft[] = [];
-		for (const { sourceEntry, messages } of projected) {
-			if (!retired.has(sourceEntry.id) || !messages.length) continue;
-			if (
-				sourceEntry.type !== "custom_message" &&
-				!(
-					sourceEntry.type === "message" &&
-					["user", "assistant", "toolResult"].includes(sourceEntry.message.role)
-				)
-			)
-				continue;
-			edits.push({
-				type: "context_edit",
-				targetId: sourceEntry.id,
-				replacement: null,
-			});
-			// Pi clones native context before request-time filters. Retire committed
-			// Notes cuts there too, without rewriting history. Each public edit walks
-			// the branch, so bound legacy-session backfill at each tool/turn boundary.
-			if (edits.length === 256) break;
-		}
-		return edits;
 	}
 }
