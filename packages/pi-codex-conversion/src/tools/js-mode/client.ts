@@ -152,10 +152,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private async run(execution: Execution, tools: JsTool[]): Promise<void> {
 		try {
 			if (execution.isolated) {
-				let baseline: JsSnapshot | undefined;
-				await this.project.withLock(async () => {
-					await this.project.refreshProject(execution.cell.controller.signal); baseline = this.project.snapshot;
-				}, execution.cell.controller.signal);
+				const baseline = await this.project.isolationBaseline();
 				await this.runCell(execution, tools, baseline);
 			} else await this.project.withLock(async () => {
 				await this.project.refreshProject(execution.cell.controller.signal);

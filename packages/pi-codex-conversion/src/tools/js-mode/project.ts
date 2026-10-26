@@ -40,6 +40,14 @@ export class JsNotebookProject {
 	recordStartupError(error: unknown): void { this.startupError = error instanceof Error ? error.message : String(error); }
 	get warning(): string | undefined { return this.projectWarning; }
 	get snapshot(): JsSnapshot | undefined { return this.durable; }
+	async isolationBaseline(): Promise<JsSnapshot> {
+		// Atomic rename publishes whole checkpoints. Read the opened image, not the
+		// live heap: its writer may hold the project lease while awaiting a tool.
+		// Do not refresh/adopt here; other processes may have committed newer state.
+		const snapshot = await this.requireStorage().read();
+		if (!snapshot) throw new Error("The project notebook checkpoint is unavailable; retry after its reset finishes");
+		return snapshot;
+	}
 	get startupAborted(): boolean { return this.runtimeAbort.signal.aborted; }
 	startupSignal(signal?: AbortSignal): AbortSignal { return signal ? AbortSignal.any([signal, this.runtimeAbort.signal]) : this.runtimeAbort.signal; }
 	abortStartup(): void { this.runtimeAbort.abort(); }
