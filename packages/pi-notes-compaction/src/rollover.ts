@@ -4,8 +4,8 @@ import type {
 	SessionBeforeCompactEvent,
 	SessionCompactFailedEvent,
 } from "@earendil-works/pi-coding-agent";
-import type { NotesLifecycle } from "./lifecycle.js";
 import { prepareCompactionProjection } from "./compaction-projection.js";
+import type { NotesLifecycle } from "./lifecycle.js";
 
 type Rollover = {
 	sessionId: string;

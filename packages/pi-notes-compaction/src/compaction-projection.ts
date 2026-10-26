@@ -1,14 +1,14 @@
-import {
-	buildSessionProjection,
-	prepareBranchEntries,
-} from "@earendil-works/pi-coding-agent";
 import type {
 	ExtensionContext,
 	SessionBeforeCompactEvent,
 } from "@earendil-works/pi-coding-agent";
-import type { Windows } from "./windows.js";
+import {
+	buildSessionProjection,
+	prepareBranchEntries,
+} from "@earendil-works/pi-coding-agent";
 import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
 import { projectTreeHandoffBranch } from "./tree-handoff-read.js";
+import type { Windows } from "./windows.js";
 
 export function prepareCompactionProjection(
 	event: SessionBeforeCompactEvent,
