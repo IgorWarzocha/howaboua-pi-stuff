@@ -15,7 +15,7 @@
 - Added GPT-6.1 Terra with Responses Lite and live reasoning adjustments.
 - TS and JS Notebook runtimes now install on demand and reuse matching installed packages or cached downloads.
 - Realtime voice now uses `gpt-live-1.1-codex`.
-- Auto-reasoning guidance now requires an initial effort selection and adjustments at task phase changes.
+- Auto-reasoning guidance now makes effort adjustments optional and clarifies that they apply to the next request.
 
 ### Reliability and usability
 
