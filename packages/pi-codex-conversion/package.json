@@ -137,7 +137,7 @@
     "@types/node": "26.6.5",
     "@types/ws": "^8.18.2",
     "quickjs-wasi": "3.6.2",
-    "tsrs": "0.18.0-ts7.1.0-dev.20260929",
+    "tsrs": "0.20.0-ts7.1.0-beta",
     "tsx": "^4.23.15",
     "typebox": "1.4.3",
     "typescript": "^7.0.2"

@@ -2,7 +2,7 @@ import { isBuiltin } from "node:module";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { API } from "tsrs/unstable/async";
+import type { API } from "tsrs/async";
 import type { TsRuntime } from "./runtime.ts";
 import type { TsCompiler } from "./compiler.ts";
 import { withTsImportApi } from "./imports-api.ts";

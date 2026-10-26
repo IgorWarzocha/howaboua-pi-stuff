@@ -37,7 +37,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private shutdownPromise: Promise<void> | undefined;
 
 	constructor(options: NotebookRuntimeOptions, renderStore?: CodeModeNestedRenderStore) {
-		if (!((process.platform === "linux" && (process.arch === "x64" || process.arch === "arm64")) || (process.platform === "darwin" && process.arch === "arm64"))) throw new Error(`TS is unavailable on ${process.platform}/${process.arch}; choose Code or Deno Notebook. TS supports Linux x64/arm64 and Apple Silicon Macs.`);
+		if (!(((process.platform === "linux" || process.platform === "darwin") && (process.arch === "x64" || process.arch === "arm64")) || (process.platform === "win32" && process.arch === "x64"))) throw new Error(`TS is unavailable on ${process.platform}/${process.arch}; choose Code or Deno Notebook. TS supports Linux and macOS x64/arm64, and Windows x64.`);
 		if (process.versions["bun"]) throw new Error("TS execution requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available.");
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128) throw new Error("TS requires a session heap budget of at least 128 MiB; increase the Notebook heap setting before selecting TS. Half is reserved for live execution and half for up to four isolated cells");
 		this.options = options;

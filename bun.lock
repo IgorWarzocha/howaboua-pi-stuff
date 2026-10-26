@@ -206,7 +206,7 @@
         "@types/node": "26.6.5",
         "@types/ws": "^8.18.2",
         "quickjs-wasi": "3.6.2",
-        "tsrs": "0.18.0-ts7.1.0-dev.20260929",
+        "tsrs": "0.20.0-ts7.1.0-beta",
         "tsx": "^4.23.15",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -1139,15 +1139,19 @@
 
     "@stablelib/base64": ["@stablelib/base64@1.0.1", "", {}, "sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ=="],
 
-    "@tsrs/darwin-arm64": ["@tsrs/darwin-arm64@0.18.0-ts7.1.0-dev.20260929", "", { "os": "darwin", "cpu": "arm64" }, "sha512-sAirMpaGA9uRQm2W+t4zC7PjnijNuFa4PCSIfLKKo0JyAUCRfnMeev0UGBQ9F3g+9Nz187tvikUs5Irh5+eajA=="],
+    "@tsrs/darwin-arm64": ["@tsrs/darwin-arm64@0.20.0-ts7.1.0-beta", "", { "os": "darwin", "cpu": "arm64" }, "sha512-mhHj8QGUmdJDBvJEnMXx5P/jvAKXYU3hy/z3qxrWBo8XHlbLES32PgC0ZpTRbJA960ReTpVqqvCOYaC6EL32/Q=="],
 
-    "@tsrs/linux-arm64-gnu": ["@tsrs/linux-arm64-gnu@0.18.0-ts7.1.0-dev.20260929", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-zm9/z9yylig68JiZF4Aq0Cm26n09KEU8YoQRlG7tdDWTBNAIViYw8knxnWYsjMWVZ2XiU4mYq1xdrOKuOgABHg=="],
+    "@tsrs/darwin-x64": ["@tsrs/darwin-x64@0.20.0-ts7.1.0-beta", "", { "os": "darwin", "cpu": "x64" }, "sha512-CsRUnyYRLrhmChS7ol7LgmdqMXTu+mVlDU+7JgbW8RpkJRGLZ/zgEDEOeD8qrndt8rpP9oW1T1SJ36HSzB3/sg=="],
 
-    "@tsrs/linux-arm64-musl": ["@tsrs/linux-arm64-musl@0.18.0-ts7.1.0-dev.20260929", "", { "os": "linux", "cpu": "arm64", "libc": "musl" }, "sha512-Lw7VVU/YQ9JcarODICEiwzMLdFqZprqh5RGTgbS5Uc6I95P635/g5xA1pOC8RVs4efBvAR30J54iDG3l5JEYiw=="],
+    "@tsrs/linux-arm64-gnu": ["@tsrs/linux-arm64-gnu@0.20.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-VNwpdI/iICwQMMlS/MoSZCvKFByEn2+g7D0HREWG+3r3GRayXgbLv8iaNSHKT3QGcu8pXr3lH9170ghJQi2zRg=="],
 
-    "@tsrs/linux-x64-gnu": ["@tsrs/linux-x64-gnu@0.18.0-ts7.1.0-dev.20260929", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-EdBwBgNICGu1r1h23ixdcKwsMo6E9ll7ZsY3mNERNYqE1Pwdtcat99d5E7zB1J+oy/Xk6YqiizaB6nolIjpDTw=="],
+    "@tsrs/linux-arm64-musl": ["@tsrs/linux-arm64-musl@0.20.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "arm64", "libc": "musl" }, "sha512-cXnqPpmj5gzeGi4u1OV0ctd5df5t4ivwyeToCa4pBrKtjYodu0EeAo5Y76SHbJwggbiA1gzEJVj1vvuciQm5mQ=="],
 
-    "@tsrs/linux-x64-musl": ["@tsrs/linux-x64-musl@0.18.0-ts7.1.0-dev.20260929", "", { "os": "linux", "cpu": "x64", "libc": "musl" }, "sha512-LHk+AOAtXuTlhJhOJ2+elriEIX17ycXljojeNxrrzckOipTG1LksoVWuCSas2nu00EnWAzrdKpt9oqPylUKZfQ=="],
+    "@tsrs/linux-x64-gnu": ["@tsrs/linux-x64-gnu@0.20.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-jlhJSrO9lxNh0TF5EU1i+Frok5sRWsBvCuQhmdqMZKIN2pSHsDZl3CSmKUsJ4tNr50np9USCPpkkxwby2Eiqhg=="],
+
+    "@tsrs/linux-x64-musl": ["@tsrs/linux-x64-musl@0.20.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "x64", "libc": "musl" }, "sha512-pestGEPplhEPzIERc7zwuQ5zhh9ZwMSvAPNQy5TM0je/QuaizmM1zKoPYJ4NiaPzLh2M25HtP4HcpumTqmF3KQ=="],
+
+    "@tsrs/win32-x64": ["@tsrs/win32-x64@0.20.0-ts7.1.0-beta", "", { "os": "win32", "cpu": "x64" }, "sha512-sstxBfhjjOSYvSHFfSmROau2oGAVNLwAnj+H0h+ywLo7N7ueFKIDk14HAkIYa/F9iVboiICCpHDY/pmBO71sSg=="],
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.4", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A=="],
 
@@ -1505,7 +1509,7 @@
 
     "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
-    "tsrs": ["tsrs@0.18.0-ts7.1.0-dev.20260929", "", { "optionalDependencies": { "@tsrs/darwin-arm64": "0.18.0-ts7.1.0-dev.20260929", "@tsrs/linux-arm64-gnu": "0.18.0-ts7.1.0-dev.20260929", "@tsrs/linux-arm64-musl": "0.18.0-ts7.1.0-dev.20260929", "@tsrs/linux-x64-gnu": "0.18.0-ts7.1.0-dev.20260929", "@tsrs/linux-x64-musl": "0.18.0-ts7.1.0-dev.20260929" }, "bin": { "tsrs": "./bin/tsrs" } }, "sha512-9T0b4Uam/yMFIK16GUx0fUrJqYZnJ/gvSmV9JB8NTyDePvwCI45WFWxyEV/UMV3KfdNRJG/PBsm3fSIB9WmWsA=="],
+    "tsrs": ["tsrs@0.20.0-ts7.1.0-beta", "", { "optionalDependencies": { "@tsrs/darwin-arm64": "0.20.0-ts7.1.0-beta", "@tsrs/darwin-x64": "0.20.0-ts7.1.0-beta", "@tsrs/linux-arm64-gnu": "0.20.0-ts7.1.0-beta", "@tsrs/linux-arm64-musl": "0.20.0-ts7.1.0-beta", "@tsrs/linux-x64-gnu": "0.20.0-ts7.1.0-beta", "@tsrs/linux-x64-musl": "0.20.0-ts7.1.0-beta", "@tsrs/win32-x64": "0.20.0-ts7.1.0-beta" }, "bin": { "tsrs": "./bin/tsrs" } }, "sha512-8NifAn2tcna3t/nluu1yFvp0fYE28vElDpnD4jiWik69+MDjiHgxdjH8sUYUEFmf/2hl6QIE5ExVGpJzQbBDPw=="],
 
     "tsx": ["tsx@4.23.15", "", { "dependencies": { "esbuild": "~0.28.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "bin": { "tsx": "dist/cli.mjs" } }, "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw=="],
 

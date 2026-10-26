@@ -1,5 +1,5 @@
-import type { BindingName, Node, SourceFile } from 'tsrs/unstable/ast';
-import type { Checker } from 'tsrs/unstable/async';
+import type { BindingName, Node, SourceFile } from 'tsrs/ast';
+import type { Checker } from 'tsrs/async';
 import type { TsBinding, TsImport } from './compiler-contract.js';
 import type { TsRuntime } from './runtime.ts';
 

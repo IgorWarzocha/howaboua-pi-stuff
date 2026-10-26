@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { API, CompilerOptions, Diagnostic, ModuleResolver, Snapshot, SyntheticProjectId } from 'tsrs/unstable/async';
-import type { Node } from 'tsrs/unstable/ast';
+import type { API, RawCompilerOptions, Diagnostic, ModuleResolver, Snapshot, SyntheticProjectId } from 'tsrs/async';
+import type { Node } from 'tsrs/ast';
 import { applyEdits, compilerAst } from './compiler-ast.js';
 import type { TsRuntime } from './runtime.ts';
 import type { TsBinding, TsCompileInput, TsCompileResult, TsDiagnostic, TsImportReference } from './compiler-contract.js';
@@ -22,7 +22,7 @@ export class TsCompiler {
   private readonly syntax: ReturnType<typeof compilerAst>;
   private readonly api: API;
   private readonly fileName: string;
-  private readonly options: CompilerOptions;
+  private readonly options: RawCompilerOptions;
   private snapshot: Snapshot | undefined;
   private snapshotHasDependencies = false;
   private globals: { declaration: string; source: string; prefix: string } | undefined;

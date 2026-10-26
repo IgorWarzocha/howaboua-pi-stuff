@@ -1,4 +1,4 @@
-import type { API } from "tsrs/unstable/async";
+import type { API } from "tsrs/async";
 import type { TsImportOptions } from "./imports.ts";
 import { loadTsRuntime, type TsRuntime } from "./runtime.ts";
 
