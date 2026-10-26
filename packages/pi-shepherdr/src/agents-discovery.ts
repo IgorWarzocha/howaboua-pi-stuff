@@ -64,7 +64,9 @@ export async function agentsHelp(
 							"Existing shared-board thread; child receives a read reference",
 					}
 				: {}),
-			send: "Wakes idle agents; no wait/watch. Finished worker→send /quit directly, no acknowledgement or shutdown preamble",
+			send: gpt
+				? "Next send=/quit→no preceding message. Sends wake idle agents; no wait/watch"
+				: "When closing an agent, send /quit without another message first. Messages wake idle agents. No waiting or watching.",
 			assign: gpt
 				? "Delegate/update work. Active updates share pending result, never replace existing wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
