@@ -140,7 +140,7 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 	const prefix = `__nb_${randomUUID().replaceAll("-", "")}`, api = `${prefix}_api`;
 	const references = new Map<string, string>(), edits: Edit[] = [];
 	const free = (name: string, scope: Scope): boolean => { for (let current: Scope | undefined = scope; current; current = current.parent) if (current.names.has(name)) return false; return true; };
-	const visit = (node: AnyNode, parent?: AnyNode, key?: string, ancestors: AnyNode[] = []): void => {
+	const visit = (node: AnyNode, parent?: AnyNode, key?: string, grandparent?: AnyNode): void => {
 		if (node.type === "Identifier" && !bindingIds.has(node)) {
 			const propertyKey = (parent?.type === "Property" || parent?.type === "MethodDefinition" || parent?.type === "PropertyDefinition") && key === "key" && !parent.computed;
 			const syntaxName = propertyKey || parent?.type === "MemberExpression" && key === "property" && !parent.computed
@@ -156,13 +156,13 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 					if (parent?.type === "UnaryExpression" && parent.operator === "typeof") { edits.push({ start: parent.start, end: parent.end, text: `${reference}.type` }); return; }
 					if (parent?.type === "UnaryExpression" && parent.operator === "delete") { edits.push({ start: parent.start, end: parent.end, text: `${reference}.delete()` }); return; }
 					if (parent?.type === "CallExpression" && key === "callee" || parent?.type === "TaggedTemplateExpression" && key === "tag") text = `(0,${text})`;
-					const property = parent?.type === "Property" ? parent : parent?.type === "AssignmentPattern" ? ancestors.at(-1) : undefined;
+					const property = parent?.type === "Property" ? parent : parent?.type === "AssignmentPattern" ? grandparent : undefined;
 					if (property?.type === "Property" && property.shorthand && property.value.start === node.start) text = `${JSON.stringify(node.name)}:${text}`;
 					edits.push({ start: node.start, end: node.end, text });
 				}
 			}
 		}
-		children(node, (child, field) => visit(child, node, field, [...ancestors, ...(parent ? [parent] : [])]));
+		children(node, (child, field) => visit(child, node, field, parent));
 	};
 	visit(program);
 	for (const node of reusedBlockFunctions) {
