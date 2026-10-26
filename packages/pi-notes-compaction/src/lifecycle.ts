@@ -214,7 +214,7 @@ export class NotesLifecycle {
 		);
 		this.windows.current = ids;
 		if (triggerTurn)
-			message.content = `${message.content}\n\nRead your saved notes and resume the task.`;
+			message.content = `${message.content}\n\nRead your saved notes with the notes tool and resume the task.`;
 		this.sendMessage(message, { triggerTurn });
 	}
 
