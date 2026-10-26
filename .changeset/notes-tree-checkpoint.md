@@ -16,6 +16,8 @@
 
 ### History and recovery
 
+- Committed context windows now retire old native conversation context before request-time cloning, reducing memory pressure in long sessions while preserving History and Tree access.
+- Notes now accepts `read` as an alias for `read_file`.
 - History now reads Pi JSONL sessions instead of fetching encrypted backend history.
 - Fixed returning to a saved-notes point in the session tree unnecessarily requesting another checkpoint instead of opening a new context window.
 - Prune missing sessions now also removes history index entries for missing session files.

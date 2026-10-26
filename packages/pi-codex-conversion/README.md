@@ -162,7 +162,7 @@ The **Notebook** setting provides persistent JavaScript and TypeScript with Deno
 
 Select **TS** for strict TypeScript checking, retained type declarations, Node and Web APIs, and imports from local files or packages. Invalid code and tool arguments are rejected before execution. New npm dependencies require user approval.
 
-Run Pi under Node on Linux x64 or arm64, or an Apple Silicon Mac. The compiler version used by this release has no Windows or Intel Mac builds.
+Run Pi under Node on Linux or macOS with x64 or arm64, or Windows x64.
 
 Variables, closures, class instances and module state survive between cells. Checkpoints save supported data and helpers, reporting anything that remains live-only. Custom snapshot and restore helpers can preserve additional objects. Restart restores the checkpoint, not arbitrary live-only state.
 
