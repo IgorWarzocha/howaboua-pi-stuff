@@ -39,7 +39,9 @@ export class LiveEvaluator {
 		try {
 			return await this.evaluations.run(this.active, () => new Promise<unknown>((resolve, reject) => {
 				this.failure = reject;
-				this.repl.eval(source, this.repl.context, "ts-cell", (error: Error | null, value: unknown) => {
+				// Cells are statements: stop REPL object-literal guessing on leading blocks,
+				// which breaks block-local declarations containing top-level await.
+				this.repl.eval(`${source}\n;`, this.repl.context, "ts-cell", (error: Error | null, value: unknown) => {
 					if (error) reject(error); else resolve(value);
 				});
 			}));
