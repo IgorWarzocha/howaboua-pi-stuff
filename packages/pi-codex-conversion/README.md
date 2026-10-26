@@ -215,6 +215,8 @@ text(status);
 
 Normal cells share serial live state. Successful settled cells save a full VM checkpoint. Failed cells can leave mutations, and cancelling a live cell stops the shared kernel. `notebook` restart restores the last checkpoint without undoing external tool effects. Saved snapshots require compatible engine and notebook bridge versions; incompatible snapshots are rejected, not silently reset.
 
+Startup lists retained binding names and kinds. `notebook` status also reports their current types and accepts a `query` glob. Failed initialisation is reported as unavailable. Checkpoints created before binding tracking still restore their state, but their earlier names cannot be listed.
+
 Add `"isolated":true` to the `// @exec` options to run a snapshot clone. Its saved candidate can replace the live state through `notebook` load. Named profiles also replace the entire state and are separate from other execution modes. Call `notebook({})` for status, diagnostics, checkpoint, save, load, list, restart and reset. JS Notebook does not offer per-binding pins, hooks or release controls.
 
 ### TS mode

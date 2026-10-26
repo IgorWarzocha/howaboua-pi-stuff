@@ -1,12 +1,14 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { EvalFlags, JSException, QuickJS, type JSValueHandle } from "quickjs-wasi";
 import { JS_PRELUDE } from "./prelude.ts";
-import type { JsCommand, JsMessage, JsOutcome, JsWorkerData } from "./protocol.ts";
+import { inspectJsBindings, jsDeclarations } from "./bindings.ts";
+import type { JsCommand, JsInventory, JsMessage, JsOutcome, JsWorkerData } from "./protocol.ts";
 
 const data: JsWorkerData = workerData;
 const interrupt = new Int32Array(data.interrupt);
 let vm: QuickJS;
 let controlToken: number;
+let inventory: JsInventory;
 let active: number | undefined;
 let outputChars = 0;
 let outputItems = 0;
@@ -61,12 +63,12 @@ function errorMessage(error: unknown): string {
 
 function finish(outcome: Omit<JsOutcome, "heapBytes">): void {
 	if (active === undefined) return;
-	send({ run: active, kind: "done", outcome: { ...outcome, heapBytes: vm.getMemoryUsage().memoryUsedSize } });
+	send({ run: active, kind: "done", outcome: { bindings: inspectJsBindings(vm, inventory), inventoryComplete: inventory.complete, ...outcome, heapBytes: vm.getMemoryUsage().memoryUsedSize } });
 	active = undefined;
 }
 
 function snapshot(): NonNullable<JsOutcome["snapshot"]> {
-	return { bytes: QuickJS.serializeSnapshot(vm.snapshot()), controller: controlToken };
+	return { bytes: QuickJS.serializeSnapshot(vm.snapshot()), controller: controlToken, inventory };
 }
 
 function drain(): void {
@@ -105,6 +107,9 @@ async function main(): Promise<void> {
 			controlToken = vm.exportHandle(control);
 		} finally { init.dispose(); fn.dispose(); }
 	}
+	// Old images still restore their entire heap. Never invent an inventory for
+	// lexical names which were created before declaration tracking existed.
+	inventory = data.snapshot?.inventory ?? { declarations: [], baseline: vm.global.getOwnPropertyNames(), complete: !data.snapshot };
 	parentPort?.on("message", (message: JsCommand) => {
 		try {
 			if (message.kind === "run") {
@@ -112,9 +117,14 @@ async function main(): Promise<void> {
 				active = message.run; outputChars = 0; outputItems = 0; truncated = false; rejections.clear();
 				const tools = vm.newString(JSON.stringify(message.input.tools));
 				try { call("configure", tools).dispose(); } finally { tools.dispose(); }
+				if (message.input.inspect !== undefined) { finish({ bindings: inspectJsBindings(vm, inventory, message.input.inspect) }); return; }
 				if (message.input.source === undefined) { finish({ snapshot: snapshot() }); return; }
 				let result: JSValueHandle;
-				try { result = vm.evalCode(message.input.source, "js-notebook-cell.js", EvalFlags.ASYNC); }
+				try {
+					const declarations = jsDeclarations(message.input.source);
+					result = vm.evalCode(message.input.source, "js-notebook-cell.js", EvalFlags.ASYNC);
+					for (const declaration of declarations) if (!inventory.declarations.some(binding => binding.name === declaration.name)) inventory.declarations.push(declaration);
+				}
 				catch (error) { finish({ error: errorMessage(error) }); return; }
 				try { call("observe", result).dispose(); } finally { result.dispose(); }
 			} else {

@@ -9,9 +9,10 @@ import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.
 import type { CodeModeToolDefinition, NotebookControlRequest, NotebookControlResult, RuntimeResponse, ToolExecutionContext } from "../code-mode/types.ts";
 import { NotebookCell } from "../notebook-mode/cell.ts";
 import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
+import { globMatcher } from "../notebook-mode/glob.ts";
 import { JsKernel } from "./kernel.ts";
 import { JsStateStorage } from "./storage.ts";
-import type { JsSnapshot, JsTool } from "./protocol.ts";
+import type { JsBindingStatus, JsOutcome, JsSnapshot, JsTool } from "./protocol.ts";
 
 interface Execution { cell: NotebookCell; isolated: boolean; kernel?: JsKernel; done: Promise<void>; stopping?: Promise<void> }
 const MAX_CELLS = 4;
@@ -34,6 +35,8 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private closing: Promise<void> | undefined;
 	private running = 0;
 	private latestTools: JsTool[] = [];
+	private bindings: JsBindingStatus[] = [];
+	private inventoryComplete = true;
 
 	constructor(options: NotebookRuntimeOptions, renderStore?: CodeModeNestedRenderStore) {
 		if (process.versions["bun"]) throw new Error("JS Notebook requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available");
@@ -94,7 +97,15 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	}
 	async controlNotebook(request: NotebookControlRequest, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		signal?.throwIfAborted(); await this.prepare(context);
-		if (request.action === "status" || request.action === "diagnostics") return this.status();
+		if (request.action === "status" || request.action === "diagnostics") return this.transaction(async () => {
+			if (!this.running && !this.unavailable && !this.startupError) {
+				this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
+				const result = await this.kernel.execute({ tools: this.latestTools, inspect: "*" }, NO_TOOLS);
+				if (result.error !== undefined) throw new Error(result.error);
+				this.recordInventory(result);
+			}
+			return this.status(request.action === "status" ? request.query : undefined);
+		});
 		if (request.action === "list") { const profiles = await this.requireStorage().list(request.query); return { message: JSON.stringify({ profiles }), details: { mode: "js", profiles } }; }
 		return this.transaction(async () => {
 			signal?.throwIfAborted();
@@ -103,6 +114,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 				await this.kernel?.stop(); this.kernel = undefined;
 				if (request.action === "reset") { await this.requireStorage().reset(); this.durable = undefined; this.startupError = undefined; }
 				else { this.durable = await this.requireStorage().read(); this.startupError = undefined; }
+				this.bindings = []; this.inventoryComplete = this.durable?.inventory?.complete ?? !this.durable;
 				this.unavailable = false;
 				return { message: request.action === "reset" ? "JS Notebook session reset; named profiles remain" : "JS Notebook will resume from its last checkpoint; later changes were discarded. Tool and file effects were not rolled back", details: { mode: "js", action: request.action } };
 			}
@@ -117,6 +129,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 					if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "The saved notebook could not be restored");
 					await this.requireStorage().write(result.snapshot);
 					await this.kernel?.stop(); this.kernel = candidate; this.durable = result.snapshot; this.unavailable = false; this.heapBytes = result.heapBytes;
+					this.recordInventory(result);
 				} catch (error) { await candidate.stop(); throw error; }
 				return { message: `Loaded ${request.name}; the entire JS Notebook state was replaced`, details: { mode: "js", action: "load", name: request.name } };
 			}
@@ -151,6 +164,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		this.kernel = undefined; this.identity = undefined; this.storage = undefined; this.durable = undefined;
 		this.startupError = undefined; this.unavailable = false; this.heapBytes = 0;
 		this.cells.clear(); this.delegate.clear(); this.latestTools = [];
+		this.bindings = []; this.inventoryComplete = true;
 	}
 	private contextKey(context: ToolExecutionContext): string {
 		if (!context.extensionContext) throw new Error("JS Notebook requires an extension session context");
@@ -162,17 +176,31 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private transaction<T>(operation: () => Promise<T>): Promise<T> {
 		const result = this.controls.then(operation); this.controls = result.then(() => {}, () => {}); return result;
 	}
-	private status(): NotebookControlResult {
+	private status(query = "*"): NotebookControlResult {
 		const activeCells = [...this.cells.values()].filter(execution => !execution.cell.isCompleted()).map(execution => execution.cell.id);
-		const startupStatus = this.startupError ?? (this.unavailable ? "JS Notebook stopped; use notebook restart to restore its checkpoint" : this.durable ? `JS Notebook has a saved whole-notebook checkpoint (${this.durable.bytes.length} bytes)` : "JS Notebook has no saved state yet");
-		const details = { mode: "js", startupStatus, activeCells, checkpointBytes: this.durable?.bytes.length ?? 0, heapBytes: this.heapBytes, ...(this.startupError ? { error: this.startupError } : {}) };
+		const matches = this.bindings.filter(binding => globMatcher(query)(binding.name));
+		const bindings = matches.slice(0, 256);
+		const startupStatus = this.startupError ?? (this.unavailable ? "JS Notebook stopped; use notebook restart to restore its checkpoint" : [
+			`JS state: ${this.bindings.length} known bindings`,
+			...bindings.map(binding => `${binding.name}: ${binding.kind} (${binding.type})`),
+			...(matches.length > bindings.length ? ["Binding list truncated; narrow the status query"] : []),
+			...(this.inventoryComplete ? [] : ["This older checkpoint predates binding tracking; earlier names still exist but are not listed"]),
+			...(activeCells.length ? ["Inventory is from the last completed cell"] : []),
+		].join("\n"));
+		const details = { mode: "js", startupStatus, bindings, retainedBindings: this.bindings.length, inventoryComplete: this.inventoryComplete, activeCells, checkpointBytes: this.durable?.bytes.length ?? 0, heapBytes: this.heapBytes, ...(this.startupError ? { error: this.startupError } : {}) };
 		return { message: JSON.stringify(details), details };
+	}
+	private recordInventory(result: JsOutcome): void {
+		if (result.bindings) this.bindings = result.bindings;
+		if (result.inventoryComplete !== undefined) this.inventoryComplete = result.inventoryComplete;
+		this.heapBytes = result.heapBytes;
 	}
 	private async capture(): Promise<JsSnapshot> {
 		if (this.unavailable) throw new Error("JS Notebook stopped; restart before checkpointing");
 		this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
 		const result = await this.kernel.execute({ tools: this.latestTools }, NO_TOOLS);
 		if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS Notebook checkpoint failed");
+		this.recordInventory(result);
 		await this.requireStorage().write(result.snapshot); this.durable = result.snapshot; this.heapBytes = result.heapBytes;
 		return result.snapshot;
 	}
@@ -189,7 +217,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 				request: (id, name, input) => this.delegate.invokeDirect(cell.id, id, name, input),
 			}).catch(error => { if (!isolated) this.unavailable = true; throw error; });
 			cell.controller.signal.throwIfAborted();
-			if (!isolated) this.heapBytes = result.heapBytes;
+			if (!isolated) this.recordInventory(result);
 			if (result.fatal) { if (!isolated) this.unavailable = true; await execution.kernel.stop(); }
 			if (result.error !== undefined) throw new Error(result.error || "The cell failed with an empty error message");
 			if (!result.snapshot) throw new Error("The cell finished without a checkpoint");

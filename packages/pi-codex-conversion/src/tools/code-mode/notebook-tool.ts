@@ -53,7 +53,7 @@ const JS_ACTION_PARAMETERS = Type.Union([
 ]);
 
 const JS_HELP = `Actions use {"input":"<JSON action object>"}.
-{"action":"status"}  Check runtime and active cells; bindings are not enumerated
+{"action":"status","query"?:string}  Inspect retained binding names, kinds and types; query filters with * and ? globs
 {"action":"diagnostics"}  Inspect runtime health
 {"action":"checkpoint"}  Save the entire VM state
 {"action":"save","name":string}  Save a JS-only named profile

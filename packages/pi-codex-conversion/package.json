@@ -141,6 +141,7 @@
   "dependencies": {
     "@earendil-works/pi-codemode": "1.4.0",
     "@types/node": "26.6.5",
+    "acorn": "8.19.0",
     "openai": "7.43.0",
     "proxy-from-env": "2.1.0",
     "quickjs-wasi": "3.6.2",
