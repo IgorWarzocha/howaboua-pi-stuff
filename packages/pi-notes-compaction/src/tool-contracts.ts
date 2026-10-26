@@ -27,7 +27,7 @@ const NULLABLE_STRING = Type.Optional(Type.Union([Type.String(), Type.Null()]));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
 export const NOTES_SCHEMA = Type.Object(
 	{
-		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
+		action: Type.Optional(StringEnum([...NOTES_ACTIONS, "read"])),
 		path: STRING,
 		text: STRING,
 		prefix: NULLABLE_STRING,
@@ -233,6 +233,7 @@ export function prepareNotesArguments(args: unknown) {
 			'Supply an action object, e.g. { "action": "read_file", "path": "checkpoint" }. Use {} for help',
 		);
 	const params = { ...args } as Record<string, unknown>;
+	if (params["action"] === "read") params["action"] = "read_file";
 	if (
 		(params["action"] === "write_file" ||
 			params["action"] === "append_to_file") &&
