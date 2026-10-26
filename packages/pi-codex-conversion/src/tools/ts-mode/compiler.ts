@@ -125,10 +125,15 @@ export class TsCompiler {
     let names: string[];
     let exportNames: string[];
     let hasDependencies = Boolean(input.moduleResolutions?.size);
+    let strictDirective = false;
     try {
       const inventory = this.syntax.inventory(lease.sourceFile, prefix.length);
       names = [...new Set(inventory.map(binding => binding.name))];
       const file = lease.sourceFile;
+      for (const node of file.statements.filter(node => node.getStart(file) >= prefix.length)) {
+        if (!this.runtime.ast.isExpressionStatement(node) || !this.runtime.ast.isStringLiteral(node.expression)) break;
+        if (node.expression.text === 'use strict') strictDirective = true;
+      }
       const exported = new Set<string>();
       for (const statement of file.statements) {
         if (this.runtime.ast.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && this.runtime.ast.isNamedExports(statement.exportClause)) {
@@ -229,7 +234,7 @@ export class TsCompiler {
           freeReferences: await this.syntax.freeReferences(binding.functionNode ?? binding.node, checker, !binding.functionNode && binding.kind !== 'type'),
         });
       }
-      const transformed = await this.executable(javascript, bindings);
+      const transformed = await this.executable(javascript, bindings, input.mode !== 'live', strictDirective);
       return { ok: true, javascript: transformed, declarations: bindings.map(binding => binding.declaration).join('\n'), bindings,
         imports: file.statements.filter(node => node.getStart(file) >= prefix.length).flatMap(node => { const recipe = this.syntax.importRecipe(node); return recipe ? [recipe] : []; }),
       };
@@ -251,7 +256,7 @@ export class TsCompiler {
     } finally { await lease.dispose(); }
   }
 
-  private async executable(source: string, bindings: TsBinding[]): Promise<string> {
+  private async executable(source: string, bindings: TsBinding[], strictContext: boolean, strictDirective: boolean): Promise<string> {
     const lease = await (await this.process).api.createSourceFile(this.fileName.replace('.mts', '.mjs'), source);
     try {
       const file = lease.sourceFile;
@@ -301,14 +306,16 @@ export class TsCompiler {
         // Declarations recurse through their mutable outer binding, unlike named expressions.
         if (this.runtime.ast.isFunctionDeclaration(functionNode) && functionNode.name) functionEdits.push({ start: functionNode.name.getStart(file) - functionStart, end: functionNode.name.end - functionStart, text: '' });
         const text = applyEdits(functionNode.getText(file), functionEdits).replace(/^export\s+/, '');
-        binding.source = `(${text})`;
+        // Encode creation strictness without adding a scope around the live lexical bindings.
+        binding.source = strictContext || strictDirective ? `(() => { "use strict"; return (${text}); })()` : `(${text})`;
         if (this.runtime.ast.isFunctionDeclaration(functionNode)) registrations.push(`__tsRegisterRecipe(${JSON.stringify(binding.name)}, ${binding.name});`);
         else {
           edits.push({ start: functionStart, end: functionStart, text: `__tsRegisterRecipe(${JSON.stringify(binding.name)}, (` });
           edits.push({ start: functionNode.end, end: functionNode.end, text: '))' });
         }
       }
-      return [...imports, ...registrations].join('\n') + '\n' + applyEdits(source, edits).replace(/^\/\/# sourceMappingURL=.*$/m, '');
+      // Hoisted registrations/import bridges must not displace the user's directive prologue.
+      return [strictDirective ? '"use strict";' : '', ...imports, ...registrations].join('\n') + '\n' + applyEdits(source, edits).replace(/^\/\/# sourceMappingURL=.*$/m, '');
     } finally { await lease.dispose(); }
   }
 }
