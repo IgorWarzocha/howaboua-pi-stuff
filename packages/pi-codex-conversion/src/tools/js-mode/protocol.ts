@@ -7,7 +7,7 @@ import type { JsReleaseResult } from "./data-state.ts";
 export interface JsDeclaration { name: string; kind: "let" | "const" | "var" | "using" | "await using" | "function" | "class" }
 export interface JsInventory { declarations: JsDeclaration[]; baseline: string[]; complete: boolean }
 export interface JsBindingStatus { name: string; kind: JsDeclaration["kind"] | "global"; type: string }
-export interface JsSnapshot { bytes: Uint8Array; controller: number; inventory?: JsInventory; support?: number; pins?: string[]; observedProject?: { key: string; state: PortableState }; startup?: { status: "pending" | "done" | "failed"; error?: string } }
+export interface JsSnapshot { bytes: Uint8Array; controller: number; inventory?: JsInventory; support?: number; bindings?: number; projectRevision?: string; pins?: string[]; observedProject?: { key: string; state: PortableState }; startup?: { status: "pending" | "done" | "failed"; error?: string } }
 export interface JsTool { name: string; exposed: string; description?: string; output?: "plain-command" | "command" }
 export type JsDataOperation = { action: "export" | "pin" | "unpin" | "release"; names: string[] } | { action: "import"; state: PortableState; pins?: string[] };
 export interface JsInput { source?: string; tools: JsTool[]; inspect?: string; hook?: { name: string; event: NotebookHook | false }; data?: JsDataOperation; management?: boolean }

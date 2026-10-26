@@ -135,7 +135,7 @@ export function buildCodeModeToolsPrompt(
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
 		executionKind === "js"
-			? "exec=persistent JavaScript kernel; checkpoints preserve closures/classes/cycles. Cancellation stops the kernel; notebook restart restores its checkpoint, not external tool effects"
+			? "exec=project-shared JavaScript kernel; checkpoints preserve closures/classes/cycles. Cancellation stops the kernel; notebook restart restores its checkpoint, not external tool effects"
 			: executionKind === "ts"
 			? gpt
 				? "exec=persistent TypeScript kernel; imports/npm/Node/Web APIs; live bindings and modules persist across cells"

@@ -1,7 +1,8 @@
 import { parentPort, workerData } from "node:worker_threads";
-import { EvalFlags, JSException, QuickJS, type JSValueHandle } from "quickjs-wasi";
+import { JSException, QuickJS, type JSValueHandle } from "quickjs-wasi";
 import { JS_PRELUDE } from "./prelude.ts";
-import { inspectJsBindings, jsDeclarations } from "./bindings.ts";
+import { inspectJsBindings } from "./bindings.ts";
+import { JsBindings } from "./managed-bindings.ts";
 import { JsSupport } from "./support.ts";
 import { captureJsData, releaseJsData, restoreJsData } from "./data-state.ts";
 import type { JsCommand, JsInput, JsInventory, JsMessage, JsOutcome, JsWorkerData } from "./protocol.ts";
@@ -12,6 +13,7 @@ let vm: QuickJS;
 let controlToken: number;
 let inventory: JsInventory;
 let support: JsSupport;
+let bindings: JsBindings;
 let pins: string[] = data.snapshot?.pins ?? [];
 let startup: "pending" | "running" | "done" | "failed" = "pending";
 let startupFailure: string | undefined;
@@ -73,19 +75,19 @@ function errorMessage(error: unknown): string {
 
 function finish(outcome: Omit<JsOutcome, "heapBytes">): void {
 	if (active === undefined) return;
-	send({ run: active, kind: "done", outcome: { bindings: inspectJsBindings(vm, inventory), inventoryComplete: inventory.complete, hooks: hooks(), pins, ...outcome, heapBytes: vm.getMemoryUsage().memoryUsedSize } });
+	send({ run: active, kind: "done", outcome: { bindings: inspectJsBindings(vm, inventory, "*", bindings), inventoryComplete: inventory.complete, hooks: hooks(), pins, ...outcome, heapBytes: vm.getMemoryUsage().memoryUsedSize } });
 	active = undefined;
 }
 
 function snapshot(): NonNullable<JsOutcome["snapshot"]> {
-	return { bytes: QuickJS.serializeSnapshot(vm.snapshot()), controller: controlToken, inventory, support: support.token, pins, startup: { status: startup === "running" ? "pending" : startup, ...(startupFailure === undefined ? {} : { error: startupFailure }) } };
+	return { bytes: QuickJS.serializeSnapshot(vm.snapshot()), controller: controlToken, inventory, support: support.token, bindings: bindings.token, pins, startup: { status: startup === "running" ? "pending" : startup, ...(startupFailure === undefined ? {} : { error: startupFailure }) } };
 }
 
 function hooks(): NonNullable<JsOutcome["hooks"]> { return support.call("list").consume(value => JSON.parse(value.toString())); }
 
 function captured(extra: Omit<JsOutcome, "heapBytes"> = {}): Omit<JsOutcome, "heapBytes"> {
 	let pinState: JsOutcome["pinState"], pinError: string | undefined;
-	try { if (pins.length) { pinState = captureJsData(vm, support, inventory, pins); pinState.pins = [...pins]; } }
+	try { if (pins.length) { pinState = captureJsData(vm, support, inventory, pins, bindings); pinState.pins = [...pins]; } }
 	catch (error) { pinError = errorMessage(error); }
 	// Capture graph identities before the native image containing their WeakMap.
 	return { ...extra, ...(pinState ? { pinState } : {}), ...(pinError ? { pinError } : {}), snapshot: snapshot() };
@@ -94,18 +96,19 @@ function captured(extra: Omit<JsOutcome, "heapBytes"> = {}): Omit<JsOutcome, "he
 function manage(input: JsInput): void {
 	const operation = input.data;
 	if (!operation) return;
-	if (operation.action === "export") { finish({ data: captureJsData(vm, support, inventory, operation.names) }); return; }
+	if (operation.action === "export") { finish({ data: captureJsData(vm, support, inventory, operation.names, bindings) }); return; }
 	if (operation.action === "import") {
-		restoreJsData(vm, support, inventory, operation.state);
+		restoreJsData(vm, support, inventory, operation.state, bindings);
 		if (operation.pins) pins = [...operation.pins];
 	} else if (operation.action === "pin") {
 		const selected = [...new Set([...pins, ...operation.names])].sort();
-		captureJsData(vm, support, inventory, selected); pins = selected;
+		captureJsData(vm, support, inventory, selected, bindings); pins = selected;
 	} else if (operation.action === "unpin") pins = pins.filter(name => !operation.names.includes(name));
 	else {
 		const protectedNames = new Map(pins.map(name => [name, "project pin; unpin first"]));
 		for (const hook of hooks()) protectedNames.set(hook.name, "registered hook; remove its registration first");
-		finish(captured({ release: releaseJsData(vm, inventory, operation.names, protectedNames) })); return;
+		const release = releaseJsData(vm, inventory, operation.names, protectedNames, bindings);
+		vm.runGC(); finish(captured({ release })); return;
 	}
 	finish(captured());
 }
@@ -147,9 +150,7 @@ function startUser(input: JsInput): void {
 	configure(input);
 	let result: JSValueHandle;
 	try {
-		const declarations = jsDeclarations(input.source ?? "");
-		result = vm.evalCode(input.source ?? "", "js-notebook-cell.js", EvalFlags.ASYNC);
-		for (const declaration of declarations) if (!inventory.declarations.some(binding => binding.name === declaration.name)) inventory.declarations.push(declaration);
+		result = bindings.execute(input.source ?? "");
 	} catch (error) { finish({ error: errorMessage(error) }); return; }
 	try { call("observe", result).dispose(); } finally { result.dispose(); }
 	drain();
@@ -180,6 +181,7 @@ async function main(): Promise<void> {
 	// lexical names which were created before declaration tracking existed.
 	inventory = data.snapshot?.inventory ?? { declarations: [], baseline: vm.global.getOwnPropertyNames(), complete: !data.snapshot };
 	support = new JsSupport(vm, data.snapshot?.support);
+	bindings = new JsBindings(vm, inventory, data.snapshot?.bindings);
 	startup = data.snapshot?.startup?.status ?? "pending";
 	startupFailure = data.snapshot?.startup?.error;
 	parentPort?.on("message", (message: JsCommand) => {
@@ -189,11 +191,16 @@ async function main(): Promise<void> {
 				active = message.run; outputChars = 0; outputItems = 0; truncated = false; rejections.clear();
 				configure(message.input);
 				if (message.input.hook) {
-					try { support.register(message.input.hook.name, message.input.hook.event); if (startup === "failed") { startup = "pending"; startupFailure = undefined; } finish(captured()); }
+					try {
+						const { name, event } = message.input.hook;
+						const fn = event === false ? vm.undefined : bindings.has(name) ? bindings.read(name) : vm.evalCode(name);
+						try { support.register(name, event, fn); } finally { fn.dispose(); }
+						if (startup === "failed") { startup = "pending"; startupFailure = undefined; } finish(captured());
+					}
 					catch (error) { finish({ error: errorMessage(error) }); }
 					return;
 				}
-				if (message.input.inspect !== undefined) { finish({ bindings: inspectJsBindings(vm, inventory, message.input.inspect) }); return; }
+				if (message.input.inspect !== undefined) { finish({ bindings: inspectJsBindings(vm, inventory, message.input.inspect, bindings) }); return; }
 				if (message.input.data) { try { manage(message.input); } catch (error) { finish({ error: errorMessage(error) }); } return; }
 				if (message.input.management && message.input.source === undefined) { finish(captured()); return; }
 				if (startup === "failed") { finish({ error: startupFailure ?? "Startup hooks failed; remove the hook with notebook hook event:false" }); return; }

@@ -7,6 +7,9 @@ import { globMatcher } from "../notebook-mode/glob.ts";
 import { JS_PRELUDE } from "./prelude.ts";
 import { isJsInventory, validJsBindingName } from "./bindings.ts";
 import { assertJsData } from "./data-state.ts";
+import { resolveNotebookProject } from "../notebook-mode/project-identity.ts";
+import { withProjectStateLock } from "../notebook-mode/project-state-lock.ts";
+import { JS_BINDINGS_SOURCE } from "./managed-bindings.ts";
 import { JS_SUPPORT_SOURCE } from "./support.ts";
 import type { JsSnapshot } from "./protocol.ts";
 
@@ -14,6 +17,7 @@ import type { JsSnapshot } from "./protocol.ts";
 // an image with a different bridge or engine build, even if its file format parses.
 const FINGERPRINT = createHash("sha256").update("js-notebook-v1/quickjs-wasi@3.6.2\0").update(JS_PRELUDE).digest();
 const SUPPORT_FINGERPRINT = createHash("sha256").update(FINGERPRINT).update("js-notebook-support-v1\0").update(JS_SUPPORT_SOURCE).digest();
+const BINDINGS_FINGERPRINT = createHash("sha256").update(SUPPORT_FINGERPRINT).update(JS_BINDINGS_SOURCE).digest();
 const HEADER_BYTES = 44;
 const MAX_INVENTORY_BYTES = 1024 * 1024;
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
@@ -21,26 +25,42 @@ const hash = (value: string): string => createHash("sha256").update(value).diges
 export class JsStateStorage {
 	private readonly root: string;
 	private readonly session: string;
+	private readonly legacySession: string;
 	private readonly maxBytes: number;
 	constructor(agentDir: string, cwd: string, identity: string, maxBytes: number) {
 		this.root = join(agentDir, "cache", "pi-codex-conversion", "js-notebook");
-		this.session = join(this.root, "sessions", hash(JSON.stringify([cwd, identity])) + ".bin");
+		this.legacySession = join(this.root, "sessions", hash(JSON.stringify([cwd, identity])) + ".bin");
+		this.session = join(this.root, "projects", hash(resolveNotebookProject(cwd)), "notebook.bin");
 		this.maxBytes = maxBytes;
 	}
-	async read(name?: string): Promise<JsSnapshot | undefined> {
-		const path = this.path(name);
+	async withLock<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		await mkdir(dirname(this.session), { recursive: true, mode: 0o700 });
+		try { return await withProjectStateLock(this.session + ".lock", operation, signal); }
+		catch (error) {
+			if (error instanceof Error && error.message.startsWith("timed out waiting for lock:")) throw new Error("Another conversation is using this project notebook; wait for its cell to finish or cancel it, then retry");
+			throw error;
+		}
+	}
+	async migrateLegacy(): Promise<boolean> {
+		if (await this.read()) return false;
+		const legacy = await this.readPath(this.legacySession);
+		if (!legacy) return false;
+		await this.write(legacy); return true;
+	}
+	async read(name?: string): Promise<JsSnapshot | undefined> { return this.readPath(this.path(name), name); }
+	private async readPath(path: string, name?: string): Promise<JsSnapshot | undefined> {
 		try {
 			if ((await stat(path)).size > this.maxBytes + HEADER_BYTES + MAX_INVENTORY_BYTES) throw new Error("Saved JS Notebook exceeds the memory budget; increase the Notebook heap setting");
 			const bytes = await readFile(path);
 			const version = bytes.toString("ascii", 0, 4);
-			if (bytes.length < 40 || !["JSN1", "JSN2", "JSN3", "JSN4"].includes(version) || !bytes.subarray(4, 36).equals((version === "JSN3" || version === "JSN4") ? SUPPORT_FINGERPRINT : FINGERPRINT)) throw new Error("This JS Notebook checkpoint uses a different runtime version; use the matching package version to recover it, or explicitly reset this session");
+			if (bytes.length < 40 || !["JSN1", "JSN2", "JSN3", "JSN4", "JSN5"].includes(version) || !bytes.subarray(4, 36).equals(version === "JSN5" ? BINDINGS_FINGERPRINT : (version === "JSN3" || version === "JSN4") ? SUPPORT_FINGERPRINT : FINGERPRINT)) throw new Error("This JS Notebook checkpoint uses a different runtime version; use the matching package version to recover it, or explicitly reset this project notebook");
 			const controller = bytes.readUInt32LE(36);
 			const metadataBytes = version !== "JSN1" && bytes.length >= HEADER_BYTES ? bytes.readUInt32LE(40) : 0;
 			const offset = (version !== "JSN1" ? HEADER_BYTES : 40) + metadataBytes;
-			if ((version === "JSN4" ? bytes.length - HEADER_BYTES > this.maxBytes : metadataBytes > MAX_INVENTORY_BYTES) || offset > bytes.length || !controller || controller >= bytes.length - offset || bytes.length - offset > this.maxBytes) throw new Error("The JS Notebook checkpoint is invalid; it was not loaded");
+			if (((version === "JSN4" || version === "JSN5") ? bytes.length - HEADER_BYTES > this.maxBytes : metadataBytes > MAX_INVENTORY_BYTES) || offset > bytes.length || !controller || controller >= bytes.length - offset || bytes.length - offset > this.maxBytes) throw new Error("The JS Notebook checkpoint is invalid; it was not loaded");
 			if (version === "JSN1") return { bytes: bytes.subarray(offset), controller };
-			const metadata: unknown = version === "JSN4" ? deserialize(bytes.subarray(HEADER_BYTES, offset)) : JSON.parse(bytes.toString("utf8", HEADER_BYTES, offset));
-			if (version === "JSN4") return { bytes: bytes.subarray(offset), controller, ...validateMetadata(metadata, bytes.length - offset) };
+			const metadata: unknown = (version === "JSN4" || version === "JSN5") ? deserialize(bytes.subarray(HEADER_BYTES, offset)) : JSON.parse(bytes.toString("utf8", HEADER_BYTES, offset));
+			if (version === "JSN4" || version === "JSN5") return { bytes: bytes.subarray(offset), controller, ...validateMetadata(metadata, bytes.length - offset) };
 			if (version === "JSN3") {
 				if (!metadata || typeof metadata !== "object" || !("support" in metadata) || !Number.isSafeInteger(metadata.support) || typeof metadata.support !== "number" || metadata.support <= 0 || metadata.support >= bytes.length - offset || !("inventory" in metadata) || !isJsInventory(metadata.inventory)) throw new Error("The saved JS Notebook support metadata is invalid; the checkpoint was not loaded");
 				return { bytes: bytes.subarray(offset), controller, inventory: metadata.inventory, support: metadata.support };
@@ -55,14 +75,15 @@ export class JsStateStorage {
 	}
 	async write(snapshot: JsSnapshot, name?: string): Promise<void> {
 		if (snapshot.bytes.length > this.maxBytes) throw new Error("JS Notebook checkpoint exceeds the memory budget; reduce retained data or increase the Notebook heap setting");
-		const modern = snapshot.inventory !== undefined || snapshot.support !== undefined || snapshot.pins !== undefined || snapshot.observedProject !== undefined;
-		const metadata = modern ? serialize(validateMetadata({ inventory: snapshot.inventory, support: snapshot.support, pins: snapshot.pins, observedProject: snapshot.observedProject }, snapshot.bytes.length)) : Buffer.alloc(0);
+		if (name === undefined) snapshot.projectRevision = randomUUID();
+		if (!snapshot.inventory) snapshot.inventory = { declarations: [], baseline: [], complete: false };
+		const metadata = serialize(validateMetadata({ inventory: snapshot.inventory, support: snapshot.support, pins: snapshot.pins, observedProject: snapshot.observedProject, bindings: snapshot.bindings, projectRevision: snapshot.projectRevision }, snapshot.bytes.length));
 		if (metadata.length + snapshot.bytes.length > this.maxBytes) throw new Error("JS Notebook checkpoint exceeds the memory budget; reduce retained data or increase the Notebook heap setting");
-		const header = Buffer.alloc(modern ? HEADER_BYTES : 40);
-		header.write(modern ? "JSN4" : "JSN1");
-		(modern ? SUPPORT_FINGERPRINT : FINGERPRINT).copy(header, 4);
+		const header = Buffer.alloc(HEADER_BYTES);
+		header.write(snapshot.bindings !== undefined ? "JSN5" : "JSN4");
+		(snapshot.bindings !== undefined ? BINDINGS_FINGERPRINT : SUPPORT_FINGERPRINT).copy(header, 4);
 		header.writeUInt32LE(snapshot.controller, 36);
-		if (modern) header.writeUInt32LE(metadata.length, 40);
+		header.writeUInt32LE(metadata.length, 40);
 		const path = this.path(name), temporary = `${path}.${randomUUID()}.tmp`;
 		await mkdir(dirname(path), { recursive: true, mode: 0o700 });
 		try { await writeFile(temporary, [header, metadata, snapshot.bytes], { mode: 0o600, flag: "wx" }); await rename(temporary, path); }
@@ -78,14 +99,22 @@ export class JsStateStorage {
 function isMissing(error: unknown): boolean { return error instanceof Error && "code" in error && error.code === "ENOENT"; }
 
 /** Only durable fields cross the envelope; startup status belongs to a management clone. */
-function validateMetadata(value: unknown, imageBytes: number): Pick<JsSnapshot, "inventory" | "support" | "pins" | "observedProject"> {
+function validateMetadata(value: unknown, imageBytes: number): Pick<JsSnapshot, "inventory" | "support" | "pins" | "observedProject" | "bindings" | "projectRevision"> {
 	const invalid = (): never => { throw new Error("The saved JS Notebook metadata is invalid; the checkpoint was not loaded"); };
 	if (!value || typeof value !== "object") return invalid();
 	if (!("inventory" in value) || !isJsInventory(value.inventory)) return invalid();
-	const result: Pick<JsSnapshot, "inventory" | "support" | "pins" | "observedProject"> = { inventory: value.inventory };
+	const result: Pick<JsSnapshot, "inventory" | "support" | "pins" | "observedProject" | "bindings" | "projectRevision"> = { inventory: value.inventory };
 	if ("support" in value && value.support !== undefined) {
 		if (typeof value.support !== "number" || !Number.isSafeInteger(value.support) || value.support <= 0 || value.support >= imageBytes) return invalid();
 		result.support = value.support;
+	}
+	if ("bindings" in value && value.bindings !== undefined) {
+		if (typeof value.bindings !== "number" || !Number.isSafeInteger(value.bindings) || value.bindings <= 0 || value.bindings >= imageBytes) return invalid();
+		result.bindings = value.bindings;
+	}
+	if ("projectRevision" in value && value.projectRevision !== undefined) {
+		if (typeof value.projectRevision !== "string" || !/^[a-f0-9-]{36}$/.test(value.projectRevision)) return invalid();
+		result.projectRevision = value.projectRevision;
 	}
 	if ("pins" in value && value.pins !== undefined) {
 		if (!Array.isArray(value.pins) || !value.pins.every(name => typeof name === "string" && validJsBindingName(name)) || new Set(value.pins).size !== value.pins.length) return invalid();

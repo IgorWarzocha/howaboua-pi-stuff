@@ -100,19 +100,16 @@ export class JsSupport {
 			result.toBoolean(),
 		);
 	}
-	register(name: string, event: NotebookHook | false): void {
+	register(name: string, event: NotebookHook | false, fn: JSValueHandle): void {
 		if (!validJsBindingName(name))
 			throw new Error("Hook name must be a binding identifier");
 		const key = this.vm.newString(name),
 			kind = event === false ? this.vm.false : this.vm.newString(event);
-		let fn: JSValueHandle | undefined;
 		try {
-			fn = event === false ? this.vm.undefined : this.vm.evalCode(name);
 			this.call("register", key, kind, fn).dispose();
 		} finally {
 			key.dispose();
 			kind.dispose();
-			fn?.dispose();
 		}
 	}
 }

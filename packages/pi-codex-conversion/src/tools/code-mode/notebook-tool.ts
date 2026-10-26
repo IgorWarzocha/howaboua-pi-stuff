@@ -63,17 +63,17 @@ const JS_HELP = `Actions use {"input":"<JSON action object>"}.
 {"action":"checkpoint"}  Save the entire VM state
 {"action":"save","name":string,"names"?:string[]}  Save selected data, or omit names for a whole-notebook profile without project pin registrations
 {"action":"load","name":string}  Add selected data by value; a whole-notebook profile or isolated candidate REPLACES the live state
-{"action":"pin","names":string[]}  Persist plain data across project sessions and protect its bindings
+{"action":"pin","names":string[]}  Protect plain-data bindings from release/prune and preserve them through reset
 {"action":"unpin","names":string[]}  Remove project pins, keeping live bindings
-{"action":"release","names":string[]}  Clear mutable bindings or delete configurable globals; immutable bindings are skipped
+{"action":"release","names":string[]}  Remove unprotected bindings, including const; names become reusable
 {"action":"prune","query":string}  Release bindings matching an explicit glob; pins and registered hooks survive
 {"action":"list","query"?:string}  List JS profiles and isolated candidates
 {"action":"restart"}  Stop active cells and restore the last checkpoint
-{"action":"reset"}  Discard session state; project pins and named profiles survive
+{"action":"reset"}  Reset the SHARED project notebook; pins and named profiles survive
 
-Normal cells share one serial live kernel. Successful settled cells checkpoint closures, classes and cycles. Failed cells may leave live mutations. Cancellation stops the kernel; restart restores its checkpoint. External effects are not rolled back. Await all host calls; dangling calls prevent checkpointing. isolated:true runs a snapshot clone and saves a candidate for explicit load. JS storage is separate from other modes.
-Selective profiles and project pins support primitives, mutable plain objects and arrays with aliases/cycles, not functions, classes, accessors or proxies. Unsupported pins leave the session checkpoint intact and report failed project sync. Data loads reject name collisions. Release clears references, not lexical declarations: names remain reserved and aliases/closures survive. Use assignment to reuse mutable names or reset for a fresh scope.
-Hooks retain local closures and travel with full profiles and isolated images. startup runs once per fresh execution kernel before its first user cell, without Pi tools; failure blocks user code until removal or restart. tool_result receives {type,toolName,input,status,result?,error?} after nested tools settle; hooks run in name order, awaited, without recursive triggering. Hook failures fail the cell and preserve live state. Registration does not run hooks.
+Conversations in the same Git project share the complete notebook, including hooks; outside Git, scope is the working folder. Cells serialize across conversations and refresh from the latest checkpoint. Failed cells may leave local live mutations; conflicting shared updates preserve a recovery profile instead of overwriting them. Cancellation stops that execution kernel; restart restores shared state, not external tool effects. Await all host calls. isolated:true saves a snapshot candidate; changed-base adoption requires explicit replacement. JS storage is separate from other modes.
+Selective profiles and pins support primitives, mutable plain objects and arrays with aliases/cycles, not functions, classes, accessors or proxies. Unsupported pins leave the whole checkpoint intact and report failed reset-survival sync. Data loads reject name collisions. Release preserves aliases and captured values in surviving closures, so redeclaring a released name does not retarget them. Unreferenced values can be reclaimed; older native-scope images report any roots still retained.
+Hooks persist across project conversations and full profiles. startup runs once per fresh execution kernel before its first user cell, without Pi tools; failure blocks user code until removal or restart. tool_result receives {type,toolName,input,status,result?,error?} after nested tools settle; hooks run in name order, awaited, without recursive triggering. Hook failures fail the cell and preserve live state. Registration does not run hooks.
 Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}) without query, list and diagnostics are available.`;
 
 function actionParameters(kind: string) {

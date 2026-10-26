@@ -4,13 +4,12 @@ import { dirname, join } from "node:path";
 import { deserialize, serialize } from "node:v8";
 import { assertProfileName } from "../notebook-mode/profile-state-format.ts";
 import { resolveNotebookProject } from "../notebook-mode/project-identity.ts";
-import { withProjectStateLock } from "../notebook-mode/project-state-lock.ts";
-import { compactState, emptyState, mergeState, type PortableState } from "../ts-mode/portable-state.ts";
+import { compactState, emptyState, type PortableState } from "../ts-mode/portable-state.ts";
 import { assertJsData } from "./data-state.ts";
 
 const MAGIC = Buffer.from("JSD1");
 
-/** JS-only files share the existing graph merge, not another mode's storage. */
+/** JS-only selected data and reset-survival pins. */
 export class JsDataStorage {
 	readonly projectKey: string;
 	private readonly project: string;
@@ -26,21 +25,12 @@ export class JsDataStorage {
 	async readProfile(name: string): Promise<PortableState | undefined> { return this.read(this.profile(name), true); }
 	async writeProfile(name: string, state: PortableState): Promise<void> { await this.write(this.profile(name), state); }
 	async readProject(): Promise<PortableState> { return await this.read(this.project) ?? emptyState(); }
-	async mergeProject(observed: PortableState, candidate: PortableState): Promise<{ conflicts: string[]; recoveryProfile?: string }> {
+	/** Caller holds the whole-notebook lease; pin data is reset-survival state, not a second fork. */
+	async writeProject(candidate: PortableState): Promise<void> {
 		assertJsData(candidate);
-		await mkdir(dirname(this.project), { recursive: true, mode: 0o700 });
-		return withProjectStateLock(this.project + ".lock", async () => {
-			const current = await this.readProject();
-			const result = mergeState(observed, current, candidate);
-			if (result.conflicts.length) {
-				const recoveryProfile = `conflict-${randomUUID()}`;
-				await this.writeProfile(recoveryProfile, candidate);
-				return { conflicts: result.conflicts, recoveryProfile };
-			}
-			await this.write(this.project, compactState(result.state));
-			return { conflicts: [] };
-		});
+		await this.write(this.project, compactState(candidate));
 	}
+
 	private profile(name: string): string { assertProfileName(name); return join(this.profiles, `${name}.bin`); }
 	private async read(path: string, allowSnapshot = false): Promise<PortableState | undefined> {
 		try {

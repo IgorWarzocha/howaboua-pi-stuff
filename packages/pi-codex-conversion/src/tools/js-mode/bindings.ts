@@ -2,8 +2,9 @@ import { parse, type Pattern } from "acorn";
 import type { QuickJS } from "quickjs-wasi";
 import { globMatcher } from "../notebook-mode/glob.ts";
 import type { JsBindingStatus, JsDeclaration, JsInventory } from "./protocol.ts";
+import type { JsBindings } from "./managed-bindings.ts";
 
-/** Parse names only. Execution remains an unmodified native global script. */
+/** Identifier validation and legacy inventory parsing. Managed cells have their own scope-aware compiler. */
 export function jsDeclarations(source: string): JsDeclaration[] {
 	const program = parse(source, { ecmaVersion: "latest", sourceType: "script", allowAwaitOutsideFunction: true });
 	const declarations: JsDeclaration[] = [];
@@ -27,11 +28,14 @@ export function jsDeclarations(source: string): JsDeclaration[] {
 	return declarations;
 }
 
-export function inspectJsBindings(vm: QuickJS, inventory: JsInventory, query = "*"): JsBindingStatus[] {
+export function inspectJsBindings(vm: QuickJS, inventory: JsInventory, query = "*", managed?: JsBindings): JsBindingStatus[] {
 	const matches = globMatcher(query), baseline = new Set(inventory.baseline);
-	const declarations = new Map<string, JsBindingStatus["kind"]>(inventory.declarations.map(binding => [binding.name, binding.kind]));
+	const state = managed?.inspect(), retained = new Map(state?.bindings.map(binding => [binding.name, binding]));
+	for (const name of state?.masked ?? []) baseline.add(name);
+	const declarations = new Map<string, JsBindingStatus["kind"]>((state?.bindings ?? inventory.declarations).map(binding => [binding.name, binding.kind]));
 	for (const name of vm.global.getOwnPropertyNames()) if (!baseline.has(name) && !declarations.has(name)) declarations.set(name, "global");
 	return [...declarations].filter(([name]) => matches(name)).sort(([a], [b]) => a.localeCompare(b)).map(([name, kind]) => {
+		const current = retained.get(name); if (current) return current;
 		try {
 			if (kind === "global" || kind === "var" || kind === "function") {
 				const descriptor = vm.global.getOwnPropertyDescriptor(name);
