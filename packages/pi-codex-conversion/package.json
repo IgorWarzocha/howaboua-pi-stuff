@@ -139,9 +139,11 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@earendil-works/pi-codemode": "1.4.0",
     "@types/node": "26.6.5",
     "openai": "7.43.0",
     "proxy-from-env": "2.1.0",
+    "quickjs-wasi": "3.6.2",
     "selfsigned": "^5.5.0",
     "smol-toml": "^1.9.1",
     "tsrs": "0.18.0-ts7.1.0-dev.20260929",

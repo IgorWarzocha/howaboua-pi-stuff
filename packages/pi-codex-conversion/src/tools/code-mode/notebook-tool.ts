@@ -46,6 +46,29 @@ function notebookActionParameters(allowCheckpoint = false) {
 	]);
 }
 
+const JS_ACTION_PARAMETERS = Type.Union([
+	Type.Object({ action: StringEnum(["status", "list"]), query: Type.Optional(Type.String()) }, { additionalProperties: false }),
+	Type.Object({ action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]) }, { additionalProperties: false }),
+	Type.Object({ action: StringEnum(["save", "load"]), name: Type.String() }, { additionalProperties: false }),
+]);
+
+const JS_HELP = `Actions use {"input":"<JSON action object>"}.
+{"action":"status"}  Check runtime and active cells; bindings are not enumerated
+{"action":"diagnostics"}  Inspect runtime health
+{"action":"checkpoint"}  Save the entire VM state
+{"action":"save","name":string}  Save a JS-only named profile
+{"action":"load","name":string}  Replace the ENTIRE live state with a profile or isolated candidate
+{"action":"list","query"?:string}  List JS profiles and isolated candidates
+{"action":"restart"}  Stop active cells and restore the last checkpoint
+{"action":"reset"}  Discard session state; named profiles survive
+
+Normal cells share one serial live kernel. Successful settled cells checkpoint closures, classes and cycles. Failed cells may leave live mutations. Cancellation stops the kernel; restart restores its checkpoint. External effects are not rolled back. Await all host calls; dangling calls prevent checkpointing. isolated:true runs a snapshot clone and saves a candidate for explicit load. JS storage is separate from other modes.
+Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}), list and diagnostics are available.`;
+
+function actionParameters(kind: string) {
+	return kind === "js" ? JS_ACTION_PARAMETERS : kind === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS;
+}
+
 const NOTEBOOK_ACTION_PARAMETERS = notebookActionParameters();
 const TS_ACTION_PARAMETERS = notebookActionParameters(true);
 
@@ -106,7 +129,8 @@ checkpoint accepts one binding, no hook: named durable helpers snapshot(value) â
 TS state is separate from Deno Notebook. Normal cells share live bindings, closures and module instances. Durable snapshots retain supported data and helper recipes, reporting skipped live-only values. Live errors can leave mutations; tool and file effects are not rolled back. Isolated cells use a checkpoint copy and save a candidate without changing live state. Loading a candidate replaces the kernel and discards current live-only values and unsaved changes.`;
 
 function notebookHelp(runtime: SharedCodeModeRuntime, context: unknown): string {
-	return runtime.executionKind(context) === "ts" ? TS_HELP : NOTEBOOK_HELP;
+	const kind = runtime.executionKind(context);
+	return kind === "js" ? JS_HELP : kind === "ts" ? TS_HELP : NOTEBOOK_HELP;
 }
 
 type NotebookToolParameters = {
@@ -141,7 +165,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 			} catch (error) {
 				throw new Error('notebook input must be help or a JSON action object; call notebook({})', { cause: error });
 			}
-			if (!Check(runtime.executionKind(ctx) === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS, action)) {
+			if (!Check(actionParameters(runtime.executionKind(ctx)), action)) {
 				throw new Error('Invalid notebook action arguments; call notebook({})');
 			}
 			const result = await executeNotebookControl(runtime, action, {
@@ -158,7 +182,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 
 export function createNotebookControlProxy(
 	runtime: SharedCodeModeRuntime,
-	allowCheckpoint = false,
+	kind: "code" | "notebook" | "ts" | "js" = "notebook",
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
@@ -167,7 +191,7 @@ export function createNotebookControlProxy(
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
-		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, allowCheckpoint ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS]),
+		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, actionParameters(kind)]),
 		invoke: (input, context, signal) => {
 			if (input === undefined || Check(NOTEBOOK_DISCOVERY_PARAMETERS, input))
 				return Promise.resolve({ message: notebookHelp(runtime, context.extensionContext), details: { action: "help" } });
@@ -182,6 +206,7 @@ export async function executeNotebookControl(
 	context: ToolExecutionContext,
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
+	validateModeRequest(runtime, params, context);
 	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts"), context, signal);
 }
 
@@ -191,6 +216,7 @@ export async function executeNotebookExecControl(
 	context: ToolExecutionContext,
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
+	validateModeRequest(runtime, params, context);
 	const request = normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts");
 	if (!canExecuteNotebookControlInsideExec(request))
 		return {
@@ -198,6 +224,11 @@ export async function executeNotebookExecControl(
 			details: { notRun: true, action: request.action, retry: request },
 		};
 	return executeNormalizedNotebookControl(runtime, request, context, signal);
+}
+
+function validateModeRequest(runtime: SharedCodeModeRuntime, params: NotebookToolParameters, context: ToolExecutionContext): void {
+	if (runtime.executionKind(context.extensionContext) === "js" && !Check(JS_ACTION_PARAMETERS, params))
+		throw new Error("Invalid JS Notebook action; call notebook({}) for supported controls");
 }
 
 function executeNormalizedNotebookControl(

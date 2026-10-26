@@ -12,7 +12,7 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export type CodeModeExecutionKind = "code" | "notebook" | "ts";
+export type CodeModeExecutionKind = "code" | "notebook" | "ts" | "js";
 
 export interface OpaqueContextGuard {
 	lazy: boolean;
@@ -253,7 +253,7 @@ export class SharedCodeModeRuntime {
 		return this.clientPromise;
 	}
 
-	private getNotebookClient(ctx: unknown, kind: "notebook" | "ts"): Promise<CodeModeExecutionClient> {
+	private getNotebookClient(ctx: unknown, kind: "notebook" | "ts" | "js"): Promise<CodeModeExecutionClient> {
 		const options = this.activeProviders(ctx).find((provider) => provider.notebookOptions)?.notebookOptions?.(ctx);
 		if (!options) return Promise.reject(new Error("Notebook Code Mode runtime options are unavailable"));
 		const key = JSON.stringify([kind, options.agentDir, options.maxHeapMiB, options.profile ?? null]);
@@ -266,7 +266,9 @@ export class SharedCodeModeRuntime {
 				await (await previous).shutdown();
 			}
 			if (!this.notebookClientPromise) {
-				const pending = kind === "ts"
+				const pending = kind === "js"
+					? import("../js-mode/client.ts").then(({ JsNotebookClient }) => new JsNotebookClient(options, this.renderStore))
+					: kind === "ts"
 					? import("../ts-mode/client.ts").then(({ TsCodeModeClient }) => new TsCodeModeClient(options, this.renderStore))
 					: import("../notebook-mode/client.ts").then(({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options, this.renderStore));
 				this.notebookClientPromise = pending;
@@ -340,7 +342,7 @@ export class SharedCodeModeRuntime {
 		if (this.executionKind(ctx) === "code") return tools;
 		if (tools.some((tool) => tool.name === "notebook"))
 			throw new Error("Duplicate code-mode tool: notebook");
-		return [...tools, createNotebookControlProxy(this, this.executionKind(ctx) === "ts")];
+		return [...tools, createNotebookControlProxy(this, this.executionKind(ctx))];
 	}
 }
 

@@ -21,7 +21,7 @@ Open `/codex` after installation. Codex-like GPT models use the structured adapt
 ## What you get
 
 - Codex-shaped `exec_command`, `write_stdin`, `apply_patch` and `view_image` tools
-- Code, Notebook and TS modes that compose the active toolset behind `exec`
+- Code, Notebook, TS and JS Notebook modes that compose the active toolset behind `exec`
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
@@ -30,7 +30,7 @@ Open `/codex` after installation. Codex-like GPT models use the structured adapt
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
 
-Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) for web search or image generation. Both compose into Code, Notebook and TS modes.
+Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) for web search or image generation. Both compose into Code, Notebook, TS and JS Notebook modes.
 
 **GipPity has no authentication. Keep its remote server on a trusted network.**
 
@@ -46,6 +46,7 @@ Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi
 | **Structured adapter** | Replaces Pi's file and shell tools with the Codex-shaped set. Default for Codex-like GPT models and configured providers. |
 | **Code Mode** | Exposes `exec` and `wait`. Shell, patch, image and extension tools compose inside `exec`. |
 | **Notebook** | Adds persistent Deno bindings and `notebook` state controls. |
+| **JS Notebook** | Runs persistent JavaScript in QuickJS/WASM with full VM checkpoints. Tools provide host access. |
 | **TS** | Type-checks TypeScript cells and merges concurrent changes into portable retained state. Uses Node. |
 | **Extra tools only** | Adds selected `apply_patch` or `view_image` tools without replacing the model's normal setup. |
 | **Voice only** | Retains voice and dictation without changing the model's prompt, tools, requests, compaction or adapter widgets. |
@@ -197,7 +198,7 @@ These are request intervals, not guaranteed cache lifetimes. Reports suggest aro
 <details>
 <summary><strong>Code Mode and custom tools</strong></summary>
 
-Select **Code**, **Notebook** or **TS** under `/codex` → **General**. This applies wherever the adapter is active, including **all providers** scope. Providers retain their normal transport. Compatible Codex models use Responses Lite automatically. Configured OpenAI Responses proxies can opt in through **Proxy Responses Lite**.
+Select **Code**, **Notebook**, **TS** or **JS Notebook** under `/codex` → **General**. This applies wherever the adapter is active, including **all providers** scope. Providers retain their normal transport. Compatible Codex models use Responses Lite automatically. Configured OpenAI Responses proxies can opt in through **Proxy Responses Lite**.
 
 The model composes tools in a JavaScript cell:
 
@@ -207,6 +208,14 @@ text(status);
 ```
 
 **Notebook** adds persistent JavaScript and TypeScript bindings in Deno. Call `notebook({})` for state-management guidance, then send JSON action objects in `input`. Explicit `{ input: "help" }` also returns guidance. The first turn receives status and retained bindings automatically.
+
+### JS Notebook
+
+**JS Notebook** retains JavaScript lexical bindings, closures, classes and cycles in a QuickJS/WASM kernel. Run Pi under Node. Cells support top-level `await` but have no Node, imports, network APIs, timers or TypeScript checking. Use `tools` for host operations and await every call.
+
+Normal cells share serial live state. Successful settled cells save a full VM checkpoint. Failed cells can leave mutations, and cancelling a live cell stops the shared kernel. `notebook` restart restores the last checkpoint without undoing external tool effects. Saved snapshots require compatible engine and notebook bridge versions; incompatible snapshots are rejected, not silently reset.
+
+Add `"isolated":true` to the `// @exec` options to run a snapshot clone. Its saved candidate can replace the live state through `notebook` load. Named profiles also replace the entire state and are separate from other execution modes. Call `notebook({})` for status, diagnostics, checkpoint, save, load, list, restart and reset. JS Notebook does not offer per-binding pins, hooks or release controls.
 
 ### TS mode
 
@@ -384,7 +393,7 @@ See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) a
 
 ### Pi extension API
 
-Normal Pi registration is enough for automatic Code, Notebook and TS access. Use this optional API to customize usage, blocking behavior, result conversion or rendering:
+Normal Pi registration is enough for automatic Code, Notebook, TS and JS Notebook access. Use this optional API to customize usage, blocking behavior, result conversion or rendering:
 
 ```ts
 import {

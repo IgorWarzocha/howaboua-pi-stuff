@@ -73,6 +73,11 @@ function verifyLoaderImports(packageRoot) {
 		throw error;
 	}
 	const failures = [];
+	const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
+	// pi-codemode is an ordinary runtime package, not a Pi loader singleton.
+	// Require a direct dependency so packed extensions do not borrow Pi's copy.
+	const runtimeModules = new Set(Object.hasOwn(manifest.dependencies ?? {}, "@earendil-works/pi-codemode")
+		? ["@earendil-works/pi-codemode"] : []);
 	const sources = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
 	const peerSpecifierPattern = /["'](@earendil-works\/pi-[^"']+|typebox(?:\/[^"']+)?)["']/g;
 	const staticSpecifierPattern = /^\s*(?:import|export)\s+(?:[^"'\n]*?\sfrom\s*)?["']([^"']+)["']/gm;
@@ -88,7 +93,7 @@ function verifyLoaderImports(packageRoot) {
 	for (const path of files) {
 		const source = sources.get(path) ?? "";
 		for (const specifier of peerSpecifiers(source)) {
-			if (specifier && !allowedLoaderModules.has(specifier)) failures.push({ path, specifier });
+			if (specifier && !allowedLoaderModules.has(specifier) && !runtimeModules.has(specifier)) failures.push({ path, specifier });
 		}
 		for (const specifier of dynamicSpecifiers(source)) {
 			if (allowedLoaderModules.has(specifier)) {

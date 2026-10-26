@@ -8,6 +8,7 @@ import {
 import {
 	EXEC_DESCRIPTION,
 	GPT_EXEC_DESCRIPTION,
+	JS_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
 } from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
@@ -75,10 +76,11 @@ export function registerPublicCodeModeTools(
 	pi.registerTool(wait);
 	let currentExec = exec;
 	registerGptPromptMode(pi, (active, context) => {
+		const js = context !== undefined && runtime.executionKind(context) === "js";
 		const ts = context !== undefined && runtime.executionKind(context) === "ts";
-		const description = (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace("JavaScript", ts ? "TypeScript" : "JavaScript")
+		const description = js ? JS_EXEC_DESCRIPTION : (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace("JavaScript", ts ? "TypeScript" : "JavaScript")
 			+ (ts ? '\nFor independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged' : "");
-		const executionMode = ts ? "parallel" : "sequential";
+		const executionMode = ts || js ? "parallel" : "sequential";
 		if (currentExec.description !== description || currentExec.executionMode !== executionMode) {
 			if (currentExec.executionMode !== executionMode) pi.registerTool({ ...wait, executionMode });
 			currentExec = { ...exec, description, executionMode, promptSnippet: `Compose tools with ${ts ? "TypeScript" : "JavaScript"}` };

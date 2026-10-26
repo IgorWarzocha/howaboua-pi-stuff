@@ -1,0 +1,5 @@
+- Keep one shared serial VM and disposable isolated VMs. JavaScript executes as async global scripts, never function-wrapped cells or replayed history.
+- Snapshot only settled, tool-quiescent cells. A stalled cell or outstanding host calls invalidates the VM; later replies must never reach a replacement cell. Keep tools routed through CodeModeDelegateRuntime.
+- Preserve the boot-time controller handle token across every restore. Exporting new tokens per checkpoint leaks retained VM references. Rebind only named host callbacks, never replay user code to recover them.
+- Whole-VM images are version-bound. Bump the storage fingerprint when changing bridge/worker snapshot semantics or the engine; incompatible images fail visibly, never reset implicitly.
+- Use public Pi/QuickJS exports only. Pi's private one-shot VM/prelude is a reference, not an import path. Node worker termination is required for infinite microtask chains; do not enable Bun without proving that boundary.

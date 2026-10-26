@@ -192,7 +192,7 @@ export function createCodexTransportStream<TApi extends Api>(
 ): AssistantMessageEventStream {
 	const runtimeConfig = deps.getConfig?.();
 	const responsesLite = deps.useResponsesLite?.(model)
-		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook" || runtimeConfig?.executionMode === "ts")
+		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook" || runtimeConfig?.executionMode === "ts" || runtimeConfig?.executionMode === "js")
 			&& supportsResponsesLiteModel(model.id));
 	const resolvedContext = resolveCodexTranscript(model, context);
 	const modelSupportsGrammarTools = (model.compat as { supportsOpenAIGrammarTools?: boolean | undefined } | undefined)

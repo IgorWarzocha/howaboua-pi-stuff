@@ -84,7 +84,7 @@ export async function registerCodexCodeMode(
 		deliverOpaqueResponse: (response, callId, scope, ctx) => appendRemoteDelivery(pi, response, callId, scope, ctx),
 		executionKind: (ctx) => {
 			const kind = resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind;
-			return kind === "notebook" || kind === "ts" ? kind : "code";
+			return kind === "notebook" || kind === "ts" || kind === "js" ? kind : "code";
 		},
 		notebookOptions: () => ({
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,

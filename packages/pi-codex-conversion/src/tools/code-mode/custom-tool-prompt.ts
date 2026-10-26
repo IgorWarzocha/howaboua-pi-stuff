@@ -20,6 +20,13 @@ Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults
 Await work; possiblynonterminating→timeout
 Barevalues discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serializedoutput, notify(value)→emit, yield_control()→yield`;
 
+export const JS_EXEC_DESCRIPTION = `Run JavaScript in a persistent kernel; source only, no JSON or fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
+For independent work while another cell runs, add "isolated":true to // @exec. Starts from last checkpoint; leaves shared variables unchanged
+Top-level await supported. Await host calls; dangling calls prevent checkpointing
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
+No Node, imports, fetch, timers or TypeScript checking`;
+
 export const WAIT_DESCRIPTION =
 	"Resume or terminate a yielded exec cell";
 
@@ -127,7 +134,9 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		executionKind === "ts"
+		executionKind === "js"
+			? "exec=persistent JavaScript kernel; checkpoints preserve closures/classes/cycles. Cancellation stops the kernel; notebook restart restores its checkpoint, not external tool effects"
+			: executionKind === "ts"
 			? gpt
 				? "exec=persistent TypeScript kernel; imports/npm/Node/Web APIs; live bindings and modules persist across cells"
 				: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"

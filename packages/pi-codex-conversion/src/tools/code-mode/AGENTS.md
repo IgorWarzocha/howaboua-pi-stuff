@@ -5,4 +5,4 @@
 - Only explicit `discovery: "help"` tools omit call signatures. Their empty call must return usage without executing an operation. Never infer this from optional arguments or apply it to arbitrary third-party tools.
 - `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
 - A different extension can register the shared Code turn hook before PCC. Keep prompt-mode preparation at this hook's capture boundary, before provider selection, host preparation and `collectPromptTools`; PCC's own later hook is not sufficient.
-- `shared-runtime.ts` selects the official V8 host or lazy Deno Notebook/TS clients. Implementations stay under sibling `notebook-mode/` and `ts-mode/`; state never crosses execution modes.
+- `shared-runtime.ts` selects the official V8 host or lazy Deno Notebook/TS/JS clients. Implementations stay under sibling `notebook-mode/`, `ts-mode/` and `js-mode/`; state never crosses execution modes.
