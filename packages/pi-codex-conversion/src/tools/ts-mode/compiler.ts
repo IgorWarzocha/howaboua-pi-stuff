@@ -120,26 +120,41 @@ export class TsCompiler {
     const report = (value: Diagnostic): TsDiagnostic => diagnostic(value, this.fileName, prefixLines);
     const lease = await this.api.createSourceFile(this.fileName, prefix + input.source);
     let names: string[];
+    let exportNames: string[];
     let hasDependencies = Boolean(input.moduleResolutions?.size);
     try {
-      names = [...new Set(this.syntax.inventory(lease.sourceFile, prefix.length).map(binding => binding.name))];
+      const inventory = this.syntax.inventory(lease.sourceFile, prefix.length);
+      names = [...new Set(inventory.map(binding => binding.name))];
       const file = lease.sourceFile;
+      const exported = new Set<string>();
+      for (const statement of file.statements) {
+        if (this.runtime.ast.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && this.runtime.ast.isNamedExports(statement.exportClause)) {
+          for (const item of statement.exportClause.elements) exported.add(item.name.text);
+        } else if (this.syntax.modifiers(statement).some(modifier => modifier.kind === this.runtime.ast.SyntaxKind.ExportKeyword) && !this.syntax.modifiers(statement).some(modifier => modifier.kind === this.runtime.ast.SyntaxKind.DefaultKeyword)) {
+          for (const binding of inventory) if (binding.node.pos >= statement.pos && binding.node.end <= statement.end) exported.add(binding.name);
+        }
+      }
+      exportNames = names.filter(name => !exported.has(name));
       hasDependencies ||= Boolean(file.referencedFiles.length || file.typeReferenceDirectives.length || file.libReferenceDirectives.length);
-      const walk = (node: Node): void => {
+      let unsupportedMeta = false;
+      const walk = (node: Node, parent?: Node): void => {
         // The virtual toolkit import is owned here, not a disk dependency.
-        if (hasDependencies || (node !== file && node.getStart(file) < globals.prefix.length)) return;
+        if (node !== file && node.getStart(file) < globals.prefix.length) return;
+        if (this.runtime.ast.isMetaProperty(node) && node.keywordToken === this.runtime.ast.SyntaxKind.ImportKeyword &&
+          !(parent && this.runtime.ast.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === 'url')) unsupportedMeta = true;
         if (this.runtime.ast.isImportDeclaration(node) || this.runtime.ast.isImportTypeNode(node) || node.kind === this.runtime.ast.SyntaxKind.ImportEqualsDeclaration ||
           (this.runtime.ast.isExportDeclaration(node) && node.moduleSpecifier) ||
           (this.runtime.ast.isCallExpression(node) && node.expression.kind === this.runtime.ast.SyntaxKind.ImportKeyword)) hasDependencies = true;
-        else node.forEachChild(walk);
+        node.forEachChild(child => walk(child, node));
       };
       walk(file);
+      if (unsupportedMeta) return { ok: false, diagnostics: [{ code: 0, message: 'Only import.meta.url is available in notebook cells. Use other import.meta APIs inside an imported module.' }] };
     }
     finally { await lease.dispose(); }
     if (names.some(name => name === '__tsImport' || name === '__tsRegisterRecipe')) return {
       ok: false, diagnostics: [{ code: 0, message: 'Names __tsImport and __tsRegisterRecipe are reserved. Choose another binding name.' }],
     };
-    const source = prefix + input.source + `\nexport { ${names.join(', ')} };\n`;
+    const source = prefix + input.source + `\nexport { ${exportNames.join(', ')} };\n`;
     const mappings = new Map(input.moduleResolutions);
     const previousResolver = this.resolver;
     // Native static entries preserve the old name-only override and native fallback,
@@ -225,7 +240,8 @@ export class TsCompiler {
     const lease = await this.api.createSourceFile(this.fileName.replace('.mts', '.d.mts'), source);
     try {
       const declarations = this.syntax.inventory(lease.sourceFile).filter(binding => binding.name === name).map(binding => {
-        const text = binding.node.getText(lease.sourceFile).replace(/^export\s+/, '');
+        const text = binding.node.getText(lease.sourceFile).replace(/^export\s+(?:default\s+)?/, '');
+        if ((kind === 'function' || kind === 'class') && !text.startsWith('declare ')) return `declare ${text}`;
         return binding.kind === 'const' || binding.kind === 'let' ? `declare ${binding.kind} ${text};` : text;
       });
       return declarations.join('\n') || `declare ${kind === 'let' ? 'let' : 'const'} ${name}: ${type};`;
@@ -240,6 +256,10 @@ export class TsCompiler {
       const imports: string[] = [];
       for (const node of file.statements) {
         if (this.runtime.ast.isExportDeclaration(node)) edits.push({ start: node.getStart(file), end: node.end, text: '' });
+        else if (this.runtime.ast.isExportAssignment(node)) {
+          edits.push({ start: node.getStart(file), end: node.expression.getStart(file), text: '(' });
+          edits.push({ start: node.expression.end, end: node.end, text: ');' });
+        }
         else if (this.runtime.ast.isImportDeclaration(node)) {
           const recipe = this.syntax.importRecipe(node);
           if (!recipe) throw new Error('Unsupported TypeScript import.');
@@ -251,9 +271,11 @@ export class TsCompiler {
           else if (!recipe.bindings.length) imports.push(`${importExpression};`);
           edits.push({ start: node.getStart(file), end: node.end, text: '' });
         } else {
-          for (const child of node.getChildren(file)) {
-            if (child.kind === this.runtime.ast.SyntaxKind.ExportKeyword || child.kind === this.runtime.ast.SyntaxKind.DefaultKeyword) edits.push({ start: child.getStart(file), end: child.end, text: '' });
+          const anonymous = (this.runtime.ast.isFunctionDeclaration(node) || this.runtime.ast.isClassDeclaration(node)) && !node.name;
+          for (const modifier of this.syntax.modifiers(node)) {
+            if (modifier.kind === this.runtime.ast.SyntaxKind.ExportKeyword || modifier.kind === this.runtime.ast.SyntaxKind.DefaultKeyword) edits.push({ start: modifier.getStart(file), end: modifier.end, text: anonymous && modifier.kind === this.runtime.ast.SyntaxKind.ExportKeyword ? '(' : '' });
           }
+          if (anonymous) edits.push({ start: node.end, end: node.end, text: ');' });
         }
       }
       const walk = (node: Node): void => {

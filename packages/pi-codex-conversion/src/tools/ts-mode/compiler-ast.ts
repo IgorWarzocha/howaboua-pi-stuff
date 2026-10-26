@@ -24,6 +24,11 @@ export function compilerAst(runtime: TsRuntime) {
     return name.elements.flatMap(element => isBindingElement(element) && element.name ? names(element.name) : []);
   }
 
+  function modifiers(node: Node) {
+    return isVariableStatement(node) || isFunctionDeclaration(node) || isClassDeclaration(node) || isEnumDeclaration(node) ||
+      isModuleDeclaration(node) || isInterfaceDeclaration(node) || isTypeAliasDeclaration(node) ? node.modifiers ?? [] : [];
+  }
+
   function inventory(file: SourceFile, start = 0): BindingNode[] {
     const result: BindingNode[] = [];
     for (const statement of file.statements) {
@@ -97,7 +102,7 @@ export function compilerAst(runtime: TsRuntime) {
     return [...free].sort();
   }
 
-  return { inventory, importRecipe, freeReferences };
+  return { inventory, importRecipe, freeReferences, modifiers };
 }
 
 export function applyEdits(source: string, edits: { start: number; end: number; text: string }[]): string {
