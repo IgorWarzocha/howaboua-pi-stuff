@@ -14,6 +14,7 @@ import {
 	renderTaskBoundaryReminder,
 	taskBoundaryEligible,
 } from "./task-boundary.js";
+import { isWindowCheckpoint } from "./window-checkpoint.js";
 
 export const WINDOW_MESSAGE = "notes-compaction:window:v1";
 export const SETTLEMENT_ENTRY = "notes-compaction:settled:v1";
@@ -225,7 +226,7 @@ export class Windows {
 				this.reminders.add(
 					`${details.identity.currentWindowId}:${details.kind}`,
 				);
-			if (entry.type === "compaction") {
+			if (entry.type === "compaction" && !isWindowCheckpoint(entry)) {
 				// Compaction frees capacity, but does not create a new window identity.
 				this.reminders = new Set(
 					[...this.reminders].filter((key) => key.endsWith(":task-boundary")),
@@ -408,8 +409,20 @@ export class Windows {
 			const details = windowDetails(entries[i]!);
 			if (details?.kind === "window" && details.trim) boundary = i;
 			// Normal Pi/PCC compaction has already chosen its own checkpoint.
-			if (entries[i]!.type === "compaction") boundary = -1;
+			if (entries[i]!.type === "compaction" && !isWindowCheckpoint(entries[i]!))
+				boundary = -1;
 		}
-		return entries.slice(Math.max(0, boundary));
+		return entries.slice(Math.max(0, boundary)).map(
+			(entry): SessionEntry =>
+				isWindowCheckpoint(entry)
+					? {
+							type: "custom",
+							id: entry.id,
+							parentId: entry.parentId,
+							timestamp: entry.timestamp,
+							customType: "notes-compaction:window-checkpoint",
+						}
+					: entry,
+		);
 	}
 }

@@ -38,6 +38,7 @@ import {
 	projectTreeHandoffBranch,
 	projectTreeHandoffReads,
 } from "./tree-handoff-read.js";
+import { WindowCheckpoints } from "./window-checkpoint.js";
 import {
 	registerWindowRenderer,
 	WINDOW_MESSAGE,
@@ -51,6 +52,9 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	const store = new NotesStore(join(dir, "notes.sqlite"));
 	const search = new HistorySearch(join(dir, "history-search.sqlite"));
 	const lifecycle = new NotesLifecycle(pi, store);
+	const checkpoints = new WindowCheckpoints((entries) =>
+		lifecycle.windows.projectBranch(entries),
+	);
 	let settings: NotesSettings;
 	let ready = false;
 	let prepareProviderWindow:
@@ -66,7 +70,11 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			};
 			if (request?.protocol === 1 && !request.preparation) {
 				refreshActivation(request.ctx);
-				request.preparation = lifecycle.prepareCustomTurn(request.ctx);
+				request.preparation = (async () => {
+					if (ready && !unavailable && request.ctx.isIdle())
+						await checkpoints.restore(request.ctx);
+					await lifecycle.prepareCustomTurn(request.ctx);
+				})();
 			}
 		},
 	);
@@ -396,7 +404,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		pi,
 		() => lifecycle.active && settings.noteSaveMarkers,
 	);
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("session_start", async (_event, ctx) => {
 		search.setSession(undefined);
 		lifecycle.reset(ctx);
 		lifecycle.active = false;
@@ -419,6 +427,13 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			unavailable = error instanceof Error ? error.message : String(error);
 			ctx.ui.notify(`Notes continuity inactive: ${unavailable}`, "warning");
 		}
+		if (ready && !unavailable) {
+			try {
+				await checkpoints.restore(ctx);
+			} catch (error) {
+				ctx.ui.notify(`Context checkpoint failed: ${String(error)}`, "error");
+			}
+		}
 	});
 	pi.on("before_agent_start", (event, ctx) => {
 		refreshActivation(ctx);
@@ -427,8 +442,16 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			return lifecycle.beforeStart(ctx, event);
 		}
 	});
-	pi.on("input", (event, ctx) => {
+	pi.on("input", async (event, ctx) => {
 		refreshActivation(ctx);
+		if (ready && !unavailable && ctx.isIdle()) {
+			try {
+				await checkpoints.restore(ctx);
+			} catch (error) {
+				ctx.ui.notify(`Context checkpoint failed: ${String(error)}`, "error");
+				return { action: "handled" };
+			}
+		}
 		return lifecycle.active ? lifecycle.input(event, ctx) : undefined;
 	});
 	const nestedWrites = new Map<
@@ -492,7 +515,14 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		}
 	});
 	pi.on("turn_end", (event, ctx) => {
-		if (!lifecycle.active || lifecycle.newWindowRequests === "off") return;
+		const checkpoint = event.entries.some(
+			(entry) => entry.type === "compaction",
+		)
+			? undefined
+			: checkpoints.draft(ctx.sessionManager.getBranch());
+		const entries = checkpoint ? [...event.entries, checkpoint] : event.entries;
+		if (!lifecycle.active || lifecycle.newWindowRequests === "off")
+			return checkpoint ? { entries } : undefined;
 		const reminder = lifecycle.windows.reminder(
 			ctx,
 			event.message.role === "assistant" &&
@@ -504,11 +534,13 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				: 0,
 			!lifecycle.fresh(ctx, lifecycle.runId),
 		);
-		return reminder
+		return reminder || checkpoint
 			? {
 					entries: [
-						...event.entries,
-						lifecycle.prepareReminder?.(reminder) ?? reminder,
+						...entries,
+						...(reminder
+							? [lifecycle.prepareReminder?.(reminder) ?? reminder]
+							: []),
 					],
 				}
 			: undefined;
@@ -539,7 +571,9 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		event: import("@earendil-works/pi-coding-agent").SessionBeforeCompactEvent,
 		ctx: ExtensionContext,
 	) =>
-		ready && !unavailable ? lifecycle.beforeCompact(event, ctx) : undefined;
+		ready && !unavailable
+			? (checkpoints.prepare(event, ctx) ?? lifecycle.beforeCompact(event, ctx))
+			: undefined;
 	try {
 		const {
 			registerCompactionPreparation,
