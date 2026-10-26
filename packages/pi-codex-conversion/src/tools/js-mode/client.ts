@@ -229,7 +229,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		this.preparing = preparing.catch(() => {}); await preparing;
 	}
 	private async refreshProject(): Promise<void> {
-		const latest = await this.requireStorage().read();
+		const latest = await this.requireStorage().read(undefined, this.durable);
 		if (latest?.projectRevision === this.durable?.projectRevision) return;
 		if (this.dirty && this.kernel && !this.unavailable) {
 			const recovery = await this.liveSnapshot();
