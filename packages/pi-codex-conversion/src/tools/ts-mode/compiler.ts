@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import type { API, RawCompilerOptions, Diagnostic, ModuleResolver, Snapshot, SyntheticProjectId } from 'tsrs/async';
 import type { Node } from 'tsrs/ast';
 import { applyEdits, compilerAst } from './compiler-ast.js';
+import { startTsCompiler, type TsCompilerProcess } from './compiler-process.ts';
 import type { TsRuntime } from './runtime.ts';
 import type { TsBinding, TsCompileInput, TsCompileResult, TsDiagnostic, TsImportReference } from './compiler-contract.js';
 export type { TsBinding, TsCompileInput, TsCompileResult, TsImportReference } from './compiler-contract.js';
@@ -20,7 +21,7 @@ function diagnostic(value: Diagnostic, fileName: string, prefixLines: number): T
 export class TsCompiler {
   private readonly runtime: TsRuntime;
   private readonly syntax: ReturnType<typeof compilerAst>;
-  private readonly api: API;
+  private readonly process: Promise<TsCompilerProcess>;
   private readonly fileName: string;
   private readonly options: RawCompilerOptions;
   private snapshot: Snapshot | undefined;
@@ -35,7 +36,7 @@ export class TsCompiler {
   constructor(runtime: TsRuntime, options: { cwd: string; tsserverPath?: string }) {
     this.runtime = runtime;
     this.syntax = compilerAst(runtime);
-    this.api = new runtime.api.API({ cwd: options.cwd, ...(options.tsserverPath ? { tsserverPath: options.tsserverPath } : {}) });
+    this.process = startTsCompiler(runtime, options);
     this.fileName = join(options.cwd, '__pi_ts_cell.mts');
     this.options = {
       target: runtime.ast.ScriptTarget.ESNext,
@@ -53,7 +54,7 @@ export class TsCompiler {
   /** Import graph compilation borrows this owner; it must not close the API. */
   withApi<T>(operation: (api: API, runtime: TsRuntime) => Promise<T>): Promise<T> {
     if (this.closed) return Promise.reject(new Error('TypeScript session is closed.'));
-    const result = this.queue.then(() => operation(this.api, this.runtime));
+    const result = this.queue.then(async () => operation((await this.process).api, this.runtime));
     this.queue = result.then(() => {}, () => {});
     return result;
   }
@@ -65,7 +66,8 @@ export class TsCompiler {
   scanImportReferences(source: string): Promise<TsImportReference[]> {
     if (this.closed) return Promise.reject(new Error('TypeScript session is closed.'));
     const result = this.queue.then(async () => {
-      const lease = await this.api.createSourceFile(this.fileName, source);
+      const { api } = await this.process;
+      const lease = await api.createSourceFile(this.fileName, source);
       try {
         const references: TsImportReference[] = [];
         const add = (node: Node): void => {
@@ -96,17 +98,18 @@ export class TsCompiler {
     try { await this.snapshot?.dispose(); }
     finally {
       try { await this.resolver?.moduleResolver.dispose(); }
-      finally { await this.api.close(); }
+      finally { await (await this.process).close(); }
     }
   }
 
   private async compileCell(input: TsCompileInput): Promise<TsCompileResult> {
+    const { api } = await this.process;
     // A checked module reuses toolkit types without leaking them into user imports.
     // Keep .mts: skipLibCheck would suppress errors in a declaration-only file.
     const globalsFile = join(dirname(this.fileName), '__pi_ts_globals.mts');
     const globalsDeclaration = input.globalsDeclaration ?? '';
     if (this.globals?.declaration !== globalsDeclaration) {
-      const lease = await this.api.createSourceFile(globalsFile, globalsDeclaration);
+      const lease = await api.createSourceFile(globalsFile, globalsDeclaration);
       try {
         const names = [...new Set(this.syntax.inventory(lease.sourceFile).map(binding => binding.name))];
         this.globals = { declaration: globalsDeclaration,
@@ -118,7 +121,7 @@ export class TsCompiler {
     const prefix = `${globals.prefix}${input.baselineDeclarations}\n`;
     const prefixLines = prefix.split('\n').length - 1;
     const report = (value: Diagnostic): TsDiagnostic => diagnostic(value, this.fileName, prefixLines);
-    const lease = await this.api.createSourceFile(this.fileName, prefix + input.source);
+    const lease = await api.createSourceFile(this.fileName, prefix + input.source);
     let names: string[];
     let exportNames: string[];
     let hasDependencies = Boolean(input.moduleResolutions?.size);
@@ -163,7 +166,7 @@ export class TsCompiler {
       [...mappings].every(([name, path]) => previousResolver.mappings.get(name) === path)
       ? previousResolver : mappings.size ? {
         mappings,
-        moduleResolver: await this.api.createModuleResolver(this.options, {
+        moduleResolver: await api.createModuleResolver(this.options, {
           moduleResolutions: { fallback: 'resolve', entries: [...mappings].map(([moduleName, resolvedFileName]) => ({ moduleName, result: { resolvedFileName } })) },
         }),
       } : undefined;
@@ -177,7 +180,7 @@ export class TsCompiler {
         fileSystem: this.runtime.fs.createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
         fileNotifications: { changed: [this.fileName, ...(this.snapshotGlobals !== globals.source ? [globalsFile] : [])] },
         reconfigurePrograms: [{ id: this.programId, rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
-      }) : await this.api.createSnapshot({
+      }) : await api.createSnapshot({
         fileSystem: this.runtime.fs.createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
         fileNotifications: { invalidateAll: refresh },
         createPrograms: [{ rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
@@ -237,7 +240,7 @@ export class TsCompiler {
   }
 
   private async bindingDeclaration(name: string, kind: TsBinding['kind'], type: string, source: string): Promise<string> {
-    const lease = await this.api.createSourceFile(this.fileName.replace('.mts', '.d.mts'), source);
+    const lease = await (await this.process).api.createSourceFile(this.fileName.replace('.mts', '.d.mts'), source);
     try {
       const declarations = this.syntax.inventory(lease.sourceFile).filter(binding => binding.name === name).map(binding => {
         const text = binding.node.getText(lease.sourceFile).replace(/^export\s+(?:default\s+)?/, '');
@@ -249,7 +252,7 @@ export class TsCompiler {
   }
 
   private async executable(source: string, bindings: TsBinding[]): Promise<string> {
-    const lease = await this.api.createSourceFile(this.fileName.replace('.mts', '.mjs'), source);
+    const lease = await (await this.process).api.createSourceFile(this.fileName.replace('.mts', '.mjs'), source);
     try {
       const file = lease.sourceFile;
       const edits: { start: number; end: number; text: string }[] = [];
