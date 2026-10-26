@@ -12,6 +12,7 @@ import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
 import { globMatcher } from "../notebook-mode/glob.ts";
 import { JsKernel } from "./kernel.ts";
 import { loadJsRuntime, type JsRuntime } from "./runtime.ts";
+import { RuntimeInstallError } from "../code-mode/runtime-package.ts";
 import { JsStateStorage } from "./storage.ts";
 import { JsDataStorage } from "./data-storage.ts";
 import { emptyState, forkPortableState } from "../ts-mode/portable-state.ts";
@@ -39,6 +40,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private migrationNotice: string | undefined;
 	private kernel: JsKernel | undefined;
 	private runtime: JsRuntime | undefined;
+	private runtimeAbort = new AbortController();
 	private unavailable = false;
 	private startupError: string | undefined;
 	private heapBytes = 0;
@@ -59,15 +61,16 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		this.delegate = new CodeModeDelegateRuntime(() => {}, renderStore);
 	}
 	private async createKernel(heapBytes: number, snapshot?: JsSnapshot, managementClone = false, signal?: AbortSignal): Promise<JsKernel> {
+		signal = signal ? AbortSignal.any([signal, this.runtimeAbort.signal]) : this.runtimeAbort.signal;
 		const runtime = this.runtime ?? await loadJsRuntime(this.options.agentDir, signal);
-		signal?.throwIfAborted();
+		signal.throwIfAborted();
 		this.runtime = runtime;
 		return JsKernel.create(runtime, heapBytes, snapshot, managementClone);
 	}
 
 	async execute(source: string, context: ToolExecutionContext, signal?: AbortSignal, tools: CodeModeToolDefinition[] = []): Promise<RuntimeResponse> {
 		signal?.throwIfAborted();
-		await this.prepare(context); await this.controls; await this.inspection;
+		await this.prepare(context, false, signal); await this.controls; await this.inspection;
 		signal?.throwIfAborted(); this.assertReady();
 		if (this.identity !== this.contextKey(context)) throw new Error("JS Notebook session changed; start a new cell");
 		if (this.running >= MAX_CELLS || this.cells.size >= 32) throw new Error("JS Notebook has too many active or uncollected cells; wait for or terminate earlier cells");
@@ -87,7 +90,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		return this.observe(execution, directToolYieldTime(parsed.code, tools) ?? parsed.yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS, signal);
 	}
 	async wait(id: string, yieldTimeMs: number, context: ToolExecutionContext, signal?: AbortSignal): Promise<RuntimeResponse> {
-		await this.prepare(context);
+		await this.prepare(context, false, signal);
 		const execution = this.cells.get(id);
 		if (!execution) return { kind: "result", cellId: id, contentItems: [], missingCell: true };
 		execution.cell.context = { ...context, setBlocked: (key, active) => execution.cell.setBlocked(key, active) };
@@ -99,7 +102,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		return this.observe(execution, yieldTimeMs, signal);
 	}
 	async terminate(id: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<RuntimeResponse> {
-		signal?.throwIfAborted(); await this.prepare(context);
+		signal?.throwIfAborted(); await this.prepare(context, false, signal);
 		const execution = this.cells.get(id);
 		if (!execution) return { kind: "terminated", cellId: id, contentItems: [], missingCell: true };
 		await this.stop(execution); return this.response(execution, "terminated");
@@ -110,15 +113,16 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	}
 	clearOpaqueResults(): void { this.delegate.clearOpaqueResults(); }
 	async shutdown(): Promise<void> {
+		this.runtimeAbort.abort();
 		this.closing ??= (async () => { await this.preparing; await this.stopSession(); })();
-		try { await this.closing; } finally { this.closing = undefined; }
+		try { await this.closing; } finally { this.closing = undefined; this.runtimeAbort = new AbortController(); }
 	}
 	async controlNotebook(request: NotebookControlRequest, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
-		signal?.throwIfAborted(); await this.prepare(context, request.action === "status" || request.action === "diagnostics");
+		signal?.throwIfAborted(); await this.prepare(context, request.action === "status" || request.action === "diagnostics", signal);
 		if (request.action === "status" || request.action === "diagnostics") return (async () => {
 			if (!this.running && !this.managing && !this.unavailable && !this.startupError) {
 				this.inspection ??= (async () => {
-					this.kernel ??= await this.createKernel(this.liveBudget(), this.durable);
+					this.kernel ??= await this.createKernel(this.liveBudget(), this.durable, false, signal);
 					const result = await this.kernel.execute({ tools: this.latestTools, inspect: "*" }, NO_TOOLS);
 					if (result.error !== undefined) throw new Error(result.error);
 					this.recordInventory(result);
@@ -133,14 +137,18 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		if (request.action === "restart" || request.action === "reset") await Promise.all([...this.cells.values()].map(execution => this.stop(execution)));
 		return this.transaction(() => this.requireStorage().withLock(async () => {
 			signal?.throwIfAborted();
-			if (request.action !== "restart" && request.action !== "reset" && !(request.action === "load" && !await this.requireDataStorage().readProfile(request.name))) await this.refreshProject();
+			if (request.action !== "restart" && request.action !== "reset" && !(request.action === "load" && !await this.requireDataStorage().readProfile(request.name))) await this.refreshProject(signal);
 			if (request.action === "restart" || request.action === "reset") {
 				await Promise.all([...this.cells.values()].map(execution => this.stop(execution)));
 				await this.kernel?.stop(); this.kernel = undefined;
 				if (request.action === "reset") { await this.requireStorage().reset(); this.durable = undefined; }
 				else this.durable = await this.requireStorage().read();
 				this.dirty = false; this.startupError = undefined; this.observedProject = emptyState(); this.pins = []; this.hooks = []; this.projectWarning = undefined;
-				try { await this.restoreInitial(); } catch (error) { this.startupError = error instanceof Error ? error.message : String(error); throw error; }
+				try { await this.restoreInitial(signal); } catch (error) {
+					if (signal?.aborted || this.runtimeAbort.signal.aborted || error instanceof RuntimeInstallError) this.identity = undefined;
+					else this.startupError = error instanceof Error ? error.message : String(error);
+					throw error;
+				}
 				this.bindings = []; this.inventoryComplete = this.durable?.inventory?.complete ?? !this.durable;
 				this.unavailable = false;
 				return { message: request.action === "reset" ? "JS Notebook project reset; project pins and named profiles remain" : "JS Notebook will resume from its last checkpoint; later changes were discarded. Tool and file effects were not rolled back", details: { mode: "js", action: request.action } };
@@ -173,7 +181,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 					await this.requireStorage().write(recovery, name);
 					throw new Error(`The project notebook changed since this isolated candidate started; it was not loaded. To deliberately replace the current notebook with this candidate, load ${name}`);
 				}
-				const candidate = await this.createKernel(this.liveBudget(), saved);
+				const candidate = await this.createKernel(this.liveBudget(), saved, false, signal);
 				try {
 					const result = await candidate.execute({ tools: this.latestTools }, NO_TOOLS);
 					if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "The saved notebook could not be restored");
@@ -188,7 +196,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			if (request.action === "checkpoint" || request.action === "save") {
 				if (request.action === "save" && request.names) {
 					if (this.unavailable) throw new Error("JS Notebook stopped; restart before saving");
-					this.kernel ??= await this.createKernel(this.liveBudget(), this.durable);
+					this.kernel ??= await this.createKernel(this.liveBudget(), this.durable, false, signal);
 					const result = await this.kernel.execute({ tools: this.latestTools, data: { action: "export", names: request.names } }, NO_TOOLS);
 					if (result.error !== undefined || !result.data) throw new Error(result.error ?? "Selected JS data could not be saved");
 					await this.requireDataStorage().writeProfile(request.name, result.data);
@@ -202,10 +210,12 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		}, signal));
 	}
 
-	private async prepare(context: ToolExecutionContext, inspectionOnly = false): Promise<void> {
+	private async prepare(context: ToolExecutionContext, inspectionOnly = false, signal?: AbortSignal): Promise<void> {
 		if (this.closing) throw new Error("JS Notebook is shutting down");
+		signal = signal ? AbortSignal.any([signal, this.runtimeAbort.signal]) : this.runtimeAbort.signal;
 		const identity = this.contextKey(context);
 		const preparing = this.preparing.then(async () => {
+			signal?.throwIfAborted();
 			if (this.closing) throw new Error("JS Notebook is shutting down");
 			if (identity === this.identity && (!this.inspectionOnly || inspectionOnly)) return;
 			await this.stopSession();
@@ -213,30 +223,30 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			this.dataStorage = new JsDataStorage(this.options.agentDir, context.cwd, this.liveBudget() * 2);
 			this.identity = identity; this.inspectionOnly = inspectionOnly;
 			try {
-				if (inspectionOnly) { this.durable = await this.requireStorage().read(); if (this.durable) await this.restoreInitial(); return; }
+				if (inspectionOnly) { this.durable = await this.requireStorage().read(); if (this.durable) await this.restoreInitial(signal); return; }
 				await this.storage.withLock(async () => {
 					if (await this.requireStorage().migrateLegacy()) this.migrationNotice = "Resumed this conversation’s previous notebook as the shared project notebook";
 					this.durable = await this.requireStorage().read();
 					if (!this.durable && this.options.profile) {
 						const selected = await this.requireDataStorage().readProfile(this.options.profile);
 						if (selected) {
-							this.kernel = await this.createKernel(this.liveBudget());
+							this.kernel = await this.createKernel(this.liveBudget(), undefined, false, signal);
 							const result = await this.kernel.execute({ tools: [], data: { action: "import", state: forkPortableState(selected) } }, NO_TOOLS);
 							if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS data profile could not be restored");
 							this.durable = result.snapshot;
 						} else this.durable = await this.requireStorage().read(this.options.profile);
 						if (this.durable) { this.durable = { ...this.durable, pins: [] }; delete this.durable.observedProject; await this.requireStorage().write(this.durable); }
 					}
-					await this.restoreInitial();
-				});
+					await this.restoreInitial(signal);
+				}, signal);
 			} catch (error) {
-				if (error instanceof Error && error.message.startsWith("Another conversation is using")) { this.identity = undefined; throw error; }
+				if (signal?.aborted || this.runtimeAbort.signal.aborted || error instanceof RuntimeInstallError || error instanceof Error && error.message.startsWith("Another conversation is using")) { this.identity = undefined; throw error; }
 				this.startupError = error instanceof Error ? error.message : String(error);
 			}
 		});
 		this.preparing = preparing.catch(() => {}); await preparing;
 	}
-	private async refreshProject(): Promise<void> {
+	private async refreshProject(signal?: AbortSignal): Promise<void> {
 		const latest = await this.requireStorage().read(undefined, this.durable);
 		if (latest?.projectRevision === this.durable?.projectRevision) return;
 		if (this.dirty && this.kernel && !this.unavailable) {
@@ -248,11 +258,13 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		await this.kernel?.stop(); this.kernel = undefined;
 		this.durable = latest; this.bindings = []; this.hooks = []; this.pins = [];
 		this.unavailable = false; this.startupError = undefined;
-		await this.restoreInitial();
+		await this.restoreInitial(signal);
 	}
 	private async stopSession(): Promise<void> {
 		await Promise.all([...this.cells.values()].map(execution => this.stop(execution)));
-		await this.controls; await this.inspection; await this.kernel?.stop();
+		await this.controls;
+		// Inspection reports failure to its caller; teardown still owns the kernel.
+		await this.inspection?.catch(() => {}); await this.kernel?.stop();
 		this.dirty = false; this.inspectionOnly = false; this.migrationNotice = undefined; this.kernel = undefined; this.identity = undefined; this.storage = undefined; this.dataStorage = undefined; this.durable = undefined;
 		this.observedProject = emptyState(); this.pins = []; this.projectWarning = undefined;
 		this.startupError = undefined; this.unavailable = false; this.heapBytes = 0;
@@ -315,7 +327,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			return result;
 		} finally { if (!adopted) await candidate.stop(); }
 	}
-	private async restoreInitial(): Promise<void> {
+	private async restoreInitial(signal?: AbortSignal): Promise<void> {
 		const storage = this.requireDataStorage();
 		if (this.durable) {
 			if (this.durable.observedProject && this.durable.observedProject.key !== storage.projectKey) throw new Error("Saved JS Notebook project differs from this session; use a named whole-notebook profile to transfer state");
@@ -323,10 +335,11 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			return;
 		}
 		const project = await storage.readProject(); this.observedProject = project;
-		const candidate = await this.createKernel(this.liveBudget());
+		const candidate = await this.createKernel(this.liveBudget(), undefined, false, signal);
 		try {
 			const result = await candidate.execute({ tools: [], management: true, ...(project.pins.length ? { data: { action: "import" as const, state: project, pins: project.pins } } : {}) }, NO_TOOLS);
 			if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "Project pins could not be restored");
+			signal?.throwIfAborted();
 			await this.commit(result, false); this.kernel = candidate;
 		} catch (error) { await candidate.stop(); throw error; }
 	}
@@ -356,11 +369,11 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			if (execution.isolated) {
 				let baseline: JsSnapshot | undefined;
 				await this.requireStorage().withLock(async () => {
-					await this.refreshProject(); baseline = this.durable;
+					await this.refreshProject(execution.cell.controller.signal); baseline = this.durable;
 				}, execution.cell.controller.signal);
 				await this.runCell(execution, tools, baseline);
 			} else await this.requireStorage().withLock(async () => {
-				await this.refreshProject();
+				await this.refreshProject(execution.cell.controller.signal);
 				await this.runCell(execution, tools);
 			}, execution.cell.controller.signal);
 		} catch (error) {
