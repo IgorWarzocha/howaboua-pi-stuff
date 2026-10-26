@@ -132,6 +132,8 @@ function drain(): void {
 		startup = "done";
 		const input = userInput; userInput = undefined;
 		if (!input) throw new Error("Missing user cell after startup");
+		// Startup was observed as a cell: clear its completion before user work.
+		configure(input);
 		startUser(input); return;
 	}
 	if (error !== undefined) finish({ error });
@@ -147,7 +149,6 @@ function hookEvent(value: unknown): JSValueHandle {
 	try { return support.call("event", json); } finally { json.dispose(); }
 }
 function startUser(input: JsInput): void {
-	configure(input);
 	let result: JSValueHandle;
 	try {
 		result = bindings.execute(input.source ?? "");
