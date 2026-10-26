@@ -11,7 +11,7 @@
 ### Features
 
 - Added TS Notebook with strict TypeScript checking, persistent bindings, isolated concurrent cells and custom snapshot and restore helpers.
-- Added project-shared JS Notebook with full-state checkpoints that preserve closures, classes and cycles, plus reusable released bindings, profiles, pins and hooks.
+- Added project-shared JS Notebook with full-state checkpoints that preserve closures, classes and cycles, plus isolated concurrent cells, reusable released bindings, profiles, pins and hooks.
 - Added GPT-6.1 Terra with Responses Lite and live reasoning adjustments.
 - TS and JS Notebook runtimes now install on demand and reuse matching installed packages or cached downloads.
 - Realtime voice now uses `gpt-live-1.1-codex`.
