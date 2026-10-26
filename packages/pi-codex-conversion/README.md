@@ -170,7 +170,7 @@ Concurrent isolated cells start from the last checkpoint and save separate candi
 
 ### JS Notebook
 
-Select **JS Notebook** for JavaScript with full-state checkpoints, including closures, private class fields, aliases and cycles. No Git repository is required. Conversations in the same folder share a notebook. Within a Git repository, its root defines the shared notebook so subfolders use the same state.
+Select **JS Notebook** for JavaScript with full-state checkpoints, including closures, private class fields, aliases and cycles. The notebook is shared across conversations in the same project.
 
 Run Pi under Node. The notebook has no Node APIs, imports, direct network access or TypeScript checking. The agent uses tools for host operations.
 
