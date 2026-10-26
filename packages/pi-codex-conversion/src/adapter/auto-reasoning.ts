@@ -40,7 +40,7 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 			name: "change_reasoning",
 			defaultActive: false,
 			label: "Change Reasoning",
-			description: "Adaptive reasoning control. Set an initial level; raise it for difficulty or uncertainty, lower it for routine work.",
+			description: "Required: select a level before other work each turn. During the task, raise for harder or uncertain work and lower for routine work whenever the needed level changes. Effective next request.",
 			parameters: PARAMETERS,
 			...auxiliaryToolRenderers("Reasoning adjustment failed", (_args, result) => {
 				const details = displayRecord(result?.details);
