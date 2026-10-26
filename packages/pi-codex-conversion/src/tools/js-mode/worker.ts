@@ -1,5 +1,5 @@
 import { parentPort, workerData } from "node:worker_threads";
-import { JSException, QuickJS, type JSValueHandle } from "quickjs-wasi";
+import type { QuickJS as QuickJSInstance, JSValueHandle } from "quickjs-wasi";
 import { JS_PRELUDE } from "./prelude.ts";
 import { inspectJsBindings } from "./bindings.ts";
 import { JsBindings } from "./managed-bindings.ts";
@@ -8,8 +8,9 @@ import { captureJsData, releaseJsData, restoreJsData } from "./data-state.ts";
 import type { JsCommand, JsInput, JsInventory, JsMessage, JsOutcome, JsWorkerData } from "./protocol.ts";
 
 const data: JsWorkerData = workerData;
+const { JSException, QuickJS }: typeof import("quickjs-wasi") = await import(data.moduleUrl);
 const interrupt = new Int32Array(data.interrupt);
-let vm: QuickJS;
+let vm: QuickJSInstance;
 let controlToken: number;
 let inventory: JsInventory;
 let support: JsSupport;

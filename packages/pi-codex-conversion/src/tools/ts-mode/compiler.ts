@@ -1,27 +1,11 @@
 import { dirname, join } from 'node:path';
-import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { API, ModuleKind, ModuleResolutionKind, SymbolFlags, TypeFormatFlags, type CompilerOptions, type Diagnostic, type ModuleResolver, type Snapshot, type SyntheticProjectId } from 'tsrs/unstable/async';
-import { createFileSystemLayer } from 'tsrs/unstable/fs';
-import {
-  isExportDeclaration, isCallExpression, isImportDeclaration, isFunctionDeclaration,
-  isStringLiteral, isImportTypeNode, isLiteralTypeNode, isMetaProperty, isPropertyAccessExpression, SyntaxKind, ScriptTarget, type Node,
-} from 'tsrs/unstable/ast';
-import { applyEdits, freeReferences, importRecipe, inventory } from './compiler-ast.js';
+import type { API, CompilerOptions, Diagnostic, ModuleResolver, Snapshot, SyntheticProjectId } from 'tsrs/unstable/async';
+import type { Node } from 'tsrs/unstable/ast';
+import { applyEdits, compilerAst } from './compiler-ast.js';
+import type { TsRuntime } from './runtime.ts';
 import type { TsBinding, TsCompileInput, TsCompileResult, TsDiagnostic, TsImportReference } from './compiler-contract.js';
 export type { TsBinding, TsCompileInput, TsCompileResult, TsImportReference } from './compiler-contract.js';
-
-const compilerOptions: CompilerOptions = {
-  target: ScriptTarget.ESNext,
-  module: ModuleKind.ESNext,
-  moduleResolution: ModuleResolutionKind.Bundler,
-  strict: true,
-  skipLibCheck: true,
-  declaration: true,
-  preserveConstEnums: true,
-  resolveJsonModule: true,
-  types: ['node'],
-};
 
 function diagnostic(value: Diagnostic, fileName: string, prefixLines: number): TsDiagnostic {
   const lineOffset = value.fileName === fileName && value.startPosition && value.startPosition.line >= prefixLines ? prefixLines : 0;
@@ -34,6 +18,8 @@ function diagnostic(value: Diagnostic, fileName: string, prefixLines: number): T
 
 /** One persistent compiler child per session; execution workers never own it. */
 export class TsCompiler {
+  private readonly runtime: TsRuntime;
+  private readonly syntax: ReturnType<typeof compilerAst>;
   private readonly api: API;
   private readonly fileName: string;
   private readonly options: CompilerOptions;
@@ -46,10 +32,18 @@ export class TsCompiler {
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
 
-  constructor(options: { cwd: string; tsserverPath?: string }) {
-    this.api = new API({ cwd: options.cwd, ...(options.tsserverPath ? { tsserverPath: options.tsserverPath } : {}) });
+  constructor(runtime: TsRuntime, options: { cwd: string; tsserverPath?: string }) {
+    this.runtime = runtime;
+    this.syntax = compilerAst(runtime);
+    this.api = new runtime.api.API({ cwd: options.cwd, ...(options.tsserverPath ? { tsserverPath: options.tsserverPath } : {}) });
     this.fileName = join(options.cwd, '__pi_ts_cell.mts');
-    this.options = { ...compilerOptions, typeRoots: [dirname(dirname(createRequire(import.meta.url).resolve('@types/node/package.json')))] };
+    this.options = {
+      target: runtime.ast.ScriptTarget.ESNext,
+      module: runtime.api.ModuleKind.ESNext,
+      moduleResolution: runtime.api.ModuleResolutionKind.Bundler,
+      strict: true, skipLibCheck: true, declaration: true, preserveConstEnums: true,
+      resolveJsonModule: true, types: ['node'], typeRoots: runtime.typeRoots,
+    };
   }
 
   compile(input: TsCompileInput): Promise<TsCompileResult> {
@@ -57,9 +51,9 @@ export class TsCompiler {
   }
 
   /** Import graph compilation borrows this owner; it must not close the API. */
-  withApi<T>(operation: (api: API) => Promise<T>): Promise<T> {
+  withApi<T>(operation: (api: API, runtime: TsRuntime) => Promise<T>): Promise<T> {
     if (this.closed) return Promise.reject(new Error('TypeScript session is closed.'));
-    const result = this.queue.then(() => operation(this.api));
+    const result = this.queue.then(() => operation(this.api, this.runtime));
     this.queue = result.then(() => {}, () => {});
     return result;
   }
@@ -75,13 +69,13 @@ export class TsCompiler {
       try {
         const references: TsImportReference[] = [];
         const add = (node: Node): void => {
-          if (isStringLiteral(node)) references.push({ specifier: node.text, start: node.getStart(lease.sourceFile), end: node.end });
+          if (this.runtime.ast.isStringLiteral(node)) references.push({ specifier: node.text, start: node.getStart(lease.sourceFile), end: node.end });
         };
         const walk = (node: Node): void => {
-          if (isImportDeclaration(node)) add(node.moduleSpecifier);
-          if (isExportDeclaration(node) && node.moduleSpecifier) add(node.moduleSpecifier);
-          if (isImportTypeNode(node) && isLiteralTypeNode(node.argument)) add(node.argument.literal);
-          if (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword) {
+          if (this.runtime.ast.isImportDeclaration(node)) add(node.moduleSpecifier);
+          if (this.runtime.ast.isExportDeclaration(node) && node.moduleSpecifier) add(node.moduleSpecifier);
+          if (this.runtime.ast.isImportTypeNode(node) && this.runtime.ast.isLiteralTypeNode(node.argument)) add(node.argument.literal);
+          if (this.runtime.ast.isCallExpression(node) && node.expression.kind === this.runtime.ast.SyntaxKind.ImportKeyword) {
             const first = node.arguments?.[0];
             if (first) add(first);
           }
@@ -114,7 +108,7 @@ export class TsCompiler {
     if (this.globals?.declaration !== globalsDeclaration) {
       const lease = await this.api.createSourceFile(globalsFile, globalsDeclaration);
       try {
-        const names = [...new Set(inventory(lease.sourceFile).map(binding => binding.name))];
+        const names = [...new Set(this.syntax.inventory(lease.sourceFile).map(binding => binding.name))];
         this.globals = { declaration: globalsDeclaration,
           source: `${globalsDeclaration}\nexport { ${names.join(', ')} };`,
           prefix: names.length ? `import { ${names.join(', ')} } from "./__pi_ts_globals.mjs";\n` : '' };
@@ -128,15 +122,15 @@ export class TsCompiler {
     let names: string[];
     let hasDependencies = Boolean(input.moduleResolutions?.size);
     try {
-      names = [...new Set(inventory(lease.sourceFile, prefix.length).map(binding => binding.name))];
+      names = [...new Set(this.syntax.inventory(lease.sourceFile, prefix.length).map(binding => binding.name))];
       const file = lease.sourceFile;
       hasDependencies ||= Boolean(file.referencedFiles.length || file.typeReferenceDirectives.length || file.libReferenceDirectives.length);
       const walk = (node: Node): void => {
         // The virtual toolkit import is owned here, not a disk dependency.
         if (hasDependencies || (node !== file && node.getStart(file) < globals.prefix.length)) return;
-        if (isImportDeclaration(node) || isImportTypeNode(node) || node.kind === SyntaxKind.ImportEqualsDeclaration ||
-          (isExportDeclaration(node) && node.moduleSpecifier) ||
-          (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword)) hasDependencies = true;
+        if (this.runtime.ast.isImportDeclaration(node) || this.runtime.ast.isImportTypeNode(node) || node.kind === this.runtime.ast.SyntaxKind.ImportEqualsDeclaration ||
+          (this.runtime.ast.isExportDeclaration(node) && node.moduleSpecifier) ||
+          (this.runtime.ast.isCallExpression(node) && node.expression.kind === this.runtime.ast.SyntaxKind.ImportKeyword)) hasDependencies = true;
         else node.forEachChild(walk);
       };
       walk(file);
@@ -165,11 +159,11 @@ export class TsCompiler {
       // A fresh program avoids updating a graph whose caches are discarded anyway.
       const refresh = hasDependencies || this.snapshotHasDependencies;
       const next = old && this.programId && !refresh ? await old.update({
-        fileSystem: createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
+        fileSystem: this.runtime.fs.createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
         fileNotifications: { changed: [this.fileName, ...(this.snapshotGlobals !== globals.source ? [globalsFile] : [])] },
         reconfigurePrograms: [{ id: this.programId, rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       }) : await this.api.createSnapshot({
-        fileSystem: createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
+        fileSystem: this.runtime.fs.createFileSystemLayer([[this.fileName, source], [globalsFile, globals.source]]),
         fileNotifications: { invalidateAll: refresh },
         createPrograms: [{ rootFiles: [this.fileName], compilerOptions: this.options, options: { moduleResolver } }],
       });
@@ -190,7 +184,7 @@ export class TsCompiler {
       if (errors.length) return { ok: false, diagnostics: errors.map(report) };
       const file = await program.getSourceFile(this.fileName);
       if (!file) throw new Error('TypeScript could not read the cell.');
-      const nodes = [...new Map(inventory(file, prefix.length).map(binding => [binding.name, binding])).values()];
+      const nodes = [...new Map(this.syntax.inventory(file, prefix.length).map(binding => [binding.name, binding])).values()];
       const emitted = await program.getJavaScriptEmit([this.fileName]);
       const declarations = await program.getDeclarationEmit([this.fileName]);
       const emissionErrors = [...emitted.diagnostics, ...declarations.diagnostics].filter(value => value.category === 1);
@@ -201,11 +195,11 @@ export class TsCompiler {
       const checker = program.getProject().checker;
       const bindings: TsBinding[] = [];
       for (const binding of nodes) {
-        const symbol = await checker.resolveName(binding.name, SymbolFlags.Value | SymbolFlags.Alias, binding.node);
-        const type = binding.kind === 'type' ? binding.name : await checker.typeToString(symbol ? await checker.getTypeOfSymbol(symbol) : await checker.getTypeAtLocation(binding.node), undefined, TypeFormatFlags.NoTruncation);
+        const symbol = await checker.resolveName(binding.name, this.runtime.api.SymbolFlags.Value | this.runtime.api.SymbolFlags.Alias, binding.node);
+        const type = binding.kind === 'type' ? binding.name : await checker.typeToString(symbol ? await checker.getTypeOfSymbol(symbol) : await checker.getTypeAtLocation(binding.node), undefined, this.runtime.api.TypeFormatFlags.NoTruncation);
         let declaration = await this.bindingDeclaration(binding.name, binding.kind, type, declarationText);
-        if (isImportDeclaration(binding.node)) {
-          const recipe = importRecipe(binding.node);
+        if (this.runtime.ast.isImportDeclaration(binding.node)) {
+          const recipe = this.syntax.importRecipe(binding.node);
           const imported = recipe?.bindings.find(value => value.local === binding.name);
           if (recipe && imported) {
             const clause = imported.imported === '*' ? `* as ${binding.name}` : imported.imported === 'default' ? binding.name : `{ ${imported.imported} as ${binding.name} }`;
@@ -214,12 +208,12 @@ export class TsCompiler {
           }
         }
         bindings.push({ name: binding.name, kind: binding.kind, type, declaration,
-          freeReferences: await freeReferences(binding.functionNode ?? binding.node, checker, !binding.functionNode && binding.kind !== 'type'),
+          freeReferences: await this.syntax.freeReferences(binding.functionNode ?? binding.node, checker, !binding.functionNode && binding.kind !== 'type'),
         });
       }
       const transformed = await this.executable(javascript, bindings);
       return { ok: true, javascript: transformed, declarations: bindings.map(binding => binding.declaration).join('\n'), bindings,
-        imports: file.statements.filter(node => node.getStart(file) >= prefix.length).flatMap(node => { const recipe = importRecipe(node); return recipe ? [recipe] : []; }),
+        imports: file.statements.filter(node => node.getStart(file) >= prefix.length).flatMap(node => { const recipe = this.syntax.importRecipe(node); return recipe ? [recipe] : []; }),
       };
     } finally {
       // Failed snapshot creation still owns its unadopted resolver generation.
@@ -230,7 +224,7 @@ export class TsCompiler {
   private async bindingDeclaration(name: string, kind: TsBinding['kind'], type: string, source: string): Promise<string> {
     const lease = await this.api.createSourceFile(this.fileName.replace('.mts', '.d.mts'), source);
     try {
-      const declarations = inventory(lease.sourceFile).filter(binding => binding.name === name).map(binding => {
+      const declarations = this.syntax.inventory(lease.sourceFile).filter(binding => binding.name === name).map(binding => {
         const text = binding.node.getText(lease.sourceFile).replace(/^export\s+/, '');
         return binding.kind === 'const' || binding.kind === 'let' ? `declare ${binding.kind} ${text};` : text;
       });
@@ -245,9 +239,9 @@ export class TsCompiler {
       const edits: { start: number; end: number; text: string }[] = [];
       const imports: string[] = [];
       for (const node of file.statements) {
-        if (isExportDeclaration(node)) edits.push({ start: node.getStart(file), end: node.end, text: '' });
-        else if (isImportDeclaration(node)) {
-          const recipe = importRecipe(node);
+        if (this.runtime.ast.isExportDeclaration(node)) edits.push({ start: node.getStart(file), end: node.end, text: '' });
+        else if (this.runtime.ast.isImportDeclaration(node)) {
+          const recipe = this.syntax.importRecipe(node);
           if (!recipe) throw new Error('Unsupported TypeScript import.');
           const target = JSON.stringify(recipe.specifier);
           const importExpression = `await __tsImport(${target}${recipe.attributes ? `, ${JSON.stringify({ with: recipe.attributes })}` : ''})`;
@@ -258,32 +252,32 @@ export class TsCompiler {
           edits.push({ start: node.getStart(file), end: node.end, text: '' });
         } else {
           for (const child of node.getChildren(file)) {
-            if (child.kind === SyntaxKind.ExportKeyword || child.kind === SyntaxKind.DefaultKeyword) edits.push({ start: child.getStart(file), end: child.end, text: '' });
+            if (child.kind === this.runtime.ast.SyntaxKind.ExportKeyword || child.kind === this.runtime.ast.SyntaxKind.DefaultKeyword) edits.push({ start: child.getStart(file), end: child.end, text: '' });
           }
         }
       }
       const walk = (node: Node): void => {
-        if (isPropertyAccessExpression(node) && isMetaProperty(node.expression) && node.expression.keywordToken === SyntaxKind.ImportKeyword && node.name.text === 'url') {
+        if (this.runtime.ast.isPropertyAccessExpression(node) && this.runtime.ast.isMetaProperty(node.expression) && node.expression.keywordToken === this.runtime.ast.SyntaxKind.ImportKeyword && node.name.text === 'url') {
           edits.push({ start: node.getStart(file), end: node.end, text: JSON.stringify(pathToFileURL(this.fileName).href) });
         }
-        if (isCallExpression(node) && node.expression.kind === SyntaxKind.ImportKeyword) edits.push({ start: node.expression.getStart(file), end: node.expression.end, text: '__tsImport' });
+        if (this.runtime.ast.isCallExpression(node) && node.expression.kind === this.runtime.ast.SyntaxKind.ImportKeyword) edits.push({ start: node.expression.getStart(file), end: node.expression.end, text: '__tsImport' });
         node.forEachChild(walk);
       };
       walk(file);
       const registrations: string[] = [];
       // Register only direct top-level functions, never closures returned by calls.
       // Registration preserves the original live function and its lexical environment.
-      for (const node of inventory(file)) {
+      for (const node of this.syntax.inventory(file)) {
         const binding = bindings.find(value => value.name === node.name);
         if (!binding || !node.functionNode) continue;
         const functionNode = node.functionNode;
         const functionStart = functionNode.getStart(file);
         const functionEdits = edits.filter(edit => edit.start >= functionStart && edit.end <= functionNode.getEnd()).map(edit => ({ ...edit, start: edit.start - functionStart, end: edit.end - functionStart }));
         // Declarations recurse through their mutable outer binding, unlike named expressions.
-        if (isFunctionDeclaration(functionNode) && functionNode.name) functionEdits.push({ start: functionNode.name.getStart(file) - functionStart, end: functionNode.name.end - functionStart, text: '' });
+        if (this.runtime.ast.isFunctionDeclaration(functionNode) && functionNode.name) functionEdits.push({ start: functionNode.name.getStart(file) - functionStart, end: functionNode.name.end - functionStart, text: '' });
         const text = applyEdits(functionNode.getText(file), functionEdits).replace(/^export\s+/, '');
         binding.source = `(${text})`;
-        if (isFunctionDeclaration(functionNode)) registrations.push(`__tsRegisterRecipe(${JSON.stringify(binding.name)}, ${binding.name});`);
+        if (this.runtime.ast.isFunctionDeclaration(functionNode)) registrations.push(`__tsRegisterRecipe(${JSON.stringify(binding.name)}, ${binding.name});`);
         else {
           edits.push({ start: functionStart, end: functionStart, text: `__tsRegisterRecipe(${JSON.stringify(binding.name)}, (` });
           edits.push({ start: functionNode.end, end: functionNode.end, text: '))' });

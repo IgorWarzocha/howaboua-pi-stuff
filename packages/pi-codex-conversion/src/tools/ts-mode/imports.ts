@@ -2,14 +2,16 @@ import { isBuiltin } from "node:module";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ModuleKind, ModuleResolutionKind, type API } from "tsrs/unstable/async";
+import type { API } from "tsrs/unstable/async";
+import type { TsRuntime } from "./runtime.ts";
 import type { TsCompiler } from "./compiler.ts";
 import { withTsImportApi } from "./imports-api.ts";
-import { cacheExactNpmImport, runImportCommand } from "./imports-cache.ts";
+import { cacheExactNpmImport, runImportCommand } from "../code-mode/npm-cache.ts";
 import { compileTsImportSource } from "./imports-source.ts";
 
 export interface TsImportOptions {
 	cwd: string;
+	agentDir: string;
 	cacheDir: string;
 	/** Caller-owned disposable directory, separate from the persistent npm cache. */
 	sourceDir?: string;
@@ -62,15 +64,16 @@ async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal, 
 	return url;
 }
 
-async function resolveRawImport(specifier: string, options: TsImportOptions, api?: API): Promise<string> {
+async function resolveRawImport(specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }): Promise<string> {
 	const location = await importLocation(specifier, options);
 	return runtimeLocation(location.bare, location.cwd, options.signal, async () => {
-		const resolveSource = async (owner: API): Promise<string | undefined> => {
+		const resolveSource = async (owner: API, runtime: TsRuntime): Promise<string | undefined> => {
+			const { ModuleKind, ModuleResolutionKind } = runtime.api;
 			const resolver = await owner.createModuleResolver({ module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext });
 			try { return (await resolver.resolveModuleName(location.bare, location.cwd, ModuleKind.ESNext)).resolvedModule?.resolvedFileName; }
 			finally { await resolver.dispose(); }
 		};
-		return api ? resolveSource(api) : withTsImportApi(options, resolveSource);
+		return compiler ? resolveSource(compiler.api, compiler.runtime) : withTsImportApi(options, resolveSource);
 	});
 }
 
@@ -85,7 +88,8 @@ export async function resolveTsImports(specifiers: readonly string[], options: T
 	const runtimeSpecifiers = new Map<string, string>();
 	const graphOptions = { ...options, sourceModules: options.sourceModules ?? new Map<string, string>() };
 	if (specifiers.length === 0) return { moduleResolutions, runtimeSpecifiers };
-	await withTsImportApi(options, async (api) => {
+	await withTsImportApi(options, async (api, runtime) => {
+		const { ModuleKind, ModuleResolutionKind } = runtime.api;
 		const resolver = await api.createModuleResolver({ module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext, allowJs: true });
 		try {
 			for (const specifier of new Set(specifiers)) {

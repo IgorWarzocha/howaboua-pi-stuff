@@ -13,6 +13,7 @@ import type { CodeModeToolDefinition, NotebookControlRequest, NotebookControlRes
 import { NotebookCell } from "../notebook-mode/cell.ts";
 import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
 import { TsCompiler } from "./compiler.ts";
+import { loadTsRuntime, type TsRuntime } from "./runtime.ts";
 import { TsExecutionWorker } from "./execution-worker.ts";
 import { resolveTsImports, resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
 import { selectProjectPins, TsStateLifecycle } from "./lifecycle.ts";
@@ -50,6 +51,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private observedProject = emptyState();
 	private storage: TsStateStorage | undefined;
 	private compiler: TsCompiler | undefined;
+	private runtime: TsRuntime | undefined;
 	private identity: string | undefined;
 	private preparing: Promise<void> = Promise.resolve();
 	private committing: Promise<void> = Promise.resolve();
@@ -67,7 +69,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128) throw new Error("TS requires a session heap budget of at least 128 MiB; increase the Notebook heap setting before selecting TS. Half is reserved for live execution and half for up to four isolated cells");
 		this.options = options;
 		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
-		this.importOptions = { cwd: process.cwd(), cacheDir: join(options.agentDir, "ts-imports"), sourceModules: this.liveSourceModules };
+		this.importOptions = { cwd: process.cwd(), agentDir: options.agentDir, cacheDir: join(options.agentDir, "ts-imports"), sourceModules: this.liveSourceModules };
 		this.lifecycle = new TsStateLifecycle({
 			state: () => this.state,
 			capture: bindings => this.capture(bindings),
@@ -218,7 +220,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		const { cell, start } = execution;
 		const generation = this.generation;
 		try {
-			const compiler = this.requireCompiler();
+			const compiler = await this.requireCompiler(cell.controller.signal);
 			execution.imports.compiler = compiler;
 			const baselineDeclarations = Object.values(start.bindings).map(binding => binding.declaration).join("\n");
 			const imports = await resolveTsImports(await this.scanImports(compiler, `${baselineDeclarations}\n${cell.source}`), execution.imports);
@@ -331,7 +333,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			output: () => {}, notify: () => {}, yield: () => {},
 			request: async (operation, _id, name) => {
 				if (operation === "tool") throw new Error("Tools cannot run during TS state capture; run a normal cell instead");
-				return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: this.requireCompiler() });
+				return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: await this.requireCompiler() });
 			},
 		});
 		if (result.kind !== "live-done") throw new Error("The TS live kernel did not return a capture");
@@ -377,7 +379,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 					output: () => {}, notify: () => {}, yield: () => {},
 					request: async (operation, _id, name) => {
 						if (operation === "tool") throw new Error("Tools cannot run while loading TS state");
-						return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: this.requireCompiler() });
+						return resolveTsRuntimeImport(name, { ...this.importOptions, compiler: await this.requireCompiler() });
 					},
 				});
 				if (result.kind === "live-done" && result.restoreFailed) this.restoreFailed = result.restoreFailed;
@@ -397,12 +399,15 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 		if (!this.storage) throw new Error("TS state storage is unavailable; start a new cell");
 		return this.storage;
 	}
-	private requireCompiler(): TsCompiler {
-		try { this.compiler ??= new TsCompiler({ cwd: this.importOptions.cwd }); }
-		catch { throw new Error("The TS compiler could not start. Reinstall the extension with optional dependencies included, then retry; Code and Deno Notebook remain available."); }
+	private async requireCompiler(signal?: AbortSignal): Promise<TsCompiler> {
+		const runtime = this.runtime ?? await loadTsRuntime(this.options.agentDir, signal);
+		signal?.throwIfAborted();
+		this.runtime = runtime;
+		try { this.compiler ??= new TsCompiler(runtime, { cwd: this.importOptions.cwd }); }
+		catch (cause) { throw this.compilerFailure(cause); }
 		return this.compiler;
 	}
-	private compilerFailure(cause: unknown): Error { return new Error("The TS compiler is unavailable. Try notebook restart; if it still cannot start, reinstall the extension with optional dependencies included. Code and Deno Notebook remain available.", { cause }); }
+	private compilerFailure(cause: unknown): Error { return new Error("The TS compiler is unavailable. Try notebook restart; check that this platform supports TS and npm includes optional dependencies. Code and Deno Notebook remain available.", { cause }); }
 	private async scanImports(compiler: TsCompiler, source: string): Promise<string[]> {
 		try { return await compiler.scanImports(source); }
 		catch (error) { throw this.compilerFailure(error); }
@@ -413,7 +418,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 			if (!binding?.source && !binding?.module) throw new Error(`TS checkpoint helper ${helper} must be a named portable top-level function or import`);
 			if (helper === name) throw new Error("TS checkpoint helpers must differ from the registered binding");
 		}
-		const compiler = this.requireCompiler();
+		const compiler = await this.requireCompiler();
 		const baselineDeclarations = Object.values(this.state.bindings).map(binding => binding.declaration).join("\n");
 		const imports = await resolveTsImports(await this.scanImports(compiler, baselineDeclarations), { ...this.importOptions, compiler });
 		const result = await compiler.compile({ source: `const __checkpointData = await ${checkpoint.snapshot}(${name}); const __checkpointValue: typeof ${name} = await ${checkpoint.restore}(__checkpointData);`, baselineDeclarations, globalsDeclaration: TS_GLOBAL_DECLARATIONS + "\ndeclare const tools: Record<string, unknown>;", ...imports });
@@ -422,7 +427,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private async validateDeclarations(state: PortableState): Promise<void> {
 		const baselineDeclarations = Object.values(state.bindings).map(binding => binding.declaration).join("\n");
 		if (!baselineDeclarations) return;
-		const compiler = this.requireCompiler();
+		const compiler = await this.requireCompiler();
 		const imports = await resolveTsImports(await this.scanImports(compiler, baselineDeclarations), { ...this.importOptions, compiler });
 		const result = await compiler.compile({ source: "", baselineDeclarations, globalsDeclaration: TS_GLOBAL_DECLARATIONS + "\ndeclare const tools: Record<string, unknown>;", ...imports });
 		if (!result.ok) throw new Error(`TS declarations would become invalid; retain their type dependencies or release dependent bindings together: ${result.diagnostics.map(diagnostic => `TS${diagnostic.code} ${diagnostic.message}`).join("; ")}`);

@@ -200,6 +200,8 @@ These are request intervals, not guaranteed cache lifetimes. Reports suggest aro
 
 Select **Code**, **Notebook**, **TS** or **JS Notebook** under `/codex` → **General**. This applies wherever the adapter is active, including **all providers** scope. Providers retain their normal transport. Compatible Codex models use Responses Lite automatically. Configured OpenAI Responses proxies can opt in through **Proxy Responses Lite**.
 
+Code and Deno download their pinned runtimes on first use. TS and JS Notebook reuse matching installed runtime packages or install them on demand with npm, without running package install scripts. Missing packages require npm and registry access; cached runtimes work offline. Pi may already include the JS engine. Unselected modes do not download their runtimes.
+
 The model composes tools in a JavaScript cell:
 
 ```js

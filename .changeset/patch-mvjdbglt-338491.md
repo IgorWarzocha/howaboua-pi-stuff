@@ -13,6 +13,9 @@
 - Removed redundant instructions from Notebook help.
 - Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and snapshot/restore helpers for retained objects. Code and Deno Notebook remain available.
 - Added project-scoped JS Notebook with persistent JavaScript, full VM checkpoints, isolated candidates, selective data profiles, project pins, reusable released bindings and closure-preserving hooks.
+- TS and JS Notebook runtime packages install on demand rather than with the extension, reusing matching installed packages and cached downloads.
+- Added GPT-6.1 Terra with Responses Lite, dynamic reasoning updates and Codex-specific model limits.
+- Auto-reasoning guidance now requires a starting level each turn and mid-task adjustments as difficulty changes.
 - Realtime voice now uses gpt-live-1.1-codex.
 - Notebook runtime failures retain recovery actions without exposing internal protocol diagnostics.
 - Conversation history preparation now allocates fewer temporary objects.

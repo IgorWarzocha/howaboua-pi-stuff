@@ -93,6 +93,9 @@ function verifyLoaderImports(packageRoot) {
 	for (const path of files) {
 		const source = sources.get(path) ?? "";
 		for (const specifier of peerSpecifiers(source)) {
+			// A pinned on-demand package name is not an import through Pi's loader.
+			// Actual bare codemode imports still require a direct runtime dependency.
+			if (specifier === "@earendil-works/pi-codemode" && !staticSpecifiers(source).includes(specifier) && !dynamicSpecifiers(source).includes(specifier)) continue;
 			if (specifier && !allowedLoaderModules.has(specifier) && !runtimeModules.has(specifier)) failures.push({ path, specifier });
 		}
 		for (const specifier of dynamicSpecifiers(source)) {

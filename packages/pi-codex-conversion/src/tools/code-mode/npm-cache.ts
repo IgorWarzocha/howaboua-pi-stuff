@@ -14,7 +14,7 @@ export function parseExactNpmImport(specifier: string): { name: string; version:
 }
 
 /** Approval belongs to the existing user/agent import contract, not an invented install-time prompt. */
-export async function cacheExactNpmImport(specifier: string, cacheDir: string, signal?: AbortSignal): Promise<{ cwd: string; bare: string }> {
+export async function cacheExactNpmImport(specifier: string, cacheDir: string, signal?: AbortSignal, includeOptional = false): Promise<{ cwd: string; bare: string }> {
 	signal?.throwIfAborted();
 	const { name, version, subpath } = parseExactNpmImport(specifier);
 	const identity = `${name}@${version}`;
@@ -36,7 +36,7 @@ export async function cacheExactNpmImport(specifier: string, cacheDir: string, s
 		if (!installed) {
 			await writeFile(join(cwd, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: { [name]: version } }), { mode: 0o600 });
 			try {
-				await runImportCommand("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--save-exact"], { cwd, timeout: 120_000, maxBuffer: 1024 * 1024, signal });
+				await runImportCommand("npm", ["install", "--ignore-scripts", ...(includeOptional ? ["--include=optional"] : []), "--no-audit", "--no-fund", "--save-exact"], { cwd, timeout: 120_000, maxBuffer: 1024 * 1024, signal });
 			} catch (error) {
 				signal?.throwIfAborted();
 				throw new Error(`Could not install ${identity} without lifecycle scripts. Check registry access; packages needing install scripts are unavailable.`, { cause: error });

@@ -11,6 +11,7 @@ import { NotebookCell } from "../notebook-mode/cell.ts";
 import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
 import { globMatcher } from "../notebook-mode/glob.ts";
 import { JsKernel } from "./kernel.ts";
+import { loadJsRuntime, type JsRuntime } from "./runtime.ts";
 import { JsStateStorage } from "./storage.ts";
 import { JsDataStorage } from "./data-storage.ts";
 import { emptyState, forkPortableState } from "../ts-mode/portable-state.ts";
@@ -37,6 +38,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private managing = 0;
 	private migrationNotice: string | undefined;
 	private kernel: JsKernel | undefined;
+	private runtime: JsRuntime | undefined;
 	private unavailable = false;
 	private startupError: string | undefined;
 	private heapBytes = 0;
@@ -55,6 +57,12 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128) throw new Error("JS Notebook requires a Notebook heap budget of at least 128 MiB");
 		this.options = options;
 		this.delegate = new CodeModeDelegateRuntime(() => {}, renderStore);
+	}
+	private async createKernel(heapBytes: number, snapshot?: JsSnapshot, managementClone = false, signal?: AbortSignal): Promise<JsKernel> {
+		const runtime = this.runtime ?? await loadJsRuntime(this.options.agentDir, signal);
+		signal?.throwIfAborted();
+		this.runtime = runtime;
+		return JsKernel.create(runtime, heapBytes, snapshot, managementClone);
 	}
 
 	async execute(source: string, context: ToolExecutionContext, signal?: AbortSignal, tools: CodeModeToolDefinition[] = []): Promise<RuntimeResponse> {
@@ -110,7 +118,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 		if (request.action === "status" || request.action === "diagnostics") return (async () => {
 			if (!this.running && !this.managing && !this.unavailable && !this.startupError) {
 				this.inspection ??= (async () => {
-					this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
+					this.kernel ??= await this.createKernel(this.liveBudget(), this.durable);
 					const result = await this.kernel.execute({ tools: this.latestTools, inspect: "*" }, NO_TOOLS);
 					if (result.error !== undefined) throw new Error(result.error);
 					this.recordInventory(result);
@@ -165,7 +173,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 					await this.requireStorage().write(recovery, name);
 					throw new Error(`The project notebook changed since this isolated candidate started; it was not loaded. To deliberately replace the current notebook with this candidate, load ${name}`);
 				}
-				const candidate = await JsKernel.create(this.liveBudget(), saved);
+				const candidate = await this.createKernel(this.liveBudget(), saved);
 				try {
 					const result = await candidate.execute({ tools: this.latestTools }, NO_TOOLS);
 					if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "The saved notebook could not be restored");
@@ -180,7 +188,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			if (request.action === "checkpoint" || request.action === "save") {
 				if (request.action === "save" && request.names) {
 					if (this.unavailable) throw new Error("JS Notebook stopped; restart before saving");
-					this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
+					this.kernel ??= await this.createKernel(this.liveBudget(), this.durable);
 					const result = await this.kernel.execute({ tools: this.latestTools, data: { action: "export", names: request.names } }, NO_TOOLS);
 					if (result.error !== undefined || !result.data) throw new Error(result.error ?? "Selected JS data could not be saved");
 					await this.requireDataStorage().writeProfile(request.name, result.data);
@@ -212,7 +220,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 					if (!this.durable && this.options.profile) {
 						const selected = await this.requireDataStorage().readProfile(this.options.profile);
 						if (selected) {
-							this.kernel = await JsKernel.create(this.liveBudget());
+							this.kernel = await this.createKernel(this.liveBudget());
 							const result = await this.kernel.execute({ tools: [], data: { action: "import", state: forkPortableState(selected) } }, NO_TOOLS);
 							if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS data profile could not be restored");
 							this.durable = result.snapshot;
@@ -290,14 +298,14 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	}
 	private async liveSnapshot(management = true): Promise<JsOutcome & { snapshot: JsSnapshot }> {
 		if (this.unavailable) throw new Error("JS Notebook stopped; restart before changing saved state");
-		this.kernel ??= await JsKernel.create(this.liveBudget(), this.durable);
+		this.kernel ??= await this.createKernel(this.liveBudget(), this.durable);
 		const result = await this.kernel.execute({ tools: this.latestTools, management }, NO_TOOLS);
 		if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "JS Notebook checkpoint failed");
 		return { ...result, snapshot: result.snapshot };
 	}
 	private async mutate(input: Pick<JsInput, "data" | "hook">, snapshot?: JsSnapshot): Promise<JsOutcome> {
 		const before = snapshot ?? (await this.liveSnapshot()).snapshot;
-		const candidate = await JsKernel.create(this.liveBudget(), before, true);
+		const candidate = await this.createKernel(this.liveBudget(), before, true);
 		let adopted = false;
 		try {
 			const result = await candidate.execute({ tools: this.latestTools, ...input }, NO_TOOLS);
@@ -315,7 +323,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			return;
 		}
 		const project = await storage.readProject(); this.observedProject = project;
-		const candidate = await JsKernel.create(this.liveBudget());
+		const candidate = await this.createKernel(this.liveBudget());
 		try {
 			const result = await candidate.execute({ tools: [], management: true, ...(project.pins.length ? { data: { action: "import" as const, state: project, pins: project.pins } } : {}) }, NO_TOOLS);
 			if (result.error !== undefined || !result.snapshot) throw new Error(result.error ?? "Project pins could not be restored");
@@ -367,7 +375,7 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 			cell.controller.signal.throwIfAborted();
 			if (!isolated && this.unavailable) throw new Error("The live notebook stopped; use notebook restart");
 			if (!isolated && this.migrationNotice) { cell.emit([{ type: "input_text", text: this.migrationNotice }]); this.migrationNotice = undefined; }
-			execution.kernel = isolated ? await JsKernel.create(Math.floor(this.liveBudget() / MAX_CELLS), baseline) : this.kernel ?? await JsKernel.create(this.liveBudget(), this.durable);
+			execution.kernel = isolated ? await this.createKernel(Math.floor(this.liveBudget() / MAX_CELLS), baseline, false, cell.controller.signal) : this.kernel ?? await this.createKernel(this.liveBudget(), this.durable, false, cell.controller.signal);
 			if (cell.controller.signal.aborted) { await execution.kernel.stop(); cell.controller.signal.throwIfAborted(); }
 			if (!isolated) this.kernel = execution.kernel;
 			const result = await execution.kernel.execute({ source: cell.source, tools }, {

@@ -22,4 +22,4 @@ export type JsMessage = { run: number } & (
 	| { kind: "call"; id: number; name: string; json: string }
 	| { kind: "done"; outcome: JsOutcome }
 );
-export interface JsWorkerData { wasm: CodemodeWasmModule; interrupt: SharedArrayBuffer; heapBytes: number; snapshot?: JsSnapshot }
+export interface JsWorkerData { wasm: CodemodeWasmModule; moduleUrl: string; interrupt: SharedArrayBuffer; heapBytes: number; snapshot?: JsSnapshot }

@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import { loadQuickJSWasm } from "@earendil-works/pi-codemode";
+import type { JsRuntime } from "./runtime.ts";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 import type { JsCommand, JsInput, JsMessage, JsOutcome, JsSnapshot, JsWorkerData } from "./protocol.ts";
 
@@ -10,7 +10,7 @@ interface Callbacks {
 	request(id: number, name: string, value: unknown): Promise<unknown>;
 }
 
-/** Pi's compiled WASM module is shared; each kernel owns a separate VM and thread. */
+/** A compiled WASM module is shared; each kernel owns a separate VM and thread. */
 export class JsKernel {
 	private readonly worker: Worker;
 	private readonly interrupt: Int32Array;
@@ -19,10 +19,10 @@ export class JsKernel {
 	private failure: Error | undefined;
 	private stopping: Promise<void> | undefined;
 
-	static async create(heapBytes: number, snapshot?: JsSnapshot, managementClone = false): Promise<JsKernel> {
+	static async create(runtime: JsRuntime, heapBytes: number, snapshot?: JsSnapshot, managementClone = false): Promise<JsKernel> {
 		const restored = snapshot ? { ...snapshot } : undefined;
 		if (restored && !managementClone) delete restored.startup;
-		return new JsKernel({ wasm: await loadQuickJSWasm(), interrupt: new SharedArrayBuffer(4), heapBytes, ...(restored ? { snapshot: restored } : {}) });
+		return new JsKernel({ ...runtime, interrupt: new SharedArrayBuffer(4), heapBytes, ...(restored ? { snapshot: restored } : {}) });
 	}
 	private constructor(data: JsWorkerData) {
 		this.interrupt = new Int32Array(data.interrupt);

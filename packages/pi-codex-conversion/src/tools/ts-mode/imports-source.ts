@@ -2,24 +2,27 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ModuleKind, ModuleResolutionKind, type API } from "tsrs/unstable/async";
-import { isCallExpression, isExportDeclaration, isImportDeclaration, isMetaProperty, isPropertyAccessExpression, isStringLiteral, ScriptTarget, SyntaxKind, type Node } from "tsrs/unstable/ast";
+import type { API } from "tsrs/unstable/async";
+import type { Node } from "tsrs/unstable/ast";
+import type { TsRuntime } from "./runtime.ts";
 import type { TsImportOptions } from "./imports.ts";
 import { withTsImportApi } from "./imports-api.ts";
-import { cacheExactNpmImport } from "./imports-cache.ts";
+import { cacheExactNpmImport } from "../code-mode/npm-cache.ts";
 
 /** Compile trusted local TS, including enums; never rely on Node's type stripping. */
 export async function compileTsImportSource(
 	url: string,
 	options: TsImportOptions,
-	resolveImport: (specifier: string, options: TsImportOptions, api?: API) => Promise<string>,
+	resolveImport: (specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }) => Promise<string>,
 	onNpmTypes?: (specifier: string, path: string) => void,
 ): Promise<string> {
 	const directory = join(options.sourceDir ?? join(options.cacheDir, "source"), randomUUID());
 	await mkdir(directory, { recursive: true, mode: 0o700 });
 	const outputs = options.sourceModules ?? new Map<string, string>();
 	const added: string[] = [];
-	return withTsImportApi(options, async (api) => {
+	return withTsImportApi(options, async (api, runtime) => {
+		const { ModuleKind, ModuleResolutionKind } = runtime.api;
+		const { isCallExpression, isExportDeclaration, isImportDeclaration, isMetaProperty, isPropertyAccessExpression, isStringLiteral, ScriptTarget, SyntaxKind } = runtime.ast;
 		const visit = async (sourceUrl: string): Promise<string> => {
 			options.signal?.throwIfAborted();
 			const existing = outputs.get(sourceUrl);
@@ -64,7 +67,7 @@ export async function compileTsImportSource(
 				}
 				if (reference.typeOnly) continue;
 				// Reuse the leased API: borrowing the compiler queue again would deadlock.
-				const resolved = await resolveImport(reference.specifier, { ...options, cwd: dirname(path) }, api);
+				const resolved = await resolveImport(reference.specifier, { ...options, cwd: dirname(path) }, { api, runtime });
 				const compiled = resolved.startsWith("file:") && /(?<!\.d)\.(?:ts|mts|cts)$/.test(fileURLToPath(resolved)) ? await visit(resolved) : resolved;
 				edits.push({ ...reference, text: JSON.stringify(commonjs && !reference.dynamic && compiled.startsWith("file:") ? fileURLToPath(compiled) : compiled) });
 			}
