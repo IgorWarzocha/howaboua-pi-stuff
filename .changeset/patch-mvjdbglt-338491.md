@@ -8,6 +8,7 @@
 - Added read-only context projection for isolated consumers through the compaction API.
 - Removed Cached WebSocket upgrade. PCC now honours Pi's transport setting. Select auto or websocket-cached to retain cached continuation when previously using plain websocket.
 - WebSocket prewarming uses the final prepared request, including after compaction; cache keepalive remains opt-in.
+- Fixed temporary SSE fallback surviving a context-window rollover. New windows retry the configured WebSocket transport.
 - Native checkpoint replay preserves context edits made by other extensions.
 - Removed redundant instructions from Notebook help.
 - Added optional TS mode with type-checked TypeScript, a persistent live kernel, isolated concurrent cells and snapshot/restore helpers for retained objects. Code and Deno Notebook remain available.

@@ -67,7 +67,7 @@ export interface CodexExtensionRuntime {
 	armCacheKeepalive(ctx: CodexContext): void;
 	cancelCacheKeepalive(): void;
 	resetTransport(sessionId?: string): void;
-	resetTransportAfterCompaction(sessionId: string): void;
+	resetTransportForContextWindow(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	configureDiagnostics(ctx: CodexContext, announceLog?: boolean): Promise<void>;
 	diagnosticsSink(sessionId: string | undefined): CodexDiagnosticsSink | undefined;
@@ -451,7 +451,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				closeOpenAICodexKeepaliveWebSocketSession(sessionId);
 			} else closeOpenAICodexWebSocketSessions();
 		},
-		resetTransportAfterCompaction(sessionId) {
+		resetTransportForContextWindow(sessionId) {
 			const continuingContext = requestContext;
 			runtime.resetTransport(sessionId);
 			if (continuingContext?.sessionManager.getSessionId() === sessionId)

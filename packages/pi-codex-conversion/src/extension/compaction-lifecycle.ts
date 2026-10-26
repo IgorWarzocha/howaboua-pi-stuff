@@ -19,6 +19,9 @@ export function createCodexCompactionLifecycle(
 	const stopWindowPreparation = registerContextWindowPreparation(pi, async ctx => {
 		runtime.voice.announceContextTransition("rollover");
 		await runtime.voice.refreshRealtimeContext(ctx, state.config);
+		// Notes-only rollover does not emit session_compact. Retire the outgoing
+		// transport lane here too, including its temporary SSE fallback.
+		runtime.resetTransportForContextWindow(ctx.sessionManager.getSessionId());
 	});
 	pi.on("session_shutdown", stopWindowPreparation);
 
@@ -88,7 +91,7 @@ export function createCodexCompactionLifecycle(
 						});
 					}
 				}
-				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+				runtime.resetTransportForContextWindow(ctx.sessionManager.getSessionId());
 				await refreshNotebookStatus(ctx);
 				// Pi has not run the next context chain yet. Warm only its final request.
 				runtime.prepareTurn(ctx);
