@@ -139,6 +139,16 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 	}
 	const prefix = `__nb_${randomUUID().replaceAll("-", "")}`, api = `${prefix}_api`;
 	const references = new Map<string, string>(), edits: Edit[] = [];
+	const referenceNames: string[] = [], strictReferences: { name: string; reference: string }[] = [];
+	const referenceFor = (name: string, strict = false): string => {
+		const key = strict ? `strict:${name}` : name;
+		let reference = references.get(key);
+		if (!reference) {
+			reference = `${prefix}_${references.size}`; references.set(key, reference); referenceNames.push(name);
+			if (strict) strictReferences.push({ name, reference });
+		}
+		return reference;
+	};
 	const free = (name: string, scope: Scope): boolean => { for (let current: Scope | undefined = scope; current; current = current.parent) if (current.names.has(name)) return false; return true; };
 	const visit = (node: AnyNode, parent?: AnyNode, key?: string, grandparent?: AnyNode): void => {
 		if (node.type === "Identifier" && !bindingIds.has(node)) {
@@ -150,8 +160,7 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 			if (!syntaxName && free(node.name, scope)) {
 				if ((node.name === "eval" || node.name === "Function") && !existing.has(node.name)) throw new Error("Dynamic code evaluation cannot access managed notebook bindings; write the JavaScript directly in a cell");
 				{
-					let reference = references.get(node.name);
-					if (!reference) { reference = `${prefix}_${references.size}`; references.set(node.name, reference); }
+					const reference = referenceFor(node.name, scope.strict);
 					let text = `${reference}.value`;
 					if (parent?.type === "UnaryExpression" && parent.operator === "typeof") { edits.push({ start: parent.start, end: parent.end, text: `${reference}.type` }); return; }
 					if (parent?.type === "UnaryExpression" && parent.operator === "delete") { edits.push({ start: parent.start, end: parent.end, text: `${reference}.delete()` }); return; }
@@ -166,8 +175,7 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 	};
 	visit(program);
 	for (const node of reusedBlockFunctions) {
-		let reference = references.get(node.id.name);
-		if (!reference) { reference = `${prefix}_${references.size}`; references.set(node.id.name, reference); }
+		const reference = referenceFor(node.id.name);
 		edits.push({ start: node.end, end: node.end, text: `;${reference}.value=${node.id.name};` });
 	}
 	const render = (start: number, end: number): string => {
@@ -192,14 +200,21 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 	}
 	const hoisted: string[] = [];
 	for (const declaration of functions) if (reused.has(declaration.id.name)) {
-		let reference = references.get(declaration.id.name);
-		if (!reference) { reference = `${prefix}_${references.size}`; references.set(declaration.id.name, reference); }
+		const reference = referenceFor(declaration.id.name, root.strict);
 		const header = source.slice(declaration.start, declaration.id.start), rest = render(declaration.id.end, declaration.end);
 		hoisted.push(`${reference}.value=${header}${rest};`); replace(declaration, ";");
 	}
 	const fresh = [...declarations.values()];
 	const vars = fresh.filter(binding => binding.kind === "var").map(binding => binding.name);
 	const strict = root.strict ? '"use strict";\n' : "";
+	// Keep strict global writes native without changing saved binding records.
+	// Managed and masked names still use their captured record after release/reuse.
+	const record = `${prefix}_record`, value = `${prefix}_value`;
+	const captureStrict = strictReferences.map(({ name, reference }) => `${reference}=(${record}=>({
+get value(){return ${record}.value},
+set value(${value}){"use strict";if(${record}.kind||${api}.masked(${JSON.stringify(name)}))${record}.value=${value};else ${name}=${value}},
+get type(){return ${record}.type}
+}))(${reference});`).join("\n");
 	const registration = fresh.map(({ name, kind }) => `${api}.install(${JSON.stringify(name)},${JSON.stringify(kind)},()=>${name},${["const", "using", "await using"].includes(kind) ? "void 0" : `${prefix}_value=>${name}=${prefix}_value`});`).join("\n");
-	return { source: `(async (${[api, ...references.values()].join(",")})=>{\n${strict}${vars.length ? `var ${vars.join(",")};\n` : ""}${registration}\n${hoisted.join("\n")}\n${render(0, source.length)}\n})`, declarations: fresh, references: [...references.keys()] };
+	return { source: `(async (${[api, ...references.values()].join(",")})=>{\n${strict}${vars.length ? `var ${vars.join(",")};\n` : ""}${captureStrict}\n${registration}\n${hoisted.join("\n")}\n${render(0, source.length)}\n})`, declarations: fresh, references: referenceNames };
 }
