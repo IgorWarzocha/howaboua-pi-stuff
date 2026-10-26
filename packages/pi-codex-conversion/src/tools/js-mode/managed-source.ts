@@ -145,7 +145,9 @@ export function managedCell(source: string, existing: ReadonlyMap<string, JsDecl
 		let reference = references.get(key);
 		if (!reference) {
 			reference = `${prefix}_${references.size}`; references.set(key, reference); referenceNames.push(name);
-			if (strict) strictReferences.push({ name, reference });
+			// Strict writes to these names are syntax errors; keep read-only captures
+			// without synthesizing an equally illegal native setter.
+			if (strict && name !== "arguments" && name !== "eval") strictReferences.push({ name, reference });
 		}
 		return reference;
 	};
