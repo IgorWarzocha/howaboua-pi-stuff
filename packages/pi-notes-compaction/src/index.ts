@@ -492,7 +492,14 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		}
 	});
 	pi.on("turn_end", (event, ctx) => {
-		if (!lifecycle.active || lifecycle.newWindowRequests === "off") return;
+		const edits = lifecycle.windows.retirementEdits(
+			ctx.sessionManager.getBranch(),
+			event.context.contextEntries,
+		);
+		if (!lifecycle.active || lifecycle.newWindowRequests === "off")
+			return edits.length
+				? { entries: [...event.entries, ...edits] }
+				: undefined;
 		const reminder = lifecycle.windows.reminder(
 			ctx,
 			event.message.role === "assistant" &&
@@ -504,11 +511,14 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 				: 0,
 			!lifecycle.fresh(ctx, lifecycle.runId),
 		);
-		return reminder
+		return reminder || edits.length
 			? {
 					entries: [
 						...event.entries,
-						lifecycle.prepareReminder?.(reminder) ?? reminder,
+						...edits,
+						...(reminder
+							? [lifecycle.prepareReminder?.(reminder) ?? reminder]
+							: []),
 					],
 				}
 			: undefined;
