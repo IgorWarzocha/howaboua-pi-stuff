@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { API } from "tsrs/async";
 import type { Node } from "tsrs/ast";
@@ -22,7 +22,7 @@ export async function compileTsImportSource(
 	const added: string[] = [];
 	return withTsImportApi(options, async (api, runtime) => {
 		const { ModuleKind, ModuleResolutionKind } = runtime.api;
-		const { isCallExpression, isExportDeclaration, isImportDeclaration, isMetaProperty, isPropertyAccessExpression, isStringLiteral, ScriptTarget, SyntaxKind } = runtime.ast;
+		const { isCallExpression, isExportDeclaration, isIdentifier, isImportDeclaration, isMetaProperty, isPropertyAccessExpression, isStringLiteral, ScriptTarget, SyntaxKind } = runtime.ast;
 		const visit = async (sourceUrl: string): Promise<string> => {
 			options.signal?.throwIfAborted();
 			const existing = outputs.get(sourceUrl);
@@ -38,6 +38,13 @@ export async function compileTsImportSource(
 			const edits: { start: number; end: number; text: string }[] = [];
 			try {
 				const file = lease.sourceFile;
+				// Without a binder, a local require may be a user function. Do not change its arguments.
+				let localRequire = false;
+				const findRequireBinding = (node: Node, parent?: Node): void => {
+					if (isIdentifier(node) && node.text === "require" && parent && "name" in parent && parent.name === node) localRequire = true;
+					node.forEachChild(child => findRequireBinding(child, node));
+				};
+				if (commonjs) findRequireBinding(file);
 				const walk = (node: Node): void => {
 					if (isPropertyAccessExpression(node) && isMetaProperty(node.expression) && node.expression.keywordToken === SyntaxKind.ImportKeyword && node.name.text === "url") {
 						edits.push({ start: node.getStart(file), end: node.end, text: JSON.stringify(sourceUrl) });
@@ -50,6 +57,13 @@ export async function compileTsImportSource(
 						const argument = node.arguments[0];
 						if (!argument || !isStringLiteral(argument)) throw new Error(`Computed dynamic imports in local TypeScript modules are unavailable: ${path}. Use a literal specifier or import dynamically in the cell.`);
 						references.push({ specifier: argument.text, start: argument.getStart(file), end: argument.end, dynamic: true, typeOnly: false });
+					}
+					if (commonjs && !localRequire && isCallExpression(node) && isIdentifier(node.expression) && node.expression.text === "require") {
+						const argument = node.arguments[0];
+						if (argument && isStringLiteral(argument) && /^\.{1,2}\//.test(argument.text)) {
+							// Keep Node's require conditions, extension probing and lazy loading.
+							edits.push({ start: argument.getStart(file), end: argument.end, text: JSON.stringify(resolve(dirname(path), argument.text)) });
+						}
 					}
 					node.forEachChild(walk);
 				};
