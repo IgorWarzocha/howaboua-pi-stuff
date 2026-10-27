@@ -34,6 +34,7 @@ export class NotebookExecutionRuntime {
 	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly stopOperations = new WeakMap<NotebookCell, Promise<void>>();
 	private activeCell: NotebookCell | undefined;
+	private preparingCell = false;
 	private nextCellId = 1;
 	private readonly completed: ((cell: NotebookCell) => Promise<void>) | undefined;
 	private readonly cellPrefix: string;
@@ -74,12 +75,21 @@ export class NotebookExecutionRuntime {
 		tools: CodeModeToolDefinition[] = [],
 	): Promise<RuntimeResponse> {
 		signal?.throwIfAborted();
+		if (this.preparingCell) {
+			throw new Error("Another notebook cell is starting; wait for its result before starting another normal cell");
+		}
 		if (this.activeCell) {
 			throw new Error(`Notebook exec cell "${this.activeCell.id}" is still active; call wait or terminate it before starting another cell`);
 		}
 		const session = this.session();
-		await this.prepareSession(context, signal);
-		await session.checkpoints.flush();
+		this.preparingCell = true;
+		try {
+			await this.prepareSession(context, signal);
+			await session.checkpoints.flush();
+			signal?.throwIfAborted();
+		} finally {
+			this.preparingCell = false;
+		}
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source, { allowIsolated: true });
 		const effectiveYieldTime = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		this.nextCellId = Math.max(this.nextCellId, session.cellCount() + 1);

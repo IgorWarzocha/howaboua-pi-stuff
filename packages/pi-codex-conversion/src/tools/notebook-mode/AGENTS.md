@@ -11,6 +11,7 @@
 - Sessions are private forks. New globalThis properties and pinned bindings merge into project state, never another live kernel.
 - Isolated cells copy committed storage under checkpoint maintenance and the project lock; never query, checkpoint or interrupt the live kernel to seed a fork. Their disposable sessions own separate bridges/storage and publish only named profile candidates, never project pins.
 - Cell completion includes helper settlement and candidate capture. A kernel result alone does not make the cell idle or ready for observation.
+- Public exec permits isolated overlap. Reserve ordinary-cell admission before async preparation or checkpoint flush; rejected concurrent calls must never reach kernel recovery.
 - Promote pins and commit metadata under one project lock. Failed commits restore kernel tracking. Release/prune preserve pins. Prune needs a caller-selected glob.
 - Dispatch tool hooks inside the kernel after bridge settlement. Never start another Jupyter execute while a cell awaits that bridge. Suppress recursion per async hook, not globally.
 - Startup lists exact-version npm imports used by successful project cells. Unlisted packages require user approval.
