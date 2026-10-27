@@ -33,10 +33,7 @@ export async function registerNotesHooks(
 	});
 	pi.on("before_agent_start", (event, ctx) => {
 		activation.refreshActivation(ctx);
-		if (lifecycle.active) {
-			markers.bookmark(ctx, lifecycle.windows.current?.currentWindowId);
-			return lifecycle.beforeStart(ctx, event);
-		}
+		if (lifecycle.active) return lifecycle.beforeStart(ctx, event);
 	});
 	pi.on("input", async (event, ctx) => {
 		activation.refreshActivation(ctx);
@@ -144,6 +141,8 @@ export async function registerNotesHooks(
 	});
 	pi.on("context", (event, ctx) => {
 		try {
+			if (lifecycle.active)
+				markers.bookmark(ctx, lifecycle.windows.current?.currentWindowId);
 			const branch = ctx.sessionManager.getBranch();
 			const projected = projectTreeCheckpointBranch(
 				branch,
