@@ -88,7 +88,7 @@ export function createIndexer(
 	root: string,
 	observationsRoot?: string,
 ) {
-	const replayOwnership = createSourceOwnership(db);
+	const ownership = createSourceOwnership(db);
 	const ingest = createIngestor(db);
 	const putRecord = db.prepare("INSERT INTO source_records VALUES (?,?,?,?,?)");
 	const provenance = createProvenance(db);
@@ -177,6 +177,7 @@ export function createIndexer(
 					}
 					db.transaction(() => {
 						provenance.recordHeader(file.id, record);
+						ownership.queueDescendants(file.id);
 						pruning.rememberHeader(file.id, record);
 						revision.run();
 					})();
@@ -272,7 +273,10 @@ export function createIndexer(
 					withSource(db, file.id, file.line, record, () =>
 						ingest(file, file.line, record),
 					);
-					if (file.line === 1) pruning.rememberHeader(file.id, record);
+					if (file.line === 1) {
+						ownership.queueDescendants(file.id);
+						pruning.rememberHeader(file.id, record);
+					}
 				} catch (error) {
 					// Invalid input is counted. SQLite/programming errors must stop the transaction, not lose an entry.
 					if (
@@ -402,7 +406,7 @@ export function createIndexer(
 		try {
 			await recoverHeaders(keepGoing);
 			let candidates = await changedFiles();
-			replayOwnership(() => !stopped && keepGoing());
+			await ownership.replay(() => !stopped && keepGoing());
 			if (!candidates.length) return;
 			progress("indexing");
 			let refreshedAt = Date.now();
@@ -429,7 +433,7 @@ export function createIndexer(
 					refreshedAt = Date.now();
 				}
 			}
-			replayOwnership(() => !stopped && keepGoing());
+			await ownership.replay(() => !stopped && keepGoing());
 			lastScan = new Date().toISOString();
 			progress("idle");
 		} catch (error) {

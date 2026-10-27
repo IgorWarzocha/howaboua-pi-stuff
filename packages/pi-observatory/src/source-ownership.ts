@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import type Database from "better-sqlite3";
 
 /** Repair recipes from copied history to its indexed parent, never to an arbitrary copy. */
@@ -21,6 +22,17 @@ export function createSourceOwnership(db: Database.Database) {
 	);
 	const enqueue = db.prepare(`INSERT OR IGNORE INTO source_ownership_replay
 		SELECT ? WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM file_entries WHERE entry_key=? LIMIT 2))=2`);
+	const descendants = db.prepare(`
+		WITH RECURSIVE descendants(id,path) AS (
+			SELECT id,path FROM files WHERE id=?
+			UNION SELECT f.id,f.path FROM descendants d
+			JOIN session_headers h ON h.parent_path=d.path JOIN files f ON f.id=h.file_id
+		)
+		INSERT OR IGNORE INTO source_ownership_replay
+		SELECT e.entry_key FROM descendants d
+		CROSS JOIN file_entries e INDEXED BY file_entry_identity ON e.file_id=d.id
+		WHERE EXISTS (SELECT 1 FROM file_entries other WHERE other.entry_key=e.entry_key AND other.file_id<>e.file_id)
+	`);
 	const seed = db.transaction(() => {
 		const cursor = migration.get()?.value;
 		if (cursor === "done") return false;
@@ -82,7 +94,7 @@ export function createSourceOwnership(db: Database.Database) {
 				"UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
 			).run();
 	});
-	return function replay(keepGoing: () => boolean): void {
+	async function replay(keepGoing: () => boolean): Promise<void> {
 		while (keepGoing()) {
 			const seeded = seed();
 			const keys = batch.all();
@@ -91,6 +103,13 @@ export function createSourceOwnership(db: Database.Database) {
 				if (!keepGoing()) return;
 				repair(entry_key);
 			}
+			await setImmediate();
 		}
+	}
+	return {
+		replay,
+		queueDescendants(file: number): void {
+			descendants.run(file);
+		},
 	};
 }
