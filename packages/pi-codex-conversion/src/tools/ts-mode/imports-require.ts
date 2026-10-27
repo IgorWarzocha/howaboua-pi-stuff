@@ -3,8 +3,8 @@ import type { API } from "tsrs/async";
 import type { CallExpression, Node, StringLiteral } from "tsrs/ast";
 import type { TsRuntime } from "./runtime.ts";
 
-/** Bind only this source: properties and bindings in other scopes must not hide Node's require. */
-export async function commonJsRequireEdits(api: API, runtime: TsRuntime, path: string, source: string): Promise<{ start: number; end: number; text: string }[]> {
+/** Bind emitted CommonJS so erased TypeScript declarations cannot hide Node's require. */
+export async function anchorCommonJsRequires(api: API, runtime: TsRuntime, path: string, source: string): Promise<string> {
 	const snapshot = await api.createSnapshot({
 		fileSystem: runtime.fs.createFileSystemLayer([[path, source]]),
 		createPrograms: [{ rootFiles: [path], compilerOptions: { noLib: true, noResolve: true, types: [], module: runtime.api.ModuleKind.NodeNext, moduleResolution: runtime.api.ModuleResolutionKind.NodeNext } }],
@@ -32,6 +32,8 @@ export async function commonJsRequireEdits(api: API, runtime: TsRuntime, path: s
 			// Keep Node's require conditions, extension probing and lazy loading.
 			edits.push({ start: argument.getStart(file), end: argument.end, text: JSON.stringify(resolve(dirname(path), argument.text)) });
 		}
-		return edits;
+		let rewritten = source;
+		for (const edit of edits.sort((a, b) => b.start - a.start)) rewritten = rewritten.slice(0, edit.start) + edit.text + rewritten.slice(edit.end);
+		return rewritten;
 	} finally { await snapshot.dispose(); }
 }

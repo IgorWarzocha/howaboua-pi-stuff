@@ -7,7 +7,7 @@ import type { Node } from "tsrs/ast";
 import type { TsRuntime } from "./runtime.ts";
 import type { TsImportOptions } from "./imports.ts";
 import { withTsImportApi } from "./imports-api.ts";
-import { commonJsRequireEdits } from "./imports-require.ts";
+import { anchorCommonJsRequires } from "./imports-require.ts";
 import { cacheExactNpmImport } from "../code-mode/npm-cache.ts";
 
 /** Compile trusted local TS, including enums; never rely on Node's type stripping. */
@@ -56,7 +56,6 @@ export async function compileTsImportSource(
 				};
 				walk(file);
 			} finally { await lease.dispose(); }
-			if (commonjs) edits.push(...await commonJsRequireEdits(api, runtime, path, source));
 			for (const reference of references) {
 				if (onNpmTypes && reference.specifier.startsWith("npm:")) {
 					const location = await cacheExactNpmImport(reference.specifier, options.cacheDir, options.signal);
@@ -78,7 +77,8 @@ export async function compileTsImportSource(
 			const emitted = await api.transpileModule(rewritten, { fileName: path, compilerOptions: { module: commonjs ? ModuleKind.NodeNext : ModuleKind.ESNext, target: ScriptTarget.ESNext }, reportDiagnostics: true });
 			const errors = emitted.diagnostics?.filter(value => value.category === 1);
 			if (errors?.length) throw new Error(errors.map(value => value.text).join("\n"));
-			await writeFile(fileURLToPath(target), emitted.outputText, { mode: 0o600 });
+			const javascript = commonjs ? await anchorCommonJsRequires(api, runtime, path, emitted.outputText) : emitted.outputText;
+			await writeFile(fileURLToPath(target), javascript, { mode: 0o600 });
 			return target;
 		};
 		try {
