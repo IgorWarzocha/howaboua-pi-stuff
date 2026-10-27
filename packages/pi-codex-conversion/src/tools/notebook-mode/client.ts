@@ -11,6 +11,8 @@ import { NotebookExecutionRuntime } from "./execution-runtime.ts";
 import { NotebookLifecycleController } from "./lifecycle.ts";
 import { NotebookRecoveryController } from "./recovery.ts";
 import { NotebookSessionRuntime } from "./session-runtime.ts";
+import { NotebookIsolatedRuntime } from "./isolated-runtime.ts";
+import { parseExecSource } from "../code-mode/host-protocol.ts";
 import type { ProjectStatePinUpdate } from "./project-state-merge.ts";
 import {
 	promoteProjectStateBindings,
@@ -23,12 +25,14 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly session: NotebookSessionRuntime;
 	private readonly lifecycle: NotebookLifecycleController;
 	private readonly recovery: NotebookRecoveryController;
+	private readonly isolated: NotebookIsolatedRuntime;
 
 	constructor(
 		options: NotebookRuntimeOptions,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
 		let session!: NotebookSessionRuntime;
+		this.isolated = new NotebookIsolatedRuntime(options, (capture) => session.checkpoints.readCommitted(capture), renderStore);
 		this.execution = new NotebookExecutionRuntime(
 			() => session,
 			(context, signal) => this.prepareSession(context, signal),
@@ -82,12 +86,19 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		});
 	}
 
-	execute(
+	async execute(
 		source: string,
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 		tools: CodeModeToolDefinition[] = [],
 	): Promise<RuntimeResponse> {
+		const parsed = parseExecSource(source, { allowIsolated: true });
+		if (!this.isolated.identityMatches(context)) await this.shutdown();
+		if (parsed.isolated) {
+			const extension = context.extensionContext;
+			if (extension && !this.session.identityMatches(extension)) await this.shutdown();
+			return this.isolated.execute(source, context, signal, tools);
+		}
 		return this.execution.execute(source, context, signal, tools);
 	}
 
@@ -97,6 +108,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
+		if (this.isolated.has(cellId)) return this.isolated.wait(cellId, yieldTimeMs, context, signal);
 		return this.execution.wait(cellId, yieldTimeMs, context, signal);
 	}
 
@@ -105,6 +117,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
+		if (this.isolated.has(cellId)) return this.isolated.terminate(cellId, context, signal);
 		return this.execution.terminate(cellId, context, signal);
 	}
 
@@ -131,6 +144,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
+		if (request.action === "restart" || request.action === "reset") await this.isolated.shutdown();
 		let result: NotebookControlResult;
 		try {
 			result = await this.lifecycle.control(request, context, signal);
@@ -145,6 +159,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	async shutdown(): Promise<void> {
+		await this.isolated.shutdown();
 		await this.session.abortStartup(new Error("Notebook session is shutting down"));
 		await this.execution.stopActive().catch(() => undefined);
 		await this.session.checkpoints.flush({ force: true }).catch(() => undefined);
@@ -155,6 +170,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	clearOpaqueResults(): void {
+		this.isolated.clearOpaqueResults();
 		this.execution.clearOpaqueResults();
 	}
 

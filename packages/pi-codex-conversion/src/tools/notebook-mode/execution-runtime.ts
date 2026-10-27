@@ -35,12 +35,18 @@ export class NotebookExecutionRuntime {
 	private readonly stopOperations = new WeakMap<NotebookCell, Promise<void>>();
 	private activeCell: NotebookCell | undefined;
 	private nextCellId = 1;
+	private readonly completed: ((cell: NotebookCell) => Promise<void>) | undefined;
+	private readonly cellPrefix: string;
 
 	constructor(
 		session: () => NotebookSessionRuntime,
 		prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>,
 		renderStore?: CodeModeNestedRenderStore,
+		completed?: (cell: NotebookCell) => Promise<void>,
+		cellPrefix = "notebook",
 	) {
+		this.completed = completed;
+		this.cellPrefix = cellPrefix;
 		this.session = session;
 		this.prepareSession = prepareSession;
 		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
@@ -58,7 +64,7 @@ export class NotebookExecutionRuntime {
 
 	activeCellId(): string | undefined { return this.activeCell?.id; }
 	runningCellId(): string | undefined {
-		return this.activeCell && !this.activeCell.result ? this.activeCell.id : undefined;
+		return this.activeCell && !this.activeCell.isCompleted() ? this.activeCell.id : undefined;
 	}
 
 	async execute(
@@ -74,10 +80,10 @@ export class NotebookExecutionRuntime {
 		const session = this.session();
 		await this.prepareSession(context, signal);
 		await session.checkpoints.flush();
-		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
+		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source, { allowIsolated: true });
 		const effectiveYieldTime = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		this.nextCellId = Math.max(this.nextCellId, session.cellCount() + 1);
-		const id = `notebook-${this.nextCellId++}`;
+		const id = `${this.cellPrefix}-${this.nextCellId++}`;
 		session.recordMemory(undefined);
 		const cell = new NotebookCell({
 			id,
@@ -194,7 +200,7 @@ export class NotebookExecutionRuntime {
 				await this.endCellRuntime(cell);
 				if (cell.result.status === "ok") {
 					await session.recordNpmImports(cell.source);
-					session.checkpoints.schedule();
+					if (!this.completed) session.checkpoints.schedule();
 				}
 			}
 		} catch (error) {
@@ -219,6 +225,11 @@ export class NotebookExecutionRuntime {
 				}
 			} catch (error) {
 				this.reportJournalFailure(error, journaled ? "completion" : "update", cell);
+			}
+			try {
+				await this.completed?.(cell);
+			} catch (error) {
+				cell.result = { status: "error", items: [], errorText: `Notebook result could not be saved: ${error instanceof Error ? error.message : String(error)}. The live notebook is unchanged; inspect saved profiles or rerun the isolated cell.` };
 			}
 			cell.markCompleted();
 		}

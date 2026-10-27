@@ -188,7 +188,7 @@ export class NotebookProfileRestoreError extends Error {
 	}
 }
 
-async function withProfileLock<T>(path: string, operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+export async function withProfileLock<T>(path: string, operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 	const lock = await acquireDirectoryLock(path, { waitMs: LOCK_WAIT_MS, staleMs: LOCK_STALE_MS, pollMs: 50, signal });
 	if (!lock) throw new Error("Notebook profile lock became unavailable");
 	try {

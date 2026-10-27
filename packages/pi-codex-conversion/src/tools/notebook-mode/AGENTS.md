@@ -9,6 +9,8 @@
 - Journal retention is global to the agent directory, not folder-scoped. Re-read it at write boundaries so another session's Off cannot resurrect deleted journals. Journal cleanup must not affect saved bindings or restart the kernel.
 - Session-checkpoint expiry is independent. Protect Pi sessions before lazy kernel startup and retain that protection until session shutdown; kernel-only activity misses resumed and mode-switched sessions. Never age out project/profile bindings or Pi history.
 - Sessions are private forks. New globalThis properties and pinned bindings merge into project state, never another live kernel.
+- Isolated cells copy committed storage under checkpoint maintenance and the project lock; never query, checkpoint or interrupt the live kernel to seed a fork. Their disposable sessions own separate bridges/storage and publish only named profile candidates, never project pins.
+- Cell completion includes helper settlement and candidate capture. A kernel result alone does not make the cell idle or ready for observation.
 - Promote pins and commit metadata under one project lock. Failed commits restore kernel tracking. Release/prune preserve pins. Prune needs a caller-selected glob.
 - Dispatch tool hooks inside the kernel after bridge settlement. Never start another Jupyter execute while a cell awaits that bridge. Suppress recursion per async hook, not globally.
 - Startup lists exact-version npm imports used by successful project cells. Unlisted packages require user approval.
