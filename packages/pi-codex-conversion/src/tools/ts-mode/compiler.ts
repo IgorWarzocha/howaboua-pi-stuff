@@ -132,7 +132,7 @@ export class TsCompiler {
       const file = lease.sourceFile;
       for (const node of file.statements.filter(node => node.getStart(file) >= prefix.length)) {
         if (!this.runtime.ast.isExpressionStatement(node) || !this.runtime.ast.isStringLiteral(node.expression)) break;
-        if (node.expression.text === 'use strict') strictDirective = true;
+        if (/^(['"])use strict\1$/.test(node.expression.getText(file))) strictDirective = true;
       }
       const exported = new Set<string>();
       for (const statement of file.statements) {
