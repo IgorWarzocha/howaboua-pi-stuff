@@ -16,6 +16,7 @@ import {
 
 const MODELS = {
 	sol: { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
+	terra: { id: "gpt-6.1-terra", name: "GPT-6.1 Terra" },
 	luna: { id: "gpt-6-luna", name: "GPT-6 Luna" },
 	astra: { id: "gpt-6-astra", name: "GPT-6 Astra" },
 } as const;
