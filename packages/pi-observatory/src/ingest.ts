@@ -21,6 +21,9 @@ export function createIngestor(db: Database.Database) {
 		"INSERT INTO file_entries VALUES (@file,@line,@id,@parent,@key)",
 	);
 	const provenance = createProvenance(db);
+	const replayOwnership =
+		db.prepare(`INSERT OR IGNORE INTO source_ownership_replay
+		SELECT ? WHERE EXISTS (SELECT 1 FROM file_entries WHERE entry_key=? AND file_id<>?)`);
 	const { insertCall, recordResult } = createCallStore(db);
 	const nested = createNestedIngestor(db);
 	const usage = createUsageIngestor(db);
@@ -64,6 +67,7 @@ export function createIngestor(db: Database.Database) {
 			parent: string(record["parentId"]) || null,
 			key,
 		});
+		replayOwnership.run(key, key, source.id);
 		usage.entry(record, key, at);
 		observation(record, key, source, line, at);
 		if (record["type"] !== "message") return;

@@ -9,7 +9,7 @@ PCC log cursor rows own retained history through a cascading foreign key. Reset 
 
 Native Pi receipts contain no nested result payload. Public execution events can supply bounded live sidecars; correlate through session, initiating entry and native call IDs, never names or arguments. Preserve PCC trace results when several native observations map to one trace. PCC snapshots can precede Pi scope drainage: unmatched receipts and observations remain explicit gaps. Model API rows in native codemode details.calls have model scope, not tool scope.
 
-Copied entry ownership follows parentSession provenance, not scan order or the fork's cwd. Header recovery belongs in the indexer, never HTTP queries. Repair inferred relative skill paths and project tallies together; preserve source cursors. Capture execution identity at tool start and retain it across yielded work.
+Copied entry ownership follows parentSession provenance, not scan order or the fork's cwd. Canonical source repair covers entry, argument and result recipes together, using identical event keys rather than entry IDs. Never select a tombstoned ancestor or an arbitrary surviving fork. Header recovery belongs in the indexer, never HTTP queries. Repair inferred relative skill paths and project tallies together; preserve source cursors. Capture execution identity at tool start and retain it across yielded work.
 
 Queued skill replay is unfinished coverage even after historical scans completed. Retain inferred evidence until its bounded replay transaction replaces it; never clear it ahead of paused work. Replay must preserve confirmed receipts.
 

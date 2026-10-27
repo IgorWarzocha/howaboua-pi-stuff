@@ -5,6 +5,7 @@ import type Database from "better-sqlite3";
 import { createIngestor } from "./ingest.ts";
 import { object } from "./normalise.ts";
 import { createProvenance } from "./provenance.ts";
+import { createSourceOwnership } from "./source-ownership.ts";
 import { createSourcePruning } from "./source-pruning.ts";
 import { withSource } from "./source-records.ts";
 
@@ -87,6 +88,7 @@ export function createIndexer(
 	root: string,
 	observationsRoot?: string,
 ) {
+	const replayOwnership = createSourceOwnership(db);
 	const ingest = createIngestor(db);
 	const putRecord = db.prepare("INSERT INTO source_records VALUES (?,?,?,?,?)");
 	const provenance = createProvenance(db);
@@ -400,6 +402,7 @@ export function createIndexer(
 		try {
 			await recoverHeaders(keepGoing);
 			let candidates = await changedFiles();
+			replayOwnership(() => !stopped && keepGoing());
 			if (!candidates.length) return;
 			progress("indexing");
 			let refreshedAt = Date.now();
@@ -426,6 +429,7 @@ export function createIndexer(
 					refreshedAt = Date.now();
 				}
 			}
+			replayOwnership(() => !stopped && keepGoing());
 			lastScan = new Date().toISOString();
 			progress("idle");
 		} catch (error) {
