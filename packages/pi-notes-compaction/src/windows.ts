@@ -272,6 +272,7 @@ export class Windows {
 		ctx: ExtensionContext,
 		taskBoundaryReminder = 0,
 		checkpointReminder = true,
+		gpt = false,
 	): CustomMessageEntryDraft | undefined {
 		const { remainingTokens, contextWindow, remainingPercent } =
 			this.remaining(ctx);
@@ -307,8 +308,10 @@ export class Windows {
 			customType: WINDOW_MESSAGE,
 			content:
 				kind === "task-boundary"
-					? renderTaskBoundaryReminder(remainingPercent)
-					: `<context_window_reminder>\n${kind === "urgent" ? "Urgent: " : ""}${remainingPercent}% context remaining. Save the task state in notes, then call new_context ${kind === "urgent" ? "now, before other work" : "before continuing work"}.\n</context_window_reminder>`,
+					? renderTaskBoundaryReminder(remainingPercent, gpt)
+					: gpt
+						? `<context_window_reminder>\n${kind === "urgent" ? "Urgent: " : ""}${remainingPercent}% contextleft; save taskstate via notes→new_context ${kind === "urgent" ? "now, beforeotherwork" : "beforecontinuingwork"}.\n</context_window_reminder>`
+						: `<context_window_reminder>\n${kind === "urgent" ? "Urgent: " : ""}${remainingPercent}% context remaining. Save the task state in notes, then call new_context ${kind === "urgent" ? "now, before other work" : "before continuing work"}.\n</context_window_reminder>`,
 			display: true,
 			details: {
 				protocol: 1,

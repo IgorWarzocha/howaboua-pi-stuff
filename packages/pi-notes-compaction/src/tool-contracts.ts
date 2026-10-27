@@ -21,6 +21,14 @@ const HISTORY_ACTIONS = [
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
 export const HISTORY_USAGE = "await tools.history()";
+export const NOTES_DESCRIPTION =
+	"Persistent notes for handing off task state between context windows";
+export const GPT_NOTES_DESCRIPTION =
+	"Persistent notes: taskstate handoff between contextwindows";
+export const NEW_CONTEXT_DESCRIPTION =
+	"Start fresh from saved notes; recover earlier conversation through history";
+export const GPT_NEW_CONTEXT_DESCRIPTION =
+	"Savednotes→freshcontext; earlierconversation→history";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const NULLABLE_STRING = Type.Optional(Type.Union([Type.String(), Type.Null()]));
@@ -175,6 +183,7 @@ export function queryHelp(
 	namespace: LookupQuery["namespace"],
 	input: unknown,
 	rankedHistory = false,
+	gpt = false,
 ): AgentToolResult<unknown> | undefined {
 	const params = input === undefined ? {} : input;
 	if (!params || typeof params !== "object" || Array.isArray(params))
@@ -215,10 +224,13 @@ export function queryHelp(
 							"list max_results 20; search max_files/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
 					}
 				: {
-						usage:
-							"Search earlier conversation, don't browse it. Pass returned IDs unchanged",
+						usage: gpt
+							? "Earlierconversation→search≠browse; returnedIDs unchanged"
+							: "Search earlier conversation, don't browse it. Pass returned IDs unchanged",
 						search: rankedHistory
-							? "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
+							? gpt
+								? "Own past user/assistant visibletext: allkeywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=fulltranscript; recent_first=true→newestfirst"
+								: "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
 							: "Case-sensitive literal substring. recent_first=true uses newest first",
 					}),
 		});

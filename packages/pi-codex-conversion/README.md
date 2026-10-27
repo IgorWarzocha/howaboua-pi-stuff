@@ -158,6 +158,8 @@ Ask your agent to inspect, save, load or clean up notebook state. The `notebook`
 
 The **Notebook** setting provides persistent JavaScript and TypeScript with Deno APIs, imports, checkpoints, project pins and named profiles. It also supports startup and tool-result hooks for reusable automation.
 
+After a normal cell yields, `isolated:true` cells can run in separate Deno kernels from the last completed checkpoint. Up to four isolated cells can run at once. They save named profile candidates without changing live state. Loading a candidate adds its saved bindings and rejects name collisions, rather than replacing the notebook. Only checkpoint-supported state transfers. Recreate imports, closures and live handles when needed.
+
 ### TS Notebook
 
 Select **TS** for strict TypeScript checking, retained type declarations, Node and Web APIs, and imports from local files or packages. Invalid code and tool arguments are rejected before execution. New npm dependencies require user approval.

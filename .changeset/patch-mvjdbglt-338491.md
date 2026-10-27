@@ -9,6 +9,7 @@
 
 ### Features
 
+- Added isolated Deno Notebook cells that run concurrently from saved checkpoints and save separate profile candidates.
 - Added TS Notebook with strict TypeScript checking, persistent bindings, isolated concurrent cells and custom snapshot and restore helpers.
 - Added project-shared JS Notebook with checkpoints that preserve closures, classes and cycles, isolated concurrent cells, profiles, pins and hooks.
 - Added GPT-6.1 Terra with Responses Lite and live reasoning adjustments.
@@ -18,6 +19,8 @@
 
 ### Reliability and usability
 
+- Fixed SSE retries multiplying to 30 requests after WebSocket fallback. HTTP and stream retries now share one budget, with a five-minute recovery deadline starting at the first retryable failure.
+- GPT prompt mode now condenses notebook help, isolated-cell guidance and reasoning-tool descriptions.
 - Pi's transport setting now replaces the Cached WebSocket upgrade toggle. Select `auto` or `websocket-cached` for cached continuation.
 - Fixed temporary SSE fallback surviving a context-window rollover. New windows retry the configured WebSocket transport.
 - Fixed Code, Notebook and reasoning tools reappearing after `/tree` when disabled.

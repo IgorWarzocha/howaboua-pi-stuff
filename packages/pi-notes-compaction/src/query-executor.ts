@@ -131,6 +131,7 @@ export function createQueryExecutor(
 			"history",
 			input,
 			search.isEnabled(ctx.sessionManager.getSessionId()),
+			lifecycle.gptPromptMode(),
 		);
 		if (help) return help;
 		assertActive();

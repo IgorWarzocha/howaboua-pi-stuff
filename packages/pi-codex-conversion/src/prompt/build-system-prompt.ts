@@ -54,18 +54,18 @@ const STATEFUL_MODE_GUIDELINES = [
 const NOTEBOOK_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
 	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Retainedhelpers=selfcontained; restart→recreate imports/closures/livehandles"],
-	["exec calls run sequentially", "exec calls sequential"],
+	["Normal exec cells run one at a time", "Normalcells serialize"],
 ] as const;
 
 const TS_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
-	["Normal exec cells run one at a time. Inspect variables after errors before retrying", "Normal exec cells run one at a time; inspect variables after errors before retrying"],
-	["After restart, recreate any values reported as unsaved", "After restart, recreate values reported as unsaved"],
+	["Normal exec cells run one at a time. Inspect variables after errors before retrying", "Normalcells serialize; error→inspectstate before retry"],
+	["After restart, recreate any values reported as unsaved", "Restart→recreate reportedunsavedvalues"],
 ] as const;
 
 const JS_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
-	["Normal exec cells share serial live state; inspect mutations after errors before retrying", "Normal cells share serial live state; inspect mutations after errors"],
+	["Normal exec cells share serial live state; inspect mutations after errors before retrying", "Normalcells share seriallivestate; error→inspectmutations before retry"],
 ] as const;
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([

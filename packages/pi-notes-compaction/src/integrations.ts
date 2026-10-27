@@ -4,7 +4,14 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { NotesActivation } from "./activation.js";
 import type { NotesLifecycle } from "./lifecycle.js";
-import { HISTORY_USAGE, NOTES_USAGE } from "./tool-contracts.js";
+import {
+	GPT_NEW_CONTEXT_DESCRIPTION,
+	GPT_NOTES_DESCRIPTION,
+	HISTORY_USAGE,
+	NEW_CONTEXT_DESCRIPTION,
+	NOTES_DESCRIPTION,
+	NOTES_USAGE,
+} from "./tool-contracts.js";
 import type { createTools } from "./tools.js";
 import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
 import { projectTreeHandoffBranch } from "./tree-handoff-read.js";
@@ -19,9 +26,20 @@ export async function registerNotesToolIntegrations(
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);
-		const registration = registerGptPromptMode(pi, () =>
-			lifecycle.active ? tools : [],
-		);
+		const registration = registerGptPromptMode(pi, (active) => {
+			for (const [name, normal, gpt] of [
+				["notes", NOTES_DESCRIPTION, GPT_NOTES_DESCRIPTION],
+				["new_context", NEW_CONTEXT_DESCRIPTION, GPT_NEW_CONTEXT_DESCRIPTION],
+			] as const) {
+				const tool = tools.find((tool) => tool.name === name);
+				const description = active ? gpt : normal;
+				if (tool && tool.description !== description) {
+					tool.description = description;
+					pi.registerTool(tool);
+				}
+			}
+			return lifecycle.active ? tools : [];
+		});
 		lifecycle.gptPromptMode = () => registration.active;
 	} catch (error) {
 		if (

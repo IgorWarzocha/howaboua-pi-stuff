@@ -12,6 +12,8 @@ import { createQueryExecutor } from "./query-executor.js";
 import type { NotesStore } from "./store.js";
 import {
 	HISTORY_SCHEMA,
+	NEW_CONTEXT_DESCRIPTION,
+	NOTES_DESCRIPTION,
 	NOTES_SCHEMA,
 	prepareNotesArguments,
 	result,
@@ -60,7 +62,7 @@ export function createTools(
 		{
 			name: "notes",
 			label: "notes",
-			description: "Persistent notes",
+			description: NOTES_DESCRIPTION,
 			parameters: NOTES_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments: prepareNotesArguments,
@@ -81,8 +83,7 @@ export function createTools(
 		{
 			name: "new_context",
 			label: "new_context",
-			description:
-				"Start fresh from saved notes; recover earlier conversation through history",
+			description: NEW_CONTEXT_DESCRIPTION,
 			parameters: Type.Object({}, { additionalProperties: false }),
 			exposure: "model-only",
 			executionMode: "sequential",
