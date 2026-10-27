@@ -11,6 +11,11 @@ import { windowDetails } from "./windows.js";
 
 const bytes = (value: number) => `${(value / 1024 / 1024).toFixed(1)} MiB`;
 
+export interface SessionPruningInteraction {
+	progress: (message: string) => void;
+	confirm: (title: string, message: string) => Promise<boolean>;
+}
+
 export class SessionPruning {
 	private running = false;
 	private observed: string | undefined;
@@ -69,7 +74,11 @@ export class SessionPruning {
 		});
 	}
 
-	async run(ctx: ExtensionContext, manual: boolean): Promise<void> {
+	async run(
+		ctx: ExtensionContext,
+		manual: boolean,
+		interaction?: SessionPruningInteraction,
+	): Promise<void> {
 		if (this.running) {
 			if (manual) ctx.ui.notify("Session pruning is already running.", "info");
 			return;
@@ -89,8 +98,10 @@ export class SessionPruning {
 					);
 				return;
 			}
+			interaction?.progress("Preparing pruning preview…");
 			const plan = await planSessionPruning(ctx.sessionManager, policy);
 			if (!plan.changed) {
+				interaction?.progress("Cleaning ranked history…");
 				await this.search.pruneSession(plan.sessionId, plan.path);
 				if (manual)
 					ctx.ui.notify(
@@ -101,7 +112,7 @@ export class SessionPruning {
 			}
 			if (
 				manual &&
-				!(await ctx.ui.confirm(
+				!(await (interaction?.confirm ?? ctx.ui.confirm)(
 					"Prune this session's history?",
 					`${bytes(plan.before)} → about ${bytes(plan.after)}; ${plan.changed} records changed. Current context and saved SQLite notes are protected. Older tool activity, injected instructions and exact execution replay are permanently lost. No backup is kept.${plan.opaque.length ? ` Opaque extension state is retained: ${plan.opaque.join(", ")}.` : ""} ${RESTART_NOTICE}`,
 				))
@@ -113,6 +124,7 @@ export class SessionPruning {
 				currentPolicy.days !== policy.days
 			)
 				throw new Error("Session pruning settings changed. Run now again.");
+			interaction?.progress("Pruning session history…");
 			const result = await commitSessionPruning(this.pi, ctx, plan, () => {
 				if (this.epoch !== epoch)
 					throw new Error(
@@ -123,6 +135,7 @@ export class SessionPruning {
 					throw new Error("Session pruning settings changed. Run now again.");
 			});
 			historyPruned = true;
+			interaction?.progress("Cleaning ranked history…");
 			await this.search.pruneSession(plan.sessionId, plan.path);
 			ctx.ui.notify(
 				`Pruned session history: ${bytes(result.before)} → ${bytes(result.after)}. Saved notes unchanged. ${RESTART_NOTICE}`,
