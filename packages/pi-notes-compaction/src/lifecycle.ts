@@ -180,7 +180,7 @@ export class NotesLifecycle {
 			)
 		)
 			throw new Error(
-				"Save your progress with notes, wait for the write to succeed, then call new_context next.",
+				"Save your progress in your own notes using a relative path, wait for the write to succeed, then call new_context next. Writing another agent's notes does not save your checkpoint.",
 			);
 		this.requests.schedule(ctx);
 		return true;
