@@ -232,6 +232,10 @@ export class HistorySearch {
 		return ids.map((id) => scope.get(id)!);
 	}
 
+	async pruneSession(sessionId: string, file: string): Promise<void> {
+		await this.request({ action: "prune_session", sessionId, file });
+	}
+
 	async prune(
 		activeSessionId: string,
 		sources: Record<string, string | null> = {},

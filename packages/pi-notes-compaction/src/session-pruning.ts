@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { HistorySearch } from "./history-search.js";
 import { planSessionPruning } from "./session-pruning-plan.js";
 import { RESTART_NOTICE } from "./session-pruning-policy.js";
 import { commitSessionPruning } from "./session-pruning-transaction.js";
@@ -17,14 +18,17 @@ export class SessionPruning {
 	private epoch = 0;
 	private readonly pi: ExtensionAPI;
 	private readonly store: NotesStore;
+	private readonly search: HistorySearch;
 	private readonly admittedWindow: () => string | undefined;
 	constructor(
 		pi: ExtensionAPI,
 		store: NotesStore,
+		search: HistorySearch,
 		admittedWindow: () => string | undefined,
 	) {
 		this.pi = pi;
 		this.store = store;
+		this.search = search;
 		this.admittedWindow = admittedWindow;
 	}
 
@@ -72,6 +76,7 @@ export class SessionPruning {
 		}
 		this.running = true;
 		const epoch = this.epoch;
+		let historyPruned = false;
 		try {
 			const policy = this.store.pruningPolicy(
 				ctx.sessionManager.getSessionId(),
@@ -86,6 +91,7 @@ export class SessionPruning {
 			}
 			const plan = await planSessionPruning(ctx.sessionManager, policy);
 			if (!plan.changed) {
+				await this.search.pruneSession(plan.sessionId, plan.path);
 				if (manual)
 					ctx.ui.notify(
 						"Nothing to prune under this session's limits.",
@@ -116,13 +122,17 @@ export class SessionPruning {
 				if (current.windows !== policy.windows || current.days !== policy.days)
 					throw new Error("Session pruning settings changed. Run now again.");
 			});
+			historyPruned = true;
+			await this.search.pruneSession(plan.sessionId, plan.path);
 			ctx.ui.notify(
 				`Pruned session history: ${bytes(result.before)} → ${bytes(result.after)}. Saved notes unchanged. ${RESTART_NOTICE}`,
 				"info",
 			);
 		} catch (error) {
 			ctx.ui.notify(
-				`Session pruning did not complete: ${error instanceof Error ? error.message : String(error)}`,
+				historyPruned
+					? `Session history was pruned, but ranked history cleanup did not complete. Run now again to retry cleanup. ${RESTART_NOTICE}`
+					: `Session pruning did not complete: ${error instanceof Error ? error.message : String(error)}`,
 				"error",
 			);
 		} finally {

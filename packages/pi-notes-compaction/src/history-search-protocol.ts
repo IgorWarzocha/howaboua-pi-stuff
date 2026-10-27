@@ -19,6 +19,11 @@ export type SearchRequest =
 			recentFirst: boolean;
 	  }
 	| {
+			action: "prune_session";
+			sessionId: string;
+			file: string;
+	  }
+	| {
 			action: "prune";
 			activeSessionId: string;
 			sources: Record<string, string | null>;

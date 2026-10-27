@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 import Database from "better-sqlite3";
+import { createHistoryPruning } from "./history-search-pruning.mjs";
 
 // Shipped as checked JavaScript: Node cannot strip TypeScript in node_modules.
 // Pi's jiti resolver is not installed in worker threads.
@@ -11,6 +12,7 @@ import Database from "better-sqlite3";
 /** @typedef {import("./history-search-protocol.js").PruneResult} PruneResult */
 /** @type {import("better-sqlite3").Database | undefined} */
 let database;
+const pruneSession = createHistoryPruning();
 /** @returns {import("better-sqlite3").Database} */
 function open() {
 	if (database) return database;
@@ -59,10 +61,11 @@ function open() {
 	}
 }
 /** @param {Extract<SearchRequest, {action:"index"}>} request */
-function index(request) {
+async function index(request) {
 	if (!database && !request.items.length && !existsSync(workerData.path))
 		return null;
 	const db = open();
+	const excluded = await pruneSession(db, request.sessionId, request.file);
 	/** @type {import("better-sqlite3").Statement<[string,string], {id:number; fingerprint:string}>} */
 	const find = db.prepare(
 		"SELECT id, fingerprint FROM history_documents WHERE session_id = ? AND item_id = ?",
@@ -92,6 +95,7 @@ function index(request) {
 			}
 		}
 		for (const item of request.items) {
+			if (excluded.has(item.item_id)) continue;
 			const fingerprint = createHash("sha256")
 				.update(item.content)
 				.digest("hex");
@@ -217,25 +221,36 @@ function prune(activeSessionId, sources) {
 }
 const port = parentPort;
 if (!port) throw new Error("History search must run in its worker thread");
+let queue = Promise.resolve();
 port.on(
 	"message",
 	/** @param {{id:number;request:SearchRequest}} message */
 	({ id, request }) => {
-		try {
-			const value =
-				request.action === "index"
-					? index(request)
-					: request.action === "search"
-						? search(request)
-						: prune(request.activeSessionId, request.sources);
-			port.postMessage(/** @satisfies {SearchResponse} */ ({ id, value }));
-		} catch (error) {
-			port.postMessage(
-				/** @satisfies {SearchResponse} */ ({
-					id,
-					error: error instanceof Error ? error.message : String(error),
-				}),
-			);
-		}
+		// Source reconciliation is asynchronous; preserve the worker's former
+		// synchronous request order so a search cannot overtake index cleanup.
+		queue = queue.then(async () => {
+			try {
+				let value;
+				if (request.action === "prune_session") {
+					if (database || existsSync(workerData.path))
+						await pruneSession(open(), request.sessionId, request.file);
+					value = null;
+				} else
+					value =
+						request.action === "index"
+							? await index(request)
+							: request.action === "search"
+								? search(request)
+								: prune(request.activeSessionId, request.sources);
+				port.postMessage(/** @satisfies {SearchResponse} */ ({ id, value }));
+			} catch (error) {
+				port.postMessage(
+					/** @satisfies {SearchResponse} */ ({
+						id,
+						error: error instanceof Error ? error.message : String(error),
+					}),
+				);
+			}
+		});
 	},
 );
