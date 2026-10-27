@@ -1,5 +1,9 @@
 # @howaboua/pi-sandbox
 
+## 0.1.3
+
+- - Accept action objects alongside JSON text in Code and Notebook.
+
 ## 0.1.2
 
 - Made help discovery consistent in Code and Notebook.

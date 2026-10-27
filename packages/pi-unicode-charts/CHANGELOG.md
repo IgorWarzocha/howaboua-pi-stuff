@@ -1,5 +1,9 @@
 # @howaboua/pi-unicode-charts
 
+## 0.1.3
+
+- GPT mode uses note-style chart guidance.
+
 ## 0.1.2
 
 - Use denser chart guidance in PCC GPT prompt mode.

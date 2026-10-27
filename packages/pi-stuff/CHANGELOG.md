@@ -1,5 +1,19 @@
 # @howaboua/pi-stuff
 
+## 0.0.107
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: - Removed redundant help-call instructions from Ask's help. - GPT mode uses note-style question and handoff guidance.
+  - @howaboua/pi-auto-trees: GPT mode uses note-style priming, commit-summary and voice guidance.
+  - @howaboua/pi-better-skills-tool: - Skills now shows its exact discovery call in Code and Notebook modes and clarifies batch-read syntax in help. - GPT mode uses note-style skill discovery and reading guidance.
+  - @howaboua/pi-gippity-control: Realtime voice now uses gpt-live-1.1-codex.
+  - @howaboua/pi-github-watch: - GPT mode uses note-style watch help. - Active watch results now state that updates arrive automatically without polling or a separate CLI watch.
+  - @howaboua/pi-grok-realtime: - Added `stay_quiet` so Grok can choose silence during pauses without losing later silence follow-ups. Follow-ups respect the configured interval, microphone mute and Pi's working state. - Omit generated timestamps from agent work updates.
+  - @howaboua/pi-shepherdr: - **BREAKING CHANGE:** Shared notes and history now use Notes instead of PCC. Install `@howaboua/pi-notes-compaction` and update participating hosts together to retain sharing. PCC remains optional for native parent linkage and cache affinity. Ordinary agent management requires neither extension. - Agent guidance now directs controllers to close finished workers without preceding acknowledgement messages. - Attached note reads keep private routing details out of results while preserving read-only and stale-checkpoint warnings. Attachment acknowledgements omit internal bookkeeping. - GPT mode uses note-style agent help and Board briefings.
+  - @howaboua/pi-suggestions: Added editable Markdown instructions in /suggestions, with defaults favouring productive next actions and avoiding repeated requests or completed work.
+  - @howaboua/pi-unicode-charts: GPT mode uses note-style chart guidance.
+
 ## 0.0.106
 
 - Include bundled package updates:
