@@ -130,7 +130,7 @@ function truncateTextContent<T extends { type: string; text?: string }>(
 	gpt: boolean,
 ): T[] {
 	const notice = gpt
-		? "[Outputtruncated; laterresultsmaybeomitted. Narrowreads/missinghelp→separatecell; NEVERrerunsideeffectsforoutput]"
+		? "[Output truncated; later results may be missing. Narrow reads; missing help→own cell. NEVER repeat side effects for output]"
 		: "[Output truncated; later results may be omitted. Narrow reads or fetch missing help separately. Do not rerun side effects for output.]";
 	let remaining = maxChars;
 	let truncated = false;

@@ -142,60 +142,60 @@ checkpoint accepts one binding, no hook: named durable helpers snapshot(value) �
 
 TS state is separate from Deno Notebook. Normal cells share live bindings, closures and module instances. Durable snapshots retain supported data and helper recipes, reporting skipped live-only values. Live errors can leave mutations; tool and file effects are not rolled back. Isolated cells use a checkpoint copy and save a candidate without changing live state. Loading a candidate replaces the kernel and discards current live-only values and unsaved changes.`;
 
-const NOTEBOOK_GPT_HELP = `Native: {"input":"<JSON action object>"}; nested: tools.notebook({action,...})
-status query?:string→memory/checkpoint/retainedsummary; query→inspectlivematches
-list query?:string→savedprofiles/isolatedcandidates; namefilter
-checkpoint→persistserializablestate
-save name:string→namedstateprofile
-load name:string→addprofile/candidateBYVALUE; NOcellreplay; release/renamecollisionsFIRST; NEVERreplacelivekernel
-pin names:string[] hook?:"startup"|"tool_result"|false→durableprojectbindings; release/pruneprotection; omittedhook→preserve, false→remove
-unpin names:string[]→removeprotection/hooks; keepbindings
-release names:string[]→dispose/removeunpinnedbindings; protected→unpinFIRST
-prune query:string→releaseunpinnedglobmatches; pinssurvive
-restart→stopactivecell; restorelastcompletedcheckpoint
-diagnostics→historicalcells/runtimehealth; NOexecution
-reset→stopactivecell; discardsessioncheckpoint; durableprojectstate/savednotebook/namedprofilessurvive
-query: case-insensitive * and ? globs; prune→nonempty. names: nonemptybindingnamearray; pin/release→existingJSidentifiers. Profilenames: 1-64 letters/numbers/._-; firstalphanumeric
-Hooks=selfcontainedAWAITED fn(event); recreateimports/livehandlesINSIDE. startup→{type:"startup"} once/freshrestoredkernel, NOTonpin; NOPitools; failure→blockexecution, unpinAVAILABLE. tool_result→{type:"tool_result",toolName,input,status:"success"|"error",result?,error?} AFTERnestedtoolssettle; awaitinnameorder; hooktoolsNEVERretrigger
-ManagementAFTERexec; insideexecONLY: status(noquery), list, diagnostics. release/pruneMAYrestartlexicalbindingkernel→runtime-onlyhandlesLOST
-Normal→1activecell. isolated:true→separateDenokernelfromcommittedsavedstate, max4; wait→continue/terminateisolatedcell. Completion→namedcandidate, NEVERautoadopt; list→explicitadditiveload, rejectcollisions. TransferONLYcheckpoint-supportedstate, NOTarbitraryclosures/types/imports. Externaltool/fileeffectsNEVERrollback`;
+const NOTEBOOK_GPT_HELP = `Native {"input":"<JSON action object>"}; nested tools.notebook({action,...})
+status query?:string→memory/checkpoint/state; query→live matches
+list query?:string→saved profiles/isolated candidates; name filter
+checkpoint→persist serializable state
+save name:string→named profile
+load name:string→add profile/candidate by value; NO replay; release/rename collisions FIRST; NEVER replace live kernel
+pin names:string[] hook?:"startup"|"tool_result"|false→durable project bindings, release/prune protected; omit hook→keep, false→remove
+unpin names:string[]→remove protection/hooks; keep bindings
+release names:string[]→dispose/remove unpinned bindings; protected→unpin FIRST
+prune query:string→release unpinned glob matches; pins survive
+restart→stop active cell; restore last completed checkpoint
+diagnostics→historical cells/runtime health; NO execution
+reset→stop cell; discard session checkpoint; keep durable project state/saved notebook/named profiles
+query: case-insensitive * and ? globs; prune nonempty. names: nonempty binding-name array; pin/release→existing JS identifiers. Profile names: 1-64 letters/numbers/._-; first alphanumeric
+Hooks=self-contained awaited fn(event); recreate imports/live handles inside. startup→{type:"startup"} once/fresh restored kernel, NOT on pin; NO Pi tools; failure blocks execution, unpin available. tool_result→{type:"tool_result",toolName,input,status:"success"|"error",result?,error?} AFTER nested tools settle; awaited in name order; hook tools NEVER retrigger
+Management AFTER exec; inside exec ONLY: status(no query), list, diagnostics. release/prune MAY restart lexical-binding kernel, losing runtime-only handles
+Normal: 1 active cell. isolated:true→separate Deno kernel from committed state, max4; wait→continue/terminate. Completion→named candidate; NEVER auto-adopt; list→explicit additive load. Transfer ONLY checkpoint-supported state, NOT arbitrary closures/types/imports. External tool/file effects NEVER roll back`;
 
-const TS_GPT_HELP = `Native: {"input":"<JSON action object>"}; nested: tools.notebook({action,...})
-status query?:string→livebindings/activecells
-list query?:string→profiles/isolatedcandidates
-checkpoint→durablesnapshot; reportunsavedlive-onlyvalues
-save name:string→nameddurableprofile
-load name:string→addprofileBYVALUE; releasecollisionsFIRST. candidate-*→REPLACElivekernel; live-onlyvalues/unsavedchangesLOST
-pin names:string[] hook?:"startup"|"tool_result"|false checkpoint?:{snapshot:string,restore:string}→durableretainedbindings; release/pruneprotection; omittedhook→preserve, false→remove
-unpin names:string[]→removeprotection/hooks/checkpointregistration; keeplivebindings
-release names:string[]→removeunpinnedbindings
-prune query:string→removeunpinnedglobmatches
-restart→lastdurablecheckpoint; live-onlyvalues/laterchangesLOST
-diagnostics→state/runtimehealth
-reset→discardsessionstate; projectpins/namedprofilessurvive
-query: case-insensitive * and ? globs. Lifecyclechanges/save/checkpoint→IDLEcells. InsideexecONLY: status(noquery), list, diagnostics. Release/prune→rebuildkernel→namesreusable, live-onlyvaluesLOST
-Hooks=selfcontained fn(event). startup→once/freshrestoredkernelINCLisolatedworkers, NOTonpin; NOPitools. tool_result→AFTERnestedtoolssettle: {type,toolName,input,status,result?,error?}; hooktoolsNEVERretrigger
-checkpointregistration: ONEbinding, NOhook; nameddurablehelpers snapshot(value)→portableCURRENTdata, restore(data)→rebuiltvalue; eitherasync. RestorersALSOforprofiles/isolatedcells; reconnectMAYcauseexternaleffects. Restorefailure→blockexecution, preservecheckpoint; recovery→unpinreportednames
-TSstate≠Deno. Normalcells→sharedlivebindings/closures/modules. Snapshots→supporteddata/helperrecipes; reportskippedlive-onlyvalues. LiveerrorsMAYleavemutations; tool/fileeffectsNEVERrollback. Isolatedcells→checkpointcopy→savedcandidate; livestateUNCHANGEDuntilexplicitcandidateloadREPLACESkernel`;
+const TS_GPT_HELP = `Native {"input":"<JSON action object>"}; nested tools.notebook({action,...})
+status query?:string→live bindings/active cells
+list query?:string→profiles/isolated candidates
+checkpoint→durable snapshot; report live-only values
+save name:string→durable profile
+load name:string→add profile by value; release collisions FIRST. candidate-*→REPLACE live kernel; live-only values/unsaved changes LOST
+pin names:string[] hook?:"startup"|"tool_result"|false checkpoint?:{snapshot:string,restore:string}→durable bindings, release/prune protected; omit hook→keep, false→remove
+unpin names:string[]→remove protection/hooks/checkpoint registration; keep live bindings
+release names:string[]→remove unpinned bindings
+prune query:string→remove unpinned glob matches
+restart→last durable checkpoint; live-only values/later changes LOST
+diagnostics→state/runtime health
+reset→discard session state; project pins/named profiles survive
+query: case-insensitive * and ? globs. Lifecycle changes/save/checkpoint→IDLE cells. Inside exec ONLY: status(no query), list, diagnostics. Release/prune rebuild kernel→reusable names; live-only values LOST
+Hooks=self-contained fn(event). startup→once/fresh restored kernel including isolated workers, NOT on pin; NO Pi tools. tool_result→AFTER nested tools settle: {type,toolName,input,status,result?,error?}; hook tools NEVER retrigger
+checkpoint registration: ONE binding, NO hook; named durable helpers snapshot(value)→portable current data, restore(data)→rebuilt value; either async. Restorers ALSO for profiles/isolated cells; reconnect MAY cause external effects. Restore failure→block execution, preserve checkpoint; recovery→unpin reported names
+TS state≠Deno. Normal cells share bindings/closures/modules. Snapshots retain supported data/helper recipes, report skipped live-only values. Live errors MAY leave mutations; tool/file effects NEVER roll back. Isolated cells→checkpoint copy→saved candidate; live state unchanged UNTIL explicit candidate load REPLACES kernel`;
 
-const JS_GPT_HELP = `Native: {"input":"<JSON action object>"}; nested: tools.notebook({action,...})
-status query?:string→retainedbindingnames/kinds/types; * and ? globfilter
-diagnostics→runtimehealth
-hook name:string event:"startup"|"tool_result"|false→registerexistingfunction/removeregistration
-checkpoint→ENTIREVMstate
-save name:string names?:string[]→selecteddata; omitnames→whole-notebookprofileWITHOUTprojectpinregistrations
-load name:string→addselecteddataBYVALUE; whole-notebookprofile/isolatedcandidate→REPLACElivestate
-pin names:string[]→plaindatarelease/pruneprotection+resetsurvival
-unpin names:string[]→removeprojectpins; keeplivebindings
-release names:string[]→removeunprotectedbindingsINCLconst; namesreusable
-prune query:string→explicitglobrelease; pins/registeredhookssurvive
-list query?:string→JSprofiles/isolatedcandidates
-restart→stopactivecells; restorelastcheckpoint
-reset→resetSHAREDprojectnotebook; pins/namedprofilessurvive
-SameGitproject→sharedCOMPLETE notebook/hooksacrossconversations; outsideGit→workingfolderscope. Normalcells→serialacrossconversations+refreshlatestcheckpoint. FailedcellsMAYleavelivemutations; sharedconflict→recoveryprofileNOToverwrite. Cancel→stopexecutionkernel; restart→restoresharedstate≠externaltoolrollback. AwaitALLhostcalls. isolated:true→snapshotcandidate; changedbaseadoption→EXPLICITreplacement. JSstorage≠othermodes
-Selectiveprofiles/pins: primitives/mutableplainobjects/arrays+aliases/cycles; NOfunctions/classes/accessors/proxies. Unsupportedpins→preservewholecheckpoint+reportfailedreset-survivalsync. Dataloads→rejectcollisions. Release→preservealiases/capturedclosurevalues; redeclarationNEVERretargets. Unreferencedvalues→reclaimable; oldernative-scopeimages→reportretainedroots
-Hooks→persistacrossprojectconversations/fullprofiles. startup→once/freshkernelBEFOREfirstusercell; NOPitools; failure→blockusercodeUNTILremoval/restart. tool_result→AFTERnestedtoolssettle: {type,toolName,input,status,result?,error?}; awaitinnameorder; NOrecursivetrigger. Hookfailure→failcell, preservelivestate. Registration≠invocation
-StatechangingcontrolsAFTERexec; insideexecONLY: status(noquery), list, diagnostics`;
+const JS_GPT_HELP = `Native {"input":"<JSON action object>"}; nested tools.notebook({action,...})
+status query?:string→retained names/kinds/types; * and ? glob filter
+diagnostics→health
+hook name:string event:"startup"|"tool_result"|false→register existing function/remove registration
+checkpoint→entire VM state
+save name:string names?:string[]→selected data; omit names→whole-notebook profile WITHOUT project pin registrations
+load name:string→add selected data by value; whole-notebook profile/isolated candidate→REPLACE live state
+pin names:string[]→plain-data release/prune protection+reset survival
+unpin names:string[]→remove project pins; keep live bindings
+release names:string[]→remove unprotected bindings including const; names reusable
+prune query:string→explicit glob release; pins/registered hooks survive
+list query?:string→JS profiles/isolated candidates
+restart→stop active cells; restore last checkpoint
+reset→reset SHARED project notebook; pins/named profiles survive
+Same Git project→shared complete notebook/hooks across conversations; outside Git→working folder. Normal cells→serial across conversations+refresh latest checkpoint. Failed cells MAY leave mutations; shared conflict→recovery profile, NOT overwrite. Cancel→stop execution kernel; restart→shared state, NOT external tool rollback. Await ALL host calls. isolated:true→snapshot candidate; changed-base adoption→EXPLICIT replacement. JS storage≠other modes
+Selective profiles/pins: primitives/mutable plain objects/arrays+aliases/cycles; NO functions/classes/accessors/proxies. Unsupported pins→preserve whole checkpoint+report failed reset-survival sync. Data loads reject collisions. Release preserves aliases/captured closure values; redeclaration NEVER retargets. Unreferenced values reclaimable; older native-scope images report retained roots
+Hooks persist across project conversations/full profiles. startup→once/fresh kernel BEFORE first user cell; NO Pi tools; failure blocks user code until removal/restart. tool_result→AFTER nested tools settle: {type,toolName,input,status,result?,error?}; awaited in name order; NO recursive trigger. Hook failure→fail cell, preserve live state. Registration≠invocation
+Controls AFTER exec; inside exec ONLY: status(no query), list, diagnostics`;
 
 const notebookPromptModes = new WeakMap<SharedCodeModeRuntime, GptPromptModeRegistration>();
 

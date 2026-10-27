@@ -24,48 +24,48 @@ const PI_DEFAULT_GUIDELINES = new Set([
 ]);
 
 const RUNTIME_IDENTITY_GUIDELINE = ["You are running in Pi with Codex-native tools", "Pi; Codex-native tools"] as const;
-const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finishrequestedwork; askONLYifmissinginfochangesaction"] as const;
+const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finish work; ask ONLY if missing info changes action"] as const;
 
 const NORMAL_CODEX_GUIDELINES = [
 	["Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
-	["Reserve tty=true for input or persistent processes", "tty=true ONLYforinput/persistentprocesses"],
-	["Use apply_patch for text edits, creates, deletes, and moves; split oversized patches", "Textedits/creates/deletes/moves→apply_patch; oversizedpatches→split"],
-	["Run independent tool calls in parallel when practical", "Independentcalls→parallelwhenpractical"],
+	["Reserve tty=true for input or persistent processes", "tty=true ONLY for input/persistent processes"],
+	["Use apply_patch for text edits, creates, deletes, and moves; split oversized patches", "Text edits/creates/deletes/moves→apply_patch; oversized→split"],
+	["Run independent tool calls in parallel when practical", "Independent calls→parallel when practical"],
 ] as const;
 
 const CODE_MODE_GUIDELINES = [
 	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
-	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "JS: quotedtext→alternate outerquotes; shell/patches/source→preserve literal ${...}/backticks"],
-	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→awaitinsideexec"],
+	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks"],
+	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec"],
 	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true"],
-	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: onecall/file; oversized→sequentialsplits; independentfiles→Promise.allSettled; shell/Python ONLYformatting/bulkrewrite"],
-	["Await dependencies; batch independent calls only when combined output is small. Bound large reads", "Dependencies→await; independentcalls→batchONLYifcombinedoutputsmall; largereads→bound"],
+	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites"],
+	["Await dependencies; batch independent calls only when combined output is small. Bound large reads", "Dependencies→await; batch independent calls ONLY if combined output small; bound large reads"],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
 
 const STATEFUL_MODE_GUIDELINES = [
-	["Reuse matching retained globals", "Matchingretainedglobals→reuse"],
-	["Keep one-offs block-local. Retain only what you plan to reuse, and clean up when the task ends.", "One-offs→blocklocal; retainONLYplannedreuse; taskdone→cleanup"],
+	["Reuse matching retained globals", "Reuse matching globals"],
+	["Keep one-offs block-local. Retain only what you plan to reuse, and clean up when the task ends.", "One-offs→block-local; retain ONLY planned reuse; task done→cleanup"],
 	...CODE_MODE_GUIDELINES,
 	["Notebook state management: notebook({})", "Manage state: notebook({})"],
-	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonicalartifacts→files; tools.exec_command crosscallshellstate→files/args"],
+	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonical artifacts→files; shell state across tools.exec_command→files/args"],
 ] as const;
 
 const NOTEBOOK_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
-	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Retainedhelpers=selfcontained; restart→recreateimports/closures/livehandles"],
-	["Normal exec cells run one at a time", "Normalcells→serial"],
+	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Helpers=self-contained; restart→recreate imports/closures/live handles"],
+	["Normal exec cells run one at a time", "Normal cells→serial"],
 ] as const;
 
 const TS_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
-	["Normal exec cells run one at a time. Inspect variables after errors before retrying", "Normalcells→serial; error→inspectstateBEFOREretry"],
-	["After restart, recreate any values reported as unsaved", "Restart→recreatereportedunsavedvalues"],
+	["Normal exec cells run one at a time. Inspect variables after errors before retrying", "Normal cells→serial; error→inspect state BEFORE retry"],
+	["After restart, recreate any values reported as unsaved", "Restart→recreate reported unsaved values"],
 ] as const;
 
 const JS_MODE_GUIDELINES = [
 	...STATEFUL_MODE_GUIDELINES,
-	["Normal exec cells share serial live state; inspect mutations after errors before retrying", "Normalcells→sharedseriallivestate; error→inspectmutationsBEFOREretry"],
+	["Normal exec cells share serial live state; inspect mutations after errors before retrying", "Normal cells→shared serial state; error→inspect mutations BEFORE retry"],
 ] as const;
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
@@ -180,7 +180,7 @@ export function resolvePromptSkills(
 function buildSkillsContent(skills: PromptSkill[], gpt = false): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		gpt ? "Readusernamed/taskmatchingskills; relativepaths→skilldir; loadneededrefs"
+		gpt ? "Read named/task-matching skills; relative paths→skill dir; load needed refs"
 			: "Read skills named by the user or matching the task; resolve relative paths from the skill directory and load needed references",
 	];
 
