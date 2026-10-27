@@ -4,7 +4,7 @@ import { isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
-import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
+import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/provider-replay.ts";
 import { applyResponsesLiteRequest, RESPONSES_LITE_HEADER, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 import { rewriteRelationshipHeaders, rewriteRelationshipPayload } from "../agent-relationship.ts";
 

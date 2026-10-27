@@ -1,4 +1,4 @@
-- `compaction.ts` owns native compaction, readable-summary conversion, fallback-window injection and replay orchestration.
+- `compaction.ts` owns compaction execution and portable-summary fallback; `request.ts` builds native requests from prepared prompts and canonical history; `provider-replay.ts` selects/stashes opaque fallback windows and rewrites outgoing replay/summary payloads. Pending windows remain on `AdapterState`, consumed once by injection and cleared by compaction lifecycle cleanup.
 - Replay only the checkpoint present in Pi's effective context, independently of the next compaction method. Resolve restored summary provenance from session entries; never infer it from a Notes marker. Selecting Pi consumes an opaque checkpoint on the isolated summary lane before retiring it.
 - V2 is the only executable protocol. Legacy V1 checkpoint strategy strings are accepted only to replay existing shared sessions.
 - V2 is cached native checkpoint/replay, not prose: preserve canonical output/tool history, bounded real user messages, and live tail; truncate outputs only for endpoint budget.
