@@ -357,13 +357,7 @@ export async function useHistory(
 		previews.push(preview);
 		size += chars;
 	}
-	return {
-		items: previews,
-		truncated: previews.length < items.length,
-		...(action === "search_contents"
-			? { search_mode: ranked ? "ranked_earlier_context" : "literal" }
-			: {}),
-	};
+	return { items: previews, truncated: previews.length < items.length };
 }
 
 function integer(value: unknown, fallback: number, max: number): number {
