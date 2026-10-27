@@ -17,7 +17,10 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { PruningPlan } from "./session-pruning-plan.js";
-import { transformPruningEntry } from "./session-pruning-plan.js";
+import {
+	pruningContext,
+	transformPruningEntry,
+} from "./session-pruning-plan.js";
 import { scanSession } from "./session-pruning-source.js";
 
 const MAX_COMMIT_TAIL = 4 * 1024 * 1024;
@@ -55,8 +58,8 @@ export async function commitSessionPruning(
 			ctx.sessionManager.getSessionFile() !== plan.path
 		)
 			throw new Error("Active session changed. Run now again.");
-		for (const entry of ctx.sessionManager.buildContextEntries())
-			if (plan.ids.has(entry.id) && !plan.protectedIds.has(entry.id))
+		for (const id of pruningContext(ctx.sessionManager).protectedIds)
+			if (plan.ids.has(id) && !plan.protectedIds.has(id))
 				throw new Error("Active context changed. Run now again.");
 		return sameSource(plan);
 	};

@@ -1,5 +1,8 @@
 import { type Stats, statSync } from "node:fs";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	buildContextEntries,
+	type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import {
 	deliveryId,
 	opaqueState,
@@ -9,6 +12,7 @@ import {
 } from "./session-pruning-content.js";
 import type { SessionPruningPolicy } from "./session-pruning-policy.js";
 import { scanSession } from "./session-pruning-source.js";
+import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
 import { windowDetails } from "./windows.js";
 
 interface RecordIndex {
@@ -36,6 +40,19 @@ export interface PruningPlan {
 	opaque: string[];
 }
 
+/** An active legacy checkpoint can live outside Pi's physical branch. */
+export function pruningContext(manager: ExtensionContext["sessionManager"]) {
+	const branch = manager.getBranch();
+	const projected = projectTreeCheckpointBranch(branch, manager.getEntries());
+	const protectedIds = new Set(
+		manager.buildContextEntries().map((entry) => entry.id),
+	);
+	if (projected !== branch)
+		for (const entry of buildContextEntries([...projected]))
+			protectedIds.add(entry.id);
+	return { branch: projected, protectedIds };
+}
+
 export async function planSessionPruning(
 	manager: ExtensionContext["sessionManager"],
 	policy: SessionPruningPolicy,
@@ -44,7 +61,7 @@ export async function planSessionPruning(
 	const path = manager.getSessionFile();
 	if (!path) throw new Error("Session has not been saved yet.");
 	const source = statSync(path);
-	const branch = manager.getBranch();
+	const { branch, protectedIds } = pruningContext(manager);
 	const windows = [
 		...new Set(
 			branch.flatMap((entry) => {
@@ -58,9 +75,6 @@ export async function planSessionPruning(
 	const current = windows.at(-1);
 	const retained = new Set(
 		policy.windows ? windows.slice(-policy.windows) : [],
-	);
-	const protectedIds = new Set(
-		manager.buildContextEntries().map((entry) => entry.id),
 	);
 	const index = new Map<string, RecordIndex>();
 	const delivered = new Set<string>();
