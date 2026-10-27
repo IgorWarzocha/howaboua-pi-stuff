@@ -2,7 +2,7 @@ use codex_exec_server::ExecutorFileSystem;
 use codex_exec_server::FileSystemSandboxContext;
 use codex_exec_server::ReadFileOptions;
 use codex_utils_path_uri::PathUri;
-use similar::TextDiff;
+use similar::{Algorithm, TextDiff};
 
 use crate::ApplyPatchError;
 use crate::IoError;
@@ -194,7 +194,10 @@ pub async fn unified_diff_from_chunks_with_context(
         new_contents,
     } = derive_new_contents_from_chunks(path, chunks, fs, /*follow_symlinks*/ true, sandbox)
         .await?;
-    let text_diff = TextDiff::from_lines(&original_contents, &new_contents);
+    // similar 3's Myers adds heuristics; retain the vendored engine's minimal diffs.
+    let text_diff = TextDiff::configure()
+        .algorithm(Algorithm::RawMyers)
+        .diff_lines(&original_contents, &new_contents);
     let unified_diff = text_diff.unified_diff().context_radius(context).to_string();
     Ok(ApplyPatchFileUpdate {
         unified_diff,
