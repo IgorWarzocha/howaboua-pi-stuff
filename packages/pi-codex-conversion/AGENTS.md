@@ -11,7 +11,7 @@
 - Keep src/voice/rust/** and scripts/build-voice-helper.mjs byte-identical with pi-gippity-control. Change and changeset both together.
 - Watch native GitHub builds with `github_watch` when its help supports Actions run URLs. Otherwise use `gh run watch <id> --exit-status` near their expected 10–15 minutes. No polling loops, background shells or temporary log redirection.
 - tools.customRustBinariesDir is the filename-based bundled-helper override, not a Code host override. Bundled-helper startup incompatibility errors point there, not through loader noise.
-- Vendored apply-patch engine, path-uri and absolute-path track one Codex commit. Pi changes stay in standalone_executable.rs and pi-apply-patch-fs.
+- Vendored apply-patch engine, path-uri and absolute-path track one Codex source commit. Keep product changes in standalone_executable.rs and pi-apply-patch-fs; preserve local dependency-API adaptations recorded in src/tools/rust/VENDORED.md when syncing.
 - Reject review-driven drift from stock Pi unless backend-verified or intentional.
 - Provider names/endpoints do not define backend identity. Renamed/proxied openai-codex-responses retains Codex transport, Fast Mode and account isolation.
 - Proxies are deliberate policy/monitoring/routing seams. Environment proxies preserve ChatGPT contracts. Explicit openai-responses passthrough supports only its backend's capabilities. Never reject by provider name or assume proxy means non-ChatGPT.
