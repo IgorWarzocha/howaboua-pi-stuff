@@ -128,25 +128,17 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.99
+### @howaboua/pi-extensions — 0.0.100
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: - Removed redundant help-call instructions from Ask's help. - GPT mode uses note-style question and handoff guidance.
-  - @howaboua/pi-auto-trees: GPT mode uses note-style priming, commit-summary and voice guidance.
-  - @howaboua/pi-better-skills-tool: - Skills now shows its exact discovery call in Code and Notebook modes and clarifies batch-read syntax in help. - GPT mode uses note-style skill discovery and reading guidance.
-  - @howaboua/pi-gippity-control: Realtime voice now uses gpt-live-1.1-codex.
-  - @howaboua/pi-github-watch: - GPT mode uses note-style watch help. - Active watch results now state that updates arrive automatically without polling or a separate CLI watch.
-  - @howaboua/pi-grok-realtime: - Added `stay_quiet` so Grok can choose silence during pauses without losing later silence follow-ups. Follow-ups respect the configured interval, microphone mute and Pi's working state. - Omit generated timestamps from agent work updates.
-  - @howaboua/pi-shepherdr: - **BREAKING CHANGE:** Shared notes and history now use Notes instead of PCC. Install `@howaboua/pi-notes-compaction` and update participating hosts together to retain sharing. PCC remains optional for native parent linkage and cache affinity. Ordinary agent management requires neither extension. - Agent guidance now directs controllers to close finished workers without preceding acknowledgement messages. - Attached note reads keep private routing details out of results while preserving read-only and stale-checkpoint warnings. Attachment acknowledgements omit internal bookkeeping. - GPT mode uses note-style agent help and Board briefings.
-  - @howaboua/pi-suggestions: Added editable Markdown instructions in /suggestions, with defaults favouring productive next actions and avoiding repeated requests or completed work.
-  - @howaboua/pi-unicode-charts: GPT mode uses note-style chart guidance.
+  - @howaboua/pi-gippity-control: Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.27
+### @howaboua/pi-gippity-control — 0.0.28
 
-- Realtime voice now uses gpt-live-1.1-codex.
+- Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -170,28 +162,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
-### @howaboua/pi-notes-compaction — 0.0.10
+### @howaboua/pi-notes-compaction — 0.0.11
 
-- ### Features
-  - Added per-session auto-pruning in `/notes`, with 5, 10 or 25 full-history windows and optional one-week or one-month conversation retention. Off by default, with a Run now preview. Current context and saved notes remain protected. Restart Pi for memory savings; `/reload` is not sufficient.
-  - Added opt-in BM25-ranked history search in `/notes` for earlier user messages and assistant replies. Current context, tools and reasoning are excluded. Explicit tool-history, live-window and cross-agent searches retain literal matching.
-  - Added subagent sharing and note-save marker settings to `/notes`, with migration from global and trusted-folder PCC preferences.
-  - Added automatic read-only remote notes retrieval and recovery of saved PCC Tree history.
-  - Added `pi-notes-compaction/context-sharing` with `connectNotesContextSharing` for orchestrators to share notes and history without PCC.
-
-  ### History and recovery
-  - Reduced memory use during Notes rollover in long sessions. Earlier windows remain accessible through History and Tree.
-
-    **Expected compaction card:** This fix requires a native history cut, which displays Pi's compaction card. Pi currently provides no supported way to hide this card. It can be ignored; Notes is working as intended.
-
-  - Tool descriptions now explain that Notes hands off task state between context windows. GPT prompt mode uses note-style guidance, history-search help and rollover reminders.
-  - Notes guidance now directs each agent to keep checkpoints and reports in its own notes and share their paths.
-  - Notes now accepts `read` as an alias for `read_file`.
-  - With PCC, plaintext Notes and history calls inside `exec` now return objects instead of JSON strings.
-  - With PCC, history now reads Pi session files instead of encrypted backend history.
-  - Fixed returning to a saved-notes point in the session tree unnecessarily requesting another checkpoint instead of opening a new context window.
-  - Prune missing sessions now also removes history index entries for missing session files.
-  - Notes results now omit storage and routing bookkeeping while retaining read ranges, truncation and warnings about incomplete or outdated results.
+- - Fixed native SQLite addon crashes when saving notes or searching ranked history in standalone Bun-based Pi builds. Existing notes and history indexes remain compatible with Node-based Pi.
+  - Fixed the session auto-pruning submenu losing its frame and disappearing during pruning. Preview, confirmation and progress now stay inside the menu.
 
 [Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
 
@@ -278,19 +252,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.107
+### @howaboua/pi-stuff — 0.0.108
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: - Removed redundant help-call instructions from Ask's help. - GPT mode uses note-style question and handoff guidance.
-  - @howaboua/pi-auto-trees: GPT mode uses note-style priming, commit-summary and voice guidance.
-  - @howaboua/pi-better-skills-tool: - Skills now shows its exact discovery call in Code and Notebook modes and clarifies batch-read syntax in help. - GPT mode uses note-style skill discovery and reading guidance.
-  - @howaboua/pi-gippity-control: Realtime voice now uses gpt-live-1.1-codex.
-  - @howaboua/pi-github-watch: - GPT mode uses note-style watch help. - Active watch results now state that updates arrive automatically without polling or a separate CLI watch.
-  - @howaboua/pi-grok-realtime: - Added `stay_quiet` so Grok can choose silence during pauses without losing later silence follow-ups. Follow-ups respect the configured interval, microphone mute and Pi's working state. - Omit generated timestamps from agent work updates.
-  - @howaboua/pi-shepherdr: - **BREAKING CHANGE:** Shared notes and history now use Notes instead of PCC. Install `@howaboua/pi-notes-compaction` and update participating hosts together to retain sharing. PCC remains optional for native parent linkage and cache affinity. Ordinary agent management requires neither extension. - Agent guidance now directs controllers to close finished workers without preceding acknowledgement messages. - Attached note reads keep private routing details out of results while preserving read-only and stale-checkpoint warnings. Attachment acknowledgements omit internal bookkeeping. - GPT mode uses note-style agent help and Board briefings.
-  - @howaboua/pi-suggestions: Added editable Markdown instructions in /suggestions, with defaults favouring productive next actions and avoiding repeated requests or completed work.
-  - @howaboua/pi-unicode-charts: GPT mode uses note-style chart guidance.
+  - @howaboua/pi-gippity-control: Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.28
+
+- Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
+
 ## 0.0.27
 
 - Realtime voice now uses gpt-live-1.1-codex.
