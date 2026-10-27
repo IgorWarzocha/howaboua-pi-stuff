@@ -33,6 +33,7 @@ export async function recordNotebookStatus(
 	state: Pick<AdapterState, "notebookStatusMessageId">,
 	messages: readonly AgentMessage[],
 	codeMode: Pick<CodeModeRegistration, "notebookStatus">,
+	mode: "notebook" | "ts" | "js",
 ): Promise<boolean> {
 	if (state.notebookStatusMessageId && messages.some((message) => message.role === "custom"
 		&& (message.customType === CODEX_NOTEBOOK_STATUS_TYPE || message.customType === CODEX_DEVELOPER_MESSAGE_TYPE)
@@ -42,17 +43,21 @@ export async function recordNotebookStatus(
 	try {
 		const status = await codeMode.notebookStatus(ctx);
 		// notebookStatus requests status with query "*" from NotebookLifecycleController.
-		const inventory = formatStartupStatus(status.details as NotebookStatusDetails);
+		const js = status.details["mode"] === "js";
+		const ts = status.details["mode"] === "ts";
+		const inventory = ts || js ? status.details["startupStatus"] ?? status.message
+			: formatStartupStatus(status.details as NotebookStatusDetails);
 		content = [status.details["startupNotice"], inventory].filter((value) => typeof value === "string" && value).join("\n");
 		title = [
-			"Notebook",
-			typeof status.details["retainedBindings"] === "number" ? `${status.details["retainedBindings"]} retained` : undefined,
-			typeof status.details["pinnedBindings"] === "number" ? `${status.details["pinnedBindings"]} pinned` : undefined,
+			js ? "JS Notebook" : ts ? "TS" : "Notebook",
+			!js && typeof status.details["retainedBindings"] === "number" ? `${status.details["retainedBindings"]} retained` : undefined,
+			!js && typeof status.details["pinnedBindings"] === "number" ? `${status.details["pinnedBindings"]} pinned` : undefined,
 		].filter(Boolean).join(" · ");
 	} catch (error) {
 		if (ctx.signal?.aborted) throw error;
-		title = "Notebook status unavailable";
-		content = `Notebook startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
+		const label = mode === "js" ? "JS Notebook" : mode === "ts" ? "TS" : "Notebook";
+		title = `${label} status unavailable`;
+		content = `${label} startup status unavailable: ${error instanceof Error ? error.message : String(error)}\nUse notebook diagnostics to inspect the failure before relying on retained state`;
 	}
 	ctx.signal?.throwIfAborted();
 	const status: NotebookStatus = { protocol: 1, id: randomUUID(), content, title };

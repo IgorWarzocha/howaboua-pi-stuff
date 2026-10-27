@@ -26,9 +26,9 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
-import type { AgentFleet } from "./fleet.js";
+import type { AgentFleet } from "./fleet/index.js";
 import { resolvePiAgent } from "./herdr.js";
-import { attributeAgentPrompt } from "./messages.js";
+import { attributeAgentPrompt } from "./messages/attribution.js";
 import type { createPeerCommands } from "./peer-commands.js";
 import type { SharedAgentContext } from "./shared-context.js";
 

@@ -3,8 +3,9 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { ContextSharingService } from "@howaboua/pi-codex-conversion/context-sharing";
-import type { ConnectedMachine } from "./fleet.js";
+import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
+import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
+import type { ConnectedMachine } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
@@ -21,14 +22,20 @@ interface Routing {
 	transport: "shepherdr";
 	parent: string;
 }
+
 export class SpawnContext {
 	private readonly pi: ExtensionAPI;
+	private readonly getRelationships: () =>
+		| CodexAgentRelationshipService
+		| undefined;
 	private readonly getService: () => ContextSharingService | undefined;
 	constructor(
 		pi: ExtensionAPI,
 		getService: () => ContextSharingService | undefined,
+		getRelationships: () => CodexAgentRelationshipService | undefined,
 	) {
 		this.pi = pi;
+		this.getRelationships = getRelationships;
 		this.getService = getService;
 	}
 	prepareRelationship(
@@ -36,8 +43,8 @@ export class SpawnContext {
 		runtime: ConnectedMachine,
 		args: readonly string[],
 	) {
-		const service = this.getService();
-		if (!service?.bindRelationship) return undefined;
+		const service = this.getRelationships();
+		if (!service) return undefined;
 		// Session-selection profiles resume existing identities rather than creating workers.
 		if (
 			args.some((arg) =>
@@ -48,7 +55,7 @@ export class SpawnContext {
 		)
 			return undefined;
 		const parentThreadId = ctx.sessionManager.getSessionId();
-		const cacheAffinityId = service.cacheAffinityId?.(ctx);
+		const cacheAffinityId = service.cacheAffinityId(ctx);
 		const linkage = { parentThreadId, subagentKind: "collab_spawn" };
 		const relationship = {
 			...linkage,
@@ -112,18 +119,15 @@ export class SpawnContext {
 			throw new Error(
 				"Shared context spawn requires a saved controller session",
 			);
-		const routing: Routing | undefined =
-			parent.storage === "session"
-				? {
-						transport: "shepherdr",
-						parent: runtime.local
-							? sessionContextPath(parentFile)
-							: runtime.client.contextRelayPath(),
-					}
-				: undefined;
+		const routing: Routing = {
+			transport: "shepherdr",
+			parent: runtime.local
+				? sessionContextPath(parentFile)
+				: runtime.client.contextRelayPath(),
+		};
 		const { binding, adopt } = await service.createChild(ctx, {
 			name,
-			...(routing ? { routing } : {}),
+			routing,
 		});
 		return {
 			accept: async (agent: PaneInfo) => {
@@ -136,8 +140,7 @@ export class SpawnContext {
 				);
 				if (!value)
 					return {
-						warning:
-							"Spawned without shared context: the target needs Codex conversion with notes-based continuity",
+						warning: "Spawned without shared context: the target needs Notes",
 					};
 				if (
 					typeof value !== "object" ||

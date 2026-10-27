@@ -9,7 +9,6 @@ The upstream source is `codex-rs/ext/image-generation/`, `codex-rs/codex-api/src
 ## September 28 review
 
 Reviewed through Codex `1b1835f751ebdc0cfc50b3fe55d4571dbb294563`; the reference baseline remains the revision above.
-
 - `transparent_background` follows `40eac3ce8a`: true requests transparency for generation or editing; omission or false requests an opaque background. This replaces the previous automatic background selection.
 - HTTP redirects resolve proxy and `no_proxy` routing for each destination, following the route-aware transport change in `6ea62c4396`. The runtime remains identical to the web-search package's copy.
 

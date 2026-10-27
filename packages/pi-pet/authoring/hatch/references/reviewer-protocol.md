@@ -26,7 +26,6 @@ Write responses separately as `direction-blind-verdicts-{1,2,3}.json`, combine b
 ## Final visual review
 
 Give the final reviewer:
-
 - standard and extended contact sheets;
 - all standard-row GIF previews;
 - focused direction sheet;

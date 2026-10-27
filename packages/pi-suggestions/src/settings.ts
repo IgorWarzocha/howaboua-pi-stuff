@@ -3,7 +3,13 @@ import {
 	type ModelThinkingLevel,
 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readConfig, type SuggestionConfig, writeConfig } from "./config.js";
+import {
+	readConfig,
+	readInstructions,
+	type SuggestionConfig,
+	writeConfig,
+	writeInstructions,
+} from "./config.js";
 
 export async function showSettings(
 	ctx: ExtensionContext,
@@ -142,6 +148,7 @@ export async function showSettings(
 					`On/Off: ${config.enabled ? "On" : "Off"}`,
 					`Model: ${config.model ? `${config.model.provider}/${config.model.id}` : "Not chosen"}`,
 					`Reasoning: ${config.model?.reasoning ?? "Choose a model first"}`,
+					"Instructions",
 					"Done",
 				],
 				options,
@@ -177,6 +184,16 @@ export async function showSettings(
 							reasoning === undefined ? undefined : { ...model, reasoning };
 					}
 					if (model) next = { enabled: true, model };
+				}
+			} else if (selection === "Instructions") {
+				const instructions = await ui.editor(
+					"Suggestion instructions (Markdown)",
+					readInstructions(),
+				);
+				if (!current()) return;
+				if (instructions !== undefined) {
+					writeInstructions(instructions);
+					onChange(config);
 				}
 			} else if (selection.startsWith("Model:")) {
 				const model = await chooseModel();

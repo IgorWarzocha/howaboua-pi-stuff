@@ -8,10 +8,10 @@ import type {
 import { acceptFocus, readFocus } from "./agents-focus.js";
 import { sendPolicyMessage } from "./delivery.js";
 import { dispatchExtensionReply } from "./extension-reply.js";
-import type { AgentFleet } from "./fleet.js";
+import type { AgentFleet } from "./fleet/index.js";
 import { getCurrentPane } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
-import { announcePeerMessage } from "./messages.js";
+import { announcePeerMessage } from "./messages/voice-announcements.js";
 import { acceptFocusChannel } from "./peer-channel.js";
 import type { createPeerCommands } from "./peer-commands.js";
 import {

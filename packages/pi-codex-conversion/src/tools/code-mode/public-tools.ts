@@ -8,6 +8,10 @@ import {
 import {
 	EXEC_DESCRIPTION,
 	GPT_EXEC_DESCRIPTION,
+	GPT_ISOLATED_EXEC_GUIDANCE,
+	GPT_JS_EXEC_DESCRIPTION,
+	ISOLATED_EXEC_GUIDANCE,
+	JS_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
 } from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
@@ -69,16 +73,28 @@ export function registerPublicCodeModeTools(
 	const renderResult = createResultRenderer(runtime, tracker);
 	const broker = registerCodeModePreflightBroker(pi);
 	const hooks = { preflight: broker.run, completion: broker.complete };
-	const exec = createExecTool(runtime, tracker, renderResult, hooks);
-	pi.registerTool(exec);
-	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks));
 	let gpt = false;
-	registerGptPromptMode(pi, active => {
-		if (active !== gpt) {
-			gpt = active;
-			pi.registerTool({ ...exec, description: active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION });
+	const isGpt = () => gpt;
+	const exec = createExecTool(runtime, tracker, renderResult, hooks, isGpt);
+	const wait = createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks, isGpt);
+	pi.registerTool(exec);
+	pi.registerTool(wait);
+	let currentExec = exec;
+	registerGptPromptMode(pi, (active, context) => {
+		gpt = active;
+		const js = context !== undefined && runtime.executionKind(context) === "js";
+		const ts = context !== undefined && runtime.executionKind(context) === "ts";
+		const deno = context !== undefined && runtime.executionKind(context) === "notebook";
+		const description = js ? (active ? GPT_JS_EXEC_DESCRIPTION : JS_EXEC_DESCRIPTION)
+			: (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace("JavaScript", ts ? "TypeScript" : "JavaScript")
+				+ (ts || deno ? `\n${active ? GPT_ISOLATED_EXEC_GUIDANCE : ISOLATED_EXEC_GUIDANCE}` : "");
+		const executionMode = ts || js || deno ? "parallel" : "sequential";
+		if (currentExec.description !== description || currentExec.executionMode !== executionMode) {
+			if (currentExec.executionMode !== executionMode) pi.registerTool({ ...wait, executionMode });
+			currentExec = { ...exec, description, executionMode, promptSnippet: `Compose tools with ${ts ? "TypeScript" : "JavaScript"}` };
+			pi.registerTool(currentExec);
 		}
-		return [exec];
+		return [currentExec];
 	});
 	registerNotebookTool(pi, runtime);
 }
@@ -88,9 +104,11 @@ function createExecTool(
 	tracker: RenderTracker,
 	renderResult: ReturnType<typeof createResultRenderer>,
 	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
+	isGpt: () => boolean,
 ): ToolDefinition<typeof EXEC_PARAMETERS> {
 	return {
 		name: "exec",
+		defaultActive: false,
 		exposure: "model-only",
 		executionMode: "sequential",
 		label: "Exec",
@@ -119,15 +137,15 @@ function createExecTool(
 					signal,
 					tools,
 				);
-				if (guard?.lazy && (response.opaqueOutputs?.length || response.contextNotesSource === "remote")) await guard.resolveScope();
+				if (guard?.lazy && response.opaqueOutputs?.length) await guard.resolveScope();
 				if (guard && !await guard.valid())
-					throw new Error("Remote context changed after execution; verify note state before repeating a write");
+					throw new Error("Remote context changed after execution; check completed results before retrying");
 				const visible = runtime.deliverOpaqueResponse(response, id, guard);
 				tracker.finish(
 					id,
 					visible.kind === "yielded" ? "yielded" : "done",
 				);
-				return toCodeModeToolResult(visible);
+				return toCodeModeToolResult(visible, undefined, isGpt());
 			} catch (error) {
 				tracker.finish(id);
 				throw error;
@@ -157,10 +175,12 @@ function createWaitTool(
 	renderResult: ReturnType<typeof createResultRenderer>,
 	waitAttempts: Map<string, number>,
 	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
+	isGpt: () => boolean,
 ): ToolDefinition<typeof WAIT_PARAMETERS> {
 	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
 		name: "wait",
+		defaultActive: false,
 		exposure: "model-only",
 		executionMode: "sequential",
 		label: "Wait",
@@ -177,7 +197,7 @@ function createWaitTool(
 				if (completed) {
 					waitAttempts.delete(params.cell_id);
 					tracker.finish(id, "done");
-					return toCodeModeToolResult(completed, params.max_tokens);
+					return toCodeModeToolResult(completed, params.max_tokens, isGpt());
 				}
 				const client = await runtime.getClient(ctx);
 				const guard = runtime.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)
@@ -194,11 +214,11 @@ function createWaitTool(
 							context,
 							signal,
 						);
-				if (guard?.lazy && (resumed.opaqueOutputs?.length || resumed.contextNotesSource === "remote")) await guard.resolveScope();
+				if (guard?.lazy && resumed.opaqueOutputs?.length) await guard.resolveScope();
 				if (guard && !await guard.valid())
-					throw new Error("Remote context changed after execution; verify note state before repeating a write");
+					throw new Error("Remote context changed after execution; check completed results before retrying");
 				if (resumed.missingCell && guard)
-					throw new Error("Remote cell unavailable; operations may already have executed, so verify note state before repeating a write");
+					throw new Error("Remote cell unavailable; operations may already have executed, so check completed results before retrying");
 				const response = runtime.deliverOpaqueResponse(resumed, id, guard);
 				const recovered =
 					!params.terminate &&
@@ -224,7 +244,7 @@ function createWaitTool(
 					id,
 					response.kind === "yielded" ? "yielded" : "done",
 				);
-				return toCodeModeToolResult(response, params.max_tokens);
+				return toCodeModeToolResult(response, params.max_tokens, isGpt());
 			} catch (error) {
 				waitAttempts.delete(params.cell_id);
 				tracker.finish(id);

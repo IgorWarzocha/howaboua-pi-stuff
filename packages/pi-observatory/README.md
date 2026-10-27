@@ -10,7 +10,7 @@ Their activity graphs show daily usage before table pagination. Commands plots U
 
 Starting the viewer or opening it with `/observatory` updates the saved index and runs each custom collector once, then pauses. Browsing views does not start more collection. Click the pause icon beside the title for another update. The icon shows sync while that work runs, then returns to pause. Hold the button for two seconds to enable live monitoring; click it again to pause. Keyboard users can hold Space. Pause uses your theme's warning colour; live uses its success colour.
 
-Indexing runs in a background worker. Built-in views read SQLite exclusively, including call details and conversation excerpts. New entries appear without rescanning indexed JSONL content. During collection, the visible overview or usage view updates automatically; hidden views load when opened. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
+Indexing runs in a background worker. Lists, filters and charts read SQLite metadata. Call details and conversation excerpts read the relevant records from the original JSONL files, without scanning whole sessions or keeping another payload copy in SQLite. During collection, the visible overview or usage view updates automatically; hidden views load when opened. Call pages stay put while you inspect them. A refresh icon appears beside Outcome when fresh data is available. Select it to load the newest matching calls.
 
 Add your own tabs with a local collector and a custom web page. Observatory runs collection in the background, stores the latest successful JSON snapshot and hosts the page alongside its built-in views. See [Custom tabs](https://github.com/IgorWarzocha/howaboua-pi-stuff/blob/main/packages/pi-observatory/docs/custom-tabs.md) for the bundle contract and a working machine-health example.
 
@@ -46,7 +46,7 @@ While the extension is loaded, public Pi tool events also record tool source met
 
 Skill tracking does not require Better Skills. Observatory recognises ordinary file-reader inputs and literal shell reads within known `.pi/skills`, `.pi/agent/skills` and `.agents/skills` locations. Custom and package locations require recorded loaded-skill inventory or structured receipts. An arbitrary project's `SKILL.md` does not qualify. Files read under an identified `SKILL.md` directory count as references. Flat Markdown skills match only their own file. Relative paths use the recorded working directory, never the viewer's directory. These are inferred reads, shown separately from confirmed structured receipts. A request identifies intended access, not proof that every byte reached the agent.
 
-Historical reads are recovered from cached calls and recognisable Skills tool outputs in the background. Output inventories are not themselves reads. The Skills view labels counts and rankings as partial until both history scans finish. Dynamic scripts, unresolved paths, hidden file access and missing arguments cannot be reliably attributed. Path mentions, listings and searches are not counted as skill reads. An empty count means no recorded use, not proof that a capability was never used. User skill commands never count as agent reads, and disabling those commands does not establish whether agents can access skills.
+Historical reads are recovered from recorded calls and recognisable Skills tool outputs in the background. Output inventories are not themselves reads. The Skills view labels counts and rankings as partial until both history scans finish. Dynamic scripts, unresolved paths, hidden file access and missing arguments cannot be reliably attributed. Path mentions, listings and searches are not counted as skill reads. An empty count means no recorded use, not proof that a capability was never used. User skill commands never count as agent reads, and disabling those commands does not establish whether agents can access skills.
 
 For a standalone server instead:
 
@@ -62,13 +62,15 @@ Defaults are `~/.pi/agent/sessions`, `~/.pi/agent/observatory/index.sqlite` and 
 npx @howaboua/pi-observatory --sessions /path/to/sessions --db /path/to/index.sqlite --port 47985
 ```
 
+To inspect one indexed call without starting the server or collectors, run `pi-observatory --detail ID`. Add `--db FILE` for a different index. It prints the call details and surrounding conversation as JSON.
+
 The server binds to `127.0.0.1` by default. To view it from another computer, forward its port with SSH and open the printed URL on that computer:
 
 ```sh
 ssh -N -L 47985:127.0.0.1:47985 user@host
 ```
 
-**Session text can contain secrets.** The SQLite index stores arguments, outputs and message excerpts locally without secret redaction. The viewer has no authentication. Anyone who can reach it can read that data. It does not upload data or make model calls.
+**Session text can contain secrets.** The index stores metadata and previews without secret redaction. The viewer reads arguments, outputs and conversation excerpts from local source files on demand. It has no authentication. Anyone who can reach it can read that data. It does not upload data or make model calls.
 
 ## Viewer configuration
 
@@ -105,12 +107,14 @@ Charts show the top six tools and models. Their tables include up to 100 of each
 
 ## Index coverage
 
-The indexer checks file metadata every two seconds and consumes appended bytes. During backfill it yields between file batches to discover new sessions and active tails. Complete lines and their cursor commit together. A partially written final line is saved until its remaining bytes arrive. After a crash, only uncommitted work may be read again.
+During live monitoring, the indexer checks file metadata every two seconds and consumes appended bytes. Unchanged scans do not write to the index. During backfill it yields between file batches to discover new sessions and active tails. Complete lines and their cursor commit together. A partially written final line is saved until its remaining bytes arrive. After a crash, only uncommitted work may be read again.
 
 Index diagnostics, below the Overview charts, reports malformed lines, unmatched results, wrappers without saved traces and reported trace drops. A wrapper without traces might not have called a tool at all. Drop counts are reported snapshots and can overlap across continuations. None of these counters proves complete nested visibility.
 
-Existing indexes are updated from cached SQLite evidence when the server starts. Native nested-call and skill-file scans run in bounded background batches. These updates preserve indexing cursors and do not reread session files.
+Indexes created before source-backed storage rebuild automatically once when the updated server starts. Only the derived core index is replaced. Source files and custom-tab databases are not deleted. Later starts resume the saved indexing cursors, including after an interrupted rebuild. If an older server is still running, stop it and reopen Observatory to start the updated version.
+
+Historical skill scans run in bounded background batches. These updates preserve indexing cursors and read only the source records they need.
 
 Binary attachments are omitted from indexed details. Strings are capped at 131,072 characters, details at 524,288 characters and neighbouring message excerpts at 32,768 characters. Live arguments and results are each capped at 128 KiB, with truncation marked. JSONL lines over 32 MiB are skipped and reported. Existing source-side truncation cannot be recovered.
 
-The built-in indexer never modifies source files. If a file is replaced, shortened or detectably rewritten behind its cursor, indexing that file stops and the dashboard reports it. Existing indexed history remains available. Choose a fresh `--db` path to rebuild from the current files. Append-only histories are the supported incremental path. Symlinked files and subdirectories are not followed.
+The built-in indexer never modifies source files. If a file is replaced, shortened or detectably rewritten behind its cursor, indexing that file stops and the dashboard reports it. Indexed statistics remain available, but details whose source is missing or changed are reported as unavailable. Stop the server and use `--rebuild` to index the current files afresh. Append-only histories are the supported incremental path. Symlinked files and subdirectories are not followed.

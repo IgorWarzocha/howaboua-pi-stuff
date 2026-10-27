@@ -8,14 +8,14 @@ import {
 export function initialiseUsage(db: Database.Database): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS usage_events (
-			key TEXT PRIMARY KEY, entry_key TEXT REFERENCES entries(key), call_id INTEGER REFERENCES calls(id),
+			key TEXT PRIMARY KEY, entry_key TEXT REFERENCES entry_refs(key), call_id INTEGER REFERENCES calls(id),
 			timestamp TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, path TEXT NOT NULL,
 			owner TEXT NOT NULL, input_source TEXT NOT NULL, evidence TEXT NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS usage_time ON usage_events(timestamp);
 		CREATE INDEX IF NOT EXISTS usage_call ON usage_events(call_id);
 		CREATE TABLE IF NOT EXISTS usage_snapshots (
-			entry_key TEXT PRIMARY KEY REFERENCES entries(key), timestamp TEXT NOT NULL, kind TEXT NOT NULL
+			entry_key TEXT PRIMARY KEY REFERENCES entry_refs(key), timestamp TEXT NOT NULL, kind TEXT NOT NULL
 		);
 		CREATE TABLE IF NOT EXISTS usage_inventory (
 			entry_key TEXT NOT NULL REFERENCES usage_snapshots(entry_key),

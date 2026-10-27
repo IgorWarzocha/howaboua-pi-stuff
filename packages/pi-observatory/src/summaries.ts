@@ -25,8 +25,8 @@ export function initialiseSummaries(db: Database.Database): void {
 	const add = `INSERT INTO tallies(${dimensions.join(",")},n,last_seen) VALUES(${fresh.join(",")},1,new.timestamp)
 		ON CONFLICT(${dimensions.join(",")}) DO UPDATE SET n=n+1,last_seen=MAX(last_seen,new.timestamp);`;
 	db.exec(`
-		INSERT OR IGNORE INTO metadata VALUES('entries', (SELECT COUNT(*) FROM entries));
-		CREATE TRIGGER IF NOT EXISTS entry_count AFTER INSERT ON entries BEGIN
+		INSERT OR IGNORE INTO metadata VALUES('entries', (SELECT COUNT(*) FROM entry_refs));
+		CREATE TRIGGER IF NOT EXISTS entry_count AFTER INSERT ON entry_refs BEGIN
 			UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='entries';
 		END;
 		CREATE TABLE IF NOT EXISTS tallies (
@@ -41,8 +41,7 @@ export function initialiseSummaries(db: Database.Database): void {
 			${add}
 			UPDATE coverage SET unpaired=unpaired+new.unpaired,missing=missing+new.missing_traces,dropped=dropped+new.dropped_traces WHERE id=1;
 		END;
-		DROP TRIGGER IF EXISTS tally_update;
-		CREATE TRIGGER tally_update AFTER UPDATE OF outcome,signature,missing_traces,dropped_traces,project ON calls BEGIN
+		CREATE TRIGGER IF NOT EXISTS tally_update AFTER UPDATE OF outcome,signature,missing_traces,dropped_traces,project ON calls WHEN old.outcome<>new.outcome OR old.signature<>new.signature OR old.missing_traces<>new.missing_traces OR old.dropped_traces<>new.dropped_traces OR old.project<>new.project BEGIN
 			UPDATE tallies SET n=n-1 WHERE ${old};
 			DELETE FROM tallies WHERE ${old} AND n=0;
 			${add}

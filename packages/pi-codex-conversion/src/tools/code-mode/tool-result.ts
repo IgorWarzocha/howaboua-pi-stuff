@@ -10,6 +10,7 @@ const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
 export function toCodeModeToolResult(
 	response: RuntimeResponse,
 	maxTokens?: number,
+	gpt = false,
 ) {
 	const scriptError =
 		response.kind === "result" ? withScriptErrorRecovery(response.errorText) : undefined;
@@ -36,7 +37,7 @@ export function toCodeModeToolResult(
 			type: "text" as const,
 			text: formatRunningExecSessionGuidance(sessionId),
 		})),
-		...truncateTextContent(output, outputTokens * 4),
+		...truncateTextContent(output, outputTokens * 4, gpt),
 	];
 	const empty = !content.some((item) => item.type !== "text" || item.text.length > 0);
 	if (empty) content.unshift({ type: "text", text: "OK" });
@@ -50,8 +51,6 @@ export function toCodeModeToolResult(
 			status: response.kind,
 			...(response.opaqueDeliveryId ? { opaqueDeliveryId: response.opaqueDeliveryId } : {}),
 			statusPrefix: Boolean(status) || empty,
-			...(response.contextNotesSaved === undefined ? {} : { contextNotesSaved: response.contextNotesSaved }),
-			...(response.contextNotesSource ? { contextNotesSource: response.contextNotesSource } : {}),
 			...(response.traces ? { traces: response.traces } : {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
@@ -128,7 +127,11 @@ function toPiContent(
 function truncateTextContent<T extends { type: string; text?: string }>(
 	content: T[],
 	maxChars: number,
+	gpt: boolean,
 ): T[] {
+	const notice = gpt
+		? "[Output truncated; later results may be missing. Narrow reads; missing help→own cell. NEVER repeat side effects for output]"
+		: "[Output truncated; later results may be omitted. Narrow reads or fetch missing help separately. Do not rerun side effects for output.]";
 	let remaining = maxChars;
 	let truncated = false;
 	const output: T[] = [];
@@ -138,7 +141,7 @@ function truncateTextContent<T extends { type: string; text?: string }>(
 			continue;
 		}
 		if (remaining <= 0) {
-			if (!truncated) output.push({ ...item, text: "[Output truncated]" });
+			if (!truncated) output.push({ ...item, text: notice });
 			truncated = true;
 			continue;
 		}
@@ -147,7 +150,7 @@ function truncateTextContent<T extends { type: string; text?: string }>(
 			output.push(item);
 			continue;
 		}
-		const text = `${item.text.slice(0, remaining)}\n[Output truncated]`;
+		const text = `${item.text.slice(0, remaining)}\n${notice}`;
 		remaining = 0;
 		truncated = true;
 		output.push({ ...item, text });

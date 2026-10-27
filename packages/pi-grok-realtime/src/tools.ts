@@ -54,7 +54,12 @@ interface Registration {
 }
 
 const COLLECT_TOOLS = "grok-realtime:collect-tools";
-const RESERVED = new Set(["send_task", "end_the_call", "work_landed"]);
+const RESERVED = new Set([
+	"send_task",
+	"end_the_call",
+	"stay_quiet",
+	"work_landed",
+]);
 
 /** Register during extension loading. Pi removes this subscription on reload. */
 export function registerGrokTool<T extends TSchema>(

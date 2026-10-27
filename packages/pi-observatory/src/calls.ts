@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
-import { assess, displayValue, type JsonObject } from "./normalise.ts";
+import { assess, type JsonObject } from "./normalise.ts";
 import { createProvenance } from "./provenance.ts";
+import { sourceRecipe } from "./source-records.ts";
 import { createUsageIngestor } from "./usage.ts";
 
 export interface Source {
@@ -29,13 +30,13 @@ export function createCallStore(db: Database.Database) {
 		"SELECT * FROM calls WHERE key=?",
 	);
 	const putPayload = db.prepare(
-		"INSERT OR IGNORE INTO payloads(call_id,arguments) VALUES (?,?)",
+		"INSERT OR IGNORE INTO payload_refs(call_id,arguments_ref) VALUES (?,?)",
 	);
 	const setResult =
 		db.prepare(`UPDATE calls SET outcome=@outcome,exit_code=@exitCode,signature=@signature,preview=@preview,
 		result_entry=@entry,file_id=@file,line=@line,missing_traces=@missing,dropped_traces=@dropped WHERE id=@id`);
 	const resultPayload = db.prepare(
-		"UPDATE payloads SET result=? WHERE call_id=?",
+		"UPDATE payload_refs SET result_ref=? WHERE call_id=?",
 	);
 	const linkCall = db.prepare("INSERT OR IGNORE INTO file_calls VALUES (?,?)");
 	const linkChildren = db.prepare(
@@ -66,7 +67,7 @@ export function createCallStore(db: Database.Database) {
 		putCall.run({ ...params, project: "unknown" });
 		const stored = findCall.get(params.key);
 		if (!stored) throw new Error("Indexed call was not persisted");
-		putPayload.run(stored.id, displayValue(args));
+		putPayload.run(stored.id, sourceRecipe(db, args));
 		linkCall.run(params.file, stored.id);
 		if (params.parent !== null) inheritFiles.run(stored.id, params.parent);
 		else linkChildren.run(params.file, stored.id);
@@ -100,7 +101,7 @@ export function createCallStore(db: Database.Database) {
 			return;
 		}
 		setResult.run({ ...assessment, ...context, id: call.id });
-		resultPayload.run(displayValue(result), call.id);
+		resultPayload.run(sourceRecipe(db, result), call.id);
 		provenance.refresh(call.id);
 		usage.fileReads(call.id, assessment.outcome, result);
 	}

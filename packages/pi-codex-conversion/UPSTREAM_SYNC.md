@@ -13,6 +13,18 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## October 23 continuity ownership
+
+Compared released Pi `1.4.0` and Codex `8eaf5fd115f0` for the touched compaction and prewarm paths. Pi owns session preparation, compaction entries and extension hook order. Notes now owns continuity policy and projected history. PCC consumes those projections through a generic compaction-preparation API and never reconstructs retired Notes windows. Native replay replaces only the surviving compaction summary and preserves the actual filtered tail.
+
+Codex prewarms with the turn's prepared prompt through its normal WebSocket request path. PCC now takes prewarm bodies only from final provider-request capture, after Pi's preparation and extension rewrites, rather than reconstructing a prompt at session startup. Its isolated generated keepalive remains an intentional adaptation. Stock Pi's request instructions, headers, reasoning and tier handling, retry policy and stream termination were compared. This cutover does not change the previously documented differences in those areas or adopt newer Codex cache-key controls.
+
+## October 22 transport selection
+
+Compared released Pi `1.4.0` and Codex `c260087efe`. Pi defaults to `auto` with cached WebSocket continuation and offers explicit plain WebSocket, cached WebSocket and SSE transports. Codex enables WebSockets through provider capability and has no separate cached-continuation upgrade switch.
+
+PCC now honours Pi's transport selection without upgrading plain WebSocket. Handshake preparation follows WebSocket availability, non-generating warmup follows cached continuation, and opt-in generated keepalive retains its isolated connection independently. SSE and session fallback skip WebSocket preparation. Request serialization and PCC's existing recovery budgets are unchanged.
+
 ## Pi 1.4 compatibility
 
 Compared released Pi `1.4.0` with `1.3.0` for request shape, headers, reasoning, service tiers, retries and stream termination. The adapter now requires Pi 1.4 and uses its enum-based `resolveTranscriptTools()` API with `foldedSystemMessages`. The `"additions"` policy keeps initial tools top-level and anchors later additions after the last removal or redeclaration. Pi's separate `"changes"` policy, initial `additional_tools` placement and tool-removal notices are not adopted here. The adapter's existing Codex headers, base-instruction placement and transport recovery remain intentional differences.

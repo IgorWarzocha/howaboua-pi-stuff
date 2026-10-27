@@ -34,7 +34,6 @@
 - Adapt Codex, Imagegen, review, and GipPity to Pi 0.87.
 
   Codex Conversion, Imagegen, and Subagent Review require Pi 0.87.0 or newer.
-
   - Fixed Codex prompt and tool updates rewriting the cached conversation prefix.
   - Context reminders no longer start an extra checkpoint turn if the current run already saved a note in the current window.
   - Fixed Imagegen recent-image selection ignoring context removals and replacements.
@@ -48,7 +47,6 @@
 - Pi 0.86.0 or newer is now required. Fixed voice context summaries to use Pi's transcript-native provider interface.
 
 - Realtime voice now isolates muted capture and clears interrupted playback.
-
   - Native voice cancels echo and reduces background noise.
   - Spoken interruptions clear buffered audio in native and LAN playback.
   - Microphone failures are reported instead of leaving a silent session.
@@ -56,7 +54,6 @@
 ## 0.0.19
 
 - Fixed context continuity, voice replies, and patch preservation.
-
   - V2 compaction preserves the preceding request's reasoning configuration, then starts a fresh baseline without stale overrides. Astra's temporary effort survives continued work across context windows.
   - Worker updates now accept up to 8 KiB without truncation announcements or offers to read the rest.
   - Reasoning-summary forwarding now recognizes GPT-6 models.
@@ -102,7 +99,6 @@
 ### Changes
 
 - [#304](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/304) [`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Run Pi Pet as a first-class GipPity companion.
-
   - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed.
   - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests.
   - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
@@ -139,13 +135,11 @@
 ### Changes
 
 - [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)!:
-
   - Follow system audio defaults unless an endpoint is pinned.
   - Keep successfully rerouted output streams active.
   - Share guided first-run and manual audio setup.
 
 - [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)!:
-
   - Show voice-context summarization progress.
   - Greet users through the V3 speakable context channel when realtime sessions are ready.
   - Warn in Pi and the LAN controller when microphone input is too quiet.

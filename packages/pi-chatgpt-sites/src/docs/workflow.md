@@ -1,7 +1,6 @@
 # Sites workflow
 
 Use only for requested Sites work. Every deployment URL is production. Publish only within the user's requested scope, preserving the current audience. Respect local-only, save-only and no-publication requests.
-
 1. Reuse `.openai/hosting.json`'s `project_id`. If absent, `site.create` registers once and merges the ID atomically. Commit that binding with all intended source.
 2. Validate the compatible build locally. Read `building` for runtime constraints.
 3. Use `version.save` for a saved candidate without deployment. For intended publication of new source already known owner-private for this account, use `version.publish_private` instead. Both require a clean, committed, bound repository and push exact HEAD internally.

@@ -4,6 +4,11 @@ import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import type { CachedResponse, LookupQuery } from "./bridge.js";
 import { queryKey } from "./bridge.js";
+import {
+	PRUNING_OFF,
+	pruningPolicy,
+	type SessionPruningPolicy,
+} from "./session-pruning-policy.js";
 
 export interface SessionRef {
 	id: string;
@@ -48,6 +53,7 @@ export class NotesStore {
 			}
 			db.exec(`
 			CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, file_path TEXT, updated_at INTEGER NOT NULL);
+			CREATE TABLE IF NOT EXISTS session_pruning (session_id TEXT PRIMARY KEY, windows INTEGER NOT NULL, days INTEGER NOT NULL);
 			CREATE TABLE IF NOT EXISTS notes (
 				id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 				path TEXT NOT NULL, text TEXT NOT NULL, mode TEXT NOT NULL,
@@ -75,6 +81,22 @@ export class NotesStore {
 		db.prepare(
 			"INSERT INTO sessions VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET file_path = COALESCE(excluded.file_path, sessions.file_path), updated_at = excluded.updated_at",
 		).run(session.id, session.file ?? null, Date.now());
+	}
+	pruningPolicy(sessionId: string): SessionPruningPolicy {
+		const row = this.open()
+			?.prepare(
+				"SELECT windows, days FROM session_pruning WHERE session_id = ?",
+			)
+			.get(sessionId);
+		return row ? pruningPolicy(row) : { ...PRUNING_OFF };
+	}
+	setPruningPolicy(sessionId: string, value: SessionPruningPolicy): void {
+		const policy = pruningPolicy(value);
+		this.open(true)!
+			.prepare(
+				"INSERT INTO session_pruning VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET windows = excluded.windows, days = excluded.days",
+			)
+			.run(sessionId, policy.windows, policy.days);
 	}
 	/** Persist only after a real mutation. Snapshot revisions remain immutable for branch navigation. */
 	write(session: SessionRef, note: Omit<NoteRevision, "id">): NoteRevision {
@@ -202,6 +224,15 @@ export class NotesStore {
 			revisions: count("notes"),
 			cachedResponses: count("remote_cache"),
 		};
+	}
+	sessionFiles(): Record<string, string | null> {
+		const rows =
+			this.open()
+				?.prepare<[], { id: string; file_path: string | null }>(
+					"SELECT id, file_path FROM sessions",
+				)
+				.all() ?? [];
+		return Object.fromEntries(rows.map((row) => [row.id, row.file_path]));
 	}
 	prune(activeSessionId: string): {
 		removed: number;

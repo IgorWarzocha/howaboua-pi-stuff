@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { BindingSchema } from "@howaboua/pi-agent-board/integration";
-import type { SharedContextResult } from "@howaboua/pi-codex-conversion/context-sharing";
+import type { SharedContextResult } from "@howaboua/pi-notes-compaction/context-sharing";
 import type { Static, TSchema } from "typebox";
 import { Check } from "typebox/value";
 
@@ -115,8 +115,7 @@ export function remapResult(
 		typeof result.details.codexHistoryNotes["encrypted_output"] === "string" ||
 		("externalNotesResponses" in result.details &&
 			Array.isArray(result.details.externalNotesResponses) &&
-			result.details.externalNotesResponses.length > 0) ||
-		Object.keys(result.details.codexHistoryNotes).length === 0
+			result.details.externalNotesResponses.length > 0)
 	) {
 		const hint = `Source ${from}, access through ${to}. Use ${to}/notes for note paths and ${to} for history agent_name`;
 		// Ciphertext paths cannot be remapped. Preserve host-only provenance on the original details.
@@ -135,7 +134,25 @@ export function remapResult(
 	) as Record<string, unknown>;
 	return {
 		...result,
-		content: [{ type: "text", text: JSON.stringify(details) }],
+		// Remap the public payload, never regenerate it from private receipts.
+		content: result.content.map((item) => {
+			if (item.type !== "text") return item;
+			try {
+				return {
+					...item,
+					text: JSON.stringify(
+						JSON.parse(item.text, (key, value: unknown) =>
+							(key === "path" || key === "agent_name") &&
+							typeof value === "string"
+								? remap(value, from, to)
+								: value,
+						),
+					),
+				};
+			} catch {
+				return item;
+			}
+		}),
 		details: { ...result.details, codexHistoryNotes: details },
 	};
 }

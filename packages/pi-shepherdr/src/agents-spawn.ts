@@ -15,14 +15,14 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
-import type { AgentFleet, ConnectedMachine } from "./fleet.js";
+import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { isDispatchRejected } from "./herdr-client.js";
 import {
 	resolvePreparationDirectory,
 	rollbackStartedAgent,
 	startAgent,
 } from "./launch.js";
-import { attributeAgentPrompt } from "./messages.js";
+import { attributeAgentPrompt } from "./messages/attribution.js";
 import {
 	loadAgentProfiles,
 	prepareProfileMessage,

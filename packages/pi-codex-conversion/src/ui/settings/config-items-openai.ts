@@ -101,16 +101,6 @@ export function buildOpenAISettings(
 			}),
 			"Use Responses Lite for supported models on configured proxies in Code or Notebook mode. Requires proxy support.",
 		),
-		toggle(
-			"forceCachedWebSockets",
-			"Cached WebSocket upgrade",
-			config.openai.forceCachedWebSockets,
-			(enabled, current) => ({
-				...current,
-				openai: { ...current.openai, forceCachedWebSockets: enabled },
-			}),
-			"Upgrade explicit WebSocket transport to reuse connections between requests. Leaves SSE unchanged.",
-		),
 		setting(
 			{
 				id: "harnessIdentifierHeader",

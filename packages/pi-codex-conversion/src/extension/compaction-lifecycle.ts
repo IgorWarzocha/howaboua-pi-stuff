@@ -6,24 +6,34 @@ import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compactio
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnostics.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
-import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
-import { hasTreeArchives } from "../context-management/tree-archive.ts";
+import { prepareExtensionCompaction, registerContextWindowPreparation } from "../compaction.ts";
 import type { ExtensionHandler, SessionBeforeCompactEvent, SessionCompactFailedEvent, SessionCompactEvent, SessionBeforeCompactResult } from "@earendil-works/pi-coding-agent";
 
 export function createCodexCompactionLifecycle(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 	codeMode: CodeModeRegistration,
-	startManualNotesWindow: (ctx: ExtensionContext) => Promise<boolean>,
 	refreshNotebookStatus: (ctx: ExtensionContext) => Promise<boolean>,
 ) {
 	const { state } = runtime;
+	const stopWindowPreparation = registerContextWindowPreparation(pi, async ctx => {
+		runtime.voice.announceContextTransition("rollover");
+		await runtime.voice.refreshRealtimeContext(ctx, state.config);
+		// Notes-only rollover does not emit session_compact. Retire the outgoing
+		// transport lane here too, including its temporary SSE fallback.
+		runtime.resetTransportForContextWindow(ctx.sessionManager.getSessionId());
+	});
+	pi.on("session_shutdown", stopWindowPreparation);
 
 	return {
 		beforeCompact: async (event, ctx) => {
-			// Notes may load after PCC. Yield before any provider work, not after its hook cancels.
-			if (state.externalNotes?.owner.allowsCompaction?.(event.reason) === false) return undefined;
-			if (!state.externalNotes && state.contextTree.handoff.active) return { cancel: true };
+			try {
+				const prepared = await prepareExtensionCompaction(pi, event, ctx);
+				if (prepared?.cancel || prepared?.compaction) return prepared;
+			} catch (error) {
+				ctx.ui.notify(`Compaction preparation failed: ${error instanceof Error ? error.message : String(error)}. The existing context remains.`, "error");
+				return { cancel: true };
+			}
 			// Compaction can resume this run without another agent_start.
 			runtime.suspendOrdinaryPrewarm();
 			state.cwd = ctx.cwd;
@@ -31,28 +41,16 @@ export function createCodexCompactionLifecycle(
 				ctx,
 				state,
 			);
-			if (!state.externalNotes && event.reason === "manual" && !state.contextWindows.currentIdentity())
-				state.contextWindows.ensureInitialized(pi, ctx, plan.contextManagement);
-			const contextManagementResult = !state.externalNotes && plan.contextManagement
-				? state.contextWindows.prepareCompaction(
-					event,
-					plan.contextManagementMode,
-					plan.compactOnRollover,
-				)
-				: undefined;
-			if (contextManagementResult && "cancel" in contextManagementResult)
-				return contextManagementResult;
 			if (event.reason !== "manual") runtime.voice.announceContextTransition(event.reason);
 			const nativeCompaction = plan.nativeCompaction;
-			if (nativeCompaction || plan.contextManagement)
+			if (nativeCompaction)
 				runtime.voice.compactionStarted();
 			try {
 				await codeMode.checkpointNotebook();
 			} catch (error) {
 				ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 			}
-			if (contextManagementResult) return contextManagementResult;
-			if (!nativeCompaction && !plan.nativeReplay && !state.externalNotes && !state.notesProjection && !hasTreeArchives(event.branchEntries)) return undefined;
+			if (!nativeCompaction && !plan.nativeReplay) return undefined;
 			try {
 				const result = await handleCodexSessionBeforeCompact(
 					event,
@@ -67,30 +65,14 @@ export function createCodexCompactionLifecycle(
 				throw error;
 			}
 		},
-		failed: async (event, ctx) => {
-			if (state.contextWindows.isRolloverCompactionRunning()) runtime.autoReasoning.settle(ctx);
+		failed: async () => {
 			state.pendingPiCompactionNativeWindow = undefined;
 			runtime.voice.compactionFinished();
-			if (state.externalNotes) return;
-			const plan = resolveCodexRuntimePlanForState(ctx, state);
-			const reuseNotes = state.contextWindows.finishManualCheckpointRequest(
-				pi, ctx, event, plan.contextManagement && !plan.compactOnRollover,
-			);
-			if (!reuseNotes) return;
-			await startManualNotesWindow(ctx);
 		},
 		compacted: async (event, ctx) => {
 			try {
 				runtime.voice.resetContextAnnouncements();
 				state.pendingPiCompactionNativeWindow = undefined;
-				if (!state.externalNotes) state.contextWindows.recordCompaction(event.compactionEntry.details);
-				const plan = resolveCodexRuntimePlanForState(ctx, state);
-				const rolloverCompaction = !state.externalNotes && plan.compactOnRollover && event.reason === "manual" &&
-					state.contextWindows.isRolloverCompactionRunning();
-				let treeRolloverScheduled = false;
-				const contextCompaction =
-					event.fromExtension &&
-					isContextWindowCompactionDetails(event.compactionEntry.details);
 				const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
 				if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
 					const details = compactionEntry.details;
@@ -109,25 +91,11 @@ export function createCodexCompactionLifecycle(
 						});
 					}
 				}
-				// Only new_context requests rollover. Ordinary compaction stays in this window.
-				if (rolloverCompaction && plan.contextManagementMode === "tree" && compactionEntry) {
-					treeRolloverScheduled = state.contextTree.schedule(ctx, {
-						compactionEntryId: compactionEntry.id,
-						triggerTurn: true,
-					});
-				}
-				if (!treeRolloverScheduled) {
-					runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-					// Tool-requested rollover appends its marker in onComplete; do not prewarm the old window.
-					if (!state.contextWindows.isRolloverCompactionRunning() && !state.contextKickoff.pending) {
-						// A normal compaction may resume without another kickoff. Prewarm the renewed context too.
-						await refreshNotebookStatus(ctx);
-						await runtime.startCompactionPrewarm(ctx);
-					}
-				}
-				// Explicit rollover refreshes at its window boundary; overflow stays here.
-				if (!contextCompaction && !rolloverCompaction)
-					await runtime.voice.refreshRealtimeContext(ctx, state.config);
+				runtime.resetTransportForContextWindow(ctx.sessionManager.getSessionId());
+				await refreshNotebookStatus(ctx);
+				// Pi has not run the next context chain yet. Warm only its final request.
+				runtime.prepareTurn(ctx);
+				await runtime.voice.refreshRealtimeContext(ctx, state.config);
 			} finally {
 				runtime.voice.compactionFinished();
 			}

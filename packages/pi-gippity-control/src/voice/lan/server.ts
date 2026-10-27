@@ -11,8 +11,8 @@ import {
 } from "../../config.ts";
 import { getGippityControlConfigPath } from "../../config-store.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
+import type { RealtimePeerPlan } from "../controller/start.ts";
 import type { CodexVoiceController } from "../controller.ts";
-import type { RealtimePeerPlan } from "../controller-start.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanVoiceActivity } from "./activity.ts";
 import { createLanVoiceWebManifest } from "./app-assets.ts";

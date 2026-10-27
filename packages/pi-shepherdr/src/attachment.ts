@@ -5,7 +5,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { binding } from "@howaboua/pi-agent-board/integration";
-import type { ContextSharingService } from "@howaboua/pi-codex-conversion/context-sharing";
+import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import type { AgentsParams } from "./agents-contract.js";
@@ -20,7 +20,7 @@ import {
 import { AttachmentRouting } from "./attachment-routing.js";
 import { AttachmentTarget } from "./attachment-target.js";
 import type { AgentBoard } from "./board/host.js";
-import type { ConnectedMachine } from "./fleet.js";
+import type { ConnectedMachine } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
@@ -202,7 +202,6 @@ export class AgentAttachment {
 			...(route.plan.board
 				? {
 						boardAgent: route.plan.board.desired.agentName,
-						previousBoard: route.plan.board.previous.boardId,
 					}
 				: {}),
 		};

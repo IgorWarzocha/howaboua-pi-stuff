@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import { getSitesAuth } from "./src/auth.js";
 import { SitesClient } from "./src/client.js";
 import { call, documentation } from "./src/facade.js";
-import { boundedJson } from "./src/redact.js";
+import { boundedJson, redact } from "./src/redact.js";
 
 async function result(run: () => Promise<unknown>) {
 	try {
@@ -24,17 +24,22 @@ async function result(run: () => Promise<unknown>) {
 	} catch (error) {
 		const info = error instanceof Error ? error : new Error(String(error));
 		throw new Error(
-			boundedJson({
-				ok: false,
-				error: {
-					code: "code" in info ? (info.code ?? "sites_error") : "sites_error",
-					message: info.message,
-					topic: "topic" in info ? info.topic : undefined,
-					terms_url: "termsUrl" in info ? info.termsUrl : undefined,
-					status: "status" in info ? info.status : undefined,
-					details: "details" in info ? info.details : undefined,
-				},
-			}),
+			[
+				redact(info.message),
+				"topic" in info &&
+				info.topic &&
+				!info.message.includes("sites_documentation(")
+					? `See sites_documentation({topic:${JSON.stringify(info.topic)}})`
+					: undefined,
+				"termsUrl" in info && info.termsUrl
+					? `Terms: ${redact(info.termsUrl)}`
+					: undefined,
+				"details" in info && info.details
+					? boundedJson(info.details)
+					: undefined,
+			]
+				.filter(Boolean)
+				.join("\n"),
 		);
 	}
 }
@@ -93,7 +98,7 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 		},
 		{
 			tool: guide,
-			gpt: "Sites guide or live resource.action parameter schema",
+			gpt: "Sites guide/live resource.action parameter schema",
 			ordinary: guide.description,
 		},
 	];

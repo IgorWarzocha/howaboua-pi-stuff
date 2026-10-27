@@ -205,10 +205,6 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		),
 	);
 	const actualPostCompactionTail = replayMatch.actualPostCompactionTail;
-	const contextPostCompactionTail = [
-		...serializeMessagesToResponsesInput(args.model, contextPostCompactionTailMessages, serializationOptions),
-		...replayMatch.extraPostCompactionTail,
-	];
 	if (!actualCompactionSummary || !actualPreCompactionKeptWindow || !actualPostCompactionTail) {
 		return {
 			ok: false,
@@ -224,7 +220,7 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	const postCompactionTail = createReplaySlice(
 		postCompactionEntries,
 		contextPostCompactionTailMessages,
-		contextPostCompactionTail,
+		actualPostCompactionTail,
 	);
 
 	return {
@@ -243,7 +239,7 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 			replayInput: [
 				...freshPreamble.leadingInput,
 				...compactedWindow,
-				...contextPostCompactionTail,
+				...actualPostCompactionTail,
 				...freshPreamble.trailingInput,
 			],
 		},
@@ -253,7 +249,7 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 			input: [
 				...freshPreamble.leadingInput,
 				...compactedWindow,
-				...contextPostCompactionTail,
+				...actualPostCompactionTail,
 				...freshPreamble.trailingInput,
 			],
 		},

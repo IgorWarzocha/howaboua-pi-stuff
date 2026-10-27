@@ -4,7 +4,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
-import type { RealtimePeerPlan } from "../controller-start.ts";
+import type { RealtimePeerPlan } from "../controller/start.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanTransferredSession } from "./transferred-session.ts";
 import { LanVoiceActivity } from "./activity.ts";

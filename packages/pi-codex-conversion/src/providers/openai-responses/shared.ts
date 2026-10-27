@@ -28,7 +28,7 @@ import { parseTextSignature, shortHash, type TextSignaturePhase } from "./signat
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
 import { encryptedToolOutputFromDetails, opaqueToolOutputsFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, recordedCustomInputProperty, recordedResponsesNamespace, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
-import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
+import { legacyNamespaceToolCall } from "./native-items.ts";
 import type { ServiceTier } from "../openai-codex/types.ts";
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
@@ -219,7 +219,7 @@ export function convertResponsesMessages<TApi extends Api>(
 						...(parsedSignature?.phase ? { phase: parsedSignature.phase } : {}),
 					});
 				} else if (block.type === "toolCall") {
-					const wireCall = unrouteContextNamespaceToolCall(block);
+					const wireCall = legacyNamespaceToolCall(block);
 					const [callId, itemIdRaw] = block.id.split("|");
 					const customInputProperty = recordedCustomInputs.get(block.id) ?? options?.grammarToolInputProperties?.get(block.name);
 					if (customInputProperty !== undefined && callId !== undefined) customCallIds.add(callId);

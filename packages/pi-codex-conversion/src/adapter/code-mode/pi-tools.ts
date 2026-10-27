@@ -1,24 +1,8 @@
 import type { ExtensionAPI, ToolLoadout, ToolLoadoutChanges } from "@earendil-works/pi-coding-agent";
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { Check } from "typebox/value";
 import { missingMcpToolMessage } from "../../tools/code-mode/mcp-tool-recovery.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "../../tools/code-mode/types.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES } from "../activation/runtime-plan.ts";
-
-const hiddenDeclarations = new WeakMap<ExtensionAPI, ReadonlySet<string>>();
-
-/** Reconstructed requests bypass Pi's post-context hidden-declaration projection. */
-export function projectPiCodeModeDeclarations(pi: ExtensionAPI, messages: AgentMessage[]): AgentMessage[] {
-	const hidden = hiddenDeclarations.get(pi);
-	if (!hidden?.size) return messages;
-	return messages.map(message => {
-		if (message.role !== "system" || (!message.toolsAdded && !message.toolsRemoved)) return message;
-		const { toolsAdded, toolsRemoved, ...rest } = message;
-		const added = toolsAdded?.filter(tool => !hidden.has(tool.name)) ?? [];
-		const removed = toolsRemoved?.filter(tool => !hidden.has(tool.name)) ?? [];
-		return { ...rest, ...(added.length ? { toolsAdded: added } : {}), ...(removed.length ? { toolsRemoved: removed } : {}) };
-	});
-}
 
 /** Pi owns callable admission; explicit integrations reserve their native names. */
 export function createPiCodeModeBridge(pi: ExtensionAPI): {
@@ -78,7 +62,6 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 				};
 			});
 			const hidden = [...tools.map((tool) => tool.name), ...additionallyHidden];
-			hiddenDeclarations.set(pi, new Set(hidden));
 			return { hiddenDeclarations: hidden };
 		},
 	};

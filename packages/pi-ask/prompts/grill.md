@@ -1,7 +1,9 @@
 ---
+
 description: Grill an idea into an agreed plan
 argument-hint: "[idea or plan]"
 ---
+
 Grill this into an agreed plan:
 
 $ARGUMENTS

@@ -4,7 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { binding } from "@howaboua/pi-agent-board/integration";
-import type { ContextSharingService } from "@howaboua/pi-codex-conversion/context-sharing";
+import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import { AttachmentNotes } from "./attachment-notes.js";
@@ -21,7 +21,10 @@ import {
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { sendPolicyMessage } from "./delivery.js";
-import { attachmentMessage, detachmentMessage } from "./messages.js";
+import {
+	attachmentMessage,
+	detachmentMessage,
+} from "./messages/attachments.js";
 
 /** Validates and commits attachment membership in the settled target session. */
 export class AttachmentTarget {

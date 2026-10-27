@@ -3,7 +3,6 @@
 ## Mechanics plan
 
 Write `qa/look-mechanics.md` before generation:
-
 - natural gaze mechanism for this construction;
 - stable anchor and baseline;
 - eyes/eyelids/head/body parts that lead and follow;

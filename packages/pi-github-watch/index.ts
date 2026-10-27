@@ -23,11 +23,13 @@ interface Watch {
 	nextCheck: number;
 }
 const MINUTE = 60_000;
+const AUTOMATIC_UPDATES =
+	"Updates arrive automatically; no polling or gh run watch needed.";
 const HELP =
 	"watch: {action: 'watch', thread: issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status: {action: 'status'}. cancel: {action: 'cancel', thread: reference}; omit thread to cancel all offline. Issues/runs check each minute; PRs after 7 minutes, then each minute. PRs surface unresolved review threads, including existing ones; unchanged lists stay quiet. Conversation comments and standalone reviews notify on changes, excluding the authenticated gh user. PR watches stop on closure or merge; closed PRs return immediately. Issue watches continue. Runs follow the latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no comment bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry.";
 
 const GPT_HELP =
-	"watch:{action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}; status:{action:'status'}; cancel:{action:'cancel',thread:reference}, omit thread=cancel all offline. Poll issues/runs:1min; PRs:first7min then1min. PR unresolved reviewthreads incl existing; unchanged lists=quiet. Conversation comments/standalone reviews: changes notify except authenticated gh user. PR closed/merged=stop; alreadyclosed=return now. Issues continue. Runs: latest attempt; completion=notify+stop; alreadycompleted=return now. Metadata only, no commentbodies/logs. Cancel/session switch/reload/shutdown=end watches. Check failure=pause; retry=watch again.";
+	"watch:{action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}; status:{action:'status'}; cancel:{action:'cancel',thread:reference}, omit thread=cancel all offline. Issues/runs:1min; PRs:7min then1min. PR unresolved review threads INCLUDING existing; unchanged=quiet. Conversation comments/standalone reviews notify changes EXCEPT authenticated gh user. PR closed/merged→stop; already closed→return. Issues continue. Runs latest attempt; completed→notify+stop; already completed→return. Metadata ONLY; NO comment bodies/logs. Cancel/session switch/reload/shutdown→end watches. Check failure→pause; retry→watch again.";
 
 function runResult(
 	run: WorkflowRun,
@@ -132,17 +134,17 @@ export default async function (pi: ExtensionAPI) {
 			const action = args.action ?? "help";
 			if (action === "help")
 				return result(promptMode?.active ? GPT_HELP : HELP);
-			if (action === "status")
-				return result(
-					watches.size
-						? [...watches.values()]
-								.map(
-									(w) =>
-										`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString()}` : "; watch again to resume"}`,
-								)
-								.join("\n")
-						: "No active watches.",
+			if (action === "status") {
+				if (!watches.size) return result("No active watches.");
+				const current = [...watches.values()];
+				const lines = current.map(
+					(w) =>
+						`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString()}` : "; watch again to resume"}`,
 				);
+				if (current.some((w) => w.state === "watching"))
+					lines.push(AUTOMATIC_UPDATES);
+				return result(lines.join("\n"));
+			}
 			if (action === "cancel" && !args.thread?.trim()) {
 				clear();
 				return result("All watches cancelled.");
@@ -170,7 +172,7 @@ export default async function (pi: ExtensionAPI) {
 				);
 			}
 			if (previous?.state === "watching")
-				return result(`${thread.url}: already watching`);
+				return result(`${thread.url}: already watching. ${AUTOMATIC_UPDATES}`);
 			let seen: ThreadSnapshot = {
 				conversation: new Map(),
 				unresolved: new Map(),
@@ -186,7 +188,7 @@ export default async function (pi: ExtensionAPI) {
 					"Watch setup interrupted. Retry in the current session.",
 				);
 			if (watches.get(thread.url)?.state === "watching")
-				return result(`${thread.url}: already watching`);
+				return result(`${thread.url}: already watching. ${AUTOMATIC_UPDATES}`);
 			previous?.controller.abort();
 			if (prState && prState !== "open") {
 				watches.delete(thread.url);
@@ -210,7 +212,7 @@ export default async function (pi: ExtensionAPI) {
 			watches.set(thread.url, watch);
 			schedule(watch, ctx, thread.kind === "pr" ? 7 * MINUTE : MINUTE);
 			return result(
-				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString()}`,
+				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString()}. ${AUTOMATIC_UPDATES}`,
 			);
 		},
 	});

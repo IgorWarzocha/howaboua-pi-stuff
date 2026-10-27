@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { isCodexDeveloperMessageDetails, type CodexDeveloperMessageDetails } from "../developer-messages.ts";
-import { isContextWindowBoundary, isContextWindowCompactionDetails } from "../context-management/messages.ts";
 
 export const CODEX_CURRENT_TIME_REMINDER_TYPE = "codex-current-time-reminder";
 
@@ -39,9 +38,9 @@ export function recordCurrentTimeReminder(
 	const previous = messages[previousIndex];
 	const reminder = previous?.role === "custom" ? readReminder(previous.details) : undefined;
 	const now = Date.now();
-	if (reminder && messages.findLastIndex(isContextWindowBoundary) < previousIndex) {
+	if (reminder) {
 		const branch = ctx.sessionManager.getBranch();
-		const compacted = branch.findLastIndex((entry) => entry.type === "compaction" && !isContextWindowCompactionDetails(entry.details))
+		const compacted = branch.findLastIndex((entry) => entry.type === "compaction")
 			> branch.findLastIndex((entry) => entry.type === "custom" && entry.customType === CODEX_CURRENT_TIME_REMINDER_TYPE);
 		if (!compacted) {
 			if (now - reminder.time < minutes * 60_000) return false;

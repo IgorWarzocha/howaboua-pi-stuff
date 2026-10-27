@@ -1,4 +1,4 @@
-import { codeModeGlobalName } from "./tool-identity.js";
+import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 
 // Inject the same formatter into V8 and Deno without changing returned objects.

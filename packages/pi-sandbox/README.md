@@ -37,8 +37,10 @@ services:
 Ask the agent to create an environment named `demo` from `sandbox.yaml` and open its preview. The `sandbox` tool returns help for `{}` and accepts explicit `help` or a JSON action in its `input` field. In Code and Notebook modes, use the deferred entry point:
 
 ```js
-await tools.sandbox()
-await tools.sandbox('{"action":"create","name":"demo","config":"sandbox.yaml"}')
+await tools.sandbox();
+await tools.sandbox(
+	'{"action":"create","name":"demo","config":"sandbox.yaml"}',
+);
 ```
 
 The result includes a localhost preview URL. Open it in a browser on the VM host. Previews are unauthenticated and reachable by other processes on that host. A localhost URL from a remote host is not a browser-accessible remote link. Public exposure, remote authentication, and cloud hosting are deliberately outside this package.
@@ -50,9 +52,9 @@ The result includes a localhost preview URL. Open it in a browser on the VM host
 The controller is independent of the calling Pi session. Reloading or quitting Pi does not stop its environments. Use `list`, `inspect`, `stop`, and `destroy` explicitly. Destroy requires `confirm` to match the name and irreversibly removes the instance's owned disk and logs.
 
 ```js
-await tools.sandbox('{"action":"stop","name":"demo"}')
-await tools.sandbox('{"action":"start","name":"demo"}')
-await tools.sandbox('{"action":"destroy","name":"demo","confirm":"demo"}')
+await tools.sandbox('{"action":"stop","name":"demo"}');
+await tools.sandbox('{"action":"start","name":"demo"}');
+await tools.sandbox('{"action":"destroy","name":"demo","confirm":"demo"}');
 ```
 
 Disk checkpoints are not crash-safe live storage. If the controller or host crashes before stop completes, only the last completed checkpoint is recoverable. `inspect` reports interrupted or unavailable controllers instead of treating a stale status file as a running VM. Keep the image assets available for later reopen.
@@ -64,22 +66,28 @@ State lives under `$XDG_STATE_HOME/pi-sandbox`, defaulting to `~/.local/state/pi
 `prepare` runs the YAML's setup commands and saves a disk template without starting services. `create` with `template` copies that prepared disk into an independent instance. Setup does not run again. Resume hooks and declared services run on each instance start.
 
 ```js
-await tools.sandbox('{"action":"prepare","name":"web-base","config":"sandbox.yaml"}')
-await tools.sandbox('{"action":"create","name":"review-one","template":"web-base"}')
-await tools.sandbox('{"action":"create","name":"review-two","template":"web-base"}')
+await tools.sandbox(
+	'{"action":"prepare","name":"web-base","config":"sandbox.yaml"}',
+);
+await tools.sandbox(
+	'{"action":"create","name":"review-one","template":"web-base"}',
+);
+await tools.sandbox(
+	'{"action":"create","name":"review-two","template":"web-base"}',
+);
 ```
 
 Templates are reusable prepared filesystems, not existing named instances. Never put tokens, provider logins, private keys, or other secrets in templates or YAML setup commands. Provision credentials in an instance after creation, either through the repository's live review setup below or an instance-owned login. YAML is validated strictly. Each disk receives an independent `.sandbox.yaml` in its guest workspace. Edit that guest file with `write` or a guest terminal, then ensure or restart services. Editing the original host YAML does not change existing disks. Hardware, network, setup, and resume settings remain captured at creation.
 
 ## Resources and services
 
-| Profile | CPUs | RAM |
-| --- | ---: | ---: |
-| tiny | 1 | 2 GiB |
-| small, default | 2 | 4 GiB |
-| medium | 4 | 8 GiB |
-| large | 8 | 16 GiB |
-| xlarge | 16 | 32 GiB |
+| Profile        | CPUs |    RAM |
+| -------------- | ---: | -----: |
+| tiny           |    1 |  2 GiB |
+| small, default |    2 |  4 GiB |
+| medium         |    4 |  8 GiB |
+| large          |    8 | 16 GiB |
+| xlarge         |   16 | 32 GiB |
 
 These are presets, not minimum-resource claims. Override them with `resources: { cpus: 2, memoryGiB: 3 }`. Disk capacity defaults independently to 60 GiB and is sparse. Written data and base images consume real host storage. This is not a physical storage quota. Unsupported resources fail rather than being silently reduced.
 
@@ -118,9 +126,20 @@ Environment values may contain `${services.web.publicURL}`. The referenced decla
 Completed handles are bounded to 128. Consuming completed output removes its guest files but retains final status with empty output. New command launches may expire older completed handles and discard their unread output. Collect needed output before launching more commands. Reopen removes stale command files from the previous controller.
 
 ```js
-const command = await tools.sandbox('{"action":"exec","name":"demo","cmd":"sleep 30; echo done","timeoutMs":0}')
-await tools.sandbox(JSON.stringify({action: 'exec-status', name: 'demo', pid: command.pid, timeoutMs: 1000}))
-await tools.sandbox(JSON.stringify({action: 'exec-kill', name: 'demo', pid: command.pid}))
+const command = await tools.sandbox(
+	'{"action":"exec","name":"demo","cmd":"sleep 30; echo done","timeoutMs":0}',
+);
+await tools.sandbox(
+	JSON.stringify({
+		action: "exec-status",
+		name: "demo",
+		pid: command.pid,
+		timeoutMs: 1000,
+	}),
+);
+await tools.sandbox(
+	JSON.stringify({ action: "exec-kill", name: "demo", pid: command.pid }),
+);
 ```
 
 `read`, `write`, and `logs` provide guest text-file access and bounded output. Read and execution output are capped at 64 KiB and mark truncation. Execution status returns only output not previously consumed. Use `help` for current arguments.

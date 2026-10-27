@@ -1,63 +1,34 @@
-import { runCustomTool } from "./custom-tool-runner.js";
-import { mcpToolNamespaces, missingMcpToolMessage } from "./mcp-tool-recovery.js";
-import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
-import { runCodeModeToolWithHooks } from "./nested-tool-completion.js";
+import { DelegateToolExecutor } from "./delegation/tool-executor.ts";
+import { DelegateCellScheduling } from "./delegation/cell-scheduling.ts";
+import { DelegateCellResults } from "./delegation/cell-results.ts";
+import { type DelegateRequestMessage } from "./host-protocol.js";
 import { codeModeNameForToolIdentity } from "./tool-identity.ts";
 import { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import { CodeModeTraceStore } from "./trace-store.js";
-import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
 	CodeModeToolDefinition,
 	RuntimeResponse,
-	OpaqueToolOutput,
-	RuntimeContentItem,
 	ToolExecutionContext,
 } from "./types.js";
 
-const MAX_TRACE_ERROR_CHARS = 16_384;
-const MAX_NOTIFICATION_CHARS = 16_384;
-const MAX_NOTIFICATIONS_PER_CELL = 100;
-const MAX_OPAQUE_BYTES = 32 * 1024 * 1024;
 
 interface DelegateController {
 	cellId?: string | undefined;
 	controller: AbortController;
 }
 
-interface Deferred {
-	promise: Promise<void>;
-	resolve(): void;
-}
-
-interface PendingOpaqueResults {
-	outputs: OpaqueToolOutput[];
-	images: RuntimeContentItem[];
-	bytes: number;
-}
-
 type SendMessage = (message: unknown) => void;
 
 export class CodeModeDelegateRuntime {
 	private readonly traceRuntimeGeneration = crypto.randomUUID();
-	private readonly cellContexts = new Map<string, ToolExecutionContext>();
-	private readonly contextChanges = new Map<string, Deferred>();
-	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
 	private readonly controllers = new Map<string, DelegateController>();
-	private readonly notifications = new Map<string, string[]>();
-	private readonly opaqueResults = new Map<string, PendingOpaqueResults>();
-	private readonly originalExecCalls = new Map<string, string>();
-	// Continuation routing must survive bounded display traces.
-	private readonly execSessions = new Map<string, Set<number>>();
-	private readonly terminatingCells = new Set<string>();
-	private readonly contextNoteWrites = new Map<string, boolean>();
-	private readonly remoteNoteWrites = new Set<string>();
-	private readonly blockers = new Map<string, Set<string>>();
-	private readonly blockerChanges = new Map<string, Deferred>();
-	private readonly sequentialTails = new Map<string, Promise<void>>();
 	private readonly traces = new CodeModeTraceStore();
+	private readonly cells = new DelegateCellScheduling();
+	private readonly results = new DelegateCellResults();
 	private readonly cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private readonly send: SendMessage;
 	private readonly renderStore: CodeModeNestedRenderStore;
+	private readonly executor: DelegateToolExecutor;
 
 	constructor(
 		send: SendMessage,
@@ -65,6 +36,7 @@ export class CodeModeDelegateRuntime {
 	) {
 		this.send = send;
 		this.renderStore = renderStore;
+		this.executor = new DelegateToolExecutor(this.cells, this.results, this.traces, renderStore, this.traceRuntimeGeneration);
 	}
 
 	bindCell(
@@ -73,41 +45,21 @@ export class CodeModeDelegateRuntime {
 		tools?: Map<string, CodeModeToolDefinition>,
 	): void {
 		this.updateCellContext(cellId, context);
-		if (context.originalExecCallId && !this.originalExecCalls.has(cellId))
-			this.originalExecCalls.set(cellId, context.originalExecCallId);
-		if (tools) this.cellTools.set(cellId, tools);
+		this.results.bindCell(cellId, context);
+		if (tools) this.cells.bindTools(cellId, tools);
 	}
 
 	updateCellContext(cellId: string, context: ToolExecutionContext): void {
-		const previous = this.cellContexts.get(cellId);
-		if (previous?.opaqueScope && (previous.opaqueScope !== context.opaqueScope ||
-			previous.opaqueContextGeneration !== context.opaqueContextGeneration))
-			throw new Error("Remote cell belongs to a different context; verify note state before repeating a write");
-		this.cellContexts.set(cellId, context);
-		this.contextChanges.get(cellId)?.resolve();
-		this.contextChanges.delete(cellId);
+		this.cells.updateCellContext(cellId, context);
 	}
 
 	closeCell(cellId: string): void {
-		this.cellContexts.delete(cellId);
-		this.contextChanges.get(cellId)?.resolve();
-		this.contextChanges.delete(cellId);
-		this.cellTools.delete(cellId);
-		this.blockers.delete(cellId);
-		this.blockerChanges.get(cellId)?.resolve();
-		this.blockerChanges.delete(cellId);
-		this.sequentialTails.delete(cellId);
+		this.cells.closeCell(cellId);
 		const previous = this.cleanupTimers.get(cellId);
 		if (previous) clearTimeout(previous);
 		this.cleanupTimers.set(cellId, setTimeout(() => {
 			this.cleanupTimers.delete(cellId);
-			this.notifications.delete(cellId);
-			this.opaqueResults.delete(cellId);
-			this.originalExecCalls.delete(cellId);
-			this.execSessions.delete(cellId);
-			this.terminatingCells.delete(cellId);
-			this.contextNoteWrites.delete(cellId);
-			this.remoteNoteWrites.delete(cellId);
+			this.results.delete(cellId);
 			this.traces.delete(cellId);
 		}, 1_000));
 	}
@@ -115,44 +67,24 @@ export class CodeModeDelegateRuntime {
 	clear(): void {
 		for (const { controller } of this.controllers.values()) controller.abort();
 		this.controllers.clear();
-		this.cellContexts.clear();
-		this.originalExecCalls.clear();
-		for (const change of this.contextChanges.values()) change.resolve();
-		this.contextChanges.clear();
-		this.cellTools.clear();
+		this.cells.clear();
 		this.traces.clear();
 		this.renderStore.clear();
-		this.notifications.clear();
 		this.clearOpaqueResults();
-		this.execSessions.clear();
-		this.terminatingCells.clear();
-		this.contextNoteWrites.clear();
-		this.remoteNoteWrites.clear();
-		for (const change of this.blockerChanges.values()) change.resolve();
-		this.blockers.clear();
-		this.blockerChanges.clear();
-		this.sequentialTails.clear();
+		this.results.clear();
 		for (const timer of this.cleanupTimers.values()) clearTimeout(timer);
 		this.cleanupTimers.clear();
 	}
 
 	clearOpaqueResults(): void {
-		for (const cellId of this.opaqueResults.keys()) {
-			this.cancelCell(cellId);
-		}
-		this.opaqueResults.clear();
+		for (const cellId of this.results.opaqueCellIds()) this.cancelCell(cellId);
+		this.results.clearOpaqueResults();
 	}
 
-	isBlocked(cellId: string): boolean {
-		return (this.blockers.get(cellId)?.size ?? 0) > 0;
-	}
+	isBlocked(cellId: string): boolean { return this.cells.isBlocked(cellId); }
 
-	async waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
-		while (this.isBlocked(cellId)) {
-			const change = this.blockerChanges.get(cellId) ?? deferred();
-			this.blockerChanges.set(cellId, change);
-			await waitForChange(change.promise, signal);
-		}
+	waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
+		return this.cells.waitUntilUnblocked(cellId, signal);
 	}
 
 	cancel(id: number): void {
@@ -194,72 +126,21 @@ export class CodeModeDelegateRuntime {
 		const controller = new AbortController();
 		this.controllers.set(key, { cellId, controller });
 		try {
-			return await this.invokeTool(cellId, toolName, input, String(requestId), controller);
+			return await this.executor.invoke(cellId, toolName, input, String(requestId), controller);
 		} finally {
 			this.controllers.delete(key);
 		}
 	}
 
 	notifyDirect(cellId: string, value: string): void {
-		const context = this.cellContexts.get(cellId);
-		if (!context) throw new Error("Code-mode notification cell is unavailable");
-		const notifications = this.notifications.get(cellId) ?? [];
-		const text = value.slice(0, MAX_NOTIFICATION_CHARS);
-		notifications.push(text);
-		if (notifications.length > MAX_NOTIFICATIONS_PER_CELL)
-			notifications.splice(0, notifications.length - MAX_NOTIFICATIONS_PER_CELL);
-		this.notifications.set(cellId, notifications);
-		context.onUpdate?.({
-			content: [{ type: "text", text }],
-			details: { cellId, notification: true },
-		});
+		this.results.notifyDirect(cellId, value, this.cells.context(cellId));
 	}
 
 	attach(response: RuntimeResponse): RuntimeResponse {
-		const originalExecCallId = this.originalExecCalls.get(response.cellId);
-		if (response.kind !== "yielded") this.originalExecCalls.delete(response.cellId);
 		const cleanupTimer = this.cleanupTimers.get(response.cellId);
 		if (cleanupTimer) clearTimeout(cleanupTimer);
 		this.cleanupTimers.delete(response.cellId);
-		const notifications = this.notifications.get(response.cellId) ?? [];
-		this.notifications.delete(response.cellId);
-		const opaque = this.opaqueResults.get(response.cellId);
-		const opaqueOutputs = opaque?.outputs;
-		const opaqueImages = opaque?.images;
-		if (opaque) {
-			if (response.kind === "yielded") {
-				opaque.outputs = [];
-				opaque.images = [];
-				opaque.bytes = 0;
-			} else {
-				this.opaqueResults.delete(response.cellId);
-			}
-		}
-		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
-		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
-		const noteWrites = this.contextNoteWrites.get(response.cellId);
-		const remoteNoteWrite = this.remoteNoteWrites.has(response.cellId);
-		if (response.kind !== "yielded") this.remoteNoteWrites.delete(response.cellId);
-		const terminate = response.kind === "result" && !response.errorText && noteWrites !== false && this.terminatingCells.has(response.cellId);
-		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
-		if (response.kind !== "yielded") this.contextNoteWrites.delete(response.cellId);
-		const withTraces = this.traces.attach(response);
-		return {
-			...withTraces,
-			...(originalExecCallId ? { originalExecCallId } : {}),
-			...(opaqueOutputs?.length ? { opaqueOutputs } : {}),
-			...(terminate ? { terminate: true as const } : {}),
-			...(noteWrites !== undefined && response.kind !== "yielded"
-				? { contextNotesSaved: response.kind === "result" && !response.errorText && noteWrites }
-				: {}),
-			...(noteWrites !== undefined && remoteNoteWrite && response.kind !== "yielded" ? { contextNotesSource: "remote" as const } : {}),
-			...(execSessionIds.length > 0 ? { execSessionIds } : {}),
-			contentItems: [
-				...notifications.map((text) => ({ type: "input_text" as const, text })),
-				...response.contentItems,
-				...(opaqueImages ?? []),
-			],
-		};
+		return this.results.attach(response, this.traces);
 	}
 
 	private async invoke(
@@ -277,7 +158,7 @@ export class CodeModeDelegateRuntime {
 		const toolName = codeModeNameForToolIdentity(invocation.tool_name);
 		const input = invocation?.input;
 		try {
-			const result = await this.invokeTool(
+			const result = await this.executor.invoke(
 				cellId,
 				toolName,
 				input,
@@ -296,221 +177,6 @@ export class CodeModeDelegateRuntime {
 		} finally {
 			this.controllers.delete(key);
 		}
-	}
-
-	private async invokeTool(
-		cellId: string,
-		toolName: string,
-		input: unknown,
-		traceId: string,
-		controller: AbortController,
-	): Promise<unknown> {
-		const tool = this.cellTools.get(cellId)?.get(toolName);
-		const context = this.cellContexts.get(cellId);
-		if (!tool) throw new Error(
-			missingMcpToolMessage(toolName, mcpToolNamespaces(this.cellTools.get(cellId)?.values() ?? []))
-				?? `Unknown custom tool: ${toolName}`,
-		);
-		if (!context) throw new Error("Code-mode cell context is unavailable");
-		const opaqueResult = !isCustomToolDefinition(tool) && tool.opaqueResult === true;
-		const currentContext = () => this.cellContexts.get(cellId) ?? context;
-		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());
-		const trace = this.traces.start(
-			cellId,
-			`${this.traceRuntimeGeneration}:${cellId}:${traceId}`,
-			tool.name,
-			input,
-		);
-		const captureRendererValues =
-			!isCustomToolDefinition(tool) &&
-			Boolean(tool.renderCall || tool.renderResult);
-		let finalResultCaptured = false;
-		let resultSessionId: number | undefined;
-		const contextNoteWrite = !isCustomToolDefinition(tool) && tool.isContextNoteWrite?.(input) === true;
-		if (captureRendererValues)
-			this.renderStore.captureInput(trace.id, input);
-		const invocationContext: ToolExecutionContext = {
-			...context,
-			originalExecCallId: this.originalExecCalls.get(cellId),
-			toolCallId: trace.id,
-			...(opaqueResult ? { captureOpaqueResult: (output: OpaqueToolOutput, images: RuntimeContentItem[]) => {
-				this.reserveOpaqueCall(cellId);
-				if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
-				const pending = this.opaqueResults.get(cellId);
-				if (!pending || controller.signal.aborted ||
-					this.cellContexts.get(cellId)?.opaqueScope !== context.opaqueScope ||
-					this.cellContexts.get(cellId)?.opaqueContextGeneration !== context.opaqueContextGeneration)
-					throw new Error("Remote operation executed but result delivery was cancelled; verify note state before repeating a write");
-				const bytes = Buffer.byteLength(output.encryptedOutput, "utf8") + images.reduce((sum, image) => sum + (image.image_url?.length ?? 0), 0);
-				const total = [...this.opaqueResults.values()].reduce((sum, entry) => sum + entry.bytes, 0);
-				if (total + bytes > MAX_OPAQUE_BYTES)
-					throw new Error("Remote operation executed but result capacity was exceeded; verify note state before repeating a write");
-				pending.bytes += bytes;
-				pending.outputs.push(output);
-				pending.images.push(...images);
-			} } : {}),
-			...(!isCustomToolDefinition(tool) && tool.executionPipeline === "pi"
-				? { preflight: undefined, completion: undefined }
-				: {}),
-			executeTool: async (name, args, options) => {
-				const outcome = await this.executePiTool(cellId, name, args, { ...options, signal: options?.signal ?? controller.signal });
-				trace.nativeCallIds?.push(outcome.toolCall.id);
-				return outcome;
-			},
-			onUpdate: (update) => {
-				if (captureRendererValues)
-					this.renderStore.captureResult(trace.id, update);
-				trace.result = this.traces.captureResult(cellId, trace, update);
-				emitTrace();
-			},
-			captureResult: (result) => {
-				finalResultCaptured = true;
-				if (!isCustomToolDefinition(tool) && tool.propagateTermination && result.terminate)
-					this.terminatingCells.add(cellId);
-				resultSessionId = numericSessionId(result.details);
-				if (captureRendererValues)
-					this.renderStore.captureResult(trace.id, result);
-				trace.result = this.traces.captureResult(cellId, trace, result);
-				emitTrace();
-			},
-			refreshTrace: emitTrace,
-		};
-		let blocking = false;
-		let blockerActive = false;
-		try {
-			if (opaqueResult) {
-				if (!context.opaqueContextValid || !await context.opaqueContextValid())
-					throw new Error("Remote context changed; start a new exec cell");
-				if (!context.resolveOpaqueScope) {
-					this.reserveOpaqueCall(cellId);
-					if (contextNoteWrite) this.remoteNoteWrites.add(cellId);
-				}
-			}
-			blocking =
-				!isCustomToolDefinition(tool) &&
-				(tool.blocking === true || tool.isBlocking?.(input) === true);
-			if (blocking) {
-				blockerActive = true;
-				trace.status = "blocked";
-				this.setBlocked(cellId, trace.id, true);
-				emitTrace();
-			}
-			const invoke = async (hookContext: ToolExecutionContext) => {
-				if (isCustomToolDefinition(tool)) emitTrace();
-				controller.signal.throwIfAborted();
-				const run = async (): Promise<unknown> => {
-					return isCustomToolDefinition(tool)
-						? await runCustomTool(tool, input, hookContext.cwd, controller.signal)
-						: await tool.invoke(input, hookContext, controller.signal);
-				};
-				return !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
-					? await this.invokeSequential(cellId, controller.signal, run)
-					: await run();
-			};
-			const result = !isCustomToolDefinition(tool) && tool.executionPipeline === "adapter"
-				? await invoke(invocationContext)
-				: await runCodeModeToolWithHooks(tool.name, input, invocationContext, controller.signal, invoke);
-			if (contextNoteWrite) this.contextNoteWrites.set(cellId, this.contextNoteWrites.get(cellId) !== false);
-			if (!trace.result)
-				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
-			trace.status = "done";
-			this.recordExecSession(cellId, tool.name, input, finalResultCaptured ? resultSessionId : numericSessionId(result));
-			emitTrace();
-			return result;
-		} catch (error) {
-			if (contextNoteWrite) this.contextNoteWrites.set(cellId, false);
-			const errorText =
-				error instanceof Error ? error.message : String(error);
-			if (captureRendererValues && !finalResultCaptured) {
-				const errorResult = {
-					content: [{ type: "text" as const, text: errorText }],
-					details: {},
-				};
-				this.renderStore.captureResult(trace.id, errorResult);
-				trace.result = this.traces.captureResult(
-					cellId,
-					trace,
-					errorResult,
-				);
-			}
-			trace.status = "error";
-			trace.error = truncateTraceText(
-				errorText,
-				MAX_TRACE_ERROR_CHARS,
-			);
-			emitTrace();
-			throw error;
-		} finally {
-			if (blockerActive) this.setBlocked(cellId, trace.id, false);
-		}
-	}
-
-	private async executePiTool(
-		cellId: string,
-		...[name, args, options]: Parameters<NonNullable<ToolExecutionContext["executeTool"]>>
-	): ReturnType<NonNullable<ToolExecutionContext["executeTool"]>> {
-		while (true) {
-			options?.signal?.throwIfAborted();
-			const scope = this.cellContexts.get(cellId)?.piToolScope;
-			if (!scope) throw new Error("Pi nested tool call context is unavailable");
-			const pending = scope.run(name, args, options);
-			if (pending) return pending;
-			const change = this.contextChanges.get(cellId) ?? deferred();
-			this.contextChanges.set(cellId, change);
-			await waitForChange(change.promise, options?.signal);
-		}
-	}
-
-	private recordExecSession(cellId: string, toolName: string, input: unknown, resultSessionId: number | undefined): void {
-		if (toolName !== "exec_command" && toolName !== "write_stdin") return;
-		const sessions = this.execSessions.get(cellId) ?? new Set<number>();
-		const inputSessionId = numericSessionId(input);
-		if (toolName === "write_stdin" && inputSessionId !== undefined) sessions.delete(inputSessionId);
-		if (resultSessionId !== undefined) sessions.add(resultSessionId);
-		if (sessions.size > 0) this.execSessions.set(cellId, sessions);
-		else this.execSessions.delete(cellId);
-	}
-
-	private reserveOpaqueCall(cellId: string): void {
-		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? { outputs: [], images: [], bytes: 0 };
-		if (!this.opaqueResults.has(cellId) && this.opaqueResults.size >= 32)
-			throw new Error("Remote batch capacity reached; finish pending cells, then start a new exec cell");
-		this.opaqueResults.set(cellId, pending);
-	}
-
-	private async invokeSequential(
-		cellId: string,
-		signal: AbortSignal,
-		run: () => Promise<unknown>,
-	): Promise<unknown> {
-		let release: () => void;
-		const turn = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		const previous = this.sequentialTails.get(cellId) ?? Promise.resolve();
-		this.sequentialTails.set(cellId, previous.then(() => turn));
-		try {
-			await waitForChange(previous, signal);
-			return await run();
-		} finally {
-			release!();
-		}
-	}
-
-	private setBlocked(
-		cellId: string,
-		blockerId: string,
-		active: boolean,
-	): void {
-		const blockers = this.blockers.get(cellId) ?? new Set<string>();
-		const changed = active ? !blockers.has(blockerId) : blockers.delete(blockerId);
-		if (active) blockers.add(blockerId);
-		if (!changed) return;
-		if (blockers.size === 0) this.blockers.delete(cellId);
-		else this.blockers.set(cellId, blockers);
-		this.cellContexts.get(cellId)?.setBlocked?.(blockerId, active);
-		this.blockerChanges.get(cellId)?.resolve();
-		this.blockerChanges.set(cellId, deferred());
 	}
 
 	private handleNotification(
@@ -556,41 +222,10 @@ export class CodeModeDelegateRuntime {
 	}
 }
 
-function numericSessionId(value: unknown): number | undefined {
-	return value && typeof value === "object" && "session_id" in value && typeof value.session_id === "number"
-		? value.session_id
-		: undefined;
-}
-
 function hostControllerKey(id: number): string {
 	return `host:${id}`;
 }
 
 function directControllerKey(cellId: string, requestId: number): string {
 	return `direct:${cellId}:${requestId}`;
-}
-
-function deferred(): Deferred {
-	let resolve!: () => void;
-	const promise = new Promise<void>((done) => { resolve = done; });
-	return { promise, resolve };
-}
-
-function waitForChange(change: Promise<void>, signal?: AbortSignal): Promise<void> {
-	if (!signal) return change;
-	if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
-	return new Promise((resolve, reject) => {
-		const abort = () => reject(signal.reason ?? new Error("Operation aborted"));
-		signal.addEventListener("abort", abort, { once: true });
-		void change.then(
-			() => {
-				signal.removeEventListener("abort", abort);
-				resolve();
-			},
-			(error: unknown) => {
-				signal.removeEventListener("abort", abort);
-				reject(error);
-			},
-		);
-	});
 }

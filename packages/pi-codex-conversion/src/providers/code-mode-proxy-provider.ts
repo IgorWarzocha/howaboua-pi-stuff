@@ -13,16 +13,12 @@ import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agen
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
-import { resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { BeforeCodexRequestSend, OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
-import {
-	hasContextNamespaceRouters,
-	routeContextNamespaceToolStream,
-} from "../context-management/namespace-tools.ts";
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
 	return {
@@ -188,17 +184,16 @@ function resolveProviderApis(
 		const api: ResponsesApi = model.api === "openai-responses"
 			? "openai-responses"
 			: "openai-codex-responses";
-		const plan = resolveCodexRuntimePlan({ model }, config, executionMode);
 		const mode = executionMode ?? config.executionMode;
 		const configuredResponsesLite =
 			model.api === "openai-responses" &&
 			!config.voiceFeaturesOnly &&
-			(mode === "code" || mode === "notebook") &&
+			(mode === "code" || mode === "notebook" || mode === "ts" || mode === "js") &&
 			config.openai.proxyResponsesLite &&
 			config.scope.additionalProviders.includes(
 				model.provider.trim().toLowerCase(),
 			);
-		if (configuredResponsesLite || plan.contextManagement)
+		if (configuredResponsesLite)
 			resolved.set(model.provider, api);
 	}
 	return resolved;
@@ -273,9 +268,7 @@ export function registerCodeModeProxyProvider(
 					context,
 					options,
 				);
-				return plan.contextManagement && hasContextNamespaceRouters(context)
-					? routeContextNamespaceToolStream(stream)
-					: stream;
+				return stream;
 			};
 			pi.registerProvider(provider, {
 				api,

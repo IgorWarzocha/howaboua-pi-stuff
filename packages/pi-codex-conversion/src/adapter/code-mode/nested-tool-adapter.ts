@@ -20,6 +20,7 @@ interface NestedToolLifecycle {
 }
 
 interface NestedToolContract {
+	executeViaPi?: string;
 	kind?: "function" | "freeform";
 	textOutput?: "command" | "plain-command";
 	blocking?: boolean;
@@ -31,7 +32,6 @@ interface NestedToolContract {
 	opaqueResult?: boolean;
 	allowPlainResult?: boolean;
 	opaqueResultScope?(result: AgentToolResult<unknown>): string | undefined;
-	isContextNoteWrite?(input: unknown): boolean;
 	translatePromptMetadata?: boolean;
 	toolName?: CodeModeToolIdentity;
 	yieldTimeMs?: number;
@@ -71,7 +71,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		if (signal.aborted) throw new Error(`${tool.name} aborted`);
 		// Approval sees the canonical arguments that execute receives, including
 		// aliases and freeform adapters. Never transform input after admission.
-		return runCodeModeToolWithHooks(tool.name, prepared, context, signal, async (context) => {
+		const execute = async (context: ToolExecutionContext) => {
 			const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
 			lifecycle.start?.(toolCallId, prepared);
 			context.refreshTrace?.();
@@ -80,7 +80,12 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				if (contract.opaqueResult && !contract.allowPlainResult && (!context.opaqueScope ||
 					!context.opaqueContextValid || !await context.opaqueContextValid()))
 					throw new Error("Remote context changed before dispatch; start a new exec cell");
-				const result = await tool.execute(
+				const outcome = contract.executeViaPi
+					? await context.executeTool?.(contract.executeViaPi, prepared, { signal, ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}) })
+					: undefined;
+				if (contract.executeViaPi && !outcome) throw new Error("Pi nested tool execution is unavailable");
+				if (outcome?.isError) throw new Error(outcome.result.content.filter(part => part.type === "text").map(part => part.text).join("\n") || `${tool.name} failed`);
+				const result = outcome ? outcome.result : await tool.execute(
 					toolCallId,
 					prepared as never,
 					signal,
@@ -90,26 +95,18 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 					extensionContext,
 				);
 				acceptingUpdates = false;
-				const details = result.details as { codexHistoryNotes?: { encrypted_output?: unknown; attachment_hint?: unknown } } | undefined;
-				const encrypted = details?.codexHistoryNotes?.encrypted_output;
 				const cachedOutputs = opaqueToolOutputsFromDetails(result.details);
-				const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || encrypted !== undefined || cachedOutputs.length > 0 || contract.opaqueResultScope?.(result) !== undefined);
-				if ((encrypted !== undefined || cachedOutputs.length) && !contract.opaqueResult)
+				const protectedResult = contract.opaqueResult && (!contract.allowPlainResult || cachedOutputs.length > 0 || contract.opaqueResultScope?.(result) !== undefined);
+				if (cachedOutputs.length && !contract.opaqueResult)
 					throw new Error("Protected result delivery is unavailable; start a new exec cell");
 				if (protectedResult) {
 					const scope = context.resolveOpaqueScope ? await context.resolveOpaqueScope() : context.opaqueScope;
 					if (!scope || contract.opaqueResultScope?.(result) !== scope ||
 						!context.opaqueContextValid || !await context.opaqueContextValid())
-						throw new Error("Remote operation executed in a different context; verify note state before repeating a write");
-					if (!cachedOutputs.length && (typeof encrypted !== "string" || !encrypted.trim()))
-						throw new Error("Remote operation executed but returned no protected output; verify its state before repeating a write");
-					const action = prepared && typeof prepared === "object" && "action" in prepared && typeof prepared.action === "string"
-						? `.${prepared.action}` : "";
-					const hint = details?.codexHistoryNotes?.attachment_hint;
-					const outputs = cachedOutputs.length ? cachedOutputs : [{ resultId: toolCallId,
-						name: tool.name + action + (typeof hint === "string" ? `; ${hint}` : ""), encryptedOutput: encrypted as string }];
-					const localText = cachedOutputs.length ? result.content.filter(item => item.type === "text").map(item => item.text).join("\n") : "";
-					outputs.forEach((output, index) => context.captureOpaqueResult!({ ...output,
+						throw new Error("Protected result belongs to a different context; check completed results before retrying");
+					if (!cachedOutputs.length) throw new Error("Operation returned no protected output; check completed results before retrying");
+					const localText = result.content.filter(item => item.type === "text").map(item => item.text).join("\n");
+					cachedOutputs.forEach((output, index) => context.captureOpaqueResult!({ ...output,
 						name: output.name + (index === 0 && localText ? `; ${localText}` : "") },
 						index === 0 ? result.content.filter(item => item.type === "image").map(item => ({
 							type: "input_image", image_url: `data:${item.mimeType};base64,${item.data}`,
@@ -130,7 +127,8 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				acceptingUpdates = false;
 				lifecycle.end?.(toolCallId);
 			}
-		});
+		};
+		return contract.executeViaPi ? execute(context) : runCodeModeToolWithHooks(tool.name, prepared, context, signal, execute);
 	};
 	return {
 		name: tool.name,
@@ -153,7 +151,6 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		...(tool.executionMode ? { executionMode: tool.executionMode } : {}),
 		...(contract.propagateTermination ? { propagateTermination: true } : {}),
 		...(contract.opaqueResult ? { opaqueResult: true } : {}),
-		...(contract.isContextNoteWrite ? { isContextNoteWrite: contract.isContextNoteWrite } : {}),
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),

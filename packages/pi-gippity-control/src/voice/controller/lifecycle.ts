@@ -1,0 +1,155 @@
+import type { ActiveVoiceGuard } from "../active-owner.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { CodexVoiceSessionMessages } from "../session-messages.ts";
+import { formatVoiceAudioError } from "../setup.ts";
+import type { ControllerHandoff } from "./handoff.ts";
+import { markRealtimePeerInactive } from "./reconnect.ts";
+import type { VoiceControllerRuntime } from "./start.ts";
+import {
+	currentVoiceSession,
+	VOICE_STATUS_KEY,
+	voiceModeForState,
+} from "./support.ts";
+
+/** Serial resource ownership stays in ActiveVoiceGuard; this owner closes each mode and publishes its terminal state. */
+export class ControllerLifecycle {
+	private readonly runtime: VoiceControllerRuntime;
+	private readonly ownership: ActiveVoiceGuard;
+	private readonly messages: CodexVoiceSessionMessages;
+	private readonly handoff: ControllerHandoff;
+	private readonly callbacks: {
+		cancelRefresh(): void;
+		inputMuted(): boolean;
+		notifyMute(muted: boolean): void;
+	};
+	constructor(
+		runtime: VoiceControllerRuntime,
+		ownership: ActiveVoiceGuard,
+		messages: CodexVoiceSessionMessages,
+		handoff: ControllerHandoff,
+		callbacks: {
+			cancelRefresh(): void;
+			inputMuted(): boolean;
+			notifyMute(muted: boolean): void;
+		},
+	) {
+		this.runtime = runtime;
+		this.ownership = ownership;
+		this.messages = messages;
+		this.handoff = handoff;
+		this.callbacks = callbacks;
+	}
+	async stop(options?: {
+		announce?: boolean;
+		transferring?: boolean;
+	}): Promise<void> {
+		this.handoff.cancelReservation();
+		this.callbacks.cancelRefresh();
+		this.runtime.startAbortController?.abort();
+		this.runtime.startAbortController = undefined;
+		this.runtime.startGeneration += 1;
+		const wasMuted = this.callbacks.inputMuted();
+		const endedMode = options?.announce
+			? this.runtime.announcedMode
+			: undefined;
+		const session = currentVoiceSession(this.runtime.state);
+		const stoppedPlan = options?.transferring
+			? undefined
+			: this.runtime.realtimePeerPlan;
+		const forwarded = options?.transferring
+			? undefined
+			: this.handoff.forwarded;
+		if (forwarded) {
+			this.handoff.detachForwarded();
+		}
+		const closePromise = this.ownership.hold(async () => {
+			await session?.close();
+		});
+		this.runtime.state = { type: "idle" };
+		this.runtime.announcedMode = undefined;
+		this.runtime.config = undefined;
+		this.runtime.realtimePeerPlan = undefined;
+		this.runtime.voiceStatus = "";
+		this.runtime.inputTooQuiet = false;
+		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
+		try {
+			await Promise.all([
+				closePromise,
+				this.ownership.hold(async () => {
+					await forwarded?.stop();
+				}),
+			]);
+		} finally {
+			stoppedPlan?.onStopped?.();
+		}
+		if (wasMuted) this.callbacks.notifyMute(false);
+		this.messages.voiceStopped(endedMode);
+	}
+
+	async finishDictation(options?: { announce?: boolean }): Promise<void> {
+		this.runtime.startGeneration += 1;
+		const session =
+			this.runtime.state.type === "dictation"
+				? this.runtime.state.session
+				: this.runtime.state.type === "connecting" &&
+						this.runtime.state.mode === "dictation" &&
+						this.runtime.state.phase === "starting"
+					? this.runtime.state.session
+					: undefined;
+		if (!session) {
+			await this.stop(options);
+			return;
+		}
+		await this.ownership.hold(() => session.finish());
+		if (currentVoiceSession(this.runtime.state) !== session) return;
+		const endedMode = options?.announce
+			? this.runtime.announcedMode
+			: undefined;
+		this.runtime.state = { type: "idle" };
+		this.runtime.announcedMode = undefined;
+		this.runtime.config = undefined;
+		this.runtime.realtimePeerPlan = undefined;
+		this.runtime.voiceStatus = "";
+		this.runtime.inputTooQuiet = false;
+		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
+		this.messages.voiceStopped(endedMode);
+	}
+
+	fail(
+		error: Error,
+		failedSession?: CodexRealtimeConversation | undefined,
+	): void {
+		this.callbacks.cancelRefresh();
+		if (
+			this.runtime.state.type === "idle" ||
+			this.runtime.state.type === "failed"
+		)
+			return;
+		this.runtime.startAbortController?.abort();
+		this.runtime.startAbortController = undefined;
+		const mode = voiceModeForState(this.runtime.state);
+		const message = this.runtime.config
+			? formatVoiceAudioError(error, mode, this.runtime.config)
+			: error.message;
+		this.runtime.startGeneration += 1;
+		const endedMode = this.runtime.announcedMode;
+		const wasMuted = this.callbacks.inputMuted();
+		const session = currentVoiceSession(this.runtime.state);
+		if (failedSession)
+			markRealtimePeerInactive(this.runtime, failedSession, error, false);
+		const closePromise = this.ownership.hold(async () => {
+			await session?.close();
+		});
+		this.runtime.state = { type: "failed", message };
+		this.runtime.announcedMode = undefined;
+		this.runtime.config = undefined;
+		this.runtime.realtimePeerPlan = undefined;
+		this.runtime.voiceStatus = "";
+		this.runtime.inputTooQuiet = false;
+		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
+		this.runtime.context?.ui.notify(message, "error");
+		this.messages.voiceStopped(endedMode);
+		if (wasMuted) this.callbacks.notifyMute(false);
+		void Promise.allSettled([closePromise]);
+	}
+}

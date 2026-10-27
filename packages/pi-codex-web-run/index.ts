@@ -37,7 +37,7 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 					: ordinary.description;
 				if (active)
 					tool.promptGuidelines = [
-						"web_run: Calls: returned turn refs. Final citations: Markdown result URLs, never refs or cite….",
+						"web_run: calls=returned turn refs; final citations=Markdown result URLs; never refs/cite…",
 					];
 				else if (ordinary.guidelines)
 					tool.promptGuidelines = ordinary.guidelines;
@@ -75,7 +75,7 @@ async function registerWebRunInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				usage: gpt()
-					? 'await tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls: returned ref_ids; final citations: Markdown result URLs, never refs/cite markers'
+					? 'await tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls=returned ref_ids; final citations=Markdown result URLs; never refs/cite markers'
 					: 'await tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls use returned ref_ids; final answers use Markdown result URLs, never refs/cite markers',
 				promptMetadata: false,
 				toolName: { namespace: "web", name: "run" },

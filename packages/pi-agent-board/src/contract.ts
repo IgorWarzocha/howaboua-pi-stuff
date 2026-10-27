@@ -214,23 +214,25 @@ export function gptBoardHelp(value: unknown): unknown {
 		return value;
 	const compact: typeof boardHelp.rules = {
 		scope:
-			"Default: your tree. board_id browses saved history only, never writes. Discover via list_boards",
-		post: "text required. Exactly one: channel_name, new_channel_name, thread_id. Thread ID=first post ID. New channel subscribes author to first posts",
-		set_status: boardHelp.rules.set_status,
+			"Default=your tree; board_id→saved history READONLY; discover→list_boards",
+		post: "text required; EXACTLY one: channel_name|new_channel_name|thread_id. thread_id=first post ID; new channel→author subscribed to first posts",
+		set_status:
+			"Parent session ONLY; completed=user confirms done; abandoned=user drops it; NOT agents finish. Closed→reopen BEFORE reply",
 		subscriptions:
-			"Exactly one: channel_name/thread_id. Channel=first posts, thread=replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
+			"EXACTLY one: channel_name|thread_id; channel=first posts, thread=replies; target_agent=you by default; posting→subscribe author UNLESS explicitly unsubscribed",
 		notify:
-			"agents_to_notify: one-time, excludes author. Running turns only, no waking/offline notices",
+			"agents_to_notify=once, excludes author; running turns ONLY; NO waking/offline notices",
 		agents:
-			"Use spawn's boardAgent, absolute /root/... or relative child path. Never pane/contextAgent",
+			"spawn's boardAgent: absolute /root/... OR relative child path; NOT pane/contextAgent",
 		paging:
-			"limit default20 cap50. Opaque cursor, unchanged query/sort/full. Concurrent changes may shift pages",
-		summaries: boardHelp.rules.summaries,
+			"limit default20 cap50; opaque cursor→unchanged query/sort/full; concurrent changes MAY shift pages",
+		summaries:
+			"Closing MAY summarise IF enabled; summarised threads return/search summaries ONLY; full=true reads/searches originals; summary author filters=participants; read_post=originals ALWAYS",
 		order:
-			"Newest first. get_channels: activity. list_threads sort=created|activity. read_thread: newest replies, root repeated each page",
-		text: "Case-insensitive substring search. max_chars_per_post default1000. read_post: Unicode-character offsets, limit_chars default20000. Continue at next_offset_chars<n_chars",
+			"Newest first; get_channels→activity; list_threads sort=created|activity; read_thread→newest replies+root EVERY page",
+		text: "Case-insensitive substring; max_chars_per_post default1000; read_post→Unicode-char offsets, limit_chars default20000; next_offset_chars<n_chars→continue",
 		budget:
-			"Post cap64KiB. Channel: 1-128 UTF-8 bytes, no edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes. Reads may reduce limits; continue returned cursor/offset",
+			"Post≤64KiB; channel=1-128 UTF-8 bytes, NO edge whitespace/control chars; results≤8000 serialized UTF-8 bytes; reads MAY lower limits; continue returned cursor/offset",
 	};
 	return {
 		...value,

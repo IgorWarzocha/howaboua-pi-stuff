@@ -18,7 +18,7 @@ export function announceEndStarted(pi: ExtensionAPI, gpt = false): void {
 		pi,
 		"pi-auto-trees:end-started",
 		gpt
-			? "Briefly announce naturally: summarising conversation before returning to its marker."
+			? "Brief natural announcement: summarising conversation BEFORE return to marker."
 			: END_STARTED_PROMPT,
 	);
 }
@@ -28,7 +28,7 @@ export function announceEndCompleted(pi: ExtensionAPI, gpt = false): void {
 		pi,
 		"pi-auto-trees:end-completed",
 		gpt
-			? "Briefly announce naturally: conversation summary saved, marker advanced."
+			? "Brief natural announcement: conversation summary saved; marker advanced."
 			: END_COMPLETED_PROMPT,
 	);
 }

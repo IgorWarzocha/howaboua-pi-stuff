@@ -41,7 +41,7 @@ async function available(
 	const health = object(value);
 	if (!response.ok || health["protocol"] !== PROTOCOL)
 		throw new Error(
-			"The Observatory port is occupied by another application or viewer version.",
+			"The Observatory port is occupied by another application or an older viewer. Stop that process or change the port, then run /observatory again.",
 		);
 	if (
 		health["host"] !== config.host ||

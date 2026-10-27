@@ -6,6 +6,7 @@ import type {
 import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import { useHistory } from "./history.js";
+import type { HistorySearch } from "./history-search.js";
 import { collectNotes, normalizeNoteParams, readNotes } from "./notes.js";
 import {
 	readSavedNotesSession,
@@ -154,25 +155,35 @@ export async function readSharedNotes(
 	params: Record<string, unknown>,
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown> | undefined> {
-	return readSharedSession(ctx, store, params, "notes", signal);
+	return readSharedSession(ctx, store, params, { namespace: "notes" }, signal);
 }
 
 export async function readSharedHistory(
 	ctx: ExtensionContext,
 	store: Pick<NotesStore, "read">,
+	search: HistorySearch,
 	params: Record<string, unknown>,
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown> | undefined> {
-	return readSharedSession(ctx, store, params, "history", signal);
+	return readSharedSession(
+		ctx,
+		store,
+		params,
+		{ namespace: "history", search },
+		signal,
+	);
 }
 
 async function readSharedSession(
 	ctx: ExtensionContext,
 	store: Pick<NotesStore, "read">,
 	params: Record<string, unknown>,
-	namespace: "notes" | "history",
+	access:
+		| { namespace: "notes" }
+		| { namespace: "history"; search: HistorySearch },
 	signal?: AbortSignal,
 ): Promise<Record<string, unknown> | undefined> {
+	const { namespace } = access;
 	if (
 		namespace === "notes" &&
 		!["read_file", "list_files_by_prefix", "search_contents"].includes(
@@ -201,22 +212,33 @@ async function readSharedSession(
 	if (savedNotesIdentity(current).agentName === target) return;
 	const visited = new Set<string>();
 
-	function read(
+	async function read(
 		session: SavedNotesSession,
 		query: Record<string, unknown>,
 		native: string,
 	) {
 		return {
-			...(namespace === "history"
-				? useHistory(session.branch, query, session.threadId)
+			...(access.namespace === "history"
+				? await useHistory(
+						session.branch,
+						query,
+						session.threadId,
+						access.search,
+						session.entries,
+						signal,
+					)
 				: readNotes(
 						collectNotes(store, session.branch),
 						normalizeNoteParams(query, native),
 						outputAgent,
 					)),
-			source: "saved-session",
-			read_only: true,
-			remote: { state: "not_fetched" },
+			...(namespace === "notes"
+				? {
+						read_only: true,
+						warning:
+							"Only saved notes are included; other notes may be missing",
+					}
+				: {}),
 			...(session.savedAt === undefined
 				? {}
 				: { saved_at: new Date(session.savedAt).toISOString() }),
@@ -277,14 +299,15 @@ async function readSharedSession(
 			},
 		};
 		return {
-			...read(
+			...(await read(
 				{ threadId: identity.threadId, entries: [], branch: [entry] },
 				query,
 				identity.agentName,
-			),
-			source: "retained-checkpoints",
+			)),
 			captured_at: new Date(retained.timestamp).toISOString(),
-			...(detached ? { detached: true } : { stale: true }),
+			warning: detached
+				? "Read-only notes captured when sharing ended; later changes are not included"
+				: "The latest notes are unavailable; this read-only copy may be outdated",
 		};
 	}
 	async function resolve(
@@ -413,7 +436,7 @@ async function readSharedSession(
 			["ENOENT", "EACCES", "EPERM"].includes(String(error.code))
 		)
 			throw new Error(
-				"Saved shared notes are unavailable on this machine. Restore access to the saved session, then retry.",
+				`Saved shared ${namespace} are unavailable on this machine. Restore access to the saved Pi JSONL session, then retry.`,
 				{ cause: error },
 			);
 		throw error;

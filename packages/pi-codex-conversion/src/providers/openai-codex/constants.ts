@@ -1,6 +1,5 @@
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 export const JWT_CLAIM_PATH = "https://api.openai.com/auth";
-export const MAX_SSE_REQUEST_RETRIES = 4;
 export const DEFAULT_STREAM_MAX_RETRIES = 5;
 export const MAX_STREAM_MAX_RETRIES = 100;
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;

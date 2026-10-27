@@ -137,7 +137,7 @@ export function collectNotes(
 			const receipt = noteReceipt(entry.data);
 			if (!receipt)
 				throw new Error(
-					"A saved note receipt is invalid. Open an intact session branch to recover notes.",
+					"A saved note could not be read. Open an intact session branch to recover it.",
 				);
 			// A fork carries the receipt even when its source session was explicitly pruned.
 			const revision = store.read(receipt.revision.id) ?? receipt.revision;
@@ -347,18 +347,18 @@ export function readNotes(
 	if (action === "read_file") {
 		const path = params["path"] as string;
 		const note = notes.get(path);
-		if (!note) return { source: "pi-session", file: null };
+		if (!note) return { file: null };
 		const lines = note.text.split("\n");
 		const start = lineIndex(params["start_line"], lines.length, 0);
 		const stop = lineIndex(params["stop_line"], lines.length, lines.length - 1);
 		return {
-			source: "pi-session",
 			file: {
-				...noteMetadata(note, root),
+				path: `${root}${note.path}`,
 				content: start <= stop ? lines.slice(start, stop + 1).join("\n") : "",
 				start_line: start + 1,
 				stop_line: Math.max(start, stop) + 1,
 				total_lines: lines.length,
+				...(note.mode === "append" ? { append_only: true } : {}),
 			},
 		};
 	}
@@ -375,9 +375,18 @@ export function readNotes(
 							? a.updatedAt - b.updatedAt
 							: a.path.localeCompare(b.path)) * direction,
 			)
-			.slice(0, integer(params["max_results"], 20, 100))
-			.map((note) => noteMetadata(note, root));
-		return { source: "pi-session", files };
+			.map((note) => ({
+				path: `${root}${note.path}`,
+				updated_at: new Date(note.updatedAt).toISOString(),
+				...(by === "created_at"
+					? { created_at: new Date(note.createdAt).toISOString() }
+					: {}),
+			}));
+		const limit = integer(params["max_results"], 20, 100);
+		return {
+			files: files.slice(0, limit),
+			...(files.length > limit ? { truncated: true } : {}),
+		};
 	}
 	if (action !== "search_contents")
 		throw new Error("notes requires a supported action");
@@ -393,36 +402,23 @@ export function readNotes(
 			: (a, b) => a.path.localeCompare(b.path),
 	);
 	const found: Record<string, unknown>[] = [];
+	const fileLimit = integer(params["max_files"], 20, 100);
+	const matchLimit = integer(params["max_matches_per_file"], 20, 100);
 	for (const note of files) {
 		const matches = note.text
 			.split("\n")
 			.map((line, index) => ({ line_number: index + 1, line }))
-			.filter(({ line }) => line.includes(query))
-			.slice(0, integer(params["max_matches_per_file"], 20, 100));
+			.filter(({ line }) => line.includes(query));
 		if (!matches.length) continue;
+		if (found.length === fileLimit) return { files: found, truncated: true };
 		found.push({
 			path: `${root}${note.path}`,
-			matches,
-			operation:
-				note.mode === "replace" ? "local_replacement" : "local_append_overlay",
+			matches: matches.slice(0, matchLimit),
+			...(matches.length > matchLimit ? { truncated: true } : {}),
+			...(note.mode === "append" ? { append_only: true } : {}),
 		});
-		if (found.length >= integer(params["max_files"], 20, 100)) break;
 	}
-	return { source: "pi-session", files: found };
-}
-
-function noteMetadata(
-	note: NoteRevision,
-	root: string,
-): Record<string, unknown> {
-	return {
-		operation:
-			note.mode === "replace" ? "local_replacement" : "local_append_overlay",
-		path: `${root}${note.path}`,
-		bytes: Buffer.byteLength(note.text, "utf8"),
-		created_at: new Date(note.createdAt).toISOString(),
-		updated_at: new Date(note.updatedAt).toISOString(),
-	};
+	return { files: found };
 }
 
 function lineIndex(

@@ -7,8 +7,9 @@ export function prepareSandboxInput(value: unknown): { input: string } {
 		if (Object.keys(value).length === 0) return { input: "help" };
 		if ("input" in value && typeof value.input === "string")
 			return { ...value, input: value.input };
+		if (!("input" in value)) return { input: JSON.stringify(value) };
 	}
-	throw new Error("Send help or JSON text to sandbox");
+	throw new Error("Expected help, object or JSON string");
 }
 
 const nameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);

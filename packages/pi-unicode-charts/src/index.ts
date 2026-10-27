@@ -9,9 +9,9 @@ const CHART_PROMPT = [
 	"Charts are display-only and should stay small enough to read in a terminal.",
 ].join("\n");
 const GPT_CHART_PROMPT = [
-	"Explicit fenced `chart` blocks→terminal-native Unicode charts; display-only.",
-	"Use only if clearer than prose/table; terminal-small.",
-	"Syntax: `type: bar|line|scatter|sparkline|heatmap`, optional `title:`, `data:`, rows e.g. `Label 42`.",
+	"Fenced `chart` blocks→terminal-native Unicode charts; display-only.",
+	"ONLY if clearer than prose/table; terminal-small.",
+	"Syntax: `type: bar|line|scatter|sparkline|heatmap`; optional `title:`; `data:` rows e.g. `Label 42`.",
 ].join("\n");
 
 export default async function unicodeCharts(pi: ExtensionAPI): Promise<void> {

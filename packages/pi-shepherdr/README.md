@@ -52,20 +52,20 @@ Remote machines connect over noninteractive SSH. The target needs `node` on its 
 
 Call `agents` with `{}` before first use, alone, then send flat request objects with `action`. Code and Notebook Mode use `await tools.agents()`. Explicit `action: "help"` also returns help.
 
-| Action | Result |
-| --- | --- |
-| `help` | Live profiles, request shapes, coordination rules and the advanced Herdr escape hatch |
-| `list` | Profiles, machines and matching Pi agents |
-| `find` | Agents matching a query or status |
-| `spawn` | Spawn a profiled Pi agent and send its initial task |
-| `send` | Send a peer message without waiting or subscribing |
-| `assign` | Delegate a task to an existing agent |
-| `attach` | Share context or join a board with an existing idle agent |
-| `detach` | Leave selected membership and retain read-only counterpart checkpoints |
-| `read` | Read the latest assistant reply or bounded terminal output |
-| `reply` | Deliver an opaque reply to a worker's extension |
-| `watch` | Push future settlement from an existing Pi agent |
-| `unwatch` | Stop reporting an agent |
+| Action    | Result                                                                                |
+| --------- | ------------------------------------------------------------------------------------- |
+| `help`    | Live profiles, request shapes, coordination rules and the advanced Herdr escape hatch |
+| `list`    | Profiles, machines and matching Pi agents                                             |
+| `find`    | Agents matching a query or status                                                     |
+| `spawn`   | Spawn a profiled Pi agent and send its initial task                                   |
+| `send`    | Send a peer message without waiting or subscribing                                    |
+| `assign`  | Delegate a task to an existing agent                                                  |
+| `attach`  | Share context or join a board with an existing idle agent                             |
+| `detach`  | Leave selected membership and retain read-only counterpart checkpoints                |
+| `read`    | Read the latest assistant reply or bounded terminal output                            |
+| `reply`   | Deliver an opaque reply to a worker's extension                                       |
+| `watch`   | Push future settlement from an existing Pi agent                                      |
+| `unwatch` | Stop reporting an agent                                                               |
 
 `spawn` and `assign` block by default. Set `blocking: false` when the controller should continue other work immediately. A profile's `blocking` setting overrides the call for `spawn`. Task completion and blockage are then delivered automatically.
 
@@ -83,7 +83,7 @@ Every `spawn` needs an `agent_type` and a concise `label`. The label names both 
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
-After Pi compaction or Pi Codex context rollover, the controller receives its supervised agents' exact machine and target, submitted tasks and follow-up instructions, and last observed status, including settled and blocked workers. Read a target for its reply or pending extension messages. This reminder does not start a turn or bypass normal turn preparation.
+After Pi compaction or Notes context rollover, the controller receives its supervised agents' exact machine and target, submitted tasks and follow-up instructions, and last observed status, including settled and blocked workers. Read a target for its reply or pending extension messages. This reminder does not start a turn or bypass normal turn preparation.
 
 Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
 
@@ -97,24 +97,24 @@ Call `agents` with `{ commands: true }` to list this session's available slash c
 
 These built-in commands are available through agent messages without an allowlist:
 
-| Command | Result |
-| --- | --- |
-| `/quit` | Shut down Pi gracefully and close its Herdr pane |
-| `/model <provider/model>` | Change the model |
-| `/thinking <level>` | Change the thinking level |
-| `/name <name>` | Rename the session |
-| `/new` | Start a new session |
-| `/reload` | Reload Pi resources |
-| `/resume <path>` | Resume the session at the supplied path |
-| `/compact [instructions]` | Compact the session with optional instructions |
+| Command                   | Result                                           |
+| ------------------------- | ------------------------------------------------ |
+| `/quit`                   | Shut down Pi gracefully and close its Herdr pane |
+| `/model <provider/model>` | Change the model                                 |
+| `/thinking <level>`       | Change the thinking level                        |
+| `/name <name>`            | Rename the session                               |
+| `/new`                    | Start a new session                              |
+| `/reload`                 | Reload Pi resources                              |
+| `/resume <path>`          | Resume the session at the supplied path          |
+| `/compact [instructions]` | Compact the session with optional instructions   |
 
 Custom extension commands must be both registered in the receiving Pi session and allowed in its global user config. **Settings → Agent commands** shows the actual config path. The file is `pi-shepherdr.json` in Pi's agent directory, normally `~/.pi/agent`. Add `extensionCommands`, preserving any existing fields:
 
 ```json
 {
-  "extensionCommands": {
-    "my-command": "Run my custom extension action"
-  }
+	"extensionCommands": {
+		"my-command": "Run my custom extension action"
+	}
 }
 ```
 
@@ -130,13 +130,13 @@ An extension can publish a durable message without importing Shepherdr:
 
 ```ts
 pi.appendEntry("shepherdr-extension-message", {
-  version: 1,
-  extension: "your-extension",
-  id: "unique-message-id",
-  state: "pending",
-  message: "Extension-authored text for the controller",
-  reply: "Extension-authored reply template", // optional
-  blocking: false,
+	version: 1,
+	extension: "your-extension",
+	id: "unique-message-id",
+	state: "pending",
+	message: "Extension-authored text for the controller",
+	reply: "Extension-authored reply template", // optional
+	blocking: false,
 });
 ```
 
@@ -145,10 +145,10 @@ Use a unique ID per message within the extension. `blocking` says whether replyi
 Register the reply handler on Pi's event bus:
 
 ```ts
-pi.events.on("@howaboua/pi-shepherdr/extension-reply/v1", event => {
-  const { extension, id, message, respond } = event;
-  if (extension !== "your-extension") return;
-  respond(handleReply(id, message));
+pi.events.on("@howaboua/pi-shepherdr/extension-reply/v1", (event) => {
+	const { extension, id, message, respond } = event;
+	if (extension !== "your-extension") return;
+	respond(handleReply(id, message));
 });
 ```
 
@@ -161,24 +161,27 @@ Replies use the authenticated peer connection, including across machines, and ca
 Use `attach` before delegating when an independently started agent needs shared notes, history or board membership:
 
 ```js
-await tools.agents({ action: "attach", target: "<target from find>", context: true, board: true })
+await tools.agents({
+	action: "attach",
+	target: "<target from find>",
+	context: true,
+	board: true,
+});
 ```
 
 Supply both booleans and enable at least one. `context` shares notes and history through aliases without changing either session's original context identity or moving its notes. `contextAgent` addresses the target from the controller; `controllerContextAgent` addresses the controller from the target. Use these paths as `history`'s `agent_name` or as `<agent>/notes/<path>` for notes. Each agent's relative note paths remain its own. The target receives its controller alias without starting a turn.
 
-Context attachment requires updated Codex Conversion with Local, Tree or Remote storage. Each owner keeps its original context identity and storage, including when the two agents use different stores. Remote access uses the reader's active Codex transport and requires the original account and backend, regardless of provider name. The explicit `context: true` choice does not depend on the controller's spawn-sharing setting. Use Code or Notebook with ordinary query and text for mixed-storage search and writes. Direct sensitive calls cannot cross between encrypted Remote arguments and ordinary Local or Tree arguments. If attachment changes context access during an exec cell, start a new cell before using notes or history.
+Context attachment requires compatible Notes Compaction in both sessions. Each owner keeps its original identity and local notes. Optional encrypted historical reads require compatible PCC transport and the original account and backend. The explicit `context: true` choice does not depend on the controller's spawn-sharing setting. If attachment changes context access during an exec cell, start a new cell before using notes or history.
 
-An account mismatch rejects context sharing. Each agent keeps its own notes and history. If the account changes after attachment, pinned Remote notes become unavailable, including native Remote notes. Notes do not move to a new account or another store. Use messages to exchange the context the other agent needs.
-
-`board: true` requires Pi Agent Board loaded in both sessions. It joins the controller's enabled board and returns `boardAgent` for subscriptions and notifications. The target's previous board archive stays untouched. If the folders differ, that archive remains in its original folder rather than becoming part of the controller's archive. Board-only attachment works without Codex Conversion and with Remote context storage.
+`board: true` requires Pi Agent Board loaded in both sessions. It joins the controller's enabled board and returns `boardAgent` for subscriptions and notifications. The target's previous board archive stays untouched. If the folders differ, that archive remains in its original folder rather than becoming part of the controller's archive. Board-only attachment works without Notes or Codex Conversion.
 
 The target must be idle and both Pi sessions must be saved. Existing shared-context members and controllers with context children cannot be context targets. Existing board members and roots with board children cannot switch boards. A target supports one controller and one fixed set of attachment choices. Attachment starts no task or watch; `assign` and `send` never attach implicitly.
 
-Attachments survive resume, not forks. Local and Tree live access needs the owning Pi processes and machine connections. Remote access uses authenticated backend references rather than the owner's running process. After an interrupted attachment, resume the original sessions and retry the same target and choices. The target may already have joined even when the controller reports failure; retries reuse the original aliases and membership rather than creating duplicates.
+Attachments survive resume, not forks. Live notes and history access needs the owning Pi processes and machine connections. After an interrupted attachment, resume the original sessions and retry the same target and choices. Retries reuse the original aliases and membership.
 
-To detach, call `agents` with `action: "detach"`, the same target, and both booleans. Enable each membership you want to leave. Context detach retains counterpart notes under the existing aliases read-only. Local and Tree notes use captured checkpoints. Remote notes retain an authenticated reference to the original owner's saved backend notes, not a frozen plaintext snapshot. Counterpart history and writes stop at detach. Native notes and history keep their original identities. Board detach restores the target's previous board and stops its shared-board notifications without deleting either archive. Board members with children cannot detach. Reattachment is unsupported.
+To detach, call `agents` with `action: "detach"`, the same target, and both booleans. Enable each membership you want to leave. Context detach retains counterpart notes under the existing aliases read-only. Local notes use captured checkpoints. Historical Remote references retain their original authenticated address, not a plaintext snapshot. Counterpart history and writes stop at detach. Native identities remain unchanged. Board detach restores the target's previous board without deleting either archive. Board members with children cannot detach. Reattachment is unsupported.
 
-If an attached owner closes or dies, Local and Tree notes reads first use its latest saved checkpoints when the source machine and session file remain reachable. This needs no running owner process and never writes to its session file. If the source is unavailable, reads return the timestamped snapshot captured at attachment, explicitly marked stale with the access failure. No latest-checkpoint guarantee is possible for a disconnected source machine or unsaved notes. Local and Tree counterpart history still requires its live owner. Remote notes and history remain reachable through the backend with the original account and backend. Backend failures stay visible without a local fallback. An incomplete detach fails with a retry instruction rather than claiming success.
+If an attached owner closes, local note reads use its latest saved checkpoints when the source machine and session file remain reachable. Otherwise they return the timestamped attachment snapshot, marked stale with the access failure. This never writes to the owner's session. Historical encrypted reads require their original account and backend. Backend failures remain visible. An incomplete detach fails with a retry instruction rather than claiming success.
 
 ## Message board
 
@@ -198,20 +201,19 @@ Child board calls use the owning Pi sessions and existing SSH connections, not a
 
 With compatible Pi Codex Conversion on both ends, Shepherdr marks fresh spawned workers before their first task with their immediate parent's native Pi session ID and `subagentKind: "collab_spawn"`. Workers also inherit the parent's effective cache routing identity, including nested and remote spawns. Each worker keeps its own native session, sockets and history. Cache routing works with shared notes disabled and does not grant notes access or copy the parent's transcript. Only matching prompt prefixes can benefit. Resume preserves the relationship; forks and profiles selecting existing sessions do not acquire it. Older PCC versions retain ordinary delegation and any supported parent linkage. The [extension API guide](../../docs/extension-apis.md#parent-and-worker-relationships) documents PCC's service contract for other orchestrators. Shepherdr owns transport, not a separate public relationship RPC API.
 
-With Pi Codex Conversion 3.0.40 or newer and notes-based continuity, enable **Share subagent context** under `/codex context` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; `contextAgent` in the result identifies its notes and history. Shared nested spawns stay in the same family. Turning sharing off affects new spawns only; existing identity survives resume. `assign` and independently started agents remain unchanged. Older compatible Conversion versions keep ordinary delegation without sharing.
+With Notes Compaction on both ends, enable **Share subagent context** under `/notes` in the controller. It is off by default. Shared `spawn` gives each child a unique context identity before its first turn; `contextAgent` identifies its notes and history. Nested spawns stay in the same family. Turning sharing off affects new spawns only. Existing identity survives resume. `assign` and independently started agents remain unchanged.
 
 Set `"share_context": false` in a profile to keep its new workers' notes and history independent even when controller sharing is enabled. Omission or `true` follows the controller setting, never turns sharing on itself. This separates context, not filesystem permissions or information included in the task.
 
 Pi creates each worker session normally. The worker records its shared identity before Shepherdr delivers the first task; no pre-created session file or launch override is needed.
 
-Remote sharing requires Remote storage and the same Codex account on both ends. Local and Tree route through the owning Pi sessions and existing SSH connections. Those owners and intermediate controllers must be running; unavailable routes fail explicitly. Resume the owner and reconnect under `/herdr` → **Status** after a connection loss. No note store is copied or silently substituted.
+Shared notes route through their owning Pi sessions and existing SSH connections. Those owners and intermediate controllers must be running. Resume the owner and reconnect under `/herdr` → **Status** after a connection loss. No note store is copied or silently substituted. New writes stay local; optional hybrid lookup is read-only.
 
-Both extensions work independently. A target without active context support still starts, with a warning that its context is not shared. A conflicting storage mode or account rejects the shared spawn before task delivery. Profiles that select or resume an existing session cannot participate in shared `spawn`; use `attach` for context access, then `assign`.
+Shepherdr works without Notes or PCC. A target without active Notes sharing still starts independently with a warning. Invalid bindings fail before task delivery. Profiles selecting existing sessions cannot participate in shared `spawn`; use `attach`, then `assign`.
 
 ## Profiles
 
 On first load, Shepherdr installs three editable profiles:
-
 - `general` uses `openai-codex/gpt-6-sol` with `high` thinking for implementation
 - `explorer` uses `openai-codex/gpt-6-luna` with `high` thinking for read-only discovery
 - `reviewer` uses `openai-codex/gpt-6-luna` with `xhigh` thinking for generic read-only review
@@ -228,19 +230,18 @@ That directory is authoritative after initialization. Edit a profile to change i
 
 ```json
 {
-  "description": "Read-only dependency review",
-  "model": "provider/model",
-  "thinking": "high",
-  "prompt": "prompt.md",
-  "accepts": ["base"],
-  "pi_args": []
+	"description": "Read-only dependency review",
+	"model": "provider/model",
+	"thinking": "high",
+	"prompt": "prompt.md",
+	"accepts": ["base"],
+	"pi_args": []
 }
 ```
 
 `prompt` is read as system-prompt text. An optional `prepare` module may export `prepare({ cwd, message, base, local })` and return the worker message. Preparation runs on the controlling machine before dispatch; `local` says whether that machine also hosts the worker.
 
 Optional profile settings:
-
 - `blocking`: `true` forces blocking spawns, `false` forces asynchronous spawns. Omission respects the call's `blocking` value, which defaults to `true`. This does not affect `assign` to existing agents.
 - `share_context`: `false` opts new spawns out of shared notes and history. Omission or `true` follows the controller setting.
 
@@ -261,8 +262,10 @@ Other extensions can query the current role synchronously through public Pi even
 ```ts
 let worker = false;
 pi.events.emit("shepherdr:worker-role:v1", {
-  sessionManager: ctx.sessionManager,
-  reply: (value: boolean) => { worker = value; },
+	sessionManager: ctx.sessionManager,
+	reply: (value: boolean) => {
+		worker = value;
+	},
 });
 ```
 

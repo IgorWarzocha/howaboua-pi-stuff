@@ -1,11 +1,16 @@
+import { createHash } from "node:crypto";
 import { open, opendir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { createIngestor } from "./ingest.ts";
 import { object } from "./normalise.ts";
 import { createProvenance } from "./provenance.ts";
+import { createSourceOwnership } from "./source-ownership.ts";
+import { createSourcePruning } from "./source-pruning.ts";
+import { withSource } from "./source-records.ts";
 
 const CHUNK_BYTES = 256 * 1024;
+const BATCH_BYTES = 4 * 1024 * 1024;
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
 
 interface FileState {
@@ -17,6 +22,7 @@ interface FileState {
 	tail: Buffer;
 	skipping: number;
 	mtime: number;
+	session_id: string;
 	project: string;
 	blocked: number;
 	malformed: number;
@@ -82,8 +88,11 @@ export function createIndexer(
 	root: string,
 	observationsRoot?: string,
 ) {
+	const ownership = createSourceOwnership(db);
 	const ingest = createIngestor(db);
+	const putRecord = db.prepare("INSERT INTO source_records VALUES (?,?,?,?,?)");
 	const provenance = createProvenance(db);
+	const pruning = createSourcePruning(db);
 	const missingHeaders = db.prepare<[number], FileState>(`
 		SELECT f.* FROM files f LEFT JOIN session_headers h ON h.file_id=f.id
 		WHERE h.file_id IS NULL AND f.offset>0 AND f.blocked=0 AND f.id>?
@@ -103,8 +112,11 @@ export function createIndexer(
 		db.prepare(`UPDATE files SET offset=@offset,line=@line,tail=@tail,skipping=@skipping,
 		mtime=@mtime,malformed=@malformed WHERE id=@id`);
 	const issue = db.prepare("UPDATE files SET issue=?,blocked=? WHERE id=?");
+	const clearIssue = db.prepare(
+		"UPDATE files SET issue=NULL,blocked=0 WHERE id=? AND (issue IS NOT NULL OR blocked<>0)",
+	);
 	const putMeta = db.prepare(
-		"INSERT INTO metadata VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		"INSERT INTO metadata VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE value IS NOT excluded.value",
 	);
 	const revision = db.prepare(
 		"UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
@@ -112,6 +124,7 @@ export function createIndexer(
 	let bytesRead = 0;
 	let stopped = false;
 	let lastScan: string | null = null;
+	let progressAt = 0;
 
 	async function recoverHeaders(keepGoing: () => boolean): Promise<void> {
 		let cursor = 0;
@@ -164,6 +177,8 @@ export function createIndexer(
 					}
 					db.transaction(() => {
 						provenance.recordHeader(file.id, record);
+						ownership.queueDescendants(file.id);
+						pruning.rememberHeader(file.id, record);
 						revision.run();
 					})();
 				} catch (error) {
@@ -205,6 +220,8 @@ export function createIndexer(
 	}
 
 	function progress(phase: string, error: string | null = null): void {
+		if (phase === "indexing" && Date.now() - progressAt < 2000) return;
+		progressAt = Date.now();
 		putMeta.run(
 			"indexStatus",
 			JSON.stringify({ phase, bytesRead, lastScan, error }),
@@ -213,6 +230,7 @@ export function createIndexer(
 
 	const consume = db.transaction(
 		(file: FileState, chunk: Buffer, mtime: number) => {
+			let base = file.offset - file.tail.length;
 			let data = file.tail.length ? Buffer.concat([file.tail, chunk]) : chunk;
 			file.offset += chunk.length;
 			file.mtime = mtime;
@@ -222,6 +240,7 @@ export function createIndexer(
 					checkpoint.run(file);
 					return;
 				}
+				base += end + 1;
 				data = data.subarray(end + 1);
 				file.skipping = 0;
 				file.line++;
@@ -233,6 +252,7 @@ export function createIndexer(
 				end = data.indexOf(10, start)
 			) {
 				file.line++;
+				const position = base + start;
 				const raw = data.subarray(start, end);
 				start = end + 1;
 				if (!raw.length) continue;
@@ -243,7 +263,20 @@ export function createIndexer(
 					const record = object(value);
 					if (typeof record["type"] !== "string")
 						throw new Error("record has no type");
-					ingest(file, file.line, record);
+					putRecord.run(
+						file.id,
+						file.line,
+						position,
+						raw.length,
+						createHash("sha256").update(raw).digest("hex"),
+					);
+					withSource(db, file.id, file.line, record, () =>
+						ingest(file, file.line, record),
+					);
+					if (file.line === 1) {
+						ownership.queueDescendants(file.id);
+						pruning.rememberHeader(file.id, record);
+					}
 				} catch (error) {
 					// Invalid input is counted. SQLite/programming errors must stop the transaction, not lose an entry.
 					if (
@@ -281,7 +314,7 @@ export function createIndexer(
 		keepGoing: () => boolean,
 	): Promise<boolean> {
 		putFile.run(candidate.path, candidate.identity);
-		const file = getFile.get(candidate.path);
+		let file = getFile.get(candidate.path);
 		if (!file || file.blocked) return false;
 		if (
 			file.identity !== candidate.identity ||
@@ -290,13 +323,26 @@ export function createIndexer(
 				candidate.size === file.offset &&
 				file.mtime !== candidate.mtime)
 		) {
-			issue.run(
-				"File replaced, shortened or rewritten behind its cursor. Indexed history retained; use a fresh --db path to rebuild.",
-				1,
-				file.id,
+			const result = await pruning.reconcile(
+				file,
+				candidate,
+				() => !stopped && keepGoing(),
+				(count) => {
+					bytesRead += count;
+				},
 			);
-			revision.run();
-			return false;
+			if (result === "retry") return false;
+			if (result === "unsupported") {
+				issue.run(
+					"File replaced, shortened or rewritten behind its cursor. Indexed history retained; use a fresh --db path to rebuild.",
+					1,
+					file.id,
+				);
+				revision.run();
+				return false;
+			}
+			file = getFile.get(candidate.path);
+			if (!file) return false;
 		}
 		if (candidate.size === file.offset) return false;
 		const handle = await open(file.path, "r");
@@ -314,7 +360,7 @@ export function createIndexer(
 				!stopped &&
 				keepGoing() &&
 				file.offset + buffered < candidate.size &&
-				(file.offset - startedAt < 4 * 1024 * 1024 || buffered > 0)
+				(file.offset - startedAt < BATCH_BYTES || buffered > 0)
 			) {
 				const buffer = Buffer.allocUnsafe(
 					Math.min(CHUNK_BYTES, candidate.size - file.offset - buffered),
@@ -335,7 +381,7 @@ export function createIndexer(
 				bytesRead += read.bytesRead;
 				// Persist complete lines in batches; do not rewrite a growing multi-megabyte image line for every chunk.
 				if (
-					chunk.includes(10) ||
+					(buffered >= BATCH_BYTES && chunk.includes(10)) ||
 					buffered + file.tail.length > MAX_LINE_BYTES ||
 					file.offset + buffered === candidate.size
 				) {
@@ -349,7 +395,7 @@ export function createIndexer(
 				}
 				progress("indexing");
 			}
-			if (!file.malformed) issue.run(null, 0, file.id);
+			if (!file.malformed) clearIssue.run(file.id);
 			return file.offset < candidate.size;
 		} finally {
 			await handle.close();
@@ -357,10 +403,12 @@ export function createIndexer(
 	}
 
 	async function scan(keepGoing: () => boolean = () => true): Promise<void> {
-		progress("indexing");
 		try {
 			await recoverHeaders(keepGoing);
 			let candidates = await changedFiles();
+			await ownership.replay(() => !stopped && keepGoing());
+			if (!candidates.length) return;
+			progress("indexing");
 			let refreshedAt = Date.now();
 			let position = 0;
 			while (!stopped && keepGoing() && position < candidates.length) {
@@ -385,13 +433,13 @@ export function createIndexer(
 					refreshedAt = Date.now();
 				}
 			}
+			await ownership.replay(() => !stopped && keepGoing());
 			lastScan = new Date().toISOString();
 			progress("idle");
 		} catch (error) {
 			progress("error", error instanceof Error ? error.message : String(error));
 		}
 	}
-	progress("starting");
 	return {
 		scan,
 		stop: () => {

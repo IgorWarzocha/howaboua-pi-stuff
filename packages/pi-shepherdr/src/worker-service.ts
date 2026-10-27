@@ -6,7 +6,7 @@ import type {
 import { activityTask } from "./activity.js";
 import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
-import type { AgentFleet } from "./fleet.js";
+import type { AgentFleet } from "./fleet/index.js";
 import { getSnapshot, sessionPath } from "./herdr.js";
 import {
 	RolledBackAgentLaunchError,
@@ -14,7 +14,7 @@ import {
 	startAgent,
 	UnstartedAgentLaunchError,
 } from "./launch.js";
-import { attributeAgentPrompt } from "./messages.js";
+import { attributeAgentPrompt } from "./messages/attribution.js";
 import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
 import type { PaneInfo } from "./types.js";

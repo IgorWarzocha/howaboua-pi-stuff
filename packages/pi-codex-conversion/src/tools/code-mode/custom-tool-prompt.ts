@@ -15,10 +15,27 @@ Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults
 Await work; use a timeout when an operation might not finish on its own
 Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
-export const GPT_EXEC_DESCRIPTION = `JavaScript toolcomposition; sourceonly≠JSON/fences
+export const GPT_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
+Await work; possibly nonterminating→timeout
+Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serialized output, notify(value)→emit, yield_control()→yield`;
+
+export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
+export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
+
+export const JS_EXEC_DESCRIPTION = `Run JavaScript in a persistent kernel; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Await work; possiblynonterminating→timeout
-Barevalues discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serializedoutput, notify(value)→emit, yield_control()→yield`;
+For independent work while another cell runs, add "isolated":true to // @exec. Starts from last checkpoint; leaves shared variables unchanged
+Top-level await supported. Await host calls; dangling calls prevent checkpointing
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
+No Node, imports, fetch, timers or TypeScript checking`;
+
+export const GPT_JS_EXEC_DESCRIPTION = `Persistent JS kernel; source ONLY, NO JSON/fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
+${GPT_ISOLATED_EXEC_GUIDANCE}
+Top-level await; await host calls; dangling calls block checkpoint
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
+NO Node/imports/fetch/timers/TSchecking`;
 
 export const WAIT_DESCRIPTION =
 	"Resume or terminate a yielded exec cell";
@@ -127,13 +144,29 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		executionKind === "notebook"
+		executionKind === "js"
 			? gpt
-				? "exec=persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Smallprograms across cells; retainedglobals may originate earlieragents/sessions"
+				? "exec=project-shared JS; checkpoints preserve closures/classes/cycles; cancel→stop kernel; notebook restart→checkpoint≠external rollback"
+				: "exec=project-shared JavaScript kernel; checkpoints preserve closures/classes/cycles. Cancellation stops the kernel; notebook restart restores its checkpoint, not external tool effects"
+			: executionKind === "ts"
+			? gpt
+				? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
+				: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
+			: executionKind === "notebook"
+			? gpt
+				? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals MAY predate agent/session"
 				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
-			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
-		gpt ? "Tools without callsignature: noargs→usage only≠operation; structured→{}"
-			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
+			: gpt ? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
+				: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+		executionKind === "ts"
+			? gpt ? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution" : "Strict typechecking covers the whole cell, including tool arguments. Any type error prevents cell execution"
+			: undefined,
+		executionKind === "ts"
+			? gpt ? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
+				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal.'
+			: undefined,
+		gpt ? "No call signature→noargs help ONLY; structured→{}. Unfamiliar help→own cell BEFORE use"
+			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}. Read unfamiliar tool help alone before use.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",
@@ -141,7 +174,7 @@ export function buildCodeModeToolsPrompt(
 		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
 		buildGuidanceSection(tools),
 		// The catalogue is always available, even when its first or last tool is unlisted.
-		DEFERRED_TOOLS_GUIDANCE,
+		gpt ? "More tools/contracts→text(ALL_TOOLS)" : DEFERRED_TOOLS_GUIDANCE,
 		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");
@@ -188,7 +221,7 @@ export function prepareCodeModeToolsPrompt(
 	const sections = options.sections ??= {};
 	customizationGuidance.set(options, () => documentationPath && isEnabled()
 		? gpt
-			? `exec custom tools: read ${documentationPath}, not Pi docs`
+			? `exec custom tools→read ${documentationPath}, NOT Pi docs`
 			: `Custom tools to run in exec: read ${documentationPath} instead of Pi docs`
 		: "");
 	const section = buildCodeModeToolsPrompt(tools, executionKind, gpt);

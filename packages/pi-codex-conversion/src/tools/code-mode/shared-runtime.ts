@@ -12,7 +12,7 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export type CodeModeExecutionKind = "code" | "notebook";
+export type CodeModeExecutionKind = "code" | "notebook" | "ts" | "js";
 
 export interface OpaqueContextGuard {
 	lazy: boolean;
@@ -95,7 +95,7 @@ export class SharedCodeModeRuntime {
 		return { scope, generation, lazy, get owner() { return JSON.stringify([baseOwner, backendScope ?? scope]); },
 			resolveScope: authenticate,
 			deliver: (response, callId) => {
-				if (!unchanged()) throw new Error("Remote context changed after execution; verify note state before repeating a write");
+				if (!unchanged()) throw new Error("Remote context changed after execution; check completed results before retrying");
 				if (!backendScope) throw new Error("Protected delivery is not authenticated");
 				return deliver.call(provider, response, callId, backendScope, ctx);
 			}, valid: async () => {
@@ -107,9 +107,9 @@ export class SharedCodeModeRuntime {
 	}
 
 	deliverOpaqueResponse(response: RuntimeResponse, callId: string, guard?: OpaqueContextGuard): RuntimeResponse {
-		const hasDelivery = Boolean(response.opaqueOutputs?.length || response.contextNotesSource === "remote");
+		const hasDelivery = Boolean(response.opaqueOutputs?.length);
 		if (hasDelivery && !guard)
-			throw new Error("Remote delivery is unavailable after execution; verify note state before repeating a write");
+			throw new Error("Remote delivery is unavailable after execution; check completed results before retrying");
 		const opaqueDeliveryId = hasDelivery && guard ? guard.deliver(response, callId) : undefined;
 		if (guard && (!guard.lazy || hasDelivery) && response.kind !== "yielded" && !response.missingCell) {
 			this.completedCells.delete(response.cellId);
@@ -132,7 +132,7 @@ export class SharedCodeModeRuntime {
 		if (guard.lazy) await guard.resolveScope();
 		if (this.completedCells.get(cellId) !== entry || entry.owner !== guard.owner) {
 			if (this.completedCells.get(cellId) === entry) this.completedCells.delete(cellId);
-			throw new Error("Remote context changed after execution; verify note state before repeating a write");
+			throw new Error("Remote context changed after execution; check completed results before retrying");
 		}
 		return entry.response;
 	}
@@ -226,7 +226,8 @@ export class SharedCodeModeRuntime {
 	}
 
 	async getClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
-		if (this.executionKind(ctx) === "notebook") return this.getNotebookClient(ctx);
+		const kind = this.executionKind(ctx);
+		if (kind !== "code") return this.getNotebookClient(ctx, kind);
 		if (!this.clientPromise) {
 			const startupAbort = new AbortController();
 			const pending = ensureCodeModeHostBinary(startupAbort.signal).then(
@@ -252,10 +253,10 @@ export class SharedCodeModeRuntime {
 		return this.clientPromise;
 	}
 
-	private getNotebookClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
+	private getNotebookClient(ctx: unknown, kind: "notebook" | "ts" | "js"): Promise<CodeModeExecutionClient> {
 		const options = this.activeProviders(ctx).find((provider) => provider.notebookOptions)?.notebookOptions?.(ctx);
 		if (!options) return Promise.reject(new Error("Notebook Code Mode runtime options are unavailable"));
-		const key = JSON.stringify([options.agentDir, options.maxHeapMiB, options.profile ?? null]);
+		const key = JSON.stringify([kind, options.agentDir, options.maxHeapMiB, options.profile ?? null]);
 		if (this.notebookClientPromise && this.notebookClientOptionsKey === key) return this.notebookClientPromise;
 		const transition = this.notebookClientTransition.then(async () => {
 			if (this.notebookClientPromise && this.notebookClientOptionsKey !== key) {
@@ -265,10 +266,11 @@ export class SharedCodeModeRuntime {
 				await (await previous).shutdown();
 			}
 			if (!this.notebookClientPromise) {
-				const pending = import("../notebook-mode/client.ts").then(
-					({ NotebookCodeModeClient }) =>
-						new NotebookCodeModeClient(options, this.renderStore),
-				);
+				const pending = kind === "js"
+					? import("../js-mode/client.ts").then(({ JsNotebookClient }) => new JsNotebookClient(options, this.renderStore))
+					: kind === "ts"
+					? import("../ts-mode/client.ts").then(({ TsCodeModeClient }) => new TsCodeModeClient(options, this.renderStore))
+					: import("../notebook-mode/client.ts").then(({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options, this.renderStore));
 				this.notebookClientPromise = pending;
 				this.notebookClientOptionsKey = key;
 				void pending.catch(() => {
@@ -300,10 +302,11 @@ export class SharedCodeModeRuntime {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
-		if (this.executionKind(context.extensionContext) !== "notebook") {
-			throw new Error("notebook is available only in Notebook Mode");
+		const kind = this.executionKind(context.extensionContext);
+		if (kind === "code") {
+			throw new Error("notebook is available only in Notebook or TS mode");
 		}
-		const client = await this.getNotebookClient(context.extensionContext);
+		const client = await this.getNotebookClient(context.extensionContext, kind);
 		if (!client.controlNotebook) throw new Error("Notebook lifecycle controls are unavailable");
 		return client.controlNotebook(request, context, signal);
 	}
@@ -336,10 +339,10 @@ export class SharedCodeModeRuntime {
 
 	private collectProviderTools(ctx?: unknown): CodeModeToolDefinition[] {
 		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
-		if (this.executionKind(ctx) !== "notebook") return tools;
+		if (this.executionKind(ctx) === "code") return tools;
 		if (tools.some((tool) => tool.name === "notebook"))
 			throw new Error("Duplicate code-mode tool: notebook");
-		return [...tools, createNotebookControlProxy(this)];
+		return [...tools, createNotebookControlProxy(this, this.executionKind(ctx))];
 	}
 }
 

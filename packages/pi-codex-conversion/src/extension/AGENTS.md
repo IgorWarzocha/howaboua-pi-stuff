@@ -1,7 +1,9 @@
 - `register.ts` is the composition root; `runtime.ts` owns process/session state and transport lifecycle; `events.ts` visibly maps Pi events to feature owners.
 - Preserve lazy cold-feature boundaries, especially compaction; do not trade startup cost for pass-through wrappers or hidden dispatch.
 - Prewarm must match real-turn tools; Pi `ToolInfo` omits constrained sampling, so restore the owned `exec` contract explicitly.
-- Register the GPT prompt-mode broker before Code registration. Refresh at applied settings before Notes admission, and before Code host setup and turn capture. Pi has already cloned prompt metadata, so adopters return owned native definitions for snippet/guideline refresh. Never rebuild them from `ToolInfo`, which omits `promptSnippet`.
+- Register the GPT prompt-mode broker before Code registration. Refresh at applied settings, before Code host setup and turn capture. Pi has already cloned prompt metadata, so adopters return owned native definitions for snippet/guideline refresh. Never rebuild them from `ToolInfo`, which omits `promptSnippet`.
 - Native compaction presentation is a custom entry: never route it through `sendMessage`, which can queue an empty continuation during auto-compaction.
 - Automatic compaction can resume without another agent_start. Preserve live delivery context through same-session transport resets; canonical summary requests must supply their own context.
+- Prewarm only final serialized requests. Pi exposes no supported way to rerun all context hooks during compaction; defer that warmup until the next real request. Run generic compaction preparations before provider work in either extension order.
+- `transport/runtime.ts` shares one ordinary/keepalive controller and settlement lane; the keepalive scheduler owns only its timer/epoch. Keep final-request capture after validation, and preserve the continuing request context across same-session window resets.
 - Notice renderers use Pi's theme tokens and expansion hooks. Summaries are user-facing metadata, not first-line previews of model content; provider-role promotion does not own their UI.

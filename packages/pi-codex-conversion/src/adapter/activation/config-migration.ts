@@ -2,7 +2,6 @@ import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	isObject,
 	normalizeCodexVerbosity,
-	normalizeContextManagementMode,
 	normalizeProviderList,
 	normalizeV2UserMessageRetention,
 	type CodexConversionConfig,
@@ -10,9 +9,15 @@ import {
 import { normalizeExecutionMode } from "./execution-mode.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
 
+export type CompactionMigrationInheritance = CodexConversionConfig["compaction"] & {
+	contextManagement?: unknown;
+	hybridCompaction?: unknown;
+	continuity?: unknown;
+};
+
 export function migrateCodexConversionConfigIfNeeded(
 	value: unknown,
-	inheritedCompaction = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
+	inheritedCompaction: CompactionMigrationInheritance = DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
 ): { migrated: boolean; config: unknown } {
 	if (!isObject(value)) return { migrated: false, config: value };
 	if (normalizeExecutionMode(value["executionMode"]) || isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["compaction"]) || isObject(value["notebook"]) || isObject(value["beta"]) || isObject(value["openai"])) {
@@ -65,7 +70,6 @@ export function migrateCodexConversionConfigIfNeeded(
 			toolRenaming: DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
 			compactTools: DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"],
 			codeModeDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],
-			noteSaveMarkers: DEFAULT_CODEX_CONVERSION_CONFIG.ui.noteSaveMarkers,
 			backgroundShellWidget: typeof value["backgroundShellWidget"] === "boolean" ? value["backgroundShellWidget"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
 			backgroundShellToggleShortcut: stringValue(value["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
 			backgroundShellPrevShortcut: stringValue(value["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),
@@ -85,7 +89,6 @@ export function migrateCodexConversionConfigIfNeeded(
 			cacheKeepalive: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheKeepalive,
 			cacheKeepaliveIntervalMinutes: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheKeepaliveIntervalMinutes,
 			proxyResponsesLite: DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,
-			forceCachedWebSockets: typeof value["forceCachedWebSockets"] === "boolean" ? value["forceCachedWebSockets"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
 			cacheDiagnostics: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
 			harnessIdentifierHeader: DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],
 		},
@@ -95,31 +98,24 @@ export function migrateCodexConversionConfigIfNeeded(
 
 function migrateCompactionOptions(
 	value: Record<string, unknown>,
-	inherited: CodexConversionConfig["compaction"],
+	inherited: CompactionMigrationInheritance,
 ): Record<string, unknown> {
 	if (!["contextManagement", "hybridCompaction", "responsesCompaction", "portableSummary"].some((key) => key in value)) return value;
-	const modeOverride = normalizeContextManagementMode(value["contextManagement"]);
-	const mode = modeOverride
-		?? (inherited.continuity === "compaction" ? "off" : inherited.historyStorage);
-	const hybrid = typeof value["hybridCompaction"] === "boolean"
-		? value["hybridCompaction"] : inherited.continuity === "notes-and-compaction";
-	const native = typeof value["responsesCompaction"] === "boolean"
-		? value["responsesCompaction"] : inherited.continuity === "compaction" && inherited.method !== "pi";
-	const portable = typeof value["portableSummary"] === "boolean"
-		? value["portableSummary"] : inherited.method === "both";
-	const { contextManagement: _mode, hybridCompaction: _hybrid, responsesCompaction: _native, portableSummary: _portable, ...rest } = value;
-	const overridesHybrid = typeof value["hybridCompaction"] === "boolean";
-	const overridesPortable = typeof value["portableSummary"] === "boolean";
-	const overridesMethod = mode !== "off" ? overridesHybrid || (hybrid && overridesPortable)
-		: typeof value["responsesCompaction"] === "boolean" || overridesPortable;
-	return {
-		...(modeOverride !== undefined || (mode !== "off" && overridesHybrid)
-			? { continuity: mode === "off" ? "compaction" : hybrid ? "notes-and-compaction" : "notes" } : {}),
-		...(modeOverride !== undefined && modeOverride !== "off" ? { historyStorage: modeOverride } : {}),
-		...(overridesMethod ? { method: (mode === "off" ? native : hybrid) ? portable ? "both" : "v2" : "pi" } : {}),
-		// Partial project documents override only named axes; explicit new fields win.
-		...rest,
-	};
+	const inheritedNotes = inherited.continuity !== undefined
+		? inherited.continuity === "notes" || inherited.continuity === "notes-and-compaction"
+		: inherited.contextManagement === "local" || inherited.contextManagement === "tree" || inherited.contextManagement === "remote";
+	const mode = value["contextManagement"];
+	const notes = mode === "off" ? false : mode === "local" || mode === "tree" || mode === "remote" ? true : inheritedNotes;
+	const hybrid = typeof value["hybridCompaction"] === "boolean" ? value["hybridCompaction"]
+		: inherited.continuity !== undefined ? inherited.continuity === "notes-and-compaction" : inherited.hybridCompaction === true;
+	const { responsesCompaction, portableSummary, ...rest } = value;
+	const native = typeof responsesCompaction === "boolean" ? responsesCompaction : !inheritedNotes && inherited.method !== "pi";
+	const portable = typeof portableSummary === "boolean" ? portableSummary : inherited.method === "both";
+	const overridesMethod = notes
+		? typeof value["hybridCompaction"] === "boolean" || (hybrid && typeof portableSummary === "boolean")
+		: typeof responsesCompaction === "boolean" || typeof portableSummary === "boolean";
+	// Keep continuity fields for their owner; explicit methods override legacy translation.
+	return { ...(overridesMethod ? { method: (notes ? hybrid : native) ? portable ? "both" : "v2" : "pi" } : {}), ...rest };
 }
 
 function stringValue(value: unknown, fallback: string): string {

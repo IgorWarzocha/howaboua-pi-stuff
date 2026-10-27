@@ -41,7 +41,7 @@ export class NotebookCell {
 
 	async observe(yieldTimeMs: number, signal?: AbortSignal): Promise<"result" | "yielded"> {
 		signal?.throwIfAborted();
-		while (!this.result) {
+		while (!this.completedValue) {
 			const blockersChanged = this.blockersChanged.promise;
 			const blocked = this.blockers.size > 0;
 			await waitForObservation([
@@ -49,7 +49,7 @@ export class NotebookCell {
 				blockersChanged,
 				...(blocked ? [] : [this.yielded.promise]),
 			], blocked ? undefined : yieldTimeMs, signal);
-			if (this.result) return "result";
+			if (this.completedValue) return "result";
 			if (this.blockersChanged.promise !== blockersChanged) continue;
 			if (this.blockers.size > 0) {
 				this.yielded = deferred();

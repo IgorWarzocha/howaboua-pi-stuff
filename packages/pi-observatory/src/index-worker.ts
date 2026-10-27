@@ -1,10 +1,8 @@
 import { setTimeout } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
-import { createCodemodeBackfill } from "./codemode-backfill.ts";
 import { openDatabase } from "./database.ts";
 import { createIndexer } from "./indexer.ts";
 import type { MonitorMode } from "./monitor.ts";
-import { createNestedBackfill } from "./nested-backfill.ts";
 import {
 	createSkillFileBackfill,
 	createSkillResultBackfill,
@@ -17,9 +15,10 @@ const { database, sessions, observationsRoot } = workerData as {
 	observationsRoot?: string;
 };
 const db = openDatabase(database);
+// Keep dirty index pages and short-lived replay btrees off the temporary-file path.
+db.pragma("cache_size = -32768");
+db.pragma("temp_store = MEMORY");
 const indexer = createIndexer(db, sessions, observationsRoot);
-const backfill = createNestedBackfill(db);
-const codemode = createCodemodeBackfill(db);
 const observations = createObservedToolBackfill(db);
 const fileReads = createSkillFileBackfill(db);
 const skillResults = createSkillResultBackfill(db);
@@ -68,14 +67,7 @@ try {
 		const progress = globalThis.setInterval(() => publish(true), 2000);
 		try {
 			await indexer.scan(keepGoing);
-			while (
-				keepGoing() &&
-				(backfill() ||
-					codemode() ||
-					skillResults() ||
-					fileReads() ||
-					observations())
-			) {
+			while (keepGoing() && (skillResults() || fileReads() || observations())) {
 				await setTimeout(0);
 			}
 		} finally {

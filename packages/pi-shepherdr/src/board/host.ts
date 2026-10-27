@@ -15,9 +15,9 @@ import {
 	type BoardRuntime,
 	discoverBoard,
 } from "@howaboua/pi-agent-board/runtime";
-import type { AgentFleet, ConnectedMachine } from "../fleet.js";
+import type { AgentFleet, ConnectedMachine } from "../fleet/index.js";
 import { sessionPath } from "../herdr.js";
-import { boardBriefing, boardMigrationWarning } from "../messages.js";
+import { boardBriefing, boardMigrationWarning } from "../messages/guidance.js";
 import {
 	requestContext,
 	sessionContextPath,

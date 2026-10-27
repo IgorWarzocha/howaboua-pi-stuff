@@ -179,7 +179,6 @@ export async function prewarmWebSocket<TApi extends Api>(
 	preserveContinuation = false,
 	prewarm: CodexPrewarmDiagnostics = { kind: "ordinary" },
 	generate = false,
-	retainSocket = true,
 ): Promise<CodexPrewarmResult> {
 	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics);
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
@@ -290,6 +289,6 @@ export async function prewarmWebSocket<TApi extends Api>(
 		});
 		throw error;
 	} finally {
-		release({ keep: keepConnection && retainSocket });
+		release({ keep: keepConnection });
 	}
 }

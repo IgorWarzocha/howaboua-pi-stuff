@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 cpal = "=0.18.2"
 sonora = { version = "=0.2.0", default-features = false }
-serde_json = "=1.0.149"
+serde_json = "=1.0.154"
 
 [profile.release]
 strip = true

@@ -5,10 +5,10 @@ import type {
 import type {
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-codex-conversion/context-sharing";
+} from "@howaboua/pi-notes-compaction/context-sharing";
 import { attachmentOwner, attachmentRoutes } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
-import type { AgentFleet } from "./fleet.js";
+import type { AgentFleet } from "./fleet/index.js";
 import {
 	listenContext,
 	sessionContextPath,
@@ -21,37 +21,60 @@ export async function registerSharedAgentContext(
 	board: AgentBoard,
 ): Promise<SharedAgentContext> {
 	let api:
-		| typeof import("@howaboua/pi-codex-conversion/context-sharing")
+		| typeof import("@howaboua/pi-notes-compaction/context-sharing")
 		| undefined;
 	try {
-		api = await import("@howaboua/pi-codex-conversion/context-sharing");
+		api = await import("@howaboua/pi-notes-compaction/context-sharing");
 	} catch (error) {
 		const failure = error as { code?: string; message?: string };
 		const missing = failure.message?.match(
 			/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
 		)?.[1];
-		const module = "@howaboua/pi-codex-conversion/context-sharing";
+		const module = "@howaboua/pi-notes-compaction/context-sharing";
 		const unavailable =
 			((failure.code === "ERR_MODULE_NOT_FOUND" ||
 				failure.code === "MODULE_NOT_FOUND") &&
-				(missing === "@howaboua/pi-codex-conversion" ||
+				(missing === "@howaboua/pi-notes-compaction" ||
 					missing === module ||
 					missing?.endsWith(`/${module}`))) ||
 			(failure.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" &&
-				failure.message?.includes("@howaboua/pi-codex-conversion") &&
+				failure.message?.includes("@howaboua/pi-notes-compaction") &&
 				failure.message.includes("./context-sharing"));
 		if (!unavailable)
 			throw new Error(
-				"Update pi-codex-conversion to use shared agent context",
+				"Update pi-notes-compaction to use shared agent context",
 				{ cause: error },
 			);
 	}
-	const connection = api?.connectCodexContextSharing(pi);
+	const connection = api?.connectNotesContextSharing(pi);
+	let relationships:
+		| ReturnType<
+				typeof import("@howaboua/pi-codex-conversion/agent-relationship")["connectCodexAgentRelationships"]
+		  >
+		| undefined;
+	try {
+		const relationshipApi = await import(
+			"@howaboua/pi-codex-conversion/agent-relationship"
+		);
+		relationships = relationshipApi.connectCodexAgentRelationships(pi);
+	} catch (error) {
+		const failure = error as { code?: string; message?: string };
+		if (
+			!(
+				(failure.code === "ERR_MODULE_NOT_FOUND" ||
+					failure.code === "MODULE_NOT_FOUND" ||
+					failure.code === "ERR_PACKAGE_PATH_NOT_EXPORTED") &&
+				failure.message?.includes("pi-codex-conversion")
+			)
+		)
+			throw error;
+	}
 	const shared = new SharedAgentContext(
 		pi,
 		fleet,
 		() => connection?.service,
 		board,
+		() => relationships?.service,
 	);
 	let close: (() => Promise<void>) | undefined;
 	let unregister: (() => void) | undefined;
@@ -103,8 +126,6 @@ export async function registerSharedAgentContext(
 						signal,
 					);
 					if (attached) return attached;
-					if (connection?.service?.describe(context)?.storage === "remote")
-						return undefined;
 					return shared.handle(
 						context,
 						{ operation: "context", request, visited: [] },
@@ -129,6 +150,7 @@ export async function registerSharedAgentContext(
 		unregister?.();
 		await close?.();
 		connection?.dispose();
+		relationships?.dispose();
 	});
 	fleet.setContextRelay((ctx, request, signal) =>
 		shared.handle(ctx, request, signal),

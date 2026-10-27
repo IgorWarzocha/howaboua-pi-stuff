@@ -4,11 +4,15 @@
 - Validate persisted identifiers/basenames before source injection or deletion. Manifest paths cannot escape their state directory.
 - Jupyter authenticates four JSON frames, not routing envelopes. Preserve empty/multipart and 64-bit ZMTP frames across TCP chunks. Bound lengths before allocation.
 - Deno idle can precede queued output and reattribute it to the next request. Keep collection open through the FIFO marker and drain idle, including after errors. Do not rewrite user source or add history for the drain.
+- `jupyter-kernel.ts` owns the active execution and terminal failure; `jupyter/connection.ts` owns process/socket cleanup and `shell-channel.ts` owns reply waiters. Report connection failure through the kernel before disposing; start the shell pump only after all three sockets connect.
 - Saved runtime versions are provenance, not restore/write gates. Let deserialization report incompatibility.
 - journal.ts appends events and rotates at the heap-derived budget, retaining one previous .ipynb. journal-document.ts materialises standard notebooks.
 - Journal retention is global to the agent directory, not folder-scoped. Re-read it at write boundaries so another session's Off cannot resurrect deleted journals. Journal cleanup must not affect saved bindings or restart the kernel.
 - Session-checkpoint expiry is independent. Protect Pi sessions before lazy kernel startup and retain that protection until session shutdown; kernel-only activity misses resumed and mode-switched sessions. Never age out project/profile bindings or Pi history.
 - Sessions are private forks. New globalThis properties and pinned bindings merge into project state, never another live kernel.
+- Isolated cells copy committed storage under checkpoint maintenance and the project lock; never query, checkpoint or interrupt the live kernel to seed a fork. Their disposable sessions own separate bridges/storage and publish only named profile candidates, never project pins.
+- Cell completion includes helper settlement and candidate capture. A kernel result alone does not make the cell idle or ready for observation.
+- Public exec permits isolated overlap. Reserve ordinary-cell admission before async preparation or checkpoint flush; rejected concurrent calls must never reach kernel recovery.
 - Promote pins and commit metadata under one project lock. Failed commits restore kernel tracking. Release/prune preserve pins. Prune needs a caller-selected glob.
 - Dispatch tool hooks inside the kernel after bridge settlement. Never start another Jupyter execute while a cell awaits that bridge. Suppress recursion per async hook, not globally.
 - Startup lists exact-version npm imports used by successful project cells. Unlisted packages require user approval.

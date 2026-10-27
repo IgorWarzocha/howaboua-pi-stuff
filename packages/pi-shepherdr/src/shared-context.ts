@@ -4,16 +4,17 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { binding, isBoardEnvelope } from "@howaboua/pi-agent-board/integration";
+import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import type {
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-codex-conversion/context-sharing";
+} from "@howaboua/pi-notes-compaction/context-sharing";
 import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
 import { Identity } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
-import type { AgentFleet } from "./fleet.js";
+import type { AgentFleet } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import {
 	requestContext,
@@ -35,6 +36,9 @@ export class SharedAgentContext {
 	private readonly fleet: AgentFleet;
 	private readonly getService: () => ContextSharingService | undefined;
 	private readonly board: AgentBoard;
+	private readonly getRelationships: () =>
+		| CodexAgentRelationshipService
+		| undefined;
 	private running = false;
 	readonly attachment: AgentAttachment;
 	readonly spawns: SpawnContext;
@@ -44,12 +48,14 @@ export class SharedAgentContext {
 		fleet: AgentFleet,
 		getService: () => ContextSharingService | undefined,
 		board: AgentBoard,
+		getRelationships: () => CodexAgentRelationshipService | undefined,
 	) {
 		this.fleet = fleet;
 		this.getService = getService;
 		this.board = board;
+		this.getRelationships = getRelationships;
 		this.attachment = new AgentAttachment(pi, board, getService);
-		this.spawns = new SpawnContext(pi, getService);
+		this.spawns = new SpawnContext(pi, getService, getRelationships);
 		pi.on("before_agent_start", () => {
 			this.running = true;
 		});
@@ -149,7 +155,7 @@ export class SharedAgentContext {
 		}
 		if ("operation" in value && value.operation === "bind-relationship") {
 			return (
-				service?.bindRelationship?.(
+				this.getRelationships()?.bind(
 					ctx,
 					"relationship" in value ? value.relationship : undefined,
 				) ?? null

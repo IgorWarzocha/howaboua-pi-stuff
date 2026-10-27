@@ -5,7 +5,7 @@ import { STATUS_KEY, buildStatusText } from "../adapter/activation/tool-set.ts";
 import { isResponsesContext } from "../adapter/prompt/codex-model.ts";
 import { resolveFastModeServiceTier } from "../adapter/activation/fast-mode.ts";
 
-export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" }>): void {
+export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" | "ts" | "js" }>): void {
 	if (!ctx.hasUI) return;
 	if (!state.config.ui.statusLine) {
 		ctx.ui.setStatus(STATUS_KEY, undefined);
@@ -20,7 +20,6 @@ export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, pl
 		fast,
 		baseTierEstimate: fast === "ultrafast" && ctx.model?.id !== "gpt-6-astra" && ctx.model?.id !== "gpt-6.1-sol",
 		daybreak: plan.codexTransport ? config.openai.daybreak : undefined,
-		contextManagement: plan.contextManagementMode,
 		compaction: plan.nativeCompaction,
 		usageStatus: state.usageStatus,
 		...(isResponsesContext(ctx) ? { verbosity: config.openai.verbosity } : {}),

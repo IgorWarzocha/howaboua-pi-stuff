@@ -24,33 +24,48 @@ const PI_DEFAULT_GUIDELINES = new Set([
 ]);
 
 const RUNTIME_IDENTITY_GUIDELINE = ["You are running in Pi with Codex-native tools", "Pi; Codex-native tools"] as const;
-const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finish requestedwork; ask only if missinginfo changes action"] as const;
+const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finish work; ask ONLY if missing info changes action"] as const;
 
 const NORMAL_CODEX_GUIDELINES = [
 	["Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
-	["Reserve tty=true for input or persistent processes", "tty=true only for input/persistent processes"],
-	["Use apply_patch for text edits, creates, deletes, and moves; split oversized patches", "Text edits/creates/deletes/moves→apply_patch; split oversized patches"],
-	["Run independent tool calls in parallel when practical", "Independentcalls→parallel when practical"],
+	["Reserve tty=true for input or persistent processes", "tty=true ONLY for input/persistent processes"],
+	["Use apply_patch for text edits, creates, deletes, and moves; split oversized patches", "Text edits/creates/deletes/moves→apply_patch; oversized→split"],
+	["Run independent tool calls in parallel when practical", "Independent calls→parallel when practical"],
 ] as const;
 
 const CODE_MODE_GUIDELINES = [
 	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
-	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "JS: quotedtext→alternate outerquotes; shell/patches/source→preserve literal ${...}/backticks"],
+	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks"],
 	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec"],
 	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true"],
-	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: onecall/file; oversized→sequential splits; independentfiles→Promise.allSettled; shell/Python only formatting/bulkrewrite"],
-	["Await dependencies; use Promise.all for independent calls", "Dependencies→await; independent calls→Promise.all"],
+	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites"],
+	["Await dependencies; batch independent calls only when combined output is small. Bound large reads", "Dependencies→await; batch independent calls ONLY if combined output small; bound large reads"],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
 
-const NOTEBOOK_MODE_GUIDELINES = [
-	["Reuse matching retained globals", "Reuse matching retained globals"],
-	["Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning", "One-offs→blocklocal; reusable analysis/helpers→namedglobals+concise description/usage; valuablestate→pin before prune"],
+const STATEFUL_MODE_GUIDELINES = [
+	["Reuse matching retained globals", "Reuse matching globals"],
+	["Keep one-offs block-local. Retain only what you plan to reuse, and clean up when the task ends.", "One-offs→block-local; retain ONLY planned reuse; task done→cleanup"],
 	...CODE_MODE_GUIDELINES,
 	["Notebook state management: notebook({})", "Manage state: notebook({})"],
-	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonicalartifacts→files; tools.exec_command crosscall shellstate→files/args"],
-	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Retainedhelpers=selfcontained; restart→recreate imports/closures/livehandles"],
-	["exec calls run sequentially", "exec calls sequential"],
+	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonical artifacts→files; shell state across tools.exec_command→files/args"],
+] as const;
+
+const NOTEBOOK_MODE_GUIDELINES = [
+	...STATEFUL_MODE_GUIDELINES,
+	["Keep retained helpers self-contained; recreate imports, closures, and live handles after restart", "Helpers=self-contained; restart→recreate imports/closures/live handles"],
+	["Normal exec cells run one at a time", "Normal cells→serial"],
+] as const;
+
+const TS_MODE_GUIDELINES = [
+	...STATEFUL_MODE_GUIDELINES,
+	["Normal exec cells run one at a time. Inspect variables after errors before retrying", "Normal cells→serial; error→inspect state BEFORE retry"],
+	["After restart, recreate any values reported as unsaved", "Restart→recreate reported unsaved values"],
+] as const;
+
+const JS_MODE_GUIDELINES = [
+	...STATEFUL_MODE_GUIDELINES,
+	["Normal exec cells share serial live state; inspect mutations after errors before retrying", "Normal cells→shared serial state; error→inspect mutations BEFORE retry"],
 ] as const;
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
@@ -69,6 +84,8 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
+	...TS_MODE_GUIDELINES,
+	...JS_MODE_GUIDELINES,
 ];
 const GPT_GUIDELINES = new Map<string, string>(ALL_STATIC_CODEX_GUIDELINES);
 
@@ -84,7 +101,7 @@ const STATIC_CODEX_GUIDELINES_BY_KEY = new Map(
 	],
 );
 
-export type CodexPromptMode = "normal" | "code" | "notebook";
+export type CodexPromptMode = "normal" | "code" | "notebook" | "ts" | "js";
 
 function buildCodexGuidelines(
 	mode: CodexPromptMode,
@@ -103,7 +120,7 @@ function buildCodexGuidelines(
 	} else {
 		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || active.has("notebook"));
 		guidelines = adapterSurfaceActive
-			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : CODE_MODE_GUIDELINES).map(([guideline]) => guideline)
+			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : mode === "js" ? JS_MODE_GUIDELINES : CODE_MODE_GUIDELINES).map(([guideline]) => guideline)
 			: [];
 	}
 	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE[0], FOLLOW_THROUGH_GUIDELINE[0]);
@@ -163,7 +180,7 @@ export function resolvePromptSkills(
 function buildSkillsContent(skills: PromptSkill[], gpt = false): string {
 	if (skills.length === 0) return "";
 	const lines = [
-		gpt ? "Read usernamed/taskmatching skills; relativepaths→skilldir; load neededrefs"
+		gpt ? "Read named/task-matching skills; relative paths→skill dir; load needed refs"
 			: "Read skills named by the user or matching the task; resolve relative paths from the skill directory and load needed references",
 	];
 
@@ -223,7 +240,7 @@ function formatGuidelines(guidelines: readonly string[], shell?: string, customi
 	const editing = new Set<string>([NORMAL_CODEX_GUIDELINES[2][0], CODE_MODE_GUIDELINES[4][0]]);
 	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES].map(([guideline]) => guideline));
 	execution.add("exec calls run sequentially");
-	const notebook = new Set<string>(NOTEBOOK_MODE_GUIDELINES.map(([guideline]) => guideline));
+	const notebook = new Set<string>([...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES, ...JS_MODE_GUIDELINES].map(([guideline]) => guideline));
 	const general: string[] = [];
 	const groups: Record<string, string[]> = {
 		Execution: [],

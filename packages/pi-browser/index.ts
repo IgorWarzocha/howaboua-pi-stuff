@@ -71,6 +71,7 @@ async function registerBrowserInCodeMode(
 				kind: "freeform",
 				prepareInput: prepareBrowserInput,
 				discovery: "help",
+				resultValue: (result) => result.details,
 			}),
 		]);
 	} catch (error) {

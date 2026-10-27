@@ -57,11 +57,7 @@ export async function call(
 		);
 		const raw = await client.call(prepared.tool, prepared.args);
 		const completed = await prepared.after(raw);
-		return {
-			ok: true,
-			operation: operation.key,
-			result: redact(selectResult(operation, completed)),
-		};
+		return redact(selectResult(operation, completed));
 	} finally {
 		await prepared.cleanup();
 	}

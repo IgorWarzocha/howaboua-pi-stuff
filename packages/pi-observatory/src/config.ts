@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { hash, object } from "./normalise.ts";
 
-export const PROTOCOL = "pi-observatory/2";
+export const PROTOCOL = "pi-observatory/3";
 
 export interface ObservatoryConfig {
 	host: "127.0.0.1" | "0.0.0.0";

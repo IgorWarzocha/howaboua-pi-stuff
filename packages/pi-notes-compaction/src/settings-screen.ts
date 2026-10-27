@@ -8,6 +8,10 @@ import {
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import {
+	openSessionPruningSettings,
+	type SessionPruningSettings,
+} from "./session-pruning-screen.js";
+import {
 	IDLE_MINUTES,
 	NEW_WINDOW_REQUESTS,
 	type NotesSettings,
@@ -22,10 +26,11 @@ export async function openNotesSettings(
 		save: (settings: NotesSettings) => void;
 		status: () => string[];
 		prune: () => Promise<void>;
+		sessionPruning: SessionPruningSettings;
 	},
 ): Promise<void> {
 	while (true) {
-		const action = await ctx.ui.custom<"close" | "prune">(
+		const action = await ctx.ui.custom<"close" | "prune" | "sessionPruning">(
 			(tui, theme, _kb, done) => {
 				const settings = options.settings();
 				const idleValue = (minutes: number) =>
@@ -37,12 +42,42 @@ export async function openNotesSettings(
 				const list = new SettingsList(
 					[
 						{
+							id: "sessionPruning",
+							label: "Session auto-pruning",
+							currentValue: "select…",
+							values: ["select…", "settings…"],
+							description:
+								"Per-session history limits and Run now. Memory savings require restarting Pi.",
+						},
+						{
 							id: "active",
 							label: "Active",
 							description: `Whitelist matches exact model IDs from any provider. Edit modelWhitelist in ${options.settingsPath}, then reload Pi. Example: ["gpt-6-luna", "gpt-6.1-sol"].`,
 							currentValue:
 								settings.active === "all" ? "All models" : "Whitelist",
 							values: ["All models", "Whitelist"],
+						},
+						{
+							id: "sharing",
+							label: "Share subagent context",
+							description:
+								"Let new child agents share notes and history. Existing families remain connected when off.",
+							currentValue: settings.shareSubagentContext ? "on" : "off",
+							values: ["off", "on"],
+						},
+						{
+							id: "rankedHistorySearch",
+							label: "Ranked history search",
+							description:
+								"BM25 for earlier user messages and assistant replies. Skips current context and tool activity.",
+							currentValue: settings.rankedHistorySearch ? "on" : "off",
+							values: ["off", "on"],
+						},
+						{
+							id: "noteSaveMarkers",
+							label: "Note-save markers",
+							currentValue: settings.noteSaveMarkers ? "on" : "off",
+							values: ["off", "on"],
 						},
 						{
 							id: "compact",
@@ -83,7 +118,7 @@ export async function openNotesSettings(
 							id: "prune",
 							label: "Prune missing sessions",
 							description:
-								"Remove stored records only for missing session files. Keeps active sessions, unknown paths and inaccessible files. Confirmation required.",
+								"Remove notes, cached responses and history index entries for missing session files. Keeps the active session, unknown paths and inaccessible files. Confirmation required.",
 							currentValue: "select…",
 							values: ["select…", "prune…"],
 						},
@@ -91,6 +126,10 @@ export async function openNotesSettings(
 					5,
 					getSettingsListTheme(),
 					(id, value) => {
+						if (id === "sessionPruning") {
+							done("sessionPruning");
+							return;
+						}
 						if (id === "prune") {
 							done("prune");
 							return;
@@ -116,6 +155,18 @@ export async function openNotesSettings(
 									...current,
 									active: value === "All models" ? "all" : "whitelist",
 								});
+							else if (id === "sharing")
+								options.save({
+									...current,
+									shareSubagentContext: value === "on",
+								});
+							else if (id === "noteSaveMarkers")
+								options.save({ ...current, noteSaveMarkers: value === "on" });
+							else if (id === "rankedHistorySearch")
+								options.save({
+									...current,
+									rankedHistorySearch: value === "on",
+								});
 							else if (id === "compact")
 								options.save({ ...current, normalCompaction: value === "on" });
 							else if (id === "newWindowRequests") {
@@ -140,22 +191,32 @@ export async function openNotesSettings(
 									options.save({ ...current, idleMinutes });
 							}
 						} catch (error) {
-							list.updateValue(
-								id,
-								id === "active"
-									? current.active === "all"
-										? "All models"
-										: "Whitelist"
-									: id === "taskBoundaryReminder"
-										? taskBoundaryLabel(current.taskBoundaryReminder)
-										: id === "newWindowRequests"
-											? current.newWindowRequests
-											: id === "compact"
-												? current.normalCompaction
-													? "on"
-													: "off"
-												: idleValue(current.idleMinutes),
-							);
+							if (id === "rankedHistorySearch") {
+								list.updateValue(
+									id,
+									current.rankedHistorySearch ? "on" : "off",
+								);
+							} else
+								list.updateValue(
+									id,
+									id === "active"
+										? current.active === "all"
+											? "All models"
+											: "Whitelist"
+										: id === "taskBoundaryReminder"
+											? taskBoundaryLabel(current.taskBoundaryReminder)
+											: id === "newWindowRequests"
+												? current.newWindowRequests
+												: id === "noteSaveMarkers"
+													? current.noteSaveMarkers
+														? "on"
+														: "off"
+													: id === "compact"
+														? current.normalCompaction
+															? "on"
+															: "off"
+														: idleValue(current.idleMinutes),
+								);
 							ctx.ui.notify(
 								`Could not save notes settings: ${String(error)}`,
 								"error",
@@ -207,10 +268,14 @@ export async function openNotesSettings(
 			},
 		);
 		if (action === "close") return;
+		if (action === "sessionPruning") {
+			await openSessionPruningSettings(ctx, options.sessionPruning);
+			continue;
+		}
 		if (
 			await ctx.ui.confirm(
 				"Prune missing sessions?",
-				"Delete local notes and cached responses for missing session files? The active session, unknown paths and inaccessible files are retained.",
+				"Delete local notes, cached responses and history index entries for missing session files? The active session, unknown paths and inaccessible files are retained.",
 			)
 		)
 			await options.prune();

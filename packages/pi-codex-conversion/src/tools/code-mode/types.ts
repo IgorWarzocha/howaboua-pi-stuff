@@ -51,6 +51,8 @@ export interface ProgrammaticCodeModeToolDefinition
 	discoveryUsage?: string | undefined;
 	/** Help entries accept an empty call without performing an operation. Server summaries own MCP discovery. */
 	discovery?: "help" | "server" | undefined;
+	/** The nested input adapter accepts an omitted argument, independently of help-only discovery. */
+	inputOptional?: boolean | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;
 	/** Pi or the adapter owns argument preparation and admission hooks. */
@@ -59,7 +61,6 @@ export interface ProgrammaticCodeModeToolDefinition
 	opaqueResult?: boolean | undefined;
 	/** Forward owned handoff completion to the outer exec/wait result. */
 	propagateTermination?: boolean | undefined;
-	isContextNoteWrite?(input: unknown): boolean;
 	inputSchema?: unknown;
 	invoke(
 		input: unknown,
@@ -177,9 +178,10 @@ export type NotebookControlRequest =
 	| { action: "status"; query?: string | undefined }
 	| { action: "list"; query?: string | undefined }
 	| { action: "checkpoint" }
-	| { action: "save"; name: string }
+	| { action: "hook"; name: string; event: NotebookHook | false }
+	| { action: "save"; name: string; names?: string[] }
 	| { action: "load"; name: string }
-	| { action: "pin"; names: string[]; hook?: NotebookHook | false | undefined }
+	| { action: "pin"; names: string[]; hook?: NotebookHook | false | undefined; checkpoint?: { snapshot: string; restore: string } | undefined }
 	| { action: "unpin"; names: string[] }
 	| { action: "release"; names: string[] }
 	| { action: "prune"; query: string }
@@ -207,8 +209,6 @@ export type RuntimeResponse = (
 	opaqueDeliveryId?: string | undefined;
 	originalExecCallId?: string | undefined;
 	terminate?: true | undefined;
-	contextNotesSaved?: boolean | undefined;
-	contextNotesSource?: "remote" | undefined;
 	maxOutputTokens?: number | undefined;
 	missingCell?: true | undefined;
 	execSessionIds?: number[] | undefined;

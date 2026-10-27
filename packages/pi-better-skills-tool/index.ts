@@ -40,6 +40,7 @@ export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
 		getLoadedSkills: () => loadedSkills,
 		isGpt: () => gpt,
 	});
+	const ordinaryGuidelines = tool.promptGuidelines;
 	pi.registerTool(tool);
 	try {
 		const { registerGptPromptMode } = await import(
@@ -47,6 +48,12 @@ export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
 		);
 		registerGptPromptMode(pi, (active) => {
 			gpt = active;
+			if (active)
+				tool.promptGuidelines = [
+					"skills: List once/session start; before work read always-applicable+task-relevant skills",
+				];
+			else if (ordinaryGuidelines) tool.promptGuidelines = ordinaryGuidelines;
+			else delete tool.promptGuidelines;
 			return [tool];
 		});
 	} catch (error) {
@@ -81,8 +88,9 @@ async function registerSkillsInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
+				inputOptional: true,
 				prepareInput: prepareSkillsCodeModeInput,
-				discovery: "help",
+				usage: "await tools.skills() // discover skills and calling syntax",
 			}),
 		]);
 	} catch (error) {

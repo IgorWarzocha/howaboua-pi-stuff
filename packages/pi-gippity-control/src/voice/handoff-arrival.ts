@@ -4,11 +4,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
-import type { CodexVoiceController } from "./controller.ts";
 import {
 	prepareControllerRealtimeContext,
 	type RealtimePeerPlan,
-} from "./controller-start.ts";
+} from "./controller/start.ts";
+import type { CodexVoiceController } from "./controller.ts";
 import type {
 	TransferredVoiceControls,
 	VoiceHandoffChannel,

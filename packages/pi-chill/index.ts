@@ -4,17 +4,17 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Container } from "@earendil-works/pi-tui";
 import {
-	ActivityTimeline,
 	activityEntryTypes,
 	activityMessageTypes,
 	hasCodeModeError,
-} from "./src/activity.js";
+} from "./src/activity/policy.js";
+import { ActivityTimeline } from "./src/activity/timeline.js";
 import {
 	activityEntryRenderer,
 	activityMessageRenderer,
-} from "./src/activity-messages.js";
-import { ActivityRenderers } from "./src/renderers.js";
-import { watchNoticeRenderer } from "./src/watch-notices.js";
+} from "./src/rendering/notices.js";
+import { ActivityRenderers } from "./src/rendering/tools.js";
+import { watchNoticeRenderer } from "./src/rendering/watch-notices.js";
 
 export default function (pi: ExtensionAPI) {
 	const timeline = new ActivityTimeline();

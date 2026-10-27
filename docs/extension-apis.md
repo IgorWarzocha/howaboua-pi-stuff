@@ -13,8 +13,7 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 | A board in one Pi session | [Pi Agent Board](../packages/pi-agent-board/README.md) | Nothing |
 | A board shared by your subagents | Pi Agent Board in each participating session | A `BoardAdapter`, member admission and authenticated routes |
 | Local notes, history and context rollover | [Notes Compaction](../packages/pi-notes-compaction/README.md) | Nothing |
-| Shared notes with PCC installed | Notes Compaction and [PCC](../packages/pi-codex-conversion/README.md) in the participants | PCC context-sharing discovery, child binding and a family router |
-| Shared notes without PCC | Notes Compaction and your own compatible Notes bridge | Identity, routing, ownership handoff and any optional provider services you choose to implement |
+| Shared notes | Notes Compaction in the participants | Notes context-sharing discovery, child binding and an authenticated family router |
 | A Pi tool usable from Code or Notebook | A normal Pi tool, with PCC present | Usually no extra registration. Use the Code Mode API for custom behavior |
 | Compact extension guidance in PCC GPT prompt mode | PCC and your extension | Alternate wording through `registerGptPromptMode` |
 | A detached worker runner for Pulses | Source-only [Pulses](../packages/pi-pulses/README.md) and your runner | Worker admission, inspection, restoration and waking result delivery |
@@ -23,19 +22,17 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 
 **Without Shepherdr does not mean without an orchestrator.** Board and Notes do not find arbitrary agents, launch processes, invent membership or authenticate another extension's transport. Shepherdr is one consumer of these APIs, not a required process manager.
 
-Board's adapter is an explicitly exported package API. Notes' lower-level bridge is a documented event protocol, with no separately exported bridge SDK. A custom bridge is possible, but it is more work than connecting the existing PCC context-sharing service. Installing Notes alone does not turn another subagent extension into a shared-notes host.
-
-Board requires Pi 1.1.0 or newer. Notes requires Pi 1.2.0 or newer. Integrations involving current PCC require Pi 1.3.0 or newer. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
+Board and Notes export integration APIs. Installing Notes alone does not supply another subagent extension's membership or transport.
+Board requires Pi 1.1.0 or newer. Notes requires Pi 1.2.0 or newer. Integrations involving current PCC require Pi 1.4.0 or newer. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
 
 ```mermaid
 flowchart LR
     Host["Your subagent extension"] -->|"membership and transport"| Board["Pi Agent Board"]
-    Host -->|"context-sharing API"| PCC["Pi Codex Conversion"]
-    PCC <-->|"Notes bridge"| Notes["Notes Compaction"]
-    Host -.->|"alternative compatible bridge"| Notes
+    Host -->|"context-sharing API"| Notes["Notes Compaction"]
+    Host -->|"agent relationships"| PCC["Pi Codex Conversion"]
     Board --> Archive["Board archive"]
     Notes --> Local["Local notes and Pi history"]
-    PCC --> Remote["Optional authenticated remote lookup"]
+    Notes --> Remote["Optional authenticated read-only lookup"]
 ```
 
 ## Public entry points
@@ -46,8 +43,10 @@ flowchart LR
 |---|---|---|
 | `@howaboua/pi-agent-board/runtime` | Discover the loaded Board owner | [`runtime.ts`](../packages/pi-agent-board/src/runtime.ts) |
 | `@howaboua/pi-agent-board/integration` | Host adapter, envelopes, bindings and briefing helpers | [`integration.ts`](../packages/pi-agent-board/src/integration.ts) |
-| `pi-notes-compaction:owner:v1` and `pi-notes-compaction:bridge:v1` | Notes ownership and optional host services | [`bridge.ts`](../packages/pi-notes-compaction/src/bridge.ts) |
-| `@howaboua/pi-codex-conversion/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-codex-conversion/src/context-sharing.ts) |
+| `pi-notes-compaction:owner:v1` | Optional Notes projection discovery | [`bridge.ts`](../packages/pi-notes-compaction/src/bridge.ts) |
+| `@howaboua/pi-notes-compaction/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-notes-compaction/src/context-sharing.ts) |
+| `@howaboua/pi-codex-conversion/agent-relationship` | Native parent linkage and cache affinity | [`agent-relationship.ts`](../packages/pi-codex-conversion/src/agent-relationship.ts) |
+| `@howaboua/pi-codex-conversion/compaction` | Context projection and ordered provider-compaction preparation | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
 | `@howaboua/pi-codex-conversion/prompt-mode` | Select owned guidance for PCC GPT prompt mode | [`prompt-mode.ts`](../packages/pi-codex-conversion/src/prompt-mode.ts) |
 | `@howaboua/pi-codex-conversion/code-mode-hooks` | Nested-call preflight and completion | [`code-mode-hooks.ts`](../packages/pi-codex-conversion/src/code-mode-hooks.ts) |
@@ -70,7 +69,7 @@ When a dependency is optional, load its integration module lazily and handle its
 |---|---|---|
 | Pi session ID | One persisted Pi session | Pi |
 | Board binding | Membership in a particular board and its owning archive | Board and your membership adapter |
-| Context identity | A notes/history family and one agent path within it | PCC context sharing, or your compatible host bridge |
+| Context identity | A notes/history family and one agent path within it | Notes context sharing |
 
 Board names and context names can differ for the same agent. Never derive one from the other. Keep the bindings returned by each subsystem.
 
@@ -180,54 +179,11 @@ New writes stay local. `write_file` creates an authoritative replacement. `appen
 
 `history` reads the selected Pi branch. Remote history lookup is an optional additional source. A note window, Pi branch and remote archive are distinct objects.
 
-### The process-local bridge
+### Discover Notes projection
 
-The bridge uses synchronous request/reply callbacks on `pi.events`:
+The process-local `pi-notes-compaction:owner:v1` channel accepts `{ protocol: 1, reply(owner) }`. The reply is synchronous during event emission, not after an awaited operation. Discover during loading and again at `session_start`. Do not serialise callback objects into worker messages.
 
-| Channel | Request | Reply |
-|---|---|---|
-| `pi-notes-compaction:owner:v1` | `{ protocol: 1, reply(owner) }` | The active Notes owner object |
-| `pi-notes-compaction:bridge:v1` | `{ protocol: 1, reply(bridge) }` | A compatible host bridge object |
-
-Register listeners during extension loading and discover again at `session_start`. The callbacks are process-local. They must reply during the event emission, not after an awaited operation. Do not serialize these objects into a worker launch message.
-
-PCC implements the bridge. Another host can implement the documented structural contract, but should not import PCC's internal protocol module. Notes does not currently publish a named bridge-types subpath. The authoritative signatures are in [`NotesOwner` and `NotesBridge`](../packages/pi-notes-compaction/src/bridge.ts).
-
-`bridge.claim(owner)` returns one of:
-
-```ts
-import type {
-  ExtensionContext,
-  ToolDefinition,
-} from "@earendil-works/pi-coding-agent";
-
-type ClaimResult =
-  | { claimed: false; reason: string }
-  | {
-      claimed: true;
-      registerTools(tools: readonly ToolDefinition[], ctx: ExtensionContext): void;
-    };
-```
-
-This is an atomic ownership handoff, not a capability flag. On success the previous owner yields its continuity policy. Notes supplies all four tool definitions through the returned callback. With PCC, that callback registers through PCC's own Pi extension API so old registrations are replaced rather than competing by load order.
-
-Without a bridge, Notes can register its own tools when no conflicting continuity owner exists. If legacy tools conflict and takeover is not acknowledged, it remains inactive with an error. Only one bridge may answer discovery.
-
-```mermaid
-sequenceDiagram
-    participant Pi as Pi startup
-    participant Host as PCC or compatible host
-    participant Notes as Notes Compaction
-    Pi->>Host: Load extension and register bridge listener
-    Pi->>Notes: Load extension and register owner listener
-    Note over Host,Notes: Discovery also runs at session_start in either load order
-    Notes->>Host: bridge request with synchronous reply
-    Host-->>Notes: NotesBridge
-    Notes->>Host: claim(owner)
-    Host-->>Notes: claimed and registerTools callback
-    Notes->>Host: Register the four delegated tools
-    Note over Host,Notes: Host retains provider services, Notes owns continuity
-```
+This optional contract exposes Notes projection to consumers such as Suggestions. It does not transfer tool registration or session authority. PCC consumes ordinary Pi context hooks instead. There is no PCC takeover bridge.
 
 ### Owner methods
 
@@ -238,8 +194,6 @@ sequenceDiagram
 | `identity(ctx)` | `WindowIdentity` or `undefined`; first/current/previous window IDs and zero-based `windowNumber` |
 | `projectMessages(messages, entries?)` | The active-window `AgentMessage[]`; optional current-branch entries refresh projection before later lifecycle hooks |
 | `projectBranch(entries)` | The corresponding projected `SessionEntry[]` |
-| `allowsCompaction(reason)` | Optional policy check before starting compaction work. The owner's hook handles notes-only rollover |
-| `allowsWindowRequests()` | Optional check of whether the owner permits new-window requests |
 | `canBind(ctx, entries?)` | Optional boolean startup check for a host's family binding. With `entries`, classify only those child-owned records |
 | `snapshotNotes(entries, agentName)` | Optional plaintext note snapshot for that owner |
 | `executeShared(query, callId, ctx, signal?)` | Optional owner-side execution returning an `AgentToolResult<SharedNotesDetails>` |
@@ -250,30 +204,25 @@ For `projectMessages`, pass `ctx.sessionManager.getBranch()` when projection mus
 
 For `canBind`, the optional `entries: readonly SessionEntry[]` argument excludes history through an explicitly asserted inherited fork boundary. Omission checks the full session. Older owners that ignore this argument reject inherited conversation history rather than silently adopting it.
 
-### Bridge capabilities
+### Compaction preparation
 
-Besides `claim`, a bridge may provide:
+Extensions whose policy or context edits must precede PCC provider work can call `registerCompactionPreparation(pi, handler)` from PCC's `compaction` export. Register the returned `prepare` with Pi's `session_before_compact` hook too. The helper memoises by event, so the handler runs once in either extension load order. It returns `{ prepare, dispose }`. Dispose the registration on shutdown.
 
-| Method | Responsibility |
-|---|---|
-| `prepareReminder(entry)` | Return a `CustomMessageEntryDraft` with any metadata needed for developer-role delivery. Preserve the owner's chronological entry without sending it |
-| `configureTools(tools, ctx, contracts)` | Configure the same tools for nested execution and discovery |
-| `beforeWindow(ctx, signal?)` | Finish host-owned preparation before a new window marker is committed |
-| `agentName(ctx)` | Supply this session's family agent path |
-| `route(query, callId, ctx, signal?)` | Route another agent's operation. Return `undefined` only when this agent owns the target |
-| `lookup(query, ctx, signal?)` | Read remote notes/history and return unchanged response bytes with provenance |
-| `canProject(ctx)` | Whether this reader can consume the protected responses |
-| `projectResult(result, responses, callId, ctx, signal?)` | Deliver those responses against the current tool call |
+The handler uses Pi's ordinary compaction event and result, including cancellation. Notes uses this generic API to prepare its projected branch and apply its own rollover policy. It is not a Notes ownership hook or a substitute for normal turn preparation.
 
-`LookupQuery` is `{ namespace: "notes" | "history", params: Record<string, unknown> }`. `route` returns the owning session's result, not a path for the caller to open. This keeps note freshness and writes in the owning Pi process.
+For context retirement without compaction, register an asynchronous consumer with `registerContextWindowPreparation(pi, handler)`. The context owner awaits `prepareContextWindow(pi, ctx)` before changing the outgoing window, then rechecks session validity. Registration returns an unsubscribe function. PCC uses this boundary to finish configured realtime voice refresh before Notes starts the successor. Ordinary compaction already has its own refresh and must not invoke this boundary again.
 
-Rollover preparation must fail before committing a new window if it cannot finish. A successor turn goes through Pi's ordinary settled user-input preparation chain. Steering a developer message into a running turn is not a substitute for `input` and `before_agent_start`.
+### Context for isolated consumers
+
+PCC's `compaction` export also provides `registerContextBranchProjection(pi, project)` and `projectContextBranch(pi, ctx, entries)`. The synchronous `project(entries, ctx)` callback returns a projected branch without changing saved entries. Registration returns an unsubscribe function for shutdown. Without a registered projector, the original branch is returned.
+
+Use this read-only projection when an isolated consumer, such as voice summarisation, needs current context outside Pi's normal context hook. Notes supplies archived checkpoints, window cuts and handoff reads through this API. Projection does not run turn preparation or trigger compaction.
 
 ### Remote content and local authority
 
 `CachedResponse` contains `query`, `bytes: Uint8Array`, `source`, `encoding`, `fetchedAt` in milliseconds and `coverage: "complete" | "partial" | "unknown"`. Coverage describes that response, not the whole archive. Persisted transport details use explicit `bytesBase64`, not JSON serialization of a typed array.
 
-Remote lookups are read-only. A compatible bridge preserves the original response bytes and authenticated account/backend provenance. Cached encrypted content is not a portable plaintext archive.
+Remote lookups are read-only. The reader preserves the original response bytes and authenticated account/backend provenance. Cached encrypted content is not a portable plaintext archive.
 
 ```mermaid
 flowchart TD
@@ -287,23 +236,39 @@ flowchart TD
     Delivery -->|"no"| Limited["Keep local results and report remote unavailability"]
 ```
 
-Local replacements supersede remote reads of the same path. An append overlay remains separately labelled because the host cannot decrypt and merge an opaque remote base. Lists and searches may still contain old remote entries, so consumers must preserve local-authority labels.
+Local replacements supersede remote reads of the same path. An append overlay remains separately labelled because the reader cannot decrypt and merge an opaque remote base. Lists and searches may still contain old remote entries, so consumers must preserve local-authority labels.
 
 A cached result is valid for its recorded query and source. Do not expand an encrypted listing into searches that were never cached. In Code and Notebook, JavaScript receives receipts for protected results while the model receives the corresponding current-call encrypted output. Do not unwrap that output or reuse a previous call ID.
 
 The full provider adaptation contract is [PCC-INTEGRATION.md](../packages/pi-notes-compaction/PCC-INTEGRATION.md).
 
-## Connecting an ordinary subagent extension through PCC
+## Connecting an ordinary subagent extension through Notes
 
-PCC's `context-sharing` API does not depend on Shepherdr. It supplies family identity and storage-aware execution. Your extension supplies authenticated routes and the actual agent lifecycle.
+Notes' `context-sharing` API does not depend on Shepherdr. It supplies family identity and storage-aware execution. Your extension supplies authenticated routes and the actual agent lifecycle.
+
+### Migrating from PCC's context-sharing API
+
+PCC 4.0.5 removes `@howaboua/pi-codex-conversion/context-sharing`. Update integrations to use the independent services below. Shared notes and history require Notes 0.0.10 or newer. Native parent linkage and cache affinity require PCC 4.0.5 or newer, without Notes.
+
+| Previous API | Replacement |
+|---|---|
+| `connectCodexContextSharing(pi)` | `connectNotesContextSharing(pi)` from `@howaboua/pi-notes-compaction/context-sharing` |
+| Shared-context types and family, routing and attachment methods | Import types and discover the service through Notes' `context-sharing` export |
+| `service.bindRelationship(ctx, relationship)` | `relationships.service.bind(ctx, relationship)` from `connectCodexAgentRelationships(pi)` |
+| `service.cacheAffinityId(ctx)` | `relationships.service.cacheAffinityId(ctx)` |
+| `CodexAgentRelationship` type | Import from `@howaboua/pi-codex-conversion/agent-relationship` |
+
+Discover each service independently and check availability before calling it. Notes' `bind` adopts a notes family. PCC's relationship `bind` establishes parent linkage or cache affinity. Neither replaces the other. Ordinary delegation needs neither service.
+
+### Connect Notes
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { connectCodexContextSharing } from
-  "@howaboua/pi-codex-conversion/context-sharing";
+import { connectNotesContextSharing } from
+  "@howaboua/pi-notes-compaction/context-sharing";
 
 export function connectContextHost(pi: ExtensionAPI) {
-  const connection = connectCodexContextSharing(pi);
+  const connection = connectNotesContextSharing(pi);
   pi.on("session_shutdown", () => connection.dispose());
   return connection;
 }
@@ -317,13 +282,11 @@ Read `connection.service` at the point of use. It is optional and can become ava
 |---|---|
 | `protocol` | `1` |
 | `canCreateChild(ctx)` | Whether parental shared-context opt-in permits a new child |
-| `bindRelationship(ctx, relationship)` | Optional synchronous binding of immutable native parent linkage and worker classification in an idle thread, independently of history and shared notes |
-| `cacheAffinityId(ctx)` | Optional effective cache routing identity: explicit relationship affinity or the native Pi session ID |
 | `describe(ctx)` | `ContextAgentIdentity` or `undefined` |
 | `verify(ctx)` | Checks applicable Remote account compatibility |
 | `createChild(ctx, { name, routing? })` | A promise of `{ binding, adopt() }`; prepares a child identity |
 | `bind(ctx, binding, options?)` | Adopts an explicit family binding before child work; returns its identity |
-| `execute(ctx, request, signal?)` | Executes an admitted request at the local session owner. Remote storage requires authenticated reader-host dispatch |
+| `execute(ctx, request, signal?)` | Executes an admitted request at the local session owner. Historical Remote references require authenticated reader-host dispatch |
 | `registerRouter(router)` | Installs one router and returns its unregister function |
 | `inspectAttachment(ctx, standalone?)` | Optional inspection/authentication for an existing idle owner |
 | `retainAttachmentIdentity(ctx)` | Optional pinning of that owner's native identity |
@@ -338,22 +301,23 @@ The optional attachment methods vary with the installed provider. Check their pr
 
 ### Parent and worker relationships
 
-The same service optionally exposes `bindRelationship(ctx: ExtensionContext, relationship: unknown): CodexAgentRelationship`. The exported `CodexAgentRelationship` type has optional `parentThreadId: string`, `subagentKind: string` and `cacheAffinityId: string` fields. At least one must be present. Values must be nonempty printable ASCII without spaces. Cache affinity is limited to 64 characters. A worker cannot name itself as its parent.
+PCC separately exports `connectCodexAgentRelationships(pi)` from `@howaboua/pi-codex-conversion/agent-relationship`. Its optional live service exposes `bind(ctx: ExtensionContext, relationship: unknown): CodexAgentRelationship` and `cacheAffinityId(ctx): string`. The exported `CodexAgentRelationship` type has optional `parentThreadId: string`, `subagentKind: string` and `cacheAffinityId: string` fields. At least one must be present. Values must be nonempty printable ASCII without spaces. Cache affinity is limited to 64 characters. A worker cannot name itself as its parent.
 
 Check capability availability on the live child service before binding:
 
 ```ts
-import type { CodexAgentRelationship } from
-  "@howaboua/pi-codex-conversion/context-sharing";
+import { connectCodexAgentRelationships, type CodexAgentRelationship } from
+  "@howaboua/pi-codex-conversion/agent-relationship";
 
 const relationship: CodexAgentRelationship = {
   parentThreadId: parentCtx.sessionManager.getSessionId(),
   subagentKind: "collab_spawn",
 };
 // After child startup, in its live owner, before submitting the first task:
-const childService = childConnection.service;
-if (childService?.bindRelationship) {
-  const adopted = childService.bindRelationship(childCtx, relationship);
+const relationships = connectCodexAgentRelationships(childPi);
+const childRelationships = relationships.service;
+if (childRelationships) {
+  const adopted = childRelationships.bind(childCtx, relationship);
   // Verify adopted against relationship before task delivery.
 }
 ```
@@ -362,13 +326,13 @@ Your orchestrator supplies the trusted transport to that live child owner. This 
 
 Parent and worker retain distinct native Pi session IDs. Linkage does not merge their transcripts, grant notes access or require **Share subagent context**. Shared-note family IDs and agent paths remain a separate contract. Establishing a relationship requires an idle thread, not empty history. Fresh children, native forks and previously used unbound idle threads can all receive explicit linkage. The caller supplies the intended parent and root cache affinity. Repeating the same binding is idempotent; a conflicting binding fails. Resume preserves the relationship on the original native thread. A fork creates a new native thread and does not inherit it automatically.
 
-PCC includes the relationship in supported Codex request metadata, including prewarm and native compaction. These fields identify linkage and classification, not shared storage or a promised backend quota policy. Older services without this optional method still support their existing capabilities.
+PCC includes the relationship in supported Codex request metadata, including prewarm and native compaction. These fields identify linkage and classification, not shared storage or a promised backend quota policy. Targets without this service retain ordinary delegation.
 
-An orchestrator can explicitly add `cacheAffinityId` to route selected workers with a shared `prompt_cache_key` and Responses `session-id`. The optional `cacheAffinityId(ctx)` service method returns the parent's effective affinity, falling back to its native Pi session ID. It works with shared notes disabled and can be read after the parent has started work. Shepherdr uses it for fresh workers, so roots and nested children use matching routing without rebinding active parents. Verify the returned binding includes the requested affinity, since older services may omit unsupported fields. Shepherdr accepts older targets' parent linkage with a warning that shared cache routing is unavailable. Native `thread-id`, request identity, sockets, cancellation and canonical history remain private to each worker. Attachments do not change cache routing. Sharing helps only matching prompt prefixes. Fresh workers do not inherit their parent's transcript, and different instructions, models or tools can reduce overlap.
+An orchestrator can explicitly add `cacheAffinityId` to route selected workers with a shared `prompt_cache_key` and Responses `session-id`. The `cacheAffinityId(ctx)` relationship method returns the parent's effective affinity, falling back to its native Pi session ID. It works with shared notes disabled and can be read after the parent has started work. Shepherdr uses it for fresh workers, so roots and nested children use matching routing without rebinding active parents. Verify the returned binding includes the requested affinity, since older services may omit unsupported fields. Shepherdr accepts older targets' parent linkage with a warning that shared cache routing is unavailable. Native `thread-id`, request identity, sockets, cancellation and canonical history remain private to each worker. Attachments do not change cache routing. Sharing helps only matching prompt prefixes. Fresh workers do not inherit their parent's transcript, and different instructions, models or tools can reduce overlap.
 
 ### Forked children
 
-External orchestrators bind relationships in forked children with the same `bindRelationship(ctx, relationship)` call as fresh children. No fork assertion or Notes approval is needed for linkage or cache affinity.
+External orchestrators bind relationships in forked children with `bind(ctx, relationship)` on the separate PCC relationship service, just as for fresh children. No fork assertion or Notes approval is needed for linkage or cache affinity.
 
 Optional notes-family adoption remains restricted to children before their own first task. For inherited history, `bind` accepts exported `ContextFamilyBindingOptions`:
 
@@ -380,12 +344,12 @@ const options = {
   fork: { lastInheritedEntryId: childSession.getEntries().at(-1)!.id },
 };
 // In the live child owner after startup:
-childService.bindRelationship(childCtx, relationship);
+childRelationships.bind(childCtx, relationship);
 // Optional, using a separately prepared createChild() binding and routing:
 await childService.bind(childCtx, binding, options);
 ```
 
-The caller asserts all entries through this boundary are inherited history, not work performed by the child. PCC requires native `parentSession` header metadata and an existing entry boundary. It applies normal family startup checks to every later entry and rechecks admission after asynchronous authentication. These checks detect post-boundary work, not whether a trusted caller lied about the boundary. Never capture a new boundary from an already-used child to bypass family admission. Timestamp comparisons are not lineage proof. Empty forks use ordinary fresh-family binding without options.
+The caller asserts all entries through this boundary are inherited history, not work performed by the child. Notes requires native `parentSession` header metadata and an existing entry boundary. It applies normal family startup checks to every later entry and rechecks admission after asynchronous authentication. These checks detect post-boundary work, not whether a trusted caller lied about the boundary. Never capture a new boundary from an already-used child to bypass family admission. Timestamp comparisons are not lineage proof. Empty forks use ordinary fresh-family binding without options.
 
 Copied relationship, family and backend records remain immutable and are ignored when their native thread ID differs. Bind a new relationship and, if needed, a new child family identity through the live owner. Do not copy the parent's binding as the child's identity. Obtain cache affinity from the parent's live service, independently of Notes or sharing opt-in. The child retains its own execution, socket, cancellation and response-continuation state. No parent `previous_response_id` is transferred. Binding does not rewrite past prompts or tool records. Normal preparation supplies the child's identity on its next kickoff.
 
@@ -393,7 +357,7 @@ Shepherdr continues to launch fresh workers by default. This API does not add a 
 
 ### Fresh-child lifecycle
 
-Register a router in every participant that uses local session storage. The router receives `(ctx, request, signal?)` and returns `Promise<SharedContextResult | undefined>`. `undefined` is for a route the provider contract handles elsewhere, not a substitute for reporting a missing member. An optional `requiresRemoteScope(ctx)` flags authenticated reader-scope requirements.
+Register a router in every participant that uses local session storage. The router receives `(ctx, request, signal?)` and returns `Promise<SharedContextResult | undefined>`. `undefined` delegates to another supported route. It must not conceal a missing member. An optional `requiresRemoteScope(ctx)` flags authenticated reader-scope requirements.
 
 ```mermaid
 sequenceDiagram
@@ -416,7 +380,7 @@ sequenceDiagram
 
 `createChild` returns a preparation object. Send **its `binding` member**, not the whole object. `adopt()` belongs to the parent and runs only after successful child binding and verification. It rechecks the parent's identity before persisting family adoption.
 
-For a local route, the host supplies `routing` and must have registered its router. Do not omit it merely because historical content originated remotely. With external Notes ownership, active sharing uses local owner routing while the original Remote provenance remains available for old encrypted content.
+For a local route, the host supplies `routing` and must have registered its router. Do not omit it merely because historical content originated remotely. Active sharing uses local owner routing while the original Remote provenance remains available for old encrypted content.
 
 Wait for the actual extension startup and binding prerequisites. An empty message list alone does not prove readiness. Never append a child's identity into another process's JSONL. Bind through the live child service, before its first task. If startup fails, roll back only the process or container your launch owns and report the failure.
 
@@ -653,7 +617,7 @@ Use package versions to select a supported import surface and protocol versions 
 | Situation | Integration behavior |
 |---|---|
 | Optional owner is absent | Keep unrelated features available. Do not create a hidden replacement owner |
-| Another adapter or Notes bridge answers | Treat it as an ownership conflict, not a load-order preference |
+| Another adapter or Notes owner answers | Treat it as an ownership conflict, not a load-order preference |
 | Child has already received a task | Reject fresh binding. Use an explicit existing-session attachment workflow if supported |
 | Fresh child contains startup UI metadata | Let the owning freshness check classify it. Do not infer a conversation from every custom entry |
 | Route or owner is missing | Return an explicit unavailable result. Do not guess another session or archive |

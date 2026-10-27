@@ -100,11 +100,56 @@ export function readConfig(): SuggestionConfig {
 export function writeConfig(config: SuggestionConfig): void {
 	const path = join(getAgentDir(), "suggestions", "config.json");
 	const validated = validateConfig(config);
+	writeSettingsFile(path, `${JSON.stringify(validated, null, 2)}\n`);
+}
+
+export function readInstructions(): string {
+	const path = join(getAgentDir(), "suggestions", "instructions.md");
+	try {
+		try {
+			return readFileSync(path, "utf8");
+		} catch (error) {
+			if (
+				!(error instanceof Error && "code" in error && error.code === "ENOENT")
+			)
+				throw error;
+		}
+		const defaults = readFileSync(
+			new URL("./default-instructions.md", import.meta.url),
+			"utf8",
+		);
+		mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+		try {
+			writeFileSync(path, defaults, { flag: "wx", mode: 0o600 });
+		} catch (error) {
+			// Another Pi session may have created it while this one was reading.
+			if (
+				!(error instanceof Error && "code" in error && error.code === "EEXIST")
+			)
+				throw error;
+		}
+		return readFileSync(path, "utf8");
+	} catch (error) {
+		throw new Error(
+			`Cannot read or create suggestion instructions at ${path}. Check file and directory permissions, then reopen /suggestions.`,
+			{ cause: error },
+		);
+	}
+}
+
+export function writeInstructions(instructions: string): void {
+	writeSettingsFile(
+		join(getAgentDir(), "suggestions", "instructions.md"),
+		instructions,
+	);
+}
+
+function writeSettingsFile(path: string, content: string): void {
 	const temporary = `${path}.${randomUUID()}.tmp`;
 	try {
 		mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 		try {
-			writeFileSync(temporary, `${JSON.stringify(validated, null, 2)}\n`, {
+			writeFileSync(temporary, content, {
 				flag: "wx",
 				mode: 0o600,
 			});

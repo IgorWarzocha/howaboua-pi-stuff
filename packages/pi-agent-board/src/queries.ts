@@ -25,14 +25,13 @@ export function queryBoard(
 	if (params.action === "list_boards") {
 		const rows = store.all<{
 			board_id: string;
-			root_session_id: string;
 			owner_folder: string;
 			created_at: string;
 			last_activity_at: string;
 			channel_count: number;
 			message_count: number;
 		}>(
-			`SELECT b.*,
+			`SELECT b.board_id,b.owner_folder,b.created_at,
 		COALESCE((SELECT MAX(created_at) FROM posts p WHERE p.board_id=b.board_id),(SELECT MAX(created_at) FROM channels c WHERE c.board_id=b.board_id),b.created_at) AS last_activity_at,
 		(SELECT COUNT(*) FROM channels c WHERE c.board_id=b.board_id) AS channel_count,
 		(SELECT COUNT(*) FROM posts p WHERE p.board_id=b.board_id) AS message_count

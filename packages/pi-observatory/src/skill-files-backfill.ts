@@ -56,7 +56,7 @@ export function createSkillResultBackfill(db: Database.Database) {
 	});
 }
 
-/** Discover recorded skill roots first, then replay cached calls. Never reread source JSONL. */
+/** Discover recorded skill roots first, then replay cached calls. Resolve bounded source references only. */
 export function createSkillFileBackfill(db: Database.Database) {
 	const files = createSkillFileIngestor(db);
 	const metadata = db.prepare<[string], { value: string }>(

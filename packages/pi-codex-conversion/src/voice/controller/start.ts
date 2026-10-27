@@ -1,0 +1,346 @@
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import { resolveCodexVoiceAuth } from "../auth.ts";
+import { CANCELLED, interruptible } from "../cancellation.ts";
+import {
+	buildRealtimeInitialItems,
+	type RealtimeInitialMessageItem,
+} from "../context.ts";
+import {
+	startControllerConversation,
+	startControllerDictation,
+} from "./sessions.ts";
+import {
+	currentVoiceSession,
+	VOICE_STATUS_KEY,
+	type VoiceState,
+} from "./support.ts";
+import type { CodexRealtimePeer } from "../conversation/peer.ts";
+import type { TransferredVoiceControls } from "../handoff-contract.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { CodexVoiceSessionMessages } from "../session-messages.ts";
+import type { CodexVoiceMode } from "../ui.ts";
+
+export interface RealtimePeerPlan {
+	createPeer(): CodexRealtimePeer;
+	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
+	onInactive?(session: CodexRealtimeConversation, error: Error, resuming: boolean): void;
+	onStatus?(status: string): void;
+	onTransferred?(peer: CodexRealtimePeer, controls: TransferredVoiceControls): void;
+	onTransferEnded?(peer: CodexRealtimePeer, error?: Error): void;
+	onStopped?(): void;
+}
+
+export interface VoiceControllerRuntime {
+	state: VoiceState;
+	alternateVoice?: boolean;
+	context?: ExtensionContext | undefined;
+	config?: CodexConversionConfig | undefined;
+	announcedMode?: CodexVoiceMode | undefined;
+	startGeneration: number;
+	startAbortController?: AbortController | undefined;
+	voiceStatus: string;
+	inputTooQuiet: boolean;
+	realtimePeerPlan?: RealtimePeerPlan | undefined;
+}
+
+export interface PreparedRealtimeContext {
+	initialItems: RealtimeInitialMessageItem[] | undefined;
+	summary?: string | undefined;
+}
+
+export async function prepareControllerRealtimeContext(options: {
+	pi: ExtensionAPI;
+	ctx: ExtensionContext;
+	config: CodexConversionConfig;
+	signal?: AbortSignal | undefined;
+	onSummaryStatus?: ((active: boolean) => void) | undefined;
+	sourceLeafId?: string | undefined;
+	forceSummary?: boolean | undefined;
+}): Promise<PreparedRealtimeContext> {
+	let generatedSummary: string | undefined;
+	const initialItems = await buildRealtimeInitialItems({
+		pi: options.pi,
+		ctx: options.ctx,
+		config: options.config,
+		sourceLeafId: options.sourceLeafId,
+		forceSummary: options.forceSummary,
+		onSummaryGenerated: (value) => {
+			generatedSummary = value;
+		},
+		...(options.signal ? { signal: options.signal } : {}),
+		...(options.onSummaryStatus
+			? { onSummaryStatus: options.onSummaryStatus }
+			: {}),
+	});
+	return {
+		initialItems,
+		...(generatedSummary ? { summary: generatedSummary } : {}),
+	};
+}
+
+export async function startControllerMode(options: {
+	pi: ExtensionAPI;
+	runtime: VoiceControllerRuntime;
+	messages: CodexVoiceSessionMessages;
+	ctx: ExtensionContext;
+	config: CodexConversionConfig;
+	mode: CodexVoiceMode;
+	realtimePeerPlan?: RealtimePeerPlan | undefined;
+	resume?: boolean | undefined;
+	alternateVoice?: boolean | undefined;
+	inputMuted?: boolean | undefined;
+	preparedRealtimeContext?: PreparedRealtimeContext | undefined;
+	signal?: AbortSignal | undefined;
+	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined;
+	stopCurrent(): Promise<void>;
+	finishCurrentDictation(): Promise<void>;
+	onError(error: Error, session?: CodexRealtimeConversation | undefined): void;
+	onDrop(session: CodexRealtimeConversation, error: Error): void;
+	onStatus(status: string): void;
+}): Promise<CodexRealtimeConversation | undefined> {
+	const { runtime, signal } = options;
+	if (signal?.aborted) return;
+	const realtimePrompt =
+		options.mode === "realtime"
+			? options.prepareRealtimePrompt(options.ctx)
+			: undefined;
+	if (options.mode === "realtime" && realtimePrompt === undefined) return;
+	if (!options.resume) {
+		if (runtime.state.type === "dictation")
+			await options.finishCurrentDictation();
+		else await options.stopCurrent();
+	} else if (runtime.state.type !== "reconnecting") return;
+	if (signal?.aborted) return;
+	const startAbortController = new AbortController();
+	runtime.startAbortController = startAbortController;
+	const startSignal = signal
+		? AbortSignal.any([signal, startAbortController.signal])
+		: startAbortController.signal;
+	const startGeneration = ++runtime.startGeneration;
+	runtime.context = options.ctx;
+	runtime.config = options.config;
+	runtime.alternateVoice = options.resume
+		? runtime.alternateVoice ?? false
+		: options.alternateVoice ?? false;
+	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
+	// A prepared refresh replaces only the call, not its queued Pi work.
+	if (!options.preparedRealtimeContext) options.messages.setContext(options.ctx);
+	runtime.state =
+		options.mode === "realtime"
+			? { type: "connecting", mode: "realtime", phase: "authorizing" }
+			: { type: "connecting", mode: "dictation", phase: "authorizing" };
+	const setStartupStatus = (status: string) => {
+		if (
+			startGeneration !== runtime.startGeneration ||
+			runtime.startAbortController !== startAbortController ||
+			runtime.state.type !== "connecting"
+		) return;
+		options.onStatus(status);
+		options.realtimePeerPlan?.onStatus?.(status);
+	};
+	setStartupStatus("connecting…");
+	try {
+		const startup = await interruptible(
+			Promise.all([
+				resolveCodexVoiceAuth(options.ctx),
+				options.mode === "realtime"
+					? options.preparedRealtimeContext
+						? Promise.resolve(options.preparedRealtimeContext)
+						: prepareControllerRealtimeContext({
+							pi: options.pi,
+							ctx: options.ctx,
+							config: options.config,
+							onSummaryStatus: (active) => {
+								setStartupStatus(active ? "summarizing…" : "connecting…");
+							},
+							signal: startSignal,
+						})
+					: Promise.resolve(undefined),
+			]),
+			startSignal,
+		);
+		if (startup === CANCELLED) {
+			cancelStart(runtime, startGeneration);
+			return;
+		}
+		const [auth, realtimeContext] = startup;
+		if (
+			startGeneration !== runtime.startGeneration ||
+			runtime.state.type !== "connecting"
+		) return;
+		if (options.mode === "dictation") await startDictation(options, auth);
+		else
+			await startConversation(
+				options,
+				auth,
+				realtimePrompt!,
+				realtimeContext?.initialItems,
+				startSignal,
+			);
+		if (startSignal.aborted) {
+			await currentVoiceSession(runtime.state)?.close();
+			cancelStart(runtime, startGeneration);
+			return;
+		}
+		const activeState = snapshotState(runtime);
+		if (options.mode === "realtime") {
+			if (activeState.type !== "conversation") {
+				return;
+			}
+			if (realtimeContext?.summary)
+				options.messages.contextSummary(realtimeContext.summary);
+			if (runtime.announcedMode !== options.mode) {
+				runtime.announcedMode = options.mode;
+				options.messages.modeStarted(options.mode);
+			}
+			return activeState.session;
+		}
+		if (activeState.type !== "dictation") return;
+		runtime.announcedMode = options.mode;
+		options.messages.modeStarted(options.mode);
+		return undefined;
+	} catch (error) {
+		if (startSignal.aborted) {
+			await currentVoiceSession(runtime.state)?.close();
+			cancelStart(runtime, startGeneration);
+			return;
+		}
+		if (startGeneration !== runtime.startGeneration) return;
+		options.onError(error instanceof Error ? error : new Error(String(error)));
+		return undefined;
+	}
+}
+
+async function startConversation(
+	options: Parameters<typeof startControllerMode>[0],
+	auth: Awaited<ReturnType<typeof resolveCodexVoiceAuth>>,
+	instructions: string,
+	initialItems: RealtimeInitialMessageItem[] | undefined,
+	signal: AbortSignal,
+): Promise<void> {
+	const { runtime } = options;
+	const connecting = runtime.state;
+	if (
+		connecting.type !== "connecting" ||
+		connecting.mode !== "realtime" ||
+		connecting.phase !== "authorizing"
+	)
+		return;
+	const peer = options.realtimePeerPlan?.createPeer();
+	await startControllerConversation({
+		auth,
+		config: runtime.alternateVoice
+			? {
+					...options.config,
+					voice: {
+						...options.config.voice,
+						v3Voice: options.config.voice.v3AlternateVoice,
+					},
+				}
+			: options.config,
+		instructions,
+		initialItems,
+		inputMuted: options.inputMuted,
+		greeting: options.resume
+			? undefined
+			: options.alternateVoice !== undefined
+				? "handoff"
+				: initialItems?.length
+					? "contextual"
+					: "fresh",
+		peer,
+		signal,
+		lifecycle: {
+			stillAuthorizing: () => runtime.state === connecting,
+			onCreated: (session) => {
+				runtime.state = {
+					type: "connecting",
+					mode: "realtime",
+					phase: "starting",
+					session,
+				};
+			},
+			isCurrent: (session) => currentVoiceSession(runtime.state) === session,
+			onActive: (session) => {
+				runtime.state = { type: "conversation", session };
+				// Startup is asynchronous. Sample current work, not the turn that
+				// was active before auth, context preparation, and peer setup.
+				if (!options.ctx.isIdle()) session.agentStarted();
+				if (peer) options.realtimePeerPlan?.onActive?.(session, peer);
+			},
+			onError: (session, error) => {
+				if (currentVoiceSession(runtime.state) === session)
+					options.onError(error, session);
+			},
+			onDrop: (session, error) => {
+				if (currentVoiceSession(runtime.state) === session)
+					options.onDrop(session, error);
+			},
+			onStatus: options.onStatus,
+			onTurn: (session, turn) => { void options.messages.voiceTurn(turn, session); },
+			onEvent: (event) => options.messages.realtimeEvent(event),
+			onUserTranscript: (transcript) =>
+				options.messages.userTranscript(transcript),
+			onTranscriptTail: (transcript) =>
+				options.messages.retainTranscriptTail(transcript),
+		},
+	});
+}
+
+async function startDictation(
+	options: Parameters<typeof startControllerMode>[0],
+	auth: Awaited<ReturnType<typeof resolveCodexVoiceAuth>>,
+): Promise<void> {
+	const { runtime } = options;
+	const connecting = runtime.state;
+	if (
+		connecting.type !== "connecting" ||
+		connecting.mode !== "dictation" ||
+		connecting.phase !== "authorizing"
+	)
+		return;
+	await startControllerDictation({
+		auth,
+		config: options.config,
+		lifecycle: {
+			stillAuthorizing: () => runtime.state === connecting,
+			onCreated: (session) => {
+				runtime.state = {
+					type: "connecting",
+					mode: "dictation",
+					phase: "starting",
+					session,
+				};
+			},
+			isCurrent: (session) => currentVoiceSession(runtime.state) === session,
+			onActive: (session) => {
+				runtime.state = { type: "dictation", session };
+			},
+			onError: (session, error) => {
+				if (currentVoiceSession(runtime.state) === session)
+					options.onError(error);
+			},
+			onStatus: options.onStatus,
+			onTranscript: (transcript) =>
+				runtime.context?.ui.pasteToEditor(transcript),
+		},
+	});
+}
+
+function cancelStart(
+	runtime: VoiceControllerRuntime,
+	startGeneration: number,
+): void {
+	if (startGeneration !== runtime.startGeneration) return;
+	runtime.state = { type: "idle" };
+	runtime.config = undefined;
+	runtime.realtimePeerPlan = undefined;
+	runtime.voiceStatus = "";
+	runtime.inputTooQuiet = false;
+	runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
+}
+
+function snapshotState(runtime: VoiceControllerRuntime): VoiceState {
+	return runtime.state;
+}

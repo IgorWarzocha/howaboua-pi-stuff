@@ -4,13 +4,8 @@ import {
 	type CodexVerbosity,
 	type CompactionMethod,
 	type CompactToolsMode,
-	type ContinuityStrategy,
-	type ContextManagementMode,
 	DEFAULT_VOICE_CONTEXT_REASONING,
 	type DictationShortcutMode,
-	type HistoryStorage,
-	IDLE_NOTES_MINUTES_OPTIONS,
-	type IdleNotesMinutes,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	type LunaCacheKeepaliveMinutes,
 	REALTIME_V3_VOICES,
@@ -22,12 +17,6 @@ import {
 import { normalizeOptionalString } from "./config-values.ts";
 
 export { isObject } from "./config-values.ts";
-
-export function normalizeIdleNotesMinutes(value: unknown): IdleNotesMinutes {
-	if (value === true) return 25;
-	if (value === 5 || value === 15) return value;
-	return IDLE_NOTES_MINUTES_OPTIONS.find(minutes => minutes === value) ?? 0;
-}
 
 export function normalizeAllProvidersMode(
 	value: unknown,
@@ -47,25 +36,6 @@ export function normalizeCompactToolsMode(
 	return value === "off" || value === "on" || value === "minimal"
 		? value
 		: undefined;
-}
-
-export function normalizeContextManagementMode(
-	value: unknown,
-): ContextManagementMode | undefined {
-	return value === "off" ||
-		value === "local" ||
-		value === "tree" ||
-		value === "remote"
-		? value
-		: undefined;
-}
-
-export function normalizeContinuityStrategy(value: unknown): ContinuityStrategy | undefined {
-	return value === "compaction" || value === "notes" || value === "notes-and-compaction" ? value : undefined;
-}
-
-export function normalizeHistoryStorage(value: unknown): HistoryStorage | undefined {
-	return value === "local" || value === "tree" || value === "remote" ? value : undefined;
 }
 
 export function normalizeCompactionMethod(value: unknown): CompactionMethod | undefined {

@@ -4,13 +4,14 @@
 - After a retryable connection failure, allow up to three fresh WebSocket retries within five minutes, then sticky SSE with a separate five-minute window. Preserve the healthy initial attempt. Fall back immediately on 426 or close 1009.
 - Retry server_is_overloaded and slow_down across WebSocket/SSE within one three-minute budget. Honour HTTP/streamed retry delays using monotonic deadlines. Fail if advice exceeds the budget, including across fallback.
 - Before npm/publish/release/merge work, compare src/providers/openai-codex-custom-provider.ts with Pi's stock openai-codex-responses provider: requests, transport/headers, reasoning/tier, retries, termination and touched behaviour.
-- Structured mode uses flat TypeScript tools except native context namespaces. Code uses exec/wait. Notebook adds host-side notebook lifecycle control.
+- Structured mode exposes top-level tool schemas. Code uses one-shot exec/wait cells; Deno, TS and JS notebooks retain state and add notebook lifecycle controls. Notes/history and window policy belong to pi-notes-compaction.
 - Keep prompt guidance short and argv-shaped.
+- Keep README sections foldable and user-facing. Integration contracts belong in `../../docs/extension-apis.md`, not duplicated API examples or developer setup in README.
 - Native runners execute bundled helpers directly. Rebuild locally and use the checkout, never patch installed npm files. Web/image tools belong to their TypeScript packages.
 - Keep src/voice/rust/** and scripts/build-voice-helper.mjs byte-identical with pi-gippity-control. Change and changeset both together.
 - Watch native GitHub builds with `github_watch` when its help supports Actions run URLs. Otherwise use `gh run watch <id> --exit-status` near their expected 10–15 minutes. No polling loops, background shells or temporary log redirection.
 - tools.customRustBinariesDir is the filename-based bundled-helper override, not a Code host override. Bundled-helper startup incompatibility errors point there, not through loader noise.
-- Vendored apply-patch engine, path-uri and absolute-path track one Codex commit. Pi changes stay in standalone_executable.rs and pi-apply-patch-fs.
+- Vendored apply-patch engine, path-uri and absolute-path track one Codex source commit. Keep product changes in standalone_executable.rs and pi-apply-patch-fs; preserve local dependency-API adaptations recorded in src/tools/rust/VENDORED.md when syncing.
 - Reject review-driven drift from stock Pi unless backend-verified or intentional.
 - Provider names/endpoints do not define backend identity. Renamed/proxied openai-codex-responses retains Codex transport, Fast Mode and account isolation.
 - Proxies are deliberate policy/monitoring/routing seams. Environment proxies preserve ChatGPT contracts. Explicit openai-responses passthrough supports only its backend's capabilities. Never reject by provider name or assume proxy means non-ChatGPT.
