@@ -78,7 +78,11 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		markers,
 		family,
 	);
-	const sessionPruning = new SessionPruning(pi, store);
+	const sessionPruning = new SessionPruning(
+		pi,
+		store,
+		() => lifecycle.windows.current?.currentWindowId,
+	);
 	sessionPruning.register();
 	pi.on("session_shutdown", () => {
 		lifecycle.reset();

@@ -187,8 +187,6 @@ export async function registerNotesHooks(
 		lifecycle.reset(ctx);
 		activation.refreshHistorySearch(ctx, true);
 	});
-	// The successor window marker has been persisted by agent_start, unlike
-	// before_agent_start where it may still be the incoming custom kickoff.
 	pi.on("agent_start", (_event, ctx) =>
 		activation.refreshHistorySearch(ctx, true),
 	);

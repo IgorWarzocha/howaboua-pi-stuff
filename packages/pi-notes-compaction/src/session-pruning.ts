@@ -17,12 +17,18 @@ export class SessionPruning {
 	private epoch = 0;
 	private readonly pi: ExtensionAPI;
 	private readonly store: NotesStore;
-	constructor(pi: ExtensionAPI, store: NotesStore) {
+	private readonly admittedWindow: () => string | undefined;
+	constructor(
+		pi: ExtensionAPI,
+		store: NotesStore,
+		admittedWindow: () => string | undefined,
+	) {
 		this.pi = pi;
 		this.store = store;
+		this.admittedWindow = admittedWindow;
 	}
 
-	private window(ctx: ExtensionContext): string | undefined {
+	private persistedWindow(ctx: ExtensionContext): string | undefined {
 		for (const entry of ctx.sessionManager.getBranch().reverse()) {
 			const details = windowDetails(entry);
 			if (details?.kind === "window")
@@ -32,7 +38,7 @@ export class SessionPruning {
 	register(): void {
 		this.pi.on("session_start", (_event, ctx) => {
 			this.epoch++;
-			this.observed = this.window(ctx);
+			this.observed = this.persistedWindow(ctx);
 			this.pending = undefined;
 		});
 		this.pi.on("session_shutdown", () => {
@@ -40,7 +46,12 @@ export class SessionPruning {
 			this.pending = undefined;
 		});
 		this.pi.on("agent_start", (_event, ctx) => {
-			const current = this.window(ctx);
+			// Pi emits agent_start before persisting incoming messages. Notes already
+			// admitted the successor in before_agent_start; confirm its commit below.
+			const window = this.admittedWindow();
+			const current = window
+				? `${ctx.sessionManager.getSessionId()}:${window}`
+				: undefined;
 			if (current && current !== this.observed) this.pending = current;
 			this.observed = current;
 		});
@@ -50,7 +61,7 @@ export class SessionPruning {
 			if (!this.pending) return;
 			const pending = this.pending;
 			this.pending = undefined;
-			if (pending === this.window(ctx)) await this.run(ctx, false);
+			if (pending === this.persistedWindow(ctx)) await this.run(ctx, false);
 		});
 	}
 
