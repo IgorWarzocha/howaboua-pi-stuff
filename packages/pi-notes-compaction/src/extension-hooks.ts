@@ -81,6 +81,9 @@ export async function registerNotesHooks(
 			windowId: write.windowId,
 			callId: event.toolCallId,
 			parentCallId: write.parentCallId,
+			...(details?.notesCompactionRouted === true
+				? { origin: "routed" as const }
+				: {}),
 			saved:
 				!event.isError &&
 				details?.notesCompaction?.saved === true &&

@@ -17,6 +17,7 @@
   **Expected compaction card:** This fix requires a native history cut, which displays Pi's compaction card. Pi currently provides no supported way to hide this card. It can be ignored; Notes is working as intended.
 
 - Tool descriptions now explain that Notes hands off task state between context windows. GPT prompt mode uses note-style guidance, history-search help and rollover reminders.
+- Notes guidance now directs each agent to keep checkpoints and reports in its own notes and share their paths.
 - Notes now accepts `read` as an alias for `read_file`.
 - With PCC, plaintext Notes and history calls inside `exec` now return objects instead of JSON strings.
 - With PCC, history now reads Pi session files instead of encrypted backend history.

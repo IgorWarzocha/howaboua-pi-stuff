@@ -13,6 +13,7 @@ export interface NestedNoteOutcome {
 	callId: string;
 	parentCallId: string;
 	saved: boolean;
+	origin?: "routed";
 }
 export const NOTES_RUN_ENTRY = "notes-compaction:run:v1";
 
@@ -153,6 +154,7 @@ function noteEvidence(
 			(!runId || value.runId === runId) &&
 			typeof value.callId === "string" &&
 			typeof value.parentCallId === "string" &&
+			(value.origin === undefined || value.origin === "routed") &&
 			typeof value.saved === "boolean"
 			? [value as NestedNoteOutcome]
 			: [];
@@ -225,8 +227,9 @@ function completedWrites(
 		);
 		parents.add(result.toolCallId);
 		const completed = outcomes.filter((item) => parents.has(item.parentCallId));
-		if (completed.length) {
-			if (completed.some((item) => !item.saved)) return false;
+		const local = completed.filter((item) => item.origin !== "routed");
+		if (local.length) {
+			if (local.some((item) => !item.saved)) return false;
 			if (
 				result.isError ||
 				(cell &&
