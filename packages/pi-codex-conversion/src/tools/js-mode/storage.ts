@@ -16,6 +16,8 @@ import type { JsSnapshot } from "./protocol.ts";
 
 // Snapshots are engine memory, not a portable interchange format. Never restore
 // an image with a different bridge or engine build, even if its file format parses.
+// 3.6.3 changes only host promise cleanup; its WASM is byte-identical to 3.6.2.
+// Keep the engine fingerprint so existing checkpoints remain compatible.
 const FINGERPRINT = createHash("sha256").update("js-notebook-v1/quickjs-wasi@3.6.2\0").update(JS_PRELUDE).digest();
 const SUPPORT_FINGERPRINT = createHash("sha256").update(FINGERPRINT).update("js-notebook-support-v1\0").update(JS_SUPPORT_SOURCE).digest();
 const BINDINGS_FINGERPRINT = createHash("sha256").update(SUPPORT_FINGERPRINT).update(JS_BINDINGS_SOURCE).digest();

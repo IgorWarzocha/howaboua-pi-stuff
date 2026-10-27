@@ -136,7 +136,7 @@
     "@earendil-works/pi-tui": "1.4.0",
     "@types/node": "26.6.5",
     "@types/ws": "^8.18.2",
-    "quickjs-wasi": "3.6.2",
+    "quickjs-wasi": "3.6.3",
     "tsrs": "0.20.0-ts7.1.0-beta",
     "tsx": "^4.23.15",
     "typebox": "1.4.3",
@@ -144,7 +144,7 @@
   },
   "dependencies": {
     "acorn": "8.19.0",
-    "openai": "7.43.0",
+    "openai": "7.45.0",
     "proxy-from-env": "2.1.0",
     "selfsigned": "^5.5.0",
     "smol-toml": "^1.9.1",

@@ -89,12 +89,12 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.2",
+    "@biomejs/biome": "2.6.3",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-tui": "1.4.0",
     "@types/node": "^26.6.5",
     "electron": "44.7.2",
-    "knip": "^6.42.1",
+    "knip": "^6.43.0",
     "typebox": "1.4.3",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "typescript": "^7.0.2",

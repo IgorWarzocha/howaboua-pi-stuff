@@ -13,5 +13,6 @@ export async function loadJsRuntime(agentDir: string, signal?: AbortSignal): Pro
 	const manifest: unknown = JSON.parse(await readFile(installed.manifest, "utf8"));
 	if (!manifest || typeof manifest !== "object" || !("main" in manifest) || typeof manifest.main !== "string") throw new Error("The JS Notebook runtime package is incomplete; reinstall it, then retry");
 	const runtime: typeof import("@earendil-works/pi-codemode") = await import(pathToFileURL(resolve(dirname(installed.manifest), manifest.main)).href);
-	return { wasm: await runtime.loadQuickJSWasm(), moduleUrl: pathToFileURL(installed.resolve("quickjs-wasi")).href };
+	const engine = await runtimePackage("quickjs-wasi", "3.6.3", agentDir, "JS Notebook", signal);
+	return { wasm: await runtime.loadQuickJSWasm(engine.resolve("quickjs-wasi/quickjs.wasm")), moduleUrl: pathToFileURL(engine.resolve("quickjs-wasi")).href };
 }

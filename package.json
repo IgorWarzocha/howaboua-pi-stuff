@@ -31,7 +31,7 @@
     "changelog:polish": "bun run scripts/polish-changelogs.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.2",
+    "@biomejs/biome": "^2.6.3",
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "^3.0.3",
     "@earendil-works/pi-agent-core": "1.4.0",
@@ -43,9 +43,9 @@
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "better-sqlite3": "^13.0.3",
     "c8": "^12.0.0",
-    "knip": "^6.42.1",
+    "knip": "^6.43.0",
     "node-pty": "^1.1.0",
-    "openai": "^7.43.0",
+    "openai": "^7.45.0",
     "oxfmt": "^0.74.0",
     "partial-json": "^0.1.7",
     "proxy-from-env": "2.1.0",
