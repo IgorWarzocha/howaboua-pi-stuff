@@ -7,3 +7,4 @@
 - Missing or changed source records now appear as unavailable details while indexed statistics remain accessible.
 - Added --detail for read-only call inspection without starting the viewer or collectors.
 - Unchanged session scans no longer write to the index.
+- Notes history pruning no longer interrupts indexing. Retained content stays readable; pruned content appears as unavailable while historical statistics remain accessible.

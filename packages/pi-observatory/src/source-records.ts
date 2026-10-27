@@ -114,6 +114,8 @@ interface RecordRange {
 	digest: string;
 }
 function readRange(row: RecordRange): unknown {
+	if (row.length === 0)
+		throw new Error("Content was pruned from session history");
 	const fd = openSync(row.path, "r");
 	try {
 		const info = fstatSync(fd);

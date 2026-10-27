@@ -6,6 +6,7 @@ import { createIngestor } from "./ingest.ts";
 import { object } from "./normalise.ts";
 import { createProvenance } from "./provenance.ts";
 import { withSource } from "./source-records.ts";
+import { createSourcePruning } from "./source-pruning.ts";
 
 const CHUNK_BYTES = 256 * 1024;
 const BATCH_BYTES = 4 * 1024 * 1024;
@@ -20,6 +21,7 @@ interface FileState {
 	tail: Buffer;
 	skipping: number;
 	mtime: number;
+	session_id: string;
 	project: string;
 	blocked: number;
 	malformed: number;
@@ -88,6 +90,7 @@ export function createIndexer(
 	const ingest = createIngestor(db);
 	const putRecord = db.prepare("INSERT INTO source_records VALUES (?,?,?,?,?)");
 	const provenance = createProvenance(db);
+	const pruning = createSourcePruning(db);
 	const missingHeaders = db.prepare<[number], FileState>(`
 		SELECT f.* FROM files f LEFT JOIN session_headers h ON h.file_id=f.id
 		WHERE h.file_id IS NULL AND f.offset>0 AND f.blocked=0 AND f.id>?
@@ -172,6 +175,7 @@ export function createIndexer(
 					}
 					db.transaction(() => {
 						provenance.recordHeader(file.id, record);
+						pruning.rememberHeader(file.id, record);
 						revision.run();
 					})();
 				} catch (error) {
@@ -266,6 +270,7 @@ export function createIndexer(
 					withSource(db, file.id, file.line, record, () =>
 						ingest(file, file.line, record),
 					);
+					if (file.line === 1) pruning.rememberHeader(file.id, record);
 				} catch (error) {
 					// Invalid input is counted. SQLite/programming errors must stop the transaction, not lose an entry.
 					if (
@@ -303,7 +308,7 @@ export function createIndexer(
 		keepGoing: () => boolean,
 	): Promise<boolean> {
 		putFile.run(candidate.path, candidate.identity);
-		const file = getFile.get(candidate.path);
+		let file = getFile.get(candidate.path);
 		if (!file || file.blocked) return false;
 		if (
 			file.identity !== candidate.identity ||
@@ -312,13 +317,26 @@ export function createIndexer(
 				candidate.size === file.offset &&
 				file.mtime !== candidate.mtime)
 		) {
-			issue.run(
-				"File replaced, shortened or rewritten behind its cursor. Indexed history retained; use a fresh --db path to rebuild.",
-				1,
-				file.id,
+			const result = await pruning.reconcile(
+				file,
+				candidate,
+				() => !stopped && keepGoing(),
+				(count) => {
+					bytesRead += count;
+				},
 			);
-			revision.run();
-			return false;
+			if (result === "retry") return false;
+			if (result === "unsupported") {
+				issue.run(
+					"File replaced, shortened or rewritten behind its cursor. Indexed history retained; use a fresh --db path to rebuild.",
+					1,
+					file.id,
+				);
+				revision.run();
+				return false;
+			}
+			file = getFile.get(candidate.path);
+			if (!file) return false;
 		}
 		if (candidate.size === file.offset) return false;
 		const handle = await open(file.path, "r");
