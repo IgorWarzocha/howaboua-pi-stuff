@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { API } from "tsrs/async";
 import type { Node } from "tsrs/ast";
@@ -14,7 +14,7 @@ import { cacheExactNpmImport } from "../code-mode/npm-cache.ts";
 export async function compileTsImportSource(
 	url: string,
 	options: TsImportOptions,
-	resolveImport: (specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }) => Promise<string>,
+	resolveImport: (specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }, mode?: "import" | "require") => Promise<string>,
 	onNpmTypes?: (specifier: string, path: string) => void,
 ): Promise<string> {
 	const directory = join(options.sourceDir ?? join(options.cacheDir, "source"), randomUUID());
@@ -57,18 +57,19 @@ export async function compileTsImportSource(
 				walk(file);
 			} finally { await lease.dispose(); }
 			for (const reference of references) {
+				const requireMode = commonjs && !reference.dynamic;
 				if (onNpmTypes && reference.specifier.startsWith("npm:")) {
 					const location = await cacheExactNpmImport(reference.specifier, options.cacheDir, options.signal);
 					options.onNpmImport?.(reference.specifier);
 					const resolver = await api.createModuleResolver({ module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext });
 					try {
-						const types = (await resolver.resolveModuleName(location.bare, location.cwd, ModuleKind.ESNext)).resolvedModule;
+						const types = (await resolver.resolveModuleName(location.bare, location.cwd, requireMode ? ModuleKind.CommonJS : ModuleKind.ESNext)).resolvedModule;
 						if (types) onNpmTypes(reference.specifier, types.resolvedFileName);
 					} finally { await resolver.dispose(); }
 				}
 				if (reference.typeOnly) continue;
 				// Reuse the leased API: borrowing the compiler queue again would deadlock.
-				const resolved = await resolveImport(reference.specifier, { ...options, cwd: dirname(path) }, { api, runtime });
+				const resolved = await resolveImport(reference.specifier, { ...options, cwd: dirname(path) }, { api, runtime }, requireMode ? "require" : "import");
 				const compiled = resolved.startsWith("file:") && /(?<!\.d)\.(?:ts|mts|cts)$/.test(fileURLToPath(resolved)) ? await visit(resolved) : resolved;
 				edits.push({ ...reference, text: JSON.stringify(commonjs && !reference.dynamic && compiled.startsWith("file:") ? fileURLToPath(compiled) : compiled) });
 			}
@@ -77,7 +78,16 @@ export async function compileTsImportSource(
 			const emitted = await api.transpileModule(rewritten, { fileName: path, compilerOptions: { module: commonjs ? ModuleKind.NodeNext : ModuleKind.ESNext, target: ScriptTarget.ESNext }, reportDiagnostics: true });
 			const errors = emitted.diagnostics?.filter(value => value.category === 1);
 			if (errors?.length) throw new Error(errors.map(value => value.text).join("\n"));
-			const javascript = commonjs ? await anchorCommonJsRequires(api, runtime, path, emitted.outputText) : emitted.outputText;
+			const javascript = commonjs ? await anchorCommonJsRequires(api, runtime, path, emitted.outputText, async (specifier) => {
+				const dependency = resolve(dirname(path), specifier);
+				if (!/(?<!\.d)\.(?:ts|mts|cts)$/.test(dependency)) return dependency;
+				try { await access(dependency); }
+				catch (error) {
+					if (error instanceof Error && "code" in error && error.code === "ENOENT") return dependency;
+					throw error;
+				}
+				return fileURLToPath(await visit(pathToFileURL(dependency).href));
+			}) : emitted.outputText;
 			await writeFile(fileURLToPath(target), javascript, { mode: 0o600 });
 			return target;
 		};

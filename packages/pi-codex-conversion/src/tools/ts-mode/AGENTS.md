@@ -7,6 +7,7 @@
 - A worker's unreachable node is not a deletion. Preserve nodes from either snapshot, then compact against the merged roots.
 - Retained imports keep TypeScript type/namespace authority. Restore their values once in the worker, not again in cell emission. Pin dependencies include erased type references.
 - Relative `.cts` requires use compiler-resolved call-site bindings after emission, not whole-file names or erased declarations. Properties and bindings in unrelated scopes must not hide Node's require; locally bound calls retain their arguments.
+- Compile explicit TypeScript require targets through the shared source graph and cycle map. Static `.cts` imports use CommonJS conditions; dynamic imports retain ESM conditions.
 - Project pin synchronisation is secondary to the session commit. Report its failure without claiming the successful session commit rolled back.
 - After project synchronisation, persist the submitted session candidate as its observed baseline, never the merged project containing other sessions' unseen pins.
 - Capture preserves graph identity and reports every unsupported live-only binding and dependent recipe. Keep the live heap intact; never replay cells or stringify closures to manufacture persistence. A skipped pin must not delete its previously durable project value.

@@ -40,41 +40,59 @@ async function importLocation(specifier: string, options: TsImportOptions): Prom
 	return { cwd: resolve(options.cwd), bare: specifier };
 }
 
-async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal, resolveSource?: () => Promise<string | undefined>): Promise<string> {
+async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal, resolveSource?: () => Promise<string | undefined>, mode: "import" | "require" = "import"): Promise<string> {
 	signal?.throwIfAborted();
 	if (isBuiltin(bare)) return bare.startsWith("node:") ? bare : `node:${bare}`;
-	// Resolution runs in Node's ESM loader without executing the requested package.
-	const { stdout } = await runImportCommand("node", [
-		"--experimental-import-meta-resolve", "--input-type=module", "-e",
-		"process.stdout.write(import.meta.resolve(process.argv[1], process.argv[2]))",
-		bare, pathToFileURL(resolve(cwd, "__ts_import__.mjs")).href,
-	], { cwd, timeout: 15_000, maxBuffer: 1024 * 1024, signal });
-	const url = stdout.trim();
+	const localSource = async (): Promise<string | undefined> => {
+		if (!/^\.{1,2}\//.test(bare) || !/\.(?:js|mjs|cjs)$/.test(bare)) return undefined;
+		const source = await resolveSource?.();
+		if (!source || !/(?<!\.d)\.(?:ts|mts|cts)$/.test(source)) return undefined;
+		await access(source);
+		return pathToFileURL(source).href;
+	};
+	// Use Node's selected loader conditions without executing the requested package.
+	let url: string;
+	try {
+		const { stdout } = await runImportCommand("node", [
+			"--experimental-import-meta-resolve", "--input-type=module", "-e",
+			mode === "require"
+				? 'import {createRequire} from "node:module"; import {fileURLToPath,pathToFileURL} from "node:url"; const s=process.argv[1]; process.stdout.write(pathToFileURL(createRequire(process.argv[2]).resolve(s.startsWith("file:")?fileURLToPath(s):s)).href)'
+				: "process.stdout.write(import.meta.resolve(process.argv[1], process.argv[2]))",
+			bare, pathToFileURL(resolve(cwd, "__ts_import__.mjs")).href,
+		], { cwd, timeout: 15_000, maxBuffer: 1024 * 1024, signal });
+		url = stdout.trim();
+	} catch (error) {
+		signal?.throwIfAborted();
+		if (mode === "require") {
+			const source = await localSource();
+			if (source) return source;
+		}
+		throw error;
+	}
 	if (!url.startsWith("file:") && !url.startsWith("node:")) throw new Error(`Unsupported resolved import: ${url}`);
 	if (url.startsWith("file:")) {
 		try { await access(fileURLToPath(url)); }
 		catch (error) {
-			if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT" || !/^\.{1,2}\//.test(bare) || !/\.(?:js|mjs|cjs)$/.test(bare)) throw error;
-			const source = await resolveSource?.();
-			if (!source || !/(?<!\.d)\.(?:ts|mts|cts)$/.test(source)) throw error;
-			await access(source);
-			return pathToFileURL(source).href;
+			if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+			const source = await localSource();
+			if (!source) throw error;
+			return source;
 		}
 	}
 	return url;
 }
 
-async function resolveRawImport(specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }): Promise<string> {
+async function resolveRawImport(specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }, mode: "import" | "require" = "import"): Promise<string> {
 	const location = await importLocation(specifier, options);
 	return runtimeLocation(location.bare, location.cwd, options.signal, async () => {
 		const resolveSource = async (owner: API, runtime: TsRuntime): Promise<string | undefined> => {
 			const { ModuleKind, ModuleResolutionKind } = runtime.api;
 			const resolver = await owner.createModuleResolver({ module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext });
-			try { return (await resolver.resolveModuleName(location.bare, location.cwd, ModuleKind.ESNext)).resolvedModule?.resolvedFileName; }
+			try { return (await resolver.resolveModuleName(location.bare, location.cwd, mode === "require" ? ModuleKind.CommonJS : ModuleKind.ESNext)).resolvedModule?.resolvedFileName; }
 			finally { await resolver.dispose(); }
 		};
 		return compiler ? resolveSource(compiler.api, compiler.runtime) : withTsImportApi(options, resolveSource);
-	});
+	}, mode);
 }
 
 export async function resolveTsRuntimeImport(specifier: string, options: TsImportOptions): Promise<string> {
