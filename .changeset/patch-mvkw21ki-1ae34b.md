@@ -2,6 +2,6 @@
 "@howaboua/pi-shepherdr": patch
 ---
 
-- **BREAKING CHANGE:** Optional integrations now require Notes 0.0.10 or newer for shared notes and history, and PCC 4.0.5 or newer for native parent linkage and cache affinity. The agents API is unchanged. Ordinary agent management requires neither extension.
-- Agent guidance now directs finished workers to close without acknowledgement or shutdown messages.
+- **BREAKING CHANGE:** Shared notes and history now use Notes instead of PCC. Install `pi-notes-compaction` and update participating hosts together to retain sharing. PCC remains optional for native parent linkage and cache affinity. Ordinary agent management requires neither extension.
+- Agent guidance now directs controllers to close finished workers without preceding acknowledgement messages.
 - Attached note reads keep private routing details out of results while preserving read-only and stale-checkpoint warnings. Attachment acknowledgements omit internal bookkeeping.
