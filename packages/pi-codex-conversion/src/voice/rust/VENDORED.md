@@ -12,7 +12,7 @@ processing. Integration with this helper's CPAL devices, WebRTC track, IPC,
 and bridge mode remains local to this crate. The copied code is licensed under
 Apache-2.0. Its license and notice are in `vendor/openai-codex/`.
 
-Sonora `0.2.0` and Rubato `5.0.0` are registry dependencies rather than
+Sonora `0.2.0` and Rubato `5.0.1` are registry dependencies rather than
 vendored source. Both are pinned in `Cargo.toml` and `Cargo.lock`.
 Their binary-distribution notices and those of the introduced transitive
 dependencies are in `vendor/rust-dependencies/`.

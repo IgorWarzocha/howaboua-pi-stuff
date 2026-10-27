@@ -21,7 +21,7 @@ version = "0.0.0"
 anyhow = "1"
 assert_matches = "1"
 async-trait = "0.1"
-base64 = "0.22.1"
+base64 = "0.23.1"
 chrono = "0.4"
 codex-utils-absolute-path = { path = "rust/crates/codex-utils-absolute-path" }
 codex-utils-path-uri = { path = "rust/crates/codex-utils-path-uri" }
@@ -29,14 +29,14 @@ codex-utils-cache = { path = "rust/crates/codex-utils-cache" }
 codex-utils-image = { path = "rust/crates/codex-utils-image" }
 codex-utils-pty = { path = "rust/crates/codex-utils-pty" }
 crypto_box = { version = "0.9", features = ["seal"] }
-dirs = "6"
+dirs = "7"
 dunce = "1"
 ed25519-dalek = { version = "2", features = ["pkcs8"] }
 image = { version = "^0.25.9", default-features = false }
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
-lru = "0.16.3"
+lru = "0.19"
 mime_guess = "2.0.5"
 os_info = "3.12.0"
 portable-pty = "0.9"
