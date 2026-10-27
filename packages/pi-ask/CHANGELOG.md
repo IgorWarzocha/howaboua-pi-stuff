@@ -1,5 +1,10 @@
 # @howaboua/pi-ask
 
+## 0.0.17
+
+- - Removed redundant help-call instructions from Ask's help.
+  - GPT mode uses note-style question and handoff guidance.
+
 ## 0.0.16
 
 - Use denser question and handoff help in PCC GPT prompt mode.

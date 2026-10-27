@@ -1,5 +1,10 @@
 # @howaboua/pi-github-watch
 
+## 0.0.4
+
+- - GPT mode uses note-style watch help.
+  - Active watch results now state that updates arrive automatically without polling or a separate CLI watch.
+
 ## 0.0.3
 
 - Use denser watch help in PCC GPT prompt mode.

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-notes-compaction",
-	"version": "0.0.9",
+	"version": "0.0.10",
 	"publishConfig": {
 		"access": "public"
 	},
@@ -39,7 +39,7 @@
 		"better-sqlite3": "13.0.3"
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.4",
+		"@howaboua/pi-codex-conversion": "4.0.5",
 		"@types/better-sqlite3": "9.6.0"
 	},
 	"peerDependencies": {

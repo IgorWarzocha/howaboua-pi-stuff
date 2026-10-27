@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-suggestions",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Editable next-prompt suggestions for Pi",
 	"type": "module",
 	"license": "MIT",

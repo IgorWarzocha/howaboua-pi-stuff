@@ -1,5 +1,11 @@
 # @howaboua/pi-agent-board
 
+## 0.0.4
+
+- - Board and connected extension briefings now refresh after Notes context-window rollover.
+  - Board listings now omit internal session identifiers.
+  - GPT mode uses note-style Board help and briefings.
+
 ## 0.0.3
 
 - - Thread summaries are now opt-in. Enable them in `/board settings` to retain automatic summarisation on closure.

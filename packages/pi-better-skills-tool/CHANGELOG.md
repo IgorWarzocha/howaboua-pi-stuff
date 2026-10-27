@@ -1,5 +1,10 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.12
+
+- - Skills now shows its exact discovery call in Code and Notebook modes and clarifies batch-read syntax in help.
+  - GPT mode uses note-style skill discovery and reading guidance.
+
 ## 0.0.11
 
 - - Skills help and catalog results now explain reference-only reads and batching skill bodies with references.

@@ -1,5 +1,9 @@
 # @howaboua/pi-auto-trees
 
+## 0.1.19
+
+- GPT mode uses note-style priming, commit-summary and voice guidance.
+
 ## 0.1.18
 
 - Use denser priming and commit-summary guidance in PCC GPT prompt mode.

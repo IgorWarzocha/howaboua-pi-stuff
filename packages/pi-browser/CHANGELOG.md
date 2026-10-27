@@ -1,5 +1,10 @@
 # @howaboua/pi-browser
 
+## 0.0.11
+
+- - Browser calls in Code and Notebook now return objects instead of JSON strings.
+  - GPT mode uses note-style browser help.
+
 ## 0.0.10
 
 - Use denser browser help in PCC GPT prompt mode.

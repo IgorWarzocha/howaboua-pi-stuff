@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.9
+
+- - Keep provider bookkeeping out of structured search results while preserving result references and content.
+  - Report unreadable responses and invalid tool configuration without parser or filesystem diagnostics.
+  - GPT mode uses note-style search-reference guidance.
+
 ## 0.0.8
 
 - - Added compact tool guidance for PCC GPT prompt mode. Other modes are unchanged.

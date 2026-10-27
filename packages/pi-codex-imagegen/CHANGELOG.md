@@ -1,5 +1,10 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.12
+
+- - Report invalid or unreadable tool configuration without parser or filesystem diagnostics.
+  - GPT mode uses note-style image-generation guidance in Code and Notebook.
+
 ## 0.0.11
 
 - - Added compact tool guidance for PCC GPT prompt mode. Other modes are unchanged.
