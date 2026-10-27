@@ -172,7 +172,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						// A transport switch is still another request to the same backend.
 						// SSE gets its own bounded window, never the exhausted WebSocket signal.
 						recovery.start(true);
-						if (!immediateFallback && retryPlan.serverDirected) await recovery.waitBeforeRetry(error, attempt + 1, retryPlan);
+						if (!immediateFallback && (retryPlan.serverDirected || retryPlan.overload)) await recovery.waitBeforeRetry(error, attempt + 1, retryPlan);
 						// Pi supplies resolved request auth, not a force-refresh handle. Keep 401
 						// fallback turn-local so refreshed auth can use WebSockets on the next turn.
 						if (!unauthorized) recordWebSocketSseFallback(effectiveOptions?.sessionId);

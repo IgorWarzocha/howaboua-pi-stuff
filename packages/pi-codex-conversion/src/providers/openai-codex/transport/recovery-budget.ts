@@ -26,16 +26,20 @@ export function retryAdviceRecoveryBudgetError(error: unknown): NonRetryableProv
 
 export class CodexRecoveryBudget {
 	private overloadRetryCount = 0;
-	private overloadWaitedMs = 0;
-	private retryAdviceWaitedMs = 0;
+	private adviceStartedAt: number | undefined;
+	private adviceController: AbortController | undefined;
+	private adviceTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly callerSignal: AbortSignal | undefined;
 	recoveryDeadlineAt: number | undefined;
 	recoveryController: AbortController | undefined;
 	private recoveryTimer: ReturnType<typeof setTimeout> | undefined;
 	constructor(callerSignal?: AbortSignal) { this.callerSignal = callerSignal; }
-	close(): void { if (this.recoveryTimer) clearTimeout(this.recoveryTimer); }
-	signal = () => this.recoveryController
-		? combineAbortSignals([this.callerSignal, this.recoveryController.signal])
+	close(): void {
+		if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+		if (this.adviceTimer) clearTimeout(this.adviceTimer);
+	}
+	signal = () => this.recoveryController || this.adviceController
+		? combineAbortSignals([this.callerSignal, this.recoveryController?.signal, this.adviceController?.signal])
 		: undefined;
 	start = (freshWindow = false) => {
 		if (freshWindow) {
@@ -48,21 +52,30 @@ export class CodexRecoveryBudget {
 		this.recoveryController = new AbortController();
 		this.recoveryTimer = setTimeout(() => this.recoveryController?.abort(), DEFAULT_TRANSPORT_RECOVERY_BUDGET_MS);
 	};
-	deadlineError = () => new NonRetryableProviderError(
+	deadlineError = () => this.adviceExpired() ? retryAdviceRecoveryBudgetError(undefined) : new NonRetryableProviderError(
 		"Codex could not complete transport recovery within five minutes; the request was stopped before an answer completed. Retry the request.",
 	);
-	expired = () => this.recoveryController?.signal.aborted === true
+	private adviceExpired = () => this.adviceController?.signal.aborted === true
+		|| (this.adviceStartedAt !== undefined && performance.now() - this.adviceStartedAt >= DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS);
+	expired = () => this.adviceExpired() || this.recoveryController?.signal.aborted === true
 		|| (this.recoveryDeadlineAt !== undefined && performance.now() >= this.recoveryDeadlineAt);
 	planRetry = (error: unknown, retryCount: number) => {
 		const overload = isCodexOverloadError(error);
 		const requestedDelayMs = codexStreamRetryDelay(error);
 		const serverDirected = requestedDelayMs !== undefined || isCodexRateLimitError(error);
+		// One logical request owns this clock, including attempts and SSE fallback.
+		if ((overload || serverDirected) && this.adviceStartedAt === undefined) {
+			this.adviceStartedAt = performance.now();
+			this.adviceController = new AbortController();
+			this.adviceTimer = setTimeout(() => this.adviceController?.abort(), DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS);
+		}
+		const elapsedMs = this.adviceStartedAt === undefined ? 0 : performance.now() - this.adviceStartedAt;
 		const fallbackDelayMs = codexStreamRetryDelayMs(retryCount);
 		const delayMs = overload
-			? codexOverloadRetryDelay(error, this.overloadRetryCount, this.overloadWaitedMs)
+			? codexOverloadRetryDelay(error, this.overloadRetryCount, elapsedMs)
 			: requestedDelayMs ?? fallbackDelayMs;
-		const adviceBudgetExhausted = serverDirected && (delayMs === undefined
-			|| delayMs > Math.max(0, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS - this.retryAdviceWaitedMs));
+		const adviceBudgetExhausted = (overload || serverDirected) && (this.adviceExpired() || delayMs === undefined
+			|| delayMs > Math.max(0, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS - elapsedMs));
 		return {
 			overload,
 			serverDirected,
@@ -75,6 +88,10 @@ export class CodexRecoveryBudget {
 		// Hooks and diagnostics may take time. Expired advice means zero,
 		// not another full delay or a fresh local backoff.
 		const delayMs = codexStreamRetryDelay(error) ?? plan.delayMs;
+		if (this.adviceStartedAt !== undefined && (this.adviceExpired()
+			|| delayMs > Math.max(0, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS - (performance.now() - this.adviceStartedAt)))) {
+			throw retryAdviceRecoveryBudgetError(error);
+		}
 		if (!switchingOnExpiry && this.recoveryDeadlineAt !== undefined && delayMs > Math.max(0, this.recoveryDeadlineAt - performance.now())) {
 			throw new NonRetryableProviderError("Codex retry advice exceeds the remaining transport recovery window; retry the request later.");
 		}
@@ -89,8 +106,6 @@ export class CodexRecoveryBudget {
 		}
 		if (plan.overload) {
 			this.overloadRetryCount++;
-			this.overloadWaitedMs += delayMs;
 		}
-		if (plan.serverDirected) this.retryAdviceWaitedMs += delayMs;
 	};
 }
