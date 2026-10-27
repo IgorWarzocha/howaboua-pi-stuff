@@ -5,8 +5,7 @@
 ### Breaking changes
 
 - **BREAKING CHANGE:** Removed built-in notes, history, rollover settings and legacy Remote mode. Install `pi-notes-compaction` and use `/notes`. Existing Notes-enabled configurations block turns until Notes is loaded or continuity is explicitly disabled in the old configuration.
-- **BREAKING CHANGE:** Removed the context-sharing API. Integrations must use `pi-notes-compaction/context-sharing` for shared notes and history, and `pi-codex-conversion/agent-relationship` for native parent linkage and cache affinity. Parent linkage does not require Notes.
-- **BREAKING CHANGE:** Removed Cached WebSocket upgrade. Select `auto` or `websocket-cached` in Pi's transport setting to retain cached continuation when previously using plain `websocket`.
+- **BREAKING CHANGE:** Moved the shared notes and history API from `pi-codex-conversion/context-sharing` to `pi-notes-compaction/context-sharing`. PCC's parent linkage and cache affinity API is now `pi-codex-conversion/agent-relationship`.
 
 ### Features
 
@@ -19,6 +18,7 @@
 
 ### Reliability and usability
 
+- Pi's transport setting now replaces the Cached WebSocket upgrade toggle. Select `auto` or `websocket-cached` for cached continuation.
 - Fixed temporary SSE fallback surviving a context-window rollover. New windows retry the configured WebSocket transport.
 - Fixed Code, Notebook and reasoning tools reappearing after `/tree` when disabled.
 - WebSocket prewarming now uses the final prepared request, including after compaction.

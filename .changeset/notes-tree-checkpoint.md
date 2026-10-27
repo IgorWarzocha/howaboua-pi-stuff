@@ -4,8 +4,7 @@
 
 ### Breaking changes
 
-- **BREAKING CHANGE:** PCC integration now requires PCC 4.0.5 or newer.
-- **BREAKING CHANGE:** Notes and history now return plaintext results as objects in Code and Notebook. Remove `JSON.parse` around these results in saved helpers. Encrypted notes still return delivery receipts.
+- **BREAKING CHANGE:** When used with PCC, plaintext Notes and history calls inside `exec` now return objects. Remove `JSON.parse` around these calls in saved helpers. Standalone Notes is unaffected.
 
 ### Features
 
