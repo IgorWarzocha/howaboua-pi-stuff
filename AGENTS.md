@@ -18,6 +18,7 @@ Extend existing tools, not overlapping choices. Help-backed tools default to no-
 Do not repeat obvious contracts across names, descriptions, schemas, promptSnippet and promptGuidelines. Use the latter two only for concrete failures. Never rewrite prior tool calls or results to integrate a tool.
 Measure emitted tool schemas and system-prompt deltas for cache impact. Repository AGENTS.md is internal guidance, not product prompt cost.
 Prefer semantic signal over grammatical polish. Drop cosmetic punctuation only if syntax, delimiters, meaning, evidence, caveats and recovery survive.
+GPT-mode prose uses dense checkpoint-style compounds and arrows, not merely shorter sentences: `Unfamiliartoolhelp→separatecellBEFOREuse`. Preserve exact syntax and normal-mode prose.
 Skills and extensions must work for any user. Never ship personal names, local paths, machine assumptions or private workflows.
 
 Delete permanent tests by default. Retain only consequential failure coverage that static checks and disposable probes cannot adequately provide. Contract labels do not justify retention. Add permanent tests only when the user explicitly requests more coverage.

@@ -16,12 +16,12 @@ Await work; use a timeout when an operation might not finish on its own
 Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
 export const GPT_EXEC_DESCRIPTION = `JavaScript toolcomposition; sourceonly≠JSON/fences
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Await work; possiblynonterminating→timeout
-Barevalues discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serializedoutput, notify(value)→emit, yield_control()→yield`;
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
+Awaitwork; possiblynonterminating→timeout
+Barevalues→discard; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serializedoutput, notify(value)→emit, yield_control()→yield`;
 
 export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
-export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated cells: // @exec: {"isolated":true}; lastcheckpoint; sharedvars unchanged';
+export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrentisolatedcells: // @exec: {"isolated":true}; fromlastcheckpoint; sharedvarsUNCHANGED';
 
 export const JS_EXEC_DESCRIPTION = `Run JavaScript in a persistent kernel; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
@@ -30,12 +30,12 @@ Top-level await supported. Await host calls; dangling calls prevent checkpointin
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 No Node, imports, fetch, timers or TypeScript checking`;
 
-export const GPT_JS_EXEC_DESCRIPTION = `Persistent JavaScript kernel; sourceonly≠JSON/fences
-Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
+export const GPT_JS_EXEC_DESCRIPTION = `PersistentJavaScriptkernel; sourceonly≠JSON/fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 ${GPT_ISOLATED_EXEC_GUIDANCE}
-Top-level await; awaithostcalls; danglingcalls blockcheckpoint
-Barevalues discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
-No Node/imports/fetch/timers/TSchecking`;
+Top-level await; awaithostcalls; danglingcalls→blockcheckpoint
+Barevalues→discard; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
+NO Node/imports/fetch/timers/TSchecking`;
 
 export const WAIT_DESCRIPTION =
 	"Resume or terminate a yielded exec cell";
@@ -146,22 +146,22 @@ export function buildCodeModeToolsPrompt(
 	const sections = [
 		executionKind === "js"
 			? gpt
-				? "exec=project-shared JS kernel; checkpoints preserve closures/classes/cycles; cancel→stopkernel; notebook restart→checkpoint≠externalrollback"
+				? "exec=project-sharedJSkernel; checkpoints→preserveclosures/classes/cycles; cancel→stopkernel; notebook restart→checkpoint≠externalrollback"
 				: "exec=project-shared JavaScript kernel; checkpoints preserve closures/classes/cycles. Cancellation stops the kernel; notebook restart restores its checkpoint, not external tool effects"
 			: executionKind === "ts"
 			? gpt
-				? "exec=persistent TypeScript kernel; imports/npm/Node/Web APIs; live bindings and modules persist across cells"
+				? "exec=persistentTypeScriptkernel; imports/npm/Node/Web APIs; livebindings/modules→persistacrosscells"
 				: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
 			: executionKind === "notebook"
 			? gpt
-				? "exec=persistent Deno/TypeScript notebook; console/imports/npm/Deno/Web APIs. Smallprograms across cells; retainedglobals may originate earlieragents/sessions"
+				? "exec=persistentDeno/TypeScriptnotebook; console/imports/npm/Deno/Web APIs; smallprogramsacrosscells; retainedglobalsMAYoriginateearlieragents/sessions"
 				: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
 			: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
 		executionKind === "ts"
-			? gpt ? "Strictcheck incltoolargs; typeerrors→noexecution" : "Strict typechecking includes tool arguments. Type errors prevent cell execution"
+			? gpt ? "WholecellstrictcheckINCLtoolargs; typeerror→NOcellexecution" : "Strict typechecking covers the whole cell, including tool arguments. Any type error prevents cell execution"
 			: undefined,
-		gpt ? "Tools without callsignature: noargs→usage only≠operation; structured→{}"
-			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}.",
+		gpt ? "Toolswithoutcallsignature: noargs→usageONLY≠operation; structured→{}. Unfamiliartoolhelp→separatecellBEFOREuse"
+			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}. Read unfamiliar tool help alone before use.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",
@@ -216,7 +216,7 @@ export function prepareCodeModeToolsPrompt(
 	const sections = options.sections ??= {};
 	customizationGuidance.set(options, () => documentationPath && isEnabled()
 		? gpt
-			? `exec custom tools: read ${documentationPath}, not Pi docs`
+			? `execcustomtools→read ${documentationPath}, NOTPidocs`
 			: `Custom tools to run in exec: read ${documentationPath} instead of Pi docs`
 		: "");
 	const section = buildCodeModeToolsPrompt(tools, executionKind, gpt);

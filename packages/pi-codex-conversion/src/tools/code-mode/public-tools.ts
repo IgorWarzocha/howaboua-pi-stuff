@@ -73,12 +73,15 @@ export function registerPublicCodeModeTools(
 	const renderResult = createResultRenderer(runtime, tracker);
 	const broker = registerCodeModePreflightBroker(pi);
 	const hooks = { preflight: broker.run, completion: broker.complete };
-	const exec = createExecTool(runtime, tracker, renderResult, hooks);
-	const wait = createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks);
+	let gpt = false;
+	const isGpt = () => gpt;
+	const exec = createExecTool(runtime, tracker, renderResult, hooks, isGpt);
+	const wait = createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks, isGpt);
 	pi.registerTool(exec);
 	pi.registerTool(wait);
 	let currentExec = exec;
 	registerGptPromptMode(pi, (active, context) => {
+		gpt = active;
 		const js = context !== undefined && runtime.executionKind(context) === "js";
 		const ts = context !== undefined && runtime.executionKind(context) === "ts";
 		const deno = context !== undefined && runtime.executionKind(context) === "notebook";
@@ -101,6 +104,7 @@ function createExecTool(
 	tracker: RenderTracker,
 	renderResult: ReturnType<typeof createResultRenderer>,
 	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
+	isGpt: () => boolean,
 ): ToolDefinition<typeof EXEC_PARAMETERS> {
 	return {
 		name: "exec",
@@ -141,7 +145,7 @@ function createExecTool(
 					id,
 					visible.kind === "yielded" ? "yielded" : "done",
 				);
-				return toCodeModeToolResult(visible);
+				return toCodeModeToolResult(visible, undefined, isGpt());
 			} catch (error) {
 				tracker.finish(id);
 				throw error;
@@ -171,6 +175,7 @@ function createWaitTool(
 	renderResult: ReturnType<typeof createResultRenderer>,
 	waitAttempts: Map<string, number>,
 	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
+	isGpt: () => boolean,
 ): ToolDefinition<typeof WAIT_PARAMETERS> {
 	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
@@ -192,7 +197,7 @@ function createWaitTool(
 				if (completed) {
 					waitAttempts.delete(params.cell_id);
 					tracker.finish(id, "done");
-					return toCodeModeToolResult(completed, params.max_tokens);
+					return toCodeModeToolResult(completed, params.max_tokens, isGpt());
 				}
 				const client = await runtime.getClient(ctx);
 				const guard = runtime.collectTools(ctx).some(tool => "invoke" in tool && tool.opaqueResult)
@@ -239,7 +244,7 @@ function createWaitTool(
 					id,
 					response.kind === "yielded" ? "yielded" : "done",
 				);
-				return toCodeModeToolResult(response, params.max_tokens);
+				return toCodeModeToolResult(response, params.max_tokens, isGpt());
 			} catch (error) {
 				waitAttempts.delete(params.cell_id);
 				tracker.finish(id);

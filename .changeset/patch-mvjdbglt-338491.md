@@ -20,7 +20,8 @@
 ### Reliability and usability
 
 - Fixed SSE retries multiplying to 30 requests after WebSocket fallback. HTTP and stream retries now share one budget, with a five-minute recovery deadline starting at the first retryable failure.
-- GPT prompt mode now condenses notebook help, isolated-cell guidance and reasoning-tool descriptions.
+- GPT prompt mode uses dense checkpoint-style runtime guidance and notebook help.
+- Tool guidance separates unfamiliar-tool discovery from large reads and limits batching by combined output. Truncated results explain how to recover missing output without repeating side effects.
 - Pi's transport setting now replaces the Cached WebSocket upgrade toggle. Select `auto` or `websocket-cached` for cached continuation.
 - Fixed temporary SSE fallback surviving a context-window rollover. New windows retry the configured WebSocket transport.
 - Fixed Code, Notebook and reasoning tools reappearing after `/tree` when disabled.
