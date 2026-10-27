@@ -1,7 +1,7 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { windowDetails } from "./windows.js";
 
-export const PRUNED_ENTRY = "notes-compaction:pruned:v1";
+const PRUNED_ENTRY = "notes-compaction:pruned:v1";
 const PROMPT_STATE = new Set([
 	"codex-toolkit-update",
 	"codex-current-time-reminder",

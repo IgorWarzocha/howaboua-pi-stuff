@@ -5,8 +5,8 @@ import type Database from "better-sqlite3";
 import { createIngestor } from "./ingest.ts";
 import { object } from "./normalise.ts";
 import { createProvenance } from "./provenance.ts";
-import { withSource } from "./source-records.ts";
 import { createSourcePruning } from "./source-pruning.ts";
+import { withSource } from "./source-records.ts";
 
 const CHUNK_BYTES = 256 * 1024;
 const BATCH_BYTES = 4 * 1024 * 1024;
