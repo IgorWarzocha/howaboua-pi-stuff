@@ -6,3 +6,4 @@
 - `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
 - A different extension can register the shared Code turn hook before PCC. Keep prompt-mode preparation at this hook's capture boundary, before provider selection, host preparation and `collectPromptTools`; PCC's own later hook is not sufficient.
 - `shared-runtime.ts` selects the official V8 host or lazy Deno Notebook/TS/JS clients. Implementations stay under sibling `notebook-mode/`, `ts-mode/` and `js-mode/`; state never crosses execution modes.
+- Delegation scheduling retires admission before delayed result cleanup. Keep result buffers/exec-session routing alive through yielded responses, and abort controllers before clearing cell stores. Opaque capture must reserve capacity and validate the current context before appending.

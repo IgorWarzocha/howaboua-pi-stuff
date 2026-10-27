@@ -6,3 +6,4 @@
 - Persist synchronously. Add locks/concurrency machinery only for reproduced background writers or realistic overlapping writes.
 - Open/save immediately. Defer live config/tool application until idle, not UI. Other controls' config reloads must not expose pending edits.
 - If settings appear to flip, trace config source, read lifecycle and UI draft before blaming a write race.
+- `screen/configuration.ts` alone owns the draft, list and picker flags. Keep Tab routing locked to an open picker; rebuilding a context list must reselect the changed item.

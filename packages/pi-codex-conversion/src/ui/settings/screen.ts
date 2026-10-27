@@ -1,35 +1,13 @@
-import {
-	CONFIG_DIR_NAME,
-	type ExtensionContext,
-	type ExtensionAPI,
-	getSettingsListTheme,
-	type Theme,
-} from "@earendil-works/pi-coding-agent";
-import {
-	Key,
-	matchesKey,
-	SettingsList,
-	truncateToWidth,
-	wrapTextWithAnsi,
-} from "@earendil-works/pi-tui";
+import { type ExtensionContext, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig, LunaCacheKeepaliveMinutes, LunaCacheKeepaliveIntervalMinutes, CacheKeepaliveIntervalMinutes } from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
-import type { ExecutionMode } from "../../adapter/activation/execution-mode.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
-import { formatVoiceShortcut } from "../../voice/setup.ts";
-import {
-	getCodexVoiceSystemPromptChangelogPath,
-	getCodexVoiceSystemPromptPath,
-	REALTIME_SYSTEM_PROMPT_BASENAME,
-} from "../../voice/system-prompt.ts";
-import { handleAboutTabInput, renderAboutTab } from "./about-tab.ts";
-import { openCodexConfigInExternalEditor } from "./config-editor.ts";
-import { buildConfigSettings, type ConfigSetting } from "./config-items.ts";
-import { ChoiceSettingSubmenu } from "./config-items-shared.ts";
+import { handleAboutTabInput } from "./about-tab.ts";
 import { SETTINGS_TABS, type SettingsTab } from "./tabs.ts";
-import { nativeDevicePicker } from "./native-device-picker.ts";
-import { contextWindowPicker } from "./context-window-picker.ts";
 import { createUsageTab, type UsageTabOptions } from "./usage-tab.ts";
+import { createSettingsConfiguration } from "./screen/configuration.ts";
+import { renderSettingsScreen } from "./screen/view.ts";
 
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	setModel: ExtensionAPI["setModel"];
@@ -60,8 +38,6 @@ export async function openCodexSettingsScreen(
 	ctx: ExtensionContext,
 	options: CodexSettingsScreenOptions,
 ): Promise<void> {
-	let draft = options.initialConfig;
-	let activeTab: SettingsTab = options.initialTab ?? "adapter";
 	const availableContextModels = ctx.modelRegistry
 		.getAvailable()
 		.filter((model) => model.input.includes("text"))
@@ -71,297 +47,26 @@ export async function openCodexSettingsScreen(
 	const usageSignal = ctx.signal ? AbortSignal.any([ctx.signal, usageAbort.signal]) : usageAbort.signal;
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
 		const usageTab = createUsageTab(ctx, options, () => tui.requestRender(), usageSignal);
-		let settingsList: SettingsList;
-		let devicePickerOpen = false;
-		let contextWindowPickerOpen = false;
-		let retentionPickerOpen = false;
-
-		const runEditConfig = async () => {
-			if (!options.onChange(draft)) {
-				ctx.ui.notify(
-					"Could not save settings before opening editor",
-					"warning",
-				);
-				return;
-			}
-			const result = await openCodexConfigInExternalEditor(
-				options.configScope.path(),
-				options.configScope.current() === "folder",
-				() => tui.stop(),
-				() => tui.start(),
-				(full) => tui.requestRender(full),
-			);
-			if (!result.ok) {
-				ctx.ui.notify(result.error, "warning");
-				return;
-			}
-			draft = options.configScope.reload();
-			options.onChange(draft);
-			settingsList = createSettingsList();
-			tui.requestRender(true);
-		};
-
-		const createSettingsList = () => {
-			let list: SettingsList;
-			const buildSettings = (): ConfigSetting[] => [
-				{
-					item: {
-						id: "configScope",
-						description: "Choose where changes are saved. Switching to Global removes this project\u0027s overrides.",
-						label: "Editing",
-						currentValue: options.configScope.current() === "folder" ? "This project" : "Global",
-						values: options.configScope.canUseFolder
-							? ["Global", "This project"]
-							: ["Global"],
-					},
-				},
-				...(activeTab === "adapter"
-					? [{
-							item: {
-								id: "executionMode",
-								description: "Structured: standard JSON schemas. Code: JavaScript. Notebook: persistent Deno shell with checkpoints. TS: persistent TypeScript with concurrent cells. JS Notebook: persistent JavaScript with full VM checkpoints.",
-								label: "Execution mode",
-								currentValue: formatExecutionMode(draft.executionMode),
-								values: ["Structured", "Code", "Notebook (recommended)", "TS", "JS Notebook"],
-							},
-							update: (value: string, current: CodexConversionConfig) => ({
-								...current,
-								executionMode: parseExecutionMode(value),
-							}),
-						}]
-					: []),
-				...(activeTab === "voice" && options.lanVoiceServer
-					? [
-							{
-								item: {
-									id: "lanVoiceServer",
-									description: "Serve this session\u0027s voice interface to a browser on your local network. Stops when the session changes.",
-									label: "LAN voice server",
-									currentValue: options.lanVoiceServer.status().running
-										? "on"
-										: "off",
-									values: ["off", "on"],
-								},
-							},
-						]
-					: []),
-				...buildConfigSettings(
-					activeTab,
-					draft,
-					theme,
-					availableContextModels,
-					ctx,
-				).map((definition): ConfigSetting => {
-					if (definition.action !== "global-notebook-journals" && definition.action !== "global-notebook-checkpoint-cleanup") return definition;
-					return {
-						...definition,
-						item: {
-							...definition.item,
-							submenu: (value, back) => {
-								retentionPickerOpen = true;
-								return new ChoiceSettingSubmenu(definition.item, value, (selected) => {
-									retentionPickerOpen = false;
-									back(selected);
-								}, theme);
-							},
-						},
-					};
-				}),
-				...(activeTab === "context" ? [{ item: {
-					id: "contextWindows", label: "Context windows (openai-codex)", currentValue: "",
-					description: "Set local capacity per model in Pi models.json. Global, regardless of the Editing scope above.",
-					submenu: (_value: string, back: () => void) => {
-						contextWindowPickerOpen = true;
-						return contextWindowPicker(ctx, theme, options.setModel, options.waitForIdle, () => { contextWindowPickerOpen = false; back(); });
-					},
-				} }] : []),
-				...(activeTab === "voice"
-					? (["inputDevice", "outputDevice"] as const).map((key): ConfigSetting => ({
-							item: {
-								id: key,
-								label: key === "inputDevice" ? "Microphone" : "Speaker",
-								description: "Native audio only; applies on the next local start. Browser and handed-off audio keep their own devices.",
-								currentValue: draft.voice[key] ?? "System default",
-								submenu: (_value, back) => {
-									devicePickerOpen = true;
-									return nativeDevicePicker(key, draft.voice[key], (value) => {
-										devicePickerOpen = false;
-										back(value);
-									}, theme, () => tui.requestRender(), draft.tools.customRustBinariesDir);
-								},
-							},
-							update: (value, current) => {
-								const voice = { ...current.voice, audioSetupCompleted: true };
-								if (value) voice[key] = value;
-								else delete voice[key];
-								return { ...current, voice };
-							},
-						}))
-					: []),
-			];
-			list = new SettingsList(
-				buildSettings().map(({ item }) => item),
-				8,
-				getSettingsListTheme(),
-				(id, value) => {
-					const definition = buildSettings().find(({ item }) => item.id === id);
-					if (definition?.action === "edit-config" || (id === "taskBoundaryReminder" && value === "custom (edit JSON)")) {
-						void runEditConfig();
-						return;
-					}
-					if (definition?.action === "project-cache-keepalive") {
-						const interval = value === "off" ? draft.openai.cacheKeepaliveIntervalMinutes : value === "55 mins" ? 55 : 25;
-						const nextDraft = options.onProjectCacheKeepalive(value !== "off", interval);
-						if (nextDraft) {
-							draft = nextDraft;
-							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
-						} else {
-							list.updateValue(id, definition.item.currentValue);
-						}
-						tui.requestRender();
-						return;
-					}
-					if (definition?.action === "global-notebook-journals") {
-						const nextDraft = options.onGlobalNotebookJournals(value === "Off & remove" ? "off" : value === "On" ? "on" : "week");
-						if (nextDraft) {
-							draft = nextDraft;
-							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
-						} else list.updateValue(id, definition.item.currentValue);
-						tui.requestRender();
-						return;
-					}
-					if (definition?.action === "global-notebook-checkpoint-cleanup") {
-						const nextDraft = options.onGlobalNotebookCheckpointCleanup(value === "1 month" ? "month" : value === "1 week" ? "week" : "never");
-						if (nextDraft) {
-							draft = nextDraft;
-							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
-						} else list.updateValue(id, definition.item.currentValue);
-						tui.requestRender();
-						return;
-					}
-					if (definition?.action === "global-luna-cache-keepalive" || definition?.action === "global-luna-cache-keepalive-interval") {
-						const editingInterval = definition.action === "global-luna-cache-keepalive-interval";
-						const minutes = editingInterval ? draft.openai.lunaCacheKeepaliveMinutes
-							: (value === "off" ? 0 : Number.parseInt(value, 10)) as LunaCacheKeepaliveMinutes;
-						const interval = editingInterval ? (value === "4.5 mins" ? 4.5 : 2.5) : draft.openai.lunaCacheKeepaliveIntervalMinutes;
-						const nextDraft = options.onGlobalLunaCacheKeepalive(minutes, interval);
-						if (nextDraft) {
-							draft = nextDraft;
-							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
-						} else {
-							list.updateValue(id, definition.item.currentValue);
-						}
-						tui.requestRender();
-						return;
-					}
-					if (id === "configScope") {
-						const previousValue = options.configScope.current() === "folder" ? "This project" : "Global";
-						const nextDraft = options.configScope.set(value === "This project" ? "folder" : "global");
-						if (nextDraft) {
-							draft = nextDraft;
-							settingsList = createSettingsList();
-						} else {
-							list.updateValue(id, previousValue);
-						}
-						tui.requestRender(true);
-						return;
-					}
-					if (id === "lanVoiceServer" && options.lanVoiceServer) {
-						const previousValue = options.lanVoiceServer.status().running
-							? "on"
-							: "off";
-						void options.lanVoiceServer
-							.setEnabled(value === "on")
-							.then((status) => {
-								list.updateValue(id, status.running ? "on" : "off");
-								tui.requestRender();
-							})
-							.catch(() => {
-								list.updateValue(id, previousValue);
-								tui.requestRender();
-							});
-						return;
-					}
-					if (!definition?.update) return;
-					const previousValue = definition.item.currentValue;
-					const nextDraft = definition.update(value, draft);
-					if (options.onChange(nextDraft)) {
-						draft = nextDraft;
-						if (activeTab === "context") {
-							settingsList = createSettingsList();
-							settingsList.selectItem(id);
-						} else {
-							for (const { item } of buildSettings())
-								list.updateValue(item.id, item.currentValue);
-						}
-					} else {
-						list.updateValue(id, previousValue);
-					}
-					tui.requestRender();
-				},
-				() => done(undefined),
-			);
-			return list;
-		};
-
+		const settings = createSettingsConfiguration(ctx, options, tui, theme, done, availableContextModels);
 		const activateTab = (tab: SettingsTab) => {
-			activeTab = tab;
-			settingsList = createSettingsList();
-			if (activeTab === "usage") usageTab.ensureLoaded();
+			settings.activateTab(tab);
+			if (tab === "usage") usageTab.ensureLoaded();
 			tui.requestRender();
 		};
-
-		settingsList = createSettingsList();
-		if (activeTab === "usage") usageTab.ensureLoaded();
+		if (settings.activeTab === "usage") usageTab.ensureLoaded();
 
 		return {
-			render: (width: number) => {
-				const hasSettingsList = activeTab !== "usage" && activeTab !== "about";
-				let settingsLines = hasSettingsList ? settingsList.render(width) : [];
-				if (hasSettingsList)
-					settingsLines = withConfigScopeDetails(
-						settingsLines,
-						theme,
-						options.configScope.current(),
-					);
-				if (activeTab === "context" && !contextWindowPickerOpen)
-					settingsLines = withContextPortabilityWarning(settingsLines, theme, width);
-				if (activeTab === "tools" && !retentionPickerOpen)
-					settingsLines = withSettingsDetails(
-						settingsLines,
-						formatToolsDetails(theme, options.configScope.path()),
-					);
-				if (activeTab === "voice")
-					settingsLines = withSettingsDetails(
-						settingsLines,
-						formatVoiceDetails(theme, draft, options.configScope.path()),
-					);
-				return [
-					rule(width, theme, "accent"),
-					formatTabs(activeTab, theme),
-					rule(width, theme, "borderMuted"),
-					...(activeTab === "usage" ? usageTab.render(theme, width) : []),
-					...(activeTab === "about" ? renderAboutTab(theme) : []),
-					...(activeTab === "voice"
-						? formatVoiceStatus(theme, options.lanVoiceServer?.status())
-						: []),
-					"",
-					...(hasSettingsList
-						? contextWindowPickerOpen ? settingsLines : withSettingsFooter(settingsLines, theme)
-						: [theme.fg("dim", formatFooter(activeTab))]),
-					rule(width, theme, "accent"),
-				].map((line) => truncateToWidth(line, width, ""));
-			},
-			invalidate: () => settingsList.invalidate(),
+			render: (width: number) => renderSettingsScreen(width, theme, options, settings, usageTab),
+			invalidate: () => settings.list.invalidate(),
 			handleInput: (data: string) => {
-				if (devicePickerOpen || contextWindowPickerOpen || retentionPickerOpen) {
-					settingsList.handleInput(data);
+				if (settings.pickerOpen) {
+					settings.list.handleInput(data);
 					tui.requestRender();
 					return;
 				}
 				if (matchesKey(data, Key.shift(Key.tab))) {
 					const currentIndex = SETTINGS_TABS.findIndex(
-						({ id }) => id === activeTab,
+						({ id }) => id === settings.activeTab,
 					);
 					activateTab(
 						SETTINGS_TABS[
@@ -372,7 +77,7 @@ export async function openCodexSettingsScreen(
 				}
 				if (matchesKey(data, Key.tab)) {
 					const currentIndex = SETTINGS_TABS.findIndex(
-						({ id }) => id === activeTab,
+						({ id }) => id === settings.activeTab,
 					);
 					activateTab(
 						SETTINGS_TABS[(currentIndex + 1) % SETTINGS_TABS.length]?.id ??
@@ -380,176 +85,11 @@ export async function openCodexSettingsScreen(
 					);
 					return;
 				}
-				if (activeTab === "about" && handleAboutTabInput(data, ctx)) return;
-				if (activeTab === "usage" && usageTab.handleInput(data)) return;
-				settingsList.handleInput?.(data);
+				if (settings.activeTab === "about" && handleAboutTabInput(data, ctx)) return;
+				if (settings.activeTab === "usage" && usageTab.handleInput(data)) return;
+				settings.list.handleInput?.(data);
 				tui.requestRender();
 			},
 		};
 	}).finally(() => usageAbort.abort());
-}
-
-function rule(
-	width: number,
-	theme: Theme,
-	color: "accent" | "borderMuted",
-): string {
-	return theme.fg(color, "─".repeat(Math.max(0, width)));
-}
-
-function formatTabs(activeTab: SettingsTab, theme: Theme): string {
-	return `  ${SETTINGS_TABS.map(({ id, label }) => (id === activeTab ? theme.bold(label) : theme.fg("dim", label))).join(`  ${theme.fg("dim", "/")}  `)}`;
-}
-
-function formatVoiceStatus(
-	theme: Theme,
-	lanVoice?: CodexLanVoiceServerStatus,
-): string[] {
-	return [
-		...(lanVoice?.running
-			? [
-					theme.fg("accent", "  LAN voice is running"),
-					...lanVoice.urls.map((url) => theme.fg("dim", `  ${url}`)),
-					theme.fg("dim", "  First visit: accept the local HTTPS certificate"),
-				]
-			: [
-					theme.fg(
-						"dim",
-						"  LAN voice serves this session only and stops when the session changes",
-					),
-				]),
-	];
-}
-
-function formatVoiceDetails(
-	theme: Theme,
-	config: CodexConversionConfig,
-	configPath: string,
-): string[] {
-	return [
-		theme.fg(
-			"dim",
-			`  Audio input: ${config.voice.inputDevice ?? "system default"}`,
-		),
-		theme.fg(
-			"dim",
-			`  Audio output: ${config.voice.outputDevice ?? "system default"}`,
-		),
-		theme.fg(
-			"dim",
-			`  Realtime voice: ${formatVoiceShortcut(config.voice.realtimeShortcut)}`,
-		),
-		theme.fg(
-			"dim",
-			`  Mute microphone: ${formatVoiceShortcut(config.voice.muteShortcut)}`,
-		),
-		theme.fg(
-			"dim",
-			`  Dictation: ${formatVoiceShortcut(config.voice.dictationShortcut)}`,
-		),
-		theme.fg(
-			"dim",
-			`  LAN server: ${formatVoiceShortcut(config.voice.serverShortcut)}`,
-		),
-		theme.fg(
-			"dim",
-			`  Change keybinds: ${configPath} (/reload to apply)`,
-		),
-		theme.fg(
-			"dim",
-			"  Voice context refresh uses the selected summarisation model",
-		),
-		"",
-		theme.fg(
-			"dim",
-			`  Realtime system prompt: ${getCodexVoiceSystemPromptPath()}`,
-		),
-		theme.fg(
-			"dim",
-			`  Folder-level: create ${CONFIG_DIR_NAME}/${REALTIME_SYSTEM_PROMPT_BASENAME} (appends to global)`,
-		),
-		theme.fg("dim", "  Realtime system prompt changelog:"),
-		theme.fg("dim", `  ${getCodexVoiceSystemPromptChangelogPath()}`),
-	];
-}
-
-function formatFooter(activeTab: SettingsTab): string {
-	if (activeTab === "usage")
-		return "  Tab/Shift+Tab sections · R refresh · Ctrl+R use reset · Esc close";
-	if (activeTab === "about")
-		return "  Tab/Shift+Tab to switch sections · G/C/D/I to open links · Esc to close";
-	return "  Tab/Shift+Tab to switch sections · Esc to close";
-}
-
-function withSettingsFooter(lines: string[], theme: Theme): string[] {
-	const next = [...lines];
-	for (let index = next.length - 1; index >= 0; index -= 1) {
-		if (next[index]?.includes("Enter/Space")) {
-			next[index] = theme.fg(
-				"dim",
-				"  Enter/Space to change · Esc to close · Tab/Shift+Tab to switch sections",
-			);
-			break;
-		}
-	}
-	return next;
-}
-
-function withConfigScopeDetails(
-	lines: string[],
-	theme: Theme,
-	scope: CodexConversionConfigScope,
-): string[] {
-	const next = [...lines];
-	const scopeIndex = next.findIndex((line) => line.includes("Editing"));
-	if (scopeIndex < 0) return next;
-	const detail = scope === "folder"
-		? "Changes here update this project."
-		: "Changes here update global settings.";
-	next.splice(scopeIndex + 1, 0, theme.fg("dim", "  " + detail));
-	return next;
-}
-
-function withContextPortabilityWarning(lines: string[], theme: Theme, width: number): string[] {
-	const wrap = (text: string) => wrapTextWithAnsi(text, Math.max(1, width - 2)).map((line) => "  " + line);
-	return [
-		...wrap("Switching providers?").map((line) => theme.fg("warning", theme.bold(line))),
-		...[
-			"Use Pi summary or Both for readable checkpoints when switching providers.",
-			"V2 checkpoints are encrypted for OpenAI; other providers cannot use them.",
-			"Convert existing V2-only history first: select Pi summary and run /compact on the original provider.",
-		].flatMap(wrap),
-		"",
-		...lines,
-	];
-}
-
-function formatToolsDetails(theme: Theme, configPath: string): string[] {
-	return [
-		theme.fg("dim", "  Custom native helper overrides:"),
-		theme.fg("dim", "  " + configPath),
-	];
-}
-
-function formatExecutionMode(mode: ExecutionMode): string {
-	if (mode === "js") return "JS Notebook";
-	if (mode === "ts") return "TS";
-	if (mode === "code") return "Code";
-	if (mode === "notebook") return "Notebook (recommended)";
-	return "Structured";
-}
-
-function parseExecutionMode(value: string): ExecutionMode {
-	if (value === "JS Notebook") return "js";
-	if (value === "TS") return "ts";
-	if (value === "Code") return "code";
-	if (value === "Notebook (recommended)") return "notebook";
-	return "normal";
-}
-
-function withSettingsDetails(lines: string[], details: string[]): string[] {
-	const next = [...lines];
-	const footerIndex = next.findIndex((line) => line.includes("Enter/Space"));
-	next.splice(footerIndex < 0 ? next.length : footerIndex, 0, ...details, "");
-	return next;
 }

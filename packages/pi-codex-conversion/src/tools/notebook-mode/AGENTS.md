@@ -4,6 +4,7 @@
 - Validate persisted identifiers/basenames before source injection or deletion. Manifest paths cannot escape their state directory.
 - Jupyter authenticates four JSON frames, not routing envelopes. Preserve empty/multipart and 64-bit ZMTP frames across TCP chunks. Bound lengths before allocation.
 - Deno idle can precede queued output and reattribute it to the next request. Keep collection open through the FIFO marker and drain idle, including after errors. Do not rewrite user source or add history for the drain.
+- `jupyter-kernel.ts` owns the active execution and terminal failure; `jupyter/connection.ts` owns process/socket cleanup and `shell-channel.ts` owns reply waiters. Report connection failure through the kernel before disposing; start the shell pump only after all three sockets connect.
 - Saved runtime versions are provenance, not restore/write gates. Let deserialization report incompatibility.
 - journal.ts appends events and rotates at the heap-derived budget, retaining one previous .ipynb. journal-document.ts materialises standard notebooks.
 - Journal retention is global to the agent directory, not folder-scoped. Re-read it at write boundaries so another session's Off cannot resurrect deleted journals. Journal cleanup must not affect saved bindings or restart the kernel.

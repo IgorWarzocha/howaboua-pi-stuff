@@ -24,11 +24,8 @@ import { type CodexTurnState, withCodexTurnState } from "./openai-codex/turn-sta
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
 import { assertRemoteDeliveryPairs } from "../tools/code-mode/protected-delivery-protocol.ts";
-import {
-	createCodexTransportStream,
-	getEffectiveCodexTransport,
-	type CodexProviderRuntimeConfig,
-} from "./openai-codex/transport-recovery.ts";
+import { createCodexTransportStream } from "./openai-codex/transport-recovery.ts";
+import { getEffectiveCodexTransport, type CodexProviderRuntimeConfig } from "./openai-codex/transport/request.ts";
 
 export { closeOpenAICodexWebSocketSessions };
 export type { ResponsesBody } from "./openai-codex/types.ts";

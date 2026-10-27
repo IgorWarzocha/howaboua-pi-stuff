@@ -5,4 +5,5 @@
 - Native compaction presentation is a custom entry: never route it through `sendMessage`, which can queue an empty continuation during auto-compaction.
 - Automatic compaction can resume without another agent_start. Preserve live delivery context through same-session transport resets; canonical summary requests must supply their own context.
 - Prewarm only final serialized requests. Pi exposes no supported way to rerun all context hooks during compaction; defer that warmup until the next real request. Run generic compaction preparations before provider work in either extension order.
+- `transport/runtime.ts` shares one ordinary/keepalive controller and settlement lane; the keepalive scheduler owns only its timer/epoch. Keep final-request capture after validation, and preserve the continuing request context across same-session window resets.
 - Notice renderers use Pi's theme tokens and expansion hooks. Summaries are user-facing metadata, not first-line previews of model content; provider-role promotion does not own their UI.

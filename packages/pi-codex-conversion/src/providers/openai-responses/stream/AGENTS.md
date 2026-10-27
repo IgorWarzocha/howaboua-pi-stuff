@@ -1,0 +1,1 @@
+- The stream loop owns one output-index map and unfinished-tool cleanup; item/delta handlers mutate that same map. Validate item identity before dispatch, and never let settlement or exceptions retain unfinished tool calls.
