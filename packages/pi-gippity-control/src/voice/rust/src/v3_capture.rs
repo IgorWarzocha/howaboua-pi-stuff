@@ -6,12 +6,12 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use crossbeam_queue::ArrayQueue;
+use rtc::media::Sample as MediaSample;
 use tokio::sync::{mpsc, oneshot};
-use webrtc::media::Sample as MediaSample;
-use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 use super::{
-    BRIDGE_RATE, OPUS_FRAME_SAMPLES, OPUS_RATE, report_terminal_error, with_send_deadline,
+    AudioSender, BRIDGE_RATE, OPUS_FRAME_SAMPLES, OPUS_RATE, report_terminal_error,
+    with_send_deadline,
 };
 use crate::audio::{self, SpeakerState};
 use crate::codex_audio::buffers::Frame;
@@ -70,7 +70,7 @@ impl InputControl {
 }
 
 pub(crate) fn spawn_device_encoder(
-    track: Arc<TrackLocalStaticSample>,
+    track: Arc<AudioSender>,
     device: DeviceEncoder,
     enabled: Arc<AtomicBool>,
     events: mpsc::Sender<Event>,
@@ -236,7 +236,7 @@ pub(crate) fn spawn_device_encoder(
 }
 
 pub(crate) fn spawn_bridge_encoder(
-    track: Arc<TrackLocalStaticSample>,
+    track: Arc<AudioSender>,
     samples: Arc<ArrayQueue<f32>>,
     generation: Arc<AtomicU64>,
     enabled: Arc<AtomicBool>,
@@ -340,14 +340,14 @@ fn new_opus_encoder() -> Result<opus::Encoder> {
 }
 
 async fn write_encoded(
-    track: &TrackLocalStaticSample,
+    track: &AudioSender,
     packet: EncodedAudio,
     events: &mpsc::Sender<Event>,
 ) -> Result<()> {
     let sample = MediaSample {
         data: Bytes::from(packet.data),
         duration: Duration::from_millis(20),
-        ..Default::default()
+        ..MediaSample::new(packet.at)
     };
     let send = track.write_sample(&sample);
     let failure = match with_send_deadline(send).await {

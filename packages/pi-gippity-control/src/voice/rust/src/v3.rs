@@ -4,31 +4,32 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::{Context, Result};
 use crossbeam_queue::ArrayQueue;
 use serde_json::Value;
-use tokio::sync::{mpsc, watch};
-use webrtc::api::APIBuilder;
-use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::MediaEngine;
-use webrtc::data_channel::RTCDataChannel;
-use webrtc::data_channel::data_channel_message::DataChannelMessage;
-use webrtc::interceptor::registry::Registry;
-use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::peer_connection::configuration::RTCConfiguration;
-use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+use tokio::sync::{Mutex, mpsc, watch};
+use tokio::task::JoinSet;
+use webrtc::data_channel::DataChannel;
+use webrtc::peer_connection::{
+    MediaEngine, PeerConnection, PeerConnectionBuilder, RTCSessionDescription, Registry,
+    register_default_interceptors,
+};
 
 use crate::audio::{self, Capture, Playback, SpeakerState};
-use crate::protocol::{Event, MAX_DATA_MESSAGE_BYTES};
+use crate::protocol::Event;
 use crate::v3_media::{
-    BRIDGE_RATE, DeviceEncoder, InputControl, OutputSink, create_audio_sender, register_playout,
+    BRIDGE_RATE, DeviceEncoder, InputControl, OutputSink, create_audio_sender,
     spawn_bridge_encoder, spawn_device_encoder,
 };
+
+#[path = "v3_events.rs"]
+mod peer_events;
+use peer_events::{PeerEvents, receive_data};
 
 const BRIDGE_INPUT_SECONDS: usize = 3;
 
 pub struct V3Session {
-    peer: Arc<RTCPeerConnection>,
-    data_channel: Arc<RTCDataChannel>,
-    rtcp_task: tokio::task::JoinHandle<()>,
+    peer: Arc<dyn PeerConnection>,
+    data_channel: Arc<dyn DataChannel>,
+    workers: Arc<Mutex<JoinSet<()>>>,
+    closing: Arc<AtomicBool>,
     encoder_task: tokio::task::JoinHandle<()>,
     input: InputControl,
     speaker: Arc<SpeakerState>,
@@ -65,79 +66,67 @@ impl V3Session {
         playback: Option<Playback>,
         bridge_input: Option<Arc<ArrayQueue<f32>>>,
     ) -> Result<(Self, String)> {
-        let mut media_engine = MediaEngine::default();
-        media_engine.register_default_codecs()?;
-        let registry = register_default_interceptors(Registry::new(), &mut media_engine)?;
-        let api = APIBuilder::new()
-            .with_media_engine(media_engine)
-            .with_interceptor_registry(registry)
-            .build();
-        let peer = Arc::new(api.new_peer_connection(RTCConfiguration::default()).await?);
-
-        let (track, rtcp_task) = create_audio_sender(&peer).await?;
-
-        let input_enabled = Arc::new(AtomicBool::new(false));
-        let data_channel = peer.create_data_channel("oai-events", None).await?;
-        let open_events = events.clone();
-        let open_input = Arc::clone(&input_enabled);
-        data_channel.on_open(Box::new(move || {
-            let open_events = open_events.clone();
-            let open_input = Arc::clone(&open_input);
-            Box::pin(async move {
-                open_input.store(true, Ordering::Release);
-                let _ = open_events.send(Event::State { state: "ready" }).await;
-            })
-        }));
-        let message_events = events.clone();
-        data_channel.on_message(Box::new(move |message: DataChannelMessage| {
-            let message_events = message_events.clone();
-            Box::pin(async move {
-                if message.data.len() > MAX_DATA_MESSAGE_BYTES {
-                    return;
-                }
-                match serde_json::from_slice::<Value>(&message.data) {
-                    Ok(message) => {
-                        let _ = message_events.send(Event::Data { message }).await;
-                    }
-                    Err(error) => {
-                        let _ = message_events
-                            .send(Event::Error {
-                                message: format!("invalid realtime data event: {error}"),
-                            })
-                            .await;
-                    }
-                }
-            })
-        }));
-        let state_events = events.clone();
-        peer.on_peer_connection_state_change(Box::new(move |state: RTCPeerConnectionState| {
-            let state_events = state_events.clone();
-            Box::pin(async move {
-                let state = match state {
-                    RTCPeerConnectionState::Connected => Some("connected"),
-                    RTCPeerConnectionState::Disconnected => Some("disconnected"),
-                    RTCPeerConnectionState::Failed => Some("failed"),
-                    RTCPeerConnectionState::Closed => Some("closed"),
-                    _ => None,
-                };
-                if let Some(state) = state {
-                    let _ = state_events.send(Event::State { state }).await;
-                }
-            })
-        }));
-
         let speaker = playback
             .as_ref()
             .map(|playback| Arc::clone(&playback.state))
             .unwrap_or_else(|| Arc::new(SpeakerState::new()));
         let (speaker_tx, speaker_rx) = watch::channel(speaker.get());
-        register_playout(
-            &peer,
+        let workers = Arc::new(Mutex::new(JoinSet::new()));
+        let closing = Arc::new(AtomicBool::new(false));
+        let (gather_tx, mut gather_rx) = mpsc::channel(1);
+        let handler = Arc::new(PeerEvents {
+            events: events.clone(),
+            gather_tx,
             output,
-            events.clone(),
-            Arc::clone(&speaker),
-            speaker_rx,
+            speaker: Arc::clone(&speaker),
+            controls: speaker_rx,
+            workers: Arc::clone(&workers),
+            closing: Arc::clone(&closing),
+        });
+        let mut media_engine = MediaEngine::default();
+        media_engine.register_default_codecs()?;
+        let registry = register_default_interceptors(Registry::new(), &mut media_engine)?;
+        let peer: Arc<dyn PeerConnection> = Arc::new(
+            PeerConnectionBuilder::new()
+                .with_media_engine(media_engine)
+                .with_interceptor_registry(registry)
+                .with_handler(handler)
+                .with_udp_addrs(vec!["0.0.0.0:0"])
+                .build()
+                .await?,
         );
+
+        // No application workers start until offer creation succeeds.
+        let setup: Result<_> = async {
+            let track = create_audio_sender(&peer).await?;
+            let data_channel = peer.create_data_channel("oai-events", None).await?;
+            let offer = peer.create_offer(None).await?;
+            peer.set_local_description(offer).await?;
+            gather_rx
+                .recv()
+                .await
+                .context("WebRTC ICE gathering stopped")?;
+            let sdp = peer
+                .local_description()
+                .await
+                .context("WebRTC offer was not created")?
+                .sdp;
+            Ok((track, data_channel, sdp))
+        }
+        .await;
+        let (track, data_channel, sdp) = match setup {
+            Ok(setup) => setup,
+            Err(error) => {
+                let _ = peer.close().await;
+                return Err(error);
+            }
+        };
+        let input_enabled = Arc::new(AtomicBool::new(false));
+        workers.lock().await.spawn(receive_data(
+            Arc::clone(&data_channel),
+            Arc::clone(&input_enabled),
+            events.clone(),
+        ));
 
         let (input, encoder_task) = if let Some(capture) = &capture {
             let playback = playback
@@ -172,20 +161,12 @@ impl V3Session {
             )
         };
 
-        let offer = peer.create_offer(None).await?;
-        let mut gather = peer.gathering_complete_promise().await;
-        peer.set_local_description(offer).await?;
-        gather.recv().await;
-        let sdp = peer
-            .local_description()
-            .await
-            .context("WebRTC offer was not created")?
-            .sdp;
         Ok((
             Self {
                 peer,
                 data_channel,
-                rtcp_task,
+                workers,
+                closing,
                 encoder_task,
                 input,
                 speaker,
@@ -207,7 +188,7 @@ impl V3Session {
 
     pub async fn send(&self, message: Value) -> Result<()> {
         self.data_channel
-            .send_text(serde_json::to_string(&message)?)
+            .send_text(&serde_json::to_string(&message)?)
             .await?;
         Ok(())
     }
@@ -251,10 +232,15 @@ impl V3Session {
     }
 
     pub async fn close(self) -> Result<()> {
-        self.rtcp_task.abort();
+        self.closing.store(true, Ordering::Release);
         self.encoder_task.abort();
-        let _ = self.rtcp_task.await;
         let _ = self.encoder_task.await;
+        // An orderly peer close ends remote tracks. Stop consumers first so
+        // that lifecycle event cannot be reported as an audio failure.
+        let mut workers = self.workers.lock().await;
+        workers.abort_all();
+        while workers.join_next().await.is_some() {}
+        drop(workers);
         self.peer.close().await?;
         Ok(())
     }
