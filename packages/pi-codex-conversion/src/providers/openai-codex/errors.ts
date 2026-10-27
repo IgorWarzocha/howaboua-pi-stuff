@@ -138,10 +138,6 @@ export function isTerminalRateLimitError(errorText: string): boolean {
 	return TERMINAL_RATE_LIMIT_PATTERN.test(errorText);
 }
 
-export function isRetryableRequestStatus(status: number): boolean {
-	return status >= 500 && status <= 599;
-}
-
 export function isRetryableStreamStatus(status: number): boolean {
 	return (status < 200 || status >= 300) && status !== 400 && status !== 401 && status !== 429;
 }

@@ -17,8 +17,8 @@ import {
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { nativeCompactionConfigured } from "../../adapter/activation/runtime-plan.ts";
 import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
-import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, DEFAULT_TRANSPORT_RECOVERY_BUDGET_MS, MAX_WEBSOCKET_RECOVERY_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
-import { codexRetryAfterDeadline, createErrorMessage, isRetryableRequestStatus, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
+import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, DEFAULT_TRANSPORT_RECOVERY_BUDGET_MS, MAX_WEBSOCKET_RECOVERY_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
+import { codexRetryAfterDeadline, createErrorMessage, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
 import { buildSSEHeaders, buildWebSocketHeaders, createCodexRequestId, extractAccountId, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./headers.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { supportsResponsesLiteModel } from "./responses-lite-model.ts";
@@ -115,73 +115,54 @@ async function openCodexSSE<TApi extends Api>(
 	baseHeaders: Headers,
 	options: OpenAICodexStreamOptions | undefined,
 	turnState: CodexTurnState | undefined,
-	waitBeforeRetry: (error: unknown, retryCount: number) => Promise<void>,
 	startAttempt: () => CodexAttemptTiming,
 ): Promise<Response> {
-	let lastError: Error | undefined;
-	const maxRetries = options?.maxRetries === undefined
-		? MAX_SSE_REQUEST_RETRIES
-		: Math.min(codexStreamMaxRetries(options), MAX_SSE_REQUEST_RETRIES);
-	for (let attempt = 0; attempt <= maxRetries; attempt++) {
-		if (options?.signal?.aborted) throw new Error("Request was aborted");
-		const timing = startAttempt();
-		const headerTimeout = createSSEHeaderTimeout(DEFAULT_SSE_HEADER_TIMEOUT_MS);
-		const combinedSignal = combineAbortSignals([options?.signal, headerTimeout.signal]);
-		let response: Response;
+	// The logical stream loop owns retries, including failures before headers.
+	if (options?.signal?.aborted) throw new Error("Request was aborted");
+	const timing = startAttempt();
+	const headerTimeout = createSSEHeaderTimeout(DEFAULT_SSE_HEADER_TIMEOUT_MS);
+	const combinedSignal = combineAbortSignals([options?.signal, headerTimeout.signal]);
+	let response: Response;
+	try {
 		try {
-			try {
-				timing.sent();
-				response = await (options?.fetch ?? fetch)(resolveCodexUrl(model.baseUrl), {
-					method: "POST",
-					headers: withCodexTurnStateHeader(baseHeaders, turnState),
-					body,
-					signal: combinedSignal.signal,
-				});
-			} catch (error) {
-				const timeoutError = headerTimeout.error();
-				throw timeoutError && !options?.signal?.aborted ? timeoutError : error;
-			} finally {
-				headerTimeout.clear();
-			}
+			timing.sent();
+			response = await (options?.fetch ?? fetch)(resolveCodexUrl(model.baseUrl), {
+				method: "POST",
+				headers: withCodexTurnStateHeader(baseHeaders, turnState),
+				body,
+				signal: combinedSignal.signal,
+			});
 		} catch (error) {
-			combinedSignal.cleanup();
-			timing.finish(options?.signal?.aborted ? "aborted" : "failed");
-			if (error instanceof Error && (error.name === "AbortError" || error.message === "Request was aborted")) {
-				throw new Error("Request was aborted");
-			}
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (attempt < maxRetries) {
-				await waitBeforeRetry(lastError, attempt + 1);
-				continue;
-			}
-			throw lastError;
+			const timeoutError = headerTimeout.error();
+			throw timeoutError && !options?.signal?.aborted ? timeoutError : error;
 		} finally {
 			headerTimeout.clear();
 		}
-
-		try {
-			const retryAfter = codexRetryAfterDeadline(response.headers);
-			if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
-			await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
-			if (response.ok) return response;
-
-			const info = await parseErrorResponse(response, combinedSignal.signal);
-			const message = info.friendlyMessage || info.message;
-			const error = createCodexHttpError(message, info.code, response.status, retryAfter);
-			timing.finish("failed");
-			if (isCodexOverloadError(error)) throw error;
-			const requestRetryable = isRetryableRequestStatus(response.status) && isRetryableCodexStreamError(error);
-			if (requestRetryable && attempt < maxRetries) {
-				combinedSignal.cleanup();
-				await waitBeforeRetry(error, attempt + 1);
-				continue;
-			}
-			throw error;
-		} finally {
-			combinedSignal.cleanup();
+	} catch (error) {
+		combinedSignal.cleanup();
+		timing.finish(options?.signal?.aborted ? "aborted" : "failed");
+		if (error instanceof Error && (error.name === "AbortError" || error.message === "Request was aborted")) {
+			throw new Error("Request was aborted");
 		}
+		throw error;
+	} finally {
+		headerTimeout.clear();
 	}
-	throw lastError ?? new Error("Failed after retries");
+
+	try {
+		const retryAfter = codexRetryAfterDeadline(response.headers);
+		if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
+		await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
+		if (response.ok) return response;
+
+		const info = await parseErrorResponse(response, combinedSignal.signal);
+		const message = info.friendlyMessage || info.message;
+		const error = createCodexHttpError(message, info.code, response.status, retryAfter);
+		timing.finish("failed");
+		throw error;
+	} finally {
+		combinedSignal.cleanup();
+	}
 }
 
 export function createCodexTransportStream<TApi extends Api>(
@@ -354,6 +335,9 @@ export function createCodexTransportStream<TApi extends Api>(
 				const retrySignal = recoverySignal();
 				try {
 					await sleep(delayMs, retrySignal?.signal ?? callerSignal);
+				} catch (error) {
+					if (!callerSignal?.aborted && recoveryExpired()) throw recoveryDeadlineError();
+					throw error;
 				} finally {
 					retrySignal?.cleanup();
 				}
@@ -494,8 +478,6 @@ export function createCodexTransportStream<TApi extends Api>(
 				}
 			}
 
-			// Preparation can discover incompatibility before the live WebSocket send.
-			if (effectiveTransport !== "sse" && transport === "sse") startTransportRecovery();
 			const sseIdleTimeoutMs = normalizeTimeoutMs(effectiveOptions?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
 			for (let attempt = 0; attempt <= streamMaxRetries; attempt++) {
 				if (attempt > 0) output = createInitialAssistantMessage(model);
@@ -516,12 +498,7 @@ export function createCodexTransportStream<TApi extends Api>(
 							sentInputItems: body.input.length,
 						});
 					}
-					const response = await openCodexSSE(model, sseBody, baseSseHeaders, sseOptions, deps.turnState, async (error, retryCount) => {
-						const plan = planRetry(error, retryCount);
-						diagnostics?.({ type: "retry", lane, transport: "sse", attempt: requestTiming.nextAttempt,
-							...(plan.delayMs !== undefined ? { delayMs: plan.delayMs } : {}), failure: codexDiagnosticsFailure(error) });
-						await waitBeforeRetry(error, retryCount, plan);
-					}, () => {
+					const response = await openCodexSSE(model, sseBody, baseSseHeaders, sseOptions, deps.turnState, () => {
 						timing = requestTiming.start(lane, "sse");
 						diagnostics?.({
 							type: "request",
@@ -588,6 +565,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						throw deadlineError;
 					}
 					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
+					if (retryable) startTransportRecovery();
 					const retryPlan = planRetry(error, attempt + 1);
 					const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
 					const adviceBudgetExhausted = retryPlan.adviceBudgetExhausted;
@@ -616,9 +594,6 @@ export function createCodexTransportStream<TApi extends Api>(
 						throw retryAdviceRecoveryBudgetError(error);
 					}
 					recordFailure("sse", error);
-					if (retryable && recoveryDeadlineAt !== undefined) {
-						throw new NonRetryableProviderError("Codex WebSocket recovery and SSE fallback did not complete a response. Retry the request.");
-					}
 					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");
 					throw error;
 				} finally {
