@@ -1,4 +1,4 @@
-export function diagnosticSession(
+function diagnosticSession(
 	value: unknown,
 ): Record<string, unknown> | undefined {
 	if (!value || typeof value !== "object" || Array.isArray(value))
@@ -20,7 +20,7 @@ export function diagnosticSession(
 	);
 }
 
-export function diagnosticToolFields(value: unknown): Record<string, unknown> {
+function diagnosticToolFields(value: unknown): Record<string, unknown> {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 	const item = value as Record<string, unknown>;
 	return Object.fromEntries(
