@@ -120,7 +120,7 @@ export class TsStateLifecycle {
 	}
 }
 
-function formatSkipped(capture: PortableCapture): string {
+export function formatSkipped(capture: PortableCapture): string {
 	return capture.skipped.length ? `\nLive-only bindings not saved: ${capture.skipped.map(({ name, reason }) => `${name} (${reason})`).join("; ")}` : "";
 }
 

@@ -7,7 +7,7 @@ import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.
 import type { CodeModeToolDefinition, NotebookControlRequest, NotebookControlResult, RuntimeResponse, ToolExecutionContext } from "../code-mode/types.ts";
 import { NotebookCell } from "../notebook-mode/cell.ts";
 import { notebookSessionIdentity } from "../notebook-mode/session-identity.ts";
-import { selectProjectPins, TsStateLifecycle } from "./lifecycle.ts";
+import { formatSkipped, selectProjectPins, TsStateLifecycle } from "./lifecycle.ts";
 import { bindingDependencies, compactState, emptyState, type BindingRecipe, type PortableCapture, type PortableState } from "./portable-state.ts";
 import { TsStateStorage } from "./state-storage.ts";
 import { TsSessionCompilation } from "./session-compilation.ts";
@@ -211,6 +211,7 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 				compactState(candidate);
 				await this.storage?.write(candidate);
 				this.durable = candidate;
+				if (outcome.kind === "live-done" && outcome.skipped.length) cell.emit([{ type: "input_text", text: formatSkipped(outcome).trimStart() }]);
 				const notice = await this.syncProject();
 				if (notice) cell.emit([{ type: "input_text", text: notice }]);
 			});
