@@ -6,51 +6,23 @@ import {
 	activityAttemptId,
 	activityExpectedUser,
 	activityTask,
-	isSettledStatus,
-} from "./activity.js";
-import { getAgent, getSnapshot, sessionPath } from "./herdr.js";
-import type { HerdrConnection } from "./herdr-client.js";
-import { injectAgentEvent } from "./messages.js";
-import type { MonitorState, WorkAttempt } from "./monitor-state.js";
-import { type AssistantReader, SessionReader } from "./session-reader.js";
+} from "../activity.js";
+import type { HerdrConnection } from "../herdr-client.js";
+import type { MonitorState, WorkAttempt } from "../monitor-state.js";
+import type { AssistantReader } from "../session-reader.js";
 import type {
-	ExtensionMessage,
 	ExtensionReply,
 	LatestAssistant,
 	MonitoredAgent,
 	PaneInfo,
 	SessionView,
 	SettledAgentStatus,
-} from "./types.js";
+} from "../types.js";
+import { blockedSettlement, SettlementCollector } from "./collector.js";
+import { SettlementDelivery } from "./delivery.js";
 
-interface SettlementLabels {
-	tab?: string;
-	workspace?: string;
-}
-
-interface CollectedSettlement {
-	agent: PaneInfo;
-	extensionMessages?: ExtensionMessage[];
-	labels: SettlementLabels;
-	reply?: LatestAssistant;
-	status: SettledAgentStatus;
-}
-
-interface CollectedSettlementWithSession extends CollectedSettlement {
-	session: SessionView;
-}
-
-export interface ClaimedSettlement extends CollectedSettlement {
-	blockedMessage?: string;
-	record: MonitoredAgent;
-}
-
-interface SettlementClaim {
-	replyingTo?: ExtensionReply;
-	cleanup(): void;
-	reject(error: Error): void;
-	resolve(settlement: ClaimedSettlement): void;
-}
+export type { ClaimedSettlement } from "./delivery.js";
+export { SettlementCollector };
 
 interface SettlementRetry {
 	attemptId: string | undefined;
@@ -64,26 +36,6 @@ const SETTLEMENT_RETRY_WINDOW_SECONDS = Math.ceil(
 
 function attemptKey(terminalId: string, attemptId: string | undefined): string {
 	return JSON.stringify([terminalId, attemptId ?? null]);
-}
-
-function blockedSettlement(
-	record: MonitoredAgent,
-): CollectedSettlementWithSession {
-	return {
-		agent: {
-			agent: "pi",
-			agent_status: "blocked",
-			...(record.cwd ? { cwd: record.cwd } : {}),
-			...(record.name ? { name: record.name } : {}),
-			pane_id: record.paneId,
-			tab_id: record.tabId,
-			terminal_id: record.terminalId,
-			workspace_id: record.workspaceId,
-		},
-		labels: {},
-		session: {},
-		status: "blocked",
-	};
 }
 
 export interface SettlementRequest {
@@ -106,91 +58,12 @@ interface PendingBlockedSettlement {
 	retry?: SettlementRetry;
 }
 
-export class SettlementCollector {
-	private readonly client: HerdrConnection;
-	private readonly reader: AssistantReader;
-
-	constructor(
-		client: HerdrConnection,
-		reader: AssistantReader = new SessionReader(),
-	) {
-		this.client = client;
-		this.reader = reader;
-	}
-
-	async latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
-		try {
-			return await this.reader.latest(sessionPath(panel));
-		} catch (error) {
-			if (panel.agent_status !== "blocked") throw error;
-			return undefined;
-		}
-	}
-
-	view(panel: PaneInfo): Promise<SessionView> {
-		return this.reader.view(sessionPath(panel));
-	}
-
-	async collect(
-		record: MonitoredAgent,
-		reportedStatus?: "blocked",
-	): Promise<CollectedSettlementWithSession | undefined> {
-		const [current, snapshot] = await Promise.all([
-			getAgent(this.client, record.paneId),
-			getSnapshot(this.client),
-		]);
-		if (current.terminal_id !== record.terminalId || current.agent !== "pi") {
-			return reportedStatus === "blocked"
-				? blockedSettlement(record)
-				: undefined;
-		}
-		const status =
-			reportedStatus ??
-			(isSettledStatus(current.agent_status)
-				? current.agent_status
-				: undefined);
-		if (!status) return undefined;
-		let view: SessionView;
-		try {
-			view = await this.reader.view(sessionPath(current));
-		} catch (error) {
-			if (status !== "blocked") throw error;
-			view = {};
-		}
-		const workspace = snapshot.workspaces.find(
-			(candidate) => candidate.workspace_id === current.workspace_id,
-		)?.label;
-		const tab = snapshot.tabs.find(
-			(candidate) => candidate.tab_id === current.tab_id,
-		)?.label;
-		return {
-			agent: current,
-			labels: {
-				...(workspace ? { workspace } : {}),
-				...(tab ? { tab } : {}),
-			},
-			...(view.assistant ? { reply: view.assistant } : {}),
-			...(view.extensionMessages
-				? { extensionMessages: view.extensionMessages }
-				: {}),
-			session: view,
-			status,
-		};
-	}
-}
-
 export class SettlementReporter {
 	private readonly collector: SettlementCollector;
 	private readonly persist: () => void;
-	private readonly pi: ExtensionAPI;
-	private readonly origin: {
-		machine: string;
-		label: () => string;
-		operatorPrefix: string;
-	};
 	private readonly reporting = new Map<string, SettledAgentStatus>();
 	private readonly pendingBlocked = new Map<string, PendingBlockedSettlement>();
-	private readonly claims = new Map<string, SettlementClaim>();
+	private readonly delivery: SettlementDelivery;
 	private readonly retries = new Map<string, NodeJS.Timeout>();
 	private readonly state: MonitorState;
 
@@ -202,11 +75,10 @@ export class SettlementReporter {
 		reader: AssistantReader | undefined,
 		origin: { machine: string; label: () => string; operatorPrefix: string },
 	) {
-		this.pi = pi;
+		this.delivery = new SettlementDelivery(pi, origin);
 		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
-		this.origin = origin;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -220,11 +92,7 @@ export class SettlementReporter {
 	stop(): void {
 		this.reporting.clear();
 		this.pendingBlocked.clear();
-		for (const claim of this.claims.values()) {
-			claim.cleanup();
-			claim.reject(new Error("Shepherdr monitor stopped"));
-		}
-		this.claims.clear();
+		this.delivery.stop();
 		for (const timer of this.retries.values()) clearTimeout(timer);
 		this.retries.clear();
 	}
@@ -233,51 +101,15 @@ export class SettlementReporter {
 		attempt: WorkAttempt,
 		signal: AbortSignal,
 		replyingTo?: ExtensionReply,
-	): Promise<ClaimedSettlement> | undefined {
-		signal.throwIfAborted();
-		// Updates share the worker's current settlement, without stealing its waiter.
-		if (this.claims.has(attempt.attemptId)) return;
-		return new Promise<ClaimedSettlement>((resolve, reject) => {
-			const abort = () => {
-				const claim = this.claims.get(attempt.attemptId);
-				if (!claim) return;
-				this.claims.delete(attempt.attemptId);
-				claim.cleanup();
-				reject(
-					signal.reason instanceof Error
-						? signal.reason
-						: new Error("Shepherdr wait aborted"),
-				);
-			};
-			const claim: SettlementClaim = {
-				...(replyingTo ? { replyingTo } : {}),
-				cleanup: () => signal.removeEventListener("abort", abort),
-				reject,
-				resolve,
-			};
-			this.claims.set(attempt.attemptId, claim);
-			signal.addEventListener("abort", abort, { once: true });
-		});
+	) {
+		return this.delivery.claim(attempt, signal, replyingTo);
 	}
-
-	releaseClaim(attempt: WorkAttempt | undefined, error: unknown): void {
-		if (!attempt) return;
-		this.releaseAttempt(attempt.attemptId, error);
+	releaseClaim(attempt: WorkAttempt | undefined, error: unknown) {
+		this.delivery.releaseClaim(attempt, error);
 	}
-
-	releaseAgentClaim(record: MonitoredAgent, error: unknown): void {
-		const attemptId = activityAttemptId(record.activity);
-		if (attemptId) this.releaseAttempt(attemptId, error);
+	releaseAgentClaim(record: MonitoredAgent, error: unknown) {
+		this.delivery.releaseAgentClaim(record, error);
 	}
-
-	private releaseAttempt(attemptId: string, error: unknown): void {
-		const claim = this.claims.get(attemptId);
-		if (!claim) return;
-		this.claims.delete(attemptId);
-		claim.cleanup();
-		claim.reject(error instanceof Error ? error : new Error(String(error)));
-	}
-
 	async report(
 		lifecycle: SettlementLifecycle,
 		request: SettlementRequest,
@@ -306,7 +138,7 @@ export class SettlementReporter {
 		this.reporting.set(key, request.status);
 		try {
 			const replyingTo = retryState.attemptId
-				? this.claims.get(retryState.attemptId)?.replyingTo
+				? this.delivery.replyingTo(retryState.attemptId)
 				: undefined;
 			const settlement = await this.collector.collect(
 				request.record,
@@ -322,7 +154,7 @@ export class SettlementReporter {
 			) {
 				if (request.status !== "blocked") return;
 				this.clearRetry(request.record.terminalId, retryState.attemptId);
-				this.deliverSettlement(
+				this.delivery.deliverSettlement(
 					lifecycle,
 					request.record,
 					settlement,
@@ -405,7 +237,7 @@ export class SettlementReporter {
 			) {
 				this.clearRetry(current.terminalId, retryState.attemptId);
 				this.persist();
-				this.deliverSettlement(
+				this.delivery.deliverSettlement(
 					lifecycle,
 					current,
 					settlement,
@@ -430,7 +262,7 @@ export class SettlementReporter {
 					) {
 						this.persist();
 					}
-					this.deliverSettlement(
+					this.delivery.deliverSettlement(
 						lifecycle,
 						currentOwnsAttempt ? current : request.record,
 						blockedSettlement(current),
@@ -471,48 +303,6 @@ export class SettlementReporter {
 				void this.report(pending.lifecycle, pending.request, pending.retry);
 			}
 		}
-	}
-
-	private deliverSettlement(
-		lifecycle: SettlementLifecycle,
-		record: MonitoredAgent,
-		settlement: CollectedSettlementWithSession,
-		attemptId: string | undefined,
-		blockedMessage: string | undefined,
-		reply: LatestAssistant | undefined,
-	): void {
-		const claim = attemptId ? this.claims.get(attemptId) : undefined;
-		if (claim && attemptId) {
-			this.claims.delete(attemptId);
-			claim.cleanup();
-			const {
-				reply: _latestReply,
-				session: _session,
-				...claimedSettlement
-			} = settlement;
-			claim.resolve({
-				...claimedSettlement,
-				record,
-				...(blockedMessage ? { blockedMessage } : {}),
-				...(reply ? { reply } : {}),
-			});
-			return;
-		}
-		injectAgentEvent(this.pi, lifecycle.context, {
-			agent: settlement.agent,
-			agentToolName: "agents",
-			...(settlement.extensionMessages
-				? { extensionMessages: settlement.extensionMessages }
-				: {}),
-			machine: this.origin.machine,
-			machineLabel: this.origin.label(),
-			operatorPrefix: this.origin.operatorPrefix,
-			...(blockedMessage ? { blockedMessage } : {}),
-			labels: settlement.labels,
-			record,
-			...(reply ? { reply } : {}),
-			status: settlement.status,
-		});
 	}
 
 	private clearRetry(terminalId: string, attemptId: string | undefined): void {
@@ -580,7 +370,7 @@ export class SettlementReporter {
 			" after " +
 			SETTLEMENT_RETRY_WINDOW_SECONDS +
 			" seconds";
-		if (attemptId) this.releaseAttempt(attemptId, new Error(message));
+		if (attemptId) this.delivery.releaseAttempt(attemptId, new Error(message));
 		lifecycle.context.ui.notify(message, "warning");
 	}
 }

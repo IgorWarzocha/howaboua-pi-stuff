@@ -1,7 +1,7 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { BoardParameters } from "./contract.js";
 import { serializeBoardToolResult } from "./response.js";
-import type { BoardRuntime } from "./runtime.js";
+import type { BoardRuntime } from "./runtime/coordinator.js";
 
 export function createBoardTool(board: BoardRuntime) {
 	return defineTool({

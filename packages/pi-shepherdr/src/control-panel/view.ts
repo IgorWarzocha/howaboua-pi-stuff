@@ -14,14 +14,14 @@ import {
 	truncateToWidth,
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import type { PanelActions } from "./control-panel-actions.js";
+import type { SshSetupDraft } from "../ssh-setup.js";
+import type { PanelActions } from "./actions.js";
 import {
 	buildPanelItems,
 	type PanelOwners,
 	type PanelTab,
 	PANEL_TABS as TABS,
-} from "./control-panel-items.js";
-import type { SshSetupDraft } from "./ssh-setup.js";
+} from "./items.js";
 
 const LIST_ROWS = 8;
 

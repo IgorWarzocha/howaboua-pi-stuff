@@ -5,7 +5,7 @@ import type {
 import { isSettledStatus } from "./activity.js";
 import { getSnapshot } from "./herdr.js";
 import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
-import { injectAgentEvent } from "./messages.js";
+import { injectAgentEvent } from "./messages/events.js";
 import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
 import { MonitorExtensionMessages } from "./monitor-extension-messages.js";
@@ -15,7 +15,7 @@ import {
 	type ClaimedSettlement,
 	SettlementReporter,
 	type SettlementRequest,
-} from "./settlement.js";
+} from "./settlement/index.js";
 import type {
 	ExtensionReply,
 	HerdrEvent,

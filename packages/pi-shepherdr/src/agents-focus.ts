@@ -7,7 +7,7 @@ import {
 	recordContextBriefing,
 	registerContextBriefing,
 } from "@howaboua/pi-agent-board/integration";
-import type { AgentFleet, ConnectedMachine } from "./fleet.js";
+import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import {
 	getAgent,
 	getCurrentPane,
@@ -15,7 +15,7 @@ import {
 	sessionPath,
 } from "./herdr.js";
 import { isDispatchRejected } from "./herdr-client.js";
-import { focusArrivalContent } from "./messages.js";
+import { focusArrivalContent } from "./messages/focus.js";
 import type { FocusRequest, PaneInfo } from "./types.js";
 import { activeVoiceService, observeVoiceTransfer } from "./voice-handoff.js";
 

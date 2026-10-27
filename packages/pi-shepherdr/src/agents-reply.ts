@@ -5,7 +5,7 @@ import {
 	settlementResult,
 	toolResult,
 } from "./agents-work.js";
-import type { ConnectedMachine } from "./fleet.js";
+import type { ConnectedMachine } from "./fleet/index.js";
 import type { PaneInfo } from "./types.js";
 
 export async function replyAgent(

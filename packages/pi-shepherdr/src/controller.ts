@@ -8,10 +8,13 @@ import {
 	recordContextBriefing,
 	registerContextBriefing,
 } from "@howaboua/pi-agent-board/integration";
-import { controlPanelStatus, openControlPanel } from "./control-panel.js";
+import { controlPanelStatus, openControlPanel } from "./control-panel/index.js";
 import { sendPolicyMessage } from "./delivery.js";
-import type { AgentFleet } from "./fleet.js";
-import { activeAgentsBriefing, orchestrationGuidance } from "./messages.js";
+import type { AgentFleet } from "./fleet/index.js";
+import {
+	activeAgentsBriefing,
+	orchestrationGuidance,
+} from "./messages/guidance.js";
 import type { createPeerCommands } from "./peer-commands.js";
 import { loadAgentProfiles } from "./profiles.js";
 

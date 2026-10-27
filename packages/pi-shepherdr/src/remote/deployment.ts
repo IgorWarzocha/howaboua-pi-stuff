@@ -1,7 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { SshMachine } from "./machine-catalog.js";
+import type { SshMachine } from "../machine-catalog.js";
 
 export const BRIDGE_VERSION = 22;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
@@ -150,28 +150,22 @@ export async function connectRemoteBridge(
 		checkpointSource,
 		sessionWatchSource,
 	] = await Promise.all([
-		readFile(fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url))),
+		readFile(fileURLToPath(new URL("./shepherdr.mjs", import.meta.url))),
+		readFile(fileURLToPath(new URL("./shepherdr-peer.mjs", import.meta.url))),
 		readFile(
-			fileURLToPath(new URL("./remote/shepherdr-peer.mjs", import.meta.url)),
+			fileURLToPath(new URL("./shepherdr-channel.mjs", import.meta.url)),
 		),
 		readFile(
-			fileURLToPath(new URL("./remote/shepherdr-channel.mjs", import.meta.url)),
+			fileURLToPath(new URL("./shepherdr-session.mjs", import.meta.url)),
 		),
 		readFile(
-			fileURLToPath(new URL("./remote/shepherdr-session.mjs", import.meta.url)),
+			fileURLToPath(new URL("./shepherdr-context.mjs", import.meta.url)),
 		),
 		readFile(
-			fileURLToPath(new URL("./remote/shepherdr-context.mjs", import.meta.url)),
+			fileURLToPath(new URL("./shepherdr-checkpoints.mjs", import.meta.url)),
 		),
 		readFile(
-			fileURLToPath(
-				new URL("./remote/shepherdr-checkpoints.mjs", import.meta.url),
-			),
-		),
-		readFile(
-			fileURLToPath(
-				new URL("./remote/shepherdr-session-watch.mjs", import.meta.url),
-			),
+			fileURLToPath(new URL("./shepherdr-session-watch.mjs", import.meta.url)),
 		),
 	]);
 	await deploy(config, peerSource, REMOTE_PEER_HELPER);

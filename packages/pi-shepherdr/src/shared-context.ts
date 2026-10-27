@@ -14,7 +14,7 @@ import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
 import { Identity } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
-import type { AgentFleet } from "./fleet.js";
+import type { AgentFleet } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import {
 	requestContext,

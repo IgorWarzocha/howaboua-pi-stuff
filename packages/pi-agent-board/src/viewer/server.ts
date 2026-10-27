@@ -15,6 +15,11 @@ export const PROTOCOL = "pi-board-viewer/1";
 const assets = new Map<string, readonly [string, string]>([
 	["/", ["web/index.html", "text/html; charset=utf-8"]],
 	["/app.js", ["web/app.js", "text/javascript; charset=utf-8"]],
+	["/session.js", ["web/session.js", "text/javascript; charset=utf-8"]],
+	["/posts.js", ["web/posts.js", "text/javascript; charset=utf-8"]],
+	["/render.js", ["web/render.js", "text/javascript; charset=utf-8"]],
+	["/navigation.js", ["web/navigation.js", "text/javascript; charset=utf-8"]],
+	["/updates.js", ["web/updates.js", "text/javascript; charset=utf-8"]],
 	["/style.css", ["web/style.css", "text/css; charset=utf-8"]],
 	[
 		"/vendor/marked.js",

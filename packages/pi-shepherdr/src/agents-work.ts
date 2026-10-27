@@ -1,11 +1,11 @@
 import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
 import { activityTask } from "./activity.js";
-import type { ConnectedMachine } from "./fleet.js";
+import type { ConnectedMachine } from "./fleet/index.js";
 import { getSnapshot } from "./herdr.js";
 import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
-import { agentSource } from "./messages.js";
+import { agentSource } from "./messages/attribution.js";
 import type { WorkAttempt } from "./monitor-state.js";
-import type { ClaimedSettlement } from "./settlement.js";
+import type { ClaimedSettlement } from "./settlement/index.js";
 import type { ExtensionReply, PaneInfo, PeerDelivery } from "./types.js";
 
 export function toolResult(value: Record<string, unknown>, warning?: string) {

@@ -23,7 +23,7 @@
 	"main": "index.ts",
 	"exports": {
 		".": "./index.ts",
-		"./runtime": "./src/runtime.ts",
+		"./runtime": "./src/runtime/index.ts",
 		"./integration": "./src/integration.ts"
 	},
 	"pi": {

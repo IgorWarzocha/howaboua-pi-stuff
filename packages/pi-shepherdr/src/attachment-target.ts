@@ -21,7 +21,10 @@ import {
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { sendPolicyMessage } from "./delivery.js";
-import { attachmentMessage, detachmentMessage } from "./messages.js";
+import {
+	attachmentMessage,
+	detachmentMessage,
+} from "./messages/attachments.js";
 
 /** Validates and commits attachment membership in the settled target session. */
 export class AttachmentTarget {

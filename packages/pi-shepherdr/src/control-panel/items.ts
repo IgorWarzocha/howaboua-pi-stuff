@@ -1,7 +1,7 @@
 import type { SettingItem } from "@earendil-works/pi-tui";
-import { commandConfigPath } from "./command-config.js";
-import type { AgentFleet } from "./fleet.js";
-import { type SshSetupDraft, sshSetupItems } from "./ssh-setup.js";
+import { commandConfigPath } from "../command-config.js";
+import type { AgentFleet } from "../fleet/index.js";
+import { type SshSetupDraft, sshSetupItems } from "../ssh-setup.js";
 
 export const PANEL_TABS = ["Settings", "Status", "Connections"] as const;
 export type PanelTab = (typeof PANEL_TABS)[number];

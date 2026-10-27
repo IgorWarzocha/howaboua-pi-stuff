@@ -5,7 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
-import type { ConnectedMachine } from "./fleet.js";
+import type { ConnectedMachine } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";

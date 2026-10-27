@@ -1,5 +1,5 @@
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
-import type { AgentFleet, ConnectedMachine } from "./fleet.js";
+import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { type AgentProfile, loadAgentProfiles } from "./profiles.js";
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
 

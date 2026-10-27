@@ -3,9 +3,9 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { sendPolicyMessage } from "./delivery.js";
-import { type BoardBinding, binding } from "./identity.js";
-import type { BoardEnvelope } from "./protocol.js";
+import { sendPolicyMessage } from "../delivery.js";
+import { type BoardBinding, binding } from "../identity.js";
+import type { BoardEnvelope } from "../protocol.js";
 
 type ActiveEnvelope = Extract<BoardEnvelope, { operation: "board-active" }>;
 type NoticeEnvelope = Extract<BoardEnvelope, { operation: "board-notify" }>;

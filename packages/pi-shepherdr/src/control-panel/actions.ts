@@ -1,5 +1,5 @@
-import type { PanelOwners } from "./control-panel-items.js";
-import { type SshSetupDraft, sshSetupArgs } from "./ssh-setup.js";
+import { type SshSetupDraft, sshSetupArgs } from "../ssh-setup.js";
+import type { PanelOwners } from "./items.js";
 
 export interface PanelOptions extends PanelOwners {
 	setOrchestration: (enabled: boolean, signal: AbortSignal) => Promise<void>;

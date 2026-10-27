@@ -3,8 +3,8 @@ import type {
 	MessageRenderer,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
-import type { ActivityTimeline } from "./activity.js";
-import { renderActivityHeading } from "./renderers.js";
+import type { ActivityTimeline } from "../activity/timeline.js";
+import { renderActivityHeading } from "./heading.js";
 
 type CustomMessage = Parameters<MessageRenderer>[0];
 

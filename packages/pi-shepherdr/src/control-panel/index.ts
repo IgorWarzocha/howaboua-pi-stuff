@@ -1,8 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { PanelActions, type PanelOptions } from "./control-panel-actions.js";
-import type { PanelTab as Tab } from "./control-panel-items.js";
-import { PanelView } from "./control-panel-view.js";
-import { addSshConnection, type SshSetupDraft } from "./ssh-setup.js";
+import { addSshConnection, type SshSetupDraft } from "../ssh-setup.js";
+import { PanelActions, type PanelOptions } from "./actions.js";
+import type { PanelTab as Tab } from "./items.js";
+import { PanelView } from "./view.js";
 
 export function controlPanelStatus(options: PanelOptions): string {
 	return [

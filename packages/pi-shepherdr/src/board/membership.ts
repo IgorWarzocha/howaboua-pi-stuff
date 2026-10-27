@@ -14,7 +14,7 @@ import {
 	saveChild,
 	saveMember,
 } from "@howaboua/pi-agent-board/integration";
-import type { ConnectedMachine } from "../fleet.js";
+import type { ConnectedMachine } from "../fleet/index.js";
 
 function sameMembership(left: BoardBinding, right: BoardBinding) {
 	return isDeepStrictEqual(

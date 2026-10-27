@@ -1,15 +1,15 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { executeArchive, readSubscribedUpdates } from "./archive.js";
+import { executeArchive, readSubscribedUpdates } from "../archive.js";
 import {
 	agentPath,
 	type BoardParams,
 	boardHelp,
 	parseBoardRequest,
-} from "./contract.js";
-import { binding, members } from "./identity.js";
-import type { BoardAdapter } from "./integration.js";
-import type { BoardEnvelope } from "./protocol.js";
-import type { BoardSummarizer } from "./summarizer.js";
+} from "../contract.js";
+import { binding, members } from "../identity.js";
+import type { BoardAdapter } from "../integration.js";
+import type { BoardEnvelope } from "../protocol.js";
+import type { BoardSummarizer } from "../summarizer.js";
 import type { BoardTurns } from "./turns.js";
 
 /** Owner execution begins at membership validation; archive commit precedes delivery. */
