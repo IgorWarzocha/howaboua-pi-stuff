@@ -25,4 +25,4 @@
 - Native checkpoint replay now preserves context changes made by other extensions.
 - Notebook failures now retain recovery actions without exposing internal protocol diagnostics.
 - Notebook and TS guidance now limits retained state to planned reuse and calls for cleanup when tasks finish.
-- Added a public compaction API for context preparation and read-only branch projection.
+- Added `pi-codex-conversion/compaction` with context-window preparation, compaction hooks and read-only branch projection.

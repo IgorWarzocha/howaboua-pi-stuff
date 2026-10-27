@@ -8,10 +8,10 @@
 
 ### Features
 
-- Added opt-in Ranked history search in `/notes` for earlier user messages and assistant replies. Current context, tools and reasoning are excluded. Explicit tool-history, live-window and cross-agent searches retain literal matching.
+- Added opt-in BM25-ranked history search in `/notes` for earlier user messages and assistant replies. Current context, tools and reasoning are excluded. Explicit tool-history, live-window and cross-agent searches retain literal matching.
 - Added subagent sharing and note-save marker settings to `/notes`, with migration from global and trusted-folder PCC preferences.
 - Added automatic read-only remote notes retrieval and recovery of saved PCC Tree history.
-- Added the context-sharing API for orchestrators to connect shared notes and history independently of PCC.
+- Added `pi-notes-compaction/context-sharing` with `connectNotesContextSharing` for orchestrators to share notes and history without PCC.
 
 ### History and recovery
 
