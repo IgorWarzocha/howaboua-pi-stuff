@@ -10,6 +10,7 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	private readonly onSpeakerSuppressed: (suppressed: boolean) => void;
 	private playbackEpoch = 0;
 	private speakerSuppressed = false;
+	private inputState: "pending" | "ready" | "closed" = "pending";
 
 	constructor(options: {
 		onAudio(pcm: Buffer): void;
@@ -37,8 +38,10 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 		return this.helper.onExit(listener);
 	}
 
-	start(config: CodexConversionConfig): Promise<string> {
-		return startRealtimeOffer(this.helper, config, "bridge");
+	async start(config: CodexConversionConfig): Promise<string> {
+		const sdp = await startRealtimeOffer(this.helper, config, "bridge");
+		if (this.inputState === "pending") this.inputState = "ready";
+		return sdp;
 	}
 
 	applyAnswer(sdp: string): void {
@@ -50,6 +53,7 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 
 	sendAudio(pcm: Buffer): void {
+		if (this.inputState !== "ready") return;
 		this.helper.send({ type: "send_pcm", audio: pcm.toString("base64"), sample_rate: 24_000, num_channels: 1 });
 	}
 
@@ -67,6 +71,7 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 
 	close(): Promise<void> {
+		this.inputState = "closed";
 		return this.helper.close();
 	}
 }
