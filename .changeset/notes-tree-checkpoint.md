@@ -12,7 +12,7 @@
 
 ### History and recovery
 
-- Fixed long sessions exhausting memory after Notes rollover. Earlier windows remain accessible through History and Tree.
+- Reduced memory use during Notes rollover in long sessions. Earlier windows remain accessible through History and Tree.
 
   **Expected compaction card:** This fix requires a native history cut, which displays Pi's compaction card. Pi currently provides no supported way to hide this card. It can be ignored; Notes is working as intended.
 

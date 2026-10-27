@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-- **BREAKING CHANGE:** Removed built-in notes, history, rollover settings and legacy Remote mode. Install `pi-notes-compaction` and use `/notes`. Existing Notes-enabled configurations block turns until Notes is loaded or continuity is explicitly disabled in the old configuration.
+- **BREAKING CHANGE:** Removed built-in notes, history, rollover settings and legacy Remote mode. Install `@howaboua/pi-notes-compaction` and use `/notes`. Existing Notes-enabled configurations block turns until Notes is loaded or continuity is explicitly disabled in the old configuration.
 - **BREAKING CHANGE:** Moved the shared notes and history API from `pi-codex-conversion/context-sharing` to `pi-notes-compaction/context-sharing`. PCC's parent linkage and cache affinity API is now `pi-codex-conversion/agent-relationship`.
 
 ### Features
@@ -19,9 +19,8 @@
 
 ### Reliability and usability
 
-- Fixed SSE retries multiplying to 30 requests after WebSocket fallback. HTTP and stream retries now share one budget, with a five-minute recovery deadline starting at the first retryable failure.
-- Codex overload recovery now shares a three-minute elapsed-time limit across WebSocket and SSE.
-- SSE fallback now honours overload backoff.
+- Fixed excessive SSE retries after WebSocket fallback. HTTP and stream retries within SSE now share one retry budget with a five-minute recovery limit.
+- Overload and server-directed retries have a stricter three-minute total limit across WebSocket and SSE. Switching to SSE preserves overload backoff.
 - GPT prompt mode uses dense checkpoint-style runtime guidance and notebook help.
 - Tool guidance separates unfamiliar-tool discovery from large reads and limits batching by combined output. Truncated results explain how to recover missing output without repeating side effects.
 - Pi's transport setting now replaces the Cached WebSocket upgrade toggle. Select `auto` or `websocket-cached` for cached continuation.
