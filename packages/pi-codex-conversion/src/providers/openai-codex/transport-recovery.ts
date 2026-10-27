@@ -18,7 +18,7 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { nativeCompactionConfigured } from "../../adapter/activation/runtime-plan.ts";
 import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, DEFAULT_TRANSPORT_RECOVERY_BUDGET_MS, MAX_WEBSOCKET_RECOVERY_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
-import { codexRetryAfterDeadline, createErrorMessage, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
+import { codexRetryAfterDeadline, createErrorMessage, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
 import { buildSSEHeaders, buildWebSocketHeaders, createCodexRequestId, extractAccountId, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./headers.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { supportsResponsesLiteModel } from "./responses-lite-model.ts";
@@ -116,6 +116,7 @@ async function openCodexSSE<TApi extends Api>(
 	options: OpenAICodexStreamOptions | undefined,
 	turnState: CodexTurnState | undefined,
 	startAttempt: () => CodexAttemptTiming,
+	onRetryableResponse: () => AbortSignal | undefined,
 ): Promise<Response> {
 	// The logical stream loop owns retries, including failures before headers.
 	if (options?.signal?.aborted) throw new Error("Request was aborted");
@@ -149,18 +150,25 @@ async function openCodexSSE<TApi extends Api>(
 		headerTimeout.clear();
 	}
 
+	let errorSignal: ReturnType<typeof combineAbortSignals> | undefined;
 	try {
 		const retryAfter = codexRetryAfterDeadline(response.headers);
+		// Known failed headers start recovery even if the error body never finishes.
+		// The parsed body still owns fatal-code classification, not this clock.
+		if (!response.ok && isRetryableStreamStatus(response.status)) {
+			errorSignal = combineAbortSignals([combinedSignal.signal, onRetryableResponse()]);
+		}
 		if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
 		await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
 		if (response.ok) return response;
 
-		const info = await parseErrorResponse(response, combinedSignal.signal);
+		const info = await parseErrorResponse(response, errorSignal?.signal ?? combinedSignal.signal);
 		const message = info.friendlyMessage || info.message;
 		const error = createCodexHttpError(message, info.code, response.status, retryAfter);
 		timing.finish("failed");
 		throw error;
 	} finally {
+		errorSignal?.cleanup();
 		combinedSignal.cleanup();
 	}
 }
@@ -513,6 +521,9 @@ export function createCodexTransportStream<TApi extends Api>(
 							...(effectiveOptions?.compactionDiagnostics ? { compaction: structuredClone(effectiveOptions.compactionDiagnostics) } : {}),
 						});
 						return timing;
+					}, () => {
+						startTransportRecovery();
+						return recoveryController?.signal;
 					});
 					if (!response.body) throw new Error("No response body");
 					if (!streamStarted) {
