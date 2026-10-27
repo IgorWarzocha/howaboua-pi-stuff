@@ -6,7 +6,7 @@ import type { API } from "tsrs/async";
 import type { Node } from "tsrs/ast";
 import type { TsRuntime } from "./runtime.ts";
 import type { TsImportOptions } from "./imports.ts";
-import { withTsImportApi } from "./imports-api.ts";
+import { resolveTsSource, withTsImportApi } from "./imports-api.ts";
 import { anchorCommonJsRequires } from "./imports-require.ts";
 import { cacheExactNpmImport } from "../code-mode/npm-cache.ts";
 
@@ -28,17 +28,21 @@ export async function compileTsImportSource(
 			options.signal?.throwIfAborted();
 			const existing = outputs.get(sourceUrl);
 			if (existing) return existing;
-			const commonjs = fileURLToPath(sourceUrl).endsWith(".cts");
-			const target = pathToFileURL(join(directory, `${outputs.size}.${commonjs ? "cjs" : "mjs"}`)).href;
-			outputs.set(sourceUrl, target); // Cycles must see the eventual URL before traversing dependencies.
-			added.push(sourceUrl);
 			const path = fileURLToPath(sourceUrl);
 			const source = await readFile(path, "utf8");
-			const lease = await api.createSourceFile(path, source);
+			const snapshot = await api.createSnapshot({
+				fileSystem: runtime.fs.createFileSystemLayer([[path, source]]),
+				createPrograms: [{ rootFiles: [path], compilerOptions: { noLib: true, noResolve: true, types: [], module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext } }],
+			});
+			let commonjs: boolean;
 			const references: { specifier: string; start: number; end: number; dynamic: boolean; typeOnly: boolean }[] = [];
 			const edits: { start: number; end: number; text: string }[] = [];
 			try {
-				const file = lease.sourceFile;
+				const program = snapshot.operation.createdPrograms?.[0];
+				const file = await program?.getSourceFile(path);
+				const metadata = await program?.getSourceFileMetadata(path);
+				if (!file || !metadata) throw new Error(`TypeScript could not determine module format for ${path}`);
+				commonjs = metadata.impliedNodeFormat === ModuleKind.CommonJS;
 				const walk = (node: Node): void => {
 					if (isPropertyAccessExpression(node) && isMetaProperty(node.expression) && node.expression.keywordToken === SyntaxKind.ImportKeyword && node.name.text === "url") {
 						edits.push({ start: node.getStart(file), end: node.end, text: JSON.stringify(sourceUrl) });
@@ -55,7 +59,10 @@ export async function compileTsImportSource(
 					node.forEachChild(walk);
 				};
 				walk(file);
-			} finally { await lease.dispose(); }
+			} finally { await snapshot.dispose(); }
+			const target = pathToFileURL(join(directory, `${outputs.size}.${commonjs ? "cjs" : "mjs"}`)).href;
+			outputs.set(sourceUrl, target); // Cycles must see the eventual URL before traversing dependencies.
+			added.push(sourceUrl);
 			for (const reference of references) {
 				const requireMode = commonjs && !reference.dynamic;
 				if (onNpmTypes && reference.specifier.startsWith("npm:")) {
@@ -79,13 +86,16 @@ export async function compileTsImportSource(
 			const errors = emitted.diagnostics?.filter(value => value.category === 1);
 			if (errors?.length) throw new Error(errors.map(value => value.text).join("\n"));
 			const javascript = commonjs ? await anchorCommonJsRequires(api, runtime, path, emitted.outputText, async (specifier) => {
-				const dependency = resolve(dirname(path), specifier);
-				if (!/(?<!\.d)\.(?:ts|mts|cts)$/.test(dependency)) return dependency;
+				let dependency = resolve(dirname(path), specifier);
+				if (!/\.(?:ts|mts|cts|js|mjs|cjs)$/.test(dependency)) return dependency;
 				try { await access(dependency); }
 				catch (error) {
-					if (error instanceof Error && "code" in error && error.code === "ENOENT") return dependency;
-					throw error;
+					if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+					const substituted = /\.(?:js|mjs|cjs)$/.test(specifier) ? await resolveTsSource(specifier, dirname(path), api, runtime, "require") : undefined;
+					if (!substituted || !/(?<!\.d)\.(?:ts|mts|cts)$/.test(substituted)) return dependency;
+					dependency = substituted;
 				}
+				if (!/(?<!\.d)\.(?:ts|mts|cts)$/.test(dependency)) return dependency;
 				return fileURLToPath(await visit(pathToFileURL(dependency).href));
 			}) : emitted.outputText;
 			await writeFile(fileURLToPath(target), javascript, { mode: 0o600 });

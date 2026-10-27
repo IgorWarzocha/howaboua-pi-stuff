@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { API } from "tsrs/async";
 import type { TsRuntime } from "./runtime.ts";
 import type { TsCompiler } from "./compiler.ts";
-import { withTsImportApi } from "./imports-api.ts";
+import { resolveTsSource, withTsImportApi } from "./imports-api.ts";
 import { cacheExactNpmImport, runImportCommand } from "../code-mode/npm-cache.ts";
 import { compileTsImportSource } from "./imports-source.ts";
 
@@ -85,12 +85,7 @@ async function runtimeLocation(bare: string, cwd: string, signal?: AbortSignal, 
 async function resolveRawImport(specifier: string, options: TsImportOptions, compiler?: { api: API; runtime: TsRuntime }, mode: "import" | "require" = "import"): Promise<string> {
 	const location = await importLocation(specifier, options);
 	return runtimeLocation(location.bare, location.cwd, options.signal, async () => {
-		const resolveSource = async (owner: API, runtime: TsRuntime): Promise<string | undefined> => {
-			const { ModuleKind, ModuleResolutionKind } = runtime.api;
-			const resolver = await owner.createModuleResolver({ module: ModuleKind.NodeNext, moduleResolution: ModuleResolutionKind.NodeNext });
-			try { return (await resolver.resolveModuleName(location.bare, location.cwd, mode === "require" ? ModuleKind.CommonJS : ModuleKind.ESNext)).resolvedModule?.resolvedFileName; }
-			finally { await resolver.dispose(); }
-		};
+		const resolveSource = (owner: API, runtime: TsRuntime) => resolveTsSource(location.bare, location.cwd, owner, runtime, mode);
 		return compiler ? resolveSource(compiler.api, compiler.runtime) : withTsImportApi(options, resolveSource);
 	}, mode);
 }
