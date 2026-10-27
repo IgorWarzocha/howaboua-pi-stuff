@@ -33,14 +33,14 @@ function parseEndMode(args: string): EndMode {
 }
 
 const GPT_PRIME_PROMPT = [
-	"Prime requested scope directly; no subagents; implement only if explicitly asked.",
-	"Trace main callflow, ownership/state/effects, keyfiles/boundaries.",
-	"Repo-local; no dependencies. Broadscope: paths first→narrow searchpaths→tight queries; direct refs only; scoped boundary clear=stop exploration.",
-	"Skip README.md unless scoped source/config lack useful priming material or scope explicitly targets docs.",
-	"Finish concise orientationbriefing; stop.",
+	"Prime requestedscope directly; NOsubagents; implement ONLYifexplicitlyasked.",
+	"Trace maincallflow, ownership/state/effects, keyfiles/boundaries.",
+	"Repo-local; NOdependencies; broadscope→pathsfirst→narrow searchpaths→tightqueries; directrefsONLY; boundaryclear→STOP.",
+	"README.md ONLYif scopedsource/config unhelpful ORdocs explicitlyscoped.",
+	"End: conciseorientationbriefing; STOP.",
 ].join("\n");
 const GPT_END_PROMPT =
-	"Keep continuation-relevant outcomes/decisions/unresolved questions; omit superseded details.";
+	"Keep continuation outcomes/decisions/openquestions; omit supersededdetails.";
 
 export function buildPrimePrompt(scope: string, gpt = false): string {
 	return `${gpt ? GPT_PRIME_PROMPT : INCREMENTAL_WORKFLOW_PRIME_PROMPT}\n\nScope: ${scope}`;
@@ -58,7 +58,7 @@ export function buildEndNavigationOptions(
 			return {
 				summarize: true,
 				customInstructions: gpt
-					? `${GPT_END_PROMPT}\nCompleted changes→capture intended git commit: concise subject+important body notes.`
+					? `${GPT_END_PROMPT}\nCompletedchanges→intended gitcommit: concisesubject+keybodynotes.`
 					: INCREMENTAL_WORKFLOW_GIT_END_PROMPT,
 				replaceInstructions: false,
 			};

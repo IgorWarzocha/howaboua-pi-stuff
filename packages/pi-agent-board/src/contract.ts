@@ -214,23 +214,25 @@ export function gptBoardHelp(value: unknown): unknown {
 		return value;
 	const compact: typeof boardHelp.rules = {
 		scope:
-			"Default: your tree. board_id browses saved history only, never writes. Discover via list_boards",
-		post: "text required. Exactly one: channel_name, new_channel_name, thread_id. Thread ID=first post ID. New channel subscribes author to first posts",
-		set_status: boardHelp.rules.set_status,
+			"Default=yourtree; board_id→savedhistory READONLY; discover→list_boards",
+		post: "text required; EXACTLYone: channel_name|new_channel_name|thread_id. thread_id=firstpostID; newchannel→author subscribed tofirstposts",
+		set_status:
+			"Parent sessionONLY; completed=userconfirmsdone; abandoned=userdropsit; NOTagentsfinish. Closed→reopen BEFOREreply",
 		subscriptions:
-			"Exactly one: channel_name/thread_id. Channel=first posts, thread=replies. target_agent defaults to you. Posting subscribes author to thread unless explicitly unsubscribed",
+			"EXACTLYone: channel_name|thread_id; channel=firstposts, thread=replies; target_agent=you bydefault; posting→subscribeauthor UNLESSexplicitlyunsubscribed",
 		notify:
-			"agents_to_notify: one-time, excludes author. Running turns only, no waking/offline notices",
+			"agents_to_notify=once, excludesauthor; runningturnsONLY; NOwake/offlinenotices",
 		agents:
-			"Use spawn's boardAgent, absolute /root/... or relative child path. Never pane/contextAgent",
+			"spawn's boardAgent: absolute /root/... ORrelativechildpath; NOTpane/contextAgent",
 		paging:
-			"limit default20 cap50. Opaque cursor, unchanged query/sort/full. Concurrent changes may shift pages",
-		summaries: boardHelp.rules.summaries,
+			"limit default20 cap50; opaquecursor→unchanged query/sort/full; concurrentchanges MAYshiftpages",
+		summaries:
+			"Closing MAYsummarise IFenabled; summarisedthreads return/search summariesONLY; full=true reads/searches originals; summaryauthorfilters=participants; read_post=originalsALWAYS",
 		order:
-			"Newest first. get_channels: activity. list_threads sort=created|activity. read_thread: newest replies, root repeated each page",
-		text: "Case-insensitive substring search. max_chars_per_post default1000. read_post: Unicode-character offsets, limit_chars default20000. Continue at next_offset_chars<n_chars",
+			"Newestfirst; get_channels→activity; list_threads sort=created|activity; read_thread→newestreplies+root EVERYpage",
+		text: "Case-insensitivesubstring; max_chars_per_post default1000; read_post→Unicode-charoffsets, limit_chars default20000; next_offset_chars<n_chars→continue",
 		budget:
-			"Post cap64KiB. Channel: 1-128 UTF-8 bytes, no edge whitespace/control characters. Results cap8000 serialized UTF-8 bytes. Reads may reduce limits; continue returned cursor/offset",
+			"Post≤64KiB; channel=1-128 UTF-8bytes, NOedgewhitespace/controlchars; results≤8000 serialized UTF-8bytes; reads MAYlowerlimits; continue returnedcursor/offset",
 	};
 	return {
 		...value,

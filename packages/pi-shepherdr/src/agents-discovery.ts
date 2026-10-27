@@ -30,7 +30,7 @@ export async function agentsHelp(
 	const profiles = await loadAgentProfiles();
 	return {
 		commands: gpt
-			? "commands:true lists slash commands/descriptions, never executes. Default this session; target/machine select another"
+			? "commands:true lists slashcommands/descriptions, NEVERexecutes; default=thissession; target/machine→another"
 			: "commands: true lists available slash commands with descriptions; defaults to this session, target and machine optionally select another session; does not execute commands",
 		actions: {
 			help: "",
@@ -51,48 +51,61 @@ export async function agentsHelp(
 		},
 		rules: {
 			reply: gpt
-				? "Use extension report/read template; send cannot resolve. Blocking waits for resumed work; others return after semantic delivery"
+				? "Extension report/readtemplate required; send≠resolve; blocking waits resumedwork; others return aftersemanticdelivery"
 				: "Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",
-			machine:
-				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
-			target:
-				"Use spawn/find target exactly; /root selects this family's live root",
-			label: "Short tab/session name; prefer two words when useful",
+			machine: gpt
+				? "machine omitted=local Pi host; list/find omitted=allmachines; remote=list profileID, NOTlabel/hostname"
+				: "Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
+			target: gpt
+				? "spawn/find target EXACT; /root=thisfamily liveroot"
+				: "Use spawn/find target exactly; /root selects this family's live root",
+			label: gpt
+				? "Short tab/sessionname; twowords IFuseful"
+				: "Short tab/session name; prefer two words when useful",
 			...(boardAvailable
 				? {
-						board_thread_id:
-							"Existing shared-board thread; child receives a read reference",
+						board_thread_id: gpt
+							? "Existing boardthread→child readref"
+							: "Existing shared-board thread; child receives a read reference",
 					}
 				: {}),
 			send: gpt
-				? "Next send=/quit→no preceding message. Sends wake idle agents; no wait/watch"
+				? "/quit next→NOprecedingmessage; sends wake idleagents; NOwait/watch"
 				: "When closing an agent, send /quit without another message first. Messages wake idle agents. No waiting or watching.",
 			assign: gpt
-				? "Delegate/update work. Active updates share pending result, never replace existing wait"
+				? "Delegate/updatework; active→share pendingresult, NEVERreplace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
 			focus: gpt
-				? "Running session; passive arrival+return call, no task/watch. voice=false default; true transfers active mic asynchronously. handoff=context. Remote selects target Herdr session, not client machine"
+				? "Running session; passivearrival+returncall, NOtask/watch; voice defaultfalse, true=async activemictransfer; handoff=context; remote=target Herdrsession≠clientmachine"
 				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach: boardAvailable
-				? "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
-				: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
-			detach:
-				"Stop selected membership; retain counterpart checkpoints read-only; idle target",
+				? gpt
+					? "Idle target; context/board=independent sharing/membership; NOtask/watch"
+					: "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
+				: gpt
+					? "Idle target; context=shared notes/history; boards unavailable→board:false; NOtask/watch"
+					: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
+			detach: gpt
+				? "Idle target; stop selectedmembership; counterpart checkpoints remain readonly"
+				: "Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking: gpt
-				? "spawn/assign default true; profile overrides spawn. JS cells parallel+wait: await Promise.allSettled. false=continue other work; completion/blockage after reply. No polling/sleep waits"
+				? "spawn/assign defaulttrue; profile overrides spawn; JS parallel+wait: await Promise.allSettled; false ONLYifotherworkcontinues; completion/blockage AFTERreply; NOpoll/sleep"
 				: "spawn/assign default true; profile blocking overrides spawn. In JavaScript cells, use await Promise.allSettled for parallel calls that wait for every result, including failures. Use false only to continue other work; completion/blockage arrives after your reply. No polling or sleep waits",
-			share_context:
-				"Profile false isolates notes/history; otherwise follows controller sharing setting",
-			watch:
-				"Delegation and watch keep reporting subsequent work until unwatch or close",
+			share_context: gpt
+				? "Profile false→isolated notes/history; otherwise→controller sharingsetting"
+				: "Profile false isolates notes/history; otherwise follows controller sharing setting",
+			watch: gpt
+				? "Delegation/watch→report subsequentwork UNTILunwatch/close"
+				: "Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt: gpt
-				? "Distinct worker scope, outcome, project context, issue references. Define success, not forbidden investigations"
+				? "Distinct scope/outcome/projectcontext/issuerefs; success≠forbiddeninvestigations"
 				: "Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
 			slash: gpt
-				? "Leading / routes target commands/skills/templates. Commands skip task waiting including assign/spawn; blocked returns choices. /quit exits Pi and closes pane"
+				? "Leading / routes target commands/skills/templates; commands skip taskwait EVENassign/spawn; blocked→choices; /quit exits Pi+closespane"
 				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
-			reuse:
-				"Reuse only same investigation; reviews independent; new scope = new agent",
+			reuse: gpt
+				? "Reuse ONLYsameinvestigation; reviews independent; newscope=newagent"
+				: "Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")
 				? {
 						general: "Only when requested/orchestrating",

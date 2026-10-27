@@ -7,15 +7,17 @@ export function browserHelp(
 		input: "{action,...fields}",
 		...(routed
 			? {
-					host: `${hosts.join("|")}${gpt ? " optional; user-named host→retain every call+its refs/handles" : " optional; keep a user-named host on every call and its refs/handles"}`,
+					host: `${hosts.join("|")}${gpt ? " optional; user-namedhost→retain EVERYcall+refs/handles" : " optional; keep a user-named host on every call and its refs/handles"}`,
 				}
 			: {}),
-		refs: "tabs -> open; keep ref_id/id/cursors with their result",
+		refs: gpt
+			? "tabs→open; ref_id/id/cursors staywithresult"
+			: "tabs -> open; keep ref_id/id/cursors with their result",
 		safety: gpt
-			? "Unfamiliar low-trust navigation/consequential action→ask first unless authorized; never close shared browser"
+			? "Unfamiliar low-trustnavigation/consequentialaction→ask UNLESSauthorised; NEVERclose sharedbrowser"
 			: "Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
 		batch: gpt
-			? "{action_name:[{...fields}],...}; arrays nonempty; items omit action; host/response_length at root; independent only"
+			? "{action_name:[{...fields}],...}; nonemptyarrays; omit item action; root host/response_length; independentONLY"
 			: "{action_name:[{...fields}],...}; nonempty arrays; items omit action; host/response_length at request root; independent only",
 		actions: {
 			help: "",

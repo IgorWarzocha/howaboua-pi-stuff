@@ -214,14 +214,19 @@ export function queryHelp(
 			),
 			...(namespace === "notes"
 				? {
-						writes: "write_file replaces; append_to_file adds",
-						paths:
-							"Relative uses current agent; cross-agent uses <agent>/notes[/path]",
+						writes: gpt
+							? "write_file=replace; append_to_file=add"
+							: "write_file replaces; append_to_file adds",
+						paths: gpt
+							? "Relative=currentagent; cross-agent=<agent>/notes[/path]"
+							: "Relative uses current agent; cross-agent uses <agent>/notes[/path]",
 						usage: '{ "action": "read_file", "path": "checkpoint" }',
-						ranges:
-							"start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
-						defaults:
-							"list max_results 20; search max_files/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
+						ranges: gpt
+							? "start_line/stop_line=1-based inclusive; negative=fromend; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
+							: "start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
+						defaults: gpt
+							? "list max_results=20; search max_files/max_matches_per_file=20; limits clamp1..100; list/search nameascending; recent_file_first→created_at descending"
+							: "list max_results 20; search max_files/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
 					}
 				: {
 						usage: gpt
@@ -231,7 +236,9 @@ export function queryHelp(
 							? gpt
 								? "Own past user/assistant visibletext: allkeywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=fulltranscript; recent_first=true→newestfirst"
 								: "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
-							: "Case-sensitive literal substring. recent_first=true uses newest first",
+							: gpt
+								? "Case-sensitive literalsubstring; recent_first=true→newestfirst"
+								: "Case-sensitive literal substring. recent_first=true uses newest first",
 					}),
 		});
 	}

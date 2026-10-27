@@ -206,7 +206,7 @@ export class BoardRuntime {
 				.some((tool) => ["exec", "code", "notebook"].includes(tool));
 			return {
 				content: result.length
-					? `\n\n${this.gptPromptMode ? "Unread board updates. Read task-relevant threads:" : "Unread board updates available; read if relevant to the current task:"} ${[
+					? `\n\n${this.gptPromptMode ? "Unreadboardupdates→read task-relevantthreads:" : "Unread board updates available; read if relevant to the current task:"} ${[
 							...new Set(result.map((post) => post.thread_id)),
 						]
 							.map((thread_id) => {

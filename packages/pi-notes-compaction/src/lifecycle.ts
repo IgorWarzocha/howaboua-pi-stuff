@@ -214,7 +214,7 @@ export class NotesLifecycle {
 		);
 		this.windows.current = ids;
 		if (triggerTurn)
-			message.content = `${message.content}\n\n${this.gptPromptMode() ? "Read saved notes via notes tool; resume task" : "Read your saved notes with the notes tool and resume the task."}`;
+			message.content = `${message.content}\n\n${this.gptPromptMode() ? "Savednotes→notes tool→resumetask" : "Read your saved notes with the notes tool and resume the task."}`;
 		this.sendMessage(message, { triggerTurn });
 	}
 
