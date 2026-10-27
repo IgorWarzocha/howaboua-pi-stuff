@@ -1,4 +1,4 @@
-bitflags 2.13.1
+bitflags 2.13.2
 MIT OR Apache-2.0
 https://github.com/bitflags/bitflags
 The Rust Project Developers
@@ -1669,7 +1669,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-libc 0.2.189
+libc 0.2.191
 MIT OR Apache-2.0
 https://github.com/rust-lang/libc
 
@@ -2149,7 +2149,7 @@ THE SOFTWARE.
 
 ---
 
-objc2 0.6.4
+objc2 0.6.5
 MIT
 https://github.com/madsmtm/objc2
 Mads Marquart <mads@marquart.dk>
@@ -3980,10 +3980,10 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-serde_json 1.0.149
+serde_json 1.0.154
 MIT OR Apache-2.0
 https://github.com/serde-rs/json
-Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>
+
 
                               Apache License
                         Version 2.0, January 2004
@@ -4678,7 +4678,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-syn 3.0.4
+syn 3.0.9
 MIT OR Apache-2.0
 https://github.com/dtolnay/syn
 David Tolnay <dtolnay@gmail.com>
@@ -4989,7 +4989,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-unicode-ident 1.0.24
+unicode-ident 1.0.27
 (MIT OR Apache-2.0) AND Unicode-3.0
 https://github.com/dtolnay/unicode-ident
 David Tolnay <dtolnay@gmail.com>
