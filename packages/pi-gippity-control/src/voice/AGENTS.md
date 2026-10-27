@@ -19,3 +19,4 @@
 - REALTIME-SYSTEM-PROMPT.md owns template/schema. Log every schema change in its adjacent changelog. Never rewrite user prompts. Check the marker only when realtime is engaged and direct the user's agent to migrate.
 - Each async resource has one cleanup owner. Stop LAN before voice on shutdown.
 - After handoff, source controls retain the mic. Transferred is not a local conversation and must allow return arrival. Peer refresh preserves LAN binding. Change handoff protocol in both voice packages and Shepherdr together.
+- Browser PCM continues through peer replacement. LAN peers discard input before their offer and from the start of close; sending it to an unavailable helper disconnects the browser as an invalid message.

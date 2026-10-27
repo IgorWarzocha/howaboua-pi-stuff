@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
-import Database from "better-sqlite3";
 import type { CachedResponse, LookupQuery } from "./bridge.js";
 import { queryKey } from "./bridge.js";
 import {
@@ -9,6 +8,7 @@ import {
 	pruningPolicy,
 	type SessionPruningPolicy,
 } from "./session-pruning-policy.js";
+import { type Database, openDatabase } from "./sqlite.mjs";
 
 export interface SessionRef {
 	id: string;
@@ -24,7 +24,7 @@ export interface NoteRevision {
 }
 interface CacheRow {
 	query_json: string;
-	bytes: Buffer;
+	bytes: Uint8Array;
 	source: string;
 	encoding: string;
 	fetched_at: number;
@@ -33,21 +33,23 @@ interface CacheRow {
 
 /** One connection per extension process. Read-only access never creates a database or session. */
 export class NotesStore {
-	private db: Database.Database | undefined;
+	private db: Database | undefined;
 	readonly path: string;
 	constructor(path: string) {
 		this.path = path;
 	}
-	private open(write = false): Database.Database | undefined {
+	private open(write = false): Database | undefined {
 		if (this.db) return this.db;
 		if (!write && !existsSync(this.path)) return undefined;
 		if (write) mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
-		const db = new Database(this.path);
+		const db = openDatabase(this.path);
 		try {
-			db.pragma("busy_timeout = 5000");
-			db.pragma("journal_mode = WAL");
-			db.pragma("foreign_keys = ON");
-			const version = db.pragma("user_version", { simple: true });
+			db.exec("PRAGMA busy_timeout = 5000");
+			db.exec("PRAGMA journal_mode = WAL");
+			db.exec("PRAGMA foreign_keys = ON");
+			const version = db
+				.prepare<[], { user_version: number }>("PRAGMA user_version")
+				.get()?.user_version;
 			if (version !== 0 && version !== 1) {
 				throw new Error("Notes database version is not supported");
 			}
@@ -77,7 +79,7 @@ export class NotesStore {
 			);
 		}
 	}
-	private record(db: Database.Database, session: SessionRef): void {
+	private record(db: Database, session: SessionRef): void {
 		db.prepare(
 			"INSERT INTO sessions VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET file_path = COALESCE(excluded.file_path, sessions.file_path), updated_at = excluded.updated_at",
 		).run(session.id, session.file ?? null, Date.now());
@@ -118,11 +120,11 @@ export class NotesStore {
 	}
 	read(id: string): NoteRevision | undefined {
 		const row = this.open()
-			?.prepare(
+			?.prepare<[string], NoteRevision>(
 				"SELECT id, path, text, mode, created_at AS createdAt, updated_at AS updatedAt FROM notes WHERE id = ?",
 			)
-			.get(id) as NoteRevision | undefined;
-		return row;
+			.get(id);
+		return row ?? undefined;
 	}
 	updateFile(session: SessionRef): void {
 		if (!session.file) return;

@@ -2,27 +2,29 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
-import Database from "better-sqlite3";
 import { createHistoryPruning } from "./history-search-pruning.mjs";
+import { openDatabase } from "./sqlite.mjs";
 
 // Shipped as checked JavaScript: Node cannot strip TypeScript in node_modules.
 // Pi's jiti resolver is not installed in worker threads.
 /** @typedef {import("./history-search-protocol.js").SearchRequest} SearchRequest */
 /** @typedef {import("./history-search-protocol.js").SearchResponse} SearchResponse */
 /** @typedef {import("./history-search-protocol.js").PruneResult} PruneResult */
-/** @type {import("better-sqlite3").Database | undefined} */
+/** @type {import("./sqlite.mjs").Database | undefined} */
 let database;
 const pruneSession = createHistoryPruning();
-/** @returns {import("better-sqlite3").Database} */
+/** @returns {import("./sqlite.mjs").Database} */
 function open() {
 	if (database) return database;
 	mkdirSync(dirname(workerData.path), { recursive: true, mode: 0o700 });
-	const db = new Database(workerData.path);
+	const db = openDatabase(workerData.path);
 	try {
-		db.pragma("busy_timeout = 5000");
-		db.pragma("journal_mode = WAL");
+		db.exec("PRAGMA busy_timeout = 5000");
+		db.exec("PRAGMA journal_mode = WAL");
 		db.transaction(() => {
-			const version = db.pragma("user_version", { simple: true });
+			/** @type {import("./sqlite.mjs").Statement<[], {user_version:number}>} */
+			const versionQuery = db.prepare("PRAGMA user_version");
+			const version = versionQuery.get()?.user_version;
 			if (version !== 0 && version !== 1 && version !== 2 && version !== 3)
 				throw new Error("Unsupported history index version");
 			// Older formats indexed full transcripts without source-kind metadata.
@@ -66,7 +68,7 @@ async function index(request) {
 		return null;
 	const db = open();
 	const excluded = await pruneSession(db, request.sessionId, request.file);
-	/** @type {import("better-sqlite3").Statement<[string,string], {id:number; fingerprint:string}>} */
+	/** @type {import("./sqlite.mjs").Statement<[string,string], {id:number; fingerprint:string}>} */
 	const find = db.prepare(
 		"SELECT id, fingerprint FROM history_documents WHERE session_id = ? AND item_id = ?",
 	);
@@ -127,7 +129,7 @@ function search(request) {
 			);
 			for (const [position, id] of request.ids.entries())
 				scope.run(position, request.sessionId, id);
-			/** @type {import("better-sqlite3").Statement<[string,number], {item_id:string}>} */
+			/** @type {import("./sqlite.mjs").Statement<[string,number], {item_id:string}>} */
 			const select = db.prepare(`
 			SELECT history_documents.item_id FROM history_terms
 			JOIN search_scope ON search_scope.document_id = history_terms.rowid
@@ -164,7 +166,7 @@ function prune(activeSessionId, sources) {
 		);
 		for (const [id, file] of Object.entries(sources)) source.run(file, id);
 	}).immediate();
-	/** @type {import("better-sqlite3").Statement<[], {session_id:string;file_path:string|null}>} */
+	/** @type {import("./sqlite.mjs").Statement<[], {session_id:string;file_path:string|null}>} */
 	const owners = db.prepare(`
 		SELECT session_id, file_path FROM history_sessions
 		UNION SELECT DISTINCT session_id, NULL FROM history_documents
@@ -204,7 +206,7 @@ function prune(activeSessionId, sources) {
 	try {
 		db.exec("INSERT INTO history_terms(history_terms) VALUES ('optimize')");
 		db.exec("VACUUM");
-		/** @type {import("better-sqlite3").Statement<[], {busy:number}>} */
+		/** @type {import("./sqlite.mjs").Statement<[], {busy:number}>} */
 		const checkpoint = db.prepare("PRAGMA wal_checkpoint(TRUNCATE)");
 		result.storageBusy = checkpoint.all().some((row) => row.busy !== 0);
 	} catch (error) {

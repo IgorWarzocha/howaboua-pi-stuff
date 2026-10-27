@@ -25,3 +25,4 @@
 - Normal Codex Responses has no usable output-audio channel. Use Realtime, not speculative provider audio events.
 - Live network/hardware checks are opt-in. Keep framing bounded and cleanup process-owned.
 - After handoff, source controls retain the mic. Transferred is not a local conversation and must allow return arrival. Peer refresh preserves LAN binding. Change handoff protocol in both voice packages and Shepherdr together.
+- Browser PCM continues through peer replacement. LAN peers discard input before their offer and from the start of close; sending it to an unavailable helper disconnects the browser as an invalid message.

@@ -53,9 +53,9 @@ export function registerNotesSettingsCommand(
 						get: () => store.pruningPolicy(ctx.sessionManager.getSessionId()),
 						save: (value) =>
 							store.setPruningPolicy(ctx.sessionManager.getSessionId(), value),
-						run: async () => {
+						run: async (interaction) => {
 							await ctx.waitForIdle();
-							await sessionPruning.run(ctx, true);
+							await sessionPruning.run(ctx, true, interaction);
 						},
 					},
 					status: () => {
