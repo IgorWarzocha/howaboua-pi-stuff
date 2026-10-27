@@ -24,11 +24,11 @@ export const HISTORY_USAGE = "await tools.history()";
 export const NOTES_DESCRIPTION =
 	"Persistent notes for handing off task state between context windows";
 export const GPT_NOTES_DESCRIPTION =
-	"Persistent notes: taskstate handoff between contextwindows";
+	"Persistent notes: task state handoff between context windows";
 export const NEW_CONTEXT_DESCRIPTION =
 	"Start fresh from saved notes; recover earlier conversation through history";
 export const GPT_NEW_CONTEXT_DESCRIPTION =
-	"Savednotes→freshcontext; earlierconversation→history";
+	"Saved notes→fresh context; earlier conversation→history";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const NULLABLE_STRING = Type.Optional(Type.Union([Type.String(), Type.Null()]));
@@ -218,26 +218,26 @@ export function queryHelp(
 							? "write_file=replace; append_to_file=add"
 							: "write_file replaces; append_to_file adds",
 						paths: gpt
-							? "Relative=currentagent; cross-agent=<agent>/notes[/path]"
+							? "Relative=current agent; cross-agent=<agent>/notes[/path]"
 							: "Relative uses current agent; cross-agent uses <agent>/notes[/path]",
 						usage: '{ "action": "read_file", "path": "checkpoint" }',
 						ranges: gpt
-							? "start_line/stop_line=1-based inclusive; negative=fromend; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
+							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
 							: "start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
 						defaults: gpt
-							? "list max_results=20; search max_files/max_matches_per_file=20; limits clamp1..100; list/search nameascending; recent_file_first→created_at descending"
+							? "list max_results=20; search max_files/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending"
 							: "list max_results 20; search max_files/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
 					}
 				: {
 						usage: gpt
-							? "Earlierconversation→search≠browse; returnedIDs unchanged"
+							? "Earlierconversation→search≠browse; returned IDs unchanged"
 							: "Search earlier conversation, don't browse it. Pass returned IDs unchanged",
 						search: rankedHistory
 							? gpt
-								? "Own past user/assistant visibletext: allkeywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=fulltranscript; recent_first=true→newestfirst"
+								? "Own past user/assistant visible text: all keywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=full transcript; recent_first=true→newest first"
 								: "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
 							: gpt
-								? "Case-sensitive literalsubstring; recent_first=true→newestfirst"
+								? "Case-sensitive literal substring; recent_first=true→newest first"
 								: "Case-sensitive literal substring. recent_first=true uses newest first",
 					}),
 		});

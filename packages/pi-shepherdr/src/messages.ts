@@ -114,27 +114,25 @@ export function boardBriefing(
 ) {
 	const state =
 		population === "populated"
-			? gpt
-				? "Read relevantboardthreads."
-				: "Read relevant board threads."
+			? "Read relevant board threads."
 			: population === "empty"
 				? gpt
-					? "Sharedboard available; posts=none."
+					? "Shared board available; posts=none."
 					: "Shared board available; no posts yet."
 				: gpt
-					? "Sharedboard status unavailable; board help→retry read when available."
+					? "Shared board status unavailable; board help→retry read when available."
 					: "Shared board status unavailable. Check board help and retry reading when available.";
 	const setup = member
 		? gpt
-			? "Root owns setup; follow assignedtask."
+			? "Root owns setup; follow assigned task."
 			: "The root agent owns setup; follow your assigned task."
 		: "";
 	if (gpt)
 		return [
 			state,
 			setup,
-			"Posts=work-changing ownership/decisions/findings/blockers only. Existingthread replies; link≠repeat. Personalcheckpoints→notes. No ack/statusspam/duplicate completionreports. Assignments/urgentmessages→agents.",
-			"Channels=workstreams; threads=topics. Reuse relevantchannels≠catchalls. Newchannel requires distinctcoordinationpurpose; never task/result announcement only.",
+			"Posts=work-changing ownership/decisions/findings/blockers only. Existing thread replies; link≠repeat. Personal checkpoints→notes. No ack/status spam/duplicate completion reports. Assignments/urgent messages→agents.",
+			"Channels=workstreams; threads=topics. Reuse relevant channels≠catchalls. New channel requires distinct coordination purpose; never task/result announcement only.",
 		]
 			.filter(Boolean)
 			.join(" ");

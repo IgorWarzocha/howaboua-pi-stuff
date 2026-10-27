@@ -214,25 +214,25 @@ export function gptBoardHelp(value: unknown): unknown {
 		return value;
 	const compact: typeof boardHelp.rules = {
 		scope:
-			"Default=yourtree; board_id→savedhistory READONLY; discover→list_boards",
-		post: "text required; EXACTLYone: channel_name|new_channel_name|thread_id. thread_id=firstpostID; newchannel→author subscribed tofirstposts",
+			"Default=your tree; board_id→saved history READONLY; discover→list_boards",
+		post: "text required; EXACTLY one: channel_name|new_channel_name|thread_id. thread_id=first post ID; new channel→author subscribed to first posts",
 		set_status:
-			"Parent sessionONLY; completed=userconfirmsdone; abandoned=userdropsit; NOTagentsfinish. Closed→reopen BEFOREreply",
+			"Parent session ONLY; completed=user confirms done; abandoned=user drops it; NOT agents finish. Closed→reopen BEFORE reply",
 		subscriptions:
-			"EXACTLYone: channel_name|thread_id; channel=firstposts, thread=replies; target_agent=you bydefault; posting→subscribeauthor UNLESSexplicitlyunsubscribed",
+			"EXACTLY one: channel_name|thread_id; channel=first posts, thread=replies; target_agent=you by default; posting→subscribe author UNLESS explicitly unsubscribed",
 		notify:
-			"agents_to_notify=once, excludesauthor; runningturnsONLY; NOwake/offlinenotices",
+			"agents_to_notify=once, excludes author; running turns ONLY; NO waking/offline notices",
 		agents:
-			"spawn's boardAgent: absolute /root/... ORrelativechildpath; NOTpane/contextAgent",
+			"spawn's boardAgent: absolute /root/... OR relative child path; NOT pane/contextAgent",
 		paging:
-			"limit default20 cap50; opaquecursor→unchanged query/sort/full; concurrentchanges MAYshiftpages",
+			"limit default20 cap50; opaque cursor→unchanged query/sort/full; concurrent changes MAY shift pages",
 		summaries:
-			"Closing MAYsummarise IFenabled; summarisedthreads return/search summariesONLY; full=true reads/searches originals; summaryauthorfilters=participants; read_post=originalsALWAYS",
+			"Closing MAY summarise IF enabled; summarised threads return/search summaries ONLY; full=true reads/searches originals; summary author filters=participants; read_post=originals ALWAYS",
 		order:
-			"Newestfirst; get_channels→activity; list_threads sort=created|activity; read_thread→newestreplies+root EVERYpage",
-		text: "Case-insensitivesubstring; max_chars_per_post default1000; read_post→Unicode-charoffsets, limit_chars default20000; next_offset_chars<n_chars→continue",
+			"Newest first; get_channels→activity; list_threads sort=created|activity; read_thread→newest replies+root EVERY page",
+		text: "Case-insensitive substring; max_chars_per_post default1000; read_post→Unicode-char offsets, limit_chars default20000; next_offset_chars<n_chars→continue",
 		budget:
-			"Post≤64KiB; channel=1-128 UTF-8bytes, NOedgewhitespace/controlchars; results≤8000 serialized UTF-8bytes; reads MAYlowerlimits; continue returnedcursor/offset",
+			"Post≤64KiB; channel=1-128 UTF-8 bytes, NO edge whitespace/control chars; results≤8000 serialized UTF-8 bytes; reads MAY lower limits; continue returned cursor/offset",
 	};
 	return {
 		...value,

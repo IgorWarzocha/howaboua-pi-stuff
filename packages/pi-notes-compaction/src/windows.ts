@@ -33,11 +33,11 @@ Previous skill reads don’t carry into this window. Read the skills needed for 
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recoverystate≠diary. One concise authoritative note/task-or-topic, stablepath. Taskcheckpoint=request/constraints/decisions/status/nextsteps/historyIDs. write_file→replace stalestate; mark completion. Existingnotes→link≠copy/summarise. Recording≠implementationpermission.
+Notes=recovery state≠diary. One concise authoritative note per task/topic, stable path. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. write_file→replace stale state; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
 
-Savebatch@meaningfulmilestones≠every reply/step. Before new_context/handoff: save currentstate→await success; handoff includes checkpointpath. Postrollover: read checkpoint→neededlinks only. In-context notes: reread only if possiblychanged. Missingdetails→history.
+Batch saves@meaningful milestones≠every reply/step. Before new_context/handoff: save current state→await success; handoff includes checkpoint path. Post-rollover: read checkpoint→needed links only. In-context notes: reread only if possibly changed. Missing details→history.
 
-Prior skillreads≠currentcontext. Read task-relevant skills.
+Prior skill reads≠current context. Read task-relevant skills.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {
@@ -310,7 +310,7 @@ export class Windows {
 				kind === "task-boundary"
 					? renderTaskBoundaryReminder(remainingPercent, gpt)
 					: gpt
-						? `<context_window_reminder>\n${kind === "urgent" ? "Urgent: " : ""}${remainingPercent}% contextleft; save taskstate via notes→new_context ${kind === "urgent" ? "now, beforeotherwork" : "beforecontinuingwork"}.\n</context_window_reminder>`
+						? `<context_window_reminder>\n${kind === "urgent" ? "Urgent: " : ""}${remainingPercent}% context left; save task state via notes→new_context ${kind === "urgent" ? "now, before other work" : "before continuing work"}.\n</context_window_reminder>`
 						: `<context_window_reminder>\n${kind === "urgent" ? "Urgent: " : ""}${remainingPercent}% context remaining. Save the task state in notes, then call new_context ${kind === "urgent" ? "now, before other work" : "before continuing work"}.\n</context_window_reminder>`,
 			display: true,
 			details: {

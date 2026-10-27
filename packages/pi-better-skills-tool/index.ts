@@ -50,7 +50,7 @@ export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
 			gpt = active;
 			if (active)
 				tool.promptGuidelines = [
-					"skills: ListONCE@sessionstart; BEFOREwork read always-applicable+task-relevant skills",
+					"skills: List once/session start; before work read always-applicable+task-relevant skills",
 				];
 			else if (ordinaryGuidelines) tool.promptGuidelines = ordinaryGuidelines;
 			else delete tool.promptGuidelines;

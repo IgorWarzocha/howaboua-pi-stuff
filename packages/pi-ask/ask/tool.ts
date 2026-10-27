@@ -69,9 +69,9 @@ export function createAskRuntime({
 							(isGpt()
 								? [
 										'ask({prompts:[{title,body?,multiple?,choices?:[{label,description?}]}],delivery?:"wait"|"steer",handoff?})',
-										"wait default; steer ONLYif reversibleworkremains; handoff→wait useraction+state completionsignal",
-										"Review: finding→prompt+dispositionchoices; NEVERreportfirst",
-										"Auto Other/rephrase; nochoices=freetext; blank→rephrase/followup",
+										"wait default; steer ONLY if reversible work remains; handoff→wait user action+state completion signal",
+										"Review: finding→prompt+disposition choices; NEVER report first",
+										"Auto Other/rephrase; no choices=free text; blank→rephrase/follow up",
 									]
 								: [
 										'ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], delivery?: "wait"|"steer", handoff? })',

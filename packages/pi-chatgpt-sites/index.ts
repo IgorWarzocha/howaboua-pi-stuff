@@ -98,7 +98,7 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 		},
 		{
 			tool: guide,
-			gpt: "Sites guide/live resource.action parameterschema",
+			gpt: "Sites guide/live resource.action parameter schema",
 			ordinary: guide.description,
 		},
 	];

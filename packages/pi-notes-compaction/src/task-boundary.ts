@@ -5,7 +5,7 @@ export function renderTaskBoundaryReminder(
 	gpt = false,
 ): string {
 	if (gpt)
-		return `<context_window_reminder>\nSuggestedbudget reached; ${remainingPercent}% left. Tasksequence→finish currenttask→save notes→new_context before next; otherwisecontinuehere.\n</context_window_reminder>`;
+		return `<context_window_reminder>\nSuggested budget reached; ${remainingPercent}% left. Task sequence→finish current task→save notes→new_context before next; otherwise continue here.\n</context_window_reminder>`;
 	return `<context_window_reminder>\nSuggested context budget reached; ${remainingPercent}% remains. For a sequence of tasks, finish the current task, save notes and call new_context before the next. Otherwise, continue here.\n</context_window_reminder>`;
 }
 
