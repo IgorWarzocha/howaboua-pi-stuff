@@ -161,6 +161,10 @@ export function buildCodeModeToolsPrompt(
 		executionKind === "ts"
 			? gpt ? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution" : "Strict typechecking covers the whole cell, including tool arguments. Any type error prevents cell execution"
 			: undefined,
+		executionKind === "ts"
+			? gpt ? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
+				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal.'
+			: undefined,
 		gpt ? "No call signature→noargs help ONLY; structured→{}. Unfamiliar help→own cell BEFORE use"
 			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}. Read unfamiliar tool help alone before use.",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [

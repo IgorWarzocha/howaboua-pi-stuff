@@ -216,7 +216,12 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 				if (notice) cell.emit([{ type: "input_text", text: notice }]);
 			});
 			cell.result = { status: "ok", items: [] };
-		} catch (error) { cell.result = { status: "error", items: [], errorText: `${error instanceof Error ? error.message : String(error)}\n${execution.isolated ? "Isolated state was not adopted." : this.kernel.unavailable ? "The live kernel stopped; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint." : execution.worker ? "Earlier live mutations may remain; no rollback occurred. Continue inspecting the live notebook, or restart from its last durable checkpoint." : "The cell did not execute."} Tool and file effects were not rolled back.` }; }
+		} catch (error) {
+			const recovery = execution.worker || (!execution.isolated && this.kernel.unavailable)
+				? `${execution.isolated ? "Isolated state was not adopted." : this.kernel.unavailable ? "The live kernel stopped; live-only values and changes after its last durable checkpoint were lost. Use notebook restart to restore that checkpoint." : "Earlier live mutations may remain; no rollback occurred. Continue inspecting the live notebook, or restart from its last durable checkpoint."} Tool and file effects were not rolled back.`
+				: "The cell did not execute; no cell tool calls or file writes ran. Fix the error and retry.";
+			cell.result = { status: "error", items: [], errorText: `${error instanceof Error ? error.message : String(error)}\n${recovery}` };
+		}
 		finally {
 			this.delegate.cancelCell(cell.id);
 			if (execution.isolated) await execution.worker?.stop();
