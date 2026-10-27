@@ -1,5 +1,11 @@
 # @howaboua/pi-stuff
 
+## 0.0.108
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
+
 ## 0.0.107
 
 - Include bundled package updates:
