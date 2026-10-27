@@ -8,6 +8,10 @@ import {
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import {
+	openSessionPruningSettings,
+	type SessionPruningSettings,
+} from "./session-pruning-screen.js";
+import {
 	IDLE_MINUTES,
 	NEW_WINDOW_REQUESTS,
 	type NotesSettings,
@@ -22,10 +26,11 @@ export async function openNotesSettings(
 		save: (settings: NotesSettings) => void;
 		status: () => string[];
 		prune: () => Promise<void>;
+		sessionPruning: SessionPruningSettings;
 	},
 ): Promise<void> {
 	while (true) {
-		const action = await ctx.ui.custom<"close" | "prune">(
+		const action = await ctx.ui.custom<"close" | "prune" | "sessionPruning">(
 			(tui, theme, _kb, done) => {
 				const settings = options.settings();
 				const idleValue = (minutes: number) =>
@@ -36,6 +41,14 @@ export async function openNotesSettings(
 							: `${Math.ceil(minutes / 60)}h`;
 				const list = new SettingsList(
 					[
+						{
+							id: "sessionPruning",
+							label: "Session auto-pruning",
+							currentValue: "select…",
+							values: ["select…", "settings…"],
+							description:
+								"Per-session history limits and Run now. Memory savings require restarting Pi.",
+						},
 						{
 							id: "active",
 							label: "Active",
@@ -113,6 +126,10 @@ export async function openNotesSettings(
 					5,
 					getSettingsListTheme(),
 					(id, value) => {
+						if (id === "sessionPruning") {
+							done("sessionPruning");
+							return;
+						}
 						if (id === "prune") {
 							done("prune");
 							return;
@@ -251,6 +268,10 @@ export async function openNotesSettings(
 			},
 		);
 		if (action === "close") return;
+		if (action === "sessionPruning") {
+			await openSessionPruningSettings(ctx, options.sessionPruning);
+			continue;
+		}
 		if (
 			await ctx.ui.confirm(
 				"Prune missing sessions?",

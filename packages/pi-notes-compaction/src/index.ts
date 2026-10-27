@@ -11,6 +11,7 @@ import { HistorySearch } from "./history-search.js";
 import { registerNotesToolIntegrations } from "./integrations.js";
 import { NotesLifecycle } from "./lifecycle.js";
 import { registerNoteSaveMarkers } from "./note-save-marker.js";
+import { SessionPruning } from "./session-pruning.js";
 import { registerNotesSettingsCommand } from "./settings-command.js";
 import { NotesStore } from "./store.js";
 import { createTools } from "./tools.js";
@@ -77,6 +78,8 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		markers,
 		family,
 	);
+	const sessionPruning = new SessionPruning(pi, store);
+	sessionPruning.register();
 	pi.on("session_shutdown", () => {
 		lifecycle.reset();
 		lifecycle.active = false;
@@ -92,5 +95,6 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		store,
 		search,
 		settingsPath,
+		sessionPruning,
 	);
 }

@@ -3,6 +3,7 @@ import type { NotesActivation } from "./activation.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import { sessionRef } from "./notes.js";
+import type { SessionPruning } from "./session-pruning.js";
 import type { NotesSettings } from "./settings.js";
 import { openNotesSettings } from "./settings-screen.js";
 import type { NotesStore } from "./store.js";
@@ -14,6 +15,7 @@ export function registerNotesSettingsCommand(
 	store: NotesStore,
 	search: HistorySearch,
 	settingsPath: string,
+	sessionPruning: SessionPruning,
 ): void {
 	pi.registerCommand("notes", {
 		description: "Manage local notes and context rollover",
@@ -47,6 +49,15 @@ export function registerNotesSettingsCommand(
 					save,
 					settingsPath,
 					prune,
+					sessionPruning: {
+						get: () => store.pruningPolicy(ctx.sessionManager.getSessionId()),
+						save: (value) =>
+							store.setPruningPolicy(ctx.sessionManager.getSessionId(), value),
+						run: async () => {
+							await ctx.waitForIdle();
+							await sessionPruning.run(ctx, true);
+						},
+					},
 					status: () => {
 						const counts = store.status();
 						return [
