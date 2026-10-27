@@ -1,13 +1,13 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import type { CodexDictationSession } from "./dictation/session.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { CodexDictationSession } from "../dictation/session.ts";
 import {
 	formatCodexVoicePromptSchemaMismatch,
 	getProjectCodexVoiceSystemPromptPath,
 	loadCodexVoiceSystemPrompt,
 	prepareCodexVoiceSystemPrompt,
-} from "./system-prompt.ts";
-import type { CodexVoiceMode } from "./ui.ts";
+} from "../system-prompt.ts";
+import type { CodexVoiceMode } from "../ui.ts";
 
 export const VOICE_STATUS_KEY = "codex-voice";
 

@@ -1,32 +1,39 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { resolveCodexVoiceAuth } from "./auth.ts";
-import { CANCELLED, interruptible } from "./cancellation.ts";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { GippityControlConfig } from "../../config.ts";
+import { resolveCodexVoiceAuth } from "../auth.ts";
+import { CANCELLED, interruptible } from "../cancellation.ts";
 import {
 	buildRealtimeInitialItems,
 	type RealtimeInitialMessageItem,
-} from "./context.ts";
+} from "../context.ts";
+import type { CodexRealtimePeer } from "../conversation/peer.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { TransferredVoiceControls } from "../handoff-contract.ts";
+import type { CodexVoiceSessionMessages } from "../session-messages.ts";
+import type { CodexVoiceMode } from "../ui.ts";
 import {
 	startControllerConversation,
 	startControllerDictation,
-} from "./controller-sessions.ts";
+} from "./sessions.ts";
 import {
 	currentVoiceSession,
 	VOICE_STATUS_KEY,
 	type VoiceState,
-} from "./controller-support.ts";
-import type { CodexRealtimePeer } from "./conversation/peer.ts";
-import type { TransferredVoiceControls } from "./handoff-contract.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import type { CodexVoiceSessionMessages } from "./session-messages.ts";
-import type { CodexVoiceMode } from "./ui.ts";
+} from "./support.ts";
 
 export interface RealtimePeerPlan {
 	createPeer(): CodexRealtimePeer;
 	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
-	onInactive?(session: CodexRealtimeConversation, error: Error, resuming: boolean): void;
+	onInactive?(
+		session: CodexRealtimeConversation,
+		error: Error,
+		resuming: boolean,
+	): void;
 	onStatus?(status: string): void;
-	onTransferred?(peer: CodexRealtimePeer, controls: TransferredVoiceControls): void;
+	onTransferred?(
+		peer: CodexRealtimePeer,
+		controls: TransferredVoiceControls,
+	): void;
 	onTransferEnded?(peer: CodexRealtimePeer, error?: Error): void;
 	onStopped?(): void;
 }
@@ -35,7 +42,7 @@ export interface VoiceControllerRuntime {
 	state: VoiceState;
 	alternateVoice?: boolean;
 	context?: ExtensionContext | undefined;
-	config?: CodexConversionConfig | undefined;
+	config?: GippityControlConfig | undefined;
 	announcedMode?: CodexVoiceMode | undefined;
 	startGeneration: number;
 	startAbortController?: AbortController | undefined;
@@ -50,21 +57,15 @@ export interface PreparedRealtimeContext {
 }
 
 export async function prepareControllerRealtimeContext(options: {
-	pi: ExtensionAPI;
 	ctx: ExtensionContext;
-	config: CodexConversionConfig;
+	config: GippityControlConfig;
 	signal?: AbortSignal | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
-	sourceLeafId?: string | undefined;
-	forceSummary?: boolean | undefined;
 }): Promise<PreparedRealtimeContext> {
 	let generatedSummary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
-		pi: options.pi,
 		ctx: options.ctx,
 		config: options.config,
-		sourceLeafId: options.sourceLeafId,
-		forceSummary: options.forceSummary,
 		onSummaryGenerated: (value) => {
 			generatedSummary = value;
 		},
@@ -80,11 +81,10 @@ export async function prepareControllerRealtimeContext(options: {
 }
 
 export async function startControllerMode(options: {
-	pi: ExtensionAPI;
 	runtime: VoiceControllerRuntime;
 	messages: CodexVoiceSessionMessages;
 	ctx: ExtensionContext;
-	config: CodexConversionConfig;
+	config: GippityControlConfig;
 	mode: CodexVoiceMode;
 	realtimePeerPlan?: RealtimePeerPlan | undefined;
 	resume?: boolean | undefined;
@@ -121,11 +121,11 @@ export async function startControllerMode(options: {
 	runtime.context = options.ctx;
 	runtime.config = options.config;
 	runtime.alternateVoice = options.resume
-		? runtime.alternateVoice ?? false
-		: options.alternateVoice ?? false;
-	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
-	// A prepared refresh replaces only the call, not its queued Pi work.
-	if (!options.preparedRealtimeContext) options.messages.setContext(options.ctx);
+		? (runtime.alternateVoice ?? false)
+		: (options.alternateVoice ?? false);
+	runtime.realtimePeerPlan =
+		options.mode === "realtime" ? options.realtimePeerPlan : undefined;
+	options.messages.setContext(options.ctx);
 	runtime.state =
 		options.mode === "realtime"
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
@@ -135,7 +135,8 @@ export async function startControllerMode(options: {
 			startGeneration !== runtime.startGeneration ||
 			runtime.startAbortController !== startAbortController ||
 			runtime.state.type !== "connecting"
-		) return;
+		)
+			return;
 		options.onStatus(status);
 		options.realtimePeerPlan?.onStatus?.(status);
 	};
@@ -148,14 +149,13 @@ export async function startControllerMode(options: {
 					? options.preparedRealtimeContext
 						? Promise.resolve(options.preparedRealtimeContext)
 						: prepareControllerRealtimeContext({
-							pi: options.pi,
-							ctx: options.ctx,
-							config: options.config,
-							onSummaryStatus: (active) => {
-								setStartupStatus(active ? "summarizing…" : "connecting…");
-							},
-							signal: startSignal,
-						})
+								ctx: options.ctx,
+								config: options.config,
+								onSummaryStatus: (active) => {
+									setStartupStatus(active ? "summarizing…" : "connecting…");
+								},
+								signal: startSignal,
+							})
 					: Promise.resolve(undefined),
 			]),
 			startSignal,
@@ -168,7 +168,8 @@ export async function startControllerMode(options: {
 		if (
 			startGeneration !== runtime.startGeneration ||
 			runtime.state.type !== "connecting"
-		) return;
+		)
+			return;
 		if (options.mode === "dictation") await startDictation(options, auth);
 		else
 			await startConversation(
@@ -185,9 +186,7 @@ export async function startControllerMode(options: {
 		}
 		const activeState = snapshotState(runtime);
 		if (options.mode === "realtime") {
-			if (activeState.type !== "conversation") {
-				return;
-			}
+			if (activeState.type !== "conversation") return;
 			if (realtimeContext?.summary)
 				options.messages.contextSummary(realtimeContext.summary);
 			if (runtime.announcedMode !== options.mode) {
@@ -264,9 +263,6 @@ async function startConversation(
 			isCurrent: (session) => currentVoiceSession(runtime.state) === session,
 			onActive: (session) => {
 				runtime.state = { type: "conversation", session };
-				// Startup is asynchronous. Sample current work, not the turn that
-				// was active before auth, context preparation, and peer setup.
-				if (!options.ctx.isIdle()) session.agentStarted();
 				if (peer) options.realtimePeerPlan?.onActive?.(session, peer);
 			},
 			onError: (session, error) => {
@@ -278,8 +274,7 @@ async function startConversation(
 					options.onDrop(session, error);
 			},
 			onStatus: options.onStatus,
-			onTurn: (session, turn) => { void options.messages.voiceTurn(turn, session); },
-			onEvent: (event) => options.messages.realtimeEvent(event),
+			onTurn: (turn) => options.messages.voiceTurn(turn),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
 			onTranscriptTail: (transcript) =>

@@ -1,12 +1,12 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type {
 	RealtimePeerPlan,
 	VoiceControllerRuntime,
-} from "./controller-start.ts";
-import type { VoiceSession } from "./controller-support.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import type { CodexVoiceSessionMessages } from "./session-messages.ts";
+} from "./start.ts";
+import type { VoiceSession } from "./support.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 
 interface RealtimeReconnectCallbacks {
 	currentSession(): VoiceSession | undefined;

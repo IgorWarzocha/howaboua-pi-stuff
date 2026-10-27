@@ -1,11 +1,11 @@
-import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import type { CodexVoiceAuth } from "./auth.ts";
-import type { RealtimeInitialMessageItem } from "./context.ts";
-import type { CodexRealtimePeer } from "./conversation/peer.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
-import type { CodexDictationSession } from "./dictation/session.ts";
-import type { RealtimeVoiceTurn } from "./turns.ts";
+import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import type { CodexVoiceAuth } from "../auth.ts";
+import type { RealtimeInitialMessageItem } from "../context.ts";
+import type { CodexRealtimePeer } from "../conversation/peer.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { RealtimeVoiceEventDetails } from "../conversation/wire.ts";
+import type { CodexDictationSession } from "../dictation/session.ts";
+import type { RealtimeVoiceTurn } from "../turns.ts";
 
 interface SessionLifecycle<T> {
 	stillAuthorizing(): boolean;
@@ -40,9 +40,9 @@ export async function startControllerConversation(options: {
 	lifecycle: RealtimeSessionLifecycle;
 }): Promise<void> {
 	if (options.signal?.aborted) { await options.peer?.close(); return; }
-	const { CodexRealtimeConversation } = await import("./conversation/session.ts");
+	const { CodexRealtimeConversation } = await import("../conversation/session.ts");
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) { await options.peer?.close(); return; }
-	const realtimePeer = options.peer ?? new (await import("./conversation/native-peer.ts")).NativeCodexRealtimePeer();
+	const realtimePeer = options.peer ?? new (await import("../conversation/native-peer.ts")).NativeCodexRealtimePeer();
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) { await realtimePeer.close(); return; }
 	let session!: CodexRealtimeConversation;
 	session = new CodexRealtimeConversation({
@@ -87,7 +87,7 @@ export async function startControllerDictation(options: {
 	config: CodexConversionConfig;
 	lifecycle: DictationSessionLifecycle;
 }): Promise<void> {
-	const { CodexDictationSession } = await import("./dictation/session.ts");
+	const { CodexDictationSession } = await import("../dictation/session.ts");
 	if (!options.lifecycle.stillAuthorizing()) return;
 	let session!: CodexDictationSession;
 	session = new CodexDictationSession({

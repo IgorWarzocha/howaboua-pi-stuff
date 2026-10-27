@@ -4,47 +4,25 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 	getAgentDir,
-	getSelectListTheme,
 	getSettingsListTheme,
 } from "@earendil-works/pi-coding-agent";
 import {
-	type Component,
-	Input,
 	Key,
 	matchesKey,
-	SelectList,
 	type SettingItem,
 	SettingsList,
 	Text,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
-import { listAudioDevices } from "./audio/devices.ts";
-import {
-	CONTEXT_REASONING,
-	type GrokRealtimeConfig,
-	MODELS,
-	normalizeConfig,
-	readConfig,
-	SPEEDS,
-	VOICES,
-	writeConfig,
-} from "./config.ts";
+import { normalizeConfig, readConfig, writeConfig } from "./config.ts";
 import { validateAccess } from "./credentials.ts";
+import {
+	buildGrokSettings,
+	type SettingKey,
+	settingPatch,
+} from "./settings/fields.ts";
+import { createSettingsSubmenus } from "./settings/submenus.ts";
 import { collectGrokTools } from "./tools.ts";
-
-type SettingKey = Exclude<keyof GrokRealtimeConfig, "port">;
-
-function settingPatch(id: SettingKey, value: string): unknown {
-	const trimmed = value.trim();
-	return {
-		[id]:
-			id === "webSearch" || id === "autoResume"
-				? trimmed === "on"
-				: (id === "speed" || id === "silenceSeconds") && trimmed
-					? Number(trimmed)
-					: trimmed,
-	};
-}
 
 export async function openSettings(
 	ctx: ExtensionContext,
@@ -70,275 +48,16 @@ export async function openSettings(
 				error instanceof Error ? error.message : String(error),
 				"error",
 			);
-		const input = (
-			id: SettingKey,
-			title: string,
-			current: string,
-			submit: (value: string) => void,
-			cancel: () => void,
-		): Component => {
-			inSubmenu = true;
-			const editor = new Input();
-			editor.setValue(current);
-			editor.focused = true;
-			editor.onEscape = cancel;
-			editor.onSubmit = (value) => {
-				try {
-					normalizeConfig(settingPatch(id, value), config);
-					submit(value.trim());
-				} catch (error) {
-					reportError(error);
-				}
-			};
-			return {
-				render: (width) => [
-					...wrap(theme.bold(title), width),
-					"",
-					...editor.render(width),
-				],
-				invalidate: () => editor.invalidate(),
-				handleInput: (data) => editor.handleInput(data),
-			};
-		};
-		const chooser =
-			(
-				id: SettingKey,
-				title: string,
-				values: readonly string[],
-				customLabel: string,
-			): NonNullable<SettingItem["submenu"]> =>
-			(current, back) => {
+		const { input, chooser, devicePicker } = createSettingsSubmenus(
+			theme,
+			tui,
+			() => config,
+			() => {
 				inSubmenu = true;
-				let editor: Component | undefined;
-				const choices = [...new Set([...values, current])];
-				const custom = { value: "", label: customLabel };
-				const select = new SelectList(
-					[...choices.map((value) => ({ value, label: value })), custom],
-					8,
-					getSelectListTheme(),
-				);
-				select.setSelectedIndex(choices.indexOf(current));
-				select.onCancel = () => back();
-				select.onSelect = (item) => {
-					// Object identity leaves every custom account ID available.
-					if (item === custom)
-						editor = input(id, customLabel, current, back, () => {
-							editor = undefined;
-						});
-					else back(item.value);
-				};
-				return {
-					render: (width) =>
-						editor
-							? editor.render(width)
-							: [
-									...wrap(theme.bold(title), width),
-									"",
-									...select.render(width),
-								],
-					invalidate: () => (editor ?? select).invalidate(),
-					handleInput: (data) => (editor ?? select).handleInput?.(data),
-				};
-			};
-		const devicePicker =
-			(id: "microphone" | "speaker"): NonNullable<SettingItem["submenu"]> =>
-			(current, back) => {
-				inSubmenu = true;
-				let select: SelectList | undefined;
-				let failure: string | undefined;
-				let closed = false;
-				void listAudioDevices(id)
-					.then((devices) => {
-						if (closed) return;
-						const choices = [
-							{ value: "", label: "System default" },
-							...devices.map((device) => ({
-								value: device.name,
-								label: device.description || device.name,
-								description: device.name,
-							})),
-						];
-						if (current && !devices.some((device) => device.name === current))
-							choices.push({
-								value: current,
-								label: `${current} (saved, unavailable)`,
-							});
-						select = new SelectList(choices, 8, getSelectListTheme());
-						select.setSelectedIndex(
-							choices.findIndex((choice) => choice.value === current),
-						);
-						select.onCancel = () => {
-							closed = true;
-							back();
-						};
-						select.onSelect = (item) => {
-							closed = true;
-							back(item.value);
-						};
-						tui.requestRender();
-					})
-					.catch((error: unknown) => {
-						if (closed) return;
-						failure = error instanceof Error ? error.message : String(error);
-						tui.requestRender();
-					});
-				return {
-					render: (width) => [
-						...wrap(
-							theme.bold(id === "microphone" ? "Microphone" : "Speaker"),
-							width,
-						),
-						"",
-						...(select
-							? select.render(width)
-							: wrap(failure ?? "Loading audio devices…", width)),
-					],
-					invalidate: () => select?.invalidate(),
-					handleInput: (data) => {
-						if (matchesKey(data, Key.escape)) {
-							closed = true;
-							back();
-						} else select?.handleInput(data);
-					},
-				};
-			};
-		const settings: (SettingItem & { id: SettingKey })[] = [
-			{
-				id: "access",
-				label: "Pi xAI access",
-				currentValue: config.access,
-				values: ["oauth", "api_key"],
-				description:
-					"Uses the matching active Pi credential for voice and dictation",
 			},
-			{
-				id: "autoResume",
-				label: "Resume dropped voice calls",
-				currentValue: config.autoResume ? "on" : "off",
-				values: ["off", "on"],
-				description: "One replacement attempt after an established call drops",
-			},
-			...(["voiceShortcut", "dictationShortcut"] as const).map((id) => ({
-				id,
-				label: id === "voiceShortcut" ? "Voice shortcut" : "Dictation shortcut",
-				currentValue: config[id],
-				description: "Run /reload after changing; empty disables",
-				submenu: (current: string, back: (value?: string) => void) =>
-					input(
-						id,
-						"Pi shortcut · empty disables · /reload after changing",
-						current,
-						back,
-						() => back(),
-					),
-			})),
-			{
-				id: "contextModel",
-				label: "Context summary model",
-				currentValue: config.contextModel,
-				submenu: chooser(
-					"contextModel",
-					"Context summary model",
-					[
-						"current",
-						"off",
-						...ctx.modelRegistry
-							.getAvailable()
-							.map((model) => `${model.provider}/${model.id}`),
-					],
-					"Enter provider/modelId…",
-				),
-			},
-			{
-				id: "contextReasoning",
-				label: "Context summary reasoning",
-				currentValue: config.contextReasoning,
-				values: [...CONTEXT_REASONING],
-			},
-			{
-				id: "voice",
-				label: "Primary voice",
-				currentValue: config.voice,
-				submenu: chooser(
-					"voice",
-					"Voice · availability depends on your account",
-					VOICES,
-					"Enter custom voice ID…",
-				),
-			},
-			{
-				id: "alternateVoice",
-				label: "Alternate voice",
-				currentValue: config.alternateVoice,
-				description:
-					"Session transfers alternate between primary and alternate voices",
-				submenu: chooser(
-					"alternateVoice",
-					"Alternate voice · availability depends on your account",
-					VOICES,
-					"Enter custom voice ID…",
-				),
-			},
-			{
-				id: "model",
-				label: "Model",
-				currentValue: config.model,
-				submenu: chooser(
-					"model",
-					"Realtime model · availability depends on your account",
-					MODELS,
-					"Enter custom model ID…",
-				),
-			},
-			{
-				id: "reasoning",
-				label: "Reasoning",
-				currentValue: config.reasoning,
-				values: ["high", "none"],
-			},
-			{
-				id: "webSearch",
-				label: "Native web search",
-				currentValue: config.webSearch ? "on" : "off",
-				values: ["off", "on"],
-				description:
-					"xAI executes searches directly, bypassing Pi. Extra provider tool charges apply.",
-			},
-			{
-				id: "speed",
-				label: "Speed",
-				currentValue: String(config.speed),
-				submenu: chooser(
-					"speed",
-					"Speech speed",
-					SPEEDS.map(String),
-					"Enter speed…",
-				),
-			},
-			{
-				id: "language",
-				label: "Language",
-				currentValue: config.language,
-				submenu: (current, back) =>
-					input("language", "Language: auto or BCP 47 tag", current, back, () =>
-						back(),
-					),
-			},
-			{
-				id: "silenceSeconds",
-				label: "Follow-up after silence (seconds)",
-				currentValue: String(config.silenceSeconds),
-				description: "0 turns follow-up off",
-				submenu: (current, back) =>
-					input(
-						"silenceSeconds",
-						"Follow-up after silence in seconds: 0 off",
-						current,
-						back,
-						() => back(),
-					),
-			},
-		];
+			reportError,
+		);
+		const settings = buildGrokSettings(config, ctx, { input, chooser });
 		const save = (id: SettingKey, value: string) => {
 			try {
 				// Re-read for each partial patch so remote edits survive the open dialog.

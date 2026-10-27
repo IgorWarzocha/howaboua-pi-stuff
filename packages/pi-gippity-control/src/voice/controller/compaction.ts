@@ -1,12 +1,13 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { GippityControlConfig } from "../config.ts";
+import type { GippityControlConfig } from "../../config.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import { markRealtimePeerInactive } from "./reconnect.ts";
 import {
 	type PreparedRealtimeContext,
 	prepareControllerRealtimeContext,
 	type RealtimePeerPlan,
 	type VoiceControllerRuntime,
-} from "./controller-start.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
+} from "./start.ts";
 
 interface RealtimeCompactionRefreshCallbacks {
 	inputMuted(): boolean;
@@ -111,4 +112,75 @@ export class RealtimeCompactionRefresh {
 			this.runtime.state.session === session
 		);
 	}
+}
+
+interface ContextReplacementCallbacks {
+	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined;
+	renderStatus(status: string): void;
+	fail(error: Error, previous: CodexRealtimeConversation): void;
+	startReplacement(
+		ctx: ExtensionContext,
+		config: GippityControlConfig,
+		plan: RealtimePeerPlan | undefined,
+		inputMuted: boolean,
+		prepared: PreparedRealtimeContext,
+		signal: AbortSignal,
+	): Promise<CodexRealtimeConversation | undefined>;
+}
+export async function replaceRealtimeContext({
+	runtime,
+	callbacks,
+	ctx,
+	config,
+	previous,
+	plan,
+	inputMuted,
+	prepared,
+	signal,
+}: {
+	runtime: VoiceControllerRuntime;
+	callbacks: ContextReplacementCallbacks;
+	ctx: ExtensionContext;
+	config: GippityControlConfig;
+	previous: CodexRealtimeConversation;
+	plan: RealtimePeerPlan | undefined;
+	inputMuted: boolean;
+	prepared: PreparedRealtimeContext;
+	signal: AbortSignal;
+}): Promise<void> {
+	if (!callbacks.prepareRealtimePrompt(ctx))
+		throw new Error("Realtime voice prompt is unavailable");
+	runtime.startAbortController?.abort();
+	runtime.startAbortController = undefined;
+	markRealtimePeerInactive(
+		runtime,
+		previous,
+		new Error("Realtime voice refreshed after compaction"),
+		true,
+		plan,
+	);
+	const generation = ++runtime.startGeneration;
+	runtime.state = { type: "reconnecting", session: previous };
+	callbacks.renderStatus("reconnecting…");
+	plan?.onStatus?.("reconnecting…");
+	await previous.close();
+	if (
+		signal.aborted ||
+		runtime.startGeneration !== generation ||
+		runtime.state.type !== "reconnecting"
+	)
+		return;
+	const replacement = await callbacks.startReplacement(
+		ctx,
+		config,
+		plan,
+		inputMuted,
+		prepared,
+		signal,
+	);
+	if (!replacement && !signal.aborted && runtime.state.type === "reconnecting")
+		callbacks.fail(
+			new Error("Codex realtime voice could not refresh"),
+			previous,
+		);
 }

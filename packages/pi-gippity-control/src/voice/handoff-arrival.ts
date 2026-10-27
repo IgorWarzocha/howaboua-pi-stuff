@@ -8,7 +8,7 @@ import type { CodexVoiceController } from "./controller.ts";
 import {
 	prepareControllerRealtimeContext,
 	type RealtimePeerPlan,
-} from "./controller-start.ts";
+} from "./controller/start.ts";
 import type {
 	TransferredVoiceControls,
 	VoiceHandoffChannel,

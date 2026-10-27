@@ -1,10 +1,10 @@
-import type { GippityControlConfig } from "../config.ts";
-import type { CodexVoiceAuth } from "./auth.ts";
-import type { RealtimeInitialMessageItem } from "./context.ts";
-import type { CodexRealtimePeer } from "./conversation/peer.ts";
-import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import type { CodexDictationSession } from "./dictation/session.ts";
-import type { RealtimeVoiceTurn } from "./turns.ts";
+import type { GippityControlConfig } from "../../config.ts";
+import type { CodexVoiceAuth } from "../auth.ts";
+import type { RealtimeInitialMessageItem } from "../context.ts";
+import type { CodexRealtimePeer } from "../conversation/peer.ts";
+import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import type { CodexDictationSession } from "../dictation/session.ts";
+import type { RealtimeVoiceTurn } from "../turns.ts";
 
 interface SessionLifecycle<T> {
 	stillAuthorizing(): boolean;
@@ -44,7 +44,7 @@ export async function startControllerConversation(options: {
 		return;
 	}
 	const { CodexRealtimeConversation } = await import(
-		"./conversation/session.ts"
+		"../conversation/session.ts"
 	);
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
 		await options.peer?.close();
@@ -53,7 +53,7 @@ export async function startControllerConversation(options: {
 	const realtimePeer =
 		options.peer ??
 		new (
-			await import("./conversation/native-peer.ts")
+			await import("../conversation/native-peer.ts")
 		).NativeCodexRealtimePeer();
 	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
 		await realtimePeer.close();
@@ -111,7 +111,7 @@ export async function startControllerDictation(options: {
 	config: GippityControlConfig;
 	lifecycle: DictationSessionLifecycle;
 }): Promise<void> {
-	const { CodexDictationSession } = await import("./dictation/session.ts");
+	const { CodexDictationSession } = await import("../dictation/session.ts");
 	if (!options.lifecycle.stillAuthorizing()) return;
 	let session!: CodexDictationSession;
 	session = new CodexDictationSession({
