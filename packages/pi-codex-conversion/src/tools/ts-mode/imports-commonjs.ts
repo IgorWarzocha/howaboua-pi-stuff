@@ -1,9 +1,10 @@
+import { dirname } from "node:path";
 import type { API } from "tsrs/async";
 import type { CallExpression, Node, StringLiteral } from "tsrs/ast";
 import type { TsRuntime } from "./runtime.ts";
 
-/** Bind emitted CommonJS so erased TypeScript declarations cannot hide Node's require. */
-export async function anchorCommonJsRequires(api: API, runtime: TsRuntime, path: string, source: string, resolveRequire: (specifier: string) => Promise<string>): Promise<string> {
+/** Preserve CommonJS source scope while compiling literal relative TypeScript dependencies. */
+export async function relocateCommonJsModule(api: API, runtime: TsRuntime, path: string, source: string, resolveRequire: (specifier: string) => Promise<string>): Promise<string> {
 	const snapshot = await api.createSnapshot({
 		fileSystem: runtime.fs.createFileSystemLayer([[path, source]]),
 		createPrograms: [{ rootFiles: [path], compilerOptions: { noLib: true, noResolve: true, types: [], module: runtime.api.ModuleKind.NodeNext, moduleResolution: runtime.api.ModuleResolutionKind.NodeNext } }],
@@ -17,26 +18,23 @@ export async function anchorCommonJsRequires(api: API, runtime: TsRuntime, path:
 		function walk(node: Node): void {
 			if (isCallExpression(node) && isIdentifier(node.expression) && node.expression.text === "require") {
 				const argument = node.arguments[0];
-				if (argument && isStringLiteral(argument)) calls.push({ call: node, argument });
+				if (argument && isStringLiteral(argument) && /^\.{1,2}\//.test(argument.text)) calls.push({ call: node, argument });
 			}
 			node.forEachChild(walk);
 		}
 		walk(file);
 		const symbols = await program.getProject().checker.getSymbolAtLocation(calls.map(({ call }) => call.expression));
 		const edits: { start: number; end: number; text: string }[] = [];
-		for (const [index, { call, argument }] of calls.entries()) {
+		for (const [index, { argument }] of calls.entries()) {
 			const symbol = symbols[index];
 			// A local declaration owns this call's arguments, including hoisted and destructured bindings.
 			if (symbol?.declarations.length) continue;
-			if (/^\.{1,2}\//.test(argument.text)) {
-				edits.push({ start: argument.getStart(file), end: argument.end, text: JSON.stringify(await resolveRequire(argument.text)) });
-			} else {
-				// Resolve packages from the source, but only when this call executes.
-				edits.push({ start: call.expression.getStart(file), end: call.expression.end, text: `require("node:module").createRequire(${JSON.stringify(path)})` });
-			}
+			edits.push({ start: argument.getStart(file), end: argument.end, text: JSON.stringify(await resolveRequire(argument.text)) });
 		}
 		let rewritten = source;
 		for (const edit of edits.sort((a, b) => b.start - a.start)) rewritten = rewritten.slice(0, edit.start) + edit.text + rewritten.slice(edit.end);
-		return rewritten;
+		rewritten = rewritten.replace(/^#![^\n]*/, "");
+		// Match Node's wrapper arguments without inserting declarations into user scope or moving strict directives.
+		return `(function(exports, require, module, __filename, __dirname) {\n${rewritten}\n}).call(exports, exports, require("node:module").createRequire(${JSON.stringify(path)}), module, ${JSON.stringify(path)}, ${JSON.stringify(dirname(path))});\n`;
 	} finally { await snapshot.dispose(); }
 }

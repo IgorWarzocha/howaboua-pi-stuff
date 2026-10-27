@@ -7,7 +7,7 @@ import type { Node } from "tsrs/ast";
 import type { TsRuntime } from "./runtime.ts";
 import type { TsImportOptions } from "./imports.ts";
 import { resolveTsSource, withTsImportApi } from "./imports-api.ts";
-import { anchorCommonJsRequires } from "./imports-require.ts";
+import { relocateCommonJsModule } from "./imports-commonjs.ts";
 import { cacheExactNpmImport } from "../code-mode/npm-cache.ts";
 
 /** Compile trusted local TS, including enums; never rely on Node's type stripping. */
@@ -85,7 +85,7 @@ export async function compileTsImportSource(
 			const emitted = await api.transpileModule(rewritten, { fileName: path, compilerOptions: { module: commonjs ? ModuleKind.NodeNext : ModuleKind.ESNext, target: ScriptTarget.ESNext }, reportDiagnostics: true });
 			const errors = emitted.diagnostics?.filter(value => value.category === 1);
 			if (errors?.length) throw new Error(errors.map(value => value.text).join("\n"));
-			const javascript = commonjs ? await anchorCommonJsRequires(api, runtime, path, emitted.outputText, async (specifier) => {
+			const javascript = commonjs ? await relocateCommonJsModule(api, runtime, path, emitted.outputText, async (specifier) => {
 				let dependency = resolve(dirname(path), specifier);
 				if (!/\.(?:ts|mts|cts|js|mjs|cjs)$/.test(dependency)) return dependency;
 				try { await access(dependency); }
