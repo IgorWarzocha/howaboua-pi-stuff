@@ -4,6 +4,7 @@
 
 ### Features
 
+- Added per-session auto-pruning in `/notes`, with 5, 10 or 25 full-history windows and optional one-week or one-month conversation retention. Off by default, with a Run now preview. Current context and saved notes remain protected. Restart Pi for memory savings; `/reload` is not sufficient.
 - Added opt-in BM25-ranked history search in `/notes` for earlier user messages and assistant replies. Current context, tools and reasoning are excluded. Explicit tool-history, live-window and cross-agent searches retain literal matching.
 - Added subagent sharing and note-save marker settings to `/notes`, with migration from global and trusted-folder PCC preferences.
 - Added automatic read-only remote notes retrieval and recovery of saved PCC Tree history.
@@ -15,7 +16,7 @@
 
   **Expected compaction card:** This fix requires a native history cut, which displays Pi's compaction card. Pi currently provides no supported way to hide this card. It can be ignored; Notes is working as intended.
 
-- Tool descriptions now explain that Notes hands off task state between context windows. GPT prompt mode condenses this guidance, history-search help and rollover reminders.
+- Tool descriptions now explain that Notes hands off task state between context windows. GPT prompt mode uses note-style guidance, history-search help and rollover reminders.
 - Notes now accepts `read` as an alias for `read_file`.
 - With PCC, plaintext Notes and history calls inside `exec` now return objects instead of JSON strings.
 - With PCC, history now reads Pi session files instead of encrypted backend history.
