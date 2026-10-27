@@ -2,6 +2,7 @@
 - One stable host owns the tsrs compiler. Normal cells share a serial Node REPL kernel through public APIs; isolated cells own disposable processes. Each process owns cwd, heap and subprocess cleanup.
 - Register original top-level function identities at creation, never by the final binding name. Restore recipe functions before decoding data, then initialise lexical bindings from decoded roots. Function declarations need outer lexical self-reference, not an invented named-expression self binding.
 - Live errors can retain mutations. Cancellation of executing live code invalidates the kernel; recovery uses the last durable checkpoint. Isolated candidates never merge automatically into the live heap.
+- A live evaluation ending with outstanding tool/import requests must stop its heap, including on rejection. Cancelling requests cannot quiesce user continuations. Cancel host delegates before awaiting worker shutdown; never admit another cell to that heap.
 - Durable project baselines are immutable. Publish merges only after atomic persistence; preserve conflicting candidates separately.
 - A worker's unreachable node is not a deletion. Preserve nodes from either snapshot, then compact against the merged roots.
 - Retained imports keep TypeScript type/namespace authority. Restore their values once in the worker, not again in cell emission. Pin dependencies include erased type references.

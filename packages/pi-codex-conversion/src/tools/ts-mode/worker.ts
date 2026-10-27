@@ -253,8 +253,10 @@ async function run(input: TsWorkerInput): Promise<void> {
 			}
 			if (!input.captureOnly && !startupFinished) { await dispatchHooks("startup", { type: "startup" }); startupFinished = true; }
 			if (!input.captureOnly) { sourceStarted = true; await evaluator.evaluate(input.javascript); }
-			if (pending.size) throw new Error("TS cell has unawaited tool/import requests; await them before finishing a cell");
 		} catch (cause) { error = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause); }
+		// Awaiting host replies cannot settle arbitrary user finally/catch continuations.
+		// A terminal worker error makes the host stop this heap before another cell.
+		if (pending.size) throw new Error(`The cell ended while tool or import calls were still running. Wait for every call to settle.${error ? `\n${error}` : ""}`);
 		if (restoreFailure) { send({ kind: "live-done", state: input.state, skipped: [], sourceStarted: false, error: restoreFailure, restoreFailed: failedRestoreBindings }); return; }
 		liveStore = storeValues;
 		const values: Record<string, unknown> = {};

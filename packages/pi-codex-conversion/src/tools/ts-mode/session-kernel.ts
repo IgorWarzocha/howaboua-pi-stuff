@@ -45,7 +45,7 @@ export class TsSessionKernel {
 					return operation === "tool" ? delegate.invokeDirect(execution.cell.id, id, name, value) : resolveTsRuntimeImport(name, execution.imports);
 				},
 			}).catch(async error => {
-				if (!execution.isolated) { this.kernelUnavailable = true; await execution.worker?.stop(); }
+				if (!execution.isolated) { this.kernelUnavailable = true; delegate.cancelCell(execution.cell.id); await execution.worker?.stop(); }
 				throw error;
 			});
 	}
