@@ -9,7 +9,7 @@ export function createHistoryPruning() {
 	/** @type {PrunedHistory | undefined} */
 	let cached;
 	const empty = new Set();
-	/** @param {import("better-sqlite3").Database} db
+	/** @param {import("./sqlite.mjs").Database} db
 	 * @param {string} sessionId
 	 * @param {string | undefined} file
 	 * @returns {Promise<ReadonlySet<string>>}
@@ -91,7 +91,7 @@ export function createHistoryPruning() {
 			const removeDocument = db.prepare(
 				"DELETE FROM history_documents WHERE id = ?",
 			);
-			/** @type {import("better-sqlite3").Statement<[string], {id:number; item_id:string}>} */
+			/** @type {import("./sqlite.mjs").Statement<[string], {id:number; item_id:string}>} */
 			const documents = db.prepare(
 				"SELECT id, item_id FROM history_documents WHERE session_id = ?",
 			);
