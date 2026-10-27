@@ -2,10 +2,6 @@
 "@howaboua/pi-notes-compaction": patch
 ---
 
-### Breaking changes
-
-- **BREAKING CHANGE:** When used with PCC, plaintext Notes and history calls inside `exec` now return objects. Remove `JSON.parse` around these calls in saved helpers. Standalone Notes is unaffected.
-
 ### Features
 
 - Added opt-in BM25-ranked history search in `/notes` for earlier user messages and assistant replies. Current context, tools and reasoning are excluded. Explicit tool-history, live-window and cross-agent searches retain literal matching.
@@ -21,6 +17,7 @@
 
 - Tool descriptions now explain that Notes hands off task state between context windows. GPT prompt mode condenses this guidance, history-search help and rollover reminders.
 - Notes now accepts `read` as an alias for `read_file`.
+- With PCC, plaintext Notes and history calls inside `exec` now return objects instead of JSON strings.
 - With PCC, history now reads Pi session files instead of encrypted backend history.
 - Fixed returning to a saved-notes point in the session tree unnecessarily requesting another checkpoint instead of opening a new context window.
 - Prune missing sessions now also removes history index entries for missing session files.
