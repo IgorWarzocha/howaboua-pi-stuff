@@ -34,6 +34,8 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 
 **Settings** contains orchestration preferences, agent command guidance and the global config path. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines through Herdr's setup flow. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
 
+Run `/herdr close-idle` to close idle child sessions spawned by the current session branch. Attached or assigned existing sessions are never included. Busy, blocked, unavailable or unverified children stay open. Children spawned before this feature was installed have no ownership receipt and stay open too. Pi shuts down gracefully before its pane closes.
+
 `/herdr` is Shepherdr's only entry point. Outside the TUI, it reports status without changing it. An orchestration change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. The current guidance returns when a new model context no longer contains it, including turns started by worker messages. Tool availability and monitoring do not depend on this mode.
 
 To add a machine, enter an SSH target or alias, a label and an optional remote session under **Connections**. Herdr performs setup in the terminal and asks before installing or replacing its remote server. OpenSSH owns authentication; Shepherdr does not store credentials. Profiles remain in Herdr's existing catalog, where they can also be renamed, disabled or removed.

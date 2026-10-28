@@ -66,6 +66,7 @@ export function createAgentsTool(
 			let runtime = fleet.connected(params.machine);
 			if (params.action === "spawn") {
 				return spawnAgent(
+					pi,
 					fleet,
 					runtime,
 					params,
@@ -149,7 +150,7 @@ export function createAgentsTool(
 					watched: true,
 					machine: runtime.machine,
 					target: panel.pane_id,
-					next: "Completion or blockage will be delivered automatically; do not poll",
+					next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 				});
 			}
 			if (params.action === "read") {
@@ -221,7 +222,7 @@ export function createAgentsTool(
 									machine: runtime.machine,
 									target: panel.pane_id,
 									status: "working",
-									next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
+									next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 								},
 					dispatch.warning,
 				);

@@ -104,7 +104,13 @@ export async function sendPeerMessage(
 	const frame =
 		JSON.stringify({
 			protocol: PEER_PROTOCOL,
-			kind: commands ? "commands" : focus ? "focus" : "message",
+			kind: message.closeIfIdle
+				? "close-idle"
+				: commands
+					? "commands"
+					: focus
+						? "focus"
+						: "message",
 			focus,
 			id,
 			token: descriptor.token,

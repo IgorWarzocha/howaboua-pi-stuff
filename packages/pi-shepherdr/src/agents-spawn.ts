@@ -1,5 +1,6 @@
 import type {
 	AgentToolUpdateCallback,
+	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -29,8 +30,10 @@ import {
 	profileAgentArgs,
 } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
+import { prepareSpawnOwnership } from "./spawn-ownership.js";
 
 export async function spawnAgent(
+	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	runtime: ConnectedMachine,
 	params: AgentsParams,
@@ -40,6 +43,7 @@ export async function spawnAgent(
 	ctx: ExtensionContext,
 	board: AgentBoard,
 ) {
+	const recordSpawn = prepareSpawnOwnership(pi, ctx, runtime);
 	const boardThreadId =
 		params.board_thread_id === undefined
 			? undefined
@@ -150,6 +154,7 @@ export async function spawnAgent(
 		let relationshipWarning: string | undefined;
 		const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 		try {
+			await recordSpawn(started.agent, agentArgs);
 			relationshipWarning = (await relationship?.accept(started.agent))
 				?.warning;
 			boardAgent = await boardBinding?.accept(started.agent);
@@ -204,7 +209,7 @@ export async function spawnAgent(
 								target: started.id,
 								name,
 								status: "working",
-								next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
+								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 							}),
 			},
 			[dispatch.warning, shared?.warning, relationshipWarning]

@@ -9,7 +9,7 @@ import { acceptFocus, readFocus } from "./agents-focus.js";
 import { sendPolicyMessage } from "./delivery.js";
 import { dispatchExtensionReply } from "./extension-reply.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getCurrentPane } from "./herdr.js";
+import { getAgent, getCurrentPane, sessionPath } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
 import { announcePeerMessage } from "./messages/voice-announcements.js";
 import { acceptFocusChannel } from "./peer-channel.js";
@@ -34,12 +34,22 @@ export function registerPeerInbox(
 ): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
+	let generation = 0;
 	const publish = async (ctx: ExtensionContext) => {
 		if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
 			return;
-		close = await openInbox(pi, ctx, () => running, commands, fleet, catchup);
+		close = await openInbox(
+			pi,
+			ctx,
+			() => running,
+			() => generation,
+			commands,
+			fleet,
+			catchup,
+		);
 	};
 	pi.on("before_agent_start", () => {
+		generation += 1;
 		running = true;
 	});
 	pi.on("agent_settled", () => {
@@ -62,6 +72,7 @@ async function openInbox(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	isRunning: () => boolean,
+	generation: () => number,
 	commands: ReturnType<typeof createPeerCommands>,
 	fleet: AgentFleet,
 	catchup: (
@@ -78,6 +89,7 @@ async function openInbox(
 	const sockets = new Set<Socket>();
 	let state: "open" | "quitting" | "closed" = "open";
 	let promptDelivery = Promise.resolve();
+	let pendingPrompts = 0;
 	const server = createServer((socket) => {
 		sockets.add(socket);
 		socket.setEncoding("utf8");
@@ -122,6 +134,7 @@ async function openInbox(
 				(request["kind"] !== "focus" &&
 					request["kind"] !== "commands" &&
 					request["kind"] !== "message" &&
+					request["kind"] !== "close-idle" &&
 					request["kind"] !== "channel" &&
 					request["kind"] !== "extension-reply") ||
 				(request["kind"] !== "focus" &&
@@ -187,6 +200,63 @@ async function openInbox(
 						rejected: true,
 						error: error instanceof Error ? error.message : String(error),
 					});
+				}
+				return;
+			}
+			if (request["kind"] === "close-idle") {
+				const startGeneration = generation();
+				const idle = (live: ExtensionContext) =>
+					state === "open" &&
+					!socket.destroyed &&
+					live.sessionManager.getSessionFile() === sessionFile &&
+					live.isIdle() &&
+					!live.hasPendingMessages() &&
+					!isRunning() &&
+					pendingPrompts === 0 &&
+					generation() === startGeneration;
+				const reject = () =>
+					reply({
+						ok: false,
+						rejected: true,
+						error: "Target is busy or changed context; idle close skipped",
+					});
+				if (!idle(ctx)) {
+					reject();
+					return;
+				}
+				try {
+					const livePane = await getAgent(new HerdrClient(), pane.pane_id);
+					if (
+						request["text"] !== "/quit" ||
+						!idle(ctx) ||
+						livePane.pane_id !== pane.pane_id ||
+						livePane.terminal_id !== pane.terminal_id ||
+						sessionPath(livePane) !== sessionFile ||
+						livePane.interactive_ready !== true ||
+						livePane.launch_pending === true ||
+						(livePane.agent_status !== "idle" &&
+							livePane.agent_status !== "done")
+					) {
+						reject();
+						return;
+					}
+					commands.closeIdle(ctx, async (live) => {
+						if (!idle(live)) {
+							reject();
+							return;
+						}
+						// No async boundary between the live idle check and shutdown.
+						// Retain the socket until process exit, as for ordinary peer quit.
+						state = "quitting";
+						sockets.delete(socket);
+						socket.setTimeout(0);
+						socket.write(
+							`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ok: true, command: true, closing: true })}\n`,
+						);
+						live.shutdown();
+					});
+				} catch {
+					reject();
 				}
 				return;
 			}
@@ -344,6 +414,7 @@ async function openInbox(
 				// Catch-up sampling and acceptance form one prompt boundary, including
 				// bursts arriving on separate authenticated sockets.
 				const previous = promptDelivery;
+				pendingPrompts += 1;
 				let release!: () => void;
 				promptDelivery = new Promise<void>((resolve) => {
 					release = resolve;
@@ -388,6 +459,7 @@ async function openInbox(
 					}
 					reply({ ok: true, command: false });
 				} finally {
+					pendingPrompts -= 1;
 					release();
 				}
 			} catch (error) {

@@ -4,6 +4,7 @@ export interface PeerMessage {
 	text: string;
 	sender: string;
 	context?: string;
+	closeIfIdle?: true;
 }
 
 export interface PeerDelivery {
