@@ -8,13 +8,14 @@ import { Type } from "typebox";
 import type { LookupQuery, SharedNotesDetails } from "./bridge.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
+import type { createModelRoles } from "./model-roles.js";
 import { createQueryExecutor } from "./query-executor.js";
 import type { NotesStore } from "./store.js";
 import {
 	HISTORY_SCHEMA,
 	NEW_CONTEXT_DESCRIPTION,
 	NOTES_DESCRIPTION,
-	NOTES_SCHEMA,
+	notesSchema,
 	prepareNotesArguments,
 	result,
 } from "./tool-contracts.js";
@@ -50,6 +51,7 @@ export function createTools(
 	store: NotesStore,
 	lifecycle: NotesLifecycle,
 	search: HistorySearch,
+	roles: ReturnType<typeof createModelRoles>,
 ): ToolDefinition[] {
 	const assertActive = () => {
 		if (!lifecycle.active)
@@ -63,11 +65,48 @@ export function createTools(
 			name: "notes",
 			label: "notes",
 			description: NOTES_DESCRIPTION,
-			parameters: NOTES_SCHEMA,
+			parameters: notesSchema(roles.enabled()),
 			executionMode: "sequential",
-			prepareArguments: prepareNotesArguments,
-			execute: (callId, input, signal, _update, ctx) =>
-				queries.notes(callId, input, signal, ctx),
+			prepareArguments: (args) => prepareNotesArguments(args, roles.enabled()),
+			execute: async (callId, input, signal, _update, ctx) => {
+				const params = prepareNotesArguments(input, roles.enabled());
+				if (
+					params["action"] === "roles" ||
+					params["action"] === "recommend_handoff"
+				) {
+					assertActive();
+					if (signal?.aborted)
+						throw new Error("Handoff recommendation cancelled");
+					if (params["action"] === "roles") return roles.query({}, ctx);
+					const role = params["role"],
+						reason = params["reason"],
+						continuity = params["continuity"];
+					if (
+						typeof role !== "string" ||
+						!role.trim() ||
+						typeof reason !== "string" ||
+						typeof continuity !== "string"
+					)
+						throw new Error(
+							"recommend_handoff requires role, reason and continuity; use notes action=roles to discover preferences",
+						);
+					return roles.query({ role, reason, continuity }, ctx);
+				}
+				const output = await queries.notes(callId, input, signal, ctx);
+				if (
+					roles.enabled() &&
+					(!params["action"] || params["action"] === "help")
+				) {
+					const part = output.content[0];
+					if (part?.type === "text") {
+						const help = JSON.parse(part.text);
+						help.actions.roles = "";
+						help.actions.recommend_handoff = "role reason continuity";
+						return result(help);
+					}
+				}
+				return output;
+			},
 		},
 		{
 			name: "history",

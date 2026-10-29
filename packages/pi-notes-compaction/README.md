@@ -40,6 +40,34 @@ Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hou
 
 ## Management
 
+### Model roles
+
+`/roles` opens the Roles tab. `/notes` opens its existing Notes tab. Press Tab
+or Shift-Tab to move between them. Add a role with a description of when it
+fits, choose any available Pi provider and model, and set preferred reasoning.
+Roles have no shipped model assignments. You can switch to a role manually
+without enabling recommendations.
+
+Recommendations are off by default. Enable them in `/roles` to let the agent
+discover your preferences through Notes and recommend a handoff when the
+conversation gives a better-fitting role a clear advantage. Recommendations
+appear after a successful run settles, with a reason and `/roles accept` as the
+next action. Accept to switch in the same conversation, or use `/roles dismiss`
+to stay put. There is no automatic hand-back or turn-count schedule.
+
+Manual model or reasoning changes, a new run, and session or branch navigation
+cancel pending recommendations. Notes must be active for both the current and
+target models. Pi handles authentication and clamps unsupported reasoning
+levels. Model switches retain Pi's existing context and tool results. Provider
+capabilities and context limits still apply, and switching does not guarantee
+cache reuse. Context retirement and recovery keep their existing Notes settings.
+
+Role preferences are saved in
+`<Pi agent directory>/notes-compaction/model-roles.json`. Changes take effect
+through the Roles tab.
+
+### Notes settings
+
 `/notes` opens the settings panel in interactive Pi. It shows continuity status, storage counts and remote capabilities. Changes save immediately.
 - **Active** selects **All models** (the default) or **Whitelist**. Whitelist enables the extension only for exact model IDs in the global settings file, regardless of provider. Switching models applies the choice immediately; other models keep their installed compaction behaviour.
 - **Normal compaction** uses the installed Pi or PCC compaction flow for `/compact` and `new_context`. Off keeps notes-only rollover, the default.

@@ -1,7 +1,11 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
 import type { NotesActivation } from "./activation.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
+import type { createModelRoles } from "./model-roles.js";
 import { sessionRef } from "./notes.js";
 import type { SessionPruning } from "./session-pruning.js";
 import type { NotesSettings } from "./settings.js";
@@ -16,13 +20,17 @@ export function registerNotesSettingsCommand(
 	search: HistorySearch,
 	settingsPath: string,
 	sessionPruning: SessionPruning,
+	roles: ReturnType<typeof createModelRoles>,
 ): void {
-	pi.registerCommand("notes", {
-		description: "Manage local notes and context rollover",
-		handler: async (args, ctx) => {
-			if (args.trim()) {
-				ctx.ui.notify("Use /notes to open settings.", "info");
-				return;
+	const open = async (
+		ctx: ExtensionCommandContext,
+		initial: "notes" | "roles",
+	) => {
+		let tab = initial;
+		while (true) {
+			if (tab === "roles") {
+				if ((await roles.command("", ctx)) !== "notes") return;
+				tab = "notes";
 			}
 			if (!ctx.hasUI) {
 				ctx.ui.notify("Notes settings require interactive Pi.", "warning");
@@ -44,7 +52,7 @@ export function registerNotesSettingsCommand(
 				);
 			};
 			try {
-				await openNotesSettings(ctx, {
+				const next = await openNotesSettings(ctx, {
 					settings: () => activation.settings,
 					save,
 					settingsPath,
@@ -69,9 +77,32 @@ export function registerNotesSettingsCommand(
 						];
 					},
 				});
+				if (next !== "roles") return;
+				tab = "roles";
 			} catch (error) {
 				ctx.ui.notify(`Notes settings failed: ${String(error)}`, "error");
+				return;
 			}
+		}
+	};
+	pi.registerCommand("notes", {
+		description: "Manage local notes and context rollover",
+		handler: async (args, ctx) => {
+			if (args.trim()) {
+				ctx.ui.notify("Use /notes to open settings.", "info");
+				return;
+			}
+			await open(ctx, "notes");
+		},
+	});
+	pi.registerCommand("roles", {
+		description: "Configure model roles and in-conversation handoffs",
+		handler: async (args, ctx) => {
+			if (args.trim()) {
+				await roles.command(args, ctx);
+				return;
+			}
+			await open(ctx, "roles");
 		},
 	});
 }

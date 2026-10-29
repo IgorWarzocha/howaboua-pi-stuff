@@ -21,12 +21,14 @@ export async function registerNotesToolIntegrations(
 	pi: ExtensionAPI,
 	lifecycle: NotesLifecycle,
 	tools: ReturnType<typeof createTools>,
+	prepareTools: (ctx?: ExtensionContext) => void,
 ) {
 	try {
 		const { registerGptPromptMode } = await import(
 			"@howaboua/pi-codex-conversion/prompt-mode"
 		);
-		const registration = registerGptPromptMode(pi, (active) => {
+		const registration = registerGptPromptMode(pi, (active, ctx) => {
+			prepareTools(ctx);
 			for (const [name, normal, gpt] of [
 				["notes", NOTES_DESCRIPTION, GPT_NOTES_DESCRIPTION],
 				["new_context", NEW_CONTEXT_DESCRIPTION, GPT_NEW_CONTEXT_DESCRIPTION],

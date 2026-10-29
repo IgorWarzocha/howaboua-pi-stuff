@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import {
 	type ExtensionAPI,
+	type ExtensionContext,
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { createNotesActivation } from "./activation.js";
@@ -10,10 +11,12 @@ import { registerNotesSharing } from "./extension-sharing.js";
 import { HistorySearch } from "./history-search.js";
 import { registerNotesToolIntegrations } from "./integrations.js";
 import { NotesLifecycle } from "./lifecycle.js";
+import { createModelRoles } from "./model-roles.js";
 import { registerNoteSaveMarkers } from "./note-save-marker.js";
 import { SessionPruning } from "./session-pruning.js";
 import { registerNotesSettingsCommand } from "./settings-command.js";
 import { NotesStore } from "./store.js";
+import { notesSchema } from "./tool-contracts.js";
 import { createTools } from "./tools.js";
 import { WindowCheckpoints } from "./window-checkpoint.js";
 import { registerWindowRenderer } from "./windows.js";
@@ -55,8 +58,29 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 			}
 		},
 	);
-	const tools = createTools(pi, store, lifecycle, search);
-	refreshNested = await registerNotesToolIntegrations(pi, lifecycle, tools);
+	const refreshRoleContract = (ctx?: ExtensionContext) => {
+		if (ctx) activation.refreshActivation(ctx);
+		const tool = tools.find((tool) => tool.name === "notes");
+		if (!tool) return;
+		const schema = notesSchema(roles.enabled());
+		if (JSON.stringify(tool.parameters) === JSON.stringify(schema)) return;
+		tool.parameters = schema;
+		pi.registerTool(tool);
+		refreshNested();
+	};
+	const roles = createModelRoles(
+		pi,
+		activation,
+		lifecycle,
+		refreshRoleContract,
+	);
+	const tools = createTools(pi, store, lifecycle, search, roles);
+	refreshNested = await registerNotesToolIntegrations(
+		pi,
+		lifecycle,
+		tools,
+		refreshRoleContract,
+	);
 	for (const tool of tools) pi.registerTool(tool);
 	const owner = createNotesContextOwner(pi, store, lifecycle, search);
 	const { family, stopOwner } = await registerNotesSharing(
@@ -101,5 +125,6 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 		search,
 		settingsPath,
 		sessionPruning,
+		roles,
 	);
 }

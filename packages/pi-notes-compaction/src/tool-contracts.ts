@@ -33,7 +33,7 @@ const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const NULLABLE_STRING = Type.Optional(Type.Union([Type.String(), Type.Null()]));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
-export const NOTES_SCHEMA = Type.Object(
+const NOTES_SCHEMA = Type.Object(
 	{
 		action: Type.Optional(StringEnum([...NOTES_ACTIONS, "read"])),
 		path: STRING,
@@ -54,6 +54,31 @@ export const NOTES_SCHEMA = Type.Object(
 	},
 	{ additionalProperties: false },
 );
+export function notesSchema(roles: boolean) {
+	if (!roles) return NOTES_SCHEMA;
+	return Type.Object(
+		{
+			...NOTES_SCHEMA.properties,
+			action: Type.Optional(
+				StringEnum([...NOTES_ACTIONS, "read", "roles", "recommend_handoff"]),
+			),
+			role: STRING,
+			reason: Type.Optional(
+				Type.String({
+					minLength: 1,
+					description: "Conversation evidence this role fits better now",
+				}),
+			),
+			continuity: Type.Optional(
+				Type.String({
+					minLength: 1,
+					description: "Goal, decisions, unfinished work and next step",
+				}),
+			),
+		},
+		{ additionalProperties: false },
+	);
+}
 export const HISTORY_SCHEMA = Type.Object(
 	{
 		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
@@ -83,6 +108,8 @@ export const HISTORY_SCHEMA = Type.Object(
 );
 
 const FIELDS: Record<string, readonly string[]> = {
+	roles: [],
+	recommend_handoff: ["role", "reason", "continuity"],
 	list_files_by_prefix: [
 		"prefix",
 		"file_order",
@@ -245,13 +272,20 @@ export function queryHelp(
 	return undefined;
 }
 
-export function prepareNotesArguments(args: unknown) {
+export function prepareNotesArguments(args: unknown, roles = false) {
 	if (args === undefined) return {};
 	if (!args || typeof args !== "object" || Array.isArray(args))
 		throw new Error(
 			'Supply an action object, e.g. { "action": "read_file", "path": "checkpoint" }. Use {} for help',
 		);
 	const params = { ...args } as Record<string, unknown>;
+	if (
+		!roles &&
+		["roles", "recommend_handoff"].includes(String(params["action"]))
+	)
+		throw new Error(
+			"Role recommendations are off. The user can enable them with /roles",
+		);
 	if (params["action"] === "read") params["action"] = "read_file";
 	if (
 		(params["action"] === "write_file" ||
@@ -270,8 +304,9 @@ export function prepareNotesArguments(args: unknown) {
 	}
 	if (!queryHelp("notes", params)) queryArguments("notes", params);
 	for (const [field, value] of Object.entries(params)) {
-		const schema =
-			NOTES_SCHEMA.properties[field as keyof typeof NOTES_SCHEMA.properties];
+		const schema = (
+			notesSchema(roles).properties as Record<string, import("typebox").TSchema>
+		)[field];
 		if (!schema || !Check(schema, value))
 			throw new Error(`Invalid notes ${field}; use {} for exact arguments`);
 	}
