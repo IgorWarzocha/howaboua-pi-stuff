@@ -3,7 +3,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 
 const SYSTEM_PROMPT =
-	"Turn this voice conversation into a natural, self-contained user instruction for another assistant. Use only the supplied conversation and authoritative yielded input. Preserve the user's intent, relevant details, constraints and uncertainty; do not invent decisions or resolve ambiguity. The yielded input is authoritative and appears once, separately from preceding utterances. Do not answer the request, perform work, or impose sections or categories. Return only the user instruction.";
+	"Rewrite this conversation as a natural, self-contained request to another assistant. Preserve the user's intent, relevant context and uncertainty without inventing facts or decisions. Don't carry out the request. Return only the request.";
 
 /** Tool-free sidecar: no Pi history, startup summary, or session mutation. */
 export async function rewriteTaskDelegation(
@@ -62,10 +62,7 @@ export async function rewriteTaskDelegation(
 							content: [
 								{
 									type: "text",
-									text: JSON.stringify({
-										precedingUtterances: turn.transcriptDelta ?? "",
-										yieldedInput: turn.input,
-									}),
+									text: `${turn.transcriptDelta ? `${turn.transcriptDelta}\n` : ""}user: ${turn.input}`,
 								},
 							],
 							timestamp: Date.now(),
