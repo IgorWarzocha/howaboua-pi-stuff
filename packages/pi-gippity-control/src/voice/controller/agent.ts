@@ -71,12 +71,12 @@ export class ControllerAgent {
 			.flatMap((part) => (part.type === "text" ? [part.text] : []))
 			.join("\n");
 		if (message.stopReason === "toolUse") {
-			const progress = completedText.trim()
-				? completedText
-				: forwardReasoningSummaries
+			this.runtime.state.session.agentProgress(
+				completedText,
+				forwardReasoningSummaries
 					? completedVoiceReasoningSummary(message)
-					: undefined;
-			if (progress) this.runtime.state.session.agentProgress(progress);
+					: undefined,
+			);
 			return;
 		}
 		this.runtime.state.session.agentResult(completedText);

@@ -273,6 +273,11 @@ export class CodexVoiceSessionMessages {
 					{ input: turn.input, route: "delegation", error: message },
 				);
 			} catch {}
+			return;
 		}
+		this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+			REALTIME_DELEGATION_MESSAGE_TYPE,
+			{ input: turn.input, route: "delegation" },
+		);
 	}
 }

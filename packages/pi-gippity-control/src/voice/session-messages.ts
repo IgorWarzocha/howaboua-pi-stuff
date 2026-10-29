@@ -11,6 +11,7 @@ import {
 	type CodexVoiceModeMessageDetails,
 	type CodexVoiceModeState,
 	codexVoiceModeMessage,
+	REALTIME_DELEGATION_MESSAGE_TYPE,
 	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
@@ -159,6 +160,10 @@ export class CodexVoiceSessionMessages {
 			startsTurn
 				? { triggerTurn: true }
 				: { triggerTurn: true, deliverAs: "steer" },
+		);
+		this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+			REALTIME_DELEGATION_MESSAGE_TYPE,
+			{ input: turn.input, route: "delegation" },
 		);
 		return true;
 	}

@@ -152,8 +152,8 @@ export class CodexRealtimeConversation {
 		this.turns.handoff.flushProgress();
 	}
 
-	agentProgress(content: string): void {
-		this.turns.handoff.progress(content);
+	agentProgress(content: string, reasoningSummary?: string): void {
+		this.turns.handoff.progress(content, reasoningSummary);
 	}
 
 	agentResult(content: string): void {

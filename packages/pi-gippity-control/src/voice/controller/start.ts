@@ -67,12 +67,12 @@ export async function prepareControllerRealtimeContext(options: {
 	signal?: AbortSignal | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
 }): Promise<PreparedRealtimeContext> {
-	let generatedSummary: string | undefined;
+	let summary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
 		ctx: options.ctx,
 		config: options.config,
-		onSummaryGenerated: (value) => {
-			generatedSummary = value;
+		onSummarySelected: (value) => {
+			summary = value;
 		},
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.onSummaryStatus
@@ -81,7 +81,7 @@ export async function prepareControllerRealtimeContext(options: {
 	});
 	return {
 		initialItems,
-		...(generatedSummary ? { summary: generatedSummary } : {}),
+		...(summary ? { summary } : {}),
 	};
 }
 

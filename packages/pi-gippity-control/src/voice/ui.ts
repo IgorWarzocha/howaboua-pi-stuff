@@ -91,6 +91,11 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 		REALTIME_VOICE_MESSAGE_TYPE,
 		(entry, _options, theme) => voiceTurnBox(entry.data, theme),
 	);
+	pi.registerEntryRenderer<RealtimeVoiceMessageDetails>(
+		REALTIME_DELEGATION_MESSAGE_TYPE,
+		(entry, _options, theme) =>
+			voiceBox(theme, "Task for Pi", entry.data?.input ?? "Voice request"),
+	);
 	pi.registerEntryRenderer<RealtimeUserTranscriptMessageDetails>(
 		REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 		(entry, _options, theme) => {

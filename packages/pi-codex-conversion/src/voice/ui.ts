@@ -130,7 +130,11 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 			const error = typeof entry.data?.error === "string"
 				? `\n\nNot sent: ${entry.data.error}`
 				: "";
-			return voiceBox(theme, "Voice delegation", `${input}${error}`);
+			return voiceBox(
+				theme,
+				error ? "Voice delegation" : "Task for Pi",
+				`${input}${error}`,
+			);
 		},
 	);
 	pi.registerEntryRenderer<RealtimeUserTranscriptMessageDetails>(

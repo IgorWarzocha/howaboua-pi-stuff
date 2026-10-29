@@ -128,8 +128,12 @@ export class RealtimeDelegationHandoff {
 		this.callbacks.onContext({ type: "session" }, "speakable", text);
 	}
 
-	progress(content: string): void {
+	progress(content: string, reasoningSummary?: string): void {
 		this.finishProgress(content);
+		// Completed summaries are new context, not fallback for streamed text.
+		const summary = reasoningSummary?.trim();
+		if (!this.callbacks.isActive() || !this.target || !summary) return;
+		this.callbacks.onContext({ type: "session" }, "speakable", summary);
 	}
 
 	result(content: string): void {
