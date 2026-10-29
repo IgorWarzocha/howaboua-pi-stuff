@@ -18,10 +18,12 @@ import {
 } from "./handoff-contract.ts";
 import { startVoiceDeparture } from "./handoff-departure.ts";
 import { asError } from "./handoff-wire.ts";
+import type { CodexLanVoiceServerController } from "./lan/controller.ts";
 
 export function registerVoiceHandoff(options: {
 	pi: ExtensionAPI;
 	voice: CodexVoiceController;
+	lanVoice: CodexLanVoiceServerController;
 	getConfig(): GippityControlConfig;
 	priority(): number;
 }): void {
@@ -103,6 +105,17 @@ export function registerVoiceHandoff(options: {
 				const captured = voice.captureHandoffAudio();
 				let established = false;
 				connection = startVoiceDeparture({
+					...(options.lanVoice.hostsConversation
+						? {
+								lanTakeover: (offer, releaseAudio, verify) =>
+									options.lanVoice.releaseForTakeover(
+										ctx,
+										offer,
+										releaseAudio,
+										verify,
+									),
+							}
+						: {}),
 					channel,
 					captured,
 					waitForSettled: (signal) => waitForSettled(ctx, signal),
@@ -118,6 +131,7 @@ export function registerVoiceHandoff(options: {
 				});
 				connections.add(connection);
 				await connection.completion;
+				if (connection.detached) connections.delete(connection);
 				established = true;
 			} catch (error) {
 				if (connection) connections.delete(connection);
@@ -138,6 +152,7 @@ export function registerVoiceHandoff(options: {
 				const { ctx } = reserved;
 				let established = false;
 				connection = startVoiceArrival({
+					lanVoice: options.lanVoice,
 					pi,
 					ctx,
 					voice,
@@ -154,6 +169,10 @@ export function registerVoiceHandoff(options: {
 				connections.add(connection);
 				incoming = connection;
 				await connection.completion;
+				if (connection.detached) {
+					connections.delete(connection);
+					if (incoming === connection) incoming = undefined;
+				}
 				established = true;
 			} catch (error) {
 				if (connection) connections.delete(connection);

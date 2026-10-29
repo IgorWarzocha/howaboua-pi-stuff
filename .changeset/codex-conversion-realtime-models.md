@@ -14,5 +14,6 @@
 - Keep the selected execution mode and its tools after conversation-tree navigation.
 - Guide Code and Notebook models to compose tool calls in one exec without requiring separate cells for help discovery.
 - End voice calls after a farewell without waiting for unrelated Pi work. Public Realtime uses an end-call tool; Codex Live handles ending through its task-preparation agent. Accepted tasks continue after the call closes.
-- Restarting a transferred LAN call stays with the selected Pi session instead of returning to the origin.
+- Transfer LAN voice between sessions on the same machine at the same address; the browser reconnects to a fresh call automatically.
+- Retry interrupted LAN voice connections while retaining the microphone where possible.
 - Voice tasks reach the selected Pi session after a transfer.

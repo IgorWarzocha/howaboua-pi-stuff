@@ -1,3 +1,4 @@
+import { randomUUID, X509Certificate } from "node:crypto";
 import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import type {
@@ -11,7 +12,10 @@ import {
 } from "../../config.ts";
 import { getGippityControlConfigPath } from "../../config-store.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
-import type { RealtimePeerPlan } from "../controller/start.ts";
+import type {
+	PreparedRealtimeContext,
+	RealtimePeerPlan,
+} from "../controller/start.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { hasRealtimeWebSearch } from "../realtime-web-search.ts";
@@ -22,7 +26,10 @@ import {
 	MAX_CONTROL_BYTES,
 } from "./browser-clients.ts";
 import { LanHostRealtimePeer } from "./browser-peer.ts";
-import { resolveLanVoiceCertificate } from "./certificate.ts";
+import {
+	type LanVoiceCertificate,
+	resolveLanVoiceCertificate,
+} from "./certificate.ts";
 import { LAN_REMOTE_CLIENT_SCRIPT } from "./client-sdk-script.ts";
 import { resolveLanRemoteCustomApp } from "./custom-app.ts";
 import { LanVoiceDictation } from "./dictation.ts";
@@ -47,6 +54,7 @@ import {
 	listen,
 } from "./server-runtime.ts";
 import { createLanVoiceSettings } from "./settings.ts";
+import { LanTakeoverArrival } from "./takeover.ts";
 import { LanTransferredSession } from "./transferred-session.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
 
@@ -56,6 +64,12 @@ export interface CodexLanVoiceServer {
 	readonly ownerSessionId: string;
 	readonly urls: string[];
 	readonly customWebAppReady: boolean;
+	readonly hasConversation: boolean;
+	readonly port: number;
+	readonly certificateFingerprint: string;
+	acknowledgeTakeover(token: string): Promise<void>;
+	proveTakeover(verify: (value: unknown) => Promise<unknown>): Promise<void>;
+	releaseForTakeover(): Promise<void>;
 	agentStarted(): void;
 	agentSettled(text?: string): void;
 	uiPromptStarted(title?: string): void;
@@ -75,6 +89,13 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 	remoteApps: GippityRemoteApps;
+	certificate?: LanVoiceCertificate;
+	takeoverToken?: string;
+	arrival?: {
+		prepared: PreparedRealtimeContext;
+		inputMuted: boolean;
+		alternateVoice: boolean;
+	};
 }): Promise<CodexLanVoiceServer> {
 	const settings = createLanVoiceSettings(options.ctx, options.getConfig, () =>
 		hasRealtimeWebSearch(options.pi),
@@ -101,9 +122,9 @@ export async function startCodexLanVoiceServer(options: {
 	};
 	const initialConfig = options.getConfig();
 	const initialWebApp = resolveWebApp(initialConfig);
-	const certificate = await resolveLanVoiceCertificate(
-		options.certificateAgentDir,
-	);
+	const certificate =
+		options.certificate ??
+		(await resolveLanVoiceCertificate(options.certificateAgentDir));
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let activeConversation:
@@ -119,6 +140,11 @@ export async function startCodexLanVoiceServer(options: {
 	let transferred: LanTransferredSession | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
+	const arrival = new LanTakeoverArrival(
+		options.takeoverToken,
+		options.arrival,
+	);
+	let takeoverProof: string | undefined;
 	const activity = new LanVoiceActivity({
 		initialWorking: !options.ctx.isIdle(),
 		publish: (message) => clients.broadcastControl(message),
@@ -134,12 +160,13 @@ export async function startCodexLanVoiceServer(options: {
 			clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
 
-	const ensureConversation = async (): Promise<void> => {
+	const ensureConversation = async (takeoverToken?: string): Promise<void> => {
 		if (activeConversation) return;
 		if (transferred?.ended) transferred = undefined;
 		if (conversationStart) return conversationStart.promise;
 		if (realtimePlan) return;
 		const abort = new AbortController();
+		const preparedArrival = arrival.consume(takeoverToken);
 		let activated = false;
 		const plan: RealtimePeerPlan = {
 			onStatus: (status) => {
@@ -215,8 +242,11 @@ export async function startCodexLanVoiceServer(options: {
 				settings.getConfig(),
 				plan,
 				abort.signal,
+				preparedArrival?.prepared,
+				preparedArrival?.inputMuted,
+				preparedArrival?.alternateVoice,
 			);
-			if (!started) throw new Error("Codex voice could not start");
+			if (!started) throw new Error("Realtime voice could not start");
 		})().finally(() => {
 			if (conversationStart?.abort === abort) conversationStart = undefined;
 			if (!activated && realtimePlan === plan) realtimePlan = undefined;
@@ -294,7 +324,23 @@ export async function startCodexLanVoiceServer(options: {
 	const server = createServer(
 		{ cert: certificate.cert, key: certificate.key },
 		(request, response) => {
+			if (
+				request.method === "GET" &&
+				request.url?.startsWith("/api/takeover-proof?")
+			) {
+				const proofUrl = new URL(request.url, "https://lan-voice.local");
+				const valid =
+					takeoverProof !== undefined &&
+					proofUrl.searchParams.get("token") === takeoverProof;
+				response.writeHead(valid ? 200 : 404, {
+					"content-type": "text/plain",
+					"cache-control": "no-store",
+				});
+				response.end(valid ? takeoverProof : "Not found");
+				return;
+			}
 			void handleLanVoiceHttpRequest(request, response, {
+				takeoverToken: options.takeoverToken,
 				activity,
 				settings: settings.settings,
 				configureSettings: settings.configureSettings,
@@ -441,6 +487,28 @@ export async function startCodexLanVoiceServer(options: {
 		ownerSessionId: options.ownerSessionId,
 		urls,
 		customWebAppReady: Boolean(initialWebApp.customApp),
+		get hasConversation() {
+			return Boolean(activeConversation?.conversation);
+		},
+		port: address.port,
+		certificateFingerprint: new X509Certificate(certificate.cert)
+			.fingerprint256,
+		acknowledgeTakeover: (token) => clients.takeover(token),
+		async proveTakeover(verify) {
+			if (takeoverProof)
+				throw new Error("A LAN listener proof is already pending");
+			const token = randomUUID();
+			takeoverProof = token;
+			try {
+				await verify({ port: address.port, token });
+			} finally {
+				takeoverProof = undefined;
+			}
+		},
+		async releaseForTakeover() {
+			closePromise ??= closeServer();
+			await closePromise;
+		},
 		agentStarted: () => {
 			if (!transferred) activity.working();
 		},

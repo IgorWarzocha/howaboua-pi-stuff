@@ -25,6 +25,7 @@ interface LanRemoteWebAppState {
 }
 
 export interface LanVoiceHttpHandlers {
+	takeoverToken?: string | undefined;
 	settings(): unknown;
 	configureSettings(body: Record<string, unknown>): unknown;
 	activity: LanVoiceActivity;
@@ -159,6 +160,11 @@ export async function handleLanVoiceHttpRequest(
 			});
 			response.write("event: ready\ndata: {}\n\n");
 			handlers.clients.connectEvents(clientId, response);
+			if (handlers.takeoverToken)
+				handlers.clients.sendControl(clientId, {
+					type: "ready",
+					takeoverToken: handlers.takeoverToken,
+				});
 			handlers.clients.sendControl(clientId, handlers.draft.snapshot());
 			handlers.clients.sendControl(clientId, handlers.activity.snapshot());
 			const session = handlers.sessionSnapshot();

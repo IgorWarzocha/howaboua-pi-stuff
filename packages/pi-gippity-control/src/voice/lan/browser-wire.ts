@@ -6,6 +6,7 @@ const MAX_PCM_BYTES = 24_000 * 2;
 
 export type LanVoiceBrowserInput =
 	| { type: "audio"; pcm: Buffer }
+	| { type: "takeover.ack"; token: string }
 	| { type: "control"; command: ReturnType<typeof decodeLanVoiceAudioCommand> };
 
 export function decodeLanVoiceBrowserInput(
@@ -25,9 +26,24 @@ export function decodeLanVoiceBrowserInput(
 	const text = buffer.toString("utf8");
 	if (Buffer.byteLength(text) > MAX_CONTROL_BYTES)
 		throw new Error("LAN voice control message is too large");
+	const value: unknown = JSON.parse(text);
+	if (
+		value &&
+		typeof value === "object" &&
+		"type" in value &&
+		value.type === "takeover.ack"
+	) {
+		if (
+			!("token" in value) ||
+			typeof value.token !== "string" ||
+			!/^[a-f0-9-]{36}$/.test(value.token)
+		)
+			throw new Error("Invalid LAN takeover acknowledgement");
+		return { type: "takeover.ack", token: value.token };
+	}
 	return {
 		type: "control",
-		command: decodeLanVoiceAudioCommand(JSON.parse(text)),
+		command: decodeLanVoiceAudioCommand(value),
 	};
 }
 

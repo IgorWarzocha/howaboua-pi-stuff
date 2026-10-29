@@ -1,5 +1,9 @@
 export type LanVoiceAudioCommand =
-	| { type: "start"; mode: "conversation" | "dictation" }
+	| {
+			type: "start";
+			mode: "conversation" | "dictation";
+			takeoverToken?: string;
+	  }
 	| { type: "mute"; muted: boolean }
 	| {
 			type: "finish";
@@ -26,6 +30,19 @@ export function decodeLanVoiceAudioCommand(
 			(value.mode !== "conversation" && value.mode !== "dictation")
 		)
 			throw invalidCommand();
+		if ("takeoverToken" in value) {
+			if (
+				value.mode !== "conversation" ||
+				typeof value.takeoverToken !== "string" ||
+				!/^[a-f0-9-]{36}$/.test(value.takeoverToken)
+			)
+				throw invalidCommand();
+			return {
+				type: "start",
+				mode: value.mode,
+				takeoverToken: value.takeoverToken,
+			};
+		}
 		return { type: "start", mode: value.mode };
 	}
 	if (value.type === "finish") {

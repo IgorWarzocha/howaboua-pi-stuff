@@ -6,6 +6,8 @@ import type { CodexVoiceController } from "../controller.ts";
 import type { CodexLanVoiceServer } from "./server.ts";
 import { boundedAssistantText } from "./activity.ts";
 import { createLanVoiceSettings } from "./settings.ts";
+import { assertLanTakeoverIdentity, prepareLanTakeover, type LanTakeoverOffer } from "./takeover.ts";
+import type { PreparedRealtimeContext } from "../controller/start.ts";
 
 export interface CodexLanVoiceServerStatus {
 	running: boolean;
@@ -21,6 +23,7 @@ export class CodexLanVoiceServerController {
 	private server: CodexLanVoiceServer | undefined;
 	private pendingAssistantText: string | undefined;
 	private operation = Promise.resolve();
+	private takeoverReservation: object | undefined;
 
 	constructor(
 		voice: CodexVoiceController,
@@ -40,11 +43,77 @@ export class CodexLanVoiceServerController {
 		return { running: Boolean(this.server), urls: this.server?.urls ?? [] };
 	}
 
+	hasActiveConversation(): boolean { return this.server?.hasActiveConversation() ?? false; }
+
+	async prepareTakeover(ctx: ExtensionContext) {
+		const reservation = {};
+		await this.enqueue(async () => {
+			if (this.server || this.takeoverReservation) throw new Error("The target already has a running or preparing LAN server");
+			this.takeoverReservation = reservation;
+		});
+		try {
+			const prepared = await prepareLanTakeover(this.agentDir);
+			const ownerSessionId = ctx.sessionManager.getSessionId();
+			let startedServer: CodexLanVoiceServer | undefined;
+			return {
+				offer: prepared.offer,
+				verify: (value: unknown) => import("./takeover.ts").then(({ verifyLanTakeoverListener }) => verifyLanTakeoverListener(prepared.certificate.cert, value)),
+				release: () => { if (this.takeoverReservation === reservation) this.takeoverReservation = undefined; },
+				cancel: () => {
+					if (this.takeoverReservation === reservation) this.takeoverReservation = undefined;
+					return this.enqueue(async () => { if (startedServer && this.server === startedServer) await this.stopCurrent(ctx); });
+				},
+				start: (port: number, context: PreparedRealtimeContext, inputMuted: boolean, alternateVoice: boolean) => this.enqueue(async () => {
+					if (this.takeoverReservation !== reservation || ctx.sessionManager.getSessionId() !== ownerSessionId)
+						throw new Error("LAN takeover was cancelled before binding");
+					const { startCodexLanVoiceServer } = await import("./server.ts");
+					const server = await startCodexLanVoiceServer({
+						ctx, settings: createLanVoiceSettings(ctx, this.getConfig, this.hasWebSearch), voice: this.voice,
+						resolveAuth: () => resolveCodexVoiceAuth(ctx), sendUserMessage: (text) => this.sendUserMessage(text, ctx),
+						ownerSessionId, certificateAgentDir: this.agentDir, port, certificate: prepared.certificate,
+						takeover: { token: prepared.offer.token, prepared: context, inputMuted, alternateVoice },
+					});
+					if (this.takeoverReservation !== reservation || ctx.sessionManager.getSessionId() !== ownerSessionId) {
+						await server.close();
+						throw new Error("LAN takeover cancelled while binding");
+					}
+					startedServer = server;
+					this.server = server;
+					ctx.ui.setStatus("codex-lan-voice", ctx.ui.theme.fg("accent", "voice LAN: on"));
+				}),
+			};
+		} catch (error) {
+			if (this.takeoverReservation === reservation) this.takeoverReservation = undefined;
+			throw error;
+		}
+	}
+
+	async releaseForTakeover(ctx: ExtensionContext, offer: LanTakeoverOffer, releaseAudio: () => Promise<void>, verify: (proof: { port: number; token: string }) => Promise<void>): Promise<number | undefined> {
+		return this.enqueue(async () => {
+			const server = this.server;
+			if (!server || server.ownerSessionId !== ctx.sessionManager.getSessionId()) throw new Error("The source LAN server changed before takeover");
+			try {
+				assertLanTakeoverIdentity({ certificate: server.certificateFingerprint }, offer);
+				await server.verifyTakeoverHost(verify);
+			} catch (error) {
+				ctx.ui.notify(`Same-address takeover unavailable: ${error instanceof Error ? error.message : String(error)}. LAN remains on the origin; closing it ends the transferred call.`, "warning");
+				return undefined;
+			}
+			await server.notifyTakeover(offer.token);
+			await releaseAudio();
+			await server.takeover();
+			if (this.server === server) this.server = undefined;
+			ctx.ui.setStatus("codex-lan-voice", undefined);
+			return server.port;
+		});
+	}
+
 	setEnabled(
 		enabled: boolean,
 		ctx: ExtensionContext,
 	): Promise<CodexLanVoiceServerStatus> {
 		return this.enqueue(async () => {
+			if (this.takeoverReservation) throw new Error("LAN takeover is preparing; wait for it to finish");
 			if (!enabled) {
 				await this.stopCurrent(ctx);
 				return this.status();
@@ -75,6 +144,7 @@ export class CodexLanVoiceServerController {
 	}
 
 	stop(ctx?: ExtensionContext): Promise<void> {
+		this.takeoverReservation = undefined;
 		return this.enqueue(() => this.stopCurrent(ctx));
 	}
 

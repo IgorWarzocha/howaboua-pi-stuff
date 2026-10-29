@@ -2,6 +2,7 @@ import type { VoiceHandoffChannel } from "./handoff-contract.ts";
 
 type Stage = "prepared" | "activate" | "active";
 type RequestMethod =
+	| "lan.verify"
 	| "peer.start"
 	| "peer.close"
 	| "session.send"
@@ -280,6 +281,7 @@ function isStage(value: unknown): value is Stage {
 
 function isRequestMethod(value: unknown): value is RequestMethod {
 	return (
+		value === "lan.verify" ||
 		value === "peer.start" ||
 		value === "peer.close" ||
 		value === "session.send" ||

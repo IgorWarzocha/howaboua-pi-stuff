@@ -85,7 +85,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		});
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 		registerVoiceHandoff({
-			pi, voice: runtime.voice, getConfig: () => runtime.state.config,
+			pi, voice: runtime.voice, lanVoice: runtime.lanVoice, getConfig: () => runtime.state.config,
 			priority: () => runtime.state.enabled || runtime.state.config.voiceFeaturesOnly ? 20 : 5,
 		});
 		const stopProtectedOutput = registerProtectedOutputHost(pi, ctx => {

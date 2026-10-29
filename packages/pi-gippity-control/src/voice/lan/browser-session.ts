@@ -22,7 +22,7 @@ type LanVoiceBrowserState =
 	| { type: "closed" };
 
 export interface LanVoiceBrowserClientsOptions {
-	ensureConversation(): Promise<void>;
+	ensureConversation(takeoverToken?: string): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(
 		clientId: string,
@@ -61,6 +61,12 @@ export class LanVoiceBrowserSession {
 
 	get closed(): boolean {
 		return this.state.type === "closed";
+	}
+
+	get conversationSocket(): WebSocket | undefined {
+		return this.state.type === "active" && this.state.mode === "conversation"
+			? this.state.socket
+			: undefined;
 	}
 
 	sendConversationAudio(pcm: Buffer): void {
@@ -134,6 +140,7 @@ export class LanVoiceBrowserSession {
 		clientId: string,
 		socket: WebSocket,
 		mode: LanVoiceBrowserMode,
+		takeoverToken?: string,
 	): Promise<void> {
 		const starting = this.state.type === "starting" ? this.state : undefined;
 		if (
@@ -150,7 +157,12 @@ export class LanVoiceBrowserSession {
 			starting.socket.close(4001, "replaced");
 		}
 		return this.enqueue(async () => {
-			if (this.closed) return;
+			if (
+				this.closed ||
+				socket.readyState !== WebSocket.OPEN ||
+				!this.connections.isCurrentAudio(clientId, socket)
+			)
+				return;
 			const previous = this.state.type === "active" ? this.state : undefined;
 			if (
 				previous?.clientId === clientId &&
@@ -178,7 +190,8 @@ export class LanVoiceBrowserSession {
 			this.state = starting;
 			if (mode === "conversation") this.conversationOwnerId = clientId;
 			try {
-				if (mode === "conversation") await this.options.ensureConversation();
+				if (mode === "conversation")
+					await this.options.ensureConversation(takeoverToken);
 				else await this.options.startDictation(clientId);
 			} catch (error) {
 				if (this.state === starting) this.state = { type: "idle" };

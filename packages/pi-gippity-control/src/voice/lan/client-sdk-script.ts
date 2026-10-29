@@ -68,6 +68,39 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     let active = false, muted = false, inputTooQuiet = false, busy = false, finishing = false, starting = false;
     let generation = 0;
     let state = 'idle', detail = '';
+    let takeover, takeoverTimer;
+    let resumeMuted = false;
+    let replacingCall = false;
+    let retryTimer, staleEventsTimer;
+    let retryAttempt = 0;
+    let retryDetail = '';
+
+    const retryConnection = (detail) => {
+      if (takeover || mode !== 'conversation' || (!active && !busy && !socket)) return;
+      if (retryTimer) return;
+      retryDetail ||= detail;
+      if (retryAttempt >= 3) {
+        const failure = retryDetail;
+        finishStop(false, 'connection-failed');
+        publish('error', failure + ' Check the connection, then start voice again.');
+        return;
+      }
+      resumeMuted = muted;
+      active = false; busy = true;
+      const previous = socket; socket = undefined;
+      previous?.close(1000, 'reconnecting');
+      realtimeAudio?.setSpeakerSuppressed(true);
+      const delay = 1000 * 2 ** retryAttempt++;
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined; busy = false;
+        void start('conversation');
+      }, delay);
+      publish('reconnecting', detail + ' Retry ' + retryAttempt + '/3 in ' + delay / 1000 + 's. Stop to cancel.');
+    };
+    const connectionError = (message) => {
+      if (mode === 'conversation' && (active || busy || socket)) { retryConnection(message || 'Voice failed.'); return; }
+      finishStop(false, 'upstream-error'); publish('error', message || 'Voice failed');
+    };
 
     const snapshot = () => ({ type:'audio', mode, active, busy, muted, inputTooQuiet, state, detail });
     const publish = (nextState, nextDetail = '') => {
@@ -93,6 +126,11 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       publish(muted ? 'muted' : 'listening', muted ? 'Voice remains connected' : (inputTooQuiet ? 'Microphone level is too low' : ''));
     };
     const finishStop = (notify, reason) => {
+      generation += 1;
+      if (takeover) notify = false;
+      clearTimeout(takeoverTimer); takeover = undefined; resumeMuted = false; replacingCall = false;
+      clearTimeout(retryTimer); retryTimer = undefined; retryAttempt = 0; retryDetail = '';
+      clearTimeout(staleEventsTimer); staleEventsTimer = undefined;
       active = false; muted = false; inputTooQuiet = false; finishing = false; busy = false;
       const current = socket; socket = undefined;
       if (notify && current?.readyState === WebSocket.OPEN) current.send(JSON.stringify({ type:'release' }));
@@ -130,15 +168,22 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       if (event.data instanceof ArrayBuffer) { realtimeAudio?.play(event.data); return; }
       try {
         const message = JSON.parse(event.data);
+        if (message.type === 'takeover') { beginTakeover(message); return; }
         if (message.type === 'stop') { finishStop(false, message.reason || 'server'); return; }
         if (message.type === 'mute') setMuted(message.muted, false);
         if (message.type === 'speaker_suppressed') realtimeAudio?.setSpeakerSuppressed(message.suppressed);
         if (message.type === 'active') {
+          const resuming = retryAttempt > 0 || replacingCall;
+          retryAttempt = 0;
+          retryDetail = '';
+          replacingCall = false;
           active = true; busy = false; finishing = false;
           if (mode === 'conversation') {
             inputTooQuiet = false;
-            const initialMuted = typeof message.muted === 'boolean' ? message.muted : muted;
+            const initialMuted = resuming ? resumeMuted : (typeof message.muted === 'boolean' ? message.muted : muted);
             setMuted(initialMuted, false, initialMuted);
+            if (resuming) current.send(JSON.stringify({ type:'mute', muted:initialMuted }));
+            resumeMuted = false;
             realtimeAudio?.setSpeakerSuppressed(Boolean(message.speakerSuppressed));
             if (!initialMuted) realtimeAudio?.releaseInput();
           }
@@ -149,25 +194,29 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
           socket = undefined; current.close(1000, 'dictation-complete');
 		  publish('idle'); client._emit('dictation.complete', message);
         }
-        if (message.type === 'error') { finishStop(false, 'upstream-error'); publish('error', message.message || 'Voice failed'); }
+        if (message.type === 'error') connectionError(message.message);
       } catch {}
     };
-    const start = async (nextMode = mode) => {
+    const start = async (nextMode = mode, takeoverToken) => {
       if (nextMode !== 'conversation' && nextMode !== 'dictation') throw new Error('Audio mode must be conversation or dictation');
       if (starting || busy || active || socket) return;
       mode = nextMode;
       if (mode === 'dictation') muted = false;
       const currentGeneration = ++generation;
-      starting = true; busy = true; publish('opening', 'Allow microphone access if asked.');
+      starting = true; busy = true; publish(realtimeAudio ? 'connecting' : 'opening', realtimeAudio ? '' : 'Allow microphone access if asked.');
       try {
+        if (currentGeneration !== generation) return;
         if (!global.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access needs HTTPS and certificate acceptance.');
         if (!global.AudioWorkletNode) throw new Error('This browser does not support the required low-latency audio runtime.');
-        stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+        if (!stream?.getAudioTracks().some((track) => track.readyState === 'live')) {
+          closeHardware();
+          stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+        }
         if (currentGeneration !== generation) { closeHardware(); return; }
-        if (mode === 'conversation') {
+        if (mode === 'conversation' && !realtimeAudio) {
           realtimeAudio = await createRealtimeAudio(stream);
           context = realtimeAudio.context; processor = realtimeAudio.processor;
-        } else {
+        } else if (mode === 'dictation') {
           context = new AudioContext({ latencyHint:'interactive' });
           const workletUrl = URL.createObjectURL(new Blob([audioWorkletSource], { type:'text/javascript' }));
           try { await context.audioWorklet.addModule(workletUrl); }
@@ -184,6 +233,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         current.binaryType = 'arraybuffer'; socket = current;
         const timer = setTimeout(() => {
           if (socket !== current || current.readyState !== WebSocket.CONNECTING) return;
+          if (mode === 'conversation') { retryConnection('Connection timed out.'); return; }
           finishStop(false, 'connect-timeout'); publish('error', 'Connection timed out.');
         }, 10000);
         processor.port.onmessage = (event) => {
@@ -194,14 +244,16 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         };
         current.onopen = () => {
           if (socket !== current || !context) return;
-          clearTimeout(timer); current.send(JSON.stringify({ type:'start', mode })); publish('connecting');
+          clearTimeout(timer); current.send(JSON.stringify({ type:'start', mode, ...(takeoverToken ? { takeoverToken } : {}) })); publish('connecting');
         };
         current.onmessage = (event) => receive(current, event);
         current.onclose = (event) => {
           clearTimeout(timer);
           if (socket !== current) return;
+          if (mode === 'conversation' && ![1002, 1003, 1007, 1008, 1009, 4001].includes(event.code)) { retryConnection('Voice connection lost.'); return; }
+          const failedTakeover = replacingCall || retryAttempt > 0;
           const detail = event.reason || 'Voice connection closed unexpectedly (' + event.code + ').';
-          finishStop(false, 'connection-closed'); publish('error', detail);
+          finishStop(false, 'connection-closed'); publish('error', failedTakeover ? 'Check the server and connection, then start voice again.' : detail);
         };
       } catch (error) {
         if (currentGeneration !== generation) return;
@@ -212,11 +264,49 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         client._emit('audio', snapshot());
       }
     };
+    const beginTakeover = (command) => {
+      if (typeof command.token !== 'string' || !command.token || command.token.length > 256 || takeover) return;
+      const resume = mode === 'conversation' && (active || busy || Boolean(socket));
+      // Only an established audio runtime can be retained across replacement.
+      if (starting) { stop(undefined, false, 'takeover'); publish('error', 'Server changed during startup. Start voice again.'); return; }
+      takeover = { resume, token:command.token };
+      clearTimeout(retryTimer); retryTimer = undefined; retryAttempt = 0; retryDetail = '';
+      clearTimeout(staleEventsTimer); staleEventsTimer = undefined;
+      resumeMuted = muted;
+      active = false; busy = true; finishing = false;
+      const oldSocket = socket; socket = undefined;
+      if (oldSocket?.readyState === WebSocket.OPEN) oldSocket.send(JSON.stringify({ type:'takeover.ack', token:command.token }));
+      oldSocket?.close(1000, 'takeover');
+      realtimeAudio?.setSpeakerSuppressed(true);
+      if (!resume) closeHardware();
+      takeoverTimer = setTimeout(() => {
+        finishStop(false, 'takeover-timeout');
+        publish('error', 'New session did not become ready. Check the server, then start voice again.');
+      }, 20000);
+      publish('takeover', resume ? 'Reconnecting voice to the new session…' : 'Waiting for the new session…');
+    };
+    const completeTakeover = (command) => {
+      if (!takeover || command.takeoverToken !== takeover.token) return;
+      const { resume, token } = takeover;
+      clearTimeout(takeoverTimer); takeover = undefined; busy = false;
+      if (resume) { replacingCall = true; void start('conversation', token); }
+      else { resumeMuted = false; publish('idle', 'Connected to the new session'); }
+    };
     const serverCommand = (command) => {
+      if (command.type === 'connection') {
+        if (command.state === 'connected') { clearTimeout(staleEventsTimer); staleEventsTimer = undefined; }
+        if (command.state === 'reconnecting' && !staleEventsTimer && !retryAttempt && !takeover && mode === 'conversation' && (active || socket)) {
+          staleEventsTimer = setTimeout(() => { staleEventsTimer = undefined; retryConnection('Server updates disconnected.'); }, 5000);
+        }
+        return;
+      }
+      if (command.type === 'takeover') { beginTakeover(command); return; }
+      if (command.type === 'ready') { completeTakeover(command); return; }
+      if (takeover) return;
       if (command.type === 'stop') finishStop(false, command.reason || 'server');
-      if (command.type === 'error' && (active || busy || socket)) { finishStop(false, 'server-error'); publish('error', command.message); }
+      if (command.type === 'error' && (active || busy || socket)) connectionError(command.message);
       if (command.type === 'mute' && mode === 'conversation') setMuted(command.muted, false);
-      if (command.type === 'status' && busy && !active) publish(command.status === 'summarizing…' ? 'summarizing' : 'connecting');
+      if (command.type === 'status' && busy && !active && !retryTimer) publish(command.status === 'summarizing…' ? 'summarizing' : 'connecting');
       if (command.type === 'microphone') { inputTooQuiet = command.state === 'too-quiet'; if (active && !muted) publish('listening', inputTooQuiet ? 'Microphone level is too low' : ''); }
     };
     return {
@@ -226,9 +316,9 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       get state() { return snapshot(); },
       _serverCommand: serverCommand,
       _pagehide() {
-        stream?.getTracks().forEach((track) => track.stop());
 		if (finishing && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'cancel' }));
 		else if (active) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ clientId:client.clientId })], {type:'application/json'}));
+        generation += 1; finishStop(false, 'pagehide');
       },
 	  _close() { if (finishing) stop(); else { generation += 1; finishStop(true, 'client-closed'); } },
     };
@@ -340,8 +430,12 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     };
     client.audio = createAudio(client, assertOpen);
     eventSource = new EventSource('/api/events?client=' + encodeURIComponent(clientId));
-    eventSource.onopen = () => emit('connection', { type:'connection', state:'connected' });
-    eventSource.onerror = () => emit('connection', { type:'connection', state:'reconnecting' });
+    const connectionState = (state) => {
+      const command = { type:'connection', state };
+      client.audio._serverCommand(command); emit('connection', command);
+    };
+    eventSource.onopen = () => connectionState('connected');
+    eventSource.onerror = () => connectionState('reconnecting');
     eventSource.onmessage = (event) => {
       try {
         const command = JSON.parse(event.data);

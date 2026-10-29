@@ -166,6 +166,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	registerVoiceHandoff({
 		pi,
 		voice,
+		lanVoice,
 		getConfig: () => readGippityControlConfig(),
 		priority: () => 10,
 	});

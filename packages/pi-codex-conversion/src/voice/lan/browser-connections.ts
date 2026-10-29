@@ -50,6 +50,13 @@ export class LanVoiceBrowserConnections {
 		for (const clientId of this.eventResponses.keys()) this.sendControl(clientId, value);
 	}
 
+	broadcastTakeover(token: string): void {
+		const value = { type: "takeover", token };
+		this.broadcastControl(value);
+		for (const socket of this.audioSockets.values()) this.sendAudioControl(socket, value);
+	}
+
+
 	sendAudio(socket: WebSocket, pcm: Buffer): void {
 		if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) socket.send(pcm);
 	}
