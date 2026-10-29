@@ -37,46 +37,21 @@ export function createNotesContextOwner(
 			lifecycle.active &&
 			ctx.isIdle() &&
 			entries.every((entry) => {
-				// The first startup after an update records a UI-only changelog.
-				if (
-					entry.type === "custom" &&
-					entry.customType === "@howaboua/pi-stuff/changelog"
-				)
-					return true;
-				// PCC links the fresh worker before binding its shared notes family.
-				if (
-					entry.type === "custom" &&
-					entry.customType === "codex-agent-relationship"
-				)
+				// Foreign plain custom entries may be startup metadata. Notes state
+				// proves prior ownership or work, even without a delivered first turn.
+				if (entry.type === "custom")
 					return (
-						(entry.data as { threadId?: unknown } | undefined)?.threadId ===
-						ctx.sessionManager.getSessionId()
+						!entry.customType.startsWith("notes-compaction:") &&
+						![
+							"codex-context-agent",
+							"codex-context-backend",
+							"codex-context-note",
+							"codex-context-note-snapshot",
+							"codex-context-window",
+							"codex-context-tree-archive",
+							"codex-note-save-marker",
+						].includes(entry.customType)
 					);
-				// Herdr activation persists its empty registry before first task delivery.
-				if (
-					entry.type === "custom" &&
-					entry.customType === "herdr-agents-monitor-state"
-				) {
-					const data = entry.data as
-						| { version?: unknown; agents?: unknown }
-						| undefined;
-					return Boolean(
-						data?.version === 2 &&
-							Array.isArray(data.agents) &&
-							data.agents.length === 0,
-					);
-				}
-				// Board adoption precedes context binding on a fresh spawn. These
-				// metadata records are preparation, not evidence of a first turn.
-				if (
-					entry.type === "custom" &&
-					[
-						"shepherdr-board-binding",
-						"shepherdr-board-awareness",
-						"codex-context-briefing",
-					].includes(entry.customType)
-				)
-					return true;
 				if (
 					["model_change", "thinking_level_change", "session_info"].includes(
 						entry.type,
