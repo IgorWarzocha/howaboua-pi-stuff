@@ -4,7 +4,7 @@ import {
 	type StartAgentParams,
 	type StartedAgent,
 	UnstartedAgentLaunchError,
-} from "../launch.js";
+} from "../launch-contract.js";
 import type { CoreConnection } from "./backend.js";
 import { object } from "./protocol.js";
 import { terminalPane, terminalSnapshot } from "./terminal.js";

@@ -5,7 +5,7 @@ export interface CoreSnapshot {
 	terminals: CoreObject[];
 }
 
-export interface CoreEvent {
+interface CoreEvent {
 	seq: number;
 	type: string;
 	data: unknown;
@@ -18,7 +18,7 @@ export type CoreNotification =
 	| { method: "event"; event: CoreEvent }
 	| { method: "heartbeat"; seq: number };
 
-export class CoreRpcError extends Error {
+class CoreRpcError extends Error {
 	readonly code: number;
 	readonly kind: string;
 	readonly hint: string;

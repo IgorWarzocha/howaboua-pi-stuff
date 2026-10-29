@@ -12,25 +12,23 @@ import {
 	sessionPath,
 } from "./herdr.js";
 import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
+import {
+	type CreatedLocationCleanup,
+	RolledBackAgentLaunchError,
+	type StartAgentParams,
+	type StartedAgent,
+	UnstartedAgentLaunchError,
+} from "./launch-contract.js";
 import type { PaneInfo } from "./types.js";
 import { WORKER_FLAG } from "./worker-role.js";
 
-export const START_PLACEMENTS = [
-	"new_workspace",
-	"new_tab",
-	"pane",
-	"terminal",
-] as const;
-const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
+export {
+	RolledBackAgentLaunchError,
+	START_PLACEMENTS,
+	UnstartedAgentLaunchError,
+} from "./launch-contract.js";
 
-export interface StartAgentParams {
-	cwd?: string;
-	label?: string;
-	name?: string;
-	pane?: string;
-	placement?: (typeof START_PLACEMENTS)[number];
-	workspace?: string;
-}
+const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 
 function required(value: string | undefined, field: string): string {
 	if (!value?.trim()) throw new Error(`${field} is required for start`);
@@ -86,29 +84,6 @@ export async function resolvePreparationDirectory(
 
 interface StartAgentOptions {
 	agentArgs?: string[];
-}
-
-interface CreatedLocationCleanup {
-	id: string;
-	method: "tab.close" | "workspace.close" | "terminal.close";
-}
-
-export interface StartedAgent {
-	agent: PaneInfo;
-	cleanup?: CreatedLocationCleanup;
-	id: string;
-}
-
-export class RolledBackAgentLaunchError extends Error {
-	constructor(cause: unknown) {
-		super(cause instanceof Error ? cause.message : String(cause), { cause });
-	}
-}
-
-export class UnstartedAgentLaunchError extends Error {
-	constructor(cause: unknown) {
-		super(cause instanceof Error ? cause.message : String(cause), { cause });
-	}
 }
 
 async function createStartPane(

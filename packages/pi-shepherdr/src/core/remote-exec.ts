@@ -40,7 +40,7 @@ async function sources() {
 		readFile(new URL(path, import.meta.url), "utf8");
 	const [source, peer, session, watch, checkpoints, context] =
 		await Promise.all([
-			read("./remote-helper.mjs"),
+			readFile(new URL("./remote-helper.mjs", import.meta.url), "utf8"),
 			read("../remote/shepherdr-peer.mjs"),
 			read("../remote/shepherdr-session.mjs"),
 			read("../remote/shepherdr-session-watch.mjs"),
