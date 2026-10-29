@@ -140,6 +140,7 @@ export function registerVoiceHandoff(options: {
 					ctx,
 					voice,
 					config: options.getConfig(),
+					getConfig: options.getConfig,
 					channel,
 					continuity,
 					onClosed(error) {

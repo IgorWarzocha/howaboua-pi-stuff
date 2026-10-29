@@ -39,6 +39,24 @@ export function startVoiceArrival(options: {
 	let cleanup: Promise<void> | undefined;
 	const link = new VoiceHandoffLink(options.channel, {
 		async request(method, value) {
+			if (method === "session.stop" || method === "session.start") {
+				if (forwarding) {
+					if (method === "session.stop") return forwarding.stopCall();
+					return forwarding.startCall();
+				}
+				if (method === "session.stop") {
+					if (starting)
+						throw new Error("Selected-session voice is still connecting");
+					if (audio) {
+						audio.stopCall();
+						await voice.stopWithAudio(audio);
+					}
+					return;
+				}
+				throw new Error(
+					"Selected-session call restart is not available with this voice provider; text remains available",
+				);
+			}
 			if (method === "session.send") {
 				if (typeof value !== "string" || !value.trim())
 					throw new Error("Invalid text for selected session");

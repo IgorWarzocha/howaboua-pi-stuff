@@ -66,7 +66,8 @@ export async function startCodexLanVoiceServer(options: {
 
 	const ensureConversation = async (): Promise<void> => {
 		if (activeConversation) return;
-		if (transferred?.ended) transferred = undefined;
+		// A stopped or disconnected selection must never silently return to origin.
+		if (transferred) return transferred.startCall();
 		if (conversationStart) return conversationStart.promise;
 		if (realtimePlan) return;
 		const abort = new AbortController();
@@ -103,7 +104,7 @@ export async function startCodexLanVoiceServer(options: {
 				clients.setConversationSpeakerSuppressed(activeConversation.peer.isSpeakerSuppressed);
 			},
 			onTransferEnded: (peer, error) => {
-				if (activeConversation?.peer !== peer) return;
+				if (!transferred || (activeConversation && activeConversation.peer !== peer)) return;
 				transferred?.end();
 				activeConversation = undefined;
 				if (realtimePlan === plan) realtimePlan = undefined;
@@ -173,11 +174,12 @@ export async function startCodexLanVoiceServer(options: {
 				return;
 			}
 			const remote = transferred;
-
+			if (closing && remote) return;
+			conversationStart?.abort.abort();
 			const plan = realtimePlan;
 			realtimePlan = undefined;
 			activeConversation = undefined;
-			if (remote) await remote.stop();
+			if (remote) await remote.stopCall();
 			else if (plan)
 				await options.voice.stopRealtimeWithPeerPlan(plan, { announce: true });
 		},
@@ -265,11 +267,12 @@ export async function startCodexLanVoiceServer(options: {
 		clearInterval(heartbeat);
 		const clientsClosing = clients.close();
 		const failures: unknown[] = [];
-		await collectFailures([clientsClosing, dictation.close()], failures);
+		// Closing the binding interrupts pending remote startup before browser drain.
 		const remote = transferred;
+		const remoteClosing = remote?.stop();
+		await collectFailures([clientsClosing, dictation.close(), ...(remoteClosing ? [remoteClosing] : [])], failures);
 		remote?.detach();
 		transferred = undefined;
-		if (remote) await collectFailures([remote.stop()], failures);
 		const remainingPlan = realtimePlan;
 		realtimePlan = undefined;
 		activeConversation = undefined;

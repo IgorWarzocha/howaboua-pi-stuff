@@ -9,6 +9,7 @@ import {
 export class HandoffAudio implements RealtimeAudio {
 	private callbacks: AudioCallbacks | undefined;
 	private closed = false;
+	private preserveLink = false;
 	private readonly link: VoiceHandoffLink;
 	constructor(link: VoiceHandoffLink) {
 		this.link = link;
@@ -38,6 +39,11 @@ export class HandoffAudio implements RealtimeAudio {
 		if (this.closed) return;
 		this.closed = true;
 		this.callbacks = undefined;
-		this.link.close();
+		if (!this.preserveLink) this.link.close();
+	}
+
+	/** Explicit call Stop retains the selected session's control channel. */
+	stopCall(): void {
+		this.preserveLink = true;
 	}
 }

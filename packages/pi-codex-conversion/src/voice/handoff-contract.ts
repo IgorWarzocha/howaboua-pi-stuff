@@ -15,6 +15,9 @@ export interface TransferredVoiceControls {
 	readonly inputMuted: boolean;
 	setInputMuted(muted: boolean): void;
 	stop(): Promise<void>;
+	/** Stop/start only the selected call; retain the session and audio host binding. */
+	stopCall(): Promise<void>;
+	startCall(): Promise<void>;
 	sendText(text: string): Promise<void>;
 	rpc(body: Record<string, unknown>): Promise<unknown>;
 	onSessionEvent(listener: (event: string, data: unknown) => void): () => void;

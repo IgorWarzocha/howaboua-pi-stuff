@@ -61,6 +61,12 @@ export function startVoiceDeparture(options: {
 		async sendText(text) {
 			await link.request("session.send", text);
 		},
+		async stopCall() {
+			await link.request("session.stop");
+		},
+		async startCall() {
+			await link.request("session.start");
+		},
 		rpc(body) {
 			return link.request("session.rpc", body);
 		},

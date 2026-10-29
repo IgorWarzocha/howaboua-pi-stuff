@@ -55,7 +55,14 @@ export class LanVoiceBrowserSession {
 	}
 
 	release(clientId: string, socket?: WebSocket, terminateConversation = false): void {
+		const starting = this.state;
 		this.releaseStarting(clientId, socket);
+		if (terminateConversation && starting.type === "starting" && starting.mode === "conversation" && starting.clientId === clientId && (!socket || starting.socket === socket)) {
+			this.conversationOwnerId = undefined;
+			// Do not queue Stop behind the startup it needs to cancel.
+			void Promise.resolve(this.options.onConversationActivity(false)).catch((error: unknown) => this.connections.sendControl(clientId, { type: "error", message: errorMessage(error) }));
+			return;
+		}
 		void this.enqueue(async () => {
 			const active = this.state;
 			const ownsActive = active.type === "active" && active.clientId === clientId && (!socket || active.socket === socket);
@@ -164,7 +171,7 @@ export class LanVoiceBrowserSession {
 		if (active.type === "closed") { await this.operation; return; }
 		this.state = { type: "closed" };
 		const failures: unknown[] = [];
-		if (active.type === "active" && active.mode === "conversation") {
+		if ((active.type === "starting" || active.type === "active") && active.mode === "conversation") {
 			try { this.conversationOwnerId = undefined; await this.options.onConversationActivity(false); } catch (error) { failures.push(error); }
 		}
 		if ((active.type === "starting" || active.type === "active") && active.mode === "dictation") {
