@@ -19,5 +19,7 @@
 - Pi model selection changes delegation, not realtime transport. Keep voice connected.
 - REALTIME-SYSTEM-PROMPT.md owns template/schema. Log every schema change in its adjacent changelog. Never rewrite user prompts. Check the marker only when realtime is engaged and direct the user's agent to migrate.
 - Each async resource has one cleanup owner. Stop LAN before voice on shutdown.
+- End intent comes from public end_call or the Codex task sidecar, never task settlement. Graceful audio close preserves accepted preparation and delivery; explicit Stop cancels them.
+- Codex closing output may finish before its sidecar. Reuse that observed final; do not request another goodbye. Peer quiet is a playback heuristic, not a speaker-drain acknowledgement.
 - After handoff, source controls retain the mic. Transferred is not a local conversation and must allow return arrival. Peer refresh preserves LAN binding. Change handoff protocol in both voice packages and Shepherdr together.
 - Browser PCM continues through peer replacement. LAN peers discard input before their offer and from the start of close; sending it to an unavailable helper disconnects the browser as an invalid message.

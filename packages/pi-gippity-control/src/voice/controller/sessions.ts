@@ -19,8 +19,9 @@ interface SessionLifecycle<T> {
 
 interface RealtimeSessionLifecycle
 	extends SessionLifecycle<CodexRealtimeConversation> {
+	onEndCall(session: CodexRealtimeConversation): void;
 	onDrop(session: CodexRealtimeConversation, error: Error): void;
-	onTurn(turn: RealtimeVoiceTurn): void;
+	onTurn(session: CodexRealtimeConversation, turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
 }
@@ -68,7 +69,8 @@ export async function startControllerConversation(options: {
 			onError: (error) => options.lifecycle.onError(session, error),
 			onDrop: (error) => options.lifecycle.onDrop(session, error),
 			onStatus: options.lifecycle.onStatus,
-			onTurn: options.lifecycle.onTurn,
+			onEndCall: () => options.lifecycle.onEndCall(session),
+			onTurn: (turn) => options.lifecycle.onTurn(session, turn),
 			onUserTranscript: options.lifecycle.onUserTranscript,
 			onTranscriptTail: options.lifecycle.onTranscriptTail,
 			rewriteDelegation: (turn, signal) =>

@@ -7,6 +7,7 @@ import {
 	type RealtimeCallSetup,
 	setupRealtimeCall,
 } from "./call-setup.ts";
+import { END_CALL_TOOL } from "./end-call.ts";
 import type { CodexRealtimePeer } from "./peer.ts";
 import {
 	PUBLIC_REALTIME_INSTRUCTIONS,
@@ -91,7 +92,11 @@ export class ConversationSetup {
 						},
 						output: { voice: config.voice.realtimeVoice },
 					},
-					tools: [SEND_TASK_TOOL, ...(auth.realtime?.tools.definitions ?? [])],
+					tools: [
+						SEND_TASK_TOOL,
+						END_CALL_TOOL,
+						...(auth.realtime?.tools.definitions ?? []),
+					],
 					tool_choice: "auto",
 				}),
 			);

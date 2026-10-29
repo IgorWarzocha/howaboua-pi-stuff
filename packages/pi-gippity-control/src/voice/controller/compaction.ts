@@ -48,6 +48,7 @@ export class RealtimeCompactionRefresh {
 		if (
 			!config.voice.refreshRealtimeAfterCompaction ||
 			activeState.type !== "conversation" ||
+			activeState.session.isEndingCall ||
 			this.runtime.announcedMode !== "realtime"
 		)
 			return;

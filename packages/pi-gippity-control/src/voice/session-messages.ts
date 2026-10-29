@@ -85,7 +85,7 @@ export class CodexVoiceSessionMessages {
 		this.context = undefined;
 	}
 
-	voiceTurn(turn: RealtimeVoiceTurn): void {
+	voiceTurn(turn: RealtimeVoiceTurn, accepted = false): void {
 		if (!turn.delegationId) {
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 				REALTIME_VOICE_MESSAGE_TYPE,
@@ -98,7 +98,7 @@ export class CodexVoiceSessionMessages {
 		}
 		const ctx = this.context;
 		if (!ctx) return;
-		this.deliverDelegation(turn, !this.piTurnActive && ctx.isIdle());
+		this.deliverDelegation(turn, !this.piTurnActive && ctx.isIdle(), accepted);
 	}
 
 	retainTranscriptTail(transcriptDelta: string): void {
@@ -152,8 +152,10 @@ export class CodexVoiceSessionMessages {
 	private deliverDelegation(
 		turn: RealtimeVoiceTurn,
 		startsTurn: boolean,
+		accepted: boolean,
 	): boolean {
-		if (!turn.delegationId || !this.callbacks.canDelegate()) return false;
+		if (!turn.delegationId || (!accepted && !this.callbacks.canDelegate()))
+			return false;
 		this.callbacks.onDelegation(turn.delegationId);
 		this.piTurnActive = true;
 		this.callbacks.onWorking();

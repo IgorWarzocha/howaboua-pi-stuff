@@ -5,3 +5,5 @@
 - VAD and conversational interruption belong here. Never copy them into manual dictation.
 - `playback.ts` owns spoken-interruption generations; typed input never changes speaker suppression. Quiet turns accept audio before captions.
 - Keep speech and Pi concurrent with request-scoped waits only; never block independent talk on tools, agent, compaction, prewarm, or settlement.
+- End intent comes from public end_call or the Codex task sidecar, never task settlement. Graceful audio close preserves accepted preparation and delivery; explicit Stop cancels them.
+- Codex closing output may finish before its sidecar. Reuse that observed final; do not request another goodbye. Peer quiet is a playback heuristic, not a speaker-drain acknowledgement.

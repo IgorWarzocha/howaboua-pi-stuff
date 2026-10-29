@@ -13,6 +13,8 @@ import {
 	SEND_TASK_TOOL,
 } from "./public-turns.ts";
 
+import { END_CALL_TOOL } from "./end-call.ts";
+
 const PEER_READY_TIMEOUT_MS = 15_000;
 
 /** Owns HTTP setup cancellation and the peer-ready handshake for this call. */
@@ -91,7 +93,7 @@ export class ConversationSetup {
 						},
 						output: { voice: config.voice.realtimeVoice },
 					},
-					tools: [SEND_TASK_TOOL, ...(auth.realtime?.tools.definitions ?? [])],
+					tools: [SEND_TASK_TOOL, END_CALL_TOOL, ...(auth.realtime?.tools.definitions ?? [])],
 					tool_choice: "auto",
 				}),
 			);

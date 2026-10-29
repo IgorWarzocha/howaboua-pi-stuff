@@ -13,6 +13,8 @@ import {
 	realtimePeerStateFailure,
 } from "./wire.ts";
 
+import type { PreparedVoiceTask } from "./end-call.ts";
+
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
 export interface CodexConversationCallbacks {
@@ -20,7 +22,8 @@ export interface CodexConversationCallbacks {
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
-	rewriteDelegation?(turn: RealtimeVoiceTurn, signal: AbortSignal): Promise<string>;
+	rewriteDelegation?(turn: RealtimeVoiceTurn, signal: AbortSignal): Promise<PreparedVoiceTask>;
+	onEndCall?(finalOutputObserved?: boolean): void;
 	onDelegationError?(error: Error): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
@@ -35,6 +38,11 @@ export class CodexRealtimeConversation {
 	private state: ConversationState = "idle";
 	private closePromise: Promise<void> | undefined;
 	private inputMuted = false;
+	finishingAcceptedWork = false;
+	private ending = false;
+	private completedOutputs = 0;
+	private endingOutput = 0;
+	private readonly closing = new AbortController();
 	private established = false;
 	private inputChanged = Promise.withResolvers<void>();
 
@@ -56,7 +64,17 @@ export class CodexRealtimeConversation {
 		);
 		const Turns = publicRealtime ? PublicRealtimeTurns : ConversationTurns;
 		this.turns = new Turns(
-			callbacks,
+			{
+				...callbacks,
+				onEndCall: (finalOutputObserved = false) => {
+					if (this.ending) return;
+					this.ending = true;
+					this.endingOutput =
+						this.completedOutputs + (finalOutputObserved ? 0 : 1);
+					this.turns.handoff.clear();
+					callbacks.onEndCall?.();
+				},
+			},
 			peer,
 			() => this.state === "active",
 			(error) => this.fail(error),
@@ -156,29 +174,46 @@ export class CodexRealtimeConversation {
 	}
 
 	streamAgentDelta(delta: string): void {
+		if (this.ending) return;
 		this.turns.handoff.stream(delta);
 	}
 
 	resumeAgentWork(): void {
+		if (this.ending) return;
 		this.turns.handoff.flushProgress();
 	}
 
 	agentProgress(content: string, reasoningSummary?: string): void {
+		if (this.ending) return;
 		this.turns.handoff.progress(content, reasoningSummary);
 	}
 
 	agentResult(content: string): void {
+		if (this.ending) return;
 		this.turns.handoff.result(content);
 	}
 
 	settleAgentTurn(): void {
+		if (this.ending) {
+			this.turns.handoff.clear();
+			return;
+		}
 		this.turns.handoff.settle();
 		if (!this.turns.speakableResponsePending)
 			this.callbacks.onStatus("listening");
 	}
 
-	/** Used only after the transferring Pi turn settles; never gates ordinary speech. */
-	waitForPlaybackEnd(signal: AbortSignal): Promise<void> {
+	get isEndingCall(): boolean {
+		return this.ending;
+	}
+
+	/** Require the closing response observed since delegation, not an initially idle call. */
+	waitForFinalPlayback(): Promise<void> {
+		return this.waitForPlaybackEnd(this.closing.signal, this.endingOutput);
+	}
+
+	/** Quiet peer activity is best-effort: the helper has no speaker-drain acknowledgement. */
+	waitForPlaybackEnd(signal: AbortSignal, minimumOutputs = 0): Promise<void> {
 		signal.throwIfAborted();
 		return new Promise((resolve, reject) => {
 			let quiet: ReturnType<typeof setTimeout> | undefined;
@@ -193,16 +228,20 @@ export class CodexRealtimeConversation {
 			};
 			const check = () => {
 				clearTimeout(quiet);
-				if (this.state !== "active") {
-					finish(new Error("The source voice call ended before transfer"));
+				if (minimumOutputs && !this.ending) {
+					finish(new Error("Call ending interrupted by new speech"));
 					return;
 				}
-				if (!this.turns.speakableResponsePending)
+				if (this.state !== "active") {
+					finish(new Error("The voice call closed before playback finished"));
+					return;
+				}
+				if (this.completedOutputs >= minimumOutputs && !this.turns.speakableResponsePending)
 					quiet = setTimeout(() => finish(), 500);
 			};
-			const aborted = () => finish(new Error("Voice transfer cancelled"));
+			const aborted = () => finish(new Error("Playback wait cancelled"));
 			const timeout = setTimeout(
-				() => finish(new Error("Source speech did not finish before transfer")),
+				() => finish(new Error("Voice output did not finish within 30 seconds")),
 				30_000,
 			);
 			const removeEvent = this.peer.onEvent(check);
@@ -212,7 +251,8 @@ export class CodexRealtimeConversation {
 		});
 	}
 
-	async close(): Promise<void> {
+	async close(finishAcceptedWork = false): Promise<void> {
+		this.finishingAcceptedWork ||= finishAcceptedWork;
 		this.closePromise ??= this.closeSession();
 		return this.closePromise;
 	}
@@ -229,16 +269,23 @@ export class CodexRealtimeConversation {
 	}
 
 	private async closeSession(): Promise<void> {
+		this.closing.abort();
 		this.state = "closed";
 		this.established = false;
 		this.turns.speakableResponsePending = false;
 		this.setup.abort();
 		this.turns.handoff.clear();
-		this.turns.drainConversation();
+		if (!this.finishingAcceptedWork) this.turns.drainConversation();
 		this.inputChanged.resolve();
 		this.inputMuted = false;
 		this.setup.finish();
+		const accepted = this.finishingAcceptedWork && this.turns instanceof ConversationTurns
+			? this.turns.finishDelegations() : undefined;
 		await this.peer.close();
+		if (this.finishingAcceptedWork) {
+			await accepted;
+			this.turns.drainConversation();
+		}
 	}
 
 	private handlePeerEvent(event: CodexRealtimePeerEvent): void {
@@ -259,6 +306,28 @@ export class CodexRealtimeConversation {
 			else this.turns.playback.audioActivity();
 		}
 		if (event.type === "data") {
+			if (!event.message || typeof event.message !== "object") return;
+			const message = event.message as {
+				type?: string;
+				turn?: { role?: string };
+				response?: { status?: string };
+			};
+			if (
+				message.type === "input_audio_buffer.speech_started" ||
+				(message.type === "turn.created" && message.turn?.role === "user") ||
+				(message.type === "response.done" &&
+					message.response?.status === "cancelled")
+			) {
+				this.ending = false;
+				if (this.turns instanceof PublicRealtimeTurns)
+					this.turns.cancelEndCall();
+			}
+			if (
+				(message.type === "turn.done" && message.turn?.role === "assistant") ||
+				(message.type === "response.done" &&
+					message.response?.status === "completed")
+			)
+				this.completedOutputs++;
 			this.turns.receive(event.message);
 			this.inputChanged.resolve();
 			this.inputChanged = Promise.withResolvers<void>();

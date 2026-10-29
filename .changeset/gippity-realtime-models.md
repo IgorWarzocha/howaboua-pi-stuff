@@ -9,3 +9,4 @@
 - Handle voice tasks as ordinary user requests without voice-specific wrappers or reply restrictions, and share progress between tools.
 - Show the selected startup Voice Context summary even when reused from cache.
 - With reasoning-summary forwarding enabled, voice receives completed compatible-model summaries between tools even when the same message has visible text, without replaying streamed text.
+- End voice calls after a farewell without waiting for unrelated Pi work. Public Realtime uses an end-call tool; Codex Live handles ending through its task-preparation agent. Accepted tasks continue after the call closes.

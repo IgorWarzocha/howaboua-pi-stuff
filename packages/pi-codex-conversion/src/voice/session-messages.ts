@@ -114,7 +114,7 @@ export class CodexVoiceSessionMessages {
 			return Promise.resolve();
 		}
 		const generation = this.contextGeneration;
-		const canDeliver = this.callbacks.canDelegate();
+		const canDeliver = source?.finishingAcceptedWork || this.callbacks.canDelegate();
 		const delivery = this.delegationTail.then(() =>
 			this.deliverDelegation(turn, generation, canDeliver, source),
 		);

@@ -91,6 +91,7 @@ export class ControllerConnection {
 					this.callbacks.finishDictation({ announce: true }),
 				onError: (error, session) => this.lifecycle.fail(error, session),
 				onDrop: (session, error) => this.drop(session, error),
+				onEndCall: (session) => { void this.lifecycle.endCall(session); },
 				onStatus: (status) => this.presentation.renderStatus(status),
 			});
 			const activePrompt = this.presentation.activePrompt;

@@ -68,6 +68,7 @@ export class RealtimeContextRefresh {
 			options.signal?.aborted ||
 			!config.voice.refreshRealtimeAfterCompaction ||
 			activeState.type !== "conversation" ||
+			activeState.session.isEndingCall ||
 			this.runtime.announcedMode !== "realtime"
 		)
 			return;

@@ -61,6 +61,7 @@ export class PublicRealtimeTurns {
 	private awaitingResponse = false;
 	private speech = false;
 	private pendingTools = 0;
+	private ending = false;
 	private completingResponse = false;
 	private continuation = false;
 	private quietUntil = 0;
@@ -88,6 +89,9 @@ export class PublicRealtimeTurns {
 				this.sendContext(target, channel, content),
 			onSettled: (id) => this.tracker.delegationSettled(id),
 		});
+	}
+	cancelEndCall(): void {
+		this.ending = false;
 	}
 	configure(access: PublicRealtimeAccess): void {
 		this.access = access;
@@ -205,7 +209,7 @@ export class PublicRealtimeTurns {
 		channel: RealtimeHandoffChannel,
 		content: string,
 	): void {
-		if (!this.isActive() || this.abort.signal.aborted) return;
+		if (!this.isActive() || this.abort.signal.aborted || this.ending) return;
 		this.send({
 			type: "conversation.item.create",
 			item: {
@@ -232,7 +236,17 @@ export class PublicRealtimeTurns {
 				throw new Error("Voice tool arguments were missing or oversized");
 			const args = record(JSON.parse(raw));
 			if (!args) throw new Error("Voice tool arguments must be an object");
-			if (name === "send_task") {
+			if (name === "end_call") {
+				if (Object.keys(args).length)
+					throw new Error("end_call takes no arguments");
+				this.ending = true;
+				this.callbacks.onEndCall?.();
+				output = {
+					ending: true,
+					message:
+						"Say your brief farewell now; the call will close after playback. Other work continues independently.",
+				};
+			} else if (name === "send_task") {
 				const request = text(args["request"]);
 				if (!request || Object.keys(args).some((key) => key !== "request"))
 					throw new Error("send_task requires only a nonempty request");
@@ -275,8 +289,10 @@ export class PublicRealtimeTurns {
 				output: JSON.stringify(output),
 			},
 		});
-		this.continuation = true;
-		this.schedule();
+		if (!this.ending || call["name"] === "end_call") {
+			this.continuation = true;
+			this.schedule();
+		}
 	}
 	private send(event: unknown): void {
 		try {
@@ -291,7 +307,7 @@ export class PublicRealtimeTurns {
 			!this.continuation ||
 			!this.isActive() ||
 			this.abort.signal.aborted ||
-			this.pendingTools ||
+			(this.pendingTools && !this.ending) ||
 			this.completingResponse ||
 			this.activeResponse ||
 			this.awaitingResponse ||

@@ -1,11 +1,19 @@
-import { normalizeContext, uuidv7 } from "@earendil-works/pi-ai";
+import {
+	normalizeContext,
+	uuidv7,
+	validateToolArguments,
+} from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	END_CALL_TASK_TOOL,
+	type PreparedVoiceTask,
+} from "./conversation/end-call.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 
 const SYSTEM_PROMPT =
-	"Rewrite this conversation as a natural, self-contained request to another assistant. Preserve the user's intent, relevant context and uncertainty without inventing facts or decisions. Don't carry out the request. Return only the request.";
+	"Rewrite this conversation as a natural, self-contained request to another assistant. Preserve the user's intent, relevant context and uncertainty without inventing facts or decisions. Don't carry out the request. Prioritise the user's messages over assistant speech or work progress when deciding whether to end the call. Use end_call only when the user wants or agrees to end it, never merely because work finished. Otherwise return only the request.";
 
-/** Tool-free sidecar: no Pi history, startup summary, or session mutation. */
+/** Call-local task preparation; end_call controls the call, never Pi tools or history. */
 export async function rewriteTaskDelegation(
 	ctx: ExtensionContext,
 	voice: {
@@ -21,7 +29,7 @@ export async function rewriteTaskDelegation(
 	},
 	turn: RealtimeVoiceTurn,
 	signal: AbortSignal,
-): Promise<string> {
+): Promise<PreparedVoiceTask> {
 	let failure: unknown;
 	for (let attempt = 0; attempt < 4; attempt++) {
 		signal.throwIfAborted();
@@ -51,10 +59,12 @@ export async function rewriteTaskDelegation(
 				: model;
 			let result = "";
 			let completed = false;
+			let ending: PreparedVoiceTask | undefined;
 			for await (const event of provider.streamSimple(
 				requestModel,
 				normalizeContext({
 					systemPrompt: SYSTEM_PROMPT,
+					tools: [END_CALL_TASK_TOOL],
 					messages: [
 						{
 							role: "user",
@@ -86,10 +96,25 @@ export async function rewriteTaskDelegation(
 						event.error.errorMessage || "Task delegation model failed",
 					);
 				if (event.type === "done") {
-					if (event.reason !== "stop")
+					if (event.reason !== "stop" && event.reason !== "toolUse")
 						throw new Error(
 							`Task delegation model did not finish (${event.reason})`,
 						);
+					const calls = event.message.content.filter(
+						(part) => part.type === "toolCall",
+					);
+					if (calls.length) {
+						if (calls.length !== 1 || calls[0]?.name !== "end_call")
+							throw new Error(
+								"Task preparation returned an unsupported tool call",
+							);
+						if (typeof calls[0].arguments["request"] !== "string")
+							throw new Error(
+								"end_call requires a remaining request string, empty if none",
+							);
+						const args = validateToolArguments(END_CALL_TASK_TOOL, calls[0]);
+						ending = { input: args.request.trim(), endCall: true };
+					}
 					completed = true;
 					result = event.message.content
 						.flatMap((part) => (part.type === "text" ? [part.text] : []))
@@ -98,9 +123,10 @@ export async function rewriteTaskDelegation(
 				}
 			}
 			signal.throwIfAborted();
+			if (ending) return ending;
 			if (!completed || !result)
 				throw new Error("Task delegation model returned no instruction");
-			return result;
+			return { input: result, endCall: false };
 		} catch (error) {
 			signal.throwIfAborted();
 			failure = error;

@@ -101,6 +101,7 @@ export async function startControllerMode(options: {
 	stopCurrent(): Promise<void>;
 	finishCurrentDictation(): Promise<void>;
 	onError(error: Error, session?: CodexRealtimeConversation | undefined): void;
+	onEndCall(session: CodexRealtimeConversation): void;
 	onDrop(session: CodexRealtimeConversation, error: Error): void;
 	onStatus(status: string): void;
 }): Promise<CodexRealtimeConversation | undefined> {
@@ -283,7 +284,9 @@ async function startConversation(
 					options.onDrop(session, error);
 			},
 			onStatus: options.onStatus,
-			onTurn: (turn) => options.messages.voiceTurn(turn),
+			onEndCall: options.onEndCall,
+			onTurn: (session, turn) =>
+				options.messages.voiceTurn(turn, session.finishingAcceptedWork),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
 			onTranscriptTail: (transcript) =>

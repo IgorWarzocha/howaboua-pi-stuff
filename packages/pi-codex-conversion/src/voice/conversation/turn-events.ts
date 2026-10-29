@@ -23,6 +23,9 @@ const CONTEXT_APPEND_CHUNK_BYTES = 500;
 /** Owns transcript/delegation turns, spoken interruption and context framing for one peer. */
 export class ConversationTurns {
 	private readonly delegationAbort = new AbortController();
+	private finishing = false;
+	private completedOutputs = 0;
+	private inputGeneration = 0;
 	private delegationTail: Promise<void> = Promise.resolve();
 	private readonly pendingDelegations = new Set<RealtimeVoiceTurn>();
 	private readonly turnTracker = new RealtimeVoiceTurnTracker(true);
@@ -67,7 +70,7 @@ export class ConversationTurns {
 		if (event["type"] === "turn.created") {
 			const turn = event["turn"];
 			if (turn && typeof turn === "object" && "role" in turn && turn.role === "user")
-				this.turnTracker.inputStarted();
+				{ this.inputGeneration++; this.turnTracker.inputStarted(); }
 		}
 
 		if (
@@ -98,6 +101,7 @@ export class ConversationTurns {
 			if (output) {
 				this.playback.outputAdded();
 				this.turnTracker.outputAdded(output);
+				this.speakableResponsePending = true;
 			}
 			this.callbacks.onStatus("speaking");
 			return;
@@ -149,22 +153,28 @@ export class ConversationTurns {
 
 	private enqueueDelegation(turn: RealtimeVoiceTurn): void {
 		this.pendingDelegations.add(turn);
+		const outputsAtDelegation = this.completedOutputs;
+		const inputAtDelegation = this.inputGeneration;
 		this.delegationTail = this.delegationTail
 			.then(async () => {
 				const signal = this.delegationAbort.signal;
-				if (signal.aborted || !this.isActive()) return;
+				if (signal.aborted || (!this.isActive() && !this.finishing)) return;
 				try {
 					if (!this.callbacks.rewriteDelegation)
 						throw new Error(
 							"Voice task preparation is unavailable; restart voice",
 						);
-					const input = await this.callbacks.rewriteDelegation(turn, signal);
-					if (!signal.aborted && this.isActive()) {
+					const prepared = await this.callbacks.rewriteDelegation(turn, signal);
+					const { input } = prepared;
+					if (prepared.endCall && this.isActive() && this.inputGeneration === inputAtDelegation)
+						this.callbacks.onEndCall?.(this.completedOutputs > outputsAtDelegation);
+					if (!input && turn.delegationId) this.turnTracker.delegationSettled(turn.delegationId);
+					if (!signal.aborted && (this.isActive() || this.finishing) && input) {
 						const { transcriptDelta: _transcriptDelta, ...delegation } = turn;
 						this.callbacks.onTurn({ ...delegation, input });
 					}
 				} catch (error) {
-					if (signal.aborted || !this.isActive()) return;
+					if (signal.aborted || (!this.isActive() && !this.finishing)) return;
 					const failure =
 						error instanceof Error ? error : new Error(String(error));
 					this.sendContext(
@@ -185,6 +195,11 @@ export class ConversationTurns {
 						error instanceof Error ? error : new Error(String(error)),
 					);
 			});
+	}
+
+	async finishDelegations(): Promise<void> {
+		this.finishing = true;
+		await this.delegationTail;
 	}
 
 	async waitForDelegations(signal: AbortSignal): Promise<void> {
@@ -211,6 +226,7 @@ export class ConversationTurns {
 			return;
 		}
 		if (record["role"] !== "assistant") return;
+		this.completedOutputs++;
 		this.playback.outputFinished();
 		const completed = this.turnTracker.assistantFinished(
 			transcriptText(record["transcript"]),

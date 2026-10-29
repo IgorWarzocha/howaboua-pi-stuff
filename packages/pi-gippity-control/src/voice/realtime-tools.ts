@@ -57,7 +57,7 @@ interface Registration {
 }
 
 const COLLECT_TOOLS = "gippity-realtime:collect-tools";
-const RESERVED = new Set(["send_task", "web_search"]);
+const RESERVED = new Set(["send_task", "end_call", "web_search"]);
 
 /** Register during extension loading. Pi removes this subscription on reload. */
 export function registerGippityVoiceTool<T extends TSchema>(

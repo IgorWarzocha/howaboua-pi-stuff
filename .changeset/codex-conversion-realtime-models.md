@@ -13,3 +13,4 @@
 - Command-backed custom tools accept objects and arrays directly.
 - Keep the selected execution mode and its tools after conversation-tree navigation.
 - Guide Code and Notebook models to compose tool calls in one exec without requiring separate cells for help discovery.
+- End voice calls after a farewell without waiting for unrelated Pi work. Public Realtime uses an end-call tool; Codex Live handles ending through its task-preparation agent. Accepted tasks continue after the call closes.
