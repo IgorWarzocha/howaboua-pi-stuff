@@ -26,9 +26,9 @@ Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; th
 
 Pi Codex is optional. Without it, Shepherdr remains a normal Pi extension.
 
-Herdr Core workers start as background terminals by default. Explicit new-tab and new-workspace placements appear when an app connected to that Core adopts them. Core focus and voice transfer are not available until the app can identify its connected Core. Existing Herdr TUI sessions cannot be moved into Core.
+Herdr Core workers start as background terminals by default. Explicit new-tab and new-workspace placements appear when an app connected to that Core adopts them. Focus requires a Herdr app window connected to the target Core. Existing Herdr TUI sessions cannot be moved into Core.
 
-For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Remote delegation and supervision work across those machines. Shared notes, history and boards are not available across Core machines; Shepherdr reports when a worker starts without them.
+For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Delegation, supervision, shared context and boards work across those machines.
 
 ## Control panel
 

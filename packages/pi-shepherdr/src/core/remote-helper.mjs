@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { stat } from "node:fs/promises";
-import { homedir, hostname } from "node:os";
-import { resolve } from "node:path";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { homedir, hostname, tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 const chunks = [];
@@ -94,6 +94,8 @@ async function run() {
 			return { host: hostname(), session: hello.core.id };
 		case "message":
 			return peer.sendPeerMessage(nativeRequest, input.agent, input.message);
+		case "focus":
+			return peer.sendPeerFocus(nativeRequest, input.agent, input.focus);
 		case "commands":
 			return peer.sendPeerCommands(nativeRequest, input.agent);
 		case "reply":
@@ -107,6 +109,75 @@ async function run() {
 				input.path,
 				input.request,
 			);
+		case "relay-close": {
+			await (await import(input.modules.context)).requestContext(input.path, {
+				relayToken: input.relayToken,
+				action: "close",
+			});
+			for (let attempt = 0; attempt < 100; attempt++) {
+				try {
+					await stat(input.path);
+				} catch (error) {
+					if (error.code === "ENOENT") return true;
+					throw error;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 20));
+			}
+			throw new Error(
+				"Context sharing is still stopping; wait a moment before reconnecting",
+			);
+		}
+		case "relay-start": {
+			// machine.exec ends all descendants, even detached ones. Give the
+			// leased relay to Core explicitly; rm removes its terminal on exit.
+			const directory = await mkdtemp(join(tmpdir(), "shepherdr-relay-"));
+			const script = join(directory, "relay.mjs");
+			let terminal;
+			try {
+				await writeFile(
+					script,
+					`import {rm} from "node:fs/promises"; await rm(${JSON.stringify(directory)}, {recursive:true,force:true}); const input=${JSON.stringify(input)}; await (await import(input.modules.relay)).serveRelay(input);`,
+					{ mode: 0o600, flag: "wx" },
+				);
+				terminal = await rpc("terminal.run", {
+					argv: ["node", script],
+					no_parent: true,
+					no_notify: true,
+					outlive_parent: true,
+					rm: true,
+					labels: { "shepherdr.role": "context-relay" },
+				});
+				const context = await import(input.modules.context);
+				const path = context.relayContextPath(input.threadId, input.routeId);
+				for (let attempt = 0; attempt < 100; attempt++) {
+					const record = await rpc("terminal.get", {
+						terminal: terminal.address,
+					});
+					if (record.state !== "live")
+						throw new Error(
+							"Context sharing could not start; wait 30 seconds and reconnect this machine",
+						);
+					try {
+						const descriptor = JSON.parse(await readFile(path, "utf8"));
+						if (descriptor.pid === record.pid) return path;
+					} catch (error) {
+						if (error.code !== "ENOENT") throw error;
+					}
+					await new Promise((resolve) => setTimeout(resolve, 50));
+				}
+				throw new Error(
+					"Shared context relay did not start; inspect its Core terminal output",
+				);
+			} catch (error) {
+				if (terminal)
+					await rpc("terminal.kill", { terminal: terminal.address }).catch(
+						() => {},
+					);
+				throw error;
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		}
 		case "view":
 			return (await import(input.modules.session)).readSessionView(input.path);
 		case "directory": {

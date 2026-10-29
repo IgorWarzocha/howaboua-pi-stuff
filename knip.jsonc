@@ -102,7 +102,7 @@
 			"ignoreDependencies": ["@howaboua/pi-codex-conversion"]
 		},
 		"packages/pi-shepherdr": {
-			"entry": ["changelog.ts", "profiles/**/*.mjs"]
+			"entry": ["changelog.ts", "profiles/**/*.mjs", "src/core/context-relay.mjs", "src/core/focus-channel-helper.mjs"]
 		},
 		"packages/pi-smart-btw": {
 			"entry": ["changelog.ts"]

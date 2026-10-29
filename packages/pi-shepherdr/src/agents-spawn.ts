@@ -49,10 +49,6 @@ export async function spawnAgent(
 		params.board_thread_id === undefined
 			? undefined
 			: required(params.board_thread_id, "board_thread_id");
-	if (boardThreadId && runtime.contextSharing === false)
-		throw new Error(
-			"Shared board threads are unavailable on this machine; omit board_thread_id or choose another machine",
-		);
 	if (boardThreadId !== undefined) {
 		await board.execute(
 			ctx,
@@ -142,19 +138,10 @@ export async function spawnAgent(
 			agentArgs,
 		);
 		const sharing =
-			profile.shareContext === false || runtime.contextSharing === false
+			profile.shareContext === false
 				? undefined
 				: await sharedContext.spawns.prepare(ctx, runtime, name, agentArgs);
-		const boardBinding =
-			runtime.contextSharing === false
-				? undefined
-				: await board.prepare(ctx, runtime, name, agentArgs);
-		const sharingWarning =
-			runtime.contextSharing === false &&
-			((profile.shareContext !== false && sharedContext.spawns.canShare(ctx)) ||
-				board.enabled(ctx))
-				? "Shared context and board are unavailable on this machine; the worker runs without them"
-				: undefined;
+		const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
 		const started = await startAgent(
 			runtime.client,
 			startParams,
@@ -228,7 +215,7 @@ export async function spawnAgent(
 								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 							}),
 			},
-			[dispatch.warning, shared?.warning, relationshipWarning, sharingWarning]
+			[dispatch.warning, shared?.warning, relationshipWarning]
 				.filter(Boolean)
 				.join("\n") || undefined,
 		);

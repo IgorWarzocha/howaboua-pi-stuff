@@ -51,7 +51,6 @@ export function connectedMachine(
 			? runtime.client
 			: undefined;
 	return {
-		...(runtime.coreMachine ? { contextSharing: false as const } : {}),
 		machine: name,
 		local: runtime.local,
 		client: runtime.client,

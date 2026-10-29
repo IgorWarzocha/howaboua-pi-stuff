@@ -182,18 +182,6 @@ async function openInbox(
 				});
 				return;
 			}
-			if (
-				core &&
-				(request["kind"] === "focus" || request["kind"] === "channel")
-			) {
-				reply({
-					ok: false,
-					rejected: true,
-					error:
-						"Focus transfer is unavailable in this terminal; messages and commands remain available",
-				});
-				return;
-			}
 			if (request["kind"] === "extension-reply") {
 				const extension = request["extension"],
 					id = request["messageId"],

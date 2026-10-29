@@ -1,10 +1,12 @@
 import { hostname } from "node:os";
 import type { HerdrConnection } from "../herdr-client.js";
+import { openPeerChannel } from "../remote/shepherdr-channel.mjs";
 import { requestContext } from "../remote/shepherdr-context.mjs";
 import {
 	readPeerCommands,
 	sendPeerCommands,
 	sendPeerExtensionReply,
+	sendPeerFocus,
 	sendPeerMessage,
 } from "../remote/shepherdr-peer.mjs";
 import type {
@@ -16,10 +18,13 @@ import type {
 	PeerMessage,
 } from "../types.js";
 import { CoreClient } from "./client.js";
+import { openCoreFocusChannel } from "./focus-channel.js";
+import { focusCoreWindow } from "./focus-window.js";
 import { object } from "./protocol.js";
 import { RemoteCoreEndpoint } from "./remote-endpoint.js";
 import { type CoreMachine, remoteExec } from "./remote-exec.js";
 import { CoreRemoteReader } from "./remote-reader.js";
+import { CoreContextRelay } from "./remote-relay.js";
 import { terminalPane, terminalSnapshot } from "./terminal.js";
 
 function unavailableFocus(): Error {
@@ -32,6 +37,10 @@ function unavailableFocus(): Error {
 }
 
 export class CoreConnection implements HerdrConnection {
+	private readonly lifetime = new AbortController();
+	private readonly focusChannels = new Set<PeerChannel>();
+	private relay: CoreContextRelay | undefined;
+	private readonly socketPath: string;
 	readonly core: CoreClient | RemoteCoreEndpoint;
 	readonly remote: CoreMachine | undefined;
 	readonly reader: CoreRemoteReader | undefined;
@@ -42,6 +51,7 @@ export class CoreConnection implements HerdrConnection {
 		if (!socketPath)
 			throw new Error("Run Pi inside a Core terminal to connect Shepherdr");
 		this.remote = remote;
+		this.socketPath = socketPath;
 		this.core = remote
 			? new RemoteCoreEndpoint(socketPath, remote)
 			: new CoreClient(socketPath);
@@ -51,6 +61,10 @@ export class CoreConnection implements HerdrConnection {
 				: undefined;
 	}
 	close(): void {
+		this.lifetime.abort();
+		for (const channel of this.focusChannels) channel.close();
+		this.focusChannels.clear();
+		void this.relay?.close();
 		this.core.close();
 	}
 	async machineIdentity() {
@@ -76,12 +90,32 @@ export class CoreConnection implements HerdrConnection {
 			);
 		return requestContext(path, request, signal);
 	}
+	async startContextRelay(
+		threadId: string,
+		_routeId: string,
+		handler: (request: unknown, signal: AbortSignal) => Promise<unknown>,
+		onFailure: (error: Error) => void = () => {},
+	): Promise<void> {
+		if (!this.remote)
+			throw new Error("Local context routes use the controller session");
+		this.lifetime.signal.throwIfAborted();
+		await this.relay?.close();
+		this.lifetime.signal.throwIfAborted();
+		const relay = new CoreContextRelay(this.socketPath, this.remote);
+		this.relay = relay;
+		try {
+			await relay.start(threadId, handler, onFailure);
+		} catch (error) {
+			await relay.close();
+			throw error;
+		}
+	}
 	contextRelayPath(): string {
-		throw new Error(
-			this.remote
-				? "Shared context relay is unavailable for Core remote machines; messaging and supervision remain available"
-				: "Local context routes use the controller session",
-		);
+		if (!this.relay)
+			throw new Error(
+				"Shared context relay is unavailable; open /herdr → Status to retry sharing",
+			);
+		return this.relay.path();
 	}
 	async directory(
 		value: string | undefined,
@@ -162,14 +196,46 @@ export class CoreConnection implements HerdrConnection {
 			reply,
 		);
 	}
-	focus(_agent: PaneInfo, _request: FocusRequest): Promise<unknown> {
-		return Promise.reject(unavailableFocus());
+	focus(agent: PaneInfo, request: FocusRequest): Promise<unknown> {
+		if (this.core instanceof RemoteCoreEndpoint)
+			return remoteExec(this.core.host, this.core.machine, {
+				op: "focus",
+				agent,
+				focus: request,
+			});
+		return sendPeerFocus(
+			(method, params) => this.request(method, params),
+			agent,
+			request,
+		);
 	}
-	openFocusChannel(
-		_agent: PaneInfo,
-		_request: FocusRequest,
+	async openFocusChannel(
+		agent: PaneInfo,
+		request: FocusRequest,
 	): Promise<PeerChannel> {
-		return Promise.reject(unavailableFocus());
+		this.lifetime.signal.throwIfAborted();
+		const channel =
+			this.core instanceof RemoteCoreEndpoint
+				? await openCoreFocusChannel(
+						this.core.host,
+						this.socketPath,
+						this.core.machine,
+						agent,
+						request,
+						{ signal: this.lifetime.signal },
+					)
+				: await openPeerChannel(
+						(method, params) => this.request(method, params),
+						agent,
+						request,
+					);
+		if (this.lifetime.signal.aborted) {
+			channel.close();
+			this.lifetime.signal.throwIfAborted();
+		}
+		this.focusChannels.add(channel);
+		channel.onClose(() => this.focusChannels.delete(channel));
+		return channel;
 	}
 	async request<T>(
 		method: string,
@@ -242,7 +308,10 @@ export class CoreConnection implements HerdrConnection {
 				};
 			}
 			case "agent.focus":
-				throw unavailableFocus();
+				if (this.core instanceof RemoteCoreEndpoint) throw unavailableFocus();
+				if (typeof params["target"] !== "string")
+					throw new Error("Use the exact local terminal address");
+				return focusCoreWindow(this.core, params["target"]);
 			case "workspace.close":
 			case "tab.close":
 				throw new Error(

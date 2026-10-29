@@ -270,27 +270,12 @@ export function registerWorkerService(
 								? undefined
 								: shared.spawns.prepareRelationship(ctx, runtime, args);
 							const sharing =
-								worker ||
-								profile.shareContext === false ||
-								runtime.contextSharing === false
+								worker || profile.shareContext === false
 									? undefined
 									: await shared.spawns.prepare(ctx, runtime, name, args);
 							const boardBinding = worker
 								? undefined
-								: runtime.contextSharing === false
-									? undefined
-									: await board.prepare(ctx, runtime, name, args);
-							if (
-								!worker &&
-								runtime.contextSharing === false &&
-								((profile.shareContext !== false &&
-									shared.spawns.canShare(ctx)) ||
-									board.enabled(ctx))
-							)
-								ctx.ui.notify(
-									"Shared context and board are unavailable on this machine; the worker runs without them",
-									"warning",
-								);
+								: await board.prepare(ctx, runtime, name, args);
 							const workspace = runtime.local
 								? process.env["HERDR_WORKSPACE_ID"]
 								: undefined;

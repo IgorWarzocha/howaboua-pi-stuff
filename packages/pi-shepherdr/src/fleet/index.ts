@@ -309,7 +309,7 @@ export class AgentFleet {
 	private async prepareContextRelay(
 		name: string,
 		runtime: MachineRuntime,
-		client: RemoteHerdrClient,
+		client: RemoteHerdrClient | CoreConnection,
 		ctx: ExtensionContext,
 	): Promise<void> {
 		return this.setup.prepareContextRelay(
@@ -370,8 +370,8 @@ export class AgentFleet {
 					if (runtime.client === client)
 						this.disconnected(name, runtime, error.message);
 				});
-				await this.prepareContextRelay(name, runtime, client, ctx);
 			}
+			await this.prepareContextRelay(name, runtime, client, ctx);
 			if (
 				!this.isCurrent(generation, ctx) ||
 				this.runtimes.get(name) !== runtime

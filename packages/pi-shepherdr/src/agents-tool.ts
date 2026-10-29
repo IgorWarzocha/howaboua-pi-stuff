@@ -150,10 +150,6 @@ export function createAgentsTool(
 				});
 			}
 			if (params.action === "attach" || params.action === "detach") {
-				if (runtime.contextSharing === false)
-					throw new Error(
-						"Shared context and board are unavailable on this machine; messaging and delegation remain available",
-					);
 				return toolResult(
 					await sharedContext.attachment[params.action](
 						ctx,

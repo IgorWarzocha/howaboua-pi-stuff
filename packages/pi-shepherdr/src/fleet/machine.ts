@@ -23,7 +23,6 @@ export interface MachineRuntime {
 }
 
 export interface ConnectedMachine {
-	contextSharing?: false;
 	client: HerdrConnection;
 	fallbackCwd: string;
 	local: boolean;

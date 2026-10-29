@@ -81,13 +81,9 @@ export async function agentsHelp(
 			assign: gpt
 				? "Delegate/update work; active→share pending result, NEVER replace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
-			focus: core
-				? gpt
-					? "Core: focus unavailable; messaging/delegation available"
-					: "Unavailable in Core sessions; messages and delegation remain available"
-				: gpt
-					? "Running session; passive arrival+return call, NO task/watch; voice default false, true=async active mic transfer; handoff=context; remote=target Herdr session≠client machine"
-					: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
+			focus: gpt
+				? "Running session; passive arrival+return call, NO task/watch; voice default false, true=async active mic transfer; handoff=context; remote=target Herdr session≠client machine"
+				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach: boardAvailable
 				? gpt
 					? "Idle target; context/board=independent sharing/membership; NO task/watch"

@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { CoreConnection } from "../core/backend.js";
 import { RemoteHerdrClient } from "../remote/client.js";
 import { errorMessage, type MachineRuntime } from "./machine.js";
 
@@ -27,26 +28,34 @@ export class FleetSetup {
 	async prepareContextRelay(
 		name: string,
 		runtime: MachineRuntime,
-		client: RemoteHerdrClient,
+		client: RemoteHerdrClient | CoreConnection,
 		ctx: ExtensionContext,
 		isSelected: () => boolean,
 	): Promise<void> {
 		if (!this.contextRelay) return;
-		try {
-			await client.startContextRelay(
-				ctx.sessionManager.getSessionId(),
-				name,
-				(request, signal) => this.contextRelay!(ctx, request, signal),
-			);
-			if (!isSelected()) return;
-			delete runtime.contextRelayError;
-		} catch (error) {
+		const failed = (error: unknown) => {
 			if (!isSelected()) return;
 			runtime.contextRelayError = errorMessage(error);
 			ctx.ui.notify(
 				`Context sharing unavailable on ${name}: ${runtime.contextRelayError}\nOpen /herdr → Status to retry sharing.`,
 				"warning",
 			);
+			this.refresh();
+		};
+		try {
+			const args = [
+				ctx.sessionManager.getSessionId(),
+				name,
+				(request: unknown, signal: AbortSignal) =>
+					this.contextRelay!(ctx, request, signal),
+			] as const;
+			if (client instanceof CoreConnection)
+				await client.startContextRelay(...args, failed);
+			else await client.startContextRelay(...args);
+			if (!isSelected()) return;
+			delete runtime.contextRelayError;
+		} catch (error) {
+			failed(error);
 		}
 	}
 
@@ -65,7 +74,8 @@ export class FleetSetup {
 		try {
 			if (
 				runtime.contextRelayError &&
-				runtime.client instanceof RemoteHerdrClient
+				(runtime.client instanceof RemoteHerdrClient ||
+					runtime.client instanceof CoreConnection)
 			)
 				await this.prepareContextRelay(
 					name,
