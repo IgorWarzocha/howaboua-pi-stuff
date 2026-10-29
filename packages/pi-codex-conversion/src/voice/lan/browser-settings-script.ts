@@ -29,7 +29,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     for (const element of form.querySelectorAll('[data-codex-voice]')) element.hidden = apiModel;
     for (const element of form.querySelectorAll('[data-realtime-voice]')) element.hidden = !apiModel;
     document.querySelector('#setting-model-requirement').textContent = apiModel
-      ? 'Requires an OpenAI API key in Pi. API usage is billed separately; a ChatGPT login is not an API key.'
+      ? 'Uses the named Pi provider\'s API key and endpoint. API usage is billed separately; a ChatGPT login is not an API key.'
       : 'Uses your OpenAI Codex login in Pi.';
   };
   form.elements.namedItem('model').addEventListener('change', updateProvider);
@@ -37,6 +37,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     const modelLabel = (model) => model === 'realtime-2.1' ? 'GPT-Realtime-2.1 (API key)'
       : model === 'realtime-2.1-mini' ? 'GPT-Realtime-2.1 Mini (API key)' : 'Codex Live (default)';
     fillSelect('model', data.voiceModels.map((model) => ({value:model, label:modelLabel(model)})), data.config.model);
+    form.elements.namedItem('apiProvider').value = data.config.apiProvider;
     fillSelect('realtimeVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeVoice);
     fillSelect('realtimeAlternateVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeAlternateVoice);
     form.elements.namedItem('webSearch').checked = data.config.webSearch;
@@ -91,6 +92,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     } else {
       patch.realtimeVoice = form.elements.namedItem('realtimeVoice').value;
       patch.realtimeAlternateVoice = form.elements.namedItem('realtimeAlternateVoice').value;
+      patch.apiProvider = form.elements.namedItem('apiProvider').value;
       patch.webSearch = form.elements.namedItem('webSearch').checked;
     }
     for (const key of switches) patch[key] = form.elements.namedItem(key).checked;

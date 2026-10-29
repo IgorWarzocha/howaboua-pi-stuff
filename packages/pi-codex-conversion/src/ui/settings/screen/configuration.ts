@@ -1,11 +1,12 @@
 import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { SettingsList, type TUI } from "@earendil-works/pi-tui";
+import { normalizeVoiceApiProvider } from "../../../adapter/activation/config.ts";
 import type { CodexConversionConfig, VoiceContextModel, LunaCacheKeepaliveMinutes } from "../../../adapter/activation/config.ts";
 import type { ExecutionMode } from "../../../adapter/activation/execution-mode.ts";
 import type { CodexSettingsScreenOptions } from "../screen.ts";
 import { openCodexConfigInExternalEditor } from "../config-editor.ts";
 import { buildConfigSettings, type ConfigSetting } from "../config-items.ts";
-import { ChoiceSettingSubmenu } from "../config-items-shared.ts";
+import { ChoiceSettingSubmenu, TextSettingSubmenu } from "../config-items-shared.ts";
 import type { SettingsTab } from "../tabs.ts";
 import { nativeDevicePicker } from "../native-device-picker.ts";
 import { contextWindowPicker } from "../context-window-picker.ts";
@@ -24,6 +25,7 @@ export function createSettingsConfiguration(
 	let devicePickerOpen = false;
 	let contextWindowPickerOpen = false;
 	let retentionPickerOpen = false;
+	let apiProviderPickerOpen = false;
 
 	const runEditConfig = async () => {
 		if (!options.onChange(draft)) {
@@ -102,6 +104,19 @@ export function createSettingsConfiguration(
 				ctx,
 				options.hasWebSearch?.(),
 			).map((definition): ConfigSetting => {
+				if (definition.item.id === "apiProvider") return {
+					...definition, item: { ...definition.item, submenu: (value, back) => {
+						apiProviderPickerOpen = true;
+						return new TextSettingSubmenu(definition.item.label, definition.item.description, value, (selected) => {
+							if (!normalizeVoiceApiProvider(selected)) {
+								ctx.ui.notify("Enter a name, at most 512 bytes, without surrounding whitespace or control characters.", "error");
+								return;
+							}
+							apiProviderPickerOpen = false;
+							back(selected);
+						}, () => { apiProviderPickerOpen = false; back(); }, theme);
+					} },
+				};
 				if (definition.action !== "global-notebook-journals" && definition.action !== "global-notebook-checkpoint-cleanup") return definition;
 				return {
 					...definition,
@@ -261,7 +276,7 @@ export function createSettingsConfiguration(
 		get list() { return settingsList; },
 		get contextWindowPickerOpen() { return contextWindowPickerOpen; },
 		get retentionPickerOpen() { return retentionPickerOpen; },
-		get pickerOpen() { return devicePickerOpen || contextWindowPickerOpen || retentionPickerOpen; },
+		get pickerOpen() { return devicePickerOpen || contextWindowPickerOpen || retentionPickerOpen || apiProviderPickerOpen; },
 		activateTab(tab: SettingsTab) {
 			activeTab = tab;
 			settingsList = createSettingsList();

@@ -3,6 +3,7 @@ import type { GippityControlConfig } from "../../config.ts";
 import {
 	GIPPITY_VOICE_MODELS,
 	normalizeRealtimeV3Voice,
+	normalizeVoiceApiProvider,
 	normalizeVoiceContextReasoning,
 	OPENAI_REALTIME_VOICES,
 	REALTIME_V3_VOICES,
@@ -25,6 +26,7 @@ const BOOLEAN_SETTINGS = [
 	"forwardReasoningSummaries",
 ] as const;
 interface VoiceSettings {
+	apiProvider: string;
 	model: GippityControlConfig["voice"]["model"];
 	realtimeVoice: GippityControlConfig["voice"]["realtimeVoice"];
 	realtimeAlternateVoice: GippityControlConfig["voice"]["realtimeAlternateVoice"];
@@ -69,6 +71,7 @@ export function createLanVoiceSettings(
 		return {
 			config: {
 				model: voice.model,
+				apiProvider: voice.apiProvider,
 				realtimeVoice: voice.realtimeVoice,
 				realtimeAlternateVoice: voice.realtimeAlternateVoice,
 				v3Voice: voice.v3Voice,
@@ -93,7 +96,14 @@ export function createLanVoiceSettings(
 			const patch: Partial<VoiceSettings> = {};
 			for (const [key, value] of Object.entries(body)) {
 				if (key === "clientId") continue;
-				if (key === "model") {
+				if (key === "apiProvider") {
+					const provider = normalizeVoiceApiProvider(value);
+					if (!provider)
+						throw new LanVoiceSettingsError(
+							"Enter a nonempty API provider name, at most 512 bytes, without surrounding whitespace or control characters",
+						);
+					patch.apiProvider = provider;
+				} else if (key === "model") {
 					const model = GIPPITY_VOICE_MODELS.find((entry) => entry === value);
 					if (!model)
 						throw new LanVoiceSettingsError("Choose a listed voice model");

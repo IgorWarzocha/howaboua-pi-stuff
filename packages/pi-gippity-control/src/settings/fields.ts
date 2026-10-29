@@ -12,6 +12,7 @@ import {
 } from "../config.ts";
 import { nativeDevicePicker } from "../native-device-picker.ts";
 import type { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
+import { ApiProviderPicker } from "./api-provider-picker.ts";
 export interface Setting extends SettingItem {
 	update?(value: string, config: GippityControlConfig): GippityControlConfig;
 }
@@ -79,6 +80,23 @@ export function buildGippitySettings(
 				},
 			}),
 		},
+		...(config.voice.model !== "codex-live-1.1"
+			? [
+					{
+						id: "apiProvider",
+						label: "API provider",
+						description:
+							"Exact Pi provider name. Uses its API key and endpoint on the next Realtime call. Default: openai.",
+						currentValue: config.voice.apiProvider,
+						submenu: (value: string, back: (value?: string) => void) =>
+							new ApiProviderPicker(value, back, theme),
+						update: (value: string, current: GippityControlConfig) => ({
+							...current,
+							voice: { ...current.voice, apiProvider: value },
+						}),
+					},
+				]
+			: []),
 		...(["primary", "alternate"] as const).map((role) => {
 			const apiModel = config.voice.model !== "codex-live-1.1";
 			const codexKey = role === "primary" ? "v3Voice" : "v3AlternateVoice";

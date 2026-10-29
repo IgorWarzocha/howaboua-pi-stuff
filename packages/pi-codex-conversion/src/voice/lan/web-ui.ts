@@ -80,7 +80,7 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
     #voice-settings p,#voice-settings small { color:var(--pi-muted); font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
     #settings-fields { border:0; margin:0; padding:0; display:grid; gap:12px; min-width:0; }
     #settings-fields [hidden] { display:none; }
-    #settings-fields select { width:100%; min-width:0; min-height:44px; padding:8px; color:var(--pi-text); background:var(--pi-tool-pending-bg); border:1px solid var(--pi-border-muted); border-radius:8px; font:inherit; }
+    #settings-fields select, #settings-fields input[type="text"] { width:100%; min-width:0; min-height:44px; padding:8px; color:var(--pi-text); background:var(--pi-tool-pending-bg); border:1px solid var(--pi-border-muted); border-radius:8px; font:inherit; }
     .setting-switch { display:flex; align-items:center; gap:10px; min-height:44px; font-size:14px; }
     .setting-switch input { width:18px; height:18px; flex-shrink:0; }
     #save-settings,#reload-settings { min-height:44px; padding:10px 14px; border:1px solid var(--pi-border-muted); border-radius:8px; color:var(--pi-accent); background:var(--pi-selected-bg); cursor:pointer; }
@@ -126,6 +126,7 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
           <small id="setting-model-requirement"></small>
           <label data-codex-voice for="setting-voice">Primary voice</label><select data-codex-voice id="setting-voice" name="v3Voice"></select>
           <label data-codex-voice for="setting-alternate-voice">Alternate voice</label><select data-codex-voice id="setting-alternate-voice" name="v3AlternateVoice"></select>
+          <label data-realtime-voice for="setting-api-provider" hidden>API provider</label><input data-realtime-voice id="setting-api-provider" name="apiProvider" type="text" maxlength="512" autocomplete="off" autocapitalize="none" spellcheck="false" hidden>
           <label data-realtime-voice for="setting-realtime-voice" hidden>Primary voice</label><select data-realtime-voice id="setting-realtime-voice" name="realtimeVoice" hidden></select>
           <label data-realtime-voice for="setting-realtime-alternate-voice" hidden>Alternate voice</label><select data-realtime-voice id="setting-realtime-alternate-voice" name="realtimeAlternateVoice" hidden></select>
           <label data-realtime-voice class="setting-switch" hidden><input type="checkbox" name="webSearch" aria-describedby="setting-web-search-requirement">Realtime web search</label>
@@ -143,7 +144,7 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
         <button id="reload-settings" type="button">Reload settings</button>
       </form>
       <p>This browser uses its own microphone and speaker. Choose browser devices in your browser or system settings; native host device choices stay in Pi settings.</p>
-      <p>Credentials and account selection stay in Pi. Closing this page leaves the host call running; Stop ends it.</p>
+      <p>API keys stay in Pi. Closing this page leaves the host call running; Stop ends it.</p>
     </details>
   </main>
   <script>${LAN_VOICE_BROWSER_SCRIPT}</script>

@@ -3,6 +3,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { type CodexVoiceAuth, resolveCodexVoiceAuth } from "./auth.ts";
+import { resolveRealtimeProvider } from "./realtime-provider.ts";
 import {
 	collectGippityVoiceTools,
 	type GippityToolRegistry,
@@ -17,21 +18,11 @@ export interface PublicRealtimeAccess {
 /** API keys only: Sign in with ChatGPT is not public Realtime API access. */
 async function resolvePublicRealtimeAuth(
 	ctx: ExtensionContext,
+	provider: string,
 	pi?: ExtensionAPI,
 	webSearch = false,
 ): Promise<CodexVoiceAuth> {
-	const auth = await ctx.modelRegistry.getProviderAuth("openai");
-	const model = ctx.modelRegistry
-		.getAll()
-		.find((model) => model.provider === "openai");
-	if (
-		!auth?.auth.apiKey ||
-		auth.source?.toLowerCase() === "oauth" ||
-		(model && ctx.modelRegistry.isUsingOAuth(model))
-	)
-		throw new Error(
-			"Realtime requires an OpenAI API key configured in Pi. Sign in with ChatGPT cannot be used for this call.",
-		);
+	const access = await resolveRealtimeProvider(ctx, provider);
 	const tools: GippityToolRegistry = pi
 		? collectGippityVoiceTools(pi)
 		: {
@@ -89,25 +80,24 @@ async function resolvePublicRealtimeAuth(
 				},
 			}
 		: tools;
-	const headers = new Headers();
-	for (const [name, value] of Object.entries(auth.auth.headers ?? {}))
-		if (value !== null) headers.set(name, value);
-	headers.set("authorization", `Bearer ${auth.auth.apiKey}`);
 	return {
-		headers,
-		baseUrl: auth.auth.baseUrl ?? "https://api.openai.com/v1",
+		...access,
 		officialCodex: false,
-		...(auth.env ? { env: auth.env } : {}),
 		realtime: { ctx, tools: registry },
 	};
 }
 
 export function resolveRealtimeVoiceAuth(
 	ctx: ExtensionContext,
-	config: { voice: { model: string; webSearch: boolean } },
+	config: { voice: { model: string; apiProvider: string; webSearch: boolean } },
 	pi?: ExtensionAPI,
 ): Promise<CodexVoiceAuth> {
 	return config.voice.model === "codex-live-1.1"
 		? resolveCodexVoiceAuth(ctx)
-		: resolvePublicRealtimeAuth(ctx, pi, config.voice.webSearch);
+		: resolvePublicRealtimeAuth(
+				ctx,
+				config.voice.apiProvider,
+				pi,
+				config.voice.webSearch,
+			);
 }

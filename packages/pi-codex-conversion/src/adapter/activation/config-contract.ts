@@ -1,3 +1,11 @@
+// Invalid explicit selections stay invalid instead of switching accounts to openai.
+export function normalizeVoiceApiProvider(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() === value &&
+		value.length > 0 && Buffer.byteLength(value) <= 512 &&
+		!/[\u0000-\u001f\u007f]/u.test(value)
+		? value : undefined;
+}
+
 export const GIPPITY_VOICE_MODELS = [
 	"codex-live-1.1",
 	"realtime-2.1",
@@ -120,6 +128,7 @@ export interface CodexConversionConfig {
 	};
 	voice: {
 		model: GippityVoiceModel;
+		apiProvider: string;
 		realtimeVoice: OpenAIRealtimeVoice;
 		realtimeAlternateVoice: OpenAIRealtimeVoice;
 		webSearch: boolean;
@@ -189,6 +198,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	voice: {
 		model: "codex-live-1.1",
+		apiProvider: "openai",
 		realtimeVoice: "marin",
 		realtimeAlternateVoice: "cedar",
 		webSearch: false,

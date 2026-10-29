@@ -43,6 +43,11 @@ export function buildVoiceSettings(
 				},
 			}),
 		),
+		...(config.voice.model !== "codex-live-1.1" ? [setting({
+			id: "apiProvider", label: "API provider",
+			description: "Exact Pi provider name. Uses its API key and endpoint on the next Realtime call. Default: openai.",
+			currentValue: config.voice.apiProvider,
+		}, (value, current) => ({ ...current, voice: { ...current.voice, apiProvider: value } }))] : []),
 		...(["primary", "alternate"] as const).map((role) => {
 			const apiModel = config.voice.model !== "codex-live-1.1";
 			const codexKey = role === "primary" ? "v3Voice" : "v3AlternateVoice";

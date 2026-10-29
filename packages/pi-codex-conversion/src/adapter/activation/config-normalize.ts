@@ -1,4 +1,4 @@
-import { normalizeGippityVoiceModel, normalizeOpenAIRealtimeVoice } from "./config-contract.ts";
+import { normalizeVoiceApiProvider, normalizeGippityVoiceModel, normalizeOpenAIRealtimeVoice } from "./config-contract.ts";
 import {
 	type CodexConversionConfig,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
@@ -150,6 +150,7 @@ export function normalizeCodexConversionConfig(
 		},
 		voice: {
 			model: normalizeGippityVoiceModel(voice["model"]) ?? "codex-live-1.1",
+			apiProvider: voice["apiProvider"] === undefined ? "openai" : normalizeVoiceApiProvider(voice["apiProvider"]) ?? "",
  realtimeVoice: normalizeOpenAIRealtimeVoice(voice["realtimeVoice"]) ?? "marin",
  realtimeAlternateVoice: normalizeOpenAIRealtimeVoice(voice["realtimeAlternateVoice"]) ?? "cedar",
  webSearch: voice["webSearch"] === true,

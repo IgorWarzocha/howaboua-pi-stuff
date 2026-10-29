@@ -216,7 +216,7 @@ Choose **Voice model** in `/codex voice` or the browser interface. Voice runs in
 | `realtime-2.1` | An OpenAI API key configured in Pi |
 | `realtime-2.1-mini` | An OpenAI API key configured in Pi |
 
-Codex Live and dictation use `/login openai-codex`. Selecting a Realtime voice model does not change dictation's login. Realtime API calls are billed separately through your OpenAI API account. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
+Codex Live and dictation use `/login openai-codex`. Selecting a Realtime voice model does not change dictation's login. For Realtime, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible Realtime endpoint without storing or displaying the key. Configure the provider's Realtime-compatible endpoint in Pi. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. Realtime API calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
 
 Realtime models use `send_task` to send Pi a self-contained task with relevant voice-discussion decisions and constraints. Busy Pi sessions receive it as steering, with existing tools and confirmations preserved. Realtime models can also use developer-registered voice tools. For optional search, load `@howaboua/pi-codex-web-run`, configure its access and enable **Realtime web search**. Search uses Web Run's configured provider and credentials.
 
@@ -252,7 +252,7 @@ PCC supports GPT-6 Astra, Sol and Luna, plus GPT-6.1 Sol and Terra, with Respons
 
 Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
-Codex Live voice, dictation, usage and image descriptions can use the Codex login while another provider's model is active. Realtime voice models use Pi's OpenAI API key instead. The separate web and image-generation extensions also use their configured access independently.
+Codex Live voice, dictation, usage and image descriptions can use the Codex login while another provider's model is active. Realtime voice models use the API provider selected in voice settings instead. The separate web and image-generation extensions also use their configured access independently.
 
 </details>
 

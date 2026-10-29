@@ -18,7 +18,7 @@ Requires Pi 1.0.0 or newer and Node.js 22.19 or newer. Run `/gippity` to choose 
 | `realtime-2.1`                | An OpenAI API key configured in Pi |
 | `realtime-2.1-mini`           | An OpenAI API key configured in Pi |
 
-For Codex Live, use `/login openai-codex`. Dictation also uses this login, independently of the selected voice model. Realtime API calls are billed separately through your OpenAI API account. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
+For Codex Live, use `/login openai-codex`. Dictation also uses this login, independently of the selected voice model. For Realtime, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible Realtime endpoint without storing or displaying the key. Configure the provider's Realtime-compatible endpoint in Pi. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. Realtime API calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
 
 Do not install this alongside `@howaboua/pi-codex-conversion`; that package already includes GipPity voice control.
 

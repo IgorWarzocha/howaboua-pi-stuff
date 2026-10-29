@@ -1,3 +1,4 @@
+import { normalizeVoiceApiProvider } from "../../adapter/activation/config.ts";
 import { GIPPITY_VOICE_MODELS, OPENAI_REALTIME_VOICES } from "../../adapter/activation/config.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
@@ -7,6 +8,7 @@ import { LanVoiceSettingsError, type LanVoiceSettings } from "./settings-contrac
 
 const BOOLEAN_SETTINGS = ["webSearch", "autoResumeRealtime", "refreshRealtimeAfterCompaction", "delegationAcknowledgements", "forwardReasoningSummaries"] as const;
 interface VoiceSettings {
+	apiProvider: string;
 	model: CodexConversionConfig["voice"]["model"];
 	realtimeVoice: CodexConversionConfig["voice"]["realtimeVoice"];
 	realtimeAlternateVoice: CodexConversionConfig["voice"]["realtimeAlternateVoice"];
@@ -40,6 +42,7 @@ export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => C
 		return {
 			config: {
 				model: voice.model,
+				apiProvider: voice.apiProvider,
 				realtimeVoice: voice.realtimeVoice,
 				realtimeAlternateVoice: voice.realtimeAlternateVoice,
 				v3Voice: voice.v3Voice,
@@ -64,7 +67,11 @@ export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => C
 			const patch: Partial<VoiceSettings> = {};
 			for (const [key, value] of Object.entries(body)) {
 				if (key === "clientId") continue;
-				if (key === "model") {
+				if (key === "apiProvider") {
+					const provider = normalizeVoiceApiProvider(value);
+					if (!provider) throw new LanVoiceSettingsError("Enter a nonempty API provider name, at most 512 bytes, without surrounding whitespace or control characters");
+					patch.apiProvider = provider;
+				} else if (key === "model") {
 					const model = GIPPITY_VOICE_MODELS.find((entry) => entry === value);
 					if (!model) throw new LanVoiceSettingsError("Choose a listed voice model");
 					patch.model = model;
