@@ -3,8 +3,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { SshMachine } from "../machine-catalog.js";
 
-export { BRIDGE_VERSION } from "./shepherdr-peer.mjs";
-
+export const BRIDGE_VERSION = 23;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const REMOTE_PEER_HELPER = "~/.pi/agent/shepherdr-peer.mjs";
 const REMOTE_CHANNEL_HELPER = "~/.pi/agent/shepherdr-channel.mjs";

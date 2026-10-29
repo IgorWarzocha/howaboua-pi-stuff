@@ -5,7 +5,6 @@ import { readFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { basename, dirname } from "node:path";
 
-export const BRIDGE_VERSION = 23;
 export const MAX_PEER_FRAME_BYTES = 8 * 1024 * 1024;
 export const PEER_PROTOCOL = 4;
 

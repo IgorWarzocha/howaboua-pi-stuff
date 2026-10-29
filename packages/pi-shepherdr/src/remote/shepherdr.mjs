@@ -10,7 +10,6 @@ import {
 	requestContext,
 } from "./shepherdr-context.mjs";
 import {
-	BRIDGE_VERSION,
 	sendPeerCommands,
 	sendPeerExtensionReply,
 	sendPeerFocus,
@@ -19,6 +18,7 @@ import {
 import { readSessionView } from "./shepherdr-session.mjs";
 import { watchSessions } from "./shepherdr-session-watch.mjs";
 
+const BRIDGE_VERSION = 22;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const contextRelays = new Map();
