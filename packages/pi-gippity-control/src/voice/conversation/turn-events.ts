@@ -130,11 +130,7 @@ export class ConversationTurns {
 						);
 					const input = await this.callbacks.rewriteDelegation(turn, signal);
 					if (!signal.aborted && this.isActive()) {
-						const {
-							transcriptDelta: _transcriptDelta,
-							preparationError: _preparationError,
-							...delegation
-						} = turn;
+						const { transcriptDelta: _transcriptDelta, ...delegation } = turn;
 						this.callbacks.onTurn({ ...delegation, input });
 					}
 				} catch (error) {

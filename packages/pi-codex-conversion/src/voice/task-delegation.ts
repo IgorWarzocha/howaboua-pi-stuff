@@ -22,7 +22,6 @@ export async function rewriteTaskDelegation(
 	turn: RealtimeVoiceTurn,
 	signal: AbortSignal,
 ): Promise<string> {
-	if (turn.preparationError) throw new Error(turn.preparationError);
 	let failure: unknown;
 	for (let attempt = 0; attempt < 4; attempt++) {
 		signal.throwIfAborted();

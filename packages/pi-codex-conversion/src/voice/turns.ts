@@ -2,7 +2,6 @@ export interface RealtimeVoiceTurn {
 	input: string;
 	transcriptDelta?: string;
 	delegationId?: string;
-	preparationError?: string;
 }
 
 export interface TrackedRealtimeDelegation {
@@ -55,7 +54,7 @@ class RealtimeTranscriptBuffer {
 	}
 
 	finish(role: TranscriptEntry["role"], transcript: string): TranscriptEntry {
-		const text = transcript.trim();
+		const text = this.preserveInterval ? transcript : transcript.trim();
 		const current = this.entries.find(
 			(entry) => entry.role === role && !entry.final,
 		);
@@ -91,19 +90,12 @@ class RealtimeTranscriptBuffer {
 		return transcript || undefined;
 	}
 
-	takeInterval(currentUser?: TranscriptEntry): {
-		text?: string;
-		error?: string;
-	} {
+	takeInterval(currentUser?: TranscriptEntry): { text?: string } {
 		const user = currentUser ?? this.active.get("user");
 		const interval = this.entries.filter((entry) => entry !== user);
-		const revised = interval.some(
-			(entry) =>
-				entry.consumedText && !entry.text.startsWith(entry.consumedText),
-		);
 		const text = this.render(interval);
-		// Keep only in-flight assistant utterances so late finals cannot replay the
-		// pre-yield prefix. The yielded user input is already authoritative.
+		// Keep in-flight assistant boundaries for late finals. The yielded user
+		// input is already authoritative; transcript revisions must not block it.
 		this.entries = interval.filter(
 			(entry) => !entry.final && entry.role === "assistant",
 		);
@@ -112,14 +104,7 @@ class RealtimeTranscriptBuffer {
 			entry.consumedText = entry.text;
 			this.active.set(entry.role, entry);
 		}
-		return revised
-			? {
-					error:
-						"A late voice transcript revised speech from before the previous yield; the current interval cannot be reconstructed faithfully. Please repeat the request.",
-				}
-			: text
-				? { text }
-				: {};
+		return text ? { text } : {};
 	}
 
 	takeFinalized(): string | undefined {
@@ -148,9 +133,24 @@ class RealtimeTranscriptBuffer {
 	private render(entries = this.entries): string {
 		return entries
 			.flatMap(({ role, text, consumedText }) => {
-				const remaining = this.preserveInterval
-					? text.slice(consumedText?.length ?? 0)
-					: text;
+				let remaining = text;
+				if (this.preserveInterval && consumedText) {
+					if (text.startsWith(consumedText))
+						remaining = text.slice(consumedText.length);
+					else {
+						const normalized = text.replace(/\s+/g, " ").trim();
+						const consumed = consumedText.replace(/\s+/g, " ").trim();
+						// A consumed trailing space must remain a word boundary.
+						const boundary =
+							!/\s$/.test(consumedText) ||
+							normalized.length === consumed.length ||
+							/\s/.test(normalized.charAt(consumed.length));
+						remaining =
+							normalized.startsWith(consumed) && boundary
+								? normalized.slice(consumed.length)
+								: `[Revised earlier speech; may overlap the previous request]\n${text}`;
+					}
+				}
 				return remaining.trim() ? [`${role}: ${remaining}`] : [];
 			})
 			.join("\n");
@@ -318,7 +318,6 @@ export class RealtimeVoiceTurnTracker {
 				: this.transcript.takeFinalized();
 		return {
 			input: delegation.input,
-			...(interval?.error ? { preparationError: interval.error } : {}),
 			...(transcriptDelta ? { transcriptDelta } : {}),
 			delegationId: delegation.delegationId,
 		};
