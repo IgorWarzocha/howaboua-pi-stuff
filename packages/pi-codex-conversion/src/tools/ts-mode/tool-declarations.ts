@@ -146,10 +146,11 @@ export function buildTsToolDeclarations(tools: readonly CodeModeToolDefinition[]
 	const declarations: string[] = [];
 	const fields = tools.map((tool, index) => {
 		const optional = "invoke" in tool && (tool.discovery === "help" || tool.inputOptional === true);
-		let input = "string";
+		let input = "command" in tool ? "string | Record<string, unknown> | unknown[]" : "string";
 		if (!("command" in tool) && tool.kind === "function") {
 			input = `__TsToolInput${index}`;
 			declarations.push(new SchemaTypes(tool.inputSchema, input).declaration());
+			input += " | string";
 		}
 		return `readonly ${JSON.stringify(codeModeGlobalName(tool.name))}: (input${optional ? "?" : ""}: ${input}) => Promise<any>`;
 	});

@@ -6,3 +6,6 @@
 - Realtime models can send tasks to the current Pi session, use developer-registered voice tools and optionally search through Web Run.
 - Choose a Pi API provider for Realtime, defaulting to `openai`. Its key and endpoint are used without silently switching accounts.
 - Codex Live turns each interval since the previous voice delegation into a self-contained Pi request using a configurable model and reasoning level. Failed preparation is reported in voice without submitting raw input.
+- Code and Notebook tools with structured arguments also accept JSON strings and, when help-backed, bare `help`.
+- Command-backed custom tools accept objects and arrays directly.
+- Keep the selected execution mode and its tools after conversation-tree navigation.

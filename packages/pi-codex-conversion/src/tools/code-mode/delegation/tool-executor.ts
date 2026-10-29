@@ -1,4 +1,5 @@
 import { runCustomTool } from "../custom-tool-runner.js";
+import { prepareCodeModeToolInput } from "../tool-input.ts";
 import { mcpToolNamespaces, missingMcpToolMessage } from "../mcp-tool-recovery.js";
 import { isCustomToolDefinition } from "../host-protocol.js";
 import { runCodeModeToolWithHooks } from "../nested-tool-completion.js";
@@ -46,6 +47,7 @@ export class DelegateToolExecutor {
 				?? `Unknown custom tool: ${toolName}`,
 		);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
+		input = prepareCodeModeToolInput(tool, input);
 		const opaqueResult = !isCustomToolDefinition(tool) && tool.opaqueResult === true;
 		const currentContext = () => this.cells.context(cellId) ?? context;
 		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());

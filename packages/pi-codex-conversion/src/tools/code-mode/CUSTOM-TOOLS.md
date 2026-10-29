@@ -63,7 +63,7 @@ For `skills`, Pi must be launched with `--no-skills`. Keep global and repository
 
 ## Execution
 
-Every custom tool accepts one string and resolves to one string. Use `JSON.stringify(...)` when a command expects structured input. Commands inherit Pi's working directory, environment, permissions, and cancellation signal; the V8 JavaScript cell itself has no Node, filesystem, network, or console access.
+Every custom tool resolves to one string. String input passes through unchanged. Object and array input is JSON-encoded for the command. Commands inherit Pi's working directory, environment, permissions, and cancellation signal; the V8 JavaScript cell itself has no Node, filesystem, network, or console access.
 
 Successful commands return trimmed stdout, then stderr when stdout is empty, then `(no output)`. Non-zero exits include stderr. Combined output is capped at 50 KiB, and cancellation terminates the delegated process group where supported.
 
