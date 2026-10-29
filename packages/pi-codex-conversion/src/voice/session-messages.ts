@@ -32,6 +32,7 @@ export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
 	onDelegation(id: string, input: string, source: CodexRealtimeConversation | undefined): void;
 	onDelegationFailed(id: string): void;
+	onDeliveryUnavailable(message: string): void;
 	onWorking(): void;
 }
 
@@ -211,12 +212,16 @@ export class CodexVoiceSessionMessages {
 		source: CodexRealtimeConversation | undefined,
 	): Promise<void> {
 		const ctx = this.context;
-		if (
-			generation !== this.contextGeneration ||
-			!ctx ||
-			!turn.delegationId ||
-			!canDeliver
-		) return;
+		if (generation !== this.contextGeneration || !turn.delegationId || !canDeliver) return;
+		if (!ctx) {
+			const error = "Voice request was not sent to Pi because the session is unavailable. Please try again.";
+			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+				REALTIME_DELEGATION_MESSAGE_TYPE,
+				{ input: turn.input, route: "delegation", error },
+			);
+			this.callbacks.onDeliveryUnavailable(error);
+			return;
+		}
 		const signal = this.delegationAbortController.signal;
 		let deliveryStarted = false;
 		try {

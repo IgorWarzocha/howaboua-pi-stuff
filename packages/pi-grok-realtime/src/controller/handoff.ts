@@ -65,8 +65,9 @@ export class GrokControllerHandoff {
 			sourceActive: () => this.callbacks.currentCall() === call,
 			closed: () => {
 				if (this.transferred !== transferredControls) return;
-				this.transferred = undefined;
-				if (!this.callbacks.currentCall()) this.callbacks.setStatus("idle");
+				// Retain the failed selection: Start must report disconnection, not
+				// silently replace the destination with a call on the audio host.
+				this.callbacks.changed();
 			},
 			release: async (
 				callbacks: AudioCallbacks,

@@ -230,6 +230,7 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 								finishDictation: () => controls.finishDictation(),
 								cancelDictation: () => controls.cancelDictation(),
 								stop: () => controls.stop(),
+								stopCall: () => controls.stopCall(),
 								theme: () => ctx.ui.theme,
 								send: (text) => {
 									activity.working();

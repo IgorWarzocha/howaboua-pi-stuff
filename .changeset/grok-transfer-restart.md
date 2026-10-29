@@ -2,4 +2,4 @@
 "@howaboua/pi-grok-realtime": patch
 ---
 
-- Transferred LAN calls report when restarting voice is unavailable instead of returning to the originating session.
+- Restarting a transferred call stays with the selected Pi session instead of returning to the origin.

@@ -19,7 +19,6 @@ import {
 } from "./wire.ts";
 
 const CONTEXT_APPEND_CHUNK_BYTES = 500;
-const TASK_PREPARATION_TIMEOUT_MS = 90_000;
 
 /** Owns transcript/delegation turns, spoken interruption and context framing for one peer. */
 export class ConversationTurns {
@@ -165,20 +164,7 @@ export class ConversationTurns {
 						throw new Error(
 							"Voice task preparation is unavailable; restart voice",
 						);
-					const timeout = new AbortController();
-					const timer = setTimeout(() => timeout.abort(), TASK_PREPARATION_TIMEOUT_MS);
-					timer.unref?.();
-					let prepared: Awaited<ReturnType<NonNullable<CodexConversationCallbacks["rewriteDelegation"]>>> | typeof CANCELLED;
-					try {
-						const preparationSignal = AbortSignal.any([signal, timeout.signal]);
-						prepared = await interruptible(this.callbacks.rewriteDelegation(turn, preparationSignal), preparationSignal);
-					} finally {
-						clearTimeout(timer);
-					}
-					if (prepared === CANCELLED) {
-						signal.throwIfAborted();
-						throw new Error("Voice request preparation timed out; nothing was sent to Pi. Please try again.");
-					}
+					const prepared = await this.callbacks.rewriteDelegation(turn, signal);
 					const { input } = prepared;
 					if (prepared.endCall && this.isActive() && this.inputGeneration === inputAtDelegation)
 						this.callbacks.onEndCall?.(this.completedOutputs > outputsAtDelegation);

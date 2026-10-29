@@ -3,6 +3,7 @@ import type { VoiceHandoffChannel } from "./handoff-contract.ts";
 type Stage = "prepared" | "activate" | "active";
 type RequestMethod =
 	| "audio.drain"
+	| "audio.start"
 	| "audio.close"
 	| "session.send"
 	| "session.stop"
@@ -267,6 +268,7 @@ function isStage(value: unknown): value is Stage {
 function isRequestMethod(value: unknown): value is RequestMethod {
 	return (
 		value === "audio.drain" ||
+		value === "audio.start" ||
 		value === "audio.close" ||
 		value === "session.send" ||
 		value === "session.stop" ||

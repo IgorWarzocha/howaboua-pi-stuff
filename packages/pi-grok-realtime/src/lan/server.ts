@@ -21,6 +21,7 @@ export interface LanOptions {
 		theme(): Theme;
 		cancelStartup(): void;
 		stop(): Promise<void>;
+		stopCall(): Promise<void>;
 		send(text: string): void;
 		state(): {
 			status: string;
@@ -192,10 +193,14 @@ export async function startLan(
 			)
 		)
 			options.callbacks.cancelStartup();
+		const stopping =
+			command["action"] === "stop" ? options.callbacks.stopCall() : undefined;
+		// Observe immediately while the queued Start unwinds on cancellation.
+		void stopping?.catch(() => {});
 		await serialize(async () => {
 			if (closing) throw new Error("LAN control is closing");
 			if (command["action"] === "stop") {
-				await options.callbacks.stop();
+				await stopping;
 				await audio.close();
 				mode = undefined;
 			} else if (command["action"] === "finishDictation") {
@@ -306,10 +311,12 @@ export async function startLan(
 			shutdown ??= (async () => {
 				closing = true;
 				options.callbacks.cancelStartup();
+				const stopping = options.callbacks.stop();
+				void stopping.catch(() => {});
 				for (const peer of sockets.clients) peer.terminate();
 				await queue;
 				try {
-					if (audio.isStarted()) await options.callbacks.stop();
+					await stopping;
 				} finally {
 					await audio.close();
 					sockets.close();

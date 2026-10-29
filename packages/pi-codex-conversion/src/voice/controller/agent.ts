@@ -33,6 +33,9 @@ export class ControllerAgent {
 				if (this.runtime.state.type === "conversation")
 					this.runtime.state.session.settleAgentTurn();
 			},
+			onDeliveryUnavailable: (message) => {
+				this.runtime.context?.ui.notify(message, "error");
+			},
 			onWorking: () => onWorking(),
 		});
 	}

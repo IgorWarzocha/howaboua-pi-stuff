@@ -126,8 +126,9 @@ export async function startControllerMode(options: {
 		? runtime.alternateVoice ?? false
 		: options.alternateVoice ?? false;
 	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
-	// A prepared refresh replaces only the call, not its queued Pi work.
-	if (!options.preparedRealtimeContext) options.messages.setContext(options.ctx);
+	// Only a prepared refresh preserves the existing call's queued Pi work.
+	if (!options.resume || !options.preparedRealtimeContext)
+		options.messages.setContext(options.ctx);
 	runtime.state =
 		options.mode === "realtime"
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
