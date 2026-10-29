@@ -73,7 +73,10 @@ pub(super) async fn receive_data(
             }
             DataChannelEvent::OnMessage(message) => {
                 if message.data.len() > MAX_DATA_MESSAGE_BYTES {
-                    continue;
+                    let _ = events.send(Event::Error {
+                        message: format!("Realtime voice event exceeded the {MAX_DATA_MESSAGE_BYTES}-byte safety limit; the complete voice request could not be received. Restart voice and try a shorter request."),
+                    }).await;
+                    break;
                 }
                 let event = match serde_json::from_slice::<Value>(&message.data) {
                     Ok(message) => Event::Data { message },

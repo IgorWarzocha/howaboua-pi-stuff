@@ -97,6 +97,28 @@ export function buildGippitySettings(
 					},
 				]
 			: []),
+		...(config.voice.model === "codex-live-1.1"
+			? [
+					{
+						id: "taskDelegationModel",
+						label: "Task delegation model",
+						currentValue: config.voice.taskDelegationModel,
+					},
+					{
+						id: "taskDelegationReasoning",
+						label: "Task delegation reasoning",
+						currentValue: config.voice.taskDelegationReasoning,
+						values: [...VOICE_CONTEXT_REASONING_LEVELS],
+						update: (value: string, current: GippityControlConfig) => ({
+							...current,
+							voice: {
+								...current.voice,
+								taskDelegationReasoning: normalizeVoiceContextReasoning(value),
+							},
+						}),
+					},
+				]
+			: []),
 		...(["primary", "alternate"] as const).map((role) => {
 			const apiModel = config.voice.model !== "codex-live-1.1";
 			const codexKey = role === "primary" ? "v3Voice" : "v3AlternateVoice";
@@ -279,7 +301,7 @@ function formatContextModel(model: VoiceContextModel): string {
 }
 
 function formatVoiceModel(model: string): string {
-	if (model === "realtime-2.1") return "GPT-Realtime-2.1 (API key)";
-	if (model === "realtime-2.1-mini") return "GPT-Realtime-2.1 Mini (API key)";
-	return "Codex Live (default)";
+	if (model === "realtime-2.1") return "GPT-Realtime-2.1 (API)";
+	if (model === "realtime-2.1-mini") return "GPT-Realtime-2.1 Mini (API)";
+	return "Codex Live (OAuth)";
 }

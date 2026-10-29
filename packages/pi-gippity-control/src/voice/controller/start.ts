@@ -235,6 +235,7 @@ async function startConversation(
 		return;
 	const peer = options.realtimePeerPlan?.createPeer();
 	await startControllerConversation({
+		ctx: options.ctx,
 		auth,
 		config: runtime.alternateVoice
 			? {

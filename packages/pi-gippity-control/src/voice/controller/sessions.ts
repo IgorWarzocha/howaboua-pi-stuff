@@ -1,9 +1,11 @@
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../../config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import type { CodexRealtimePeer } from "../conversation/peer.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import type { CodexDictationSession } from "../dictation/session.ts";
+import { rewriteTaskDelegation } from "../task-delegation.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
 
 interface SessionLifecycle<T> {
@@ -29,6 +31,7 @@ interface DictationSessionLifecycle
 }
 
 export async function startControllerConversation(options: {
+	ctx: ExtensionContext;
 	auth: CodexVoiceAuth;
 	config: GippityControlConfig;
 	instructions: string;
@@ -68,6 +71,10 @@ export async function startControllerConversation(options: {
 			onTurn: options.lifecycle.onTurn,
 			onUserTranscript: options.lifecycle.onUserTranscript,
 			onTranscriptTail: options.lifecycle.onTranscriptTail,
+			rewriteDelegation: (turn, signal) =>
+				rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
+			onDelegationError: (error) =>
+				options.ctx.ui.notify(error.message, "error"),
 		},
 		realtimePeer,
 		options.config.voice.model !== "codex-live-1.1",

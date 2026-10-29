@@ -48,6 +48,29 @@ export function buildVoiceSettings(
 			description: "Exact Pi provider name. Uses its API key and endpoint on the next Realtime call. Default: openai.",
 			currentValue: config.voice.apiProvider,
 		}, (value, current) => ({ ...current, voice: { ...current.voice, apiProvider: value } }))] : []),
+		...(config.voice.model === "codex-live-1.1"
+			? [
+					setting({
+						id: "taskDelegationModel",
+						label: "Task delegation model",
+						description: "",
+						currentValue: config.voice.taskDelegationModel,
+					}),
+					setting({
+						id: "taskDelegationReasoning",
+						label: "Task delegation reasoning",
+						description: "",
+						currentValue: config.voice.taskDelegationReasoning,
+						values: [...VOICE_CONTEXT_REASONING_LEVELS],
+					}, (value, current) => ({
+						...current,
+						voice: {
+							...current.voice,
+							taskDelegationReasoning: normalizeVoiceContextReasoning(value),
+						},
+					})),
+				]
+			: []),
 		...(["primary", "alternate"] as const).map((role) => {
 			const apiModel = config.voice.model !== "codex-live-1.1";
 			const codexKey = role === "primary" ? "v3Voice" : "v3AlternateVoice";
@@ -259,7 +282,7 @@ function formatContextModel(model: VoiceContextModel): string {
 }
 
 function formatVoiceModel(model: string): string {
-	if (model === "realtime-2.1") return "GPT-Realtime-2.1 (API key)";
-	if (model === "realtime-2.1-mini") return "GPT-Realtime-2.1 Mini (API key)";
-	return "Codex Live (default)";
+	if (model === "realtime-2.1") return "GPT-Realtime-2.1 (API)";
+	if (model === "realtime-2.1-mini") return "GPT-Realtime-2.1 Mini (API)";
+	return "Codex Live (OAuth)";
 }

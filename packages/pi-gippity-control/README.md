@@ -18,7 +18,7 @@ Requires Pi 1.0.0 or newer and Node.js 22.19 or newer. Run `/gippity` to choose 
 | `realtime-2.1`                | An OpenAI API key configured in Pi |
 | `realtime-2.1-mini`           | An OpenAI API key configured in Pi |
 
-For Codex Live, use `/login openai-codex`. Dictation also uses this login, independently of the selected voice model. For Realtime, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible Realtime endpoint without storing or displaying the key. Configure the provider's Realtime-compatible endpoint in Pi. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. Realtime API calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
+Codex Live uses OAuth through `/login openai-codex`. Dictation also uses this login, independently of the selected voice model. For Realtime, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible Realtime endpoint without storing or displaying the key. Configure the provider's Realtime-compatible endpoint in Pi. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. Realtime API calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
 
 Do not install this alongside `@howaboua/pi-codex-conversion`; that package already includes GipPity voice control.
 
@@ -44,6 +44,8 @@ Commands:
 Settings live at `<pi-agent-directory>/pi-gippity-control.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. Keybind changes take effect after `/reload`.
 
 Choose **Voice model**, **Primary voice** and **Alternate voice** in settings or the LAN UI. Changes apply to the next call without replacing the current call. Codex Live and Realtime keep separate voice choices. Defaults are Cove and Ember for Codex Live, Marin and Cedar for Realtime. With Shepherdr, each voice transfer to another session alternates the voice and gives an arrival greeting. Reconnects and context refreshes keep the current voice.
+
+Codex Live rewrites the current voice conversation interval into a self-contained task before sending it to Pi. **Task delegation model** shows the configured model without a picker. Change `voice.taskDelegationModel` in the JSON configuration to use another `provider/model` value. The default is `openai-codex/gpt-6-luna`. Choose **Task delegation reasoning** separately in terminal or LAN settings. It defaults to `low` and is independent of voice context summarisation. These settings apply only to Codex Live; GPT-Realtime still sends tasks directly through `send_task`.
 
 Realtime models can send a self-contained task to Pi through `send_task`, including relevant decisions and constraints from the voice discussion. If Pi is busy, the task steers its current work. They can also use developer-registered voice tools. To add optional web search, load `@howaboua/pi-codex-web-run`, configure its access and enable **Realtime web search**. Search uses Web Run's configured provider and credentials.
 

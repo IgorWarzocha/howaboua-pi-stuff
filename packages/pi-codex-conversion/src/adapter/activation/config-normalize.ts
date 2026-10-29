@@ -200,6 +200,8 @@ export function normalizeCodexConversionConfig(
 				normalizeDictationShortcutMode(voice["dictationShortcutMode"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcutMode,
 			...(contextModel ? { contextModel } : {}),
+			taskDelegationModel: normalizeString(voice["taskDelegationModel"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.taskDelegationModel),
+			taskDelegationReasoning: normalizeVoiceContextReasoning(voice["taskDelegationReasoning"], "low"),
 			contextReasoning: normalizeVoiceContextReasoning(
 				voice["contextReasoning"],
 			),

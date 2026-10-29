@@ -17,6 +17,7 @@ interface VoiceSettings {
 	v3AlternateVoice: RealtimeV3Voice;
 	contextModel?: VoiceContextModel | undefined;
 	contextReasoning: VoiceContextReasoning;
+	taskDelegationReasoning: VoiceContextReasoning;
 	autoResumeRealtime: boolean;
 	refreshRealtimeAfterCompaction: boolean;
 	delegationAcknowledgements: boolean;
@@ -49,6 +50,8 @@ export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => C
 				v3AlternateVoice: voice.v3AlternateVoice,
 				contextModel: voice.contextModel ?? null,
 				contextReasoning: voice.contextReasoning,
+				taskDelegationModel: voice.taskDelegationModel,
+				taskDelegationReasoning: voice.taskDelegationReasoning,
 				...Object.fromEntries(BOOLEAN_SETTINGS.map((key) => [key, voice[key]])),
 			},
 			voices: REALTIME_V3_VOICES,
@@ -83,10 +86,10 @@ export function createLanVoiceSettings(ctx: ExtensionContext, getConfig: () => C
 					const voice = normalizeRealtimeV3Voice(value);
 					if (!voice) throw new LanVoiceSettingsError("Choose a listed voice");
 					patch[key] = voice;
-				} else if (key === "contextReasoning") {
+				} else if (key === "contextReasoning" || key === "taskDelegationReasoning") {
 					if (typeof value !== "string" || !(VOICE_CONTEXT_REASONING_LEVELS as readonly string[]).includes(value))
-						throw new LanVoiceSettingsError("Choose a listed context reasoning level");
-					patch.contextReasoning = normalizeVoiceContextReasoning(value);
+						throw new LanVoiceSettingsError("Choose a listed reasoning level");
+					patch[key] = normalizeVoiceContextReasoning(value);
 				} else if (key === "contextModel") {
 					if (value === null) patch.contextModel = undefined;
 					else {

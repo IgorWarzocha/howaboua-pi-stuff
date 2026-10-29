@@ -2,6 +2,7 @@ export interface RealtimeVoiceTurn {
 	input: string;
 	transcriptDelta?: string;
 	delegationId?: string;
+	preparationError?: string;
 }
 
 export interface TrackedRealtimeDelegation {
@@ -15,6 +16,7 @@ interface TranscriptEntry {
 	role: "user" | "assistant";
 	text: string;
 	final: boolean;
+	consumedText?: string;
 }
 
 interface PendingDelegation {
@@ -30,14 +32,18 @@ interface PendingUserInput {
 class RealtimeTranscriptBuffer {
 	private entries: TranscriptEntry[] = [];
 	private readonly active = new Map<TranscriptEntry["role"], TranscriptEntry>();
+	private readonly preserveInterval: boolean;
+	constructor(preserveInterval = false) {
+		this.preserveInterval = preserveInterval;
+	}
 
 	append(
 		role: TranscriptEntry["role"],
 		transcript: string,
 		startsTurn = false,
 	): void {
-		const text = transcript.trim();
-		if (!text) return;
+		const text = this.preserveInterval ? transcript : transcript.trim();
+		if (!text.trim()) return;
 		const current = this.active.get(role);
 		if (current && !startsTurn) current.text += text;
 		else {
@@ -45,7 +51,7 @@ class RealtimeTranscriptBuffer {
 			this.entries.push(entry);
 			this.active.set(role, entry);
 		}
-		this.bound();
+		if (!this.preserveInterval) this.bound();
 	}
 
 	finish(role: TranscriptEntry["role"], transcript: string): TranscriptEntry {
@@ -60,10 +66,10 @@ class RealtimeTranscriptBuffer {
 		} else {
 			const entry = { role, text, final: true };
 			this.entries.push(entry);
-			this.bound();
+			if (!this.preserveInterval) this.bound();
 			return entry;
 		}
-		this.bound();
+		if (!this.preserveInterval) this.bound();
 		return current;
 	}
 
@@ -83,6 +89,37 @@ class RealtimeTranscriptBuffer {
 		const transcript = this.render(history);
 		this.reset();
 		return transcript || undefined;
+	}
+
+	takeInterval(currentUser?: TranscriptEntry): {
+		text?: string;
+		error?: string;
+	} {
+		const user = currentUser ?? this.active.get("user");
+		const interval = this.entries.filter((entry) => entry !== user);
+		const revised = interval.some(
+			(entry) =>
+				entry.consumedText && !entry.text.startsWith(entry.consumedText),
+		);
+		const text = this.render(interval);
+		// Keep only in-flight assistant utterances so late finals cannot replay the
+		// pre-yield prefix. The yielded user input is already authoritative.
+		this.entries = interval.filter(
+			(entry) => !entry.final && entry.role === "assistant",
+		);
+		this.active.clear();
+		for (const entry of this.entries) {
+			entry.consumedText = entry.text;
+			this.active.set(entry.role, entry);
+		}
+		return revised
+			? {
+					error:
+						"A late voice transcript revised speech from before the previous yield; the current interval cannot be reconstructed faithfully. Please repeat the request.",
+				}
+			: text
+				? { text }
+				: {};
 	}
 
 	takeFinalized(): string | undefined {
@@ -109,18 +146,31 @@ class RealtimeTranscriptBuffer {
 	}
 
 	private render(entries = this.entries): string {
-		return entries.map(({ role, text }) => `${role}: ${text}`).join("\n");
+		return entries
+			.flatMap(({ role, text, consumedText }) => {
+				const remaining = this.preserveInterval
+					? text.slice(consumedText?.length ?? 0)
+					: text;
+				return remaining.trim() ? [`${role}: ${remaining}`] : [];
+			})
+			.join("\n");
 	}
 }
 
 /** Keeps conversational display turns separate from V3 delegation handoffs. */
 export class RealtimeVoiceTurnTracker {
-	private readonly transcript = new RealtimeTranscriptBuffer();
+	private readonly transcript: RealtimeTranscriptBuffer;
+	private readonly preserveInterval: boolean;
+	constructor(preserveInterval = false) {
+		this.preserveInterval = preserveInterval;
+		this.transcript = new RealtimeTranscriptBuffer(preserveInterval);
+	}
 	private pendingUserInputs: PendingUserInput[] = [];
 	private recentlyAnsweredUserInput: PendingUserInput | undefined;
 	private unfinishedUserTurns: object[] = [];
 	private activeUserTurn: object | undefined;
 	private delegatedUserFinishes = 0;
+	private readonly delegatedUserTurns = new Set<object>();
 	private readonly delegationIds = new Set<string>();
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
@@ -148,12 +198,13 @@ export class RealtimeVoiceTurnTracker {
 	}
 
 	userFinished(input: string): boolean {
-		if (this.delegatedUserFinishes > 0) {
+		if (!this.preserveInterval && this.delegatedUserFinishes > 0) {
 			this.delegatedUserFinishes -= 1;
 			return false;
 		}
 		const turn = this.unfinishedUserTurns.shift();
 		if (this.activeUserTurn === turn) this.activeUserTurn = undefined;
+		if (turn && this.delegatedUserTurns.delete(turn)) return false;
 		const transcript = this.transcript.finish("user", input);
 		this.pendingUserInputs.push({ input, transcript });
 		return true;
@@ -165,17 +216,21 @@ export class RealtimeVoiceTurnTracker {
 	): TrackedRealtimeDelegation | undefined {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
-		if (this.outstandingInputs.has(input)) return undefined;
+		if (!this.preserveInterval && this.outstandingInputs.has(input))
+			return undefined;
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
 
 		if (this.activeUserTurn) {
 			const active = this.activeUserTurn;
 			this.activeUserTurn = undefined;
-			this.unfinishedUserTurns = this.unfinishedUserTurns.filter(
-				(turn) => turn !== active,
-			);
-			this.delegatedUserFinishes += 1;
+			if (this.preserveInterval) this.delegatedUserTurns.add(active);
+			else {
+				this.unfinishedUserTurns = this.unfinishedUserTurns.filter(
+					(turn) => turn !== active,
+				);
+				this.delegatedUserFinishes += 1;
+			}
 			return {
 				turn: this.finishDelegation({ input, delegationId }),
 				displayInput: true,
@@ -187,11 +242,14 @@ export class RealtimeVoiceTurnTracker {
 				const answered = this.recentlyAnsweredUserInput;
 				this.recentlyAnsweredUserInput = undefined;
 				return {
-					turn: this.finishDelegation({ input, delegationId }, answered.transcript),
+					turn: this.finishDelegation(
+						{ input, delegationId },
+						answered.transcript,
+					),
 					displayInput: false,
 				};
 			}
-			this.delegatedUserFinishes += 1;
+			if (!this.preserveInterval) this.delegatedUserFinishes += 1;
 			return {
 				turn: this.finishDelegation({ input, delegationId }),
 				displayInput: true,
@@ -229,6 +287,7 @@ export class RealtimeVoiceTurnTracker {
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
 		this.delegatedUserFinishes = 0;
+		this.delegatedUserTurns.clear();
 		return [];
 	}
 
@@ -239,6 +298,7 @@ export class RealtimeVoiceTurnTracker {
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
 		this.delegatedUserFinishes = 0;
+		this.delegatedUserTurns.clear();
 		this.delegationIds.clear();
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();
@@ -248,11 +308,17 @@ export class RealtimeVoiceTurnTracker {
 		delegation: PendingDelegation,
 		currentUser?: TranscriptEntry,
 	): RealtimeVoiceTurn {
-		const transcriptDelta = currentUser
-			? this.transcript.takeHistoryBefore(currentUser)
-			: this.transcript.takeFinalized();
+		const interval = this.preserveInterval
+			? this.transcript.takeInterval(currentUser)
+			: undefined;
+		const transcriptDelta = interval
+			? interval.text
+			: currentUser
+				? this.transcript.takeHistoryBefore(currentUser)
+				: this.transcript.takeFinalized();
 		return {
 			input: delegation.input,
+			...(interval?.error ? { preparationError: interval.error } : {}),
 			...(transcriptDelta ? { transcriptDelta } : {}),
 			delegationId: delegation.delegationId,
 		};

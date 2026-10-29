@@ -146,6 +146,8 @@ export interface CodexConversionConfig {
 		dictationShortcutMode: DictationShortcutMode;
 		contextModel?: VoiceContextModel | undefined;
 		contextReasoning: VoiceContextReasoning;
+		taskDelegationModel: string;
+		taskDelegationReasoning: VoiceContextReasoning;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -219,6 +221,8 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 			modelId: "gpt-6-luna",
 		},
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
+		taskDelegationModel: "openai-codex/gpt-6-luna",
+		taskDelegationReasoning: "low",
 	},
 	openai: {
 		fast: { astra: false, sol: false, terra: false, luna: false, other: false },

@@ -34,8 +34,8 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
   };
   form.elements.namedItem('model').addEventListener('change', updateProvider);
   const display = (data) => {
-    const modelLabel = (model) => model === 'realtime-2.1' ? 'GPT-Realtime-2.1 (API key)'
-      : model === 'realtime-2.1-mini' ? 'GPT-Realtime-2.1 Mini (API key)' : 'Codex Live (default)';
+    const modelLabel = (model) => model === 'realtime-2.1' ? 'GPT-Realtime-2.1 (API)'
+      : model === 'realtime-2.1-mini' ? 'GPT-Realtime-2.1 Mini (API)' : 'Codex Live (OAuth)';
     fillSelect('model', data.voiceModels.map((model) => ({value:model, label:modelLabel(model)})), data.config.model);
     form.elements.namedItem('apiProvider').value = data.config.apiProvider;
     fillSelect('realtimeVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeVoice);
@@ -55,6 +55,8 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
       value:modelValue(model), label:model.provider + '/' + model.modelId,
     }))], modelValue(current));
     fillSelect('contextReasoning', data.contextReasoningLevels.map((level) => ({value:level, label:level})), data.config.contextReasoning);
+    document.querySelector('#setting-task-delegation-model').textContent = data.config.taskDelegationModel;
+    fillSelect('taskDelegationReasoning', data.contextReasoningLevels.map((level) => ({value:level, label:level})), data.config.taskDelegationReasoning);
     for (const key of switches) form.elements.namedItem(key).checked = data.config[key];
     document.querySelector('#settings-scope').textContent = 'Save location: ' + data.scope;
     loaded = true;
@@ -87,6 +89,7 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
       contextReasoning:form.elements.namedItem('contextReasoning').value,
     };
     if (patch.model === 'codex-live-1.1') {
+      patch.taskDelegationReasoning = form.elements.namedItem('taskDelegationReasoning').value;
       patch.v3Voice = form.elements.namedItem('v3Voice').value;
       patch.v3AlternateVoice = form.elements.namedItem('v3AlternateVoice').value;
     } else {

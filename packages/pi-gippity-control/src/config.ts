@@ -100,6 +100,8 @@ export interface GippityControlConfig {
 		dictationShortcutMode: DictationShortcutMode;
 		contextModel?: VoiceContextModel | undefined;
 		contextReasoning: VoiceContextReasoning;
+		taskDelegationModel: string;
+		taskDelegationReasoning: VoiceContextReasoning;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -128,6 +130,8 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
+		taskDelegationModel: "openai-codex/gpt-6-luna",
+		taskDelegationReasoning: "low",
 	},
 };
 
@@ -167,11 +171,12 @@ function normalizeVoiceContextModel(
 
 export function normalizeVoiceContextReasoning(
 	value: unknown,
+	fallback: VoiceContextReasoning = DEFAULT_VOICE_CONTEXT_REASONING,
 ): VoiceContextReasoning {
 	return typeof value === "string" &&
 		(VOICE_CONTEXT_REASONING_LEVELS as readonly string[]).includes(value)
 		? (value as VoiceContextReasoning)
-		: DEFAULT_VOICE_CONTEXT_REASONING;
+		: fallback;
 }
 
 export function normalizeRealtimeV3Voice(
@@ -258,6 +263,14 @@ export function normalizeGippityControlConfig(
 					? "toggle"
 					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.dictationShortcutMode,
 			...(contextModel ? { contextModel } : {}),
+			taskDelegationModel: stringValue(
+				voice["taskDelegationModel"],
+				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.taskDelegationModel,
+			),
+			taskDelegationReasoning: normalizeVoiceContextReasoning(
+				voice["taskDelegationReasoning"],
+				"low",
+			),
 			contextReasoning: normalizeVoiceContextReasoning(
 				voice["contextReasoning"],
 			),

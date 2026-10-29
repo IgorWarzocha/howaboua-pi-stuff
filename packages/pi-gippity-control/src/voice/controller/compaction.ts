@@ -71,6 +71,8 @@ export class RealtimeCompactionRefresh {
 				config,
 				signal: abortController.signal,
 			});
+			if (prepared.summary)
+				await previous.waitForDelegations(abortController.signal);
 			if (
 				!prepared.summary ||
 				ctx.sessionManager.getLeafId() !== leafId ||

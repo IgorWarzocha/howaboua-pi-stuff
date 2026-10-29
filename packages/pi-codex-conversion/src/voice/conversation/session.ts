@@ -20,6 +20,8 @@ export interface CodexConversationCallbacks {
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	rewriteDelegation?(turn: RealtimeVoiceTurn, signal: AbortSignal): Promise<string>;
+	onDelegationError?(error: Error): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
 	onEvent?(event: RealtimeVoiceEventDetails): void;
@@ -216,12 +218,14 @@ export class CodexRealtimeConversation {
 	}
 
 	async waitForInput(signal: AbortSignal): Promise<void> {
-		while (this.state === "active" && this.turns.hasPendingInput) {
-			if (
-				(await interruptible(this.inputChanged.promise, signal)) === CANCELLED
-			)
-				signal.throwIfAborted();
-		}
+		do {
+			while (this.state === "active" && this.turns.hasPendingInput) {
+				if ((await interruptible(this.inputChanged.promise, signal)) === CANCELLED)
+					signal.throwIfAborted();
+			}
+			if (this.turns instanceof ConversationTurns)
+				await this.turns.waitForDelegations(signal);
+		} while (this.state === "active" && this.turns.hasPendingInput);
 	}
 
 	private async closeSession(): Promise<void> {

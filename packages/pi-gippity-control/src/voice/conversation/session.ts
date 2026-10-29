@@ -16,6 +16,11 @@ export interface CodexConversationCallbacks {
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	rewriteDelegation?(
+		turn: RealtimeVoiceTurn,
+		signal: AbortSignal,
+	): Promise<string>;
+	onDelegationError?(error: Error): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
 }
@@ -199,6 +204,11 @@ export class CodexRealtimeConversation {
 	async close(): Promise<void> {
 		this.closePromise ??= this.closeSession();
 		return this.closePromise;
+	}
+
+	async waitForDelegations(signal: AbortSignal): Promise<void> {
+		if (this.turns instanceof ConversationTurns)
+			await this.turns.waitForDelegations(signal);
 	}
 
 	private async closeSession(): Promise<void> {
