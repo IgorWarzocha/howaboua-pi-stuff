@@ -6,6 +6,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { acceptFocus, readFocus } from "./agents-focus.js";
+import { coreIdentity, publishCoreSession } from "./core/registration.js";
 import { sendPolicyMessage } from "./delivery.js";
 import { dispatchExtensionReply } from "./extension-reply.js";
 import type { AgentFleet } from "./fleet/index.js";
@@ -36,8 +37,16 @@ export function registerPeerInbox(
 	let running = false;
 	let generation = 0;
 	const publish = async (ctx: ExtensionContext) => {
-		if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
+		const core = coreIdentity(ctx);
+		if (
+			!core &&
+			(process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
+		)
 			return;
+		if (core) {
+			await close?.();
+			close = undefined;
+		}
 		close = await openInbox(
 			pi,
 			ctx,
@@ -82,14 +91,32 @@ async function openInbox(
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
 		throw new Error("Shepherdr peer delivery requires a saved Pi session");
-	const pane = await getCurrentPane(new HerdrClient());
+	const core = coreIdentity(ctx);
+	const pane = core
+		? {
+				backend: "core" as const,
+				pane_id: core.terminalId,
+				terminal_id: core.terminalId,
+				agent_status: "unknown" as const,
+				agent_session: {
+					agent: "pi",
+					kind: "path" as const,
+					source: "pi.session_file",
+					value: sessionFile,
+				},
+			}
+		: await getCurrentPane(new HerdrClient());
+	const terminalId = pane.terminal_id;
+	if (!terminalId)
+		throw new Error("Shepherdr peer receiver has no terminal identity");
 	const token = randomBytes(32).toString("hex");
-	const path = peerInboxPath(sessionFile, pane.terminal_id);
+	const path = peerInboxPath(sessionFile, terminalId);
 	const temporary = `${path}.${token}.tmp`;
 	const sockets = new Set<Socket>();
 	let state: "open" | "quitting" | "closed" = "open";
 	let promptDelivery = Promise.resolve();
 	let pendingPrompts = 0;
+	let clearCoreSession: (() => Promise<void>) | undefined;
 	const server = createServer((socket) => {
 		sockets.add(socket);
 		socket.setEncoding("utf8");
@@ -128,7 +155,7 @@ async function openInbox(
 				request["protocol"] !== PEER_PROTOCOL ||
 				request["token"] !== token ||
 				request["sessionFile"] !== sessionFile ||
-				request["terminalId"] !== pane.terminal_id ||
+				request["terminalId"] !== terminalId ||
 				ctx.sessionManager.getSessionFile() !== sessionFile ||
 				typeof request["id"] !== "string" ||
 				(request["kind"] !== "focus" &&
@@ -152,6 +179,18 @@ async function openInbox(
 					ok: false,
 					rejected: true,
 					error: "Peer delivery rejected: stale session or invalid request",
+				});
+				return;
+			}
+			if (
+				core &&
+				(request["kind"] === "focus" || request["kind"] === "channel")
+			) {
+				reply({
+					ok: false,
+					rejected: true,
+					error:
+						"Focus transfer is unavailable in this terminal; messages and commands remain available",
 				});
 				return;
 			}
@@ -203,7 +242,7 @@ async function openInbox(
 				}
 				return;
 			}
-			if (request["kind"] === "close-idle") {
+			if (request["kind"] === "close-idle" && pane) {
 				const startGeneration = generation();
 				const idle = (live: ExtensionContext) =>
 					state === "open" &&
@@ -225,7 +264,10 @@ async function openInbox(
 					return;
 				}
 				try {
-					const livePane = await getAgent(new HerdrClient(), pane.pane_id);
+					const livePane = await getAgent(
+						core ? fleet.connected().client : new HerdrClient(),
+						pane.pane_id,
+					);
 					if (
 						request["text"] !== "/quit" ||
 						!idle(ctx) ||
@@ -260,7 +302,7 @@ async function openInbox(
 				}
 				return;
 			}
-			if (request["kind"] === "channel") {
+			if (request["kind"] === "channel" && pane) {
 				let focus;
 				try {
 					focus = readFocus(request["focus"]);
@@ -324,7 +366,7 @@ async function openInbox(
 				);
 				return;
 			}
-			if (request["kind"] === "focus") {
+			if (request["kind"] === "focus" && pane) {
 				try {
 					if (readFocus(request["focus"]).voice === true)
 						throw new Error(
@@ -492,6 +534,9 @@ async function openInbox(
 				await unlink(path);
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		} finally {
+			await clearCoreSession?.();
+			clearCoreSession = undefined;
 		}
 	};
 	try {
@@ -520,6 +565,7 @@ async function openInbox(
 			{ mode: 0o600, flag: "wx" },
 		);
 		await rename(temporary, path);
+		if (core) clearCoreSession = await publishCoreSession(core, sessionFile);
 	} catch (error) {
 		try {
 			await unlink(temporary).catch((failure: NodeJS.ErrnoException) => {

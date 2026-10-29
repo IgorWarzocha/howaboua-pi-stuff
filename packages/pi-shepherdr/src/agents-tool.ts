@@ -26,6 +26,7 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
+import { CoreConnection } from "./core/backend.js";
 import type { AgentFleet } from "./fleet/index.js";
 import { resolvePiAgent } from "./herdr.js";
 import { attributeAgentPrompt } from "./messages/attribution.js";
@@ -52,7 +53,16 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
+				return toolResult(
+					await agentsHelp(
+						board.enabled(ctx),
+						gpt(),
+						Boolean(
+							process.env["HC_TERMINAL_ID"] &&
+								process.env["HC_TERMINAL_SOCKET"],
+						),
+					),
+				);
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });
@@ -124,7 +134,13 @@ export function createAgentsTool(
 			const panel = await resolvePiAgent(
 				runtime.client,
 				target,
-				runtime.local ? process.env["HERDR_PANE_ID"] : "",
+				runtime.local
+					? process.env[
+							runtime.client instanceof CoreConnection
+								? "HC_TERMINAL_ID"
+								: "HERDR_PANE_ID"
+						]
+					: "",
 			);
 			if (params.commands) {
 				return toolResult({
@@ -134,6 +150,10 @@ export function createAgentsTool(
 				});
 			}
 			if (params.action === "attach" || params.action === "detach") {
+				if (runtime.contextSharing === false)
+					throw new Error(
+						"Shared context and board are unavailable on this machine; messaging and delegation remain available",
+					);
 				return toolResult(
 					await sharedContext.attachment[params.action](
 						ctx,

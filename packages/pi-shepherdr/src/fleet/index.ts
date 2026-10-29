@@ -2,6 +2,9 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { CoreConnection } from "../core/backend.js";
+import { CoreClient } from "../core/client.js";
+import { type CoreMachine, coreMachines } from "../core/remote-exec.js";
 import { HerdrClient, type HerdrConnection } from "../herdr-client.js";
 import { LOCAL_MACHINE, readMachineCatalog } from "../machine-catalog.js";
 import { AgentMonitor } from "../monitor.js";
@@ -53,6 +56,7 @@ export class AgentFleet {
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
 	private readonly runtimes = new Map<string, MachineRuntime>();
+	private localCoreId: string | undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.pi = pi;
@@ -62,13 +66,32 @@ export class AgentFleet {
 		this.deactivate();
 		const generation = this.generation;
 		this.context = ctx;
-		const catalog = await readMachineCatalog();
+		const catalog = process.env["HC_TERMINAL_SOCKET"]
+			? {}
+			: await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
 		const machines = Object.entries(catalog).filter(
 			([, machine]) => machine.enabled,
 		);
-		const grouped = groupSaved(savedAgents(ctx));
-		const known = new Set([LOCAL_MACHINE, ...machines.map(([id]) => id)]);
+		if (process.env["HC_TERMINAL_SOCKET"]) {
+			const identityClient = new CoreConnection();
+			let coreId: string;
+			try {
+				coreId = (await identityClient.machineIdentity()).session;
+			} finally {
+				identityClient.close();
+			}
+			if (!this.isCurrent(generation, ctx)) return;
+			this.localCoreId = coreId;
+		}
+		const grouped = groupSaved(savedAgents(ctx, this.localCoreId));
+		const coreCatalog = await this.coreCatalog();
+		if (!this.isCurrent(generation, ctx)) return;
+		const known = new Set([
+			LOCAL_MACHINE,
+			...machines.map(([id]) => id),
+			...coreCatalog.map((machine) => machine.id),
+		]);
 		const orphaned = [...grouped.entries()]
 			.filter(([machine]) => !known.has(machine))
 			.reduce((count, [, records]) => count + records.length, 0);
@@ -93,10 +116,22 @@ export class AgentFleet {
 				status: "connecting",
 			});
 		}
+		for (const machine of coreCatalog)
+			this.runtimes.set(machine.id, {
+				coreMachine: machine,
+				local: false,
+				pending: grouped.get(machine.id) ?? [],
+				status: "connecting",
+			});
 
-		const localClient = new HerdrClient();
+		const localClient = process.env["HC_TERMINAL_SOCKET"]
+			? new CoreConnection()
+			: new HerdrClient();
 		await localClient.request("ping");
-		if (!this.isCurrent(generation, ctx)) return;
+		if (!this.isCurrent(generation, ctx)) {
+			if (localClient instanceof CoreConnection) localClient.close();
+			return;
+		}
 		const localMonitor = this.createMonitor(
 			LOCAL_MACHINE,
 			localRuntime,
@@ -121,13 +156,20 @@ export class AgentFleet {
 		for (const [name] of machines) {
 			void this.connectMachine(name, generation, true);
 		}
+		for (const machine of coreCatalog)
+			void this.connectMachine(machine.id, generation, true);
 	}
 
 	deactivate(): void {
 		this.generation += 1;
+		this.localCoreId = undefined;
 		for (const runtime of this.runtimes.values()) {
 			runtime.monitor?.deactivate();
-			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
+			if (
+				runtime.client instanceof RemoteHerdrClient ||
+				runtime.client instanceof CoreConnection
+			)
+				runtime.client.close();
 		}
 		this.runtimes.clear();
 		renderAgentWidget(this.context, [], []);
@@ -143,7 +185,50 @@ export class AgentFleet {
 		const ctx = this.context;
 		if (!ctx) return;
 		const generation = this.generation;
-		const catalog = await readMachineCatalog();
+		if (process.env["HC_TERMINAL_SOCKET"]) {
+			const catalog = await this.coreCatalog();
+			if (!this.isCurrent(generation, ctx)) return;
+			for (const [id, runtime] of this.runtimes) {
+				if (
+					runtime.local ||
+					catalog.some(
+						(machine) =>
+							machine.id === id && machine.name === runtime.coreMachine?.name,
+					)
+				)
+					continue;
+				runtime.monitor?.deactivate();
+				if (runtime.client instanceof CoreConnection) runtime.client.close();
+				if (!catalog.some((machine) => machine.id === id))
+					this.runtimes.delete(id);
+				else {
+					runtime.pending = runtime.monitor?.list() ?? runtime.pending;
+					delete runtime.client;
+					delete runtime.monitor;
+					runtime.status = "unavailable";
+				}
+			}
+			for (const machine of catalog) {
+				let runtime = this.runtimes.get(machine.id);
+				if (runtime) runtime.coreMachine = machine;
+				else {
+					runtime = {
+						coreMachine: machine,
+						local: false,
+						pending: [],
+						status: "connecting",
+					};
+					this.runtimes.set(machine.id, runtime);
+				}
+				if (!runtime.client)
+					void this.connectMachine(machine.id, generation, true);
+			}
+			this.changed();
+			return;
+		}
+		const catalog = process.env["HC_TERMINAL_SOCKET"]
+			? {}
+			: await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
 		const reconnect: string[] = [];
 
@@ -258,7 +343,8 @@ export class AgentFleet {
 		const runtime = this.runtimes.get(name);
 		const ctx = this.context;
 		if (
-			!runtime?.config ||
+			!runtime ||
+			(!runtime.config && !runtime.coreMachine) ||
 			runtime.local ||
 			runtime.status === "connected" ||
 			runtime.attempting ||
@@ -272,13 +358,20 @@ export class AgentFleet {
 		delete runtime.reason;
 		this.refresh();
 		let attached = false;
-		let client: RemoteHerdrClient | undefined;
+		let client: RemoteHerdrClient | CoreConnection | undefined;
 		try {
-			client = await RemoteHerdrClient.connect(runtime.config, (error) => {
-				if (runtime.client === client)
-					this.disconnected(name, runtime, error.message);
-			});
-			await this.prepareContextRelay(name, runtime, client, ctx);
+			if (runtime.coreMachine) {
+				client = new CoreConnection(
+					process.env["HC_TERMINAL_SOCKET"],
+					runtime.coreMachine,
+				);
+			} else {
+				client = await RemoteHerdrClient.connect(runtime.config!, (error) => {
+					if (runtime.client === client)
+						this.disconnected(name, runtime, error.message);
+				});
+				await this.prepareContextRelay(name, runtime, client, ctx);
+			}
 			if (
 				!this.isCurrent(generation, ctx) ||
 				this.runtimes.get(name) !== runtime
@@ -351,7 +444,11 @@ export class AgentFleet {
 		// Keep the stopped owner until reconnect so in-flight dispatch cleanup
 		// updates the state we persist, rather than a detached snapshot.
 		runtime.monitor?.deactivate();
-		if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
+		if (
+			runtime.client instanceof RemoteHerdrClient ||
+			runtime.client instanceof CoreConnection
+		)
+			runtime.client.close();
 		delete runtime.client;
 		delete runtime.contextRelayError;
 		delete runtime.monitoringIssue;
@@ -368,8 +465,22 @@ export class AgentFleet {
 	private changed(): void {
 		if (!this.context) return;
 		const agents = this.persistedAgents();
-		this.pi.appendEntry(MONITOR_STATE_TYPE, { version: 2, agents });
+		this.pi.appendEntry(MONITOR_STATE_TYPE, {
+			version: 2,
+			agents,
+			...(this.localCoreId ? { localCoreId: this.localCoreId } : {}),
+		});
 		this.refresh();
+	}
+	private async coreCatalog(): Promise<CoreMachine[]> {
+		const socket = process.env["HC_TERMINAL_SOCKET"];
+		if (!socket) return [];
+		const client = new CoreClient(socket);
+		try {
+			return await coreMachines(client);
+		} finally {
+			client.close();
+		}
 	}
 
 	private refresh(): void {

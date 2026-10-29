@@ -5,6 +5,7 @@ import { acceptFocus, registerFocusArrivals } from "./src/agents-focus.js";
 import { createAgentsTool } from "./src/agents-tool.js";
 import { AgentBoard } from "./src/board/host.js";
 import { registerAgentController } from "./src/controller.js";
+import { registerCoreStatus } from "./src/core/status.js";
 import { registerDeveloperDelivery } from "./src/delivery.js";
 import { AgentFleet } from "./src/fleet/index.js";
 import { registerAgentEventRenderer } from "./src/messages/render.js";
@@ -23,6 +24,7 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 export default async function shepherdrExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
+	registerCoreStatus(pi);
 	const workerRole = registerWorkerRole(pi);
 	registerPackageChangelog(pi);
 

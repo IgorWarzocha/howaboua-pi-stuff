@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { CoreConnection } from "../core/backend.js";
 import { getSnapshot } from "../herdr.js";
 import { LOCAL_MACHINE } from "../machine-catalog.js";
 import { parseMonitoredAgent } from "../monitor-record.js";
@@ -45,8 +46,12 @@ export function connectedMachine(
 		);
 	}
 	const remote =
-		runtime.client instanceof RemoteHerdrClient ? runtime.client : undefined;
+		runtime.client instanceof RemoteHerdrClient ||
+		(runtime.client instanceof CoreConnection && runtime.client.remote)
+			? runtime.client
+			: undefined;
 	return {
+		...(runtime.coreMachine ? { contextSharing: false as const } : {}),
 		machine: name,
 		local: runtime.local,
 		client: runtime.client,
@@ -126,6 +131,13 @@ export function statusFor(
 					label: runtime.config.label,
 					target: runtime.config.target,
 					session: runtime.config.session,
+				}
+			: {}),
+		...(runtime.coreMachine
+			? {
+					label: runtime.coreMachine.name,
+					target: runtime.coreMachine.host,
+					session: runtime.coreMachine.id,
 				}
 			: {}),
 		status: runtime.status,

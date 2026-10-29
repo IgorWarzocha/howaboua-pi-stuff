@@ -1,6 +1,8 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "@earendil-works/pi-coding-agent";
+import { CoreConnection } from "./core/backend.js";
+import { startCoreAgent } from "./core/spawn.js";
 import {
 	getAgent,
 	getPane,
@@ -13,7 +15,12 @@ import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type { PaneInfo } from "./types.js";
 import { WORKER_FLAG } from "./worker-role.js";
 
-export const START_PLACEMENTS = ["new_workspace", "new_tab", "pane"] as const;
+export const START_PLACEMENTS = [
+	"new_workspace",
+	"new_tab",
+	"pane",
+	"terminal",
+] as const;
 const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 
 export interface StartAgentParams {
@@ -66,6 +73,10 @@ export async function resolvePreparationDirectory(
 	fallbackCwd: string,
 	resolveDirectory: DirectoryResolver = directory,
 ): Promise<string> {
+	if (client instanceof CoreConnection && params.placement === "pane")
+		throw new UnstartedAgentLaunchError(
+			"Core cannot start Pi in an existing terminal without terminal input; use terminal, new_tab or new_workspace placement",
+		);
 	if (params.placement !== "pane") {
 		return resolveStartDirectory(params, fallbackCwd, resolveDirectory);
 	}
@@ -79,7 +90,7 @@ interface StartAgentOptions {
 
 interface CreatedLocationCleanup {
 	id: string;
-	method: "tab.close" | "workspace.close";
+	method: "tab.close" | "workspace.close" | "terminal.close";
 }
 
 export interface StartedAgent {
@@ -111,6 +122,10 @@ async function createStartPane(
 }> {
 	const placement = params.placement;
 	if (!placement) throw new Error("placement is required for start");
+	if (placement === "terminal")
+		throw new UnstartedAgentLaunchError(
+			"terminal placement requires Core; use new_tab or new_workspace in legacy Herdr",
+		);
 	if (placement === "pane") {
 		return { paneId: required(params.pane, "pane") };
 	}
@@ -250,12 +265,18 @@ export async function startAgent(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
 		);
 	}
+	if (client instanceof CoreConnection && params.placement === "pane")
+		throw new UnstartedAgentLaunchError(
+			"Core cannot start Pi in an existing terminal without terminal input; use terminal, new_tab or new_workspace placement",
+		);
 	let cwd: string;
 	try {
 		cwd = await resolveStartDirectory(params, fallbackCwd, resolveDirectory);
 	} catch (error) {
 		throw new UnstartedAgentLaunchError(error);
 	}
+	if (client instanceof CoreConnection)
+		return startCoreAgent(client, params, cwd, label, args);
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
@@ -292,7 +313,11 @@ async function rollbackCreatedLocation(
 	if (!cleanup) throw cause;
 	try {
 		await client.request(cleanup.method, {
-			[cleanup.method === "tab.close" ? "tab_id" : "workspace_id"]: cleanup.id,
+			[cleanup.method === "tab.close"
+				? "tab_id"
+				: cleanup.method === "terminal.close"
+					? "id"
+					: "workspace_id"]: cleanup.id,
 		});
 	} catch (cleanupError) {
 		throw new Error(

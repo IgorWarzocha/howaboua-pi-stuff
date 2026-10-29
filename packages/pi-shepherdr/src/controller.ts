@@ -224,7 +224,10 @@ async function activateController(
 	fleet: AgentFleet,
 	ctx: ExtensionContext,
 ): Promise<boolean> {
-	if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"]) {
+	if (
+		!(process.env["HC_TERMINAL_ID"] && process.env["HC_TERMINAL_SOCKET"]) &&
+		(process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
+	) {
 		ctx.ui.notify("Shepherdr requires Pi to run inside Herdr", "error");
 		return false;
 	}

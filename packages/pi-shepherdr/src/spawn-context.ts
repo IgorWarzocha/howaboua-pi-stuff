@@ -38,6 +38,9 @@ export class SpawnContext {
 		this.getRelationships = getRelationships;
 		this.getService = getService;
 	}
+	canShare(ctx: ExtensionContext): boolean {
+		return this.getService()?.canCreateChild(ctx) === true;
+	}
 	prepareRelationship(
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,

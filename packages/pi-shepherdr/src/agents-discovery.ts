@@ -26,6 +26,7 @@ function describeProfiles(profiles: Map<string, AgentProfile>) {
 export async function agentsHelp(
 	boardAvailable = false,
 	gpt = false,
+	core = false,
 ): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
@@ -59,9 +60,14 @@ export async function agentsHelp(
 			target: gpt
 				? "spawn/find target EXACT; /root=this family live root"
 				: "Use spawn/find target exactly; /root selects this family's live root",
-			label: gpt
-				? "Short tab/session name; two words IF useful"
-				: "Short tab/session name; prefer two words when useful",
+			label: core
+				? "Short Pi session name; app tabs use default names"
+				: gpt
+					? "Short tab/session name; two words IF useful"
+					: "Short tab/session name; prefer two words when useful",
+			placement: core
+				? "terminal (default), new_tab, new_workspace; new_tab needs space ID"
+				: "new_tab, new_workspace, pane",
 			...(boardAvailable
 				? {
 						board_thread_id: gpt
@@ -75,9 +81,13 @@ export async function agentsHelp(
 			assign: gpt
 				? "Delegate/update work; active→share pending result, NEVER replace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
-			focus: gpt
-				? "Running session; passive arrival+return call, NO task/watch; voice default false, true=async active mic transfer; handoff=context; remote=target Herdr session≠client machine"
-				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
+			focus: core
+				? gpt
+					? "Core: focus unavailable; messaging/delegation available"
+					: "Unavailable in Core sessions; messages and delegation remain available"
+				: gpt
+					? "Running session; passive arrival+return call, NO task/watch; voice default false, true=async active mic transfer; handoff=context; remote=target Herdr session≠client machine"
+					: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach: boardAvailable
 				? gpt
 					? "Idle target; context/board=independent sharing/membership; NO task/watch"
@@ -113,7 +123,9 @@ export async function agentsHelp(
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
-		advanced: "herdr --skill: workspace/tab/pane/process/focus/layout/terminal",
+		advanced: core
+			? "hc --skill: terminal processes and machines"
+			: "herdr --skill: workspace/tab/pane/process/focus/layout/terminal",
 	};
 }
 
@@ -146,8 +158,15 @@ function compactAgent(
 			: {}),
 		status: agent.agent_status,
 		cwd: agent.foreground_cwd ?? agent.cwd ?? null,
-		workspace: names.workspaces.get(agent.workspace_id) ?? agent.workspace_id,
-		tab: names.tabs.get(agent.tab_id) ?? agent.tab_id,
+		...(agent.workspace_id
+			? {
+					workspace:
+						names.workspaces.get(agent.workspace_id) ?? agent.workspace_id,
+				}
+			: {}),
+		...(agent.tab_id
+			? { tab: names.tabs.get(agent.tab_id) ?? agent.tab_id }
+			: {}),
 		monitored,
 	};
 }
@@ -180,7 +199,11 @@ export async function listFleetAgents(
 			.filter(
 				(agent) =>
 					agent.agent === "pi" &&
-					(!machine.local || agent.pane_id !== process.env["HERDR_PANE_ID"]),
+					(!machine.local ||
+						agent.pane_id !==
+							(agent.backend === "core"
+								? process.env["HC_TERMINAL_ID"]
+								: process.env["HERDR_PANE_ID"])),
 			)
 			.map((agent) =>
 				compactAgent(

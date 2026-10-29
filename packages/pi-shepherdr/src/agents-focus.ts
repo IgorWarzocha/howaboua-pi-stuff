@@ -52,7 +52,9 @@ export async function focusAgent(
 	const request: FocusRequest = {
 		source: {
 			...(await local.client.machineIdentity()),
-			pane: source.pane_id,
+			...(source.backend === "core"
+				? { backend: "core" as const }
+				: { pane: source.pane_id }),
 			terminal: source.terminal_id,
 			sessionFile,
 		},
@@ -106,13 +108,7 @@ export function readFocus(value: unknown): FocusRequest {
 	)
 		throw new Error("Invalid focus source");
 	const source = value.source as Record<string, unknown>;
-	for (const field of [
-		"host",
-		"session",
-		"pane",
-		"terminal",
-		"sessionFile",
-	] as const) {
+	for (const field of ["host", "session", "terminal", "sessionFile"] as const) {
 		if (
 			!(field in source) ||
 			typeof source[field] !== "string" ||
@@ -120,6 +116,13 @@ export function readFocus(value: unknown): FocusRequest {
 		)
 			throw new Error("Invalid focus source");
 	}
+	if (source["backend"] !== undefined && source["backend"] !== "core")
+		throw new Error("Invalid focus backend");
+	if (
+		source["backend"] !== "core" &&
+		(typeof source["pane"] !== "string" || !source["pane"].trim())
+	)
+		throw new Error("Invalid focus pane");
 	if ("handoff" in value && typeof value.handoff !== "string")
 		throw new Error("Invalid focus handoff");
 	if ("voice" in value && typeof value.voice !== "boolean")
@@ -150,7 +153,10 @@ export async function acceptFocus(
 			const identity = await runtime.client.machineIdentity();
 			if (identity.host !== source.host || identity.session !== source.session)
 				continue;
-			const agent = await getAgent(runtime.client, source.pane);
+			const agent = await getAgent(
+				runtime.client,
+				source.backend === "core" ? source.terminal : source.pane!,
+			);
 			if (
 				agent.agent === "pi" &&
 				agent.terminal_id === source.terminal &&

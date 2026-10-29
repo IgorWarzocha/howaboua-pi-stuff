@@ -150,8 +150,12 @@ export class PanelView {
 				this.tab === "Settings"
 					? ""
 					: this.tab === "Connections"
-						? "Remote needs Node on SSH PATH and Pi with Herdr integration. Herdr prepares its server before saving."
-						: `${this.owners.fleet.isActive() ? "" : "Run Pi inside Herdr. "}Add SSH targets in Connections; select a machine here to reconnect.`,
+						? process.env["HC_TERMINAL_SOCKET"]
+							? ""
+							: "Remote needs Node on SSH PATH and Pi with Herdr integration. Herdr prepares its server before saving."
+						: process.env["HC_TERMINAL_SOCKET"]
+							? "Select a machine to reconnect."
+							: `${this.owners.fleet.isActive() ? "" : "Run Pi inside Herdr. "}Add SSH targets in Connections; select a machine here to reconnect.`,
 			).filter((line) => line.trim()),
 			"",
 		];

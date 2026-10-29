@@ -97,8 +97,9 @@ export function parseMonitoredAgent(
 		(record["scope"] !== "task" && record["scope"] !== "persistent") ||
 		typeof record["paneId"] !== "string" ||
 		typeof record["terminalId"] !== "string" ||
-		typeof record["workspaceId"] !== "string" ||
-		typeof record["tabId"] !== "string"
+		(record["workspaceId"] !== undefined &&
+			typeof record["workspaceId"] !== "string") ||
+		(record["tabId"] !== undefined && typeof record["tabId"] !== "string")
 	) {
 		return undefined;
 	}
@@ -132,8 +133,10 @@ export function parseMonitoredAgent(
 		activity,
 		paneId: record["paneId"],
 		terminalId: record["terminalId"],
-		workspaceId: record["workspaceId"],
-		tabId: record["tabId"],
+		...(record["workspaceId"] !== undefined
+			? { workspaceId: record["workspaceId"] }
+			: {}),
+		...(record["tabId"] !== undefined ? { tabId: record["tabId"] } : {}),
 		...(cwd ? { cwd } : {}),
 		...(lastAssistantId ? { lastAssistantId } : {}),
 		...(notifiedExtensionMessages ? { notifiedExtensionMessages } : {}),
@@ -154,8 +157,8 @@ export function recordForPanel(
 		activity,
 		paneId: panel.pane_id,
 		terminalId: panel.terminal_id,
-		workspaceId: panel.workspace_id,
-		tabId: panel.tab_id,
+		...(panel.workspace_id ? { workspaceId: panel.workspace_id } : {}),
+		...(panel.tab_id ? { tabId: panel.tab_id } : {}),
 		...(panel.name ? { name: panel.name } : {}),
 		...(cwd ? { cwd } : {}),
 		...(lastAssistantId ? { lastAssistantId } : {}),

@@ -15,7 +15,17 @@ export function buildPanelItems(
 	tab: PanelTab,
 	draft: SshSetupDraft,
 ): SettingItem[] {
-	if (tab === "Connections") return sshSetupItems(draft);
+	if (tab === "Connections") {
+		if (process.env["HC_TERMINAL_SOCKET"])
+			return [
+				{
+					id: "core-machines",
+					label: "Manage machines in Herdr or with hc machine add",
+					currentValue: "",
+				},
+			];
+		return sshSetupItems(draft);
+	}
 	if (tab === "Status")
 		return [
 			{
@@ -23,7 +33,9 @@ export function buildPanelItems(
 				label: "Refresh and reconnect",
 				currentValue: "Enter",
 				values: ["Enter"],
-				description: "Reload Herdr profiles and retry connections.",
+				description: process.env["HC_TERMINAL_SOCKET"]
+					? "Refresh Core machines and retry connections."
+					: "Reload Herdr profiles and retry connections.",
 			},
 			...options.fleet.statuses().map((machine) => ({
 				id: `machine:${machine.id}`,

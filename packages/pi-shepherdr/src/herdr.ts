@@ -1,3 +1,4 @@
+import { CoreConnection } from "./core/backend.js";
 import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type {
 	AgentStatus,
@@ -49,9 +50,14 @@ export async function getPane(
 export async function getCurrentPane(
 	client: HerdrConnection,
 ): Promise<PaneInfo> {
-	const callerPaneId = process.env["HERDR_PANE_ID"];
+	const callerPaneId =
+		client instanceof CoreConnection
+			? process.env["HC_TERMINAL_ID"]
+			: process.env["HERDR_PANE_ID"];
 	if (!callerPaneId)
-		throw new Error("HERDR_PANE_ID is required to identify the sender");
+		throw new Error(
+			"Cannot identify this terminal; run Pi inside Herdr and retry",
+		);
 	const result = record(
 		await client.request<unknown>("pane.current", {
 			caller_pane_id: callerPaneId,
@@ -64,7 +70,9 @@ export async function getCurrentPane(
 export async function resolvePiAgent(
 	client: HerdrConnection,
 	target: string,
-	controllingPaneId = process.env["HERDR_PANE_ID"],
+	controllingPaneId = client instanceof CoreConnection
+		? process.env["HC_TERMINAL_ID"]
+		: process.env["HERDR_PANE_ID"],
 ): Promise<PaneInfo> {
 	const agent = await getAgent(client, target).catch((error: unknown) => {
 		if (error instanceof Error && isHerdrErrorCode(error, "agent_not_found")) {
@@ -108,10 +116,22 @@ export function sessionPath(agent: PaneInfo): string | undefined {
 export function parsePaneInfo(value: unknown, path = "pane"): PaneInfo {
 	const pane = record(value, path);
 	return {
+		...(pane["backend"] === "core" ? { backend: "core" as const } : {}),
 		pane_id: requiredString(pane, "pane_id", path),
 		terminal_id: requiredString(pane, "terminal_id", path),
-		workspace_id: requiredString(pane, "workspace_id", path),
-		tab_id: requiredString(pane, "tab_id", path),
+		...(pane["backend"] === "core"
+			? {
+					...(typeof pane["workspace_id"] === "string"
+						? { workspace_id: pane["workspace_id"] }
+						: {}),
+					...(typeof pane["tab_id"] === "string"
+						? { tab_id: pane["tab_id"] }
+						: {}),
+				}
+			: {
+					workspace_id: requiredString(pane, "workspace_id", path),
+					tab_id: requiredString(pane, "tab_id", path),
+				}),
 		agent_status: parseAgentStatus(
 			pane["agent_status"],
 			`${path}.agent_status`,

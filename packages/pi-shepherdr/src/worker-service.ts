@@ -6,6 +6,7 @@ import type {
 import { activityTask } from "./activity.js";
 import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
+import { CoreConnection } from "./core/backend.js";
 import type { AgentFleet } from "./fleet/index.js";
 import { getSnapshot, sessionPath } from "./herdr.js";
 import {
@@ -128,7 +129,12 @@ export function registerWorkerService(
 		);
 		if (panel) {
 			if (
-				panel.pane_id === process.env["HERDR_PANE_ID"] ||
+				panel.pane_id ===
+					process.env[
+						fleet.connected().client instanceof CoreConnection
+							? "HC_TERMINAL_ID"
+							: "HERDR_PANE_ID"
+					] ||
 				panel.terminal_id !== worker.terminal ||
 				panel.agent !== "pi" ||
 				sessionPath(panel) !== worker.sessionPath
@@ -264,12 +270,27 @@ export function registerWorkerService(
 								? undefined
 								: shared.spawns.prepareRelationship(ctx, runtime, args);
 							const sharing =
-								worker || profile.shareContext === false
+								worker ||
+								profile.shareContext === false ||
+								runtime.contextSharing === false
 									? undefined
 									: await shared.spawns.prepare(ctx, runtime, name, args);
 							const boardBinding = worker
 								? undefined
-								: await board.prepare(ctx, runtime, name, args);
+								: runtime.contextSharing === false
+									? undefined
+									: await board.prepare(ctx, runtime, name, args);
+							if (
+								!worker &&
+								runtime.contextSharing === false &&
+								((profile.shareContext !== false &&
+									shared.spawns.canShare(ctx)) ||
+									board.enabled(ctx))
+							)
+								ctx.ui.notify(
+									"Shared context and board are unavailable on this machine; the worker runs without them",
+									"warning",
+								);
 							const workspace = runtime.local
 								? process.env["HERDR_WORKSPACE_ID"]
 								: undefined;
@@ -280,7 +301,12 @@ export function registerWorkerService(
 									name,
 									label: input.title,
 									cwd: input.cwd,
-									placement: workspace ? "new_tab" : "new_workspace",
+									placement:
+										runtime.client instanceof CoreConnection
+											? "terminal"
+											: workspace
+												? "new_tab"
+												: "new_workspace",
 									...(workspace ? { workspace } : {}),
 								},
 								runtime.fallbackCwd,
