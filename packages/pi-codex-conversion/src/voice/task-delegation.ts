@@ -4,11 +4,25 @@ import {
 	validateToolArguments,
 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import {
-	END_CALL_TASK_TOOL,
+	END_CALL_TOOL,
 	type PreparedVoiceTask,
 } from "./conversation/end-call.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
+
+const END_CALL_TASK_TOOL = {
+	name: END_CALL_TOOL.name,
+	description: "End the voice call; preserve any remaining requested work",
+	parameters: Type.Object(
+		{
+			request: Type.String({
+				description: "Remaining task for Pi, or empty if none",
+			}),
+		},
+		{ additionalProperties: false },
+	),
+};
 
 const SYSTEM_PROMPT =
 	"Rewrite this conversation as a natural, self-contained request to another assistant. Preserve the user's intent, relevant context and uncertainty without inventing facts or decisions. Don't carry out the request. Prioritise the user's messages over assistant speech or work progress when deciding whether to end the call. Use end_call only when the user wants or agrees to end it, never merely because work finished. Otherwise return only the request.";

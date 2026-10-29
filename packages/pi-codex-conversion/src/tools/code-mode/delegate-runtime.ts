@@ -1,4 +1,5 @@
 import { DelegateToolExecutor } from "./delegation/tool-executor.ts";
+import type { prepareCodeModeToolInput } from "./tool-input.ts";
 import { DelegateCellScheduling } from "./delegation/cell-scheduling.ts";
 import { DelegateCellResults } from "./delegation/cell-results.ts";
 import { type DelegateRequestMessage } from "./host-protocol.js";
@@ -32,11 +33,12 @@ export class CodeModeDelegateRuntime {
 
 	constructor(
 		send: SendMessage,
+		prepareToolInput: typeof prepareCodeModeToolInput,
 		renderStore = new CodeModeNestedRenderStore(),
 	) {
 		this.send = send;
 		this.renderStore = renderStore;
-		this.executor = new DelegateToolExecutor(this.cells, this.results, this.traces, renderStore, this.traceRuntimeGeneration);
+		this.executor = new DelegateToolExecutor(prepareToolInput, this.cells, this.results, this.traces, renderStore, this.traceRuntimeGeneration);
 	}
 
 	bindCell(

@@ -4,6 +4,7 @@ import { CodeModeHostClient } from "./host-client.js";
 import { createNotebookControlProxy } from "./notebook-tool.ts";
 import { codeModeGlobalName } from "./tool-identity.ts";
 import { CodeModeNestedRenderStore } from "./trace-render-state.js";
+import { prepareCodeModeToolInput } from "./tool-input.ts";
 import type {
 	CodeModeToolDefinition,
 	NotebookControlRequest,
@@ -28,6 +29,10 @@ export interface NotebookRuntimeOptions {
 	maxHeapMiB: number;
 	agentDir: string;
 	profile?: string | undefined;
+}
+
+export interface NotebookClientOptions extends NotebookRuntimeOptions {
+	prepareToolInput: typeof prepareCodeModeToolInput;
 }
 
 export interface CodeModeExecutionClient {
@@ -266,11 +271,13 @@ export class SharedCodeModeRuntime {
 				await (await previous).shutdown();
 			}
 			if (!this.notebookClientPromise) {
+				// Native lazy imports cannot resolve Pi's loader aliases; inject eager validation.
+				const clientOptions = { ...options, prepareToolInput: prepareCodeModeToolInput };
 				const pending = kind === "js"
-					? import("../js-mode/client.ts").then(({ JsNotebookClient }) => new JsNotebookClient(options, this.renderStore))
+					? import("../js-mode/client.ts").then(({ JsNotebookClient }) => new JsNotebookClient(clientOptions, this.renderStore))
 					: kind === "ts"
-					? import("../ts-mode/client.ts").then(({ TsCodeModeClient }) => new TsCodeModeClient(options, this.renderStore))
-					: import("../notebook-mode/client.ts").then(({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options, this.renderStore));
+					? import("../ts-mode/client.ts").then(({ TsCodeModeClient }) => new TsCodeModeClient(clientOptions, this.renderStore))
+					: import("../notebook-mode/client.ts").then(({ NotebookCodeModeClient }) => new NotebookCodeModeClient(clientOptions, this.renderStore));
 				this.notebookClientPromise = pending;
 				this.notebookClientOptionsKey = key;
 				void pending.catch(() => {

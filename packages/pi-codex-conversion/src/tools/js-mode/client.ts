@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import { formatCodeModeToolHelp, isCodeModeToolDiscoverable } from "../code-mode/custom-tool-prompt.ts";
 import { DEFAULT_CODE_MODE_EXEC_YIELD_MS, parseExecSource } from "../code-mode/host-protocol.ts";
-import type { CodeModeExecutionClient, NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { CodeModeExecutionClient, NotebookClientOptions } from "../code-mode/shared-runtime.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
 import { codeModeGlobalName } from "../code-mode/tool-identity.ts";
 import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
@@ -31,11 +31,11 @@ export class JsNotebookClient implements CodeModeExecutionClient {
 	private closing: Promise<void> | undefined;
 	private running = 0;
 
-	constructor(options: NotebookRuntimeOptions, renderStore?: CodeModeNestedRenderStore) {
+	constructor(options: NotebookClientOptions, renderStore?: CodeModeNestedRenderStore) {
 		if (process.versions["bun"]) throw new Error("JS Notebook requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available");
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128) throw new Error("JS Notebook requires a Notebook heap budget of at least 128 MiB");
 		this.project = new JsNotebookProject(options);
-		this.delegate = new CodeModeDelegateRuntime(() => {}, renderStore);
+		this.delegate = new CodeModeDelegateRuntime(() => {}, options.prepareToolInput, renderStore);
 	}
 
 	async execute(source: string, context: ToolExecutionContext, signal?: AbortSignal, tools: CodeModeToolDefinition[] = []): Promise<RuntimeResponse> {

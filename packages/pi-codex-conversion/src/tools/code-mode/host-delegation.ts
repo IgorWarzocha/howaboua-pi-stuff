@@ -1,4 +1,5 @@
 import { CodeModeDelegateRuntime } from "./delegate-runtime.js";
+import { prepareCodeModeToolInput } from "./tool-input.ts";
 import { executionCellId, type HostMessage } from "./host-protocol.js";
 import type {
 	CodeModeToolDefinition,
@@ -14,7 +15,7 @@ export class CodeModeHostDelegation {
 		send: (message: unknown) => void,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
-		this.runtime = new CodeModeDelegateRuntime(send, renderStore);
+		this.runtime = new CodeModeDelegateRuntime(send, prepareCodeModeToolInput, renderStore);
 	}
 
 	bindResponse(

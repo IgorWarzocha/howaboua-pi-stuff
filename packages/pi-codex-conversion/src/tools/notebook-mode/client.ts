@@ -1,4 +1,4 @@
-import type { CodeModeExecutionClient, NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { CodeModeExecutionClient, NotebookClientOptions } from "../code-mode/shared-runtime.ts";
 import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
 import type {
 	CodeModeToolDefinition,
@@ -28,7 +28,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly isolated: NotebookIsolatedRuntime;
 
 	constructor(
-		options: NotebookRuntimeOptions,
+		options: NotebookClientOptions,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
 		let session!: NotebookSessionRuntime;
@@ -36,6 +36,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.execution = new NotebookExecutionRuntime(
 			() => session,
 			(context, signal) => this.prepareSession(context, signal),
+			options.prepareToolInput,
 			renderStore,
 		);
 		this.session = session = new NotebookSessionRuntime({

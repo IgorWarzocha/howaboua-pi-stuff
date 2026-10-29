@@ -1,5 +1,6 @@
 import { formatCodeModeToolHelp, isCodeModeToolDiscoverable } from "../code-mode/custom-tool-prompt.ts";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
+import type { prepareCodeModeToolInput } from "../code-mode/tool-input.ts";
 import {
 	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
 	parseExecSource,
@@ -42,6 +43,7 @@ export class NotebookExecutionRuntime {
 	constructor(
 		session: () => NotebookSessionRuntime,
 		prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>,
+		prepareToolInput: typeof prepareCodeModeToolInput,
 		renderStore?: CodeModeNestedRenderStore,
 		completed?: (cell: NotebookCell) => Promise<void>,
 		cellPrefix = "notebook",
@@ -50,7 +52,7 @@ export class NotebookExecutionRuntime {
 		this.cellPrefix = cellPrefix;
 		this.session = session;
 		this.prepareSession = prepareSession;
-		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
+		this.delegate = new CodeModeDelegateRuntime(() => undefined, prepareToolInput, renderStore);
 		this.bridge = new NotebookBridgeServer({
 			callTool: (cellId, requestId, toolName, input) => this.callTool(cellId, requestId, toolName, input),
 			cancelTools: (cellId) => this.cancelTools(cellId),
