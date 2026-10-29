@@ -3,7 +3,10 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { renderRealtimeTranscriptTail } from "./prompts.ts";
+import {
+	renderRealtimeTranscriptTail,
+	renderRealtimeUserInput,
+} from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
 	CODEX_VOICE_MODE_MESSAGE_TYPE,
@@ -16,7 +19,6 @@ import {
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
 	type RealtimeVoiceMessageDetails,
-	realtimeVoiceMessage,
 	VOICE_CONTEXT_MESSAGE_TYPE,
 } from "./ui.ts";
 
@@ -155,8 +157,17 @@ export class CodexVoiceSessionMessages {
 		this.callbacks.onDelegation(turn.delegationId);
 		this.piTurnActive = true;
 		this.callbacks.onWorking();
+		// Submission has no acceptance receipt. Do not retry a possibly delivered task.
 		this.pi.sendMessage(
-			realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
+			{
+				customType: REALTIME_DELEGATION_MESSAGE_TYPE,
+				content: renderRealtimeUserInput(turn.input, turn.transcriptDelta),
+				display: false,
+				details: {
+					input: turn.input,
+					route: "delegation",
+				} satisfies RealtimeVoiceMessageDetails,
+			},
 			startsTurn
 				? { triggerTurn: true }
 				: { triggerTurn: true, deliverAs: "steer" },

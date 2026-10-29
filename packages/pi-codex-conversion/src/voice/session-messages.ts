@@ -10,7 +10,7 @@ import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
 import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
-import { renderRealtimeTranscriptTail } from "./prompts.ts";
+import { renderRealtimeTranscriptTail, renderRealtimeUserInput } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
 	CODEX_VOICE_MODE_MESSAGE_TYPE,
@@ -23,7 +23,6 @@ import {
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
 	type RealtimeVoiceMessageDetails,
-	realtimeVoiceMessage,
 	VOICE_CONTEXT_MESSAGE_TYPE,
 } from "./ui.ts";
 
@@ -241,8 +240,16 @@ export class CodexVoiceSessionMessages {
 			this.callbacks.onDelegation(turn.delegationId, turn.input, source);
 			this.piTurnActive = true;
 			this.callbacks.onWorking();
-			const message = realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta);
-			this.pi.sendMessage(message, { triggerTurn: true, deliverAs: "steer" });
+			// Submission has no acceptance receipt. Do not retry a possibly delivered task.
+			this.pi.sendMessage(
+				{
+					customType: REALTIME_DELEGATION_MESSAGE_TYPE,
+					content: renderRealtimeUserInput(turn.input, turn.transcriptDelta),
+					display: false,
+					details: { input: turn.input, route: "delegation" } satisfies RealtimeVoiceMessageDetails,
+				},
+				{ triggerTurn: true, deliverAs: "steer" },
+			);
 		} catch (error) {
 			if (
 				generation !== this.contextGeneration ||
