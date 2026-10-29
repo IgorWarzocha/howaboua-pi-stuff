@@ -52,6 +52,7 @@ export class CodexRealtimeConversation {
 		this.setup = new ConversationSetup(
 			peer,
 			() => this.state === "starting",
+			() => this.state === "active",
 			(muted) => {
 				this.state = "active";
 				if (muted) this.setInputMuted(true);

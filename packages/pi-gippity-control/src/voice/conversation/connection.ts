@@ -23,16 +23,19 @@ export class ConversationSetup {
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 	private readonly peer: CodexRealtimePeer;
 	private readonly isStarting: () => boolean;
+	private readonly isActive: () => boolean;
 	private readonly onActive: (muted: boolean) => void;
 	private readonly onStatus: (status: string) => void;
 	constructor(
 		peer: CodexRealtimePeer,
 		isStarting: () => boolean,
+		isActive: () => boolean,
 		onActive: (muted: boolean) => void,
 		onStatus: (status: string) => void,
 	) {
 		this.peer = peer;
 		this.isStarting = isStarting;
+		this.isActive = isActive;
 		this.onActive = onActive;
 		this.onStatus = onStatus;
 	}
@@ -152,7 +155,7 @@ export class ConversationSetup {
 			]);
 			if (
 				publicRealtime &&
-				this.isStarting() === false &&
+				this.isActive() &&
 				!setupAbortController.signal.aborted
 			) {
 				for (const item of initialItems ?? [])
