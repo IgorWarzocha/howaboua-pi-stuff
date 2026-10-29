@@ -1,3 +1,4 @@
+import { resolveRealtimeVoiceAuth } from "../realtime-auth.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
@@ -143,7 +144,7 @@ export async function startControllerMode(options: {
 	try {
 		const startup = await interruptible(
 			Promise.all([
-				resolveCodexVoiceAuth(options.ctx),
+				options.mode === "realtime" ? resolveRealtimeVoiceAuth(options.ctx, options.config, options.pi) : resolveCodexVoiceAuth(options.ctx),
 				options.mode === "realtime"
 					? options.preparedRealtimeContext
 						? Promise.resolve(options.preparedRealtimeContext)
@@ -236,6 +237,7 @@ async function startConversation(
 					voice: {
 						...options.config.voice,
 						v3Voice: options.config.voice.v3AlternateVoice,
+ realtimeVoice: options.config.voice.realtimeAlternateVoice,
 					},
 				}
 			: options.config,

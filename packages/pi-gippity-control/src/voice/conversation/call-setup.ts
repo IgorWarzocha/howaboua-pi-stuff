@@ -1,4 +1,9 @@
-import { ProxyAgent, type Response, fetch as undiciFetch } from "undici";
+import {
+	FormData,
+	ProxyAgent,
+	type Response,
+	fetch as undiciFetch,
+} from "undici";
 import type { GippityControlConfig } from "../../config.ts";
 import { resolveWebSocketProxyForTarget } from "../../openai/websocket-connection.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
@@ -12,7 +17,7 @@ export type RealtimeCallSetup = (
 	endpoint: string,
 	headers: Headers,
 	signal: AbortSignal,
-	body: string,
+	body: string | FormData,
 	env?: Record<string, string>,
 ) => Promise<RealtimeCallResult>;
 

@@ -129,13 +129,17 @@ export class RealtimeVoiceTurnTracker {
 		return this.unfinishedUserTurns.length > 0 || this.pendingUserInputs.length > 0;
 	}
 
-	inputAdded(input: string): void {
-		const startsTurn = !this.activeUserTurn;
+	inputStarted(): void {
 		if (!this.activeUserTurn) {
 			this.recentlyAnsweredUserInput = undefined;
 			this.activeUserTurn = {};
 			this.unfinishedUserTurns.push(this.activeUserTurn);
 		}
+	}
+
+	inputAdded(input: string): void {
+		const startsTurn = !this.activeUserTurn;
+		this.inputStarted();
 		this.transcript.append("user", input, startsTurn);
 	}
 

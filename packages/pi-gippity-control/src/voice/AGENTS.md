@@ -2,8 +2,8 @@
 - Conversation owns V3 sequencing, HTTP setup, handoff output and wire validation.
 - Playback owns spoken-interruption generations. Typed input never changes speaker suppression. Quiet turns accept audio before captions.
 - Keep process ownership in helper.ts, JSONL framing in helper-protocol.ts and LAN connection/session/wire handling in their named modules.
-- Realtime is V3 only. Dictation owns a separate transcription connection.
-- Before V3 opens, await the sidecar summary. Seed developer initial_items labelled <startup_context> and display its exact output in a UI-only Voice Context entry. User-selected reasoning defaults high and applies only to the sidecar.
+- Keep Codex delegation events in turn-events.ts and public OpenAI items/tools in public-turns.ts. Dictation owns a separate transcription connection.
+- Before V3 opens, await the sidecar summary. For Codex, seed developer initial_items labelled <startup_context> and display its exact output in a UI-only Voice Context entry. User-selected reasoning defaults high and applies only to the sidecar.
 - Plaintext sidecar history includes user text, final assistant text, textual compaction/branch summaries and realtime delegation/tails. Exclude thinking, tools, images and presentation entries.
 - Deliver delegations as user-role custom messages, without duplicate rendering. Steer active Pi turns. Use session context for speakable interactive/RPC output. Never mirror extension input.
 - Start/end are fixed model-visible purple messages. Steer active turns or append while idle, never trigger a turn. Start scopes spoken progress/formatting to delegations. End restores normal interaction.

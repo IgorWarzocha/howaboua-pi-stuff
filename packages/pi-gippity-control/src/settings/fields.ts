@@ -1,9 +1,11 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import {
+	GIPPITY_VOICE_MODELS,
 	type GippityControlConfig,
 	normalizeRealtimeV3Voice,
 	normalizeVoiceContextReasoning,
+	OPENAI_REALTIME_VOICES,
 	REALTIME_V3_VOICES,
 	VOICE_CONTEXT_REASONING_LEVELS,
 	type VoiceContextModel,
@@ -20,6 +22,7 @@ export function buildGippitySettings(
 	contextModels: Map<string, VoiceContextModel>,
 	theme: Theme,
 	tui: { requestRender(): void },
+	webSearchAvailable?: boolean,
 ): Setting[] {
 	return [
 		...(["inputDevice", "outputDevice"] as const).map(
@@ -57,36 +60,85 @@ export function buildGippitySettings(
 				lan: { ...current.lan, customWebApp: value === "custom" },
 			}),
 		},
+
 		{
-			id: "voice",
-			label: "Primary voice",
-			currentValue: formatVoiceName(config.voice.v3Voice),
-			values: REALTIME_V3_VOICES.map(formatVoiceName),
+			id: "voiceModel",
+			label: "Voice model",
+			description:
+				"Codex Live uses your Codex login. GPT-Realtime requires an OpenAI API key, billed separately. Applies on the next call without restarting the current call.",
+			currentValue: formatVoiceModel(config.voice.model),
+			values: GIPPITY_VOICE_MODELS.map(formatVoiceModel),
 			update: (value, current) => ({
 				...current,
 				voice: {
 					...current.voice,
-					v3Voice:
-						normalizeRealtimeV3Voice(value.toLowerCase()) ??
-						current.voice.v3Voice,
+					model:
+						GIPPITY_VOICE_MODELS.find(
+							(model) => formatVoiceModel(model) === value,
+						) ?? current.voice.model,
 				},
 			}),
 		},
-		{
-			id: "alternateVoice",
-			label: "Alternate voice",
-			currentValue: formatVoiceName(config.voice.v3AlternateVoice),
-			values: REALTIME_V3_VOICES.map(formatVoiceName),
-			update: (value, current) => ({
-				...current,
-				voice: {
-					...current.voice,
-					v3AlternateVoice:
-						normalizeRealtimeV3Voice(value.toLowerCase()) ??
-						current.voice.v3AlternateVoice,
-				},
-			}),
-		},
+		...(["primary", "alternate"] as const).map((role) => {
+			const apiModel = config.voice.model !== "codex-live-1.1";
+			const codexKey = role === "primary" ? "v3Voice" : "v3AlternateVoice";
+			const realtimeKey =
+				role === "primary" ? "realtimeVoice" : "realtimeAlternateVoice";
+			const key = apiModel ? realtimeKey : codexKey;
+			const item = {
+				id: role === "primary" ? "voice" : "alternateVoice",
+				label: role === "primary" ? "Primary voice" : "Alternate voice",
+				description:
+					"Applies on the next call. Session voice transfers alternate between these voices.",
+				currentValue: formatVoiceName(config.voice[key]),
+				values: (apiModel ? OPENAI_REALTIME_VOICES : REALTIME_V3_VOICES).map(
+					formatVoiceName,
+				),
+			};
+			const update = (
+				value: string,
+				current: GippityControlConfig,
+			): GippityControlConfig => {
+				const name = value.toLowerCase();
+				return {
+					...current,
+					voice: apiModel
+						? {
+								...current.voice,
+								[realtimeKey]:
+									OPENAI_REALTIME_VOICES.find((voice) => voice === name) ??
+									current.voice[realtimeKey],
+							}
+						: {
+								...current.voice,
+								[codexKey]:
+									normalizeRealtimeV3Voice(name) ?? current.voice[codexKey],
+							},
+				};
+			};
+			return { ...item, update };
+		}),
+		...(config.voice.model !== "codex-live-1.1"
+			? [
+					{
+						id: "webSearch",
+						label: "Realtime web search",
+						description:
+							webSearchAvailable === false
+								? "Web Run is not loaded. Load the Web Run extension and set up its account, or leave search off. Applies on the next call."
+								: "Requires the Web Run extension and its account setup. Applies on the next call.",
+						currentValue: config.voice.webSearch ? "on" : "off",
+						values: ["off", "on"],
+						update: (
+							value: string,
+							current: GippityControlConfig,
+						): GippityControlConfig => ({
+							...current,
+							voice: { ...current.voice, webSearch: value === "on" },
+						}),
+					},
+				]
+			: []),
 		{
 			id: "autoResumeRealtime",
 			label: "Auto-resume realtime voice",
@@ -206,4 +258,10 @@ function formatVoiceName(voice: string): string {
 
 function formatContextModel(model: VoiceContextModel): string {
 	return `${model.provider}/${model.modelId}`;
+}
+
+function formatVoiceModel(model: string): string {
+	if (model === "realtime-2.1") return "GPT-Realtime-2.1 (API key)";
+	if (model === "realtime-2.1-mini") return "GPT-Realtime-2.1 Mini (API key)";
+	return "Codex Live (default)";
 }

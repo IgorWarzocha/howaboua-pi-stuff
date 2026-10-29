@@ -53,7 +53,7 @@ export async function startControllerConversation(options: {
 		onUserTranscript: options.lifecycle.onUserTranscript,
 		onTranscriptTail: options.lifecycle.onTranscriptTail,
 		onEvent: options.lifecycle.onEvent,
-	}, realtimePeer);
+	}, realtimePeer, options.config.voice.model !== "codex-live-1.1");
 	options.lifecycle.onCreated(session);
 	if (options.signal?.aborted) { await session.close(); return; }
 	const closeOnAbort = () => { void session.close(); };

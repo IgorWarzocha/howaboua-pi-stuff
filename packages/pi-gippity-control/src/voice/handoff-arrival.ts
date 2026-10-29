@@ -3,7 +3,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../config.ts";
-import { resolveCodexVoiceAuth } from "./auth.ts";
 import {
 	prepareControllerRealtimeContext,
 	type RealtimePeerPlan,
@@ -21,6 +20,7 @@ import {
 	invokeLanRemoteRpc,
 	lanRemoteRpcError,
 } from "./lan/rpc.ts";
+import { resolveRealtimeVoiceAuth } from "./realtime-auth.ts";
 
 export interface IncomingVoiceHandoff {
 	completion: Promise<void>;
@@ -145,7 +145,7 @@ export function startVoiceArrival(options: {
 					config: options.config,
 					signal,
 				}),
-				resolveCodexVoiceAuth(ctx),
+				resolveRealtimeVoiceAuth(ctx, options.config, pi),
 			]);
 			signal.throwIfAborted();
 			prepared.initialItems = [

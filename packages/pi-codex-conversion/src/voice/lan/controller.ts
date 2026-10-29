@@ -17,6 +17,7 @@ export class CodexLanVoiceServerController {
 	private readonly getConfig: () => CodexConversionConfig;
 	private readonly sendUserMessage: (text: string, ctx: ExtensionContext) => void;
 	private readonly agentDir: string;
+	private readonly hasWebSearch: (() => boolean) | undefined;
 	private server: CodexLanVoiceServer | undefined;
 	private pendingAssistantText: string | undefined;
 	private operation = Promise.resolve();
@@ -26,11 +27,13 @@ export class CodexLanVoiceServerController {
 		getConfig: () => CodexConversionConfig,
 		sendUserMessage: (text: string, ctx: ExtensionContext) => void,
 		agentDir: string,
+		hasWebSearch?: () => boolean,
 	) {
 		this.voice = voice;
 		this.getConfig = getConfig;
 		this.sendUserMessage = sendUserMessage;
 		this.agentDir = agentDir;
+		this.hasWebSearch = hasWebSearch;
 	}
 
 	status(): CodexLanVoiceServerStatus {
@@ -52,7 +55,7 @@ export class CodexLanVoiceServerController {
 			const { startCodexLanVoiceServer } = await import("./server.ts");
 			this.server = await startCodexLanVoiceServer({
 				ctx,
-				settings: createLanVoiceSettings(ctx, this.getConfig),
+				settings: createLanVoiceSettings(ctx, this.getConfig, this.hasWebSearch),
 				voice: this.voice,
 				resolveAuth: () => resolveCodexVoiceAuth(ctx),
 				sendUserMessage: (text) => this.sendUserMessage(text, ctx),

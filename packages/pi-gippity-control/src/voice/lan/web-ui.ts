@@ -80,6 +80,7 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
     #voice-settings summary { cursor:pointer; min-height:44px; line-height:44px; }
     #voice-settings p,#voice-settings small { color:var(--pi-muted); font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
     #settings-fields { border:0; margin:0; padding:0; display:grid; gap:12px; min-width:0; }
+    #settings-fields [hidden] { display:none; }
     #settings-fields select { width:100%; min-width:0; min-height:44px; padding:8px; color:var(--pi-text); background:var(--pi-tool-pending-bg); border:1px solid var(--pi-border-muted); border-radius:8px; font:inherit; }
     .setting-switch { display:flex; align-items:center; gap:10px; min-height:44px; font-size:14px; }
     .setting-switch input { width:18px; height:18px; flex-shrink:0; }
@@ -122,8 +123,14 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
       <p id="settings-scope"></p>
       <form id="settings-form" aria-describedby="settings-status">
         <fieldset id="settings-fields" disabled>
-          <label for="setting-voice">Primary voice</label><select id="setting-voice" name="v3Voice"></select>
-          <label for="setting-alternate-voice">Alternate voice</label><select id="setting-alternate-voice" name="v3AlternateVoice"></select>
+          <label for="setting-model">Voice model</label><select id="setting-model" name="model" aria-describedby="setting-model-requirement"></select>
+          <small id="setting-model-requirement"></small>
+          <label data-codex-voice for="setting-voice">Primary voice</label><select data-codex-voice id="setting-voice" name="v3Voice"></select>
+          <label data-codex-voice for="setting-alternate-voice">Alternate voice</label><select data-codex-voice id="setting-alternate-voice" name="v3AlternateVoice"></select>
+          <label data-realtime-voice for="setting-realtime-voice" hidden>Primary voice</label><select data-realtime-voice id="setting-realtime-voice" name="realtimeVoice" hidden></select>
+          <label data-realtime-voice for="setting-realtime-alternate-voice" hidden>Alternate voice</label><select data-realtime-voice id="setting-realtime-alternate-voice" name="realtimeAlternateVoice" hidden></select>
+          <label data-realtime-voice class="setting-switch" hidden><input type="checkbox" name="webSearch" aria-describedby="setting-web-search-requirement">Realtime web search</label>
+          <small data-realtime-voice id="setting-web-search-requirement" hidden>Requires the Web Run extension and its account setup.</small>
           <label for="setting-context-model">Context summary model</label><select id="setting-context-model" name="contextModel"></select>
           <small>Off starts without a Pi context summary. Models use their own account's pricing or subscription allowance.</small>
           <label for="setting-context-reasoning">Context summary reasoning</label><select id="setting-context-reasoning" name="contextReasoning"></select>

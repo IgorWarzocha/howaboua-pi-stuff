@@ -1,11 +1,12 @@
-import { ConversationSetup } from "./connection.ts";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
+import { ConversationSetup } from "./connection.ts";
 import type { RealtimePiInputBehavior } from "./handoff.ts";
 import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
+import { PublicRealtimeTurns } from "./public-turns.ts";
 import { ConversationTurns } from "./turn-events.ts";
 import {
 	type RealtimeVoiceEventDetails,
@@ -28,14 +29,18 @@ export class CodexRealtimeConversation {
 	private readonly callbacks: CodexConversationCallbacks;
 	private readonly setup: ConversationSetup;
 	private readonly peer: CodexRealtimePeer;
-	private readonly turns: ConversationTurns;
+	private readonly turns: ConversationTurns | PublicRealtimeTurns;
 	private state: ConversationState = "idle";
 	private closePromise: Promise<void> | undefined;
 	private inputMuted = false;
 	private established = false;
 	private inputChanged = Promise.withResolvers<void>();
 
-	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
+	constructor(
+		callbacks: CodexConversationCallbacks,
+		peer: CodexRealtimePeer,
+		publicRealtime = false,
+	) {
 		this.callbacks = callbacks;
 		this.peer = peer;
 		this.setup = new ConversationSetup(
@@ -47,7 +52,8 @@ export class CodexRealtimeConversation {
 			},
 			(status) => this.callbacks.onStatus(status),
 		);
-		this.turns = new ConversationTurns(
+		const Turns = publicRealtime ? PublicRealtimeTurns : ConversationTurns;
+		this.turns = new Turns(
 			callbacks,
 			peer,
 			() => this.state === "active",
@@ -65,6 +71,13 @@ export class CodexRealtimeConversation {
 		inputMuted = false,
 	): Promise<void> {
 		this.state = "starting";
+		if (this.turns instanceof PublicRealtimeTurns) {
+			if (!auth.realtime)
+				throw new Error(
+					"Realtime API credentials are unavailable; restart voice",
+				);
+			this.turns.configure(auth.realtime);
+		}
 		return this.setup.start(
 			auth,
 			config,
@@ -237,7 +250,10 @@ export class CodexRealtimeConversation {
 			else this.fail(error);
 			return;
 		}
-		if (event.type === "playback_activity") this.turns.playback.audioActivity();
+		if (event.type === "playback_activity") {
+			if (this.turns instanceof PublicRealtimeTurns) this.turns.audioActivity();
+			else this.turns.playback.audioActivity();
+		}
 		if (event.type === "data") {
 			this.turns.receive(event.message);
 			this.inputChanged.resolve();

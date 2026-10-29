@@ -14,6 +14,7 @@ import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimePeerPlan } from "../controller/start.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import { hasRealtimeWebSearch } from "../realtime-web-search.ts";
 import { LanVoiceActivity } from "./activity.ts";
 import { createLanVoiceWebManifest } from "./app-assets.ts";
 import {
@@ -75,7 +76,9 @@ export async function startCodexLanVoiceServer(options: {
 	certificateAgentDir: string;
 	remoteApps: GippityRemoteApps;
 }): Promise<CodexLanVoiceServer> {
-	const settings = createLanVoiceSettings(options.ctx, options.getConfig);
+	const settings = createLanVoiceSettings(options.ctx, options.getConfig, () =>
+		hasRealtimeWebSearch(options.pi),
+	);
 	const resolveWebApp = (config: GippityControlConfig) => {
 		const customWebApp = config.lan.customWebApp;
 		const customApp =

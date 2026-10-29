@@ -1,4 +1,7 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../../config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
@@ -9,6 +12,7 @@ import {
 import type { CodexRealtimePeer } from "../conversation/peer.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import type { TransferredVoiceControls } from "../handoff-contract.ts";
+import { resolveRealtimeVoiceAuth } from "../realtime-auth.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";
 import type { CodexVoiceMode } from "../ui.ts";
 import {
@@ -39,6 +43,7 @@ export interface RealtimePeerPlan {
 }
 
 export interface VoiceControllerRuntime {
+	pi?: ExtensionAPI;
 	state: VoiceState;
 	alternateVoice?: boolean;
 	context?: ExtensionContext | undefined;
@@ -144,7 +149,9 @@ export async function startControllerMode(options: {
 	try {
 		const startup = await interruptible(
 			Promise.all([
-				resolveCodexVoiceAuth(options.ctx),
+				options.mode === "realtime"
+					? resolveRealtimeVoiceAuth(options.ctx, options.config, runtime.pi)
+					: resolveCodexVoiceAuth(options.ctx),
 				options.mode === "realtime"
 					? options.preparedRealtimeContext
 						? Promise.resolve(options.preparedRealtimeContext)
@@ -235,6 +242,7 @@ async function startConversation(
 					voice: {
 						...options.config.voice,
 						v3Voice: options.config.voice.v3AlternateVoice,
+						realtimeVoice: options.config.voice.realtimeAlternateVoice,
 					},
 				}
 			: options.config,

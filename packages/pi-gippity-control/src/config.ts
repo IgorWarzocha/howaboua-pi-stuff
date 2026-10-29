@@ -1,3 +1,33 @@
+export const GIPPITY_VOICE_MODELS = [
+	"codex-live-1.1",
+	"realtime-2.1",
+	"realtime-2.1-mini",
+] as const;
+type GippityVoiceModel = (typeof GIPPITY_VOICE_MODELS)[number];
+export const OPENAI_REALTIME_VOICES = [
+	"alloy",
+	"ash",
+	"ballad",
+	"coral",
+	"echo",
+	"sage",
+	"shimmer",
+	"verse",
+	"marin",
+	"cedar",
+] as const;
+type OpenAIRealtimeVoice = (typeof OPENAI_REALTIME_VOICES)[number];
+function normalizeGippityVoiceModel(
+	value: unknown,
+): GippityVoiceModel | undefined {
+	return GIPPITY_VOICE_MODELS.find((model) => model === value);
+}
+function normalizeOpenAIRealtimeVoice(
+	value: unknown,
+): OpenAIRealtimeVoice | undefined {
+	return OPENAI_REALTIME_VOICES.find((voice) => voice === value);
+}
+
 type DictationShortcutMode = "push" | "toggle";
 
 export const DEFAULT_GIPPITY_LAN_PORT = 43_120;
@@ -40,6 +70,10 @@ export interface GippityControlConfig {
 		port?: number | undefined;
 	};
 	voice: {
+		model: GippityVoiceModel;
+		realtimeVoice: OpenAIRealtimeVoice;
+		realtimeAlternateVoice: OpenAIRealtimeVoice;
+		webSearch: boolean;
 		v3Voice: RealtimeV3Voice;
 		v3AlternateVoice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
@@ -64,6 +98,10 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		customWebApp: false,
 	},
 	voice: {
+		model: "codex-live-1.1",
+		realtimeVoice: "marin",
+		realtimeAlternateVoice: "cedar",
+		webSearch: false,
 		v3Voice: "cove",
 		v3AlternateVoice: "ember",
 		autoResumeRealtime: false,
@@ -149,6 +187,13 @@ export function normalizeGippityControlConfig(
 			...(port ? { port } : {}),
 		},
 		voice: {
+			model: normalizeGippityVoiceModel(voice["model"]) ?? "codex-live-1.1",
+			realtimeVoice:
+				normalizeOpenAIRealtimeVoice(voice["realtimeVoice"]) ?? "marin",
+			realtimeAlternateVoice:
+				normalizeOpenAIRealtimeVoice(voice["realtimeAlternateVoice"]) ??
+				"cedar",
+			webSearch: voice["webSearch"] === true,
 			v3Voice:
 				normalizeRealtimeV3Voice(voice["v3Voice"]) ??
 				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.v3Voice,

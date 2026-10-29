@@ -70,6 +70,7 @@ export async function startControllerConversation(options: {
 			onTranscriptTail: options.lifecycle.onTranscriptTail,
 		},
 		realtimePeer,
+		options.config.voice.model !== "codex-live-1.1",
 	);
 	options.lifecycle.onCreated(session);
 	if (options.signal?.aborted) {

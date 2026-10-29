@@ -2,11 +2,11 @@
 - Conversation owns V3 sequencing, HTTP setup, delegation handoff and wire validation. Keep auth, dictation and Pi message delivery separate.
 - Keep process ownership in helper.ts, JSONL framing in helper-protocol.ts and LAN connection/session/wire handling in their named modules.
 - Voice and Pi are one screenless-capable assistant. Share typed/spoken work, speak progress and outcomes, hide routing and preserve cache.
-- Realtime converses, not executes. Delegate actions, facts, state and substantial reasoning. Clarify only cutoffs or material ambiguity.
+- Codex Live delegates actions to Pi. Public Realtime also supports call-scoped developer tools; send_task retains Pi safeguards.
 - Spoken requests have typed authority. Apply Pi safeguards, hide partials and duplicates, retain final audit. No voice-only approval gate.
 - Helpers never read credentials or execute agent work. IPC is versioned, bounded, validated JSONL. Stdout is protocol-only, stderr diagnostics.
 - V3 conversation and V2 dictation have independent transport state. Never fall back between them.
-- Before V3 opens, await the sidecar summary. Seed developer initial_items labelled <startup_context> and display its exact output in a UI-only Voice Context entry. User-selected reasoning defaults high and applies only to the sidecar.
+- Before V3 opens, await the sidecar summary. For Codex, seed developer initial_items labelled <startup_context> and display its exact output in a UI-only Voice Context entry. User-selected reasoning defaults high and applies only to the sidecar.
 - Plaintext sidecar history includes user text, final assistant text, textual compaction/branch summaries and realtime delegation/tails. Exclude thinking, tools, images and presentation entries. Preserve native Responses checkpoints and protocol-valid live tails.
 - Deliver realtime delegations as user-role custom messages, without duplicate rendering. Steer active Pi turns. Use session context for speakable interactive/RPC output. Never mirror extension input.
 - Start/end use the developer custom-message API with ordinary Pi fallback. Preserve fixed purple display and delivery options, never trigger a turn. While active, request progress between tools. Scope spoken formatting to delegations, restore normal interaction on end. Delegations/tails remain user-role.

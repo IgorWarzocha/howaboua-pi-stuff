@@ -11,6 +11,7 @@ import { renderSettingsScreen } from "./screen/view.ts";
 
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	setModel: ExtensionAPI["setModel"];
+	hasWebSearch?: () => boolean;
 	waitForIdle: () => Promise<void>;
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;

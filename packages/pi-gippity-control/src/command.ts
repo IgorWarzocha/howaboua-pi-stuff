@@ -12,6 +12,7 @@ import { openGippitySettings } from "./settings.ts";
 import type { CodexVoiceControls } from "./voice/controls.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 import { startLanRemoteCreateTurn } from "./voice/lan/create.ts";
+import { hasRealtimeWebSearch } from "./voice/realtime-web-search.ts";
 
 const ACTIONS = [
 	"realtime",
@@ -63,6 +64,7 @@ export function registerGippityCommand(options: {
 				await openGippitySettings({
 					ctx,
 					initialConfig: state.config,
+					hasWebSearch: () => hasRealtimeWebSearch(pi),
 					lanVoice,
 					onChange: (config) => save(ctx, config),
 				});

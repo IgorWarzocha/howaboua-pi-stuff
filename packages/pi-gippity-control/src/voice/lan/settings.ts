@@ -1,8 +1,10 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../../config.ts";
 import {
+	GIPPITY_VOICE_MODELS,
 	normalizeRealtimeV3Voice,
 	normalizeVoiceContextReasoning,
+	OPENAI_REALTIME_VOICES,
 	REALTIME_V3_VOICES,
 	type RealtimeV3Voice,
 	VOICE_CONTEXT_REASONING_LEVELS,
@@ -16,12 +18,17 @@ import {
 } from "../../config-store.ts";
 
 const BOOLEAN_SETTINGS = [
+	"webSearch",
 	"autoResumeRealtime",
 	"refreshRealtimeAfterCompaction",
 	"delegationAcknowledgements",
 	"forwardReasoningSummaries",
 ] as const;
 interface VoiceSettings {
+	model: GippityControlConfig["voice"]["model"];
+	realtimeVoice: GippityControlConfig["voice"]["realtimeVoice"];
+	realtimeAlternateVoice: GippityControlConfig["voice"]["realtimeAlternateVoice"];
+	webSearch: boolean;
 	v3Voice: RealtimeV3Voice;
 	v3AlternateVoice: RealtimeV3Voice;
 	contextModel?: VoiceContextModel | undefined;
@@ -37,6 +44,7 @@ export class LanVoiceSettingsError extends Error {}
 export function createLanVoiceSettings(
 	ctx: ExtensionContext,
 	getConfig: () => GippityControlConfig,
+	hasWebSearch?: () => boolean,
 ) {
 	const readConfig = () => readGippityControlConfig();
 	const scope = () => "Global";
@@ -60,6 +68,9 @@ export function createLanVoiceSettings(
 		const voice = readConfig().voice;
 		return {
 			config: {
+				model: voice.model,
+				realtimeVoice: voice.realtimeVoice,
+				realtimeAlternateVoice: voice.realtimeAlternateVoice,
 				v3Voice: voice.v3Voice,
 				v3AlternateVoice: voice.v3AlternateVoice,
 				contextModel: voice.contextModel ?? null,
@@ -67,6 +78,9 @@ export function createLanVoiceSettings(
 				...Object.fromEntries(BOOLEAN_SETTINGS.map((key) => [key, voice[key]])),
 			},
 			voices: REALTIME_V3_VOICES,
+			voiceModels: GIPPITY_VOICE_MODELS,
+			webSearchAvailable: hasWebSearch?.() ?? null,
+			realtimeVoices: OPENAI_REALTIME_VOICES,
 			contextModels: models(),
 			contextReasoningLevels: VOICE_CONTEXT_REASONING_LEVELS,
 			scope: scope(),
@@ -79,7 +93,20 @@ export function createLanVoiceSettings(
 			const patch: Partial<VoiceSettings> = {};
 			for (const [key, value] of Object.entries(body)) {
 				if (key === "clientId") continue;
-				if (key === "v3Voice" || key === "v3AlternateVoice") {
+				if (key === "model") {
+					const model = GIPPITY_VOICE_MODELS.find((entry) => entry === value);
+					if (!model)
+						throw new LanVoiceSettingsError("Choose a listed voice model");
+					patch.model = model;
+				} else if (
+					key === "realtimeVoice" ||
+					key === "realtimeAlternateVoice"
+				) {
+					const voice = OPENAI_REALTIME_VOICES.find((entry) => entry === value);
+					if (!voice)
+						throw new LanVoiceSettingsError("Choose a listed Realtime voice");
+					patch[key] = voice;
+				} else if (key === "v3Voice" || key === "v3AlternateVoice") {
 					const voice = normalizeRealtimeV3Voice(value);
 					if (!voice) throw new LanVoiceSettingsError("Choose a listed voice");
 					patch[key] = voice;

@@ -22,6 +22,7 @@ import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
 import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
+import { hasRealtimeWebSearch } from "../../voice/realtime-web-search.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS } from "./config-items-context.ts";
 import { captureSpendReport } from "../../codex-usage/report.ts";
@@ -166,6 +167,7 @@ export function registerCodexCommand(
 		};
 		await openCodexSettingsScreen(ctx, {
 			setModel: model => pi.setModel(model),
+			hasWebSearch: () => hasRealtimeWebSearch(pi),
 			waitForIdle: async () => { do { await ctx.waitForIdle(); } while (!ctx.isIdle()); },
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,

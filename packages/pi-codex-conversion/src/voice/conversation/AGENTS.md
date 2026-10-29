@@ -1,4 +1,4 @@
-- Own V3 call setup, realtime wire parsing, turn tracking, and delegation handoff framing here.
+- Own call setup, realtime wire parsing, turn tracking, and delegation handoff framing here. Codex turn-events.ts and public OpenAI public-turns.ts own separate protocols; never translate public calls into Codex wire events.
 - `turn.done` closes backend output; never wait for it before appending final speakable context.
 - Stream Pi progress through session speakable context so successive updates extend live speech; the final reply or unsent final tail belongs to its delegation.
 - Keep Pi session mutation and custom-card queueing outside this subtree; emit typed turns and callbacks.

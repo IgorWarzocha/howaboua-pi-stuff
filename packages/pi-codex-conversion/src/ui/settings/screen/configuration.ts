@@ -100,6 +100,7 @@ export function createSettingsConfiguration(
 				theme,
 				availableContextModels,
 				ctx,
+				options.hasWebSearch?.(),
 			).map((definition): ConfigSetting => {
 				if (definition.action !== "global-notebook-journals" && definition.action !== "global-notebook-checkpoint-cleanup") return definition;
 				return {
@@ -236,7 +237,7 @@ export function createSettingsConfiguration(
 				const nextDraft = definition.update(value, draft);
 				if (options.onChange(nextDraft)) {
 					draft = nextDraft;
-					if (activeTab === "context") {
+					if (activeTab === "context" || id === "voiceModel") {
 						settingsList = createSettingsList();
 						settingsList.selectItem(id);
 					} else {

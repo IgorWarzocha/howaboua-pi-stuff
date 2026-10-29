@@ -19,6 +19,12 @@ export {
 	ensureGippityLan,
 	type GippityLanServiceStatus,
 } from "./src/voice/lan/service.ts";
+export {
+	type GippityToolContext,
+	type GippityToolDefinition,
+	type GippityToolResult,
+	registerGippityVoiceTool,
+} from "./src/voice/realtime-tools.ts";
 
 export default function gippityControl(pi: ExtensionAPI): void {
 	registerPackageChangelog(pi);

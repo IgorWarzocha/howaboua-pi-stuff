@@ -208,7 +208,17 @@ See the [working examples](./examples/custom-tools/) and [definition contract](.
 <details>
 <summary><strong>Voice, dictation and remote access</strong></summary>
 
-Voice uses your Pi OpenAI Codex login independently of the active text model. The spoken model handles conversation and routes work. Pi keeps the tools, files and actual job.
+Choose **Voice model** in `/codex voice` or the browser interface. Voice runs independently of the active text model.
+
+| Voice model | Credential |
+| --- | --- |
+| `codex-live-1.1`, the default | Pi's legacy `openai-codex` login |
+| `realtime-2.1` | An OpenAI API key configured in Pi |
+| `realtime-2.1-mini` | An OpenAI API key configured in Pi |
+
+Codex Live and dictation use `/login openai-codex`. Selecting a Realtime voice model does not change dictation's login. Realtime API calls are billed separately through your OpenAI API account. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
+
+Realtime models use `send_task` to send Pi a self-contained task with relevant voice-discussion decisions and constraints. Busy Pi sessions receive it as steering, with existing tools and confirmations preserved. Realtime models can also use developer-registered voice tools. For optional search, load `@howaboua/pi-codex-web-run`, configure its access and enable **Realtime web search**. Search uses Web Run's configured provider and credentials.
 
 | Shortcut | Action |
 | --- | --- |
@@ -219,7 +229,7 @@ Voice uses your Pi OpenAI Codex login independently of the active text model. Th
 
 Audio follows system defaults. Select devices under Voice if needed. Dictation puts an editable transcript in Pi's input.
 
-Choose primary and alternate voices in the Voice tab or browser interface. With Shepherdr, transferring voice to another session alternates the voice and gives an arrival greeting. **Refresh voice context** summarises and restarts voice after rollover or compaction.
+Choose primary and alternate voices in the Voice tab or browser interface. Codex Live and Realtime keep separate voice choices, defaulting to Cove and Ember for Codex Live, Marin and Cedar for Realtime. Model and voice changes apply to the next call without replacing the current call. With Shepherdr, transferring voice to another session alternates the voice and gives an arrival greeting. **Refresh voice context** summarises and restarts voice after rollover or compaction.
 
 Customise the voice prompt at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. Trusted projects can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Your custom prompts are not rewritten automatically.
 
@@ -242,7 +252,7 @@ PCC supports GPT-6 Astra, Sol and Luna, plus GPT-6.1 Sol and Terra, with Respons
 
 Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
-Voice, usage and image descriptions can use the Codex login while another provider's model is active. The separate web and image-generation extensions also use that login independently.
+Codex Live voice, dictation, usage and image descriptions can use the Codex login while another provider's model is active. Realtime voice models use Pi's OpenAI API key instead. The separate web and image-generation extensions also use their configured access independently.
 
 </details>
 
@@ -268,6 +278,8 @@ See the [changelog](./CHANGELOG.md) or [report an issue](https://github.com/Igor
 <summary><strong>Building an integration</strong></summary>
 
 Normal Pi tools work with PCC without additional registration. For custom tool behaviour, shared agent context, developer messages or voice announcements, use the [extension API guide](../../docs/extension-apis.md) and [Code Mode example](./examples/code-mode-extension).
+
+To expose a tool directly to Realtime voice models, use `registerGippityVoiceTool` from `@howaboua/pi-codex-conversion/realtime-voice` during extension loading. Calls snapshot the registered tools at startup. Ordinary Pi tools are not automatically exposed to the voice model. Standalone GipPity exports the same API from `@howaboua/pi-gippity-control`.
 
 </details>
 

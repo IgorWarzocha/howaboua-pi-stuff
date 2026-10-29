@@ -24,6 +24,7 @@ import {
 export async function openGippitySettings(options: {
 	ctx: ExtensionContext;
 	initialConfig: GippityControlConfig;
+	hasWebSearch?: () => boolean;
 	lanVoice: CodexLanVoiceServerController;
 	onChange(config: GippityControlConfig): boolean;
 }): Promise<void> {
@@ -38,7 +39,14 @@ export async function openGippitySettings(options: {
 			contextModels.set(value, { provider: model.provider, modelId: model.id });
 		}
 		const buildSettings = () =>
-			buildGippitySettings(config, lanVoice, contextModels, theme, tui);
+			buildGippitySettings(
+				config,
+				lanVoice,
+				contextModels,
+				theme,
+				tui,
+				options.hasWebSearch?.(),
+			);
 		const createList = () => {
 			let next!: SettingsList;
 			next = new SettingsList(
@@ -69,11 +77,16 @@ export async function openGippitySettings(options: {
 					const updated = setting.update(value, config);
 					if (onChange(updated)) {
 						config = updated;
-						next.updateValue(
-							id,
-							buildSettings().find((item) => item.id === id)?.currentValue ??
-								value,
-						);
+						if (id === "voiceModel") {
+							list = createList();
+							list.selectItem(id);
+						} else {
+							next.updateValue(
+								id,
+								buildSettings().find((item) => item.id === id)?.currentValue ??
+									value,
+							);
+						}
 					} else next.updateValue(id, setting.currentValue);
 					tui.requestRender();
 				},
