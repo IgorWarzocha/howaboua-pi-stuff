@@ -9,3 +9,4 @@
 - Code and Notebook tools with structured arguments also accept JSON strings and, when help-backed, bare `help`.
 - Command-backed custom tools accept objects and arrays directly.
 - Keep the selected execution mode and its tools after conversation-tree navigation.
+- Guide Code and Notebook models to compose tool calls in one exec without requiring separate cells for help discovery.

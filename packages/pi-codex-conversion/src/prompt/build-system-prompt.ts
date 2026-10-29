@@ -39,7 +39,7 @@ const CODE_MODE_GUIDELINES = [
 	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec"],
 	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true"],
 	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites"],
-	["Await dependencies; batch independent calls only when combined output is small. Bound large reads", "Dependencies→await; batch independent calls ONLY if combined output small; bound large reads"],
+	["Compose known tool calls in one exec; await dependencies in order and run independent calls concurrently. Bound output at the source", "Known calls→one exec; dependencies→ordered awaits; independent calls→concurrent; bound output at source"],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
 
