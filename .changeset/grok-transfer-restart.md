@@ -2,5 +2,6 @@
 "@howaboua/pi-grok-realtime": patch
 ---
 
-- Restarting a transferred call stays with the selected Pi session instead of returning to the origin.
-- Start browser voice on a selected local or remote browser route, with correlated server and listening-state receipts for external callers.
+- Added `/grok server connect` to start voice in a local or configured remote browser and report whether it is listening.
+- Added `/grok server status` and `ensure` to inspect or start the LAN listener without toggling it.
+- Fixed restarting a transferred call returning to the original Pi session.

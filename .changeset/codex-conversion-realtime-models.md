@@ -2,27 +2,26 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-- Make deferred Pi tools discoverable in Code and Notebook without a separate search tool.
-- Send Realtime voice progress context immediately and guide it to avoid repeated tasks, guessed results and routing narration.
-- Retry WebSockets on later requests after a temporary connection failure instead of keeping the session on SSE.
-- Preserve Codex prompt-cache continuity when changing GPT-6 reasoning during a tool-running turn.
-- Choose Codex Live, Realtime 2.1 or Realtime 2.1 Mini and model-specific voices in terminal or LAN settings. Codex Live remains the default.
-- Realtime models can send tasks to the current Pi session, use developer-registered voice tools and optionally search through Web Run.
-- Choose a Pi API provider for Realtime, defaulting to `openai`. Its key and endpoint are used without silently switching accounts.
-- Codex Live prepares self-contained Pi requests from recent conversation and authoritative delegation input using a configurable model and reasoning level. Transcript revisions do not block handoff. Failed preparation is reported in voice without submitting raw input.
-- Handle voice tasks as ordinary user requests without voice-specific wrappers or reply restrictions, and share progress between tools.
-- Show the selected startup Voice Context summary even when reused from cache.
-- With reasoning-summary forwarding enabled, voice receives completed compatible-model summaries between tools even when the same message has visible text, without replaying streamed text.
-- Code and Notebook tools with structured arguments also accept JSON strings and, when help-backed, bare `help`.
-- Command-backed custom tools accept objects and arrays directly.
-- Notebook controls accept action objects as well as JSON-wrapped actions.
-- Fixed retained destructured bindings blocking later TypeScript cells with duplicate-declaration errors.
-- Keep the selected execution mode and its tools after conversation-tree navigation.
-- Guide Code and Notebook models to compose tool calls in one exec without requiring separate cells for help discovery.
-- End voice calls after the requested answer and farewell, without waiting for unrelated work. Accepted tasks continue after the call closes.
-- Transfer LAN voice between sessions after speech finishes; on the same machine, the browser reconnects at the same address automatically.
-- Retry interrupted LAN voice connections while retaining the microphone where possible.
-- Keep the browser microphone connected during LAN voice transfers.
-- Voice tasks reach the selected Pi session after a transfer.
-- Start voice in a local or configured remote browser through `/codex voice server connect`, with a correlated listening or failure receipt.
-- Inspect or start the LAN listener without toggling it through `/codex voice server status|ensure`.
+- Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default.
+- Added Pi API provider selection for Realtime, using the selected provider's credentials and endpoint.
+- Realtime voice supports Pi tasks, extension-provided voice tools and optional Web Run search.
+- Added model and reasoning settings for preparing Codex Live tasks from the voice conversation.
+- Voice tasks now run as ordinary Pi requests, with live progress sent back to the call.
+- Voice calls now finish the requested answer and farewell before closing. Accepted Pi tasks continue independently.
+- Fixed cached Voice Context summaries not appearing at call startup.
+- Fixed reasoning-summary forwarding skipping summaries when the same message also contained visible text.
+- LAN voice transfers now wait for speech to finish and reconnect automatically at the same browser address on the same machine.
+- Added automatic recovery from interrupted LAN voice connections, retaining the microphone where possible.
+- Fixed LAN voice transfers disconnecting the browser microphone.
+- Fixed voice tasks going to the original Pi session after a transfer.
+- Added `/codex voice server connect` to start voice in a local or configured remote browser and report whether it is listening.
+- Added `/codex voice server status` and `ensure` to inspect or start the LAN listener without toggling it.
+- Deferred Pi tools are now discoverable in Code and Notebook.
+- Code and Notebook tools now accept JSON strings alongside structured arguments, including bare `help` for help-backed tools.
+- Command-backed custom tools now accept objects and arrays directly.
+- Notebook controls now accept action objects alongside JSON-wrapped actions.
+- Fixed retained destructured bindings causing duplicate-declaration errors in later TypeScript cells.
+- Fixed conversation-tree navigation losing the selected execution mode and tools.
+- Code and Notebook guidance now supports help discovery and dependent tool calls within one cell.
+- Fixed temporary connection failures keeping later requests on SSE instead of retrying WebSockets.
+- Fixed GPT-6 reasoning changes during a tool-running turn unnecessarily breaking prompt-cache continuity.

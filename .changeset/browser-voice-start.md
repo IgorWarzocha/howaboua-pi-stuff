@@ -2,6 +2,6 @@
 "@howaboua/pi-browser": patch
 ---
 
-- Added a voice-start API for local and configured remote browsers that reports when the page is listening.
-- Added a voice-only setting that keeps browser automation out of the agent's tools.
+- Added an API to start voice in local or configured remote browsers and report when the microphone is listening.
+- Added a voice-only setting that hides browser automation tools from agents.
 - Fixed TypeScript calls rejecting request objects while equivalent JSON strings worked.
