@@ -53,43 +53,56 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	reply: new Set(["action", "machine", "target", "extension", "id", "message"]),
 };
 
-const agentFields = {
-	action: StringEnum(ACTIONS),
-	commands: Type.Optional(Type.Literal(true)),
-	machine: Type.Optional(Type.String()),
-	voice: Type.Optional(Type.Boolean()),
-	handoff: Type.Optional(Type.String()),
-	target: Type.Optional(Type.String()),
-	agent_type: Type.Optional(Type.String()),
-	name: Type.Optional(Type.String()),
-	label: Type.Optional(Type.String()),
-	placement: Type.Optional(StringEnum(START_PLACEMENTS)),
-	workspace: Type.Optional(Type.String()),
-	pane: Type.Optional(Type.String()),
-	cwd: Type.Optional(Type.String()),
-	message: Type.Optional(Type.String()),
-	base: Type.Optional(Type.String()),
-	blocking: Type.Optional(Type.Boolean()),
-	context: Type.Optional(Type.Boolean()),
-	board: Type.Optional(Type.Boolean()),
-	board_thread_id: Type.Optional(Type.String({ minLength: 1 })),
-	query: Type.Optional(Type.String()),
-	status: Type.Optional(StringEnum(STATUSES)),
-	source: Type.Optional(StringEnum(READ_SOURCES)),
-	lines: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
-	extension: Type.Optional(Type.String()),
-	id: Type.Optional(Type.String()),
-};
-
-const AgentsRequest = Type.Object(agentFields, { additionalProperties: false });
-
-export const AgentsParameters = Type.Object(
+const AgentsRequest = Type.Object(
 	{
-		...agentFields,
-		action: Type.Optional(agentFields.action),
+		action: StringEnum(ACTIONS),
+		commands: Type.Optional(Type.Literal(true)),
+		machine: Type.Optional(Type.String()),
+		voice: Type.Optional(Type.Boolean()),
+		handoff: Type.Optional(Type.String()),
+		target: Type.Optional(
+			Type.String({ description: "Agent name or pane ID" }),
+		),
+		agent_type: Type.Optional(Type.String()),
+		name: Type.Optional(
+			Type.String({
+				description: "Agent name; derived from label when omitted",
+			}),
+		),
+		label: Type.Optional(Type.String()),
+		placement: Type.Optional(StringEnum(START_PLACEMENTS)),
+		workspace: Type.Optional(Type.String()),
+		pane: Type.Optional(Type.String()),
+		cwd: Type.Optional(Type.String()),
+		message: Type.Optional(
+			Type.String({ description: "Task, follow-up or extension reply" }),
+		),
+		base: Type.Optional(Type.String({ description: "Review base branch" })),
+		blocking: Type.Optional(
+			Type.Boolean({
+				description:
+					"Delegation only; profile policy overrides spawn; otherwise defaults true",
+			}),
+		),
+		context: Type.Optional(Type.Boolean()),
+		board: Type.Optional(Type.Boolean()),
+		board_thread_id: Type.Optional(Type.String({ minLength: 1 })),
+		query: Type.Optional(Type.String()),
+		status: Type.Optional(StringEnum(STATUSES)),
+		source: Type.Optional(StringEnum(READ_SOURCES)),
+		lines: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+		extension: Type.Optional(Type.String()),
+		id: Type.Optional(Type.String()),
 	},
 	{ additionalProperties: false },
 );
+
+export const AgentsParameters = Type.Object({
+	action: Type.Optional(StringEnum(ACTIONS)),
+	commands: Type.Optional(Type.Literal(true)),
+	target: Type.Optional(Type.String()),
+	machine: Type.Optional(Type.String()),
+});
 
 export type AgentsParams = Static<typeof AgentsRequest>;
 export type AgentsToolParams = Static<typeof AgentsParameters>;
