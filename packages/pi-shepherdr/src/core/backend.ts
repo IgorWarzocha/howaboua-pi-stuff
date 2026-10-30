@@ -260,12 +260,20 @@ export class CoreConnection implements HerdrConnection {
 					),
 				};
 			case "agent.get": {
-				const snapshot = terminalSnapshot(
+				const listing = object(
 					await this.core.request("terminal.list", {}, options),
 				);
-				const matches = snapshot.agents.filter(
-					(agent) => agent.name === params["target"],
-				);
+				const snapshot = terminalSnapshot(listing);
+				const terminals = listing["terminals"];
+				// Include finished and non-Pi terminals: an address must not redirect.
+				const exact =
+					Array.isArray(terminals) &&
+					terminals.some(
+						(terminal) => object(terminal)["address"] === params["target"],
+					);
+				const matches = exact
+					? []
+					: snapshot.agents.filter((agent) => agent.name === params["target"]);
 				if (matches.length > 1)
 					throw new Error("Agent name is ambiguous; use its terminal address");
 				return {
