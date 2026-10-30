@@ -70,13 +70,20 @@ async function resolvePublicRealtimeAuth(
 						{ search_query: [{ q: args.query }] },
 						context.signal,
 					);
-					return Buffer.byteLength(result.text) <= 24 * 1024
-						? result.text
-						: `${Buffer.from(result.text)
-								.subarray(0, 24 * 1024)
-								.toString(
-									"utf8",
-								)}\n[Search result truncated; narrow the query]`;
+					// The tool-result limit measures JSON, including escaped text.
+					const maxBytes = 24 * 1024;
+					if (Buffer.byteLength(JSON.stringify(result.text)) <= maxBytes)
+						return result.text;
+					const notice = "\n[Search result truncated; narrow the query]";
+					let remaining = maxBytes - Buffer.byteLength(JSON.stringify(notice));
+					let excerpt = "";
+					for (const character of result.text) {
+						const bytes = Buffer.byteLength(JSON.stringify(character)) - 2;
+						if (bytes > remaining) break;
+						excerpt += character;
+						remaining -= bytes;
+					}
+					return excerpt + notice;
 				},
 			}
 		: tools;

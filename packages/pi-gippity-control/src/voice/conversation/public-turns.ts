@@ -294,10 +294,8 @@ export class PublicRealtimeTurns {
 				output: JSON.stringify(output),
 			},
 		});
-		if (!this.ending || call["name"] === "end_call") {
-			this.continuation = true;
-			this.schedule();
-		}
+		this.continuation = true;
+		this.schedule();
 	}
 	private send(event: unknown): void {
 		try {
@@ -308,11 +306,12 @@ export class PublicRealtimeTurns {
 	}
 	private schedule(): void {
 		clearTimeout(this.timer);
+		// Farewells wait for tool receipts; send_task settles at acceptance, not Pi completion.
 		if (
 			!this.continuation ||
 			!this.isActive() ||
 			this.abort.signal.aborted ||
-			(this.pendingTools && !this.ending) ||
+			this.pendingTools ||
 			this.completingResponse ||
 			this.activeResponse ||
 			this.awaitingResponse ||
