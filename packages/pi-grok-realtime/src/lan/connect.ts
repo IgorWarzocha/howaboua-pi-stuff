@@ -14,9 +14,11 @@ export async function connectBrowserVoice(
 	route: string,
 	urls: string[],
 	explicitUrl?: string,
+	signal?: AbortSignal,
 ): Promise<BrowserReceipt> {
 	let url: string | undefined;
 	try {
+		signal?.throwIfAborted();
 		if (explicitUrl) {
 			if (!urls.includes(explicitUrl))
 				throw new Error(
@@ -43,11 +45,14 @@ export async function connectBrowserVoice(
 		const { startBrowserVoice } = await import(
 			"@howaboua/pi-browser/voice-start"
 		);
+		signal?.throwIfAborted();
 		const result = await startBrowserVoice({
 			url,
 			provider: "grok",
+			...(signal ? { signal } : {}),
 			...(route === "local" ? {} : { host: route }),
 		});
+		signal?.throwIfAborted();
 		return {
 			browserRoute: route,
 			browserStatus: result.state,

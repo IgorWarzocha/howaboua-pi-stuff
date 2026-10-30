@@ -91,6 +91,13 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 	});
 	let lan: Awaited<ReturnType<typeof startLan>> | undefined;
 	let lanOperation = Promise.resolve();
+	let pendingLanStarts = 0;
+	let lanStartup = new AbortController();
+	const cancelLanStartup = () => {
+		lanStartup.abort(new Error("Browser voice startup cancelled"));
+		lanStartup = new AbortController();
+		controls.cancelStartup();
+	};
 	const connectReceipts = new Map<string, LanReceipt>();
 	controls.onChange = activity.onChange = () => lan?.publish();
 	const stopLan = async () => {
@@ -270,6 +277,7 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 					return;
 				}
 				if (action === "stop") {
+					cancelLanStartup();
 					await runLan(stopLan);
 					await controls.stop();
 					return;
@@ -291,8 +299,16 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 					return;
 				}
 				if (action === "server" || serverAction) {
+					// A toggle during bind disables the pending listener, not its successor.
+					const disable = !serverAction && Boolean(lan || pendingLanStarts);
+					if (disable) cancelLanStartup();
+					// Capture before enqueue: shutdown must invalidate queued starts too.
+					const signal = lanStartup.signal;
+					const startsLan = !disable && serverAction !== "status";
+					if (startsLan) pendingLanStarts++;
 					await runLan(async () => {
 						try {
+							signal.throwIfAborted();
 							if (serverAction === "connect" && requestId) {
 								const previous = connectReceipts.get(requestId.toLowerCase());
 								if (previous) {
@@ -326,13 +342,14 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 								await receipt();
 								return;
 							}
-							if (lan && !serverAction) {
+							if (disable) {
 								await stopLan();
 								return;
 							}
 							if (!lan) {
 								const { startLan } = await import("./lan/server.ts");
-								lan = await startLan({
+								signal.throwIfAborted();
+								const started = await startLan({
 									agentDir: getAgentDir(),
 									port: readConfig().port,
 									callbacks: {
@@ -403,12 +420,18 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 										},
 									},
 								});
+								if (signal.aborted) {
+									await started.close();
+									signal.throwIfAborted();
+								}
+								lan = started;
 							}
 							if (serverAction === "connect" && browserRoute) {
 								browser = await connectBrowserVoice(
 									browserRoute,
 									lan.urls,
 									explicitUrl,
+									signal,
 								);
 								if (browser.browserStatus !== "listening")
 									throw new Error(
@@ -432,6 +455,8 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 							if (serverAction && requestId) await receipt(error);
 							else throw error;
 						}
+					}).finally(() => {
+						if (startsLan) pendingLanStarts--;
 					});
 					return;
 				}
@@ -489,6 +514,7 @@ export function registerGrokRealtime(pi: ExtensionAPI): void {
 	});
 	pi.on("session_compact", async (_event, ctx) => voice.compacted(ctx));
 	const cleanup = async () => {
+		cancelLanStartup();
 		try {
 			await runLan(async () => {
 				await stopLan();

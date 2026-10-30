@@ -31,7 +31,13 @@ export function startVoiceArrival(options: {
 	const { pi, ctx, voice } = options;
 	const reservation = voice.reserveHandoffArrival();
 	const abort = new AbortController();
-	const signal = AbortSignal.any([abort.signal, reservation.signal]);
+	const signal = abort.signal;
+	const initialAbort = new AbortController();
+	const initialSignal = AbortSignal.any([
+		signal,
+		reservation.signal,
+		initialAbort.signal,
+	]);
 	let audio: HandoffAudio | undefined;
 	let forwarding: TransferredVoiceControls | undefined;
 	let removeForwarding: (() => void) | undefined;
@@ -52,12 +58,15 @@ export function startVoiceArrival(options: {
 				if (method === "session.stop") {
 					if (!starting && !stopped) pendingMute = voice.state().muted;
 					stopped = true;
+					// Preserve the link before cancellation closes the call's audio.
+					audio?.stopCall();
 					restartAbort?.abort();
-					if (starting && !restart) abort.abort();
+					if (starting && !restart) initialAbort.abort();
 					if (audio) {
-						audio.stopCall();
 						await voice.stopWithAudio(audio);
+						await audio.close();
 					}
+					await completion.catch(() => {});
 					await restart?.catch(() => {});
 					return;
 				}
@@ -142,8 +151,12 @@ export function startVoiceArrival(options: {
 	reservation.signal.addEventListener("abort", cancelled, { once: true });
 	const completion = (async () => {
 		try {
-			signal.throwIfAborted();
-			const prepared = await voice.prepareHandoff(ctx, options.config, signal);
+			initialSignal.throwIfAborted();
+			const prepared = await voice.prepareHandoff(
+				ctx,
+				options.config,
+				initialSignal,
+			);
 			prepared.context = `${prepared.context}\nThe caller is joining this session by voice. Arrival context only, not an agent task:\n${options.continuity}`;
 			link.stage("prepared");
 			const activation = await link.waitFor("activate");
@@ -155,38 +168,41 @@ export function startVoiceArrival(options: {
 				throw new Error(
 					"Voice transfer did not provide microphone and voice phase",
 				);
-			signal.throwIfAborted();
 			alternateVoice = activation["alternateVoice"];
 			pendingMute ??= activation["inputMuted"];
+			initialSignal.throwIfAborted();
 			reservation.release();
 			await voice.start(ctx, options.config, remoteAudio, {
 				prepared,
 				inputMuted: pendingMute,
 				alternateVoice,
-				signal,
+				signal: initialSignal,
 			});
-			signal.throwIfAborted();
-			starting = false;
+			initialSignal.throwIfAborted();
 			if (pendingMute !== undefined) voice.mute(pendingMute);
-			link.stage("active");
-			link.notify({
-				type: "session.event",
-				event: ctx.isIdle() ? "agent_settled" : "agent_start",
-				data: {},
-			});
-			link.notify({
-				type: "session.event",
-				event: "session_info_changed",
-				data: { name: pi.getSessionName() },
-			});
 		} catch (error) {
-			link.fail(asError(error));
-			await cleanup;
-			throw error;
+			if (!stopped || !initialAbort.signal.aborted || signal.aborted) {
+				link.fail(asError(error));
+				await cleanup;
+				throw error;
+			}
 		} finally {
+			starting = false;
 			reservation.release();
 			reservation.signal.removeEventListener("abort", cancelled);
 		}
+		// Stop can finish arrival with no active call; selection still transfers.
+		link.stage("active");
+		link.notify({
+			type: "session.event",
+			event: ctx.isIdle() ? "agent_settled" : "agent_start",
+			data: {},
+		});
+		link.notify({
+			type: "session.event",
+			event: "session_info_changed",
+			data: { name: pi.getSessionName() },
+		});
 	})();
 	return {
 		completion,
