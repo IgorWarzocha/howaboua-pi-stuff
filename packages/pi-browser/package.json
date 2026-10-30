@@ -68,7 +68,7 @@
 	"pi": {
 		"extensions": [
 			"./changelog.ts",
-			"./dist/index.js"
+			"./dist/extension.js"
 		]
 	},
 	"engines": {
