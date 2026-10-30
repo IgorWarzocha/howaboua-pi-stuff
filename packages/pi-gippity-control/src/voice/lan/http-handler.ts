@@ -251,5 +251,3 @@ export async function handleLanVoiceHttpRequest(
 		else response.end();
 	}
 }
-
-export { boundedString, isLanVoiceOriginAllowed };

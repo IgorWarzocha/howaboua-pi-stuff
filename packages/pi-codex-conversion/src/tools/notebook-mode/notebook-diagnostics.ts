@@ -1,5 +1,4 @@
 import { boundText, boundedDiagnosticResult, formatNotebookDiagnostics, formatRuntimeHealth, type NotebookDiagnostic } from "./diagnostic-results.ts";
-export { formatNotebookDiagnostics, type NotebookDiagnostic, type NotebookDiagnosticGroup } from "./diagnostic-results.ts";
 import { pathToFileURL } from "node:url";
 import type { NotebookControlResult } from "../code-mode/types.ts";
 import { readNotebookJournalCodeCells } from "./journal.ts";

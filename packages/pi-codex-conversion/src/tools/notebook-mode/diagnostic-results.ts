@@ -19,7 +19,7 @@ export interface NotebookDiagnostic {
 	message: string;
 }
 
-export interface NotebookDiagnosticGroup {
+interface NotebookDiagnosticGroup {
 	count: number;
 	severity: NotebookDiagnostic["severity"];
 	code?: string | number | undefined;

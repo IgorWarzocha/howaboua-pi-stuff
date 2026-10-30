@@ -24,7 +24,6 @@ export {
 	registerWindowRenderer,
 	SETTLEMENT_ENTRY,
 	WINDOW_MESSAGE,
-	type WindowDetails,
 	windowDetails,
 	windowMessage,
 } from "./window-message.js";
