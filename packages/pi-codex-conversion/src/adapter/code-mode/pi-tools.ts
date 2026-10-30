@@ -14,7 +14,6 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 		getTools: (reservedNames = []) => tools.filter((tool) => !reservedNames.includes(tool.name)),
 		prepareLoadout(loadout, additionallyHidden = []) {
 			const registered = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
-			const declared = new Set(loadout.declared.map((tool) => tool.name));
 			tools = loadout.callable.filter((tool) => tool.name !== "codemode"
 				&& !ALL_CODEX_ADAPTER_TOOL_NAMES.includes(tool.name)
 				&& registered.get(tool.name)?.sourceInfo?.path !== "builtin:tool-search").map((tool) => {
@@ -29,8 +28,7 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 					promptGuidelines: metadata?.promptGuidelines,
 					kind: "function",
 					deferLoading: true,
-					// Pi maps MCP's codemode exposure to deferred; server discovery still owns its catalogue.
-					discoverWhenDeferred: mcp || loadout.getExposure(tool.name) !== "deferred" || declared.has(tool.name),
+					discoverWhenDeferred: true,
 					...(mcp ? { discovery: "server" as const } : {}),
 					executionPipeline: "pi",
 					propagateTermination: true,

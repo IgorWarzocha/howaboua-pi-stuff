@@ -2,6 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
+- Make deferred Pi tools discoverable in Code and Notebook without a separate search tool.
 - Send Realtime voice progress context immediately and guide it to avoid repeated tasks, guessed results and routing narration.
 - Retry WebSockets on later requests after a temporary connection failure instead of keeping the session on SSE.
 - Preserve Codex prompt-cache continuity when changing GPT-6 reasoning during a tool-running turn.
