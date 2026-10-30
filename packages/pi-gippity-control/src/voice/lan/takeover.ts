@@ -122,13 +122,19 @@ export class LanTakeoverArrival<T> {
 	}
 
 	consume(token?: string): T | undefined {
+		if (this.pending && Date.now() >= this.pending.expiresAt)
+			this.pending = undefined;
 		const pending = this.pending;
-		this.pending = undefined;
-		if (!token) return undefined;
-		if (!pending || pending.token !== token || Date.now() >= pending.expiresAt)
+		if (!token) {
+			if (pending)
+				throw new Error("Voice transfer is reconnecting. Try again shortly");
+			return undefined;
+		}
+		if (!pending || pending.token !== token)
 			throw new Error(
 				"Voice reconnect expired. Start voice again to use current session context",
 			);
+		this.pending = undefined;
 		return pending.value;
 	}
 }

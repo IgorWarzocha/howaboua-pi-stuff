@@ -331,6 +331,7 @@ export async function startCodexLanVoiceServer(options: {
 			) {
 				const proofUrl = new URL(request.url, "https://lan-voice.local");
 				const valid =
+					isLanVoiceOriginAllowed(request) &&
 					takeoverProof !== undefined &&
 					proofUrl.searchParams.get("token") === takeoverProof;
 				response.writeHead(valid ? 200 : 404, {

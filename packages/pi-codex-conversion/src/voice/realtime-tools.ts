@@ -67,6 +67,9 @@ export function registerGippityVoiceTool<T extends TSchema>(
 	if (!tool.name || RESERVED.has(tool.name)) {
 		throw new Error(`Voice tool name is empty or reserved: ${tool.name}`);
 	}
+	if (Buffer.byteLength(tool.name) > 64) {
+		throw new Error("Voice tool name exceeds 64 bytes; choose a shorter name");
+	}
 	const definition: GippityToolWireDefinition = {
 		type: "function",
 		name: tool.name,
