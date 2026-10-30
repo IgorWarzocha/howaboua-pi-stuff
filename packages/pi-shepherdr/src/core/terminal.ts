@@ -31,6 +31,9 @@ export function terminalPane(value: unknown): PaneInfo {
 		interactive_ready: live && typeof session === "string" && !!session,
 		launch_pending: live && !session,
 		...(typeof terminal["cwd"] === "string" ? { cwd: terminal["cwd"] } : {}),
+		...(typeof terminal["title"] === "string"
+			? { title: terminal["title"] }
+			: {}),
 		...(typeof labels["pi.shepherdr.name"] === "string"
 			? { name: labels["pi.shepherdr.name"] }
 			: typeof terminal["name"] === "string"

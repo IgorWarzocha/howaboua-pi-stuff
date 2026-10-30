@@ -9,3 +9,4 @@
 - Fixed legacy remote connections and Core worker launches when a Pi template is configured.
 - Prevented intermediate tool calls from being reported as completed agent work.
 - Fixed remote voice handoff to Windows Core hosts.
+- Find Core Pi sessions by their terminal titles, treating spaces, hyphens and underscores alike in searches.

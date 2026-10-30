@@ -149,8 +149,11 @@ function compactAgent(
 		machine,
 		target: agent.pane_id,
 		...(agent.name ? { name: agent.name } : {}),
-		...(agent.label || names.panes.get(agent.pane_id)
-			? { label: agent.label ?? names.panes.get(agent.pane_id) }
+		...(agent.label || names.panes.get(agent.pane_id) || agent.title
+			? { label: agent.label || names.panes.get(agent.pane_id) || agent.title }
+			: {}),
+		...(agent.title && (agent.label || names.panes.get(agent.pane_id))
+			? { title: agent.title }
 			: {}),
 		status: agent.agent_status,
 		cwd: agent.foreground_cwd ?? agent.cwd ?? null,
@@ -174,11 +177,15 @@ function matchesAgent(
 ): boolean {
 	if (status && agent["status"] !== status) return false;
 	if (!query) return true;
-	const haystack = Object.values(agent)
+	const normalize = (value: string) =>
+		value
+			.toLowerCase()
+			.replace(/[-_\s]+/g, " ")
+			.trim();
+	const needle = normalize(query);
+	return Object.values(agent)
 		.filter((value) => typeof value === "string")
-		.join("\n")
-		.toLowerCase();
-	return haystack.includes(query.toLowerCase());
+		.some((value) => normalize(value).includes(needle));
 }
 
 export async function listFleetAgents(
