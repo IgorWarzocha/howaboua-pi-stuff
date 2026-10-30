@@ -1,14 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { join, posix } from "node:path";
 import type { VM } from "@earendil-works/gondolin";
-import { parseDocument } from "yaml";
 import { z } from "zod";
-import { configSchema, type Service } from "./contracts.ts";
+import type { Service } from "./contracts.ts";
 import { checked, serviceRunning, startService, stopService } from "./guest.ts";
 import { openPortal } from "./portals.ts";
+import {
+	ServiceDeclarations,
+	serviceReference,
+} from "./service-declarations.ts";
 import { existsError, shellQuote as q, saveJson } from "./storage.ts";
 
-const reference = /\$\{services\.([a-z0-9][a-z0-9-]{0,31})\.publicURL\}/g;
 type Links = Service["previews"];
 type Entry = {
 	service: Service;
@@ -29,10 +31,8 @@ export class GuestServices {
 	private entries = new Map<string, Entry>();
 	private assignments: z.infer<typeof assignmentsSchema> = {};
 	private base: string | undefined;
-	private reservedPorts: number[] = [];
 	private attached = new Map<number, Awaited<ReturnType<typeof openPortal>>>();
-	private adHocConfig: Record<string, Service> = {};
-	private declaredNames = new Set<string>();
+	private definitions: ServiceDeclarations;
 	private vm: VM;
 	private dir: string;
 	readonly configPath: string;
@@ -42,6 +42,7 @@ export class GuestServices {
 		this.dir = dir;
 		this.configPath = configPath;
 		this.workspace = workspace;
+		this.definitions = new ServiceDeclarations(vm, dir, configPath);
 	}
 	async initialize(): Promise<void> {
 		try {
@@ -51,87 +52,8 @@ export class GuestServices {
 		} catch (error) {
 			if (!existsError(error, "ENOENT")) throw error;
 		}
-		try {
-			this.adHocConfig = configSchema.parse({
-				services: JSON.parse(
-					await readFile(join(this.dir, "adhoc.json"), "utf8"),
-				),
-			}).services;
-		} catch (error) {
-			if (!existsError(error, "ENOENT")) throw error;
-		}
-	}
-	private async declarations(): Promise<Record<string, Service>> {
-		if ((await this.vm.fs.stat(this.configPath)).size > 1048576)
-			throw new Error("Service YAML exceeds 1 MiB");
-		const text = await this.vm.fs.readFile(this.configPath, {
-			encoding: "utf8",
-		});
-		if (Buffer.byteLength(text) > 1048576)
-			throw new Error("Service YAML exceeds 1 MiB");
-		const document = parseDocument(text, { uniqueKeys: true });
-		if (document.errors.length)
-			throw new Error(`Invalid service YAML: ${document.errors[0]?.message}`);
-		const services = configSchema.parse(
-			document.toJS({ maxAliasCount: 20 }),
-		).services;
-		this.declaredNames = new Set(Object.keys(services));
-		let promoted = false;
-		for (const name of this.declaredNames) {
-			if (this.adHocConfig[name]) {
-				delete this.adHocConfig[name];
-				promoted = true;
-			}
-		}
-		if (promoted)
-			await saveJson(join(this.dir, "adhoc.json"), this.adHocConfig);
-		this.reservedPorts = Object.values(services).flatMap((service) =>
-			service.port ? [service.port] : [],
-		);
-		return { ...this.adHocConfig, ...services };
-	}
-	private eligible(service: Service): boolean {
-		return !service.platforms || service.platforms.includes("linux");
-	}
-	private order(config: Record<string, Service>, names: string[]): string[] {
-		const ordered: string[] = [];
-		const visiting = new Set<string>();
-		const visit = (name: string) => {
-			if (ordered.includes(name)) return;
-			if (visiting.has(name))
-				throw new Error(
-					`Service dependency cycle at ${name}. Correct env references in ${this.configPath}`,
-				);
-			const service = config[name] ?? this.entries.get(name)?.service;
-			if (!service)
-				throw new Error(
-					`Unknown service ${name}. Edit ${this.configPath} or use service-start`,
-				);
-			if (!this.eligible(service))
-				throw new Error(
-					`Referenced service ${name} excludes the guest's Linux platform`,
-				);
-			visiting.add(name);
-			for (const value of Object.values(service.env))
-				for (const match of value.matchAll(reference)) {
-					const dependency = match[1];
-					if (!dependency) continue;
-					const target = config[dependency];
-					if (
-						!target ||
-						!this.declaredNames.has(dependency) ||
-						(!target.preview && !target.previews.length)
-					)
-						throw new Error(
-							`Service ${name} references ${dependency}, which must be declared with a preview`,
-						);
-					visit(dependency);
-				}
-			visiting.delete(name);
-			ordered.push(name);
-		};
-		for (const name of names) visit(name);
-		return ordered;
+
+		await this.definitions.initialize();
 	}
 	private async configure(
 		name: string,
@@ -149,7 +71,7 @@ export class GuestServices {
 		let port = current?.port ?? this.assignments[name]?.port ?? service.port;
 		if (!port) {
 			const reserved = [
-				...this.reservedPorts,
+				...this.definitions.reservedPorts,
 				...Object.values(this.assignments).map((entry) => entry.port),
 				...[...this.entries.values()].map((entry) => entry.port),
 			];
@@ -282,7 +204,7 @@ export class GuestServices {
 		const env = Object.fromEntries(
 			Object.entries(entry.service.env).map(([key, value]) => [
 				key,
-				value.replace(reference, (_match, dependency: string) => {
+				value.replace(serviceReference, (_match, dependency: string) => {
 					const url = this.entries.get(dependency)?.portal?.url;
 					if (!url)
 						throw new Error(
@@ -316,7 +238,7 @@ export class GuestServices {
 		op: "ensure" | "status" | "restart" | "stop",
 		selected?: string,
 	): Promise<unknown> {
-		const config = op === "stop" ? {} : await this.declarations();
+		const config = op === "stop" ? {} : await this.definitions.read();
 		if (selected && !config[selected] && !this.entries.has(selected))
 			throw new Error(`Unknown service ${selected}. Edit ${this.configPath}`);
 		if (op === "ensure" || op === "restart") {
@@ -324,11 +246,14 @@ export class GuestServices {
 			// service ownership first, not only processes in this controller.
 			// Attached raw portals have separate ownership and routes.
 			for (const name of Object.keys(this.assignments)) {
-				if (!config[name] || !this.eligible(config[name]))
+				if (!config[name] || !this.definitions.eligible(config[name]))
 					delete this.assignments[name];
 			}
 			for (const [name, entry] of this.entries) {
-				if (entry.declared && (!config[name] || !this.eligible(config[name]))) {
+				if (
+					entry.declared &&
+					(!config[name] || !this.definitions.eligible(config[name]))
+				) {
 					await stopService(this.vm, name);
 					await entry.portal?.close();
 					this.entries.delete(name);
@@ -346,17 +271,19 @@ export class GuestServices {
 			? [selected]
 			: [...new Set([...Object.keys(config), ...this.entries.keys()])];
 		names = names.filter((name) =>
-			this.eligible(config[name] ?? this.entries.get(name)!.service),
+			this.definitions.eligible(
+				config[name] ?? this.entries.get(name)!.service,
+			),
 		);
 		if (op === "ensure" || op === "restart") {
-			names = this.order(config, names);
+			names = this.definitions.order(config, names, this.entries);
 			for (const name of names) {
 				const definition = config[name] ?? this.entries.get(name)!.service;
 				// Ensure does not silently replace a live process's environment.
 				const entry = await this.configure(
 					name,
 					definition,
-					this.declaredNames.has(name),
+					this.definitions.declaredNames.has(name),
 					op === "restart",
 				);
 				if (op === "restart" && (!selected || selected === name))
@@ -370,7 +297,7 @@ export class GuestServices {
 				const entry = this.entries.get(name);
 				return {
 					name,
-					declared: entry?.declared ?? this.declaredNames.has(name),
+					declared: entry?.declared ?? this.definitions.declaredNames.has(name),
 					running: await serviceRunning(this.vm, name),
 					responding:
 						op !== "stop" && !!entry && (await this.healthy(name, entry)),
@@ -382,23 +309,26 @@ export class GuestServices {
 		);
 	}
 	async adHoc(name: string, service: Service): Promise<unknown> {
-		const config = await this.declarations();
-		if (this.declaredNames.has(name))
+		const config = await this.definitions.read();
+		if (this.definitions.declaredNames.has(name))
 			throw new Error(
 				`Service ${name} is declared. Use services ensure or restart`,
 			);
-		if (this.entries.has(name) || this.adHocConfig[name])
+		if (this.entries.has(name) || this.definitions.hasAdHoc(name))
 			throw new Error(`Service ${name} already exists. Use services restart`);
-		if (!this.eligible(service))
+		if (!this.definitions.eligible(service))
 			return { name, skipped: "Service excludes the Linux guest" };
-		this.order({ ...config, [name]: service }, [name]);
-		for (const dependency of this.order({ ...config, [name]: service }, [
-			name,
-		]).filter((key) => key !== name))
+		this.definitions.order(
+			{ ...config, [name]: service },
+			[name],
+			this.entries,
+		);
+		for (const dependency of this.definitions
+			.order({ ...config, [name]: service }, [name], this.entries)
+			.filter((key) => key !== name))
 			await this.operate("ensure", dependency);
 		const entry = await this.configure(name, service, false);
-		this.adHocConfig[name] = service;
-		await saveJson(join(this.dir, "adhoc.json"), this.adHocConfig);
+		await this.definitions.register(name, service);
 		await this.start(name, entry, 60000);
 		return this.operate("status", name);
 	}
