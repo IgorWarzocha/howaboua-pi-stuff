@@ -191,8 +191,6 @@ export async function spawnAgent(
 		}
 		return toolResult(
 			{
-				...(boardAgent ? { boardAgent } : {}),
-				...(shared?.agentName ? { contextAgent: shared.agentName } : {}),
 				...(dispatch.command
 					? {
 							spawned: true,
@@ -214,6 +212,16 @@ export async function spawnAgent(
 								status: "working",
 								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 							}),
+				...(boardAgent || shared?.agentName
+					? {
+							sharing: {
+								...(boardAgent ? { boardAgent } : {}),
+								...(shared?.agentName
+									? { contextAgent: shared.agentName }
+									: {}),
+							},
+						}
+					: {}),
 			},
 			[dispatch.warning, shared?.warning, relationshipWarning]
 				.filter(Boolean)

@@ -227,6 +227,17 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 		label: "Notebook",
 		description: "Manage persistent notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
+		prepareArguments(args) {
+			let prepared = args;
+			if (typeof prepared === "string") prepared = { input: prepared };
+			if (prepared && typeof prepared === "object" && !Array.isArray(prepared)) {
+				if ("action" in prepared && !("input" in prepared)) prepared = { input: JSON.stringify(prepared) };
+				else if ("input" in prepared && prepared.input !== null && typeof prepared.input === "object")
+					prepared = { ...prepared, input: JSON.stringify(prepared.input) };
+			}
+			if (!Check(NOTEBOOK_PARAMETERS, prepared)) throw new Error('Invalid notebook arguments; call notebook({})');
+			return prepared;
+		},
 		...notebookRenderers,
 		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
@@ -240,6 +251,10 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 			} catch (error) {
 				throw new Error('notebook input must be help or a JSON action object; call notebook({})', { cause: error });
 			}
+			if (Check(NOTEBOOK_DISCOVERY_PARAMETERS, action)) return {
+				content: [{ type: "text", text: notebookHelp(runtime, ctx) }],
+				details: { action: "help" },
+			};
 			if (!Check(actionParameters(runtime.executionKind(ctx)), action)) {
 				throw new Error('Invalid notebook action arguments; call notebook({})');
 			}

@@ -15,6 +15,8 @@
 - With reasoning-summary forwarding enabled, voice receives completed compatible-model summaries between tools even when the same message has visible text, without replaying streamed text.
 - Code and Notebook tools with structured arguments also accept JSON strings and, when help-backed, bare `help`.
 - Command-backed custom tools accept objects and arrays directly.
+- Notebook controls accept action objects as well as JSON-wrapped actions.
+- Fixed retained destructured bindings blocking later TypeScript cells with duplicate-declaration errors.
 - Keep the selected execution mode and its tools after conversation-tree navigation.
 - Guide Code and Notebook models to compose tool calls in one exec without requiring separate cells for help discovery.
 - End voice calls after the requested answer and farewell, without waiting for unrelated work. Accepted tasks continue after the call closes.
