@@ -46,9 +46,12 @@ export interface LanOptions {
 	};
 }
 
-export async function startLan(
-	options: LanOptions,
-): Promise<{ urls: string[]; publish(): void; close(): Promise<void> }> {
+export async function startLan(options: LanOptions): Promise<{
+	urls: string[];
+	browserAttached(): boolean;
+	publish(): void;
+	close(): Promise<void>;
+}> {
 	if (
 		!Number.isInteger(options.port) ||
 		options.port < 1 ||
@@ -306,6 +309,8 @@ export async function startLan(
 		urls: [...certificate.ipAddresses, ...certificate.hostnames].map(
 			(host) => `https://${host}:${options.port}`,
 		),
+		browserAttached: () =>
+			[...sockets.clients].some((peer) => peer.readyState === WebSocket.OPEN),
 		publish,
 		close() {
 			shutdown ??= (async () => {

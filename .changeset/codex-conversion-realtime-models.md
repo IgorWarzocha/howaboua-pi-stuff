@@ -17,3 +17,5 @@
 - Transfer LAN voice between sessions on the same machine at the same address; the browser reconnects to a fresh call automatically.
 - Retry interrupted LAN voice connections while retaining the microphone where possible.
 - Voice tasks reach the selected Pi session after a transfer.
+- Start voice in a local or configured remote browser through `/codex voice server connect`, with a correlated listening or failure receipt.
+- Inspect or start the LAN listener without toggling it through `/codex voice server status|ensure`.

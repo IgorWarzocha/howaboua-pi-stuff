@@ -72,6 +72,12 @@ export class LanVoiceBrowserConnections {
 		return this.eventResponses.size > 0;
 	}
 
+	hasAudioClients(): boolean {
+		return [...this.audioSockets.values()].some(
+			(socket) => socket.readyState === WebSocket.OPEN,
+		);
+	}
+
 	broadcastControl(value: unknown): void {
 		for (const clientId of this.eventResponses.keys())
 			this.sendControl(clientId, value);

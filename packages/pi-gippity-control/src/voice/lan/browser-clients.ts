@@ -47,6 +47,10 @@ export class LanVoiceBrowserClients {
 		return this.connections.hasEventClients();
 	}
 
+	hasAudioClients(): boolean {
+		return this.connections.hasAudioClients();
+	}
+
 	broadcastControl(value: unknown): void {
 		this.connections.broadcastControl(value);
 	}

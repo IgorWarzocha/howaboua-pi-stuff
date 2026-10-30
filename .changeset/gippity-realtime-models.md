@@ -12,3 +12,5 @@
 - End voice calls after a farewell without waiting for unrelated Pi work. Public Realtime uses an end-call tool; Codex Live handles ending through its task-preparation agent. Accepted tasks continue after the call closes.
 - Transfer LAN voice between sessions on the same machine at the same address; the browser reconnects to a fresh call automatically.
 - Retry interrupted LAN voice connections while retaining the microphone where possible.
+- Start voice in a local or configured remote browser through `/gippity server connect`, with a correlated listening or failure receipt.
+- Inspect or start the LAN listener without toggling it through `/gippity server status|ensure`.

@@ -8,10 +8,12 @@ import {
 	readGippityControlConfig,
 	writeGippityControlConfig,
 } from "./config-store.ts";
+import { handleServerCommand } from "./server-command.ts";
 import { openGippitySettings } from "./settings.ts";
 import type { CodexVoiceControls } from "./voice/controls.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 import { startLanRemoteCreateTurn } from "./voice/lan/create.ts";
+import type { LanReceipt } from "./voice/lan/receipt.ts";
 import { hasRealtimeWebSearch } from "./voice/realtime-web-search.ts";
 
 const ACTIONS = [
@@ -31,6 +33,9 @@ export function registerGippityCommand(options: {
 	lanVoice: CodexLanVoiceServerController;
 }): void {
 	const { pi, state, voiceControls, lanVoice } = options;
+	const requests = new Map<string, Promise<LanReceipt>>();
+	pi.on("session_start", async () => requests.clear());
+	pi.on("session_shutdown", async () => requests.clear());
 	const save = (
 		ctx: ExtensionContext,
 		config: GippityControlConfig,
@@ -50,11 +55,12 @@ export function registerGippityCommand(options: {
 	pi.registerCommand("gippity", {
 		description: "Control GipPity voice and LAN remote",
 		getArgumentCompletions: (prefix) =>
-			ACTIONS.filter((action) =>
-				action.startsWith(prefix.trim().toLowerCase()),
-			).map((value) => ({ label: value, value })),
+			[...ACTIONS, "server ensure", "server status", "server connect"]
+				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
+				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
 			state.config = readGippityControlConfig();
+			if (await handleServerCommand(args, ctx, lanVoice, requests)) return;
 			const action = args.trim().toLowerCase();
 			if (!action) {
 				if (!ctx.hasUI) {

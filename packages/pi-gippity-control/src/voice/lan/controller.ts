@@ -20,6 +20,7 @@ import {
 export interface CodexLanVoiceServerStatus {
 	running: boolean;
 	urls: string[];
+	browserAttached: boolean;
 }
 
 export class CodexLanVoiceServerController {
@@ -54,7 +55,15 @@ export class CodexLanVoiceServerController {
 	}
 
 	status(): CodexLanVoiceServerStatus {
-		return { running: Boolean(this.server), urls: this.server?.urls ?? [] };
+		return {
+			running: Boolean(this.server),
+			urls: this.server?.urls ?? [],
+			browserAttached: this.server?.browserAttached ?? false,
+		};
+	}
+
+	getStatus(): Promise<CodexLanVoiceServerStatus> {
+		return this.enqueue(async () => this.status());
 	}
 
 	get hostsConversation(): boolean {
@@ -169,47 +178,70 @@ export class CodexLanVoiceServerController {
 		enabled: boolean,
 		ctx: ExtensionContext,
 	): Promise<CodexLanVoiceServerStatus> {
+		return this.enqueue(() => this.setEnabledCurrent(enabled, ctx));
+	}
+
+	connectBrowser<T>(
+		ctx: ExtensionContext,
+		start: (status: CodexLanVoiceServerStatus) => Promise<T>,
+	): Promise<T> {
 		return this.enqueue(async () => {
-			if (this.takeoverReservation)
-				throw new Error("LAN takeover is preparing; wait for it to finish");
-			if (!enabled) {
-				await this.stopCurrent(ctx);
-				return this.status();
-			}
-			const sessionId = ctx.sessionManager.getSessionId();
-			if (this.server?.ownerSessionId === sessionId) return this.status();
-			await this.stopCurrent(ctx);
-			const { startCodexLanVoiceServer } = await import("./server.ts");
-			this.server = await startCodexLanVoiceServer({
-				ctx,
-				pi: this.pi,
-				getConfig: this.getConfig,
-				voice: this.voice,
-				resolveAuth: () => resolveCodexVoiceAuth(ctx),
-				sendUserMessage: (text) => this.sendUserMessage(text, ctx),
-				ownerSessionId: sessionId,
-				certificateAgentDir: this.agentDir,
-				remoteApps: this.remoteApps,
-			});
-			ctx.ui.setStatus(
-				"gippity-lan",
-				ctx.ui.theme.fg("accent", "GipPity LAN: on"),
-			);
-			const config = this.getConfig();
-			const needsCustomApp =
-				config.lan.customWebApp && !this.server.customWebAppReady;
-			ctx.ui.notify(
-				`GipPity control server is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.${needsCustomApp ? "\nNo custom web app is connected. Run /gippity create." : ""}`,
-				"info",
-			);
-			if (needsCustomApp) {
-				appendLanRemoteCreateNotice(
-					this.pi,
-					`${this.server.urls[0]}/api/discovery`,
+			if (
+				this.voice.active ||
+				this.hostsConversation ||
+				this.status().browserAttached
+			)
+				throw new Error(
+					"Voice or browser audio is already active. Stop it before connecting another browser.",
 				);
-			}
-			return this.status();
+			const status = await this.setEnabledCurrent(true, ctx);
+			return start(status);
 		});
+	}
+
+	private async setEnabledCurrent(
+		enabled: boolean,
+		ctx: ExtensionContext,
+	): Promise<CodexLanVoiceServerStatus> {
+		if (this.takeoverReservation)
+			throw new Error("LAN takeover is preparing; wait for it to finish");
+		if (!enabled) {
+			await this.stopCurrent(ctx);
+			return this.status();
+		}
+		const sessionId = ctx.sessionManager.getSessionId();
+		if (this.server?.ownerSessionId === sessionId) return this.status();
+		await this.stopCurrent(ctx);
+		const { startCodexLanVoiceServer } = await import("./server.ts");
+		this.server = await startCodexLanVoiceServer({
+			ctx,
+			pi: this.pi,
+			getConfig: this.getConfig,
+			voice: this.voice,
+			resolveAuth: () => resolveCodexVoiceAuth(ctx),
+			sendUserMessage: (text) => this.sendUserMessage(text, ctx),
+			ownerSessionId: sessionId,
+			certificateAgentDir: this.agentDir,
+			remoteApps: this.remoteApps,
+		});
+		ctx.ui.setStatus(
+			"gippity-lan",
+			ctx.ui.theme.fg("accent", "GipPity LAN: on"),
+		);
+		const config = this.getConfig();
+		const needsCustomApp =
+			config.lan.customWebApp && !this.server.customWebAppReady;
+		ctx.ui.notify(
+			`GipPity control server is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.${needsCustomApp ? "\nNo custom web app is connected. Run /gippity create." : ""}`,
+			"info",
+		);
+		if (needsCustomApp) {
+			appendLanRemoteCreateNotice(
+				this.pi,
+				`${this.server.urls[0]}/api/discovery`,
+			);
+		}
+		return this.status();
 	}
 
 	stop(ctx?: ExtensionContext): Promise<void> {

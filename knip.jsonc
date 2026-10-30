@@ -33,7 +33,8 @@
 			"entry": [
 				"changelog.ts",
 				"index.ts",
-				"remote-worker.ts"
+				"remote-worker.ts",
+				"src/browser/voice-start.ts"
 			],
 			"project": [
 				"*.ts",

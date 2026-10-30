@@ -48,6 +48,7 @@ export interface CodexLanVoiceServer {
 	readonly port: number;
 	readonly certificateFingerprint: string;
 	hasActiveConversation(): boolean;
+	browserAttached(): boolean;
 	verifyTakeoverHost(
 		verify: (proof: { port: number; token: string }) => Promise<void>,
 	): Promise<void>;
@@ -436,6 +437,7 @@ export async function startCodexLanVoiceServer(options: {
 		certificateFingerprint: new X509Certificate(certificate.cert)
 			.fingerprint256,
 		hasActiveConversation: () => Boolean(activeConversation?.conversation),
+		browserAttached: () => clients.browserAttached(),
 		async verifyTakeoverHost(verify) {
 			const token = randomUUID();
 			proofToken = token;

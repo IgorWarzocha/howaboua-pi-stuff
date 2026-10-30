@@ -65,6 +65,7 @@ export interface CodexLanVoiceServer {
 	readonly urls: string[];
 	readonly customWebAppReady: boolean;
 	readonly hasConversation: boolean;
+	readonly browserAttached: boolean;
 	readonly port: number;
 	readonly certificateFingerprint: string;
 	acknowledgeTakeover(token: string): Promise<void>;
@@ -489,6 +490,9 @@ export async function startCodexLanVoiceServer(options: {
 		customWebAppReady: Boolean(initialWebApp.customApp),
 		get hasConversation() {
 			return Boolean(activeConversation?.conversation);
+		},
+		get browserAttached() {
+			return !closing && clients.hasAudioClients();
 		},
 		port: address.port,
 		certificateFingerprint: new X509Certificate(certificate.cert)

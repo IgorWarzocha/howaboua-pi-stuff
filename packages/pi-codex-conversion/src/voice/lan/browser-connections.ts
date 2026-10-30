@@ -13,6 +13,10 @@ export class LanVoiceBrowserConnections {
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
 
+	hasAudioClients(): boolean {
+		return [...this.audioSockets.values()].some((socket) => socket.readyState === WebSocket.OPEN);
+	}
+
 	connectEvents(clientId: string, response: ServerResponse, closed: boolean): void {
 		if (closed) { response.end(); return; }
 		const previous = this.eventResponses.get(clientId);

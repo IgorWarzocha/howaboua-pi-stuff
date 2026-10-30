@@ -241,6 +241,14 @@ Customise the voice prompt at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. Trusted p
 
 Run `/codex voice server`, open its HTTPS address on your phone or another computer, and accept the local certificate. The browser provides voice, mute, editable dictation, typed prompts and Pi activity. Moving between devices does not restart the host's voice call.
 
+For automation, use `/codex voice server ensure` to start the listener only if needed, or `/codex voice server status` to inspect it without changing it. The bare `/codex voice server` command remains a toggle. Starting the listener does not start a voice call.
+
+Append a UUID v4 to either explicit command to write a JSON receipt at `<Pi agent directory>/runtime/voice-requests/<UUID>.json`. Receipts are written atomically with private permissions. Each records `version: 1`, `requestId`, `action`, `provider: "codex"`, `sessionId`, `terminalId`, `status`, `running`, `urls` and `browserAttached`, plus `error` on failure. `terminalId` is null outside Herdr. `status` is `running`, `stopped` or `error`. `browserAttached` means a browser audio socket is open, not that the voice provider is connected. Use a fresh UUID for each request, wait for its receipt and remove it after reading. Without a UUID, results appear in Pi.
+
+Use `/codex voice server connect <browser-route> <UUIDv4> [url]` to ensure the listener and start voice in a new browser tab. Use `local` for this machine's browser or a host configured in Pi Browser, such as `laptop`. The selected browser needs an existing CDP connection, certificate trust and microphone permission. The command does not change those permissions. Remote browsers use this server's hostname URL by default. An optional URL must appear in the listener's reported `urls` and be reachable from the browser.
+
+Connect receipts add `browserRoute`, `browserStatus`, `browserUrl` and, when available, `browserRefId`. `browserStatus` reports the page's acknowledged `listening`, `error` or `timeout` result. Failures include `browserError` and leave the listener's actual `running` state intact. Existing voice or browser audio blocks a new connection to avoid taking its microphone. Repeating a connect UUID does not open another tab or repeat a start click. A failed or timed-out attempt is not retried automatically. Check its tab before making another attempt.
+
 Use `/codex voice stop` to stop voice. The remote server stops when its owning Pi session changes.
 
 </details>

@@ -12,6 +12,7 @@ import type { PreparedRealtimeContext } from "../controller/start.ts";
 export interface CodexLanVoiceServerStatus {
 	running: boolean;
 	urls: string[];
+	browserAttached: boolean;
 }
 
 export class CodexLanVoiceServerController {
@@ -40,10 +41,11 @@ export class CodexLanVoiceServerController {
 	}
 
 	status(): CodexLanVoiceServerStatus {
-		return { running: Boolean(this.server), urls: this.server?.urls ?? [] };
+		return { running: Boolean(this.server), urls: this.server?.urls ?? [], browserAttached: this.server?.browserAttached() ?? false };
 	}
 
 	hasActiveConversation(): boolean { return this.server?.hasActiveConversation() ?? false; }
+	hasActiveVoice(): boolean { return this.voice.active; }
 
 	async prepareTakeover(ctx: ExtensionContext) {
 		const reservation = {};

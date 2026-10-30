@@ -37,11 +37,20 @@ Commands:
 - `/gippity mute`
 - `/gippity dictation`
 - `/gippity stop`
-- `/gippity server`
+- `/gippity server` toggles the LAN listener
+- `/gippity server ensure` starts the listener if needed
+- `/gippity server status` reports listener readiness without starting voice
+- `/gippity server connect <browser-route> <UUID-v4> [listener-url]` starts voice once in the selected browser
 - `/gippity create` — plan and build a custom LAN web app
 - `/gippity setup` — configure audio devices
 
 Settings live at `<pi-agent-directory>/pi-gippity-control.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. Keybind changes take effect after `/reload`.
+
+External callers can append a UUID v4 request ID to `server ensure` or `server status`. Pi writes an atomic, private JSON receipt to `<pi-agent-directory>/runtime/voice-requests/<UUID>.json`. The caller reads and removes it. Receipts include `version: 1`, `requestId`, `action`, `sessionId`, `terminalId`, `provider: "gippity"`, `status`, `running`, `urls`, `browserAttached` and an `error` string on failure. `terminalId` comes from `HC_TERMINAL_ID`, or is `null`. `status` is `running`, `stopped` or `error`. `running` describes the listener and `browserAttached` means an open browser audio transport, not an established voice call.
+
+`server connect` requires a request ID and a configured Pi Browser route, or `local` for this machine. It ensures the listener, opens one browser tab and reports the page's acknowledged voice state as `browserStatus`: `listening`, `error` or `timeout`. The receipt also includes `browserRoute`, the selected `browserUrl`, `browserRefId` when available and `browserError` on failure. A running listener does not imply listening voice. Accept the listener's certificate and grant microphone permission in the browser yourself when needed.
+
+Remote browsers use the listener URL matching this machine's hostname. The local browser prefers a returned localhost URL, then the hostname URL. An explicit URL must exactly match one of the listener's URLs and cannot be loopback for a remote route. Connecting refuses an active voice call or attached browser audio instead of taking it over. Reusing a request ID within the Pi session does not open another tab or repeat a click.
 
 Choose **Voice model**, **Primary voice** and **Alternate voice** in settings or the LAN UI. Changes apply to the next call without replacing the current call. Codex Live and Realtime keep separate voice choices. Defaults are Cove and Ember for Codex Live, Marin and Cedar for Realtime. With Shepherdr, each voice transfer to another session alternates the voice and gives an arrival greeting. Reconnects and context refreshes keep the current voice.
 

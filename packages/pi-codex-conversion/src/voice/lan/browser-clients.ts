@@ -31,6 +31,10 @@ export class LanVoiceBrowserClients {
 			});
 	}
 
+	browserAttached(): boolean {
+		return this.connections.hasAudioClients();
+	}
+
 	takeover(token: string): Promise<void> {
 		const socket = this.session.conversationSocket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {

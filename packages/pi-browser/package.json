@@ -80,6 +80,10 @@
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
+		"./voice-start": {
+			"types": "./dist/src/browser/voice-start.d.ts",
+			"import": "./dist/src/browser/voice-start.js"
+		},
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"

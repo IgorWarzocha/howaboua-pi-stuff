@@ -143,6 +143,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@howaboua/pi-browser": "^0.0.11",
     "acorn": "8.19.0",
     "openai": "7.45.0",
     "proxy-from-env": "2.1.0",
