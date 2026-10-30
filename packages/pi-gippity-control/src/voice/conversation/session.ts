@@ -1,3 +1,4 @@
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { GippityControlConfig } from "../../config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
@@ -21,7 +22,7 @@ export interface CodexConversationCallbacks {
 		turn: RealtimeVoiceTurn,
 		signal: AbortSignal,
 	): Promise<PreparedVoiceTask>;
-	onEndCall?(finalOutputObserved?: boolean): void;
+	onEndCall?(finalOutputObserved?: boolean, resultDelegationId?: string): void;
 	onDelegationError?(error: Error): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
@@ -37,6 +38,7 @@ export class CodexRealtimeConversation {
 	private inputMuted = false;
 	finishingAcceptedWork = false;
 	private ending = false;
+	private endAfterResult: { id: string; active: boolean } | undefined;
 	private completedOutputs = 0;
 	private endingOutput = 0;
 	private readonly closing = new AbortController();
@@ -63,13 +65,15 @@ export class CodexRealtimeConversation {
 		this.turns = new Turns(
 			{
 				...callbacks,
-				onEndCall: (finalOutputObserved = false) => {
-					if (this.ending) return;
-					this.ending = true;
-					this.endingOutput =
-						this.completedOutputs + (finalOutputObserved ? 0 : 1);
-					this.turns.handoff.clear();
-					callbacks.onEndCall?.();
+				onEndCall: (finalOutputObserved = false, resultDelegationId) => {
+					if (resultDelegationId) {
+						this.endAfterResult = { id: resultDelegationId, active: false };
+						this.turns.sendContext(
+							{ type: "session" },
+							"commentary",
+							"The user wants the requested answer before ending the call. When its result arrives, speak the answer and a brief farewell.",
+						);
+					} else this.beginEnding(finalOutputObserved);
 				},
 			},
 			peer,
@@ -138,18 +142,26 @@ export class CodexRealtimeConversation {
 	}
 
 	activateDelegation(id: string): void {
+		if (this.endAfterResult?.active && this.endAfterResult.id !== id)
+			this.endAfterResult = undefined;
 		this.turns.handoff.activate(id);
+		if (this.endAfterResult?.id === id) this.endAfterResult.active = true;
 	}
 
 	piInput(
 		input: unknown,
 		streamingBehavior?: RealtimePiInputBehavior,
 	): boolean {
-		return this.turns.handoff.piInput(input, streamingBehavior);
+		const routed = this.turns.handoff.piInput(input, streamingBehavior);
+		if (routed && streamingBehavior === undefined)
+			this.endAfterResult = undefined;
+		return routed;
 	}
 
 	piUserMessage(message: unknown): boolean {
-		return this.turns.handoff.piUserMessage(message);
+		const consumed = this.turns.handoff.piUserMessage(message);
+		if (consumed) this.endAfterResult = undefined;
+		return consumed;
 	}
 
 	get microphoneMuted(): boolean {
@@ -177,12 +189,22 @@ export class CodexRealtimeConversation {
 		this.turns.handoff.progress(content, reasoningSummary);
 	}
 
-	agentResult(content: string): void {
+	agentResult(
+		content: string,
+		stopReason: AssistantMessage["stopReason"],
+	): void {
 		if (this.ending) return;
+		if (stopReason !== "stop") {
+			this.turns.handoff.progress(content);
+			this.failDeferredEnding();
+			return;
+		}
 		this.turns.handoff.result(content);
+		if (this.endAfterResult?.active && content.trim()) this.beginEnding(false);
 	}
 
 	settleAgentTurn(): void {
+		this.failDeferredEnding();
 		if (this.ending) {
 			this.turns.handoff.clear();
 			return;
@@ -190,6 +212,24 @@ export class CodexRealtimeConversation {
 		this.turns.handoff.settle();
 		if (!this.turns.speakableResponsePending)
 			this.callbacks.onStatus("listening");
+	}
+
+	private failDeferredEnding(): void {
+		if (this.endAfterResult?.active) {
+			this.endAfterResult = undefined;
+			this.appendSpeakableContext(
+				"The requested answer did not complete. Tell the user it could not be finished and the call remains open; they can retry or stop the call.",
+			);
+		}
+	}
+
+	private beginEnding(finalOutputObserved: boolean): void {
+		if (this.ending) return;
+		this.endAfterResult = undefined;
+		this.ending = true;
+		this.endingOutput = this.completedOutputs + (finalOutputObserved ? 0 : 1);
+		this.turns.handoff.clear();
+		this.callbacks.onEndCall?.();
 	}
 
 	get isEndingCall(): boolean {
@@ -307,6 +347,7 @@ export class CodexRealtimeConversation {
 					message.response?.status === "cancelled")
 			) {
 				this.ending = false;
+				this.endAfterResult = undefined;
 				if (this.turns instanceof PublicRealtimeTurns)
 					this.turns.cancelEndCall();
 			}

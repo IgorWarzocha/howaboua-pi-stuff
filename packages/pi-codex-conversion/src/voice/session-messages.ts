@@ -42,6 +42,7 @@ export class CodexVoiceSessionMessages {
 	private context: ExtensionContext | undefined;
 	private piTurnActive = false;
 	private dictationAnnounced = false;
+	private readonly pendingDelegations = new Map<string, () => void>();
 	private delegationTail: Promise<void> = Promise.resolve();
 	private delegationAbortController = new AbortController();
 	private compactionBarrier:
@@ -180,6 +181,24 @@ export class CodexVoiceSessionMessages {
 		this.piTurnActive = false;
 	}
 
+	delegationConsumed(message: unknown): boolean {
+		if (!message || typeof message !== "object") return false;
+		const candidate = message as {
+			role?: string;
+			customType?: string;
+			details?: { delegationId?: string };
+		};
+		if (candidate.role !== "custom" || candidate.customType !== REALTIME_DELEGATION_MESSAGE_TYPE)
+			return false;
+		const id = candidate.details?.delegationId;
+		if (!id) return false;
+		const activate = this.pendingDelegations.get(id);
+		if (!activate) return false;
+		this.pendingDelegations.delete(id);
+		activate();
+		return true;
+	}
+
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
 		if (mode === "realtime") {
 			const message = codexVoiceModeMessage(mode, state);
@@ -198,6 +217,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private replaceContext(ctx: ExtensionContext | undefined): void {
+		this.pendingDelegations.clear();
 		this.delegationAbortController.abort();
 		this.delegationAbortController = new AbortController();
 		this.contextGeneration++;
@@ -242,7 +262,11 @@ export class CodexVoiceSessionMessages {
 			signal.throwIfAborted();
 			if (generation !== this.contextGeneration || this.context !== ctx) return;
 			deliveryStarted = true;
-			this.callbacks.onDelegation(turn.delegationId, turn.input, source);
+			const id = turn.delegationId;
+			// Pi consumes queued steering at message_start, after the previous answer.
+			this.pendingDelegations.set(id, () =>
+				this.callbacks.onDelegation(id, turn.input, source),
+			);
 			this.piTurnActive = true;
 			this.callbacks.onWorking();
 			// Submission has no acceptance receipt. Do not retry a possibly delivered task.
@@ -251,11 +275,16 @@ export class CodexVoiceSessionMessages {
 					customType: REALTIME_DELEGATION_MESSAGE_TYPE,
 					content: renderRealtimeUserInput(turn.input, turn.transcriptDelta),
 					display: false,
-					details: { input: turn.input, route: "delegation" } satisfies RealtimeVoiceMessageDetails,
+					details: {
+						input: turn.input,
+						route: "delegation",
+						delegationId: id,
+					} satisfies RealtimeVoiceMessageDetails & { delegationId: string },
 				},
 				{ triggerTurn: true, deliverAs: "steer" },
 			);
 		} catch (error) {
+			this.pendingDelegations.delete(turn.delegationId);
 			if (
 				generation !== this.contextGeneration ||
 				this.context !== ctx

@@ -36,6 +36,7 @@ export class CodexVoiceSessionMessages {
 	private context: ExtensionContext | undefined;
 	private piTurnActive = false;
 	private dictationAnnounced = false;
+	private readonly pendingDelegations = new Map<string, () => void>();
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
 		this.pi = pi;
@@ -71,6 +72,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	resetSessionContext(): void {
+		this.pendingDelegations.clear();
 		this.context = undefined;
 		this.piTurnActive = false;
 	}
@@ -80,6 +82,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	voiceStopped(mode?: CodexVoiceMode): void {
+		this.pendingDelegations.clear();
 		this.piTurnActive = this.context ? !this.context.isIdle() : false;
 		if (mode && mode !== "dictation") this.appendMode(mode, "ended");
 		this.context = undefined;
@@ -132,6 +135,27 @@ export class CodexVoiceSessionMessages {
 		this.piTurnActive = false;
 	}
 
+	delegationConsumed(message: unknown): boolean {
+		if (!message || typeof message !== "object") return false;
+		const candidate = message as {
+			role?: string;
+			customType?: string;
+			details?: { delegationId?: string };
+		};
+		if (
+			candidate.role !== "custom" ||
+			candidate.customType !== REALTIME_DELEGATION_MESSAGE_TYPE
+		)
+			return false;
+		const id = candidate.details?.delegationId;
+		if (!id) return false;
+		const activate = this.pendingDelegations.get(id);
+		if (!activate) return false;
+		this.pendingDelegations.delete(id);
+		activate();
+		return true;
+	}
+
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
 		if (mode === "realtime") {
 			this.pi.sendMessage(codexVoiceModeMessage(mode, state), {
@@ -156,7 +180,9 @@ export class CodexVoiceSessionMessages {
 	): boolean {
 		if (!turn.delegationId || (!accepted && !this.callbacks.canDelegate()))
 			return false;
-		this.callbacks.onDelegation(turn.delegationId);
+		const id = turn.delegationId;
+		// Pi consumes queued steering at message_start, after the previous answer.
+		this.pendingDelegations.set(id, () => this.callbacks.onDelegation(id));
 		this.piTurnActive = true;
 		this.callbacks.onWorking();
 		// Submission has no acceptance receipt. Do not retry a possibly delivered task.
@@ -168,7 +194,8 @@ export class CodexVoiceSessionMessages {
 				details: {
 					input: turn.input,
 					route: "delegation",
-				} satisfies RealtimeVoiceMessageDetails,
+					delegationId: id,
+				} satisfies RealtimeVoiceMessageDetails & { delegationId: string },
 			},
 			startsTurn
 				? { triggerTurn: true }

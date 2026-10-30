@@ -17,7 +17,7 @@ export function startVoiceDeparture(options: {
 	onClosed(error: Error): void;
 	lanTakeover?: (
 		offer: LanTakeoverOffer | undefined,
-		releaseAudio: () => Promise<void>,
+		releaseAudio: (beforeStop?: () => Promise<void>) => Promise<void>,
 		verify: (value: unknown) => Promise<unknown>,
 	) => Promise<number | undefined>;
 }): { completion: Promise<void>; readonly detached: boolean; close(): void } {
@@ -93,9 +93,9 @@ export function startVoiceDeparture(options: {
 					offered === undefined ? undefined : decodeLanTakeoverOffer(offered);
 				const port = await options.lanTakeover(
 					offer,
-					() => {
+					(beforeStop) => {
 						options.captured.bindControls(controls);
-						return audio!.release(abort.signal);
+						return audio!.release(abort.signal, beforeStop);
 					},
 					(value) => link.request("lan.verify", value),
 				);

@@ -145,6 +145,7 @@ export class ConversationTurns {
 					)
 						this.callbacks.onEndCall?.(
 							this.completedOutputs > outputsAtDelegation,
+							input ? turn.delegationId : undefined,
 						);
 					if (!input && turn.delegationId)
 						this.turnTracker.delegationSettled(turn.delegationId);

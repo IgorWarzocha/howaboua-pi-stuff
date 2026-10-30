@@ -45,6 +45,7 @@ export class ControllerAgent {
 	}
 
 	piUserMessage(message: unknown): boolean {
+		if (this.messages.delegationConsumed(message)) return true;
 		return (
 			this.runtime.state.type === "conversation" &&
 			this.runtime.state.session.piUserMessage(message)
@@ -79,7 +80,7 @@ export class ControllerAgent {
 			);
 			return;
 		}
-		this.runtime.state.session.agentResult(completedText);
+		this.runtime.state.session.agentResult(completedText, message.stopReason);
 	}
 
 	settleTurn(): void {

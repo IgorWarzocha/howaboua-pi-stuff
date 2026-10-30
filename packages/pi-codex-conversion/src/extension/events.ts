@@ -51,7 +51,7 @@ export function registerCodexEvents(
 	pi.on("model_select", session.modelSelected);
 	pi.on("session_tree", session.tree);
 	pi.on("message_start", async (event) => {
-		if (event.message.role === "user")
+		if (event.message.role === "user" || event.message.role === "custom")
 			runtime.voice.piUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});

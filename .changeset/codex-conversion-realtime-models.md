@@ -2,7 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-- Guide Realtime voice to avoid repeating ongoing tasks or guessing their results.
+- Send Realtime voice progress context immediately and guide it to avoid repeated tasks, guessed results and routing narration.
 - Retry WebSockets on later requests after a temporary connection failure instead of keeping the session on SSE.
 - Preserve Codex prompt-cache continuity when changing GPT-6 reasoning during a tool-running turn.
 - Choose Codex Live, Realtime 2.1 or Realtime 2.1 Mini and model-specific voices in terminal or LAN settings. Codex Live remains the default.
@@ -16,8 +16,8 @@
 - Command-backed custom tools accept objects and arrays directly.
 - Keep the selected execution mode and its tools after conversation-tree navigation.
 - Guide Code and Notebook models to compose tool calls in one exec without requiring separate cells for help discovery.
-- End voice calls after a farewell without waiting for unrelated Pi work. Public Realtime uses an end-call tool; Codex Live handles ending through its task-preparation agent. Accepted tasks continue after the call closes.
-- Transfer LAN voice between sessions on the same machine at the same address; the browser reconnects to a fresh call automatically.
+- End voice calls after the requested answer and farewell, without waiting for unrelated work. Accepted tasks continue after the call closes.
+- Transfer LAN voice between sessions after speech finishes; on the same machine, the browser reconnects at the same address automatically.
 - Retry interrupted LAN voice connections while retaining the microphone where possible.
 - Keep the browser microphone connected during LAN voice transfers.
 - Voice tasks reach the selected Pi session after a transfer.

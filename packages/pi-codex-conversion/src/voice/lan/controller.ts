@@ -90,7 +90,7 @@ export class CodexLanVoiceServerController {
 		}
 	}
 
-	async releaseForTakeover(ctx: ExtensionContext, offer: LanTakeoverOffer, releaseAudio: () => Promise<void>, verify: (proof: { port: number; token: string }) => Promise<void>): Promise<number | undefined> {
+	async releaseForTakeover(ctx: ExtensionContext, offer: LanTakeoverOffer, releaseAudio: (beforeStop?: () => Promise<void>) => Promise<void>, verify: (proof: { port: number; token: string }) => Promise<void>): Promise<number | undefined> {
 		return this.enqueue(async () => {
 			const server = this.server;
 			if (!server || server.ownerSessionId !== ctx.sessionManager.getSessionId()) throw new Error("The source LAN server changed before takeover");
@@ -101,8 +101,7 @@ export class CodexLanVoiceServerController {
 				ctx.ui.notify(`Same-address takeover unavailable: ${error instanceof Error ? error.message : String(error)}. LAN remains on the origin; closing it ends the transferred call.`, "warning");
 				return undefined;
 			}
-			await server.notifyTakeover(offer.token);
-			await releaseAudio();
+			await releaseAudio(() => server.notifyTakeover(offer.token));
 			await server.takeover();
 			if (this.server === server) this.server = undefined;
 			ctx.ui.setStatus("codex-lan-voice", undefined);

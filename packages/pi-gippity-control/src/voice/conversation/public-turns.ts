@@ -13,8 +13,7 @@ import type { CodexConversationCallbacks } from "./session.ts";
 export const SEND_TASK_TOOL = {
 	type: "function",
 	name: "send_task",
-	description:
-		"Ask the current Pi assistant to do work; active work receives steering",
+	description: "Delegate work; new instructions steer active work",
 	parameters: {
 		type: "object",
 		properties: {
@@ -29,7 +28,7 @@ export const SEND_TASK_TOOL = {
 	},
 };
 export const PUBLIC_REALTIME_INSTRUCTIONS =
-	"This call has tools. Use send_task for work in the current Pi session; it preserves Pi confirmations. Other listed tools run directly. Tool availability here supersedes earlier statements that voice has no tools. While Pi works, send only new instructions, not the same task again. Wait for its findings rather than guessing. Pi updates are background context; speak useful progress and results without treating them as new user requests.";
+	"This call has tools. Use send_task to delegate work without narrating the routing. Other listed tools run directly. Tool availability here supersedes earlier statements that voice has no tools. While work is underway, send only new instructions, not the same task again. Wait for findings rather than guessing. Updates are background context; speak useful progress and results without treating them as new user requests.";
 
 function record(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object" && !Array.isArray(value)
@@ -88,6 +87,12 @@ export class PublicRealtimeTurns {
 			onContext: (target, channel, content) =>
 				this.sendContext(target, channel, content),
 			onSettled: (id) => this.tracker.delegationSettled(id),
+			onStreamedContextReady: () => {
+				if (!this.isActive() || this.abort.signal.aborted || this.ending)
+					return;
+				this.continuation = true;
+				this.schedule();
+			},
 		});
 	}
 	cancelEndCall(): void {

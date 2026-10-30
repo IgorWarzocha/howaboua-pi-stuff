@@ -16,7 +16,7 @@ export function renderPiSteer(input: unknown): string | undefined {
 	if (typeof input !== "string") return undefined;
 	const text = input.trim();
 	if (!text || Buffer.byteLength(text) > MAX_REALTIME_VOICE_INPUT_BYTES) return undefined;
-	return `<pi_steer>\n  <input>${escapeXml(text)}</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>`;
+	return `<active_work_input>\n  <input>${escapeXml(text)}</input>\n  <routing>already delivered; update context, do not delegate again, and wait for the result</routing>\n</active_work_input>`;
 }
 
 function escapeXml(value: string): string {

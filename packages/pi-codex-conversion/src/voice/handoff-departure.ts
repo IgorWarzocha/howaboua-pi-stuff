@@ -12,7 +12,7 @@ export function startVoiceDeparture(options: {
 	waitForSettled(signal: AbortSignal): Promise<void>;
 	onReleased(controls: TransferredVoiceControls): void;
 	onClosed(error: Error): void;
-	lanTakeover?: (offer: LanTakeoverOffer, releaseAudio: () => Promise<void>, verify: (proof: { port: number; token: string }) => Promise<void>) => Promise<number | undefined>;
+	lanTakeover?: (offer: LanTakeoverOffer, releaseAudio: (beforeStop?: () => Promise<void>) => Promise<void>, verify: (proof: { port: number; token: string }) => Promise<void>) => Promise<number | undefined>;
 	onTakeoverUnavailable?(error: Error): void;
 }): { completion: Promise<void>; readonly detached: boolean; close(): void } {
 	const abort = new AbortController();
@@ -89,7 +89,7 @@ export function startVoiceDeparture(options: {
 				let offer: LanTakeoverOffer | undefined;
 				try { offer = decodeLanTakeoverOffer(isRecord(prepared) ? prepared["lanTakeover"] : undefined); }
 				catch (error) { options.onTakeoverUnavailable?.(asError(error)); }
-				const port = offer ? await options.lanTakeover(offer, () => audio!.release(abort.signal), async (proof) => { await link.request("lan.verify", proof); }) : undefined;
+				const port = offer ? await options.lanTakeover(offer, (beforeStop) => audio!.release(abort.signal, beforeStop), async (proof) => { await link.request("lan.verify", proof); }) : undefined;
 				if (offer && port !== undefined) {
 					link.stage("activate", { inputMuted: audio.inputMuted, alternateVoice: !(options.captured.alternateVoice ?? false), lanTakeover: { token: offer.token, port } });
 					const active = await link.waitFor("active");

@@ -167,7 +167,7 @@ export class ConversationTurns {
 					const prepared = await this.callbacks.rewriteDelegation(turn, signal);
 					const { input } = prepared;
 					if (prepared.endCall && this.isActive() && this.inputGeneration === inputAtDelegation)
-						this.callbacks.onEndCall?.(this.completedOutputs > outputsAtDelegation);
+						this.callbacks.onEndCall?.(this.completedOutputs > outputsAtDelegation, input ? turn.delegationId : undefined);
 					if (!input && turn.delegationId) this.turnTracker.delegationSettled(turn.delegationId);
 					if (!signal.aborted && (this.isActive() || this.finishing) && input) {
 						const { transcriptDelta: _transcriptDelta, ...delegation } = turn;

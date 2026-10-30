@@ -114,13 +114,16 @@ export class ControllerHandoff {
 			sourceActive: () =>
 				this.callbacks.currentSession() === session &&
 				this.runtime.state.type === "conversation",
-			release: async (signal) => {
+			release: async (signal, beforeStop) => {
 				if (this.callbacks.currentSession() !== session)
 					throw new Error("Source voice changed before transfer");
 				transferredControls?.setInputMuted(this.callbacks.inputMuted());
 				this.departingSession = session;
 				session.setInputMuted(true);
 				await session.waitForPlaybackEnd(signal);
+				signal.throwIfAborted();
+				// Takeover disconnects the browser speaker; notify only after playback.
+				await beforeStop?.();
 				signal.throwIfAborted();
 				if (this.callbacks.currentSession() !== session)
 					throw new Error("Source voice changed before transfer");

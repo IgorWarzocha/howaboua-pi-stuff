@@ -140,7 +140,7 @@ export class CodexLanVoiceServerController {
 	async releaseForTakeover(
 		ctx: ExtensionContext,
 		offer: LanTakeoverOffer | undefined,
-		releaseAudio: () => Promise<void>,
+		releaseAudio: (beforeStop?: () => Promise<void>) => Promise<void>,
 		verify: (value: unknown) => Promise<unknown>,
 	): Promise<number | undefined> {
 		return this.enqueue(async () => {
@@ -165,8 +165,7 @@ export class CodexLanVoiceServerController {
 				);
 				return undefined;
 			}
-			await server.acknowledgeTakeover(offer.token);
-			await releaseAudio();
+			await releaseAudio(() => server.acknowledgeTakeover(offer.token));
 			await server.releaseForTakeover();
 			if (this.server === server) this.server = undefined;
 			ctx.ui.setStatus("gippity-lan", undefined);
