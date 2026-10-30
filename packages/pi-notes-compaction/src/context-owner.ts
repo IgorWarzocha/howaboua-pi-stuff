@@ -37,6 +37,27 @@ export function createNotesContextOwner(
 			lifecycle.active &&
 			ctx.isIdle() &&
 			entries.every((entry) => {
+				if (
+					entry.type === "custom" &&
+					entry.customType === "codex-agent-relationship"
+				)
+					return (
+						(entry.data as { threadId?: unknown } | undefined)?.threadId ===
+						ctx.sessionManager.getSessionId()
+					);
+				if (
+					entry.type === "custom" &&
+					entry.customType === "herdr-agents-monitor-state"
+				) {
+					const data = entry.data as
+						| { version?: unknown; agents?: unknown }
+						| undefined;
+					return Boolean(
+						data?.version === 2 &&
+							Array.isArray(data.agents) &&
+							data.agents.length === 0,
+					);
+				}
 				// Foreign plain custom entries may be startup metadata. Notes state
 				// proves prior ownership or work, even without a delivered first turn.
 				if (entry.type === "custom")
