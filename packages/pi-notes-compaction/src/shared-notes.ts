@@ -1,86 +1,25 @@
 import { isDeepStrictEqual } from "node:util";
-import type {
-	ExtensionContext,
-	SessionEntry,
-} from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { Static } from "typebox";
 import { Check } from "typebox/value";
-import { useHistory } from "./history.js";
 import type { HistorySearch } from "./history-search.js";
-import { collectNotes, normalizeNoteParams, readNotes } from "./notes.js";
 import {
 	readSavedNotesSession,
 	type SavedNotesSession,
 } from "./saved-session.js";
+import {
+	Detachment,
+	Member,
+	Parent,
+	Plan,
+	Route,
+	sameOwner,
+	savedNotesIdentity,
+} from "./saved-sharing-records.js";
+import { createSharedSessionReader } from "./shared-session-reader.js";
 import type { NotesStore } from "./store.js";
 
-const Agent = Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" });
-const Identity = Type.Object({
-	protocol: Type.Literal(1),
-	sessionId: Type.String(),
-	threadId: Type.String(),
-	agentName: Agent,
-	storage: Type.Optional(
-		Type.Union([Type.Literal("session"), Type.Literal("remote")]),
-	),
-	routing: Type.Optional(Type.Unknown()),
-});
-const Member = Type.Object({
-	threadId: Type.String(),
-	sessionId: Type.String(),
-	agentName: Agent,
-	machine: Type.String(),
-	sessionFile: Type.String(),
-});
-const Plan = Type.Object({
-	controllerSessionId: Type.String(),
-	targetSessionId: Type.String(),
-	context: Type.Optional(
-		Type.Object({
-			controller: Identity,
-			target: Identity,
-			alias: Agent,
-			controllerAlias: Agent,
-			controllerFile: Type.Optional(Type.String()),
-			controllerNotes: Type.Unknown(),
-			targetNotes: Type.Unknown(),
-		}),
-	),
-});
-const Route = Type.Object({
-	plan: Plan,
-	machine: Type.String(),
-	sessionFile: Type.String(),
-	phase: Type.Union([Type.Literal("pending"), Type.Literal("ready")]),
-	detached: Type.Optional(
-		Type.Object({ context: Type.Optional(Type.Unknown()) }),
-	),
-});
-const Detachment = Type.Object({
-	plan: Plan,
-	context: Type.Optional(Type.Unknown()),
-});
-const Snapshot = Type.Object({
-	protocol: Type.Literal(1),
-	timestamp: Type.Number(),
-	files: Type.Array(
-		Type.Object({
-			path: Type.String(),
-			text: Type.String(),
-			createdAt: Type.Number(),
-			updatedAt: Type.Number(),
-			operation: Type.Union([
-				Type.Literal("local_append_overlay"),
-				Type.Literal("local_replacement"),
-			]),
-		}),
-	),
-});
-const Parent = Type.Object({
-	transport: Type.Literal("shepherdr"),
-	parent: Type.String(),
-});
-type Identity = Static<typeof Identity>;
+export { savedNotesIdentity } from "./saved-sharing-records.js";
 
 function records(session: SavedNotesSession, kind: string): unknown[] {
 	return session.entries.flatMap((entry) =>
@@ -88,37 +27,6 @@ function records(session: SavedNotesSession, kind: string): unknown[] {
 	);
 }
 
-/** Persisted sharing is session-scoped. Forks never inherit the source agent's address. */
-export function savedNotesIdentity(
-	session: Pick<SavedNotesSession, "threadId" | "entries">,
-): Identity {
-	let found: Identity | undefined;
-	for (const entry of session.entries) {
-		if (entry.type !== "custom" || entry.customType !== "codex-context-agent")
-			continue;
-		if (!Check(Identity, entry.data))
-			throw new Error("Invalid saved notes identity");
-		if (entry.data.threadId !== session.threadId) continue;
-		if (found) throw new Error("Conflicting saved notes identities");
-		found = entry.data;
-	}
-	return (
-		found ?? {
-			protocol: 1,
-			threadId: session.threadId,
-			sessionId: session.threadId,
-			agentName: "/root",
-		}
-	);
-}
-
-function sameOwner(a: Identity, b: Identity): boolean {
-	return (
-		a.threadId === b.threadId &&
-		a.sessionId === b.sessionId &&
-		a.agentName === b.agentName
-	);
-}
 function inside(path: string, root: string): boolean {
 	return path === root || path.startsWith(`${root}/`);
 }
@@ -212,104 +120,13 @@ async function readSharedSession(
 	if (savedNotesIdentity(current).agentName === target) return;
 	const visited = new Set<string>();
 
-	async function read(
-		session: SavedNotesSession,
-		query: Record<string, unknown>,
-		native: string,
-	) {
-		return {
-			...(access.namespace === "history"
-				? await useHistory(
-						session.branch,
-						query,
-						session.threadId,
-						access.search,
-						session.entries,
-						signal,
-					)
-				: readNotes(
-						collectNotes(store, session.branch),
-						normalizeNoteParams(query, native),
-						outputAgent,
-					)),
-			...(namespace === "notes"
-				? {
-						read_only: true,
-						warning:
-							"Only saved notes are included; other notes may be missing",
-					}
-				: {}),
-			...(session.savedAt === undefined
-				? {}
-				: { saved_at: new Date(session.savedAt).toISOString() }),
-		};
-	}
-	async function reference(
-		identity: Identity,
-		destination: string,
-		query: Record<string, unknown>,
-		file: string | undefined,
-		retained?: unknown,
-		detached = false,
-	): Promise<Record<string, unknown> | undefined> {
-		if (file && (!detached || namespace === "history")) {
-			let saved: SavedNotesSession | undefined;
-			try {
-				saved = await readSavedNotesSession(
-					file,
-					signal,
-					namespace === "history",
-				);
-			} catch (error) {
-				signal?.throwIfAborted();
-				if (
-					!(
-						error instanceof Error &&
-						"code" in error &&
-						error.code === "ENOENT" &&
-						retained !== undefined &&
-						namespace === "notes"
-					)
-				)
-					throw error;
-			}
-			if (saved) {
-				if (!sameOwner(savedNotesIdentity(saved), identity))
-					throw new Error("Saved shared notes belong to a different session");
-				return resolve(saved, destination, query);
-			}
-		}
-		if (
-			namespace === "history" ||
-			destination !== identity.agentName ||
-			!Check(Snapshot, retained)
-		)
-			return;
-		const entry: SessionEntry = {
-			type: "custom",
-			id: "retained",
-			parentId: null,
-			timestamp: new Date(retained.timestamp).toISOString(),
-			customType: "codex-context-note-snapshot",
-			data: {
-				...retained,
-				files: retained.files.filter((file) =>
-					file.path.startsWith(`${identity.agentName}/notes/`),
-				),
-			},
-		};
-		return {
-			...(await read(
-				{ threadId: identity.threadId, entries: [], branch: [entry] },
-				query,
-				identity.agentName,
-			)),
-			captured_at: new Date(retained.timestamp).toISOString(),
-			warning: detached
-				? "Read-only notes captured when sharing ended; later changes are not included"
-				: "The latest notes are unavailable; this read-only copy may be outdated",
-		};
-	}
+	const { read, reference } = createSharedSessionReader(
+		store,
+		access,
+		outputAgent,
+		signal,
+		resolve,
+	);
 	async function resolve(
 		session: SavedNotesSession,
 		destination: string,
