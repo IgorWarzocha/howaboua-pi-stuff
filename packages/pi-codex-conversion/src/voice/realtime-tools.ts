@@ -70,6 +70,11 @@ export function registerGippityVoiceTool<T extends TSchema>(
 	if (Buffer.byteLength(tool.name) > 64) {
 		throw new Error("Voice tool name exceeds 64 bytes; choose a shorter name");
 	}
+	if (/[^A-Za-z0-9_-]/.test(tool.name)) {
+		throw new Error(
+			"Voice tool name must use only ASCII letters, digits, underscores or hyphens",
+		);
+	}
 	const definition: GippityToolWireDefinition = {
 		type: "function",
 		name: tool.name,
