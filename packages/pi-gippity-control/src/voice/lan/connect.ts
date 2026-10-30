@@ -14,9 +14,11 @@ export async function connectBrowserVoice(
 	route: string,
 	urls: string[],
 	explicitUrl?: string,
+	signal?: AbortSignal,
 ): Promise<BrowserReceipt> {
 	let url: string | undefined;
 	try {
+		signal?.throwIfAborted();
 		if (explicitUrl) {
 			if (!urls.includes(explicitUrl))
 				throw new Error(
@@ -47,6 +49,7 @@ export async function connectBrowserVoice(
 			url,
 			provider: "gippity",
 			...(route === "local" ? {} : { host: route }),
+			...(signal ? { signal } : {}),
 		});
 		return {
 			browserRoute: route,

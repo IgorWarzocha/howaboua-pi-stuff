@@ -62,8 +62,8 @@ export async function handleServerCommand(
 			if (action !== "status" && ctx.mode !== "tui")
 				throw new Error("GipPity requires interactive TUI mode");
 			if (action === "connect" && browserRoute) {
-				browser = await lanVoice.connectBrowser(ctx, (state) =>
-					connectBrowserVoice(browserRoute, state.urls, explicitUrl),
+				browser = await lanVoice.connectBrowser(ctx, (state, signal) =>
+					connectBrowserVoice(browserRoute, state.urls, explicitUrl, signal),
 				);
 				if (browser.browserStatus !== "listening")
 					failure =

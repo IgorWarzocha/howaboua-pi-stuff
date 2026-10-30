@@ -36,6 +36,7 @@ export class CodexLanVoiceServerController {
 	private server: CodexLanVoiceServer | undefined;
 	private pendingAssistantText: string | undefined;
 	private operation = Promise.resolve();
+	private readonly browserStarts = new Set<AbortController>();
 	private takeoverReservation: object | undefined;
 
 	constructor(
@@ -177,14 +178,22 @@ export class CodexLanVoiceServerController {
 		enabled: boolean,
 		ctx: ExtensionContext,
 	): Promise<CodexLanVoiceServerStatus> {
+		if (!enabled) this.cancelBrowserStarts();
 		return this.enqueue(() => this.setEnabledCurrent(enabled, ctx));
 	}
 
 	connectBrowser<T>(
 		ctx: ExtensionContext,
-		start: (status: CodexLanVoiceServerStatus) => Promise<T>,
+		start: (
+			status: CodexLanVoiceServerStatus,
+			signal: AbortSignal,
+		) => Promise<T>,
 	): Promise<T> {
+		// Reserve before enqueueing so Stop also cancels starts still in the queue.
+		const abort = new AbortController();
+		this.browserStarts.add(abort);
 		return this.enqueue(async () => {
+			abort.signal.throwIfAborted();
 			if (
 				this.voice.active ||
 				this.hostsConversation ||
@@ -194,8 +203,11 @@ export class CodexLanVoiceServerController {
 					"Voice or browser audio is already active. Stop it before connecting another browser.",
 				);
 			const status = await this.setEnabledCurrent(true, ctx);
-			return start(status);
-		});
+			abort.signal.throwIfAborted();
+			const result = await start(status, abort.signal);
+			abort.signal.throwIfAborted();
+			return result;
+		}).finally(() => this.browserStarts.delete(abort));
 	}
 
 	private async setEnabledCurrent(
@@ -244,8 +256,13 @@ export class CodexLanVoiceServerController {
 	}
 
 	stop(ctx?: ExtensionContext): Promise<void> {
+		this.cancelBrowserStarts();
 		this.takeoverReservation = undefined;
 		return this.enqueue(() => this.stopCurrent(ctx));
+	}
+
+	private cancelBrowserStarts(): void {
+		for (const abort of this.browserStarts) abort.abort();
 	}
 
 	agentStarted(): void {
