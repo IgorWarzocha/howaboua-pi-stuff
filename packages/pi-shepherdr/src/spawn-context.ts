@@ -122,6 +122,7 @@ export class SpawnContext {
 			throw new Error(
 				"Shared context spawn requires a saved controller session",
 			);
+		await runtime.prepareSharing();
 		const routing: Routing = {
 			transport: "shepherdr",
 			parent: runtime.local

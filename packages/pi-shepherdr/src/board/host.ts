@@ -157,6 +157,7 @@ export class AgentBoard {
 		const segment =
 			name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "agent";
 		const agentName = `${own.agentName}/${segment}-${randomUUID()}`;
+		await runtime.prepareSharing();
 		const upstream = runtime.local
 			? sessionContextPath(file)
 			: runtime.client.contextRelayPath();

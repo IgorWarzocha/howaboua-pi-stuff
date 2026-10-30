@@ -43,14 +43,37 @@ export class AgentFleet {
 		};
 	}
 	private readonly setup = new FleetSetup(() => this.refresh());
+	private needsContextRelay: (
+		ctx: ExtensionContext,
+		machine: string,
+	) => boolean = () => false;
 	setContextRelay(
 		handler: (
 			ctx: ExtensionContext,
 			request: unknown,
 			signal: AbortSignal,
 		) => Promise<unknown>,
+		needsRelay: (ctx: ExtensionContext, machine: string) => boolean,
 	): void {
 		this.setup.setContextRelay(handler);
+		this.needsContextRelay = needsRelay;
+	}
+	async restoreSharing(ctx: ExtensionContext): Promise<void> {
+		if (this.context !== ctx) return;
+		await Promise.all(
+			this.statuses()
+				.filter(
+					(machine) =>
+						!machine.local &&
+						machine.status === "connected" &&
+						this.needsContextRelay(ctx, machine.id),
+				)
+				.map((machine) =>
+					this.connected(machine.id)
+						.prepareSharing()
+						.catch(() => {}),
+				),
+		);
 	}
 	private context: ExtensionContext | undefined;
 	private generation = 0;
@@ -276,7 +299,41 @@ export class AgentFleet {
 		return listAgents(this.runtimes);
 	}
 	connected(machine?: string): ConnectedMachine {
-		return connectedMachine(this.runtimes, this.context, machine);
+		const ctx = this.context;
+		return connectedMachine(
+			this.runtimes,
+			ctx,
+			async (name, runtime, client) => {
+				if (
+					!ctx ||
+					this.context !== ctx ||
+					this.runtimes.get(name) !== runtime ||
+					runtime.client !== client
+				)
+					throw new Error(
+						"Session changed; retry sharing from the current session",
+					);
+				if (runtime.local) return;
+				if (
+					!(
+						client instanceof RemoteHerdrClient ||
+						client instanceof CoreConnection
+					)
+				)
+					throw new Error("Context sharing is unavailable on this machine");
+				await this.prepareContextRelay(name, runtime, client, ctx);
+				if (
+					this.context !== ctx ||
+					this.runtimes.get(name) !== runtime ||
+					runtime.client !== client
+				)
+					throw new Error(
+						"Session changed; retry sharing from the current session",
+					);
+				client.contextRelayPath();
+			},
+			machine,
+		);
 	}
 	private isCurrent(generation: number, ctx: ExtensionContext): boolean {
 		return generation === this.generation && ctx === this.context;
@@ -371,7 +428,6 @@ export class AgentFleet {
 						this.disconnected(name, runtime, error.message);
 				});
 			}
-			await this.prepareContextRelay(name, runtime, client, ctx);
 			if (
 				!this.isCurrent(generation, ctx) ||
 				this.runtimes.get(name) !== runtime
@@ -406,6 +462,12 @@ export class AgentFleet {
 			runtime.pending = [];
 			runtime.status = "connected";
 			delete runtime.attempting;
+			// Late connections must see optional sharing owners that finished startup.
+			if (this.needsContextRelay(ctx, name))
+				await this.prepareContextRelay(name, runtime, client, ctx).catch(
+					() => {},
+				);
+			if (!this.isCurrent(generation, ctx) || runtime.client !== client) return;
 			this.refresh();
 			if (!initial) ctx.ui.notify(`Connected to ${name}`, "info");
 		} catch (error) {

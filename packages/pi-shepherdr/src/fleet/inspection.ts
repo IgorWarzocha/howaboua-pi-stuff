@@ -31,6 +31,11 @@ export function listAgents(
 export function connectedMachine(
 	runtimes: ReadonlyMap<string, MachineRuntime>,
 	context: ExtensionContext | undefined,
+	prepareSharing: (
+		machine: string,
+		runtime: MachineRuntime,
+		client: NonNullable<MachineRuntime["client"]>,
+	) => Promise<void>,
 	machine?: string,
 ): ConnectedMachine {
 	const name = machine?.trim() || LOCAL_MACHINE;
@@ -50,7 +55,9 @@ export function connectedMachine(
 		(runtime.client instanceof CoreConnection && runtime.client.remote)
 			? runtime.client
 			: undefined;
+	const client = runtime.client;
 	return {
+		prepareSharing: () => prepareSharing(name, runtime, client),
 		machine: name,
 		local: runtime.local,
 		client: runtime.client,

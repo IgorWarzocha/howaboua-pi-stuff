@@ -23,6 +23,7 @@ export interface MachineRuntime {
 }
 
 export interface ConnectedMachine {
+	prepareSharing: () => Promise<void>;
 	client: HerdrConnection;
 	fallbackCwd: string;
 	local: boolean;

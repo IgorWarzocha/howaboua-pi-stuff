@@ -145,15 +145,19 @@ export async function registerSharedAgentContext(
 			),
 		);
 	});
-	pi.on("resources_discover", async (_event, ctx) => publish(ctx));
+	pi.on("resources_discover", async (_event, ctx) => {
+		await publish(ctx);
+		await fleet.restoreSharing(ctx);
+	});
 	pi.on("session_shutdown", async () => {
 		unregister?.();
 		await close?.();
 		connection?.dispose();
 		relationships?.dispose();
 	});
-	fleet.setContextRelay((ctx, request, signal) =>
-		shared.handle(ctx, request, signal),
+	fleet.setContextRelay(
+		(ctx, request, signal) => shared.handle(ctx, request, signal),
+		(ctx, machine) => shared.needsRelay(ctx, machine),
 	);
 	return shared;
 }
