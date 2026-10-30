@@ -2,6 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
+- Guide Realtime voice to avoid repeating ongoing tasks or guessing their results.
 - Retry WebSockets on later requests after a temporary connection failure instead of keeping the session on SSE.
 - Preserve Codex prompt-cache continuity when changing GPT-6 reasoning during a tool-running turn.
 - Choose Codex Live, Realtime 2.1 or Realtime 2.1 Mini and model-specific voices in terminal or LAN settings. Codex Live remains the default.

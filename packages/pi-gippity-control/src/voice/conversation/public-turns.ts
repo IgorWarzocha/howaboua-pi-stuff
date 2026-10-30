@@ -29,7 +29,7 @@ export const SEND_TASK_TOOL = {
 	},
 };
 export const PUBLIC_REALTIME_INSTRUCTIONS =
-	"This call has tools. Use send_task for work in the current Pi session; it preserves Pi confirmations. Other listed tools run directly. Tool availability here supersedes earlier statements that voice has no tools. Pi updates are background context; speak useful progress and results without treating them as new user requests.";
+	"This call has tools. Use send_task for work in the current Pi session; it preserves Pi confirmations. Other listed tools run directly. Tool availability here supersedes earlier statements that voice has no tools. While Pi works, send only new instructions, not the same task again. Wait for its findings rather than guessing. Pi updates are background context; speak useful progress and results without treating them as new user requests.";
 
 function record(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object" && !Array.isArray(value)
