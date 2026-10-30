@@ -8,7 +8,7 @@ import type {
 } from "./history-search-protocol.js";
 
 const UNAVAILABLE =
-	"Ranked history search is unavailable. list_items and read_item still work. Ask the user to check local storage or turn off Ranked history search in /notes.";
+	"Ranked history search is unavailable. list and read still work. Ask the user to check local storage or turn off Ranked history search in /notes.";
 
 /** Worker owns derived storage; JSONL and the caller own content and scope. */
 export class HistorySearch {

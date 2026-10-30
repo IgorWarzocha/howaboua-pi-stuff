@@ -3,21 +3,22 @@ import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import type { LookupQuery } from "./bridge.js";
+import { internalQueryArguments, normalizeQueryInput } from "./query-input.js";
 
 const NOTES_ACTIONS = [
 	"help",
-	"list_files_by_prefix",
-	"read_file",
-	"search_contents",
-	"append_to_file",
-	"write_file",
+	"list",
+	"read",
+	"search",
+	"append",
+	"write",
 ] as const;
 const HISTORY_ACTIONS = [
 	"help",
 	"list_windows",
-	"list_items",
-	"read_item",
-	"search_contents",
+	"list",
+	"read",
+	"search",
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
 export const HISTORY_USAGE = "await tools.history()";
@@ -31,20 +32,20 @@ export const GPT_NEW_CONTEXT_DESCRIPTION =
 	"Saved notes→fresh context; earlier conversation→history";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
-const NULLABLE_STRING = Type.Optional(Type.Union([Type.String(), Type.Null()]));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
 const NOTES_SCHEMA = Type.Object(
 	{
-		action: Type.Optional(StringEnum([...NOTES_ACTIONS, "read"])),
-		path: STRING,
+		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
+		path: Type.Optional(
+			Type.Union([Type.String(), Type.Null()], {
+				description: "File for read/write/append; prefix for list/search",
+			}),
+		),
 		text: STRING,
-		prefix: NULLABLE_STRING,
 		query: STRING,
-		path_prefix: NULLABLE_STRING,
 		start_line: LINE,
 		stop_line: LINE,
-		max_results: INTEGER,
-		max_files: INTEGER,
+		limit: INTEGER,
 		max_matches_per_file: INTEGER,
 		file_order: Type.Optional(StringEnum(["ascending", "descending"])),
 		file_order_by: Type.Optional(
@@ -60,7 +61,7 @@ export function notesSchema(roles: boolean) {
 		{
 			...NOTES_SCHEMA.properties,
 			action: Type.Optional(
-				StringEnum([...NOTES_ACTIONS, "read", "roles", "recommend_handoff"]),
+				StringEnum([...NOTES_ACTIONS, "roles", "recommend_handoff"]),
 			),
 			role: STRING,
 			reason: Type.Optional(
@@ -86,7 +87,7 @@ export const HISTORY_SCHEMA = Type.Object(
 		item_id: STRING,
 		window_id: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
-				description: "Required with item_id for read_item",
+				description: "Required with item_id for read",
 			}),
 		),
 		query: STRING,
@@ -161,8 +162,10 @@ export function queryArguments(
 ): Record<string, unknown> {
 	if (!input || typeof input !== "object" || Array.isArray(input))
 		throw new Error("Supply an action object");
-	const params = input as Record<string, unknown>;
+	const normalized = normalizeQueryInput(namespace, input);
+	const params = internalQueryArguments(namespace, normalized);
 	const action = params["action"];
+	const publicAction = normalized["action"];
 	const key =
 		action === "search_contents" ? `search_${namespace}` : String(action);
 	const fields = FIELDS[key];
@@ -172,31 +175,27 @@ export function queryArguments(
 				? "notes requires a supported action"
 				: "Unknown action",
 		);
-	if (namespace === "notes") {
-		for (const field of Object.keys(params))
-			if (field !== "action" && !fields.includes(field))
-				throw new Error(`notes ${String(action)} does not accept ${field}`);
-		if (
-			["read_file", "write_file", "append_to_file"].includes(String(action)) &&
-			(typeof params["path"] !== "string" || !params["path"])
-		)
-			throw new Error(`notes ${String(action)} requires path`);
-		if (
-			action === "search_contents" &&
-			(typeof params["query"] !== "string" || !params["query"])
-		)
-			throw new Error("notes search_contents requires query");
-		if (
-			["write_file", "append_to_file"].includes(String(action)) &&
-			typeof params["text"] !== "string"
-		)
-			throw new Error(`notes ${String(action)} requires text`);
-	}
-	return Object.fromEntries(
-		Object.entries(params).filter(
-			([key]) => key === "action" || fields.includes(key),
-		),
-	);
+	for (const field of Object.keys(params))
+		if (field !== "action" && !fields.includes(field))
+			throw new Error(
+				`${namespace} ${String(publicAction)} does not accept ${field}; use {} for help`,
+			);
+	if (
+		["read_file", "write_file", "append_to_file"].includes(String(action)) &&
+		(typeof params["path"] !== "string" || !params["path"])
+	)
+		throw new Error(`notes ${String(publicAction)} requires path`);
+	if (
+		action === "search_contents" &&
+		(typeof params["query"] !== "string" || !params["query"])
+	)
+		throw new Error(`${namespace} search requires query`);
+	if (
+		["write_file", "append_to_file"].includes(String(action)) &&
+		typeof params["text"] !== "string"
+	)
+		throw new Error(`notes ${String(publicAction)} requires text`);
+	return params;
 }
 
 export function result(payload: unknown): AgentToolResult<unknown> {
@@ -229,31 +228,31 @@ export function queryHelp(
 					action,
 					action === "help"
 						? ""
-						: FIELDS[
-								action === "search_contents" ? `search_${namespace}` : action
-							]!.map((field) =>
+						: FIELDS[helpKey(namespace, action)]!.map((field) =>
 								["path", "text", "query", "item_id"].includes(field) ||
-								(action === "read_item" && field === "window_id")
+								(action === "read" && field === "window_id")
 									? field
 									: `${field}?`,
-							).join(" "),
+							)
+								.map((field) => publicField(namespace, field))
+								.join(" "),
 				]),
 			),
 			...(namespace === "notes"
 				? {
 						writes: gpt
-							? "write_file=replace; append_to_file=add"
-							: "write_file replaces; append_to_file adds",
+							? "write=replace; append=add"
+							: "write replaces; append adds",
 						paths: gpt
 							? "Relative=current agent; cross-agent=<agent>/notes[/path]"
 							: "Relative uses current agent; cross-agent uses <agent>/notes[/path]",
-						usage: '{ "action": "read_file", "path": "checkpoint" }',
+						usage: '{ "action": "read", "path": "checkpoint" }',
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
 							: "start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
 						defaults: gpt
-							? "list max_results=20; search max_files/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending"
-							: "list max_results 20; search max_files/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
+							? "list limit=20; search limit/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending"
+							: "list limit 20; search limit/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
 					}
 				: {
 						usage: gpt
@@ -273,12 +272,7 @@ export function queryHelp(
 }
 
 export function prepareNotesArguments(args: unknown, roles = false) {
-	if (args === undefined) return {};
-	if (!args || typeof args !== "object" || Array.isArray(args))
-		throw new Error(
-			'Supply an action object, e.g. { "action": "read_file", "path": "checkpoint" }. Use {} for help',
-		);
-	const params = { ...args } as Record<string, unknown>;
+	const params = normalizeQueryInput("notes", args);
 	if (
 		!roles &&
 		["roles", "recommend_handoff"].includes(String(params["action"]))
@@ -286,29 +280,41 @@ export function prepareNotesArguments(args: unknown, roles = false) {
 		throw new Error(
 			"Role recommendations are off. The user can enable them with /roles",
 		);
-	if (params["action"] === "read") params["action"] = "read_file";
-	if (
-		(params["action"] === "write_file" ||
-			params["action"] === "append_to_file") &&
-		"content" in params
-	) {
-		if (!("text" in params)) params["text"] = params["content"];
-		delete params["content"];
-	}
-	if (
-		params["action"] === "list_files_by_prefix" &&
-		params["max_files"] !== undefined
-	) {
-		if (!("max_results" in params)) params["max_results"] = params["max_files"];
-		delete params["max_files"];
-	}
-	if (!queryHelp("notes", params)) queryArguments("notes", params);
-	for (const [field, value] of Object.entries(params)) {
-		const schema = (
-			notesSchema(roles).properties as Record<string, import("typebox").TSchema>
-		)[field];
-		if (!schema || !Check(schema, value))
-			throw new Error(`Invalid notes ${field}; use {} for exact arguments`);
-	}
+	validateArguments("notes", params, notesSchema(roles));
 	return params;
+}
+
+export function prepareHistoryArguments(args: unknown) {
+	const params = normalizeQueryInput("history", args);
+	validateArguments("history", params, HISTORY_SCHEMA);
+	return params;
+}
+
+function validateArguments(
+	namespace: LookupQuery["namespace"],
+	params: Record<string, unknown>,
+	schema: import("typebox").TObject,
+) {
+	if (!queryHelp(namespace, params)) queryArguments(namespace, params);
+	for (const [field, value] of Object.entries(params)) {
+		const property = schema.properties[field];
+		if (!property || !Check(property, value))
+			throw new Error(
+				`Invalid ${namespace} ${field}; use {} for exact arguments`,
+			);
+	}
+}
+
+function helpKey(namespace: LookupQuery["namespace"], action: string) {
+	const internal = internalQueryArguments(namespace, { action })["action"];
+	return internal === "search_contents"
+		? `search_${namespace}`
+		: String(internal);
+}
+
+function publicField(namespace: LookupQuery["namespace"], field: string) {
+	if (namespace !== "notes") return field;
+	return field
+		.replace(/^(prefix|path_prefix)(\?)?$/, "path$2")
+		.replace(/^(max_results|max_files)(\?)?$/, "limit$2");
 }

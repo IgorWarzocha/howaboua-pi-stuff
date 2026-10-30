@@ -16,6 +16,7 @@ import {
 	NEW_CONTEXT_DESCRIPTION,
 	NOTES_DESCRIPTION,
 	notesSchema,
+	prepareHistoryArguments,
 	prepareNotesArguments,
 	result,
 } from "./tool-contracts.js";
@@ -92,7 +93,7 @@ export function createTools(
 						);
 					return roles.query({ role, reason, continuity }, ctx);
 				}
-				const output = await queries.notes(callId, input, signal, ctx);
+				const output = await queries.notes(callId, params, signal, ctx);
 				if (
 					roles.enabled() &&
 					(!params["action"] || params["action"] === "help")
@@ -114,7 +115,7 @@ export function createTools(
 			description: "Search earlier conversation",
 			parameters: HISTORY_SCHEMA,
 			prepareArguments(args) {
-				return args === undefined ? {} : args;
+				return prepareHistoryArguments(args);
 			},
 			execute: (callId, input, signal, _update, ctx) =>
 				queries.history(callId, input, signal, ctx),

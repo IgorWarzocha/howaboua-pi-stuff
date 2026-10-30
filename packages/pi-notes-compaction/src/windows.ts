@@ -25,7 +25,7 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not a diary. Write checkpoints and reports to relative paths in your own notes. Delegates do likewise and return their note paths. Keep one concise, authoritative note per task or topic at a stable path. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Use write_file to replace stale state and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
+Notes are recovery state, not a diary. Write checkpoints and reports to relative paths in your own notes. Delegates do likewise and return their note paths. Keep one concise, authoritative note per task or topic at a stable path. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Use write to replace stale state and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
 
 You must maintain a task checkpoint, updating it at each meaningful milestone and on completion or before switching substantive tasks, even with context room. Don't save every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
 
@@ -33,7 +33,7 @@ Previous skill reads don’t carry into this window. Read the skills needed for 
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recovery state≠diary. Checkpoints/reports→write relative paths in own notes. Delegates→same→return note paths. One concise authoritative note per task/topic, stable path. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. write_file→replace stale state; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
+Notes=recovery state≠diary. Checkpoints/reports→write relative paths in own notes. Delegates→same→return note paths. One concise authoritative note per task/topic, stable path. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. write→replace stale state; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
 
 Must maintain task checkpoint→update@each meaningful milestone + completion/before switching substantive tasks, even with context room. Not every reply/step. Before new_context/handoff: save current state→await success; handoff includes checkpoint path. Post-rollover: read checkpoint→needed links only. In-context notes: reread only if possibly changed. Missing details→history.
 
