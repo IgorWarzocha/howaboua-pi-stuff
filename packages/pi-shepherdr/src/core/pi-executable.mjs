@@ -6,7 +6,9 @@ import { delimiter, resolve } from "node:path";
 export async function piExecutable(cwd) {
 	const windows = process.platform === "win32";
 	const suffixes = windows
-		? ["", ...(process.env["PATHEXT"] || ".COM;.EXE;.BAT;.CMD").split(";")]
+		? (process.env["PATHEXT"] || ".COM;.EXE;.BAT;.CMD")
+				.split(";")
+				.filter(Boolean)
 		: [""];
 	for (const directory of (process.env["PATH"] || "").split(delimiter)) {
 		for (const suffix of suffixes) {
