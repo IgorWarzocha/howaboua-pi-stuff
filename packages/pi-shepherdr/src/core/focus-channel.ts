@@ -53,6 +53,22 @@ export async function openCoreFocusChannel(
 	options.signal?.throwIfAborted();
 	const { helper, modules } = await helperSources();
 	const nonce = randomBytes(8).toString("hex");
+	// Only the wire bootstrap belongs in argv; peer modules and focus data travel
+	// over its bounded, credited start frame, below Windows' CreateProcessW limit.
+	const argv = [
+		"node",
+		"--input-type=module",
+		"-e",
+		helper,
+		Buffer.from(JSON.stringify({ nonce, wire: modules.wire })).toString(
+			"base64",
+		),
+	];
+	// Worst-case Windows quoting, with room for the resolved Node executable path.
+	if (argv.reduce((size, arg) => size + arg.length * 2 + 3, 0) > 30_000)
+		throw new Error(
+			"Remote focus launcher is too large; update Shepherdr before retrying",
+		);
 	let terminal: string | undefined;
 	let stream: ReturnType<typeof attachCoreTerminal> | undefined;
 	let wire: ReturnType<typeof focusWire> | undefined;
@@ -117,22 +133,7 @@ export async function openCoreFocusChannel(
 				"terminal.run",
 				{
 					on: machine.id,
-					argv: [
-						"node",
-						"--input-type=module",
-						"-e",
-						helper,
-						Buffer.from(
-							JSON.stringify({
-								coreId: machine.id,
-								session: machine.session,
-								expected,
-								focus,
-								nonce,
-								modules,
-							}),
-						).toString("base64"),
-					],
+					argv,
 					name: `focus-${nonce}`,
 					no_parent: true,
 					no_notify: true,
@@ -182,7 +183,16 @@ export async function openCoreFocusChannel(
 			() => {
 				if (!started) {
 					started = true;
-					wire?.send({ type: "start" });
+					wire?.send({
+						type: "start",
+						input: {
+							coreId: machine.id,
+							session: machine.session,
+							expected,
+							focus,
+							modules: { channel: modules.channel },
+						},
+					});
 				}
 			},
 		);

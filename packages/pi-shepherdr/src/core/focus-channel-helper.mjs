@@ -5,14 +5,10 @@ const argument = process.argv[1];
 const socketPath = process.env["HC_TERMINAL_SOCKET"];
 if (!argument || !socketPath)
 	throw new Error("Start focus from a private Core terminal");
-const input = JSON.parse(Buffer.from(argument, "base64").toString());
+const bootstrap = JSON.parse(Buffer.from(argument, "base64").toString());
 const { focusWire } = /** @type {typeof import('./focus-channel-wire.mjs')} */ (
-	await import(input.modules.wire)
+	await import(bootstrap.wire)
 );
-const { openPeerChannel } =
-	/** @type {typeof import('../remote/shepherdr-channel.mjs')} */ (
-		await import(input.modules.channel)
-	);
 const rpcSocket = createConnection(socketPath);
 let rpcBuffer = "";
 let id = 0;
@@ -43,7 +39,7 @@ function stop(error) {
 	process.stdout.end(() => process.exit(error ? 1 : 0));
 }
 const wire = focusWire(
-	input.nonce,
+	bootstrap.nonce,
 	(bytes) => {
 		if (process.stdout.writableLength + bytes.length > 1024 * 1024)
 			throw new Error("Remote focus output exceeded its buffer");
@@ -55,7 +51,11 @@ const wire = focusWire(
 		if (value.type === "close") return stop();
 		if (value.type === "start" && !started) {
 			started = true;
-			void admit().catch((error) => stop(error));
+			void admit(
+				/** @type {Parameters<typeof admit>[0]} */ (
+					object("input" in value ? value.input : undefined)
+				),
+			).catch((error) => stop(error));
 		} else if (value.type === "data" && peer && "message" in value)
 			peer.send(value.message);
 		else
@@ -102,7 +102,8 @@ async function nativeRequest(method, params) {
 		},
 	};
 }
-async function admit() {
+/** @param {{coreId:string, session:string, modules:{channel:string}, expected:import('../types.js').PaneInfo, focus:import('../types.js').FocusRequest}} input */
+async function admit(input) {
 	const hello = object(await rpc("hello"));
 	if (
 		object(hello["core"])["id"] !== input.coreId ||
@@ -110,6 +111,10 @@ async function admit() {
 	)
 		throw new Error(
 			"Remote Core identity/session changed; refresh machines before retrying",
+		);
+	const { openPeerChannel } =
+		/** @type {typeof import('../remote/shepherdr-channel.mjs')} */ (
+			await import(input.modules.channel)
 		);
 	const channel = await openPeerChannel(
 		nativeRequest,
