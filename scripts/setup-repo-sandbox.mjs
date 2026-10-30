@@ -156,10 +156,7 @@ printf '%s  archive.tgz\\n' ${quote(digest)} | sha256sum -c -
 tar -xzf archive.tgz
 rm archive.b64 archive.tgz ${quote(`${home}/chunk`)}
 mkdir .install-tmp
-TMPDIR="$PWD/.install-tmp" bun install --frozen-lockfile --ignore-scripts
-./node_modules/.bin/tsc -p scripts/tsconfig.browser-voice-start.json
-TMPDIR="$PWD/.install-tmp" bun install --frozen-lockfile
-bun run --cwd packages/pi-browser build
+TMPDIR="$PWD/.install-tmp" npm run install:ci
 bun run --cwd packages/pi-codex-conversion build
 bun run --cwd packages/pi-sandbox build
 rm -rf .install-tmp

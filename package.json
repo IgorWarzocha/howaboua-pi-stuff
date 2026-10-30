@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "install:ci": "bun install --frozen-lockfile",
+    "install:ci": "bun install --frozen-lockfile --ignore-scripts && tsc -p scripts/tsconfig.browser-voice-start.json && bun install --frozen-lockfile --force && bun run --cwd packages/pi-browser build",
     "check": "bun run scripts/workspaces.mjs check && bun run knip",
     "typecheck": "bun run scripts/workspaces.mjs typecheck",
     "test": "bun run scripts/workspaces.mjs test",
