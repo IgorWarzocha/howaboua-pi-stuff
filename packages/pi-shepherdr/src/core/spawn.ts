@@ -6,7 +6,10 @@ import {
 	UnstartedAgentLaunchError,
 } from "../launch-contract.js";
 import type { CoreConnection } from "./backend.js";
+import { piExecutable } from "./pi-executable.mjs";
 import { object } from "./protocol.js";
+import { RemoteCoreEndpoint } from "./remote-endpoint.js";
+import { remoteExec } from "./remote-exec.js";
 import { terminalPane, terminalSnapshot } from "./terminal.js";
 
 export async function startCoreAgent(
@@ -44,9 +47,18 @@ export async function startCoreAgent(
 			"Choose terminal, new_tab or new_workspace placement for Core",
 		);
 	}
+	const executable =
+		client.core instanceof RemoteCoreEndpoint
+			? await remoteExec(client.core.host, client.core.machine, {
+					op: "pi-executable",
+					cwd,
+				})
+			: await piExecutable(cwd);
+	if (typeof executable !== "string" || !executable)
+		throw new Error("Could not resolve Pi on the target machine");
 	const result = object(
 		await client.core.request("terminal.run", {
-			argv: ["pi", ...args],
+			argv: [executable, ...args],
 			name: params.name,
 			cwd,
 			parent: process.env["HC_TERMINAL_ID"],

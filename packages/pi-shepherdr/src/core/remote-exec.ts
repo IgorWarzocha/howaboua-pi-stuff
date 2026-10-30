@@ -38,7 +38,7 @@ let bundle:
 async function sources() {
 	const read = (path: string) =>
 		readFile(new URL(path, import.meta.url), "utf8");
-	const [source, peer, session, watch, checkpoints, context, relay] =
+	const [source, peer, session, watch, checkpoints, context, relay, pi] =
 		await Promise.all([
 			readFile(new URL("./remote-helper.mjs", import.meta.url), "utf8"),
 			read("../remote/shepherdr-peer.mjs"),
@@ -47,11 +47,13 @@ async function sources() {
 			read("../remote/shepherdr-checkpoints.mjs"),
 			read("../remote/shepherdr-context.mjs"),
 			read("./context-relay.mjs"),
+			read("./pi-executable.mjs"),
 		]);
 	const peerUrl = moduleUrl(peer);
 	return {
 		source,
 		modules: {
+			pi: moduleUrl(pi),
 			relay: moduleUrl(relay),
 			peer: peerUrl,
 			session: moduleUrl(session),

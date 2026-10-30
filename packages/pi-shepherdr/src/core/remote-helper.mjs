@@ -92,6 +92,8 @@ async function run() {
 		}
 		case "identity":
 			return { host: hostname(), session: hello.core.id };
+		case "pi-executable":
+			return (await import(input.modules.pi)).piExecutable(input.cwd);
 		case "message":
 			return peer.sendPeerMessage(nativeRequest, input.agent, input.message);
 		case "focus":
