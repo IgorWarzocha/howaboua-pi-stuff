@@ -60,7 +60,7 @@ export class PublicRealtimeTurns {
 	private awaitingResponse = false;
 	private speech = false;
 	private pendingTools = 0;
-	private ending = false;
+	private ending: false | "pending" | "notified" = false;
 	private completingResponse = false;
 	private continuation = false;
 	private quietUntil = 0;
@@ -244,8 +244,7 @@ export class PublicRealtimeTurns {
 			if (name === "end_call") {
 				if (Object.keys(args).length)
 					throw new Error("end_call takes no arguments");
-				this.ending = true;
-				this.callbacks.onEndCall?.();
+				this.ending ||= "pending";
 				output = {
 					ending: true,
 					message:
@@ -326,6 +325,11 @@ export class PublicRealtimeTurns {
 		this.continuation = false;
 		this.awaitingResponse = true;
 		this.speakableResponsePending = true;
+		if (this.ending === "pending") {
+			this.ending = "notified";
+			// Start the playback deadline only once direct tools have settled.
+			this.callbacks.onEndCall?.();
+		}
 		this.send({ type: "response.create" });
 	}
 	drainConversation(): void {
