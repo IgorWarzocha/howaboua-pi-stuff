@@ -44,8 +44,9 @@ export function createAgentsTool(
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description: "Delegate to persistent agents",
-		promptGuidelines: ["Make the first agents discovery call alone"],
+		description:
+			"Delegate to persistent agents; {} lists additional action fields",
+		promptGuidelines: ["Read agents help alone before first use"],
 		parameters: AgentsParameters,
 		executionMode: "parallel",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {

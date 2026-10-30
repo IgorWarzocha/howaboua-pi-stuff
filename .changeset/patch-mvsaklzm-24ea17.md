@@ -5,6 +5,7 @@
 - Added local and remote Pi agent delegation, focus, voice transfer, shared context and boards in Herdr Core and the new Herdr app. Re-select local watches after switching from the older TUI or another Core.
 - Added /herdr close-idle to gracefully close idle children spawned by the current session branch, leaving attached and busy sessions open.
 - Clarified that background agent reports arrive automatically without polling or artificial waits, while blocking calls still need awaiting.
+- Clarified that agents accepts additional action fields discovered through help, including in native codemode declarations.
 - Reduced resume time for sessions with many delegated agents.
 - Fixed legacy remote connections and Core worker launches when a Pi template is configured.
 - Prevented intermediate tool calls from being reported as completed agent work.
