@@ -7,7 +7,7 @@
 - Clarified that background agent reports arrive automatically without polling or artificial waits, while blocking calls still need awaiting.
 - Clarified that agents accepts additional action fields discovered through help, including in native codemode declarations.
 - Spawn results group context and board identities under `sharing`, separate from the agent `target`.
-- Reduced resume time for sessions with many delegated agents.
+- Reduced resume time for sessions with many delegated agents, including closed children.
 - Remote sharing helpers now start only when sharing is used or restored, avoiding idle polling on unrelated machines.
 - Fixed legacy remote connections and Core worker launches when a Pi template is configured.
 - Prevented intermediate tool calls from being reported as completed agent work.
