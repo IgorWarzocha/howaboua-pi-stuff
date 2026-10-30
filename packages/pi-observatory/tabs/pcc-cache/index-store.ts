@@ -24,7 +24,7 @@ export function openIndex(
 ): DatabaseSync {
 	mkdirSync(stateDirectory, { recursive: true, mode: 0o700 });
 	const db = new DatabaseSync(join(stateDirectory, "collector.sqlite"));
-	db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+	db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;
 		CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS files (name TEXT PRIMARY KEY, data TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, file TEXT NOT NULL REFERENCES files(name) ON DELETE CASCADE,
