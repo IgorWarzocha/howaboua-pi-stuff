@@ -3,7 +3,10 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { renderRealtimeTranscriptTail } from "./prompts.ts";
+import {
+	renderRealtimeTranscriptTail,
+	renderRealtimeUserInput,
+} from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
 	CODEX_VOICE_MODE_MESSAGE_TYPE,
@@ -11,11 +14,11 @@ import {
 	type CodexVoiceModeMessageDetails,
 	type CodexVoiceModeState,
 	codexVoiceModeMessage,
+	REALTIME_DELEGATION_MESSAGE_TYPE,
 	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
 	type RealtimeVoiceMessageDetails,
-	realtimeVoiceMessage,
 	VOICE_CONTEXT_MESSAGE_TYPE,
 } from "./ui.ts";
 
@@ -33,6 +36,7 @@ export class CodexVoiceSessionMessages {
 	private context: ExtensionContext | undefined;
 	private piTurnActive = false;
 	private dictationAnnounced = false;
+	private readonly pendingDelegations = new Map<string, () => void>();
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
 		this.pi = pi;
@@ -68,6 +72,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	resetSessionContext(): void {
+		this.pendingDelegations.clear();
 		this.context = undefined;
 		this.piTurnActive = false;
 	}
@@ -77,12 +82,13 @@ export class CodexVoiceSessionMessages {
 	}
 
 	voiceStopped(mode?: CodexVoiceMode): void {
+		this.pendingDelegations.clear();
 		this.piTurnActive = this.context ? !this.context.isIdle() : false;
 		if (mode && mode !== "dictation") this.appendMode(mode, "ended");
 		this.context = undefined;
 	}
 
-	voiceTurn(turn: RealtimeVoiceTurn): void {
+	voiceTurn(turn: RealtimeVoiceTurn, accepted = false): void {
 		if (!turn.delegationId) {
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 				REALTIME_VOICE_MESSAGE_TYPE,
@@ -95,7 +101,7 @@ export class CodexVoiceSessionMessages {
 		}
 		const ctx = this.context;
 		if (!ctx) return;
-		this.deliverDelegation(turn, !this.piTurnActive && ctx.isIdle());
+		this.deliverDelegation(turn, !this.piTurnActive && ctx.isIdle(), accepted);
 	}
 
 	retainTranscriptTail(transcriptDelta: string): void {
@@ -129,6 +135,27 @@ export class CodexVoiceSessionMessages {
 		this.piTurnActive = false;
 	}
 
+	delegationConsumed(message: unknown): boolean {
+		if (!message || typeof message !== "object") return false;
+		const candidate = message as {
+			role?: string;
+			customType?: string;
+			details?: { delegationId?: string };
+		};
+		if (
+			candidate.role !== "custom" ||
+			candidate.customType !== REALTIME_DELEGATION_MESSAGE_TYPE
+		)
+			return false;
+		const id = candidate.details?.delegationId;
+		if (!id) return false;
+		const activate = this.pendingDelegations.get(id);
+		if (!activate) return false;
+		this.pendingDelegations.delete(id);
+		activate();
+		return true;
+	}
+
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
 		if (mode === "realtime") {
 			this.pi.sendMessage(codexVoiceModeMessage(mode, state), {
@@ -149,16 +176,34 @@ export class CodexVoiceSessionMessages {
 	private deliverDelegation(
 		turn: RealtimeVoiceTurn,
 		startsTurn: boolean,
+		accepted: boolean,
 	): boolean {
-		if (!turn.delegationId || !this.callbacks.canDelegate()) return false;
-		this.callbacks.onDelegation(turn.delegationId);
+		if (!turn.delegationId || (!accepted && !this.callbacks.canDelegate()))
+			return false;
+		const id = turn.delegationId;
+		// Pi consumes queued steering at message_start, after the previous answer.
+		this.pendingDelegations.set(id, () => this.callbacks.onDelegation(id));
 		this.piTurnActive = true;
 		this.callbacks.onWorking();
+		// Submission has no acceptance receipt. Do not retry a possibly delivered task.
 		this.pi.sendMessage(
-			realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
+			{
+				customType: REALTIME_DELEGATION_MESSAGE_TYPE,
+				content: renderRealtimeUserInput(turn.input, turn.transcriptDelta),
+				display: false,
+				details: {
+					input: turn.input,
+					route: "delegation",
+					delegationId: id,
+				} satisfies RealtimeVoiceMessageDetails & { delegationId: string },
+			},
 			startsTurn
 				? { triggerTurn: true }
 				: { triggerTurn: true, deliverAs: "steer" },
+		);
+		this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+			REALTIME_DELEGATION_MESSAGE_TYPE,
+			{ input: turn.input, route: "delegation" },
 		);
 		return true;
 	}

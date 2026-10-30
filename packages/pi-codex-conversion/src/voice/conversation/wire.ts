@@ -57,18 +57,11 @@ export function realtimeEventDetails(
 	};
 }
 
-export function boundedTranscript(value: unknown): string | "oversized" | undefined {
-	if (typeof value !== "string") return undefined;
-	const input = value.trim();
-	if (!input) return undefined;
-	return Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES ? "oversized" : input;
-}
-
 export function transcriptItemText(value: unknown): unknown {
 	return value && typeof value === "object" ? (value as Record<string, unknown>)["text"] : undefined;
 }
 
-export function boundedAssistantTranscript(value: unknown): string | undefined {
+function boundedAssistantTranscript(value: unknown): string | undefined {
 	if (typeof value !== "string") return undefined;
 	const output = value.trim();
 	if (!output) return undefined;

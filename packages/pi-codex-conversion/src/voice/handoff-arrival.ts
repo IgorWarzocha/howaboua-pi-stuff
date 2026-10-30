@@ -3,12 +3,11 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { resolveCodexVoiceAuth } from "./auth.ts";
-import type { CodexVoiceController } from "./controller.ts";
 import {
 	prepareControllerRealtimeContext,
 	type RealtimePeerPlan,
 } from "./controller/start.ts";
+import type { CodexVoiceController } from "./controller.ts";
 import type {
 	TransferredVoiceControls,
 	VoiceHandoffChannel,
@@ -21,9 +20,12 @@ import {
 	invokeLanRemoteRpc,
 	lanRemoteRpcError,
 } from "./lan/rpc.ts";
+import { resolveRealtimeVoiceAuth } from "./realtime-auth.ts";
+import type { CodexLanVoiceServerController } from "./lan/controller.ts";
 
 export interface IncomingVoiceHandoff {
 	completion: Promise<void>;
+	readonly detached: boolean;
 	publish(event: string, data: unknown): void;
 	forwardTo(controls: TransferredVoiceControls): void;
 	close(): void;
@@ -33,7 +35,9 @@ export function startVoiceArrival(options: {
 	pi: ExtensionAPI;
 	ctx: ExtensionContext;
 	voice: CodexVoiceController;
+	lanVoice: CodexLanVoiceServerController;
 	config: CodexConversionConfig;
+	getConfig(): CodexConversionConfig;
 	channel: VoiceHandoffChannel;
 	continuity: string;
 	onClosed(error: Error): void;
@@ -50,8 +54,74 @@ export function startVoiceArrival(options: {
 	let starting = true;
 	let plan: RealtimePeerPlan | undefined;
 	let cleanup: Promise<void> | undefined;
+	let paused = false;
+	let alternateVoice = false;
+	let operation = Promise.resolve();
+	let restartAbort: AbortController | undefined;
+	let stopGeneration = 0;
+	let lanPreparation: Awaited<ReturnType<CodexLanVoiceServerController["prepareTakeover"]>> | undefined;
+	let lanCommitted = false;
+	const serialize = (action: () => Promise<void>): Promise<void> => {
+		const result = operation.then(action);
+		operation = result.catch(() => {});
+		return result;
+	};
 	const link = new VoiceHandoffLink(options.channel, {
 		async request(method, value) {
+			if (method === "lan.verify") {
+				if (!lanPreparation || !starting) throw new Error("LAN takeover is not preparing");
+				return lanPreparation.verify(value);
+			}
+			if (method === "session.stop" || method === "session.start") {
+				if (starting)
+					throw new Error("Selected-session voice is still connecting");
+				if (forwarding) {
+					if (method === "session.stop") return forwarding.stopCall();
+					return forwarding.startCall();
+				}
+				// Stop must interrupt startup before joining its serialization queue.
+				if (method === "session.stop") {
+					stopGeneration++;
+					restartAbort?.abort();
+				}
+				const generation = stopGeneration;
+				return serialize(async () => {
+					if (method === "session.start" && generation !== stopGeneration)
+						throw new Error("Selected-session voice start cancelled by Stop");
+					signal.throwIfAborted();
+					if (method === "session.stop") {
+						paused = true;
+						if (plan)
+							await voice.stopRealtimeWithPeerPlan(plan, { announce: true });
+						return;
+					}
+					if (!paused) return;
+					if (voice.active)
+						throw new Error(
+							"Selected session already has an active voice call; stop it before restarting this call",
+						);
+					const restarting = new AbortController();
+					restartAbort = restarting;
+					try {
+						const session = await voice.startRealtimeWithPeerPlan(
+							ctx,
+							options.getConfig(),
+							remotePlan,
+							AbortSignal.any([signal, restarting.signal]),
+							undefined,
+							false,
+							alternateVoice,
+						);
+						if (!session)
+							throw new Error(
+								"Selected-session voice could not start; text remains available",
+							);
+						paused = false;
+					} finally {
+						if (restartAbort === restarting) restartAbort = undefined;
+					}
+				});
+			}
 			if (method === "session.send") {
 				if (
 					typeof value !== "string" ||
@@ -102,8 +172,11 @@ export function startVoiceArrival(options: {
 		},
 		closed(error) {
 			closed = true;
+			if (lanCommitted) return;
 			abort.abort();
 			reservation.release();
+			lanPreparation?.release();
+			if (lanPreparation) cleanup = lanPreparation.cancel();
 			removeForwarding?.();
 			if (plan)
 				cleanup = voice.stopRealtimeWithPeerPlan(plan, { announce: true });
@@ -114,7 +187,7 @@ export function startVoiceArrival(options: {
 	});
 	const cancelled = () => link.fail(new Error("Voice transfer cancelled"));
 	reservation.signal.addEventListener("abort", cancelled, { once: true });
-	plan = {
+	const remotePlan: RealtimePeerPlan = {
 		createPeer() {
 			peer = new HandoffRemotePeer(link);
 			return peer;
@@ -131,9 +204,10 @@ export function startVoiceArrival(options: {
 			if (!resuming) link.fail(error);
 		},
 		onStopped() {
-			link.close();
+			if (!paused) link.close();
 		},
 	};
+	plan = remotePlan;
 	const completion = (async () => {
 		try {
 			signal.throwIfAborted();
@@ -146,7 +220,7 @@ export function startVoiceArrival(options: {
 					config: options.config,
 					signal,
 				}),
-				resolveCodexVoiceAuth(ctx),
+				resolveRealtimeVoiceAuth(ctx, options.config, pi),
 			]);
 			signal.throwIfAborted();
 			prepared.initialItems = [
@@ -162,7 +236,10 @@ export function startVoiceArrival(options: {
 					],
 				},
 			];
-			link.stage("prepared");
+			// Optional capability preparation must not break ordinary native transfers.
+			try { lanPreparation = await options.lanVoice.prepareTakeover(ctx); } catch { /* A LAN source reports the absent capability and retains source hosting. */ }
+			signal.throwIfAborted();
+			link.stage("prepared", lanPreparation ? { lanTakeover: lanPreparation.offer } : undefined);
 			const activation = await link.waitFor("activate");
 			if (
 				!isRecord(activation) ||
@@ -176,6 +253,21 @@ export function startVoiceArrival(options: {
 				throw new Error("Voice transfer provided an invalid voice selection");
 			signal.throwIfAborted();
 			reservation.release();
+			const takeover = activation["lanTakeover"];
+			if (takeover !== undefined) {
+				if (!lanPreparation || !isRecord(takeover) || takeover["token"] !== lanPreparation.offer.token ||
+					typeof takeover["port"] !== "number" || !Number.isInteger(takeover["port"]) || takeover["port"] < 1 || takeover["port"] > 65535)
+					throw new Error("Invalid LAN takeover activation");
+				plan = undefined;
+				await lanPreparation.start(takeover["port"], prepared, activation["inputMuted"], activation["alternateVoice"] === true);
+				signal.throwIfAborted();
+				lanCommitted = true;
+				starting = false;
+				link.stage("active", { lanTakeover: true });
+				return;
+			}
+			lanPreparation?.release();
+			alternateVoice = activation["alternateVoice"] === true;
 			const session = await voice.startRealtimeWithPeerPlan(
 				ctx,
 				options.config,
@@ -207,12 +299,14 @@ export function startVoiceArrival(options: {
 			await cleanup;
 			throw error;
 		} finally {
+			lanPreparation?.release();
 			reservation.release();
 			reservation.signal.removeEventListener("abort", cancelled);
 		}
 	})();
 	return {
 		completion,
+		get detached() { return lanCommitted; },
 		publish(event, data) {
 			if (!closed && !forwarding)
 				link.notify({

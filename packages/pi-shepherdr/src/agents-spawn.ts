@@ -1,5 +1,6 @@
 import type {
 	AgentToolUpdateCallback,
+	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -15,6 +16,7 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
+import { CoreConnection } from "./core/backend.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { isDispatchRejected } from "./herdr-client.js";
 import {
@@ -29,8 +31,10 @@ import {
 	profileAgentArgs,
 } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
+import { prepareSpawnOwnership } from "./spawn-ownership.js";
 
 export async function spawnAgent(
+	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	runtime: ConnectedMachine,
 	params: AgentsParams,
@@ -40,6 +44,7 @@ export async function spawnAgent(
 	ctx: ExtensionContext,
 	board: AgentBoard,
 ) {
+	const recordSpawn = prepareSpawnOwnership(pi, ctx, runtime);
 	const boardThreadId =
 		params.board_thread_id === undefined
 			? undefined
@@ -70,9 +75,11 @@ export async function spawnAgent(
 	try {
 		const placement =
 			params.placement ??
-			(runtime.local && process.env["HERDR_WORKSPACE_ID"]
-				? "new_tab"
-				: "new_workspace");
+			(runtime.client instanceof CoreConnection
+				? "terminal"
+				: runtime.local && process.env["HERDR_WORKSPACE_ID"]
+					? "new_tab"
+					: "new_workspace");
 		const workspace =
 			params.workspace ??
 			(placement === "new_tab" && runtime.local
@@ -150,6 +157,7 @@ export async function spawnAgent(
 		let relationshipWarning: string | undefined;
 		const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 		try {
+			await recordSpawn(started.agent, agentArgs);
 			relationshipWarning = (await relationship?.accept(started.agent))
 				?.warning;
 			boardAgent = await boardBinding?.accept(started.agent);
@@ -183,8 +191,6 @@ export async function spawnAgent(
 		}
 		return toolResult(
 			{
-				...(boardAgent ? { boardAgent } : {}),
-				...(shared?.agentName ? { contextAgent: shared.agentName } : {}),
 				...(dispatch.command
 					? {
 							spawned: true,
@@ -204,8 +210,18 @@ export async function spawnAgent(
 								target: started.id,
 								name,
 								status: "working",
-								next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
+								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 							}),
+				...(boardAgent || shared?.agentName
+					? {
+							sharing: {
+								...(boardAgent ? { boardAgent } : {}),
+								...(shared?.agentName
+									? { contextAgent: shared.agentName }
+									: {}),
+							},
+						}
+					: {}),
 			},
 			[dispatch.warning, shared?.warning, relationshipWarning]
 				.filter(Boolean)

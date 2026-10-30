@@ -7,5 +7,5 @@
 		"rootDir": ".",
 		"target": "ES2022"
 	},
-	"include": ["index.ts", "remote-worker.ts", "src/**/*.ts"]
+	"include": ["index.ts", "extension.ts", "remote-worker.ts", "src/**/*.ts"]
 }

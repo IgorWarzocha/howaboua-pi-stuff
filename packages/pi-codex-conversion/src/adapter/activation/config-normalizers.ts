@@ -106,11 +106,12 @@ export function normalizeProviderList(value: unknown): string[] {
 
 export function normalizeVoiceContextReasoning(
 	value: unknown,
+	fallback: VoiceContextReasoning = DEFAULT_VOICE_CONTEXT_REASONING,
 ): VoiceContextReasoning {
 	return typeof value === "string" &&
 		(VOICE_CONTEXT_REASONING_LEVELS as readonly string[]).includes(value)
 		? (value as VoiceContextReasoning)
-		: DEFAULT_VOICE_CONTEXT_REASONING;
+		: fallback;
 }
 
 export function normalizeCustomRustBinariesDir(value: unknown): string {

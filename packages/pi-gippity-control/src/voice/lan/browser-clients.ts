@@ -12,6 +12,14 @@ export { MAX_CONTROL_BYTES } from "./browser-wire.ts";
 export class LanVoiceBrowserClients {
 	private readonly connections = new LanVoiceBrowserConnections();
 	private readonly session: LanVoiceBrowserSession;
+	private takeoverAck:
+		| {
+				token: string;
+				socket: WebSocket;
+				resolve(): void;
+				reject(error: Error): void;
+		  }
+		| undefined;
 
 	constructor(options: LanVoiceBrowserClientsOptions) {
 		this.session = new LanVoiceBrowserSession(options, this.connections);
@@ -39,8 +47,55 @@ export class LanVoiceBrowserClients {
 		return this.connections.hasEventClients();
 	}
 
+	hasAudioClients(): boolean {
+		return this.connections.hasAudioClients();
+	}
+
 	broadcastControl(value: unknown): void {
 		this.connections.broadcastControl(value);
+	}
+
+	takeover(token: string): Promise<void> {
+		const socket = this.session.conversationSocket;
+		if (!socket || socket.readyState !== WebSocket.OPEN)
+			return Promise.reject(
+				new Error("The active browser microphone is not connected"),
+			);
+		if (this.takeoverAck)
+			return Promise.reject(
+				new Error("A browser takeover is already preparing"),
+			);
+		return new Promise((resolve, reject) => {
+			const finish = (error?: Error) => {
+				clearTimeout(timeout);
+				socket.removeListener("close", closed);
+				this.takeoverAck = undefined;
+				if (error) reject(error);
+				else resolve();
+			};
+			const closed = () =>
+				finish(
+					new Error("The browser disconnected before acknowledging takeover"),
+				);
+			const timeout = setTimeout(
+				() =>
+					finish(
+						new Error(
+							"The browser did not acknowledge takeover; the source remains active",
+						),
+					),
+				5_000,
+			);
+			this.takeoverAck = {
+				token,
+				socket,
+				resolve: () => finish(),
+				reject: finish,
+			};
+			socket.once("close", closed);
+			this.connections.broadcastControl({ type: "takeover", token });
+			socket.send(JSON.stringify({ type: "takeover", token }));
+		});
 	}
 
 	sendConversationAudio(pcm: Buffer): void {
@@ -68,6 +123,7 @@ export class LanVoiceBrowserClients {
 	}
 
 	async close(): Promise<void> {
+		this.takeoverAck?.reject(new Error("LAN takeover cancelled"));
 		await this.session.close();
 	}
 
@@ -80,6 +136,14 @@ export class LanVoiceBrowserClients {
 		if (!this.connections.isCurrentAudio(clientId, socket)) return;
 		try {
 			const input = decodeLanVoiceBrowserInput(data, isBinary);
+			if (input.type === "takeover.ack") {
+				if (
+					this.takeoverAck?.socket === socket &&
+					this.takeoverAck.token === input.token
+				)
+					this.takeoverAck.resolve();
+				return;
+			}
 			if (input.type === "audio") {
 				this.session.receiveAudio(clientId, socket, input.pcm);
 				return;
@@ -87,7 +151,7 @@ export class LanVoiceBrowserClients {
 			const message = input.command;
 			if (message.type === "start") {
 				void this.session
-					.claim(clientId, socket, message.mode)
+					.claim(clientId, socket, message.mode, message.takeoverToken)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "finish") {
 				void this.session

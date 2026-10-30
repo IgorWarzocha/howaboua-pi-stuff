@@ -2,9 +2,12 @@ import type { VoiceHandoffChannel } from "./handoff-contract.ts";
 
 type Stage = "prepared" | "activate" | "active";
 type RequestMethod =
+	| "lan.verify"
 	| "peer.start"
 	| "peer.close"
 	| "session.send"
+	| "session.stop"
+	| "session.start"
 	| "session.rpc";
 export type HandoffNotification =
 	| {
@@ -74,7 +77,7 @@ export class VoiceHandoffLink {
 				const error = new Error("Voice control did not respond");
 				reject(error);
 				this.fail(error);
-			}, 30_000);
+			}, method === "session.start" ? 120_000 : 30_000);
 			this.pending.set(id, { resolve, reject, timer });
 			try {
 				this.send({ type: "request", id, method, value });
@@ -280,9 +283,12 @@ function isStage(value: unknown): value is Stage {
 
 function isRequestMethod(value: unknown): value is RequestMethod {
 	return (
+		value === "lan.verify" ||
 		value === "peer.start" ||
 		value === "peer.close" ||
 		value === "session.send" ||
+		value === "session.stop" ||
+		value === "session.start" ||
 		value === "session.rpc"
 	);
 }

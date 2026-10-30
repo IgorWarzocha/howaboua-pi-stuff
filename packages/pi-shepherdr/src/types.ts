@@ -4,6 +4,7 @@ export interface PeerMessage {
 	text: string;
 	sender: string;
 	context?: string;
+	closeIfIdle?: true;
 }
 
 export interface PeerDelivery {
@@ -24,7 +25,8 @@ export interface MachineIdentity {
 
 export interface FocusRequest {
 	source: MachineIdentity & {
-		pane: string;
+		backend?: "core";
+		pane?: string;
 		terminal: string;
 		sessionFile: string;
 	};
@@ -69,6 +71,7 @@ interface AgentSessionInfo {
 }
 
 export interface PaneInfo {
+	backend?: "core";
 	agent?: string | null;
 	agent_session?: AgentSessionInfo | null;
 	agent_status: AgentStatus;
@@ -80,9 +83,9 @@ export interface PaneInfo {
 	name?: string | null;
 	pane_id: string;
 	title?: string | null;
-	tab_id: string;
+	tab_id?: string;
 	terminal_id: string;
-	workspace_id: string;
+	workspace_id?: string;
 }
 
 interface TabInfo {
@@ -112,9 +115,9 @@ export interface MonitoredAgent {
 	readonly notifiedExtensionMessages?: string[];
 	readonly name?: string;
 	readonly paneId: string;
-	readonly tabId: string;
+	readonly tabId?: string;
 	readonly terminalId: string;
-	readonly workspaceId: string;
+	readonly workspaceId?: string;
 }
 
 type MachineConnectionStatus = "connected" | "connecting" | "unavailable";
@@ -167,6 +170,7 @@ export interface ExtensionReply {
 export interface SessionView {
 	extensionMessages?: ExtensionMessage[];
 	assistant?: LatestAssistant;
+	assistantPending?: boolean;
 	assistantAfterInput?: boolean;
 	input?: LatestInput;
 }

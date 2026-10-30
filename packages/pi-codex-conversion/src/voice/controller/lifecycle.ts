@@ -39,7 +39,26 @@ export class ControllerLifecycle {
 		this.handoff = handoff;
 		this.callbacks = callbacks;
 	}
+	async endCall(session: CodexRealtimeConversation): Promise<void> {
+		this.callbacks.cancelRefresh();
+		try {
+			await session.waitForFinalPlayback();
+			if (currentVoiceSession(this.runtime.state) === session)
+				await this.stop({ announce: true, finishAcceptedWork: true });
+		} catch (error) {
+			if (
+				currentVoiceSession(this.runtime.state) === session &&
+				session.isEndingCall
+			)
+				this.runtime.context?.ui.notify(
+					`Could not finish ending the call: ${error instanceof Error ? error.message : String(error)}. Use Stop to end it now.`,
+					"error",
+				);
+		}
+	}
+
 	async stop(options?: {
+		finishAcceptedWork?: boolean;
 		announce?: boolean;
 		transferring?: boolean;
 	}): Promise<void> {
@@ -57,7 +76,7 @@ export class ControllerLifecycle {
 		const stoppedPlan = options?.transferring
 			? undefined
 			: this.runtime.realtimePeerPlan;
-		this.messages.cancelPendingDelegations();
+		if (!options?.finishAcceptedWork) this.messages.cancelPendingDelegations();
 		const forwarded = options?.transferring
 			? undefined
 			: this.handoff.forwarded;
@@ -65,7 +84,7 @@ export class ControllerLifecycle {
 			this.handoff.detachForwarded();
 		}
 		const closePromise = this.ownership.hold(async () => {
-			await session?.close();
+			await session?.close(options?.finishAcceptedWork);
 		});
 		this.runtime.state = { type: "idle" };
 		this.runtime.announcedMode = undefined;

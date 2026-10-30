@@ -5,6 +5,7 @@ import { NESTED_NOTE_OUTCOME, type NestedNoteOutcome } from "./fresh-notes.js";
 import { registerNotesCompactionIntegration } from "./integrations.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import type { registerNoteSaveMarkers } from "./note-save-marker.js";
+import { isNoteWrite } from "./query-input.js";
 import {
 	projectTreeCheckpointBranch,
 	projectTreeCheckpointMessages,
@@ -61,8 +62,7 @@ export async function registerNotesHooks(
 		)
 			return;
 		const input = event.args as { action?: unknown } | undefined;
-		if (input?.action !== "write_file" && input?.action !== "append_to_file")
-			return;
+		if (!isNoteWrite(input)) return;
 		nestedWrites.set(event.toolCallId, {
 			runId: lifecycle.runId,
 			windowId: lifecycle.windows.current.currentWindowId,

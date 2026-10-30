@@ -15,12 +15,14 @@ export interface BrowserRouteConfig {
 	aliases: Record<string, string>;
 	hosts: string[];
 	remoteNodePath: string;
+	voiceOnly?: boolean;
 }
 
 interface BrowserRouteConfigInput {
 	aliases?: Record<string, string>;
 	hosts?: string[];
 	remoteNodePath?: string;
+	voiceOnly?: unknown;
 }
 
 const ROUTE_NAME = /^[A-Za-z0-9_.-]+$/;
@@ -70,6 +72,9 @@ export function normalizeBrowserRouteConfig(
 		throw new Error("pi-browser config must be an object");
 	}
 	const input = value as BrowserRouteConfigInput;
+	if (input.voiceOnly !== undefined && typeof input.voiceOnly !== "boolean") {
+		throw new Error("pi-browser voiceOnly must be a boolean");
+	}
 	const rawHosts = input.hosts ?? [];
 	if (!Array.isArray(rawHosts)) {
 		throw new Error("pi-browser config hosts must be an array");
@@ -101,6 +106,7 @@ export function normalizeBrowserRouteConfig(
 	return {
 		aliases,
 		hosts,
+		...(input.voiceOnly === true ? { voiceOnly: true } : {}),
 		remoteNodePath: remoteWord(
 			input.remoteNodePath ?? DEFAULT_REMOTE_NODE_PATH,
 			"pi-browser remoteNodePath",
@@ -108,9 +114,7 @@ export function normalizeBrowserRouteConfig(
 	};
 }
 
-export function readBrowserRouteConfig(
-	path = browserConfigPath(),
-): BrowserRouteConfig {
+function readBrowserConfig(path: string): unknown {
 	let source: string;
 	try {
 		source = readFileSync(path, "utf8");
@@ -121,12 +125,43 @@ export function readBrowserRouteConfig(
 			"code" in error &&
 			error.code === "ENOENT"
 		) {
-			return defaultBrowserRouteConfig();
+			return undefined;
 		}
 		throw error;
 	}
 	try {
-		return normalizeBrowserRouteConfig(JSON.parse(source));
+		return JSON.parse(source);
+	} catch (error) {
+		throw new Error(
+			`Invalid pi-browser config at ${path}: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
+export function readBrowserVoiceOnly(path = browserConfigPath()): boolean {
+	const value = readBrowserConfig(path);
+	if (value === undefined) return false;
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error(
+			`Invalid pi-browser config at ${path}: pi-browser config must be an object`,
+		);
+	}
+	const voiceOnly = (value as BrowserRouteConfigInput).voiceOnly;
+	if (voiceOnly !== undefined && typeof voiceOnly !== "boolean") {
+		throw new Error(
+			`Invalid pi-browser config at ${path}: pi-browser voiceOnly must be a boolean`,
+		);
+	}
+	return voiceOnly === true;
+}
+
+export function readBrowserRouteConfig(
+	path = browserConfigPath(),
+): BrowserRouteConfig {
+	const value = readBrowserConfig(path);
+	if (value === undefined) return defaultBrowserRouteConfig();
+	try {
+		return normalizeBrowserRouteConfig(value);
 	} catch (error) {
 		throw new Error(
 			`Invalid pi-browser config at ${path}: ${error instanceof Error ? error.message : String(error)}`,
@@ -139,7 +174,7 @@ export function writeBrowserRouteConfig(
 	path = browserConfigPath(),
 ): void {
 	const normalized = normalizeBrowserRouteConfig(config);
-	if (normalized.hosts.length === 0) {
+	if (normalized.hosts.length === 0 && !normalized.voiceOnly) {
 		rmSync(path, { force: true });
 		return;
 	}
@@ -149,8 +184,14 @@ export function writeBrowserRouteConfig(
 		directory,
 		`.${basename(path)}.${process.pid}.${randomUUID()}.tmp`,
 	);
+	const stored =
+		normalized.voiceOnly &&
+		normalized.hosts.length === 0 &&
+		normalized.remoteNodePath === DEFAULT_REMOTE_NODE_PATH
+			? { voiceOnly: true }
+			: normalized;
 	try {
-		writeFileSync(temporary, `${JSON.stringify(normalized, null, 2)}\n`, {
+		writeFileSync(temporary, `${JSON.stringify(stored, null, 2)}\n`, {
 			encoding: "utf8",
 			flag: "wx",
 			mode: 0o600,

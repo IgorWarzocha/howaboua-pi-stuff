@@ -1,3 +1,4 @@
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
@@ -5,6 +6,7 @@ import type { CodexRealtimePeer } from "../conversation/peer.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import type { RealtimeVoiceEventDetails } from "../conversation/wire.ts";
 import type { CodexDictationSession } from "../dictation/session.ts";
+import { rewriteTaskDelegation } from "../task-delegation.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
 
 interface SessionLifecycle<T> {
@@ -17,6 +19,7 @@ interface SessionLifecycle<T> {
 }
 
 interface RealtimeSessionLifecycle extends SessionLifecycle<CodexRealtimeConversation> {
+	onEndCall(session: CodexRealtimeConversation): void;
 	onDrop(session: CodexRealtimeConversation, error: Error): void;
 	onTurn(session: CodexRealtimeConversation, turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
@@ -29,6 +32,7 @@ interface DictationSessionLifecycle extends SessionLifecycle<CodexDictationSessi
 }
 
 export async function startControllerConversation(options: {
+	ctx: ExtensionContext;
 	auth: CodexVoiceAuth;
 	config: CodexConversionConfig;
 	instructions: string;
@@ -49,11 +53,14 @@ export async function startControllerConversation(options: {
 		onError: (error) => options.lifecycle.onError(session, error),
 		onDrop: (error) => options.lifecycle.onDrop(session, error),
 		onStatus: options.lifecycle.onStatus,
+		onEndCall: () => options.lifecycle.onEndCall(session),
 		onTurn: (turn) => options.lifecycle.onTurn(session, turn),
 		onUserTranscript: options.lifecycle.onUserTranscript,
 		onTranscriptTail: options.lifecycle.onTranscriptTail,
+		rewriteDelegation: (turn, signal) => rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
+		onDelegationError: (error) => options.ctx.ui.notify(error.message, "error"),
 		onEvent: options.lifecycle.onEvent,
-	}, realtimePeer);
+	}, realtimePeer, options.config.voice.model !== "codex-live-1.1");
 	options.lifecycle.onCreated(session);
 	if (options.signal?.aborted) { await session.close(); return; }
 	const closeOnAbort = () => { void session.close(); };

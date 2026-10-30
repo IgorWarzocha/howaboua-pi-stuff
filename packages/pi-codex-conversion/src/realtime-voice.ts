@@ -1,5 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+export {
+	type GippityToolContext,
+	type GippityToolDefinition,
+	type GippityToolResult,
+	registerGippityVoiceTool,
+} from "./voice/realtime-tools.ts";
+
 export const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 export const MAX_REALTIME_VOICE_PROMPT_BYTES = 8 * 1_024;
@@ -35,7 +42,8 @@ export function parseRealtimeVoicePrompt(
 	if (
 		id.length > 160 ||
 		!prompt.trim() ||
-		new TextEncoder().encode(prompt).byteLength > MAX_REALTIME_VOICE_PROMPT_BYTES
+		new TextEncoder().encode(prompt).byteLength >
+			MAX_REALTIME_VOICE_PROMPT_BYTES
 	)
 		return undefined;
 	return id ? { id, active: record["active"], prompt } : undefined;

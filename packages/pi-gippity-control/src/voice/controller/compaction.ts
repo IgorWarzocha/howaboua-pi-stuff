@@ -48,6 +48,7 @@ export class RealtimeCompactionRefresh {
 		if (
 			!config.voice.refreshRealtimeAfterCompaction ||
 			activeState.type !== "conversation" ||
+			activeState.session.isEndingCall ||
 			this.runtime.announcedMode !== "realtime"
 		)
 			return;
@@ -71,6 +72,8 @@ export class RealtimeCompactionRefresh {
 				config,
 				signal: abortController.signal,
 			});
+			if (prepared.summary)
+				await previous.waitForDelegations(abortController.signal);
 			if (
 				!prepared.summary ||
 				ctx.sessionManager.getLeafId() !== leafId ||

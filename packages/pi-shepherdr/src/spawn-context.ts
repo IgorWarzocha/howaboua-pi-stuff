@@ -38,6 +38,9 @@ export class SpawnContext {
 		this.getRelationships = getRelationships;
 		this.getService = getService;
 	}
+	canShare(ctx: ExtensionContext): boolean {
+		return this.getService()?.canCreateChild(ctx) === true;
+	}
 	prepareRelationship(
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,
@@ -119,6 +122,7 @@ export class SpawnContext {
 			throw new Error(
 				"Shared context spawn requires a saved controller session",
 			);
+		await runtime.prepareSharing();
 		const routing: Routing = {
 			transport: "shepherdr",
 			parent: runtime.local

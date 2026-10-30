@@ -2,6 +2,9 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { CoreConnection } from "../core/backend.js";
+import { CoreClient } from "../core/client.js";
+import { type CoreMachine, coreMachines } from "../core/remote-exec.js";
 import { HerdrClient, type HerdrConnection } from "../herdr-client.js";
 import { LOCAL_MACHINE, readMachineCatalog } from "../machine-catalog.js";
 import { AgentMonitor } from "../monitor.js";
@@ -12,6 +15,8 @@ import type {
 	ScopedMonitoredAgent,
 } from "../types.js";
 import { renderAgentWidget } from "../widget.js";
+import { reloadCoreCatalog, reloadSshCatalog } from "./catalog.js";
+import { connectMachine } from "./connection.js";
 import {
 	connectedMachine,
 	listAgents,
@@ -40,19 +45,43 @@ export class AgentFleet {
 		};
 	}
 	private readonly setup = new FleetSetup(() => this.refresh());
+	private needsContextRelay: (
+		ctx: ExtensionContext,
+		machine: string,
+	) => boolean = () => false;
 	setContextRelay(
 		handler: (
 			ctx: ExtensionContext,
 			request: unknown,
 			signal: AbortSignal,
 		) => Promise<unknown>,
+		needsRelay: (ctx: ExtensionContext, machine: string) => boolean,
 	): void {
 		this.setup.setContextRelay(handler);
+		this.needsContextRelay = needsRelay;
+	}
+	async restoreSharing(ctx: ExtensionContext): Promise<void> {
+		if (this.context !== ctx) return;
+		await Promise.all(
+			this.statuses()
+				.filter(
+					(machine) =>
+						!machine.local &&
+						machine.status === "connected" &&
+						this.needsContextRelay(ctx, machine.id),
+				)
+				.map((machine) =>
+					this.connected(machine.id)
+						.prepareSharing()
+						.catch(() => {}),
+				),
+		);
 	}
 	private context: ExtensionContext | undefined;
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
 	private readonly runtimes = new Map<string, MachineRuntime>();
+	private localCoreId: string | undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.pi = pi;
@@ -62,13 +91,32 @@ export class AgentFleet {
 		this.deactivate();
 		const generation = this.generation;
 		this.context = ctx;
-		const catalog = await readMachineCatalog();
+		const catalog = process.env["HC_TERMINAL_SOCKET"]
+			? {}
+			: await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
 		const machines = Object.entries(catalog).filter(
 			([, machine]) => machine.enabled,
 		);
-		const grouped = groupSaved(savedAgents(ctx));
-		const known = new Set([LOCAL_MACHINE, ...machines.map(([id]) => id)]);
+		if (process.env["HC_TERMINAL_SOCKET"]) {
+			const identityClient = new CoreConnection();
+			let coreId: string;
+			try {
+				coreId = (await identityClient.machineIdentity()).session;
+			} finally {
+				identityClient.close();
+			}
+			if (!this.isCurrent(generation, ctx)) return;
+			this.localCoreId = coreId;
+		}
+		const grouped = groupSaved(savedAgents(ctx, this.localCoreId));
+		const coreCatalog = await this.coreCatalog();
+		if (!this.isCurrent(generation, ctx)) return;
+		const known = new Set([
+			LOCAL_MACHINE,
+			...machines.map(([id]) => id),
+			...coreCatalog.map((machine) => machine.id),
+		]);
 		const orphaned = [...grouped.entries()]
 			.filter(([machine]) => !known.has(machine))
 			.reduce((count, [, records]) => count + records.length, 0);
@@ -93,10 +141,22 @@ export class AgentFleet {
 				status: "connecting",
 			});
 		}
+		for (const machine of coreCatalog)
+			this.runtimes.set(machine.id, {
+				coreMachine: machine,
+				local: false,
+				pending: grouped.get(machine.id) ?? [],
+				status: "connecting",
+			});
 
-		const localClient = new HerdrClient();
+		const localClient = process.env["HC_TERMINAL_SOCKET"]
+			? new CoreConnection()
+			: new HerdrClient();
 		await localClient.request("ping");
-		if (!this.isCurrent(generation, ctx)) return;
+		if (!this.isCurrent(generation, ctx)) {
+			if (localClient instanceof CoreConnection) localClient.close();
+			return;
+		}
 		const localMonitor = this.createMonitor(
 			LOCAL_MACHINE,
 			localRuntime,
@@ -121,13 +181,20 @@ export class AgentFleet {
 		for (const [name] of machines) {
 			void this.connectMachine(name, generation, true);
 		}
+		for (const machine of coreCatalog)
+			void this.connectMachine(machine.id, generation, true);
 	}
 
 	deactivate(): void {
 		this.generation += 1;
+		this.localCoreId = undefined;
 		for (const runtime of this.runtimes.values()) {
 			runtime.monitor?.deactivate();
-			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
+			if (
+				runtime.client instanceof RemoteHerdrClient ||
+				runtime.client instanceof CoreConnection
+			)
+				runtime.client.close();
 		}
 		this.runtimes.clear();
 		renderAgentWidget(this.context, [], []);
@@ -143,38 +210,20 @@ export class AgentFleet {
 		const ctx = this.context;
 		if (!ctx) return;
 		const generation = this.generation;
-		const catalog = await readMachineCatalog();
-		if (!this.isCurrent(generation, ctx)) return;
-		const reconnect: string[] = [];
-
-		for (const [name, runtime] of this.runtimes) {
-			if (runtime.local || catalog[name]?.enabled) continue;
-			runtime.monitor?.deactivate();
-			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
-			this.runtimes.delete(name);
-		}
-		for (const [name, machineConfig] of Object.entries(catalog)) {
-			if (!machineConfig.enabled) continue;
-			const runtime = this.runtimes.get(name);
-			if (
-				runtime?.config &&
-				runtime.config.target === machineConfig.target &&
-				runtime.config.session === machineConfig.session
-			) {
-				runtime.config = machineConfig;
-				continue;
-			}
-			const pending = runtime?.monitor?.list() ?? runtime?.pending ?? [];
-			runtime?.monitor?.deactivate();
-			if (runtime?.client instanceof RemoteHerdrClient) runtime.client.close();
-			this.runtimes.set(name, {
-				config: machineConfig,
-				local: false,
-				pending,
-				status: "connecting",
+		if (process.env["HC_TERMINAL_SOCKET"]) {
+			const catalog = await this.coreCatalog();
+			if (!this.isCurrent(generation, ctx)) return;
+			reloadCoreCatalog(this.runtimes, catalog, (id) => {
+				void this.connectMachine(id, generation, true);
 			});
-			reconnect.push(name);
+			this.changed();
+			return;
 		}
+		const catalog = process.env["HC_TERMINAL_SOCKET"]
+			? {}
+			: await readMachineCatalog();
+		if (!this.isCurrent(generation, ctx)) return;
+		const reconnect = reloadSshCatalog(this.runtimes, catalog);
 		this.changed();
 		for (const name of reconnect) {
 			void this.connectMachine(name, generation, true);
@@ -191,7 +240,41 @@ export class AgentFleet {
 		return listAgents(this.runtimes);
 	}
 	connected(machine?: string): ConnectedMachine {
-		return connectedMachine(this.runtimes, this.context, machine);
+		const ctx = this.context;
+		return connectedMachine(
+			this.runtimes,
+			ctx,
+			async (name, runtime, client) => {
+				if (
+					!ctx ||
+					this.context !== ctx ||
+					this.runtimes.get(name) !== runtime ||
+					runtime.client !== client
+				)
+					throw new Error(
+						"Session changed; retry sharing from the current session",
+					);
+				if (runtime.local) return;
+				if (
+					!(
+						client instanceof RemoteHerdrClient ||
+						client instanceof CoreConnection
+					)
+				)
+					throw new Error("Context sharing is unavailable on this machine");
+				await this.prepareContextRelay(name, runtime, client, ctx);
+				if (
+					this.context !== ctx ||
+					this.runtimes.get(name) !== runtime ||
+					runtime.client !== client
+				)
+					throw new Error(
+						"Session changed; retry sharing from the current session",
+					);
+				client.contextRelayPath();
+			},
+			machine,
+		);
 	}
 	private isCurrent(generation: number, ctx: ExtensionContext): boolean {
 		return generation === this.generation && ctx === this.context;
@@ -224,7 +307,7 @@ export class AgentFleet {
 	private async prepareContextRelay(
 		name: string,
 		runtime: MachineRuntime,
-		client: RemoteHerdrClient,
+		client: RemoteHerdrClient | CoreConnection,
 		ctx: ExtensionContext,
 	): Promise<void> {
 		return this.setup.prepareContextRelay(
@@ -257,88 +340,16 @@ export class AgentFleet {
 	): Promise<void> {
 		const runtime = this.runtimes.get(name);
 		const ctx = this.context;
-		if (
-			!runtime?.config ||
-			runtime.local ||
-			runtime.status === "connected" ||
-			runtime.attempting ||
-			!ctx ||
-			generation !== this.generation
-		) {
-			return;
-		}
-		runtime.attempting = true;
-		runtime.status = "connecting";
-		delete runtime.reason;
-		this.refresh();
-		let attached = false;
-		let client: RemoteHerdrClient | undefined;
-		try {
-			client = await RemoteHerdrClient.connect(runtime.config, (error) => {
-				if (runtime.client === client)
-					this.disconnected(name, runtime, error.message);
-			});
-			await this.prepareContextRelay(name, runtime, client, ctx);
-			if (
-				!this.isCurrent(generation, ctx) ||
-				this.runtimes.get(name) !== runtime
-			) {
-				client.close();
-				return;
-			}
-			await client.request("ping");
-			if (
-				!this.isCurrent(generation, ctx) ||
-				this.runtimes.get(name) !== runtime
-			) {
-				client.close();
-				return;
-			}
-			const pending = runtime.monitor?.list() ?? runtime.pending;
-			const monitor = this.createMonitor(name, runtime, client);
-			runtime.client = client;
-			runtime.monitor = monitor;
-			attached = true;
-			await monitor.activate(ctx, pending);
-			if (
-				!this.isCurrent(generation, ctx) ||
-				this.runtimes.get(name) !== runtime ||
-				runtime.client !== client ||
-				runtime.monitor !== monitor
-			) {
-				monitor.deactivate();
-				client.close();
-				return;
-			}
-			runtime.pending = [];
-			runtime.status = "connected";
-			delete runtime.attempting;
-			this.refresh();
-			if (!initial) ctx.ui.notify(`Connected to ${name}`, "info");
-		} catch (error) {
-			delete runtime.attempting;
-			if (
-				this.isCurrent(generation, ctx) &&
-				this.runtimes.get(name) === runtime &&
-				runtime.client === client &&
-				runtime.monitor &&
-				runtime.monitoringIssue?.state === "degraded"
-			) {
-				runtime.pending = [];
-				runtime.status = "connected";
-				this.refresh();
-				return;
-			}
-			client?.close();
-			if (generation !== this.generation || ctx !== this.context) return;
-			if (
-				this.runtimes.get(name) !== runtime ||
-				(attached && runtime.client !== client)
-			) {
-				return;
-			}
-			this.disconnected(name, runtime, errorMessage(error));
-		}
+		if (!runtime || !ctx) return;
+		return connectMachine(this.runtimes, name, runtime, ctx, initial, {
+			isCurrent: () => this.isCurrent(generation, ctx),
+			refresh: () => this.refresh(),
+			createMonitor: (client) => this.createMonitor(name, runtime, client),
+			needsContextRelay: () => this.needsContextRelay(ctx, name),
+			prepareContextRelay: (client) =>
+				this.prepareContextRelay(name, runtime, client, ctx),
+			disconnected: (reason) => this.disconnected(name, runtime, reason),
+		});
 	}
 
 	private disconnected(
@@ -351,7 +362,11 @@ export class AgentFleet {
 		// Keep the stopped owner until reconnect so in-flight dispatch cleanup
 		// updates the state we persist, rather than a detached snapshot.
 		runtime.monitor?.deactivate();
-		if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
+		if (
+			runtime.client instanceof RemoteHerdrClient ||
+			runtime.client instanceof CoreConnection
+		)
+			runtime.client.close();
 		delete runtime.client;
 		delete runtime.contextRelayError;
 		delete runtime.monitoringIssue;
@@ -368,8 +383,22 @@ export class AgentFleet {
 	private changed(): void {
 		if (!this.context) return;
 		const agents = this.persistedAgents();
-		this.pi.appendEntry(MONITOR_STATE_TYPE, { version: 2, agents });
+		this.pi.appendEntry(MONITOR_STATE_TYPE, {
+			version: 2,
+			agents,
+			...(this.localCoreId ? { localCoreId: this.localCoreId } : {}),
+		});
 		this.refresh();
+	}
+	private async coreCatalog(): Promise<CoreMachine[]> {
+		const socket = process.env["HC_TERMINAL_SOCKET"];
+		if (!socket) return [];
+		const client = new CoreClient(socket);
+		try {
+			return await coreMachines(client);
+		} finally {
+			client.close();
+		}
 	}
 
 	private refresh(): void {

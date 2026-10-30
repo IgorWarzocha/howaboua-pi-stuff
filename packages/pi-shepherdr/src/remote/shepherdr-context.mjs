@@ -88,7 +88,7 @@ export async function requestContext(path, request, signal) {
 	}
 	let descriptor;
 	try {
-		descriptor = JSON.parse(await readReceiver(path));
+		descriptor = JSON.parse(await readReceiver(path, signal));
 	} catch (error) {
 		throw new Error(
 			"Shared context owner is unavailable; resume it and reconnect its machine",

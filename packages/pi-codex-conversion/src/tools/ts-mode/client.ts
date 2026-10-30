@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { CodeModeDelegateRuntime } from "../code-mode/delegate-runtime.ts";
 import { DEFAULT_CODE_MODE_EXEC_YIELD_MS, parseExecSource } from "../code-mode/host-protocol.ts";
-import type { CodeModeExecutionClient, NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { CodeModeExecutionClient, NotebookClientOptions } from "../code-mode/shared-runtime.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
 import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
 import type { CodeModeToolDefinition, NotebookControlRequest, NotebookControlResult, RuntimeResponse, ToolExecutionContext } from "../code-mode/types.ts";
@@ -14,7 +14,7 @@ import { TsSessionCompilation } from "./session-compilation.ts";
 import { MAX_TS_WORKERS, TsSessionKernel, type TsExecution } from "./session-kernel.ts";
 
 export class TsCodeModeClient implements CodeModeExecutionClient {
-	private readonly options: NotebookRuntimeOptions;
+	private readonly options: NotebookClientOptions;
 	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly lifecycle: TsStateLifecycle;
 	private readonly compilation: TsSessionCompilation;
@@ -36,12 +36,12 @@ export class TsCodeModeClient implements CodeModeExecutionClient {
 	private phase: "ready" | "closing" = "ready";
 	private shutdownPromise: Promise<void> | undefined;
 
-	constructor(options: NotebookRuntimeOptions, renderStore?: CodeModeNestedRenderStore) {
+	constructor(options: NotebookClientOptions, renderStore?: CodeModeNestedRenderStore) {
 		if (!(((process.platform === "linux" || process.platform === "darwin") && (process.arch === "x64" || process.arch === "arm64")) || (process.platform === "win32" && process.arch === "x64"))) throw new Error(`TS is unavailable on ${process.platform}/${process.arch}; choose Code or Deno Notebook. TS supports Linux and macOS x64/arm64, and Windows x64.`);
 		if (process.versions["bun"]) throw new Error("TS execution requires a Node.js Pi host; start Pi with Node.js. Code and Deno Notebook remain available.");
 		if (!Number.isSafeInteger(options.maxHeapMiB) || options.maxHeapMiB < 128) throw new Error("TS requires a session heap budget of at least 128 MiB; increase the Notebook heap setting before selecting TS. Half is reserved for live execution and half for up to four isolated cells");
 		this.options = options;
-		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
+		this.delegate = new CodeModeDelegateRuntime(() => undefined, options.prepareToolInput, renderStore);
 		this.compilation = new TsSessionCompilation(options);
 		this.kernel = new TsSessionKernel(options);
 		this.lifecycle = new TsStateLifecycle({

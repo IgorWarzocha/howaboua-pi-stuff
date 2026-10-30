@@ -26,6 +26,7 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
+import { CoreConnection } from "./core/backend.js";
 import type { AgentFleet } from "./fleet/index.js";
 import { resolvePiAgent } from "./herdr.js";
 import { attributeAgentPrompt } from "./messages/attribution.js";
@@ -43,8 +44,9 @@ export function createAgentsTool(
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description: "Delegate to persistent agents",
-		promptGuidelines: ["Make the first agents discovery call alone"],
+		description:
+			"Delegate to persistent agents; {} lists additional action fields",
+		promptGuidelines: ["Read agents help alone before first use"],
 		parameters: AgentsParameters,
 		executionMode: "parallel",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {
@@ -52,7 +54,16 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
+				return toolResult(
+					await agentsHelp(
+						board.enabled(ctx),
+						gpt(),
+						Boolean(
+							process.env["HC_TERMINAL_ID"] &&
+								process.env["HC_TERMINAL_SOCKET"],
+						),
+					),
+				);
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });
@@ -66,6 +77,7 @@ export function createAgentsTool(
 			let runtime = fleet.connected(params.machine);
 			if (params.action === "spawn") {
 				return spawnAgent(
+					pi,
 					fleet,
 					runtime,
 					params,
@@ -123,7 +135,13 @@ export function createAgentsTool(
 			const panel = await resolvePiAgent(
 				runtime.client,
 				target,
-				runtime.local ? process.env["HERDR_PANE_ID"] : "",
+				runtime.local
+					? process.env[
+							runtime.client instanceof CoreConnection
+								? "HC_TERMINAL_ID"
+								: "HERDR_PANE_ID"
+						]
+					: "",
 			);
 			if (params.commands) {
 				return toolResult({
@@ -149,7 +167,7 @@ export function createAgentsTool(
 					watched: true,
 					machine: runtime.machine,
 					target: panel.pane_id,
-					next: "Completion or blockage will be delivered automatically; do not poll",
+					next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 				});
 			}
 			if (params.action === "read") {
@@ -221,7 +239,7 @@ export function createAgentsTool(
 									machine: runtime.machine,
 									target: panel.pane_id,
 									status: "working",
-									next: "Converse, do other work or reply now; completion/blockage arrives even after you reply. No polling or sleep waits",
+									next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 								},
 					dispatch.warning,
 				);

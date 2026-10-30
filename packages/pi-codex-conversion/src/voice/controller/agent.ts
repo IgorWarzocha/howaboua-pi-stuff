@@ -33,6 +33,9 @@ export class ControllerAgent {
 				if (this.runtime.state.type === "conversation")
 					this.runtime.state.session.settleAgentTurn();
 			},
+			onDeliveryUnavailable: (message) => {
+				this.runtime.context?.ui.notify(message, "error");
+			},
 			onWorking: () => onWorking(),
 		});
 	}
@@ -54,6 +57,7 @@ export class ControllerAgent {
 	}
 
 	piUserMessage(message: unknown): boolean {
+		if (this.messages.delegationConsumed(message)) return true;
 		return (
 			this.runtime.state.type === "conversation" &&
 			this.runtime.state.session.piUserMessage(message)
@@ -80,15 +84,15 @@ export class ControllerAgent {
 			.flatMap((part) => (part.type === "text" ? [part.text] : []))
 			.join("\n");
 		if (message.stopReason === "toolUse") {
-			const progress = completedText.trim()
-				? completedText
-				: forwardReasoningSummaries
+			this.runtime.state.session.agentProgress(
+				completedText,
+				forwardReasoningSummaries
 					? completedVoiceReasoningSummary(message)
-					: undefined;
-			if (progress) this.runtime.state.session.agentProgress(progress);
+					: undefined,
+			);
 			return;
 		}
-		this.runtime.state.session.agentResult(completedText);
+		this.runtime.state.session.agentResult(completedText, message.stopReason);
 	}
 
 	settleTurn(): void {

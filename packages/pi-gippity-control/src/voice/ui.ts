@@ -1,9 +1,5 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
-import {
-	renderRealtimeConversationInput,
-	renderRealtimeDelegation,
-} from "./prompts.ts";
 
 export const REALTIME_VOICE_MESSAGE_TYPE = "gippity-realtime-voice";
 export const REALTIME_DELEGATION_MESSAGE_TYPE = "gippity-realtime-delegation";
@@ -36,25 +32,6 @@ interface VoiceContextMessageDetails {
 
 export interface RealtimeUserTranscriptMessageDetails {
 	transcript: string;
-}
-
-export function realtimeVoiceMessage(
-	input: string,
-	route: RealtimeVoiceMessageDetails["route"],
-	transcriptDelta?: string,
-) {
-	return {
-		customType:
-			route === "delegation"
-				? REALTIME_DELEGATION_MESSAGE_TYPE
-				: REALTIME_VOICE_MESSAGE_TYPE,
-		content:
-			route === "delegation"
-				? renderRealtimeDelegation(input, transcriptDelta)
-				: renderRealtimeConversationInput(input),
-		display: route !== "delegation",
-		details: { input, route } satisfies RealtimeVoiceMessageDetails,
-	};
 }
 
 export function codexVoiceModeMessage(
@@ -90,6 +67,11 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 	pi.registerEntryRenderer<RealtimeVoiceMessageDetails>(
 		REALTIME_VOICE_MESSAGE_TYPE,
 		(entry, _options, theme) => voiceTurnBox(entry.data, theme),
+	);
+	pi.registerEntryRenderer<RealtimeVoiceMessageDetails>(
+		REALTIME_DELEGATION_MESSAGE_TYPE,
+		(entry, _options, theme) =>
+			voiceBox(theme, "Task for Pi", entry.data?.input ?? "Voice request"),
 	);
 	pi.registerEntryRenderer<RealtimeUserTranscriptMessageDetails>(
 		REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
@@ -190,15 +172,10 @@ Resume normal conversation, tool use, and formatting appropriate for the task at
 	return mode === "dictation"
 		? '<codex_voice_mode mode="dictation" state="active">Dictation is active. User messages may contain speech-recognition errors or missing punctuation. Resolve obvious errors from context and clarify only material ambiguity.</codex_voice_mode>'
 		: `<realtime_voice_session state="active">
-A separate voice assistant is now conversing with the user. This lifecycle event carries no task. Handle any subsequent realtime_delegation as an ordinary authoritative user request.
-
-The user may also send ordinary typed messages directly to Pi. Handle them normally; only realtime_delegation messages represent voice-agent delegation.
-
-During longer delegated work, include brief user-facing progress text in assistant messages between tool calls. Keep everyone informed and up to date with what you're doing. Report meaningful progress or the next step; do not narrate routine commands.
-
-Shape all replies to realtime delegations for spoken delivery. Prefer concise, natural language; include raw links, code, command lines, tables, or similarly visual detail only when the user specifically requests them.
-
-Preserve the spoken flow. Do not invoke ask-questions tools or similar interactive handoffs unless the user specifically requests them. Ask necessary clarifying questions in ordinary assistant text instead.
+Handle user requests normally. This lifecycle event carries no task.
+During ongoing work, send brief assistant progress messages between tool calls. Report findings, decisions, blockers or next steps, not routine tool calls.
+Keep replies clear and concise. Preserve any code, links, commands or other detail the task needs.
+Ask only when missing information changes the action.
 </realtime_voice_session>`;
 }
 

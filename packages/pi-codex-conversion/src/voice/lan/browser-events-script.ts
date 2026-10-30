@@ -4,10 +4,12 @@ function connectBrowserEvents({ clientId, connection, activity, activityState, a
   events.onopen = () => {
     connection.classList.add('online');
     connection.lastElementChild.textContent = 'Connected';
+    audio.handleServerCommand({ type:'connection', state:'connected' });
   };
   events.onerror = () => {
     connection.classList.remove('online');
     connection.lastElementChild.textContent = 'Reconnecting';
+    audio.handleServerCommand({ type:'connection', state:'reconnecting' });
   };
   events.onmessage = (event) => {
     try {

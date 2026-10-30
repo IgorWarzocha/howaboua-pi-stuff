@@ -78,6 +78,7 @@ export class AgentBoard {
 						);
 				},
 				propagateEnabled: async (ctx, enabled) => {
+					let boardId: string | undefined;
 					await Promise.all(
 						children(ctx).map(async (child) => {
 							try {
@@ -85,7 +86,7 @@ export class AgentBoard {
 									sessionContextPath(child.sessionFile),
 									{
 										operation: "board-enabled",
-										boardId: binding(ctx).boardId,
+										boardId: (boardId ??= binding(ctx).boardId),
 										enabled,
 									},
 									AbortSignal.timeout(750),
@@ -156,6 +157,7 @@ export class AgentBoard {
 		const segment =
 			name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "agent";
 		const agentName = `${own.agentName}/${segment}-${randomUUID()}`;
+		await runtime.prepareSharing();
 		const upstream = runtime.local
 			? sessionContextPath(file)
 			: runtime.client.contextRelayPath();

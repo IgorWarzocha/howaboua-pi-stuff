@@ -38,6 +38,14 @@ In Pi's interactive TUI, run `/browser`, add the SSH host names, identify the cu
 
 Each name must be an existing SSH alias. On first use, the extension atomically installs or updates its managed worker at `~/.pi/agent/pi-browser-worker.mjs` on that host, then invokes it against the host's local CDP browser. No package installation is required on routed machines. Screenshots return through SCP and the remote artifact is removed. Keep `host` on follow-up calls that use a returned ref, screenshot, or continuation handle. Settings are stored in `pi-browser.json` under Pi's agent directory; `PI_BROWSER_CONFIG` overrides that storage path.
 
+To use Pi Browser only for voice startup, add `"voiceOnly": true` to `pi-browser.json` and reload Pi. For a new file, the entire configuration can be:
+
+```json
+{ "voiceOnly": true }
+```
+
+The browser tool is unavailable to the agent, while voice startup and `/browser` host settings remain available. Keep any existing host routing fields in the same file. Remove the value or set it to `false` to restore the tool.
+
 ## Browser startup
 
 The tool discovers CDP through `CDP_PORT`, port 9222, or `DevToolsActivePort`. Set `CDP_PORT_FILE` for a non-standard port file.

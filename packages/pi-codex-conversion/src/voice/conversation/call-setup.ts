@@ -1,4 +1,4 @@
-import { fetch as undiciFetch, ProxyAgent, type Response } from "undici";
+import { fetch as undiciFetch, FormData, ProxyAgent, type Response } from "undici";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveWebSocketProxyForTarget } from "../../providers/openai-codex/websocket-connection.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
@@ -7,7 +7,7 @@ import { MAX_REALTIME_SDP_BYTES } from "./peer.ts";
 const V3_MODEL = "gpt-live-1.1-codex";
 
 type RealtimeCallResult = { status: number; answer: string };
-export type RealtimeCallSetup = (endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>) => Promise<RealtimeCallResult>;
+export type RealtimeCallSetup = (endpoint: string, headers: Headers, signal: AbortSignal, body: string | FormData, env?: Record<string, string>) => Promise<RealtimeCallResult>;
 
 export function buildRealtimeCallRequest(sdp: string, config: CodexConversionConfig, instructions: string, initialItems?: RealtimeInitialMessageItem[]) {
 	return {

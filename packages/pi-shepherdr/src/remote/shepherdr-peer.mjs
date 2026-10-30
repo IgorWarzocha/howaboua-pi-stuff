@@ -31,10 +31,10 @@ function isMissing(error) {
 	return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
-/** @param {string} path @returns {Promise<string>} */
-export async function readReceiver(path) {
+/** @param {string} path @param {AbortSignal} [signal] @returns {Promise<string>} */
+export async function readReceiver(path, signal) {
 	try {
-		return await readFile(path, "utf8");
+		return await readFile(path, { encoding: "utf8", signal });
 	} catch (error) {
 		if (!isMissing(error)) throw error;
 	}
@@ -47,6 +47,7 @@ export async function readReceiver(path) {
 			if (settled) return false;
 			settled = true;
 			clearTimeout(timer);
+			signal?.removeEventListener("abort", aborted);
 			watcher.close();
 			return true;
 		};
@@ -54,6 +55,7 @@ export async function readReceiver(path) {
 		const fail = (error) => {
 			if (finish()) reject(error);
 		};
+		const aborted = () => fail(signal?.reason);
 		const timer = setTimeout(
 			() =>
 				fail(
@@ -64,7 +66,7 @@ export async function readReceiver(path) {
 			30_000,
 		);
 		const read = () => {
-			void readFile(path, "utf8").then(
+			void readFile(path, { encoding: "utf8", signal }).then(
 				(value) => {
 					if (finish()) resolve(value);
 				},
@@ -77,6 +79,11 @@ export async function readReceiver(path) {
 		watcher.on("change", (_event, file) => {
 			if (file === null || file === basename(path)) read();
 		});
+		signal?.addEventListener("abort", aborted, { once: true });
+		if (signal?.aborted) {
+			aborted();
+			return;
+		}
 		read();
 	});
 }
@@ -104,7 +111,13 @@ export async function sendPeerMessage(
 	const frame =
 		JSON.stringify({
 			protocol: PEER_PROTOCOL,
-			kind: commands ? "commands" : focus ? "focus" : "message",
+			kind: message.closeIfIdle
+				? "close-idle"
+				: commands
+					? "commands"
+					: focus
+						? "focus"
+						: "message",
 			focus,
 			id,
 			token: descriptor.token,

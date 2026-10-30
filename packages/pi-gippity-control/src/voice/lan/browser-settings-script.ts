@@ -24,7 +24,27 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     }));
     select.value = current;
   };
+  const updateProvider = () => {
+    const apiModel = form.elements.namedItem('model').value !== 'codex-live-1.1';
+    for (const element of form.querySelectorAll('[data-codex-voice]')) element.hidden = apiModel;
+    for (const element of form.querySelectorAll('[data-realtime-voice]')) element.hidden = !apiModel;
+    document.querySelector('#setting-model-requirement').textContent = apiModel
+      ? 'Uses the named Pi provider\'s API key and endpoint. API usage is billed separately; a ChatGPT login is not an API key.'
+      : 'Uses your OpenAI Codex login in Pi.';
+  };
+  form.elements.namedItem('model').addEventListener('change', updateProvider);
   const display = (data) => {
+    const modelLabel = (model) => model === 'realtime-2.1' ? 'GPT-Realtime-2.1 (API)'
+      : model === 'realtime-2.1-mini' ? 'GPT-Realtime-2.1 Mini (API)' : 'Codex Live (OAuth)';
+    fillSelect('model', data.voiceModels.map((model) => ({value:model, label:modelLabel(model)})), data.config.model);
+    form.elements.namedItem('apiProvider').value = data.config.apiProvider;
+    fillSelect('realtimeVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeVoice);
+    fillSelect('realtimeAlternateVoice', data.realtimeVoices.map((voice) => ({value:voice, label:voice})), data.config.realtimeAlternateVoice);
+    form.elements.namedItem('webSearch').checked = data.config.webSearch;
+    updateProvider();
+    document.querySelector('#setting-web-search-requirement').textContent = data.webSearchAvailable === false
+      ? 'Web Run is not loaded. Load the Web Run extension in Pi and set up its account, or leave search off.'
+      : 'Requires the Web Run extension and its account setup.';
     fillSelect('v3Voice', data.voices.map((voice) => ({ value:voice, label:voice })), data.config.v3Voice);
     fillSelect('v3AlternateVoice', data.voices.map((voice) => ({ value:voice, label:voice })), data.config.v3AlternateVoice);
     const modelValue = (model) => JSON.stringify(model);
@@ -35,6 +55,8 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
       value:modelValue(model), label:model.provider + '/' + model.modelId,
     }))], modelValue(current));
     fillSelect('contextReasoning', data.contextReasoningLevels.map((level) => ({value:level, label:level})), data.config.contextReasoning);
+    document.querySelector('#setting-task-delegation-model').textContent = data.config.taskDelegationModel;
+    fillSelect('taskDelegationReasoning', data.contextReasoningLevels.map((level) => ({value:level, label:level})), data.config.taskDelegationReasoning);
     for (const key of switches) form.elements.namedItem(key).checked = data.config[key];
     document.querySelector('#settings-scope').textContent = 'Save location: ' + data.scope;
     loaded = true;
@@ -62,11 +84,20 @@ export const LAN_VOICE_BROWSER_SETTINGS_SCRIPT = String.raw`
     event.preventDefault();
     if (busy || !loaded) return;
     const patch = {
-      v3Voice:form.elements.namedItem('v3Voice').value,
-      v3AlternateVoice:form.elements.namedItem('v3AlternateVoice').value,
+      model:form.elements.namedItem('model').value,
       contextModel:JSON.parse(form.elements.namedItem('contextModel').value),
       contextReasoning:form.elements.namedItem('contextReasoning').value,
     };
+    if (patch.model === 'codex-live-1.1') {
+      patch.taskDelegationReasoning = form.elements.namedItem('taskDelegationReasoning').value;
+      patch.v3Voice = form.elements.namedItem('v3Voice').value;
+      patch.v3AlternateVoice = form.elements.namedItem('v3AlternateVoice').value;
+    } else {
+      patch.realtimeVoice = form.elements.namedItem('realtimeVoice').value;
+      patch.realtimeAlternateVoice = form.elements.namedItem('realtimeAlternateVoice').value;
+      patch.apiProvider = form.elements.namedItem('apiProvider').value;
+      patch.webSearch = form.elements.namedItem('webSearch').checked;
+    }
     for (const key of switches) patch[key] = form.elements.namedItem(key).checked;
     setBusy(true);
     status.textContent = 'Saving settings…';

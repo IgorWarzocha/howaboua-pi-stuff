@@ -51,6 +51,8 @@ export class AgentMonitor {
 	private readonly extensionMessages: MonitorExtensionMessages;
 	private context: ExtensionContext | undefined;
 	private activationGeneration = 0;
+	private coreReconcile: Promise<void> | undefined;
+	private coreDirty = false;
 
 	constructor(pi: ExtensionAPI, options: AgentMonitorOptions) {
 		this.client = options.client;
@@ -130,6 +132,8 @@ export class AgentMonitor {
 
 	deactivate(): void {
 		this.activationGeneration += 1;
+		this.coreDirty = false;
+		this.coreReconcile = undefined;
 		this.context = undefined;
 		this.events.stop();
 		this.extensionMessages.stop();
@@ -292,6 +296,33 @@ export class AgentMonitor {
 	}
 
 	private handleEvent(event: HerdrEvent): void {
+		if (event.event === "core.reconcile") {
+			const generation = this.activationGeneration;
+			const context = this.context;
+			this.coreDirty = true;
+			if (this.coreReconcile) return;
+			this.coreReconcile = Promise.resolve()
+				.then(async () => {
+					while (this.coreDirty && generation === this.activationGeneration) {
+						this.coreDirty = false;
+						await this.reconcile(generation, context);
+					}
+				})
+				.catch((error) => {
+					if (generation === this.activationGeneration) {
+						this.context?.ui.notify(
+							`Core monitoring reconciliation failed: ${String(error)}`,
+							"warning",
+						);
+						void this.events.retry().catch(() => undefined);
+					}
+				})
+				.finally(() => {
+					if (generation === this.activationGeneration)
+						this.coreReconcile = undefined;
+				});
+			return;
+		}
 		const parsed = parseMonitorEvent(event);
 		if (!parsed) return;
 		if (parsed.type === "closed") {

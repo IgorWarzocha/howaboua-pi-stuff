@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { CoreConnection } from "../core/backend.js";
 import type { HerdrConnection } from "../herdr-client.js";
 import { LOCAL_MACHINE } from "../machine-catalog.js";
 import { AgentMonitor } from "../monitor.js";
@@ -28,13 +29,25 @@ export function createMachineMonitor(
 	pi: ExtensionAPI,
 	events: FleetMonitorEvents,
 ): AgentMonitor {
+	const selfPaneId = runtime.local
+		? process.env[
+				client instanceof CoreConnection ? "HC_TERMINAL_ID" : "HERDR_PANE_ID"
+			]
+		: undefined;
 	return new AgentMonitor(pi, {
 		client,
 		machine,
-		machineLabel: () => runtime.config?.label ?? LOCAL_MACHINE,
+		machineLabel: () =>
+			runtime.coreMachine?.name ?? runtime.config?.label ?? LOCAL_MACHINE,
 		onChange: () => events.changed(),
 		onRefresh: () => events.refresh(),
-		operatorPrefix: runtime.local ? "herdr" : operatorPrefix(runtime.config!),
+		operatorPrefix: runtime.coreMachine
+			? "hc"
+			: runtime.local
+				? client instanceof CoreConnection
+					? "hc"
+					: "herdr"
+				: operatorPrefix(runtime.config!),
 		onWarning: (issue) => {
 			if (!events.isAttached()) return;
 			if (!runtime.local && issue.state === "unavailable") {
@@ -64,8 +77,9 @@ export function createMachineMonitor(
 		},
 		reconnect: runtime.local,
 		...(client instanceof RemoteHerdrClient ? { reader: client } : {}),
-		...(runtime.local && process.env["HERDR_PANE_ID"]
-			? { selfPaneId: process.env["HERDR_PANE_ID"] }
+		...(client instanceof CoreConnection && client.reader
+			? { reader: client.reader }
 			: {}),
+		...(selfPaneId ? { selfPaneId } : {}),
 	});
 }

@@ -93,13 +93,13 @@ export function settlementResult(
 				`${settlement.agent.pane_id} assistant stopped with an error`
 			: undefined;
 	if (workerError && !options.reportWorkerError) throw new Error(workerError);
-	const { pane, name, ...source } = agentSource(
+	const { pane, terminal, name, ...source } = agentSource(
 		settlement.agent,
 		settlement.labels,
 	);
 	return {
 		machine,
-		target: pane,
+		target: pane ?? terminal,
 		...(name ? { name } : {}),
 		source,
 		status: settlement.status,

@@ -4,6 +4,7 @@ import {
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { NOTE_RECEIPT, type NoteReceipt, noteReceipt } from "./notes.js";
+import { isNoteWrite } from "./query-input.js";
 
 export const NESTED_NOTE_OUTCOME = "notes-compaction:nested-write:v1";
 export interface NestedNoteOutcome {
@@ -171,10 +172,7 @@ function completedWrites(
 ): boolean {
 	if (!receipts.length) return false;
 	const writes = calls.filter(
-		(call) =>
-			call.name === "notes" &&
-			(call.arguments["action"] === "write_file" ||
-				call.arguments["action"] === "append_to_file"),
+		(call) => call.name === "notes" && isNoteWrite(call.arguments),
 	);
 	let completedWrite = false;
 	for (const call of writes) {
@@ -274,17 +272,13 @@ function completedWrites(
 			uncovered.some(
 				(call) =>
 					call.status !== "ok" &&
-					(!call.arguments ||
-						call.arguments["action"] === "write_file" ||
-						call.arguments["action"] === "append_to_file"),
+					(!call.arguments || isNoteWrite(call.arguments)),
 			) ||
 			(uncovered.length && !nested?.complete)
 		)
 			return false;
-		const nestedWrites = uncovered.filter(
-			(call) =>
-				call.arguments?.["action"] === "write_file" ||
-				call.arguments?.["action"] === "append_to_file",
+		const nestedWrites = uncovered.filter((call) =>
+			isNoteWrite(call.arguments),
 		);
 		if (
 			nestedWrites.some((call) => call.status !== "ok") ||

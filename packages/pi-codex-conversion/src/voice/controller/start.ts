@@ -1,3 +1,4 @@
+import { resolveRealtimeVoiceAuth } from "../realtime-auth.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
@@ -58,15 +59,15 @@ export async function prepareControllerRealtimeContext(options: {
 	sourceLeafId?: string | undefined;
 	forceSummary?: boolean | undefined;
 }): Promise<PreparedRealtimeContext> {
-	let generatedSummary: string | undefined;
+	let summary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
 		pi: options.pi,
 		ctx: options.ctx,
 		config: options.config,
 		sourceLeafId: options.sourceLeafId,
 		forceSummary: options.forceSummary,
-		onSummaryGenerated: (value) => {
-			generatedSummary = value;
+		onSummarySelected: (value) => {
+			summary = value;
 		},
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.onSummaryStatus
@@ -75,7 +76,7 @@ export async function prepareControllerRealtimeContext(options: {
 	});
 	return {
 		initialItems,
-		...(generatedSummary ? { summary: generatedSummary } : {}),
+		...(summary ? { summary } : {}),
 	};
 }
 
@@ -96,6 +97,7 @@ export async function startControllerMode(options: {
 	stopCurrent(): Promise<void>;
 	finishCurrentDictation(): Promise<void>;
 	onError(error: Error, session?: CodexRealtimeConversation | undefined): void;
+	onEndCall(session: CodexRealtimeConversation): void;
 	onDrop(session: CodexRealtimeConversation, error: Error): void;
 	onStatus(status: string): void;
 }): Promise<CodexRealtimeConversation | undefined> {
@@ -124,8 +126,9 @@ export async function startControllerMode(options: {
 		? runtime.alternateVoice ?? false
 		: options.alternateVoice ?? false;
 	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
-	// A prepared refresh replaces only the call, not its queued Pi work.
-	if (!options.preparedRealtimeContext) options.messages.setContext(options.ctx);
+	// Only a prepared refresh preserves the existing call's queued Pi work.
+	if (!options.resume || !options.preparedRealtimeContext)
+		options.messages.setContext(options.ctx);
 	runtime.state =
 		options.mode === "realtime"
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
@@ -143,7 +146,7 @@ export async function startControllerMode(options: {
 	try {
 		const startup = await interruptible(
 			Promise.all([
-				resolveCodexVoiceAuth(options.ctx),
+				options.mode === "realtime" ? resolveRealtimeVoiceAuth(options.ctx, options.config, options.pi) : resolveCodexVoiceAuth(options.ctx),
 				options.mode === "realtime"
 					? options.preparedRealtimeContext
 						? Promise.resolve(options.preparedRealtimeContext)
@@ -229,6 +232,7 @@ async function startConversation(
 		return;
 	const peer = options.realtimePeerPlan?.createPeer();
 	await startControllerConversation({
+		ctx: options.ctx,
 		auth,
 		config: runtime.alternateVoice
 			? {
@@ -236,6 +240,7 @@ async function startConversation(
 					voice: {
 						...options.config.voice,
 						v3Voice: options.config.voice.v3AlternateVoice,
+ realtimeVoice: options.config.voice.realtimeAlternateVoice,
 					},
 				}
 			: options.config,
@@ -278,6 +283,7 @@ async function startConversation(
 					options.onDrop(session, error);
 			},
 			onStatus: options.onStatus,
+			onEndCall: options.onEndCall,
 			onTurn: (session, turn) => { void options.messages.voiceTurn(turn, session); },
 			onEvent: (event) => options.messages.realtimeEvent(event),
 			onUserTranscript: (transcript) =>

@@ -87,6 +87,18 @@ export class GrokRealtimeController {
 	captureHandoffAudio() {
 		return this.handoff.captureHandoffAudio();
 	}
+	get transferred(): boolean {
+		return Boolean(this.handoff.controls);
+	}
+	startTransferredCall(): Promise<void> {
+		const controls = this.handoff.controls;
+		if (!controls)
+			return Promise.reject(new Error("Selected voice connection closed"));
+		return controls.startCall();
+	}
+	stopCall(): Promise<void> {
+		return this.handoff.controls?.stopCall() ?? this.stop();
+	}
 	async sendText(ctx: ExtensionContext, text: string): Promise<void> {
 		if (this.handoff.controls) return this.handoff.controls.sendText(text);
 		this.input(text);

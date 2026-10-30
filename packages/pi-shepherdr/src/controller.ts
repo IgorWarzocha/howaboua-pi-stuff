@@ -8,6 +8,7 @@ import {
 	recordContextBriefing,
 	registerContextBriefing,
 } from "@howaboua/pi-agent-board/integration";
+import { closeIdleChildren } from "./close-idle.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel/index.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet/index.js";
@@ -128,7 +129,7 @@ export function registerAgentController(
 		},
 	);
 	pi.registerCommand("herdr", {
-		description: "Shepherdr settings, status and SSH setup",
+		description: "Shepherdr settings, status, SSH setup and close-idle",
 		handler: async (args, ctx) => {
 			if (await peerCommands.handle(args, ctx)) return;
 			const commandSignal = sessionLifetime.signal;
@@ -136,6 +137,11 @@ export function registerAgentController(
 			const current = () =>
 				!commandSignal.aborted &&
 				ctx.sessionManager.getSessionId() === commandSessionId;
+			if (args.trim() === "close-idle") {
+				const result = await closeIdleChildren(fleet, ctx, current);
+				if (current()) ctx.ui.notify(result, "info");
+				return;
+			}
 			if (args.trim()) {
 				ctx.ui.notify("Open /herdr, then choose a tab.", "warning");
 				return;
@@ -218,7 +224,10 @@ async function activateController(
 	fleet: AgentFleet,
 	ctx: ExtensionContext,
 ): Promise<boolean> {
-	if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"]) {
+	if (
+		!(process.env["HC_TERMINAL_ID"] && process.env["HC_TERMINAL_SOCKET"]) &&
+		(process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
+	) {
 		ctx.ui.notify("Shepherdr requires Pi to run inside Herdr", "error");
 		return false;
 	}

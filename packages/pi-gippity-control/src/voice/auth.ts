@@ -1,9 +1,11 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { PublicRealtimeAccess } from "./realtime-auth.ts";
 
 export interface CodexVoiceAuth {
 	headers: Headers;
 	baseUrl: string;
 	officialCodex: boolean;
+	realtime?: PublicRealtimeAccess;
 	loginFailure?(): Error;
 	env?: Record<string, string>;
 }

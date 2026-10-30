@@ -97,12 +97,15 @@ const AgentsRequest = Type.Object(
 	{ additionalProperties: false },
 );
 
-export const AgentsParameters = Type.Object({
-	action: Type.Optional(StringEnum(ACTIONS)),
-	commands: Type.Optional(Type.Literal(true)),
-	target: Type.Optional(Type.String()),
-	machine: Type.Optional(Type.String()),
-});
+export const AgentsParameters = Type.Object(
+	{
+		action: Type.Optional(StringEnum(ACTIONS)),
+		commands: Type.Optional(Type.Literal(true)),
+		target: Type.Optional(Type.String()),
+		machine: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: true },
+);
 
 export type AgentsParams = Static<typeof AgentsRequest>;
 export type AgentsToolParams = Static<typeof AgentsParameters>;

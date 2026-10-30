@@ -127,7 +127,8 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		});
 	});
 	pi.on("message_start", async (event) => {
-		if (event.message.role === "user") voice.piUserMessage(event.message);
+		if (event.message.role === "user" || event.message.role === "custom")
+			voice.piUserMessage(event.message);
 		lanVoice.piEvent("message_start", event);
 	});
 	pi.on("tool_execution_start", async (event) =>
@@ -166,6 +167,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	registerVoiceHandoff({
 		pi,
 		voice,
+		lanVoice,
 		getConfig: () => readGippityControlConfig(),
 		priority: () => 10,
 	});

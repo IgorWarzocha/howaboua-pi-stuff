@@ -1,34 +1,27 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "@earendil-works/pi-coding-agent";
-import {
-	getAgent,
-	getPane,
-	getSnapshot,
-	parsePaneInfo,
-	resolveWorkspace,
-	sessionPath,
-} from "./herdr.js";
+import { CoreConnection } from "./core/backend.js";
+import { startCoreAgent } from "./core/spawn.js";
+import { getAgent, getPane, parsePaneInfo, sessionPath } from "./herdr.js";
 import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
+import {
+	requiredStartField,
+	type StartAgentParams,
+	type StartedAgent,
+	UnstartedAgentLaunchError,
+} from "./launch-contract.js";
+import { createStartPane, rollbackCreatedLocation } from "./launch-location.js";
 import type { PaneInfo } from "./types.js";
 import { WORKER_FLAG } from "./worker-role.js";
 
-export const START_PLACEMENTS = ["new_workspace", "new_tab", "pane"] as const;
+export {
+	RolledBackAgentLaunchError,
+	START_PLACEMENTS,
+	UnstartedAgentLaunchError,
+} from "./launch-contract.js";
+
 const AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
-
-export interface StartAgentParams {
-	cwd?: string;
-	label?: string;
-	name?: string;
-	pane?: string;
-	placement?: (typeof START_PLACEMENTS)[number];
-	workspace?: string;
-}
-
-function required(value: string | undefined, field: string): string {
-	if (!value?.trim()) throw new Error(`${field} is required for start`);
-	return value.trim();
-}
 
 async function directory(
 	value: string | undefined,
@@ -66,152 +59,19 @@ export async function resolvePreparationDirectory(
 	fallbackCwd: string,
 	resolveDirectory: DirectoryResolver = directory,
 ): Promise<string> {
+	if (client instanceof CoreConnection && params.placement === "pane")
+		throw new UnstartedAgentLaunchError(
+			"Core cannot start Pi in an existing terminal without terminal input; use terminal, new_tab or new_workspace placement",
+		);
 	if (params.placement !== "pane") {
 		return resolveStartDirectory(params, fallbackCwd, resolveDirectory);
 	}
-	const pane = await getPane(client, required(params.pane, "pane"));
+	const pane = await getPane(client, requiredStartField(params.pane, "pane"));
 	return pane.foreground_cwd?.trim() || pane.cwd?.trim() || fallbackCwd;
 }
 
 interface StartAgentOptions {
 	agentArgs?: string[];
-}
-
-interface CreatedLocationCleanup {
-	id: string;
-	method: "tab.close" | "workspace.close";
-}
-
-export interface StartedAgent {
-	agent: PaneInfo;
-	cleanup?: CreatedLocationCleanup;
-	id: string;
-}
-
-export class RolledBackAgentLaunchError extends Error {
-	constructor(cause: unknown) {
-		super(cause instanceof Error ? cause.message : String(cause), { cause });
-	}
-}
-
-export class UnstartedAgentLaunchError extends Error {
-	constructor(cause: unknown) {
-		super(cause instanceof Error ? cause.message : String(cause), { cause });
-	}
-}
-
-async function createStartPane(
-	client: HerdrConnection,
-	params: StartAgentParams,
-	cwd: string,
-	label: string,
-): Promise<{
-	cleanup?: CreatedLocationCleanup;
-	paneId: string;
-}> {
-	const placement = params.placement;
-	if (!placement) throw new Error("placement is required for start");
-	if (placement === "pane") {
-		return { paneId: required(params.pane, "pane") };
-	}
-	if (placement === "new_tab") {
-		const workspaceTarget = required(params.workspace, "workspace");
-		let workspace;
-		try {
-			workspace = resolveWorkspace(await getSnapshot(client), workspaceTarget);
-		} catch (error) {
-			throw new UnstartedAgentLaunchError(error);
-		}
-		// A failed create response may still have created a location.
-		const created = createdLocation(
-			await client.request<unknown>("tab.create", {
-				workspace_id: workspace.workspace_id,
-				cwd,
-				label,
-				focus: false,
-			}),
-			"tab.create result",
-		);
-		return {
-			paneId: created.root_pane.pane_id,
-			cleanup: { method: "tab.close", id: created.tab.tab_id },
-		};
-	}
-	const created = createdLocation(
-		await client.request<unknown>("workspace.create", {
-			cwd,
-			focus: false,
-		}),
-		"workspace.create result",
-		true,
-	);
-	try {
-		await client.request("tab.rename", { tab_id: created.tab.tab_id, label });
-	} catch (error) {
-		return rollbackCreatedLocation(
-			client,
-			{ method: "workspace.close", id: created.workspace.workspace_id },
-			error,
-		);
-	}
-	return {
-		paneId: created.root_pane.pane_id,
-		cleanup: { method: "workspace.close", id: created.workspace.workspace_id },
-	};
-}
-
-function createdLocation(
-	value: unknown,
-	path: string,
-): { root_pane: PaneInfo; tab: { tab_id: string } };
-function createdLocation(
-	value: unknown,
-	path: string,
-	withWorkspace: true,
-): {
-	root_pane: PaneInfo;
-	tab: { tab_id: string };
-	workspace: { workspace_id: string };
-};
-function createdLocation(
-	value: unknown,
-	path: string,
-	withWorkspace = false,
-): {
-	root_pane: PaneInfo;
-	tab: { tab_id: string };
-	workspace?: { workspace_id: string };
-} {
-	if (typeof value !== "object" || value === null) {
-		throw new Error(`Herdr ${path} must be an object`);
-	}
-	const result = value as Record<string, unknown>;
-	const tabId = nestedId(result["tab"], "tab_id", `${path}.tab`);
-	return {
-		root_pane: parsePaneInfo(result["root_pane"], `${path}.root_pane`),
-		tab: { tab_id: tabId },
-		...(withWorkspace
-			? {
-					workspace: {
-						workspace_id: nestedId(
-							result["workspace"],
-							"workspace_id",
-							`${path}.workspace`,
-						),
-					},
-				}
-			: {}),
-	};
-}
-
-function nestedId(value: unknown, key: string, path: string): string {
-	if (typeof value !== "object" || value === null) {
-		throw new Error(`Herdr ${path} must be an object`);
-	}
-	const id = (value as Record<string, unknown>)[key];
-	if (typeof id !== "string")
-		throw new Error(`Herdr ${path}.${key} must be string`);
-	return id;
 }
 
 export async function startAgent(
@@ -221,7 +81,7 @@ export async function startAgent(
 	resolveDirectory: DirectoryResolver = directory,
 	options: StartAgentOptions = {},
 ): Promise<StartedAgent> {
-	const name = required(params.name, "name");
+	const name = requiredStartField(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
 		throw new Error(
 			"name must be 1–32 characters, start with a lowercase letter, and contain only lowercase letters, digits, underscores or hyphens. Omit name to generate it from label; label can be longer.",
@@ -250,12 +110,18 @@ export async function startAgent(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
 		);
 	}
+	if (client instanceof CoreConnection && params.placement === "pane")
+		throw new UnstartedAgentLaunchError(
+			"Core cannot start Pi in an existing terminal without terminal input; use terminal, new_tab or new_workspace placement",
+		);
 	let cwd: string;
 	try {
 		cwd = await resolveStartDirectory(params, fallbackCwd, resolveDirectory);
 	} catch (error) {
 		throw new UnstartedAgentLaunchError(error);
 	}
+	if (client instanceof CoreConnection)
+		return startCoreAgent(client, params, cwd, label, args);
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
@@ -282,25 +148,6 @@ export async function rollbackStartedAgent(
 	cause: unknown,
 ): Promise<never> {
 	return rollbackCreatedLocation(client, started.cleanup, cause);
-}
-
-async function rollbackCreatedLocation(
-	client: HerdrConnection,
-	cleanup: CreatedLocationCleanup | undefined,
-	cause: unknown,
-): Promise<never> {
-	if (!cleanup) throw cause;
-	try {
-		await client.request(cleanup.method, {
-			[cleanup.method === "tab.close" ? "tab_id" : "workspace_id"]: cleanup.id,
-		});
-	} catch (cleanupError) {
-		throw new Error(
-			`${cause instanceof Error ? cause.message : String(cause)}; rollback also failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
-			{ cause },
-		);
-	}
-	throw new RolledBackAgentLaunchError(cause);
 }
 
 async function startWhenShellReady(
@@ -331,11 +178,11 @@ async function startWhenShellReady(
 		}
 	}
 
-	const name = required(
+	const name = requiredStartField(
 		typeof params["name"] === "string" ? params["name"] : undefined,
 		"name",
 	);
-	const paneId = required(
+	const paneId = requiredStartField(
 		typeof params["pane_id"] === "string" ? params["pane_id"] : undefined,
 		"pane_id",
 	);

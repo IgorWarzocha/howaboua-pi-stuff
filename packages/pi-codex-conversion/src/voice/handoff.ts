@@ -18,10 +18,12 @@ import {
 } from "./handoff-contract.ts";
 import { startVoiceDeparture } from "./handoff-departure.ts";
 import { asError } from "./handoff-wire.ts";
+import type { CodexLanVoiceServerController } from "./lan/controller.ts";
 
 export function registerVoiceHandoff(options: {
 	pi: ExtensionAPI;
 	voice: CodexVoiceController;
+	lanVoice: CodexLanVoiceServerController;
 	getConfig(): CodexConversionConfig;
 	priority(): number;
 }): void {
@@ -103,6 +105,8 @@ export function registerVoiceHandoff(options: {
 				connection = startVoiceDeparture({
 					channel,
 					captured,
+					onTakeoverUnavailable: (error) => ctx.ui.notify(`${error.message}. LAN remains on the origin; closing it ends the transferred call.`, "warning"),
+					...(options.lanVoice.hasActiveConversation() ? { lanTakeover: (offer, releaseAudio, verify) => options.lanVoice.releaseForTakeover(ctx, offer, releaseAudio, verify) } : {}),
 					waitForSettled: (signal) => waitForSettled(ctx, signal),
 					onReleased(controls) {
 						previous?.forwardTo(controls);
@@ -116,6 +120,7 @@ export function registerVoiceHandoff(options: {
 				});
 				connections.add(connection);
 				await connection.completion;
+				if (connection.detached) connections.delete(connection);
 				established = true;
 			} catch (error) {
 				if (connection) connections.delete(connection);
@@ -139,7 +144,9 @@ export function registerVoiceHandoff(options: {
 					pi,
 					ctx,
 					voice,
+					lanVoice: options.lanVoice,
 					config: options.getConfig(),
+					getConfig: options.getConfig,
 					channel,
 					continuity,
 					onClosed(error) {
@@ -152,6 +159,10 @@ export function registerVoiceHandoff(options: {
 				connections.add(connection);
 				incoming = connection;
 				await connection.completion;
+				if (connection.detached) {
+					connections.delete(connection);
+					if (incoming === connection) incoming = undefined;
+				}
 				established = true;
 			} catch (error) {
 				if (connection) connections.delete(connection);

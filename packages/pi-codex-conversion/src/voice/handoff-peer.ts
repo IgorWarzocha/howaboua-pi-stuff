@@ -17,7 +17,7 @@ export interface CapturedHandoffAudio {
 	readonly alternateVoice?: boolean;
 	sourceActive(): boolean;
 	bindControls(controls: TransferredVoiceControls): void;
-	release(signal: AbortSignal): Promise<void>;
+	release(signal: AbortSignal, beforeStop?: () => Promise<void>): Promise<void>;
 	createPeer(): Promise<CodexRealtimePeer>;
 	start(peer: CodexRealtimePeer): Promise<string>;
 	transferred(
@@ -71,8 +71,11 @@ export class HandoffAudioHost {
 		return this.muted;
 	}
 
-	async release(signal: AbortSignal): Promise<void> {
-		await this.captured.release(signal);
+	async release(
+		signal: AbortSignal,
+		beforeStop?: () => Promise<void>,
+	): Promise<void> {
+		await this.captured.release(signal, beforeStop);
 		if (this.closed || signal.aborted)
 			throw new Error("Voice transfer cancelled");
 		this.released = true;

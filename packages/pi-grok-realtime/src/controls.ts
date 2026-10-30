@@ -49,6 +49,7 @@ export class GrokControls {
 		this.dictation.cancelStartup();
 	}
 	startVoice(ctx: ExtensionContext, audio?: RealtimeAudio): Promise<void> {
+		if (this.voice.transferred) return this.voice.startTransferredCall();
 		this.pendingStarts++;
 		const generation = ++this.generation;
 		this.cancelStartup();
@@ -117,6 +118,10 @@ export class GrokControls {
 		this.generation++;
 		this.cancelStartup();
 		return this.enqueue(() => this.stopCurrent());
+	}
+	stopCall(): Promise<void> {
+		if (this.voice.transferred) return this.voice.stopCall();
+		return this.stop();
 	}
 	private async stopCurrent(): Promise<void> {
 		this.clearDraft();

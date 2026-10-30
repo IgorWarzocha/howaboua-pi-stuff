@@ -3,8 +3,11 @@ import type { VoiceHandoffChannel } from "./handoff-contract.ts";
 type Stage = "prepared" | "activate" | "active";
 type RequestMethod =
 	| "audio.drain"
+	| "audio.start"
 	| "audio.close"
 	| "session.send"
+	| "session.stop"
+	| "session.start"
 	| "session.rpc";
 export type HandoffNotification =
 	| { type: "audio.input" | "audio.play"; pcm: string }
@@ -64,12 +67,15 @@ export class VoiceHandoffLink {
 			return Promise.reject(new Error("Too many pending voice controls"));
 		const id = ++this.sequence;
 		return new Promise((resolve, reject) => {
-			const timer = setTimeout(() => {
-				this.pending.delete(id);
-				const error = new Error("Voice control did not respond");
-				reject(error);
-				this.fail(error);
-			}, 30_000);
+			const timer = setTimeout(
+				() => {
+					this.pending.delete(id);
+					const error = new Error("Voice control did not respond");
+					reject(error);
+					this.fail(error);
+				},
+				method === "session.start" ? 120_000 : 30_000,
+			);
 			this.pending.set(id, { resolve, reject, timer });
 			try {
 				this.send({ type: "request", id, method, value });
@@ -262,8 +268,11 @@ function isStage(value: unknown): value is Stage {
 function isRequestMethod(value: unknown): value is RequestMethod {
 	return (
 		value === "audio.drain" ||
+		value === "audio.start" ||
 		value === "audio.close" ||
 		value === "session.send" ||
+		value === "session.stop" ||
+		value === "session.start" ||
 		value === "session.rpc"
 	);
 }

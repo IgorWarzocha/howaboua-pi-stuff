@@ -2,6 +2,7 @@ import { WebSocket } from "ws";
 import { LanVoiceBrowserConnections } from "./browser-connections.ts";
 import { errorMessage } from "./browser-wire.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
+import { MicrophoneLevelMonitor } from "./microphone-level.ts";
 
 export type LanVoiceBrowserMode = "conversation" | "dictation";
 
@@ -22,7 +23,7 @@ type LanVoiceBrowserState =
 	| { type: "closed" };
 
 export interface LanVoiceBrowserClientsOptions {
-	ensureConversation(): Promise<void>;
+	ensureConversation(takeoverToken?: string): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(
 		clientId: string,
@@ -61,6 +62,12 @@ export class LanVoiceBrowserSession {
 
 	get closed(): boolean {
 		return this.state.type === "closed";
+	}
+
+	get conversationSocket(): WebSocket | undefined {
+		return this.state.type === "active" && this.state.mode === "conversation"
+			? this.state.socket
+			: undefined;
 	}
 
 	sendConversationAudio(pcm: Buffer): void {
@@ -134,6 +141,7 @@ export class LanVoiceBrowserSession {
 		clientId: string,
 		socket: WebSocket,
 		mode: LanVoiceBrowserMode,
+		takeoverToken?: string,
 	): Promise<void> {
 		const starting = this.state.type === "starting" ? this.state : undefined;
 		if (
@@ -150,7 +158,12 @@ export class LanVoiceBrowserSession {
 			starting.socket.close(4001, "replaced");
 		}
 		return this.enqueue(async () => {
-			if (this.closed) return;
+			if (
+				this.closed ||
+				socket.readyState !== WebSocket.OPEN ||
+				!this.connections.isCurrentAudio(clientId, socket)
+			)
+				return;
 			const previous = this.state.type === "active" ? this.state : undefined;
 			if (
 				previous?.clientId === clientId &&
@@ -178,7 +191,8 @@ export class LanVoiceBrowserSession {
 			this.state = starting;
 			if (mode === "conversation") this.conversationOwnerId = clientId;
 			try {
-				if (mode === "conversation") await this.options.ensureConversation();
+				if (mode === "conversation")
+					await this.options.ensureConversation(takeoverToken);
 				else await this.options.startDictation(clientId);
 			} catch (error) {
 				if (this.state === starting) this.state = { type: "idle" };
@@ -314,50 +328,5 @@ export class LanVoiceBrowserSession {
 			() => undefined,
 		);
 		return result;
-	}
-}
-
-const MICROPHONE_RATE = 24_000;
-const DETECTABLE_PEAK = 82;
-const HEALTHY_PEAK = 655;
-
-class MicrophoneLevelMonitor {
-	private readonly onChange: (inputTooQuiet: boolean) => void;
-	private samples = 0;
-	private peak = 0;
-	private inputTooQuiet = false;
-
-	constructor(onChange: (inputTooQuiet: boolean) => void) {
-		this.onChange = onChange;
-	}
-
-	append(pcm: Buffer): void {
-		let framePeak = 0;
-		for (let offset = 0; offset + 1 < pcm.byteLength; offset += 2)
-			framePeak = Math.max(framePeak, Math.abs(pcm.readInt16LE(offset)));
-		if (framePeak >= HEALTHY_PEAK) {
-			this.samples = 0;
-			this.peak = 0;
-			this.set(false);
-			return;
-		}
-		this.samples += Math.floor(pcm.byteLength / 2);
-		this.peak = Math.max(this.peak, framePeak);
-		if (this.samples < MICROPHONE_RATE) return;
-		if (this.peak >= DETECTABLE_PEAK) this.set(true);
-		this.samples = 0;
-		this.peak = 0;
-	}
-
-	reset(): void {
-		this.samples = 0;
-		this.peak = 0;
-		this.set(false);
-	}
-
-	private set(inputTooQuiet: boolean): void {
-		if (this.inputTooQuiet === inputTooQuiet) return;
-		this.inputTooQuiet = inputTooQuiet;
-		this.onChange(inputTooQuiet);
 	}
 }

@@ -20,12 +20,17 @@ export interface AgentEventLabels {
 	workspace?: string;
 }
 
-export function agentSource(agent: PaneInfo, labels: AgentEventLabels) {
+export function agentSource(
+	agent: PaneInfo,
+	labels: AgentEventLabels,
+): Record<string, string | undefined> {
 	const paneName = agent.label || agent.title;
 	return {
-		pane: agent.pane_id,
-		workspace: agent.workspace_id,
-		tab: agent.tab_id,
+		...(agent.backend === "core"
+			? { terminal: agent.terminal_id }
+			: { pane: agent.pane_id }),
+		...(agent.workspace_id ? { workspace: agent.workspace_id } : {}),
+		...(agent.tab_id ? { tab: agent.tab_id } : {}),
 		...(agent.name ? { name: agent.name } : {}),
 		...(paneName ? { pane_name: paneName } : {}),
 		...(labels.workspace ? { workspace_name: labels.workspace } : {}),
@@ -60,8 +65,12 @@ export async function attributeAgentPrompt(
 	const tab = snapshot.tabs.find((tab) => tab.tab_id === pane.tab_id)?.label;
 	const source = {
 		kind,
-		host: hostname(),
-		session: process.env["HERDR_SESSION"] || "default",
+		...(pane.backend === "core"
+			? await client.machineIdentity()
+			: {
+					host: hostname(),
+					session: process.env["HERDR_SESSION"] || "default",
+				}),
 		...agentSource(pane, {
 			...(workspace ? { workspace } : {}),
 			...(tab ? { tab } : {}),

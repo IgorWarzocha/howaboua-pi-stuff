@@ -15,6 +15,7 @@ interface TranscriptEntry {
 	role: "user" | "assistant";
 	text: string;
 	final: boolean;
+	consumedText?: string;
 }
 
 interface PendingDelegation {
@@ -30,14 +31,18 @@ interface PendingUserInput {
 class RealtimeTranscriptBuffer {
 	private entries: TranscriptEntry[] = [];
 	private readonly active = new Map<TranscriptEntry["role"], TranscriptEntry>();
+	private readonly preserveInterval: boolean;
+	constructor(preserveInterval = false) {
+		this.preserveInterval = preserveInterval;
+	}
 
 	append(
 		role: TranscriptEntry["role"],
 		transcript: string,
 		startsTurn = false,
 	): void {
-		const text = transcript.trim();
-		if (!text) return;
+		const text = this.preserveInterval ? transcript : transcript.trim();
+		if (!text.trim()) return;
 		const current = this.active.get(role);
 		if (current && !startsTurn) current.text += text;
 		else {
@@ -45,11 +50,11 @@ class RealtimeTranscriptBuffer {
 			this.entries.push(entry);
 			this.active.set(role, entry);
 		}
-		this.bound();
+		if (!this.preserveInterval) this.bound();
 	}
 
 	finish(role: TranscriptEntry["role"], transcript: string): TranscriptEntry {
-		const text = transcript.trim();
+		const text = this.preserveInterval ? transcript : transcript.trim();
 		const current = this.entries.find(
 			(entry) => entry.role === role && !entry.final,
 		);
@@ -60,10 +65,10 @@ class RealtimeTranscriptBuffer {
 		} else {
 			const entry = { role, text, final: true };
 			this.entries.push(entry);
-			this.bound();
+			if (!this.preserveInterval) this.bound();
 			return entry;
 		}
-		this.bound();
+		if (!this.preserveInterval) this.bound();
 		return current;
 	}
 
@@ -83,6 +88,23 @@ class RealtimeTranscriptBuffer {
 		const transcript = this.render(history);
 		this.reset();
 		return transcript || undefined;
+	}
+
+	takeInterval(currentUser?: TranscriptEntry): { text?: string } {
+		const user = currentUser ?? this.active.get("user");
+		const interval = this.entries.filter((entry) => entry !== user);
+		const text = this.render(interval);
+		// Keep in-flight assistant boundaries for late finals. The yielded user
+		// input is already authoritative; transcript revisions must not block it.
+		this.entries = interval.filter(
+			(entry) => !entry.final && entry.role === "assistant",
+		);
+		this.active.clear();
+		for (const entry of this.entries) {
+			entry.consumedText = entry.text;
+			this.active.set(entry.role, entry);
+		}
+		return text ? { text } : {};
 	}
 
 	takeFinalized(): string | undefined {
@@ -109,18 +131,46 @@ class RealtimeTranscriptBuffer {
 	}
 
 	private render(entries = this.entries): string {
-		return entries.map(({ role, text }) => `${role}: ${text}`).join("\n");
+		return entries
+			.flatMap(({ role, text, consumedText }) => {
+				let remaining = text;
+				if (this.preserveInterval && consumedText) {
+					if (text.startsWith(consumedText))
+						remaining = text.slice(consumedText.length);
+					else {
+						const normalized = text.replace(/\s+/g, " ").trim();
+						const consumed = consumedText.replace(/\s+/g, " ").trim();
+						// A consumed trailing space must remain a word boundary.
+						const boundary =
+							!/\s$/.test(consumedText) ||
+							normalized.length === consumed.length ||
+							/\s/.test(normalized.charAt(consumed.length));
+						remaining =
+							normalized.startsWith(consumed) && boundary
+								? normalized.slice(consumed.length)
+								: `[Revised earlier speech; may overlap the previous request]\n${text}`;
+					}
+				}
+				return remaining.trim() ? [`${role}: ${remaining}`] : [];
+			})
+			.join("\n");
 	}
 }
 
 /** Keeps conversational display turns separate from V3 delegation handoffs. */
 export class RealtimeVoiceTurnTracker {
-	private readonly transcript = new RealtimeTranscriptBuffer();
+	private readonly transcript: RealtimeTranscriptBuffer;
+	private readonly preserveInterval: boolean;
+	constructor(preserveInterval = false) {
+		this.preserveInterval = preserveInterval;
+		this.transcript = new RealtimeTranscriptBuffer(preserveInterval);
+	}
 	private pendingUserInputs: PendingUserInput[] = [];
 	private recentlyAnsweredUserInput: PendingUserInput | undefined;
 	private unfinishedUserTurns: object[] = [];
 	private activeUserTurn: object | undefined;
 	private delegatedUserFinishes = 0;
+	private readonly delegatedUserTurns = new Set<object>();
 	private readonly delegationIds = new Set<string>();
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
@@ -129,13 +179,17 @@ export class RealtimeVoiceTurnTracker {
 		return this.unfinishedUserTurns.length > 0 || this.pendingUserInputs.length > 0;
 	}
 
-	inputAdded(input: string): void {
-		const startsTurn = !this.activeUserTurn;
+	inputStarted(): void {
 		if (!this.activeUserTurn) {
 			this.recentlyAnsweredUserInput = undefined;
 			this.activeUserTurn = {};
 			this.unfinishedUserTurns.push(this.activeUserTurn);
 		}
+	}
+
+	inputAdded(input: string): void {
+		const startsTurn = !this.activeUserTurn;
+		this.inputStarted();
 		this.transcript.append("user", input, startsTurn);
 	}
 
@@ -144,12 +198,13 @@ export class RealtimeVoiceTurnTracker {
 	}
 
 	userFinished(input: string): boolean {
-		if (this.delegatedUserFinishes > 0) {
+		if (!this.preserveInterval && this.delegatedUserFinishes > 0) {
 			this.delegatedUserFinishes -= 1;
 			return false;
 		}
 		const turn = this.unfinishedUserTurns.shift();
 		if (this.activeUserTurn === turn) this.activeUserTurn = undefined;
+		if (turn && this.delegatedUserTurns.delete(turn)) return false;
 		const transcript = this.transcript.finish("user", input);
 		this.pendingUserInputs.push({ input, transcript });
 		return true;
@@ -161,17 +216,21 @@ export class RealtimeVoiceTurnTracker {
 	): TrackedRealtimeDelegation | undefined {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
-		if (this.outstandingInputs.has(input)) return undefined;
+		if (!this.preserveInterval && this.outstandingInputs.has(input))
+			return undefined;
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
 
 		if (this.activeUserTurn) {
 			const active = this.activeUserTurn;
 			this.activeUserTurn = undefined;
-			this.unfinishedUserTurns = this.unfinishedUserTurns.filter(
-				(turn) => turn !== active,
-			);
-			this.delegatedUserFinishes += 1;
+			if (this.preserveInterval) this.delegatedUserTurns.add(active);
+			else {
+				this.unfinishedUserTurns = this.unfinishedUserTurns.filter(
+					(turn) => turn !== active,
+				);
+				this.delegatedUserFinishes += 1;
+			}
 			return {
 				turn: this.finishDelegation({ input, delegationId }),
 				displayInput: true,
@@ -183,11 +242,14 @@ export class RealtimeVoiceTurnTracker {
 				const answered = this.recentlyAnsweredUserInput;
 				this.recentlyAnsweredUserInput = undefined;
 				return {
-					turn: this.finishDelegation({ input, delegationId }, answered.transcript),
+					turn: this.finishDelegation(
+						{ input, delegationId },
+						answered.transcript,
+					),
 					displayInput: false,
 				};
 			}
-			this.delegatedUserFinishes += 1;
+			if (!this.preserveInterval) this.delegatedUserFinishes += 1;
 			return {
 				turn: this.finishDelegation({ input, delegationId }),
 				displayInput: true,
@@ -225,6 +287,7 @@ export class RealtimeVoiceTurnTracker {
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
 		this.delegatedUserFinishes = 0;
+		this.delegatedUserTurns.clear();
 		return [];
 	}
 
@@ -235,6 +298,7 @@ export class RealtimeVoiceTurnTracker {
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
 		this.delegatedUserFinishes = 0;
+		this.delegatedUserTurns.clear();
 		this.delegationIds.clear();
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();
@@ -244,9 +308,14 @@ export class RealtimeVoiceTurnTracker {
 		delegation: PendingDelegation,
 		currentUser?: TranscriptEntry,
 	): RealtimeVoiceTurn {
-		const transcriptDelta = currentUser
-			? this.transcript.takeHistoryBefore(currentUser)
-			: this.transcript.takeFinalized();
+		const interval = this.preserveInterval
+			? this.transcript.takeInterval(currentUser)
+			: undefined;
+		const transcriptDelta = interval
+			? interval.text
+			: currentUser
+				? this.transcript.takeHistoryBefore(currentUser)
+				: this.transcript.takeFinalized();
 		return {
 			input: delegation.input,
 			...(transcriptDelta ? { transcriptDelta } : {}),

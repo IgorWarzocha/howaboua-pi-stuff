@@ -14,7 +14,9 @@ With Pi Codex's compatible custom developer-message API active, asynchronous wor
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 1.2.0 or newer, Node.js 22.18 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
+Requires Pi 1.2.0 or newer and Node.js 22.18 or newer. Run Pi inside Herdr Core 0.1.14 or newer, or the Herdr app, to use the new Herdr backend. Shepherdr reports Pi status to Core and discovers other Pi sessions with Shepherdr installed.
+
+For the older Herdr TUI, install its Pi integration:
 
 ```bash
 herdr integration install pi
@@ -24,6 +26,10 @@ Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; th
 
 Pi Codex is optional. Without it, Shepherdr remains a normal Pi extension.
 
+Herdr Core workers start as background terminals by default. Explicit new-tab and new-workspace placements appear when an app connected to that Core adopts them. Focus requires a Herdr app window connected to the target Core. Existing Herdr TUI sessions cannot be moved into Core.
+
+For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Delegation, supervision, shared context and boards work across those machines.
+
 ## Control panel
 
 The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi inside Herdr to connect the fleet and start monitoring automatically. Open the control panel with:
@@ -32,17 +38,19 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 /herdr
 ```
 
-**Settings** contains orchestration preferences, agent command guidance and the global config path. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines through Herdr's setup flow. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
+**Settings** contains orchestration preferences, agent command guidance and the global config path. **Status** shows machine connections and reconnect actions. **Connections** adds SSH machines for the older Herdr TUI. Agents handle discovery, attachment and detachment through the `agents` tool, not this panel.
+
+Run `/herdr close-idle` to close idle child sessions spawned by the current session branch. Attached or assigned existing sessions are never included. Busy, blocked, unavailable or unverified children stay open. Children spawned before this feature was installed have no ownership receipt and stay open too. Pi shuts down gracefully before its pane closes.
 
 `/herdr` is Shepherdr's only entry point. Outside the TUI, it reports status without changing it. An orchestration change records one visible guidance message without triggering a turn. Resumed sessions restore their last mode; new sessions start with normal guidance. The current guidance returns when a new model context no longer contains it, including turns started by worker messages. Tool availability and monitoring do not depend on this mode.
 
-To add a machine, enter an SSH target or alias, a label and an optional remote session under **Connections**. Herdr performs setup in the terminal and asks before installing or replacing its remote server. OpenSSH owns authentication; Shepherdr does not store credentials. Profiles remain in Herdr's existing catalog, where they can also be renamed, disabled or removed.
+For the older Herdr TUI, add a machine by entering an SSH target or alias, a label and an optional remote session under **Connections**. Herdr performs setup in the terminal and asks before installing or replacing its remote server. OpenSSH owns authentication; Shepherdr does not store credentials. Profiles remain in Herdr's existing catalog, where they can also be renamed, disabled or removed.
 
-Shepherdr connects enabled profiles at session startup. **Status** refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
+With the older TUI, Shepherdr connects enabled profiles at session startup. **Status** refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
 
 Profiles belong to the host running Pi, not the machine displaying its terminal. Omit `machine` for local agent calls. `list` and `find` search all machines unless filtered. Explicit `local` also means the host running Pi. For remote calls, use the opaque profile ID returned by `list`, not its label or hostname. Renaming a profile changes its label, not its routing identity.
 
-Remote machines connect over noninteractive SSH. The target needs `node` on its SSH PATH, Herdr 0.9 or newer, the Herdr Pi integration and a running Herdr session. Shepherdr installs managed transport helpers under `~/.pi/agent` on each remote, runs them only for the connection lifetime and leaves no remote daemon behind. Herdr's multi-machine UI does not expose a cross-machine automation socket, so Shepherdr still owns its remote transport and Pi transcript reads.
+With the older TUI, remote machines connect over noninteractive SSH. The target needs `node` on its SSH PATH, Herdr 0.9 or newer, the Herdr Pi integration and a running Herdr session. Shepherdr installs managed transport helpers under `~/.pi/agent` on each remote, runs them only for the connection lifetime and leaves no remote daemon behind. Herdr's multi-machine UI does not expose a cross-machine automation socket, so Shepherdr still owns its remote transport and Pi transcript reads.
 
 ### Migrating from separate Shepherdr machines
 
@@ -79,15 +87,15 @@ Use `send` for messages and work updates without waiting or adding supervision. 
 
 Delegation and explicit `watch` keep reporting subsequent work until `unwatch` or the agent's pane closes. Finishing or failing a task clears that task, not its watch. Follow-up messages through `send` retain completion reporting without replacing the task.
 
-Every `spawn` needs an `agent_type` and a concise `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
+Every `spawn` needs an `agent_type` and a concise `label`. The label names the Pi session, and also names the tab in the older Herdr TUI. The routing `name` remains optional and is derived from the label when omitted.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
 After Pi compaction or Notes context rollover, the controller receives its supervised agents' exact machine and target, submitted tasks and follow-up instructions, and last observed status, including settled and blocked workers. Read a target for its reply or pending extension messages. This reminder does not start a turn or bypass normal turn preparation.
 
-Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
+Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host and session identity. The older TUI also includes workspace, tab and pane details. Core reports use terminal addresses and include app location IDs when available. These are runtime locations, not the desktop window showing a pane.
 
-Messages sent through `agents` bypass the receiving Pi editor, preserving unsent drafts. Update and reload Shepherdr on receiving agents as well as controllers. If a receiver is unavailable, delivery fails without pasting into its terminal. Raw `herdr agent prompt` still uses terminal input and does not provide this protection.
+Messages sent through `agents` bypass the receiving Pi editor, preserving unsent drafts. Update and reload Shepherdr on receiving agents as well as controllers. If a receiver is unavailable, delivery fails without pasting into its terminal. On the older TUI, raw `herdr agent prompt` still uses terminal input and does not provide this protection.
 
 Messages beginning with `/` use the target Pi session's command, skill and prompt-template expansion, with sender attribution kept out of the arguments. Skills and templates retain normal task waiting. Prompt templates remain supported, but you must tell your agent which templates exist separately. When Pi Codex Conversion is installed, update and reload it too.
 
@@ -249,7 +257,7 @@ Optional profile settings:
 
 ## Advanced Herdr control
 
-Ordinary delegation stays inside `agents`. For workspace, tab, pane, process, focus, layout or raw-terminal operations, run `herdr --skill` and follow the installed Herdr skill. Shepherdr does not duplicate those controls.
+Ordinary delegation stays inside `agents`. For terminal operations on Core, run `hc --skill`. For window operations, use `herdr-app --skill`. The older TUI provides its own guide through `herdr --skill`.
 
 Herdr still owns terminals, layout, agent processes and restored sessions. Shepherdr owns event subscriptions, remote routing, the fleet widget and purple settlement messages.
 

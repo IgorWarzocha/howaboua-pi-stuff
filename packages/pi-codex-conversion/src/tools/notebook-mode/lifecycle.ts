@@ -1,3 +1,4 @@
+import { readNotebookStatus } from "./lifecycle-status.ts";
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type {
@@ -16,12 +17,9 @@ import {
 	boundedReleaseDetails,
 	formatNameList,
 	formatRelease,
-	formatStatus,
 	NOTEBOOK_DETAILS_BUDGET,
-	remainingDetailsBudget,
 	takeDetailValues,
 	withinNameBudget,
-	type NotebookStatusDetails,
 } from "./lifecycle-result.ts";
 import {
 	notebookDisposeSource,
@@ -35,9 +33,8 @@ import { NotebookProfileController } from "./profile-lifecycle.ts";
 import { withNotebookRecoveryGuidance, type NotebookRuntimeHealth } from "./runtime-health.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-const STATUS_TIMEOUT_MS = 8_000;
 
-interface NotebookLifecycleHost {
+export interface NotebookLifecycleHost {
 	prepare(context: ToolExecutionContext, signal?: AbortSignal): Promise<void>;
 	diagnostics(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
 	reset(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
@@ -84,7 +81,7 @@ export class NotebookLifecycleController {
 		await this.host.prepare(context, signal);
 		switch (request.action) {
 			case "hook": throw new Error("The hook action is available in JS Notebook only; use pin with hook in this mode");
-			case "status": return this.status(request.query, signal);
+			case "status": return readNotebookStatus(this.host, (kernel, signal) => this.userBindingNames(kernel, signal), request.query, signal);
 			case "checkpoint": return this.checkpoint();
 			case "save": return this.profiles.save(request.name, context, signal);
 			case "load": return this.profiles.load(request.name, context, signal);
@@ -106,84 +103,6 @@ export class NotebookLifecycleController {
 			await kernel.execute(notebookDisposeSource(names, marker), { signal }),
 			marker,
 		);
-	}
-
-	private async status(query: string | undefined, signal?: AbortSignal): Promise<NotebookControlResult> {
-		const kernel = this.host.kernel()!;
-		const activeCell = this.host.activeCellId();
-		const statusSignal = signal
-			? AbortSignal.any([signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)])
-			: AbortSignal.timeout(STATUS_TIMEOUT_MS);
-		const allNames = activeCell ? [] : await this.userBindingNames(kernel, statusSignal);
-		const matches = query === undefined ? [] : allNames.filter(globMatcher(query));
-		const selected = withinNameBudget(matches);
-		const retained = this.host.retainedBindings();
-		const retainedByName = new Map(retained.map((binding) => [binding.name, binding]));
-		let runtime: NotebookKernelStatus | undefined;
-		if (!activeCell) {
-			const marker = lifecycleMarker();
-			runtime = parseNotebookRuntimeResult<NotebookKernelStatus>(
-				await kernel.execute(notebookStatusSource(selected, marker), { signal: statusSignal }),
-				marker,
-			);
-		}
-		const metadata = this.host.metadata();
-		const inspectedMatches = (runtime?.bindings ?? []).map((binding) => {
-			const retainedBinding = retainedByName.get(binding.name);
-			return {
-				...binding,
-				...(retainedBinding ? {
-					bytes: retainedBinding.bytes,
-					updatedAt: retainedBinding.updatedAt,
-					pinned: retainedBinding.pinned,
-					hook: retainedBinding.hook,
-					...(retainedBinding.description === undefined ? {} : { description: retainedBinding.description }),
-					...(retainedBinding.usage === undefined ? {} : { usage: retainedBinding.usage }),
-				} : {}),
-			};
-		});
-		const pinned = retained.filter((binding) => binding.pinned);
-		const unpinned = retained
-			.filter(({ pinned }) => !pinned)
-			.sort((left, right) => right.bytes - left.bytes);
-		const largestUnpinned = unpinned.slice(0, 8);
-		const baseDetails: NotebookStatusDetails = {
-			state: activeCell ? "running" : "idle",
-			...(activeCell ? { activeCell } : {}),
-			userBindings: activeCell ? undefined : allNames.length,
-			userCells: metadata.userCells,
-			...(metadata.startedAt ? { startedAt: new Date(metadata.startedAt).toISOString() } : {}),
-			memory: runtime?.memory ?? metadata.memory,
-			checkpoint: metadata.checkpoint,
-			retainedBindings: retained.length,
-			retainedBytes: retained.reduce((total, binding) => total + binding.bytes, 0),
-			pinnedBindings: pinned.length,
-			pinned: [],
-			omittedPinned: pinned.length,
-			largestUnpinned: [],
-			omittedLargestUnpinned: unpinned.length,
-			...(query === undefined ? {} : {
-				query,
-				matches: [],
-				omittedMatches: matches.length,
-			}),
-		};
-		const detailBudget = remainingDetailsBudget(baseDetails);
-		const reportedMatches = takeDetailValues(inspectedMatches, detailBudget);
-		const reportedPinned = takeDetailValues(pinned, detailBudget);
-		const reportedLargestUnpinned = takeDetailValues(largestUnpinned, detailBudget);
-		const details: NotebookStatusDetails = {
-			...baseDetails,
-			pinned: reportedPinned,
-			omittedPinned: pinned.length - reportedPinned.length,
-			largestUnpinned: reportedLargestUnpinned,
-			omittedLargestUnpinned: unpinned.length - reportedLargestUnpinned.length,
-			...(query === undefined ? {} : {
-				matches: reportedMatches,
-				omittedMatches: Math.max(0, matches.length - reportedMatches.length),
-			}),
-		};
-		return { message: formatStatus(details), details };
 	}
 
 	private async checkpoint(): Promise<NotebookControlResult> {

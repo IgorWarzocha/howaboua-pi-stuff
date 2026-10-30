@@ -1,4 +1,5 @@
 import { runCustomTool } from "../custom-tool-runner.js";
+import type { prepareCodeModeToolInput } from "../tool-input.ts";
 import { mcpToolNamespaces, missingMcpToolMessage } from "../mcp-tool-recovery.js";
 import { isCustomToolDefinition } from "../host-protocol.js";
 import { runCodeModeToolWithHooks } from "../nested-tool-completion.js";
@@ -12,6 +13,7 @@ import { numericSessionId, type DelegateCellResults } from "./cell-results.ts";
 const MAX_TRACE_ERROR_CHARS = 16_384;
 
 export class DelegateToolExecutor {
+	private readonly prepareToolInput: typeof prepareCodeModeToolInput;
 	private readonly cells: DelegateCellScheduling;
 	private readonly results: DelegateCellResults;
 	private readonly traces: CodeModeTraceStore;
@@ -19,12 +21,14 @@ export class DelegateToolExecutor {
 	private readonly traceRuntimeGeneration: string;
 
 	constructor(
+		prepareToolInput: typeof prepareCodeModeToolInput,
 		cells: DelegateCellScheduling,
 		results: DelegateCellResults,
 		traces: CodeModeTraceStore,
 		renderStore: CodeModeNestedRenderStore,
 		traceRuntimeGeneration: string,
 	) {
+		this.prepareToolInput = prepareToolInput;
 		this.cells = cells;
 		this.results = results;
 		this.traces = traces;
@@ -46,6 +50,7 @@ export class DelegateToolExecutor {
 				?? `Unknown custom tool: ${toolName}`,
 		);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
+		input = this.prepareToolInput(tool, input);
 		const opaqueResult = !isCustomToolDefinition(tool) && tool.opaqueResult === true;
 		const currentContext = () => this.cells.context(cellId) ?? context;
 		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());

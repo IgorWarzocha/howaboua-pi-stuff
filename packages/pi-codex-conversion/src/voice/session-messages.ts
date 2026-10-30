@@ -10,7 +10,7 @@ import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
 import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
-import { renderRealtimeTranscriptTail } from "./prompts.ts";
+import { renderRealtimeTranscriptTail, renderRealtimeUserInput } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
 	CODEX_VOICE_MODE_MESSAGE_TYPE,
@@ -23,7 +23,6 @@ import {
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
 	type RealtimeVoiceMessageDetails,
-	realtimeVoiceMessage,
 	VOICE_CONTEXT_MESSAGE_TYPE,
 } from "./ui.ts";
 
@@ -33,6 +32,7 @@ export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
 	onDelegation(id: string, input: string, source: CodexRealtimeConversation | undefined): void;
 	onDelegationFailed(id: string): void;
+	onDeliveryUnavailable(message: string): void;
 	onWorking(): void;
 }
 
@@ -42,6 +42,7 @@ export class CodexVoiceSessionMessages {
 	private context: ExtensionContext | undefined;
 	private piTurnActive = false;
 	private dictationAnnounced = false;
+	private readonly pendingDelegations = new Map<string, () => void>();
 	private delegationTail: Promise<void> = Promise.resolve();
 	private delegationAbortController = new AbortController();
 	private compactionBarrier:
@@ -115,7 +116,7 @@ export class CodexVoiceSessionMessages {
 			return Promise.resolve();
 		}
 		const generation = this.contextGeneration;
-		const canDeliver = this.callbacks.canDelegate();
+		const canDeliver = source?.finishingAcceptedWork || this.callbacks.canDelegate();
 		const delivery = this.delegationTail.then(() =>
 			this.deliverDelegation(turn, generation, canDeliver, source),
 		);
@@ -180,6 +181,24 @@ export class CodexVoiceSessionMessages {
 		this.piTurnActive = false;
 	}
 
+	delegationConsumed(message: unknown): boolean {
+		if (!message || typeof message !== "object") return false;
+		const candidate = message as {
+			role?: string;
+			customType?: string;
+			details?: { delegationId?: string };
+		};
+		if (candidate.role !== "custom" || candidate.customType !== REALTIME_DELEGATION_MESSAGE_TYPE)
+			return false;
+		const id = candidate.details?.delegationId;
+		if (!id) return false;
+		const activate = this.pendingDelegations.get(id);
+		if (!activate) return false;
+		this.pendingDelegations.delete(id);
+		activate();
+		return true;
+	}
+
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
 		if (mode === "realtime") {
 			const message = codexVoiceModeMessage(mode, state);
@@ -198,6 +217,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private replaceContext(ctx: ExtensionContext | undefined): void {
+		this.pendingDelegations.clear();
 		this.delegationAbortController.abort();
 		this.delegationAbortController = new AbortController();
 		this.contextGeneration++;
@@ -212,12 +232,16 @@ export class CodexVoiceSessionMessages {
 		source: CodexRealtimeConversation | undefined,
 	): Promise<void> {
 		const ctx = this.context;
-		if (
-			generation !== this.contextGeneration ||
-			!ctx ||
-			!turn.delegationId ||
-			!canDeliver
-		) return;
+		if (generation !== this.contextGeneration || !turn.delegationId || !canDeliver) return;
+		if (!ctx) {
+			const error = "Voice request was not sent to Pi because the session is unavailable. Please try again.";
+			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+				REALTIME_DELEGATION_MESSAGE_TYPE,
+				{ input: turn.input, route: "delegation", error },
+			);
+			this.callbacks.onDeliveryUnavailable(error);
+			return;
+		}
 		const signal = this.delegationAbortController.signal;
 		let deliveryStarted = false;
 		try {
@@ -238,12 +262,29 @@ export class CodexVoiceSessionMessages {
 			signal.throwIfAborted();
 			if (generation !== this.contextGeneration || this.context !== ctx) return;
 			deliveryStarted = true;
-			this.callbacks.onDelegation(turn.delegationId, turn.input, source);
+			const id = turn.delegationId;
+			// Pi consumes queued steering at message_start, after the previous answer.
+			this.pendingDelegations.set(id, () =>
+				this.callbacks.onDelegation(id, turn.input, source),
+			);
 			this.piTurnActive = true;
 			this.callbacks.onWorking();
-			const message = realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta);
-			this.pi.sendMessage(message, { triggerTurn: true, deliverAs: "steer" });
+			// Submission has no acceptance receipt. Do not retry a possibly delivered task.
+			this.pi.sendMessage(
+				{
+					customType: REALTIME_DELEGATION_MESSAGE_TYPE,
+					content: renderRealtimeUserInput(turn.input, turn.transcriptDelta),
+					display: false,
+					details: {
+						input: turn.input,
+						route: "delegation",
+						delegationId: id,
+					} satisfies RealtimeVoiceMessageDetails & { delegationId: string },
+				},
+				{ triggerTurn: true, deliverAs: "steer" },
+			);
 		} catch (error) {
+			this.pendingDelegations.delete(turn.delegationId);
 			if (
 				generation !== this.contextGeneration ||
 				this.context !== ctx
@@ -273,6 +314,11 @@ export class CodexVoiceSessionMessages {
 					{ input: turn.input, route: "delegation", error: message },
 				);
 			} catch {}
+			return;
 		}
+		this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+			REALTIME_DELEGATION_MESSAGE_TYPE,
+			{ input: turn.input, route: "delegation" },
+		);
 	}
 }

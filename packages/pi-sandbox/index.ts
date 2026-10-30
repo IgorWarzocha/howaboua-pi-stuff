@@ -1,11 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ZodError } from "zod";
+import { run } from "./src/client.ts";
 import {
 	agentActionSchema,
 	HELP,
 	prepareSandboxInput,
 } from "./src/contracts.ts";
+import { agentError } from "./src/storage.ts";
 
 export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 	const tool = {
@@ -47,8 +49,6 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 						content: [{ type: "text" as const, text: JSON.stringify(HELP) }],
 						details: {},
 					};
-				const { run } = await import("./src/client.ts");
-				const { agentError } = await import("./src/storage.ts");
 				try {
 					result = await run(agentActionSchema.parse(action), ctx.cwd, signal);
 				} catch (error) {
@@ -84,7 +84,6 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 				return;
 			}
 			try {
-				const { run } = await import("./src/client.ts");
 				const result = await run({ action: "shell", name, user }, ctx.cwd);
 				ctx.ui.notify(JSON.stringify(result), "info");
 			} catch (error) {
@@ -99,17 +98,22 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
-			adaptToolForCodeMode(tool, {
-				discovery: "help",
-				kind: "freeform",
-				prepareInput: prepareSandboxInput,
-				resultValue: (result) => {
-					const content = result.content.find((item) => item.type === "text");
-					if (!content) throw new Error("Sandbox response has no text");
-					return JSON.parse(content.text);
+			adaptToolForCodeMode(
+				{
+					...tool,
+					parameters: Type.Object({}, { additionalProperties: true }),
 				},
-				deferLoading: true,
-			}),
+				{
+					discovery: "help",
+					prepareInput: prepareSandboxInput,
+					resultValue: (result) => {
+						const content = result.content.find((item) => item.type === "text");
+						if (!content) throw new Error("Sandbox response has no text");
+						return JSON.parse(content.text);
+					},
+					deferLoading: true,
+				},
+			),
 		]);
 		pi.on("session_shutdown", () => registration.unregister());
 	} catch (error) {

@@ -5,19 +5,14 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { acceptFocus, readFocus } from "./agents-focus.js";
-import { sendPolicyMessage } from "./delivery.js";
+import { coreIdentity, publishCoreSession } from "./core/registration.js";
 import { dispatchExtensionReply } from "./extension-reply.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getCurrentPane } from "./herdr.js";
+import { getAgent, getCurrentPane, sessionPath } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
-import { announcePeerMessage } from "./messages/voice-announcements.js";
-import { acceptFocusChannel } from "./peer-channel.js";
 import type { createPeerCommands } from "./peer-commands.js";
-import {
-	MAX_CHANNEL_FRAME_BYTES,
-	socketChannel,
-} from "./remote/shepherdr-channel.mjs";
+import { PeerInboxDelivery } from "./peer-inbox-delivery.js";
+import { receivePeerFocus } from "./peer-inbox-focus.js";
 import {
 	MAX_PEER_FRAME_BYTES,
 	PEER_PROTOCOL,
@@ -34,12 +29,30 @@ export function registerPeerInbox(
 ): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
+	let generation = 0;
 	const publish = async (ctx: ExtensionContext) => {
-		if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
+		const core = coreIdentity(ctx);
+		if (
+			!core &&
+			(process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
+		)
 			return;
-		close = await openInbox(pi, ctx, () => running, commands, fleet, catchup);
+		if (core) {
+			await close?.();
+			close = undefined;
+		}
+		close = await openInbox(
+			pi,
+			ctx,
+			() => running,
+			() => generation,
+			commands,
+			fleet,
+			catchup,
+		);
 	};
 	pi.on("before_agent_start", () => {
+		generation += 1;
 		running = true;
 	});
 	pi.on("agent_settled", () => {
@@ -62,6 +75,7 @@ async function openInbox(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	isRunning: () => boolean,
+	generation: () => number,
 	commands: ReturnType<typeof createPeerCommands>,
 	fleet: AgentFleet,
 	catchup: (
@@ -71,13 +85,42 @@ async function openInbox(
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
 		throw new Error("Shepherdr peer delivery requires a saved Pi session");
-	const pane = await getCurrentPane(new HerdrClient());
+	const core = coreIdentity(ctx);
+	const pane = core
+		? {
+				backend: "core" as const,
+				pane_id: core.terminalId,
+				terminal_id: core.terminalId,
+				agent_status: "unknown" as const,
+				agent_session: {
+					agent: "pi",
+					kind: "path" as const,
+					source: "pi.session_file",
+					value: sessionFile,
+				},
+			}
+		: await getCurrentPane(new HerdrClient());
+	const terminalId = pane.terminal_id;
+	if (!terminalId)
+		throw new Error("Shepherdr peer receiver has no terminal identity");
 	const token = randomBytes(32).toString("hex");
-	const path = peerInboxPath(sessionFile, pane.terminal_id);
+	const path = peerInboxPath(sessionFile, terminalId);
 	const temporary = `${path}.${token}.tmp`;
 	const sockets = new Set<Socket>();
 	let state: "open" | "quitting" | "closed" = "open";
-	let promptDelivery = Promise.resolve();
+	const delivery = new PeerInboxDelivery(
+		sessionFile,
+		isRunning,
+		() => state === "open",
+		(socket) => {
+			state = "quitting";
+			sockets.delete(socket);
+			socket.setTimeout(0);
+		},
+		commands,
+		catchup,
+	);
+	let clearCoreSession: (() => Promise<void>) | undefined;
 	const server = createServer((socket) => {
 		sockets.add(socket);
 		socket.setEncoding("utf8");
@@ -116,12 +159,13 @@ async function openInbox(
 				request["protocol"] !== PEER_PROTOCOL ||
 				request["token"] !== token ||
 				request["sessionFile"] !== sessionFile ||
-				request["terminalId"] !== pane.terminal_id ||
+				request["terminalId"] !== terminalId ||
 				ctx.sessionManager.getSessionFile() !== sessionFile ||
 				typeof request["id"] !== "string" ||
 				(request["kind"] !== "focus" &&
 					request["kind"] !== "commands" &&
 					request["kind"] !== "message" &&
+					request["kind"] !== "close-idle" &&
 					request["kind"] !== "channel" &&
 					request["kind"] !== "extension-reply") ||
 				(request["kind"] !== "focus" &&
@@ -190,213 +234,83 @@ async function openInbox(
 				}
 				return;
 			}
-			if (request["kind"] === "channel") {
-				let focus;
-				try {
-					focus = readFocus(request["focus"]);
-				} catch (error) {
-					reply({ ok: false, rejected: true, error: String(error) });
-					return;
-				}
-				// Hold outbound frames until the admission reply precedes them.
-				const pending: unknown[] = [];
-				let admitted = false;
-				const channel = socketChannel(socket, buffer.slice(newline + 1));
-				const receiverChannel = {
-					...channel,
-					send(message: unknown) {
-						const json = JSON.stringify(message);
-						if (
-							json === undefined ||
-							Buffer.byteLength(json) > MAX_CHANNEL_FRAME_BYTES
-						) {
-							channel.close();
-							throw new Error("Focus channel frame is too large or not JSON");
-						}
-						if (admitted) channel.send(message);
-						else {
-							pending.push(message);
-							if (
-								pending.length > 64 ||
-								Buffer.byteLength(JSON.stringify(pending)) > 1024 * 1024
-							) {
-								channel.close();
-								throw new Error(
-									"Focus channel admission output exceeded its buffer",
-								);
-							}
-						}
-					},
-				};
-				void acceptFocusChannel(pi, receiverChannel, focus, ctx, pane).then(
-					() => {
-						try {
-							socket.write(
-								`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ok: true })}\n`,
-							);
-							admitted = true;
-							for (const message of pending) channel.send(message);
-							pending.length = 0;
-						} catch {
-							channel.close();
-						}
-					},
-					(error: unknown) => {
-						reply(
-							{
-								ok: false,
-								rejected: true,
-								error: error instanceof Error ? error.message : String(error),
-							},
-							() => channel.close(),
-						);
-					},
-				);
-				return;
-			}
-			if (request["kind"] === "focus") {
-				try {
-					if (readFocus(request["focus"]).voice === true)
-						throw new Error(
-							"Voice transfer was not admitted; retry using agents focus with voice:true",
-						);
-				} catch (error) {
-					reply({ ok: false, rejected: true, error: String(error) });
-					return;
-				}
-				socket.setTimeout(60_000, () => socket.destroy());
-				void acceptFocus(pi, ctx, fleet, pane, request["focus"]).then(
-					() => reply({ ok: true, command: false }),
-					(error: unknown) =>
-						reply({
-							ok: false,
-							rejected: !(error instanceof Error && "focusChanged" in error),
-							error: error instanceof Error ? error.message : String(error),
-						}),
-				);
-				return;
-			}
-			let submitted = false;
-			try {
-				const idle = ctx.isIdle();
-				// Manual compaction/tree navigation can be busy without an agent
-				// loop to consume steering. Do not acknowledge a stranded message.
-				if (!idle && !isRunning()) {
+			if (request["kind"] === "close-idle" && pane) {
+				const startGeneration = generation();
+				const idle = (live: ExtensionContext) =>
+					state === "open" &&
+					!socket.destroyed &&
+					live.sessionManager.getSessionFile() === sessionFile &&
+					live.isIdle() &&
+					!live.hasPendingMessages() &&
+					!isRunning() &&
+					delivery.pendingPrompts === 0 &&
+					generation() === startGeneration;
+				const reject = () =>
 					reply({
 						ok: false,
 						rejected: true,
-						error: "Target is changing context; retry after it settles",
+						error: "Target is busy or changed context; idle close skipped",
 					});
+				if (!idle(ctx)) {
+					reject();
 					return;
 				}
-				const text = request["text"] as string;
-				const sender = request["context"]
-					? `${request["sender"]}\n${request["context"]}`
-					: (request["sender"] as string);
-				if (text.startsWith("/")) {
-					const route = commands.prepare(text, ctx);
-					const { command } = route;
-					const submit = () => {
-						submitted = true;
-						sendPolicyMessage(
-							pi,
-							{
-								customType: "herdr-agent-source",
-								content: sender,
-								display: true,
-							},
-							{
-								triggerTurn: false,
-								deliverAs: idle && !command ? "nextTurn" : "steer",
-							},
-						);
-						route.submit();
-					};
-					if (command) {
-						// Lifecycle commands can tear down this inbox. Flush acceptance first.
-						const execute = () => {
-							try {
-								submit();
-							} catch (error) {
-								ctx.ui.notify(
-									`Command submission failed: ${String(error)}`,
-									"error",
-								);
-							}
-						};
-						if (text.trim() === "/quit") {
-							// Hold this authenticated connection until process exit, not
-							// session_shutdown (which precedes Pi's runtime teardown).
-							state = "quitting";
-							sockets.delete(socket);
-							socket.setTimeout(0);
-							socket.write(
-								`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ok: true, command, closing: true })}\n`,
-								execute,
-							);
-						} else reply({ ok: true, command }, execute);
-						return;
-					}
-					submit();
-					reply({ ok: true, command });
-					return;
-				}
-				// Catch-up sampling and acceptance form one prompt boundary, including
-				// bursts arriving on separate authenticated sockets.
-				const previous = promptDelivery;
-				let release!: () => void;
-				promptDelivery = new Promise<void>((resolve) => {
-					release = resolve;
-				});
-				await previous;
 				try {
-					const notice = await catchup(ctx);
+					const livePane = await getAgent(
+						core ? fleet.connected().client : new HerdrClient(),
+						pane.pane_id,
+					);
 					if (
-						state !== "open" ||
-						ctx.sessionManager.getSessionFile() !== sessionFile ||
-						(!ctx.isIdle() && !isRunning())
+						request["text"] !== "/quit" ||
+						!idle(ctx) ||
+						livePane.pane_id !== pane.pane_id ||
+						livePane.terminal_id !== pane.terminal_id ||
+						sessionPath(livePane) !== sessionFile ||
+						livePane.interactive_ready !== true ||
+						livePane.launch_pending === true ||
+						(livePane.agent_status !== "idle" &&
+							livePane.agent_status !== "done")
 					) {
-						reply({
-							ok: false,
-							rejected: true,
-							error: "Target changed context; retry after it settles",
-						});
+						reject();
 						return;
 					}
-					submitted = true;
-					sendPolicyMessage(
-						pi,
-						{
-							customType: "herdr-agent-message",
-							content: `${sender}\n${text}${notice.content}`,
-							display: true,
-						},
-						{ triggerTurn: true, deliverAs: "steer" },
-					);
-					notice.accepted();
-					// Voice failure must not turn accepted delivery into a retry.
-					try {
-						announcePeerMessage(pi, {
-							sender: request["sender"] as string,
-							text,
-						});
-					} catch (error) {
-						ctx.ui.notify(
-							`Peer voice update failed: ${String(error)}`,
-							"warning",
+					commands.closeIdle(ctx, async (live) => {
+						if (!idle(live)) {
+							reject();
+							return;
+						}
+						// No async boundary between the live idle check and shutdown.
+						// Retain the socket until process exit, as for ordinary peer quit.
+						state = "quitting";
+						sockets.delete(socket);
+						socket.setTimeout(0);
+						socket.write(
+							`${JSON.stringify({ protocol: PEER_PROTOCOL, id: request["id"], ok: true, command: true, closing: true })}\n`,
 						);
-					}
-					reply({ ok: true, command: false });
-				} finally {
-					release();
+						live.shutdown();
+					});
+				} catch {
+					reject();
 				}
-			} catch (error) {
-				reply({
-					ok: false,
-					rejected: !submitted,
-					error: `${submitted ? "Peer delivery failed; inspect the target before retrying" : "Peer delivery rejected"}: ${error instanceof Error ? error.message : String(error)}`,
-				});
+				return;
 			}
+			if (
+				(request["kind"] === "channel" || request["kind"] === "focus") &&
+				pane
+			) {
+				receivePeerFocus(
+					pi,
+					ctx,
+					fleet,
+					pane,
+					socket,
+					request,
+					buffer.slice(newline + 1),
+					reply,
+				);
+				return;
+			}
+			await delivery.receive(pi, ctx, socket, request, reply);
 		});
 	});
 	server.maxConnections = 16;
@@ -420,6 +334,9 @@ async function openInbox(
 				await unlink(path);
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		} finally {
+			await clearCoreSession?.();
+			clearCoreSession = undefined;
 		}
 	};
 	try {
@@ -448,6 +365,7 @@ async function openInbox(
 			{ mode: 0o600, flag: "wx" },
 		);
 		await rename(temporary, path);
+		if (core) clearCoreSession = await publishCoreSession(core, sessionFile);
 	} catch (error) {
 		try {
 			await unlink(temporary).catch((failure: NodeJS.ErrnoException) => {

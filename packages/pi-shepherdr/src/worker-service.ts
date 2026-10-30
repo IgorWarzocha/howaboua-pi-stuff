@@ -6,8 +6,9 @@ import type {
 import { activityTask } from "./activity.js";
 import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
+import { CoreConnection } from "./core/backend.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getSnapshot, sessionPath } from "./herdr.js";
+import { sessionPath } from "./herdr.js";
 import {
 	RolledBackAgentLaunchError,
 	rollbackStartedAgent,
@@ -17,10 +18,9 @@ import {
 import { attributeAgentPrompt } from "./messages/attribution.js";
 import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
-import type { PaneInfo } from "./types.js";
+import { ENTRY, panelFor, records } from "./worker-ownership.js";
 import { PULSE_WORKER_FLAG, type registerWorkerRole } from "./worker-role.js";
 
-const ENTRY = "herdr-owned-worker-v1";
 const RUNNER_PROTOCOL = "@howaboua/pi-pulses/runner/v1";
 // Structural implementation of Pulses' optional runner ABI, without a private-package dependency.
 interface PulseRun {
@@ -34,48 +34,6 @@ interface PulseRun {
 interface PulseWorker {
 	workerId: string;
 	state: "working" | "idle" | "closed";
-}
-interface OwnedWorker {
-	workerId: string;
-	pulseId: string;
-	runId: string;
-	parent: string;
-	host: string;
-	session: string;
-	target: string;
-	terminal: string;
-	sessionPath: string;
-	cwd: string;
-}
-
-function records(ctx: ExtensionContext): OwnedWorker[] {
-	const workers = new Map<string, OwnedWorker>();
-	for (const entry of ctx.sessionManager.getBranch()) {
-		if (entry.type !== "custom" || entry.customType !== ENTRY) continue;
-		const value = entry.data as Record<string, unknown> | undefined;
-		if (
-			!value ||
-			![
-				"workerId",
-				"pulseId",
-				"runId",
-				"parent",
-				"host",
-				"session",
-				"target",
-				"terminal",
-				"sessionPath",
-				"cwd",
-			].every((key) => typeof value[key] === "string")
-		)
-			throw new Error(
-				"Saved pulse worker ownership is invalid; inspect the session before retrying",
-			);
-		const worker = value as unknown as OwnedWorker;
-		if (worker.parent === ctx.sessionManager.getSessionFile())
-			workers.set(worker.workerId, worker);
-	}
-	return [...workers.values()];
 }
 
 export function registerWorkerService(
@@ -111,45 +69,13 @@ export function registerWorkerService(
 			throw new Error("Worker belongs to another host or Herdr session");
 		return worker;
 	}
-	async function panelFor(worker: OwnedWorker): Promise<PaneInfo | undefined> {
-		const snapshot = await getSnapshot(fleet.connected().client);
-		if (
-			snapshot.agents.some(
-				(value) =>
-					value.pane_id !== worker.target &&
-					sessionPath(value) === worker.sessionPath,
-			)
-		)
-			throw new Error(
-				"Worker session is open in another pane; refusing to control it",
-			);
-		const panel = snapshot.agents.find(
-			(value) => value.pane_id === worker.target,
-		);
-		if (panel) {
-			if (
-				panel.pane_id === process.env["HERDR_PANE_ID"] ||
-				panel.terminal_id !== worker.terminal ||
-				panel.agent !== "pi" ||
-				sessionPath(panel) !== worker.sessionPath
-			)
-				throw new Error("Worker pane identity changed; refusing to control it");
-			return panel;
-		}
-		if (
-			snapshot.agents.some((value) => sessionPath(value) === worker.sessionPath)
-		)
-			throw new Error(
-				"Worker session is open in another pane; refusing to control it",
-			);
-		return undefined;
-	}
+
 	async function inspect(
 		ctx: ExtensionContext,
 		workerId: string,
 	): Promise<PulseWorker> {
 		const worker = await owned(ctx, workerId);
-		const panel = await panelFor(worker);
+		const panel = await panelFor(fleet, worker);
 		const record = fleet
 			.connected()
 			.monitor.list()
@@ -221,7 +147,7 @@ export function registerWorkerService(
 					if (input.workerId && input.workerId !== worker?.workerId)
 						throw new Error("Worker is not owned by this pulse in this branch");
 					if (worker) await owned(ctx, worker.workerId);
-					let panel = worker ? await panelFor(worker) : undefined;
+					let panel = worker ? await panelFor(fleet, worker) : undefined;
 					if (worker?.runId === input.runId) {
 						stage = "dispatch";
 						return await inspect(ctx, worker.workerId);
@@ -280,7 +206,12 @@ export function registerWorkerService(
 									name,
 									label: input.title,
 									cwd: input.cwd,
-									placement: workspace ? "new_tab" : "new_workspace",
+									placement:
+										runtime.client instanceof CoreConnection
+											? "terminal"
+											: workspace
+												? "new_tab"
+												: "new_workspace",
 									...(workspace ? { workspace } : {}),
 								},
 								runtime.fallbackCwd,

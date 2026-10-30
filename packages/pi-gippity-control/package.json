@@ -50,6 +50,7 @@
 		"build:voice-helper": "node scripts/build-voice-helper.mjs"
 	},
 	"dependencies": {
+		"@howaboua/pi-browser": "^0.0.11",
 		"proxy-from-env": "2.1.0",
 		"selfsigned": "^5.5.0",
 		"undici": "8.12.3",

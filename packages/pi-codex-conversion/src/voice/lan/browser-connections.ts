@@ -13,6 +13,10 @@ export class LanVoiceBrowserConnections {
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
 
+	hasAudioClients(): boolean {
+		return [...this.audioSockets.values()].some((socket) => socket.readyState === WebSocket.OPEN);
+	}
+
 	connectEvents(clientId: string, response: ServerResponse, closed: boolean): void {
 		if (closed) { response.end(); return; }
 		const previous = this.eventResponses.get(clientId);
@@ -49,6 +53,13 @@ export class LanVoiceBrowserConnections {
 	broadcastControl(value: unknown): void {
 		for (const clientId of this.eventResponses.keys()) this.sendControl(clientId, value);
 	}
+
+	broadcastTakeover(token: string): void {
+		const value = { type: "takeover", token };
+		this.broadcastControl(value);
+		for (const socket of this.audioSockets.values()) this.sendAudioControl(socket, value);
+	}
+
 
 	sendAudio(socket: WebSocket, pcm: Buffer): void {
 		if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) socket.send(pcm);

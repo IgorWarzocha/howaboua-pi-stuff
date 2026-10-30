@@ -36,7 +36,7 @@ export async function buildRealtimeInitialItems(args: {
 	pi: ExtensionAPI;
 	ctx: ExtensionContext;
 	config: CodexConversionConfig;
-	onSummaryGenerated?: ((summary: string) => void) | undefined;
+	onSummarySelected?: ((summary: string) => void) | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
 	signal?: AbortSignal | undefined;
 	sourceLeafId?: string | undefined;
@@ -67,13 +67,13 @@ export async function buildRealtimeInitialItems(args: {
 						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
 							summaryCache.delete(summaryCache.keys().next().value!);
 					}
-					args.onSummaryGenerated?.(text);
 				}
 			} finally {
 				args.onSummaryStatus?.(false);
 			}
 		}
 		if (text) {
+			args.onSummarySelected?.(text);
 			initialItems.push({
 				type: "message",
 				role: "developer",

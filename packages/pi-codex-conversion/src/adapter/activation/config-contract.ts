@@ -1,10 +1,51 @@
+// Invalid explicit selections stay invalid instead of switching accounts to openai.
+export function normalizeVoiceApiProvider(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() === value &&
+		value.length > 0 && Buffer.byteLength(value) <= 512 &&
+		!/[\u0000-\u001f\u007f]/u.test(value)
+		? value : undefined;
+}
+
+export const GIPPITY_VOICE_MODELS = [
+	"codex-live-1.1",
+	"realtime-2.1",
+	"realtime-2.1-mini",
+] as const;
+type GippityVoiceModel = (typeof GIPPITY_VOICE_MODELS)[number];
+export const OPENAI_REALTIME_VOICES = [
+	"alloy",
+	"ash",
+	"ballad",
+	"coral",
+	"echo",
+	"sage",
+	"shimmer",
+	"verse",
+	"marin",
+	"cedar",
+] as const;
+type OpenAIRealtimeVoice = (typeof OPENAI_REALTIME_VOICES)[number];
+export function normalizeGippityVoiceModel(
+	value: unknown,
+): GippityVoiceModel | undefined {
+	return GIPPITY_VOICE_MODELS.find((model) => model === value);
+}
+export function normalizeOpenAIRealtimeVoice(
+	value: unknown,
+): OpenAIRealtimeVoice | undefined {
+	return OPENAI_REALTIME_VOICES.find((voice) => voice === value);
+}
+
 import type { ExecutionMode } from "./execution-mode.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
 export type HeavySystemPromptOverwrite = boolean | "gpt";
 export const FAST_MODE_FAMILIES = ["astra", "sol", "terra", "luna"] as const;
 export type FastModeFamily = (typeof FAST_MODE_FAMILIES)[number];
-export type FastModeConfig = Record<FastModeFamily | "other", boolean | "ultrafast">;
+export type FastModeConfig = Record<
+	FastModeFamily | "other",
+	boolean | "ultrafast"
+>;
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type CompactToolsMode = "off" | "on" | "minimal";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
@@ -51,7 +92,10 @@ export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMi
 export interface CodexConversionConfig {
 	executionMode: ExecutionMode;
 	voiceFeaturesOnly: boolean;
-	prompt: { heavySystemPromptOverwrite: HeavySystemPromptOverwrite; currentTimeReminderMinutes: 0 | 30 | 60 };
+	prompt: {
+		heavySystemPromptOverwrite: HeavySystemPromptOverwrite;
+		currentTimeReminderMinutes: 0 | 30 | 60;
+	};
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
 		autoReasoning: boolean;
@@ -83,6 +127,11 @@ export interface CodexConversionConfig {
 		profile?: string | undefined;
 	};
 	voice: {
+		model: GippityVoiceModel;
+		apiProvider: string;
+		realtimeVoice: OpenAIRealtimeVoice;
+		realtimeAlternateVoice: OpenAIRealtimeVoice;
+		webSearch: boolean;
 		v3Voice: RealtimeV3Voice;
 		v3AlternateVoice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
@@ -97,6 +146,8 @@ export interface CodexConversionConfig {
 		dictationShortcutMode: DictationShortcutMode;
 		contextModel?: VoiceContextModel | undefined;
 		contextReasoning: VoiceContextReasoning;
+		taskDelegationModel: string;
+		taskDelegationReasoning: VoiceContextReasoning;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -141,8 +192,18 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		method: "pi",
 		v2UserMessageRetention: 64,
 	},
-	notebook: { maxHeapMiB: 4_096, plainCommandOutput: false, journals: "week", checkpointCleanup: "never" },
+	notebook: {
+		maxHeapMiB: 4_096,
+		plainCommandOutput: false,
+		journals: "week",
+		checkpointCleanup: "never",
+	},
 	voice: {
+		model: "codex-live-1.1",
+		apiProvider: "openai",
+		realtimeVoice: "marin",
+		realtimeAlternateVoice: "cedar",
+		webSearch: false,
 		v3Voice: "cove",
 		v3AlternateVoice: "ember",
 		autoResumeRealtime: true,
@@ -160,6 +221,8 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 			modelId: "gpt-6-luna",
 		},
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
+		taskDelegationModel: "openai-codex/gpt-6-luna",
+		taskDelegationReasoning: "low",
 	},
 	openai: {
 		fast: { astra: false, sol: false, terra: false, luna: false, other: false },

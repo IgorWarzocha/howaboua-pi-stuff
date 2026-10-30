@@ -145,6 +145,9 @@ export function createCodexSessionLifecycle(
 			await codeMode.shutdownHost();
 			await trackCheckpoint(ctx);
 			proxyProvider.applyConfig(state.config, ctx.modelRegistry);
+			// Pi restored the branch's tool loadout, not its execution-mode setting.
+			// Reapply the current mode while retaining non-adapter tool selections.
+			delete state.appliedRuntimeKind;
 			syncAdapter(pi, ctx, state);
 			prepareCodeModeHost(codeMode, ctx);
 			if (stateful) {

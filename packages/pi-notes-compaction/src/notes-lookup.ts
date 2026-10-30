@@ -83,7 +83,7 @@ export async function lookupNotes(
 		);
 	if (responses.length && canProject && replacementsInScope)
 		warnings.push(
-			"Older matches may refer to replaced notes. Read a note before relying on its excerpt; read_file returns the current saved version.",
+			"Older matches may refer to replaced notes. Read a note before relying on its excerpt; read returns the current saved version.",
 		);
 	const output = result({ ...local, ...(warnings.length ? { warnings } : {}) });
 	if (shared)

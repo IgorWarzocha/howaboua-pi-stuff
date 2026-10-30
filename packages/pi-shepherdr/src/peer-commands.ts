@@ -51,6 +51,17 @@ export function createPeerCommands(pi: ExtensionAPI) {
 	};
 	return {
 		available,
+		closeIdle(
+			ctx: ExtensionContext,
+			run: (ctx: ExtensionCommandContext) => Promise<void>,
+		): void {
+			const token = randomUUID();
+			pending.set(token, {
+				session: ctx.sessionManager.getSessionFile(),
+				run,
+			});
+			pi.sendUserMessage(`/herdr ${token}`, { expandPromptTemplates: true });
+		},
 		async handle(args: string, ctx: ExtensionCommandContext): Promise<boolean> {
 			const intent = pending.get(args);
 			if (!intent) return false;

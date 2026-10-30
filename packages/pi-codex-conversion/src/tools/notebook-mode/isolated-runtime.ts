@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import type { NotebookClientOptions } from "../code-mode/shared-runtime.ts";
 import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
 import type { CodeModeToolDefinition, RuntimeResponse, ToolExecutionContext } from "../code-mode/types.ts";
 import { checkpointPaths } from "./checkpoint-format.ts";
@@ -31,12 +31,12 @@ export class NotebookIsolatedRuntime {
 	private readonly runs = new Map<string, IsolatedRun>();
 	private readonly starting = new Set<IsolatedRun>();
 	private stopping = false;
-	private readonly options: NotebookRuntimeOptions;
+	private readonly options: NotebookClientOptions;
 	private readonly renderStore: CodeModeNestedRenderStore | undefined;
 	private readonly readCommitted: (capture: () => Promise<void>) => Promise<void>;
 	private identity: string | undefined;
 
-	constructor(options: NotebookRuntimeOptions, readCommitted: (capture: () => Promise<void>) => Promise<void>, renderStore?: CodeModeNestedRenderStore) {
+	constructor(options: NotebookClientOptions, readCommitted: (capture: () => Promise<void>) => Promise<void>, renderStore?: CodeModeNestedRenderStore) {
 		this.options = options;
 		this.readCommitted = readCommitted;
 		this.renderStore = renderStore;
@@ -60,7 +60,7 @@ export class NotebookIsolatedRuntime {
 		const directory = mkdtempSync(join(tmpdir(), "pi-deno-isolated-"));
 		const candidate = `isolated-${randomUUID()}`;
 		let session!: NotebookSessionRuntime;
-		const runtime = new NotebookExecutionRuntime(() => session, (ctx, abort) => session.ensure(ctx, abort), this.renderStore, async (cell) => {
+		const runtime = new NotebookExecutionRuntime(() => session, (ctx, abort) => session.ensure(ctx, abort), this.options.prepareToolInput, this.renderStore, async (cell) => {
 			try {
 				if (cell.result?.status === "ok" && !cell.controller.signal.aborted) {
 					const saved = await saveNotebookProfile({ name: candidate, kernel: session.kernel()!, project: resolveNotebookProject(context.cwd), agentDir: this.options.agentDir, baselineNames: session.baselineNames(), maxBytes: session.checkpointMaxBytes, signal: cell.controller.signal });

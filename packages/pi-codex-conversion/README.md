@@ -208,7 +208,19 @@ See the [working examples](./examples/custom-tools/) and [definition contract](.
 <details>
 <summary><strong>Voice, dictation and remote access</strong></summary>
 
-Voice uses your Pi OpenAI Codex login independently of the active text model. The spoken model handles conversation and routes work. Pi keeps the tools, files and actual job.
+Choose **Voice model** in `/codex voice` or the browser interface. Voice runs independently of the active text model.
+
+| Voice model | Credential |
+| --- | --- |
+| `codex-live-1.1`, the default | Pi's legacy `openai-codex` login |
+| `realtime-2.1` | An OpenAI API key configured in Pi |
+| `realtime-2.1-mini` | An OpenAI API key configured in Pi |
+
+Codex Live and dictation use OAuth through `/login openai-codex`. Selecting a Realtime voice model does not change dictation's login. For Realtime, enter the exact, case-sensitive Pi provider name in **API provider** in terminal or LAN voice settings. The default is `openai`. GipPity uses that provider's API key, headers and compatible Realtime endpoint without storing or displaying the key. Configure the provider's Realtime-compatible endpoint in Pi. Missing keys, OAuth credentials and invalid endpoints are rejected without falling back to another account. Changes apply on the next call. Realtime API calls are billed separately through the selected provider. Sign in with ChatGPT does not provide this API access or replace the legacy Codex login.
+
+Codex Live rewrites the current voice conversation interval into a self-contained task before sending it to Pi. **Task delegation model** shows the configured model without a picker. Change `voice.taskDelegationModel` in the JSON configuration to use another `provider/model` value. The default is `openai-codex/gpt-6-luna`. Choose **Task delegation reasoning** separately in terminal or LAN settings. It defaults to `low` and is independent of voice context summarisation. These settings apply only to Codex Live; GPT-Realtime still sends tasks directly through `send_task`.
+
+Realtime models use `send_task` to send Pi a self-contained task with relevant voice-discussion decisions and constraints. Busy Pi sessions receive it as steering, with existing tools and confirmations preserved. Realtime models can also use developer-registered voice tools. For optional search, load `@howaboua/pi-codex-web-run`, configure its access and enable **Realtime web search**. Search uses Web Run's configured provider and credentials.
 
 | Shortcut | Action |
 | --- | --- |
@@ -219,7 +231,7 @@ Voice uses your Pi OpenAI Codex login independently of the active text model. Th
 
 Audio follows system defaults. Select devices under Voice if needed. Dictation puts an editable transcript in Pi's input.
 
-Choose primary and alternate voices in the Voice tab or browser interface. With Shepherdr, transferring voice to another session alternates the voice and gives an arrival greeting. **Refresh voice context** summarises and restarts voice after rollover or compaction.
+Choose primary and alternate voices in the Voice tab or browser interface. Codex Live and Realtime keep separate voice choices, defaulting to Cove and Ember for Codex Live, Marin and Cedar for Realtime. Model and voice changes apply to the next call without replacing the current call. With Shepherdr, transferring voice to another session alternates the voice and gives an arrival greeting. **Refresh voice context** summarises and restarts voice after rollover or compaction.
 
 Customise the voice prompt at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. Trusted projects can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Your custom prompts are not rewritten automatically.
 
@@ -228,6 +240,14 @@ Customise the voice prompt at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. Trusted p
 **The remote server has no authentication. Keep it on a trusted network.**
 
 Run `/codex voice server`, open its HTTPS address on your phone or another computer, and accept the local certificate. The browser provides voice, mute, editable dictation, typed prompts and Pi activity. Moving between devices does not restart the host's voice call.
+
+For automation, use `/codex voice server ensure` to start the listener only if needed, or `/codex voice server status` to inspect it without changing it. The bare `/codex voice server` command remains a toggle. Starting the listener does not start a voice call.
+
+Append a UUID v4 to either explicit command to write a JSON receipt at `<Pi agent directory>/runtime/voice-requests/<UUID>.json`. Receipts are written atomically with private permissions. Each records `version: 1`, `requestId`, `action`, `provider: "codex"`, `sessionId`, `terminalId`, `status`, `running`, `urls` and `browserAttached`, plus `error` on failure. `terminalId` is null outside Herdr. `status` is `running`, `stopped` or `error`. `browserAttached` means a browser audio socket is open, not that the voice provider is connected. Use a fresh UUID for each request, wait for its receipt and remove it after reading. Without a UUID, results appear in Pi.
+
+Use `/codex voice server connect <browser-route> <UUIDv4> [url]` to ensure the listener and start voice in a new browser tab. Use `local` for this machine's browser or a host configured in Pi Browser, such as `laptop`. The selected browser needs an existing CDP connection, certificate trust and microphone permission. The command does not change those permissions. Remote browsers use this server's hostname URL by default. An optional URL must appear in the listener's reported `urls` and be reachable from the browser.
+
+Connect receipts add `browserRoute`, `browserStatus`, `browserUrl` and, when available, `browserRefId`. `browserStatus` reports the page's acknowledged `listening`, `error` or `timeout` result. Failures include `browserError` and leave the listener's actual `running` state intact. Existing voice or browser audio blocks a new connection to avoid taking its microphone. Repeating a connect UUID does not open another tab or repeat a start click. A failed or timed-out attempt is not retried automatically. Check its tab before making another attempt.
 
 Use `/codex voice stop` to stop voice. The remote server stops when its owning Pi session changes.
 
@@ -242,7 +262,7 @@ PCC supports GPT-6 Astra, Sol and Luna, plus GPT-6.1 Sol and Terra, with Respons
 
 Default scope covers Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
-Voice, usage and image descriptions can use the Codex login while another provider's model is active. The separate web and image-generation extensions also use that login independently.
+Codex Live voice, dictation, usage and image descriptions can use the Codex login while another provider's model is active. Realtime voice models use the API provider selected in voice settings instead. The separate web and image-generation extensions also use their configured access independently.
 
 </details>
 
@@ -268,6 +288,8 @@ See the [changelog](./CHANGELOG.md) or [report an issue](https://github.com/Igor
 <summary><strong>Building an integration</strong></summary>
 
 Normal Pi tools work with PCC without additional registration. For custom tool behaviour, shared agent context, developer messages or voice announcements, use the [extension API guide](../../docs/extension-apis.md) and [Code Mode example](./examples/code-mode-extension).
+
+To expose a tool directly to Realtime voice models, use `registerGippityVoiceTool` from `@howaboua/pi-codex-conversion/realtime-voice` during extension loading. Calls snapshot the registered tools at startup. Ordinary Pi tools are not automatically exposed to the voice model. Standalone GipPity exports the same API from `@howaboua/pi-gippity-control`.
 
 </details>
 

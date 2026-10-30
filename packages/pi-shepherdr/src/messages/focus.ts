@@ -1,7 +1,13 @@
 import type { FocusRequest } from "../types.js";
 
 function focusOrigin({ source }: FocusRequest) {
-	return { host: source.host, session: source.session, pane: source.pane };
+	return {
+		host: source.host,
+		session: source.session,
+		...(source.backend === "core"
+			? { terminal: source.terminal }
+			: { pane: source.pane }),
+	};
 }
 
 export function focusArrivalContent(
@@ -11,7 +17,10 @@ export function focusArrivalContent(
 ) {
 	const returnFocus = {
 		action: "focus",
-		target: request.source.pane,
+		target:
+			request.source.backend === "core"
+				? request.source.terminal
+				: request.source.pane!,
 		machine,
 		voice: request.voice === true,
 	};

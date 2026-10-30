@@ -3,7 +3,11 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { binding, isBoardEnvelope } from "@howaboua/pi-agent-board/integration";
+import {
+	binding,
+	children,
+	isBoardEnvelope,
+} from "@howaboua/pi-agent-board/integration";
 import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import type {
 	ContextSharingService,
@@ -12,7 +16,7 @@ import type {
 } from "@howaboua/pi-notes-compaction/context-sharing";
 import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
-import { Identity } from "./attachment-protocol.js";
+import { attachmentRoutes, Identity } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
@@ -61,6 +65,34 @@ export class SharedAgentContext {
 		});
 		pi.on("agent_settled", () => {
 			this.running = false;
+		});
+	}
+
+	needsRelay(ctx: ExtensionContext, machine: string): boolean {
+		if (children(ctx).some((child) => child.machine === machine)) return true;
+		if (
+			attachmentRoutes(ctx).some(
+				(route) =>
+					route.machine === machine &&
+					((route.plan.context && !route.detached?.context) ||
+						(route.plan.board && !route.detached?.board)),
+			)
+		)
+			return true;
+		const identity = this.getService()?.describe(ctx);
+		if (!identity) return false;
+		return ctx.sessionManager.getEntries().some((entry) => {
+			if (entry.type !== "custom" || entry.customType !== MEMBER_ENTRY)
+				return false;
+			const child = entry.data as Partial<Member> | undefined;
+			return (
+				child?.machine === machine &&
+				child.threadId === identity.threadId &&
+				child.sessionId === identity.sessionId &&
+				typeof child.sessionFile === "string" &&
+				!!child.sessionFile &&
+				typeof child.agentName === "string"
+			);
 		});
 	}
 

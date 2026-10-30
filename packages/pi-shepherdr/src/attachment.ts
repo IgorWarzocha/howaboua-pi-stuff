@@ -97,6 +97,8 @@ export class AgentAttachment {
 				"Target has different attachment choices; changing an attachment is unsupported",
 			);
 		let route = prior;
+		await runtime.prepareSharing();
+		await check();
 		if (!route) {
 			const snapshot = await runtime.client.requestContext(
 				sessionContextPath(sessionFile),

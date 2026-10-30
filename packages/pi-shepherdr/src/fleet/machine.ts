@@ -1,3 +1,4 @@
+import type { CoreMachine } from "../core/remote-exec.js";
 import type { HerdrConnection } from "../herdr-client.js";
 import type { SshMachine } from "../machine-catalog.js";
 import type { AgentMonitor } from "../monitor.js";
@@ -11,6 +12,7 @@ export interface MachineRuntime {
 	attempting?: boolean;
 	client?: HerdrConnection;
 	config?: SshMachine;
+	coreMachine?: CoreMachine;
 	contextRelayError?: string;
 	local: boolean;
 	monitor?: AgentMonitor;
@@ -21,6 +23,7 @@ export interface MachineRuntime {
 }
 
 export interface ConnectedMachine {
+	prepareSharing: () => Promise<void>;
 	client: HerdrConnection;
 	fallbackCwd: string;
 	local: boolean;

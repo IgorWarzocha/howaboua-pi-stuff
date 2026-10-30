@@ -1,3 +1,44 @@
+// Invalid explicit selections stay invalid instead of switching accounts to openai.
+export function normalizeVoiceApiProvider(value: unknown): string | undefined {
+	return typeof value === "string" &&
+		value.trim() === value &&
+		value.length > 0 &&
+		Buffer.byteLength(value) <= 512 &&
+		!/[\u0000-\u001f\u007f]/u.test(value)
+		? value
+		: undefined;
+}
+
+export const GIPPITY_VOICE_MODELS = [
+	"codex-live-1.1",
+	"realtime-2.1",
+	"realtime-2.1-mini",
+] as const;
+type GippityVoiceModel = (typeof GIPPITY_VOICE_MODELS)[number];
+export const OPENAI_REALTIME_VOICES = [
+	"alloy",
+	"ash",
+	"ballad",
+	"coral",
+	"echo",
+	"sage",
+	"shimmer",
+	"verse",
+	"marin",
+	"cedar",
+] as const;
+type OpenAIRealtimeVoice = (typeof OPENAI_REALTIME_VOICES)[number];
+function normalizeGippityVoiceModel(
+	value: unknown,
+): GippityVoiceModel | undefined {
+	return GIPPITY_VOICE_MODELS.find((model) => model === value);
+}
+function normalizeOpenAIRealtimeVoice(
+	value: unknown,
+): OpenAIRealtimeVoice | undefined {
+	return OPENAI_REALTIME_VOICES.find((voice) => voice === value);
+}
+
 type DictationShortcutMode = "push" | "toggle";
 
 export const DEFAULT_GIPPITY_LAN_PORT = 43_120;
@@ -40,6 +81,11 @@ export interface GippityControlConfig {
 		port?: number | undefined;
 	};
 	voice: {
+		model: GippityVoiceModel;
+		apiProvider: string;
+		realtimeVoice: OpenAIRealtimeVoice;
+		realtimeAlternateVoice: OpenAIRealtimeVoice;
+		webSearch: boolean;
 		v3Voice: RealtimeV3Voice;
 		v3AlternateVoice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
@@ -54,6 +100,8 @@ export interface GippityControlConfig {
 		dictationShortcutMode: DictationShortcutMode;
 		contextModel?: VoiceContextModel | undefined;
 		contextReasoning: VoiceContextReasoning;
+		taskDelegationModel: string;
+		taskDelegationReasoning: VoiceContextReasoning;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -64,6 +112,11 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		customWebApp: false,
 	},
 	voice: {
+		model: "codex-live-1.1",
+		apiProvider: "openai",
+		realtimeVoice: "marin",
+		realtimeAlternateVoice: "cedar",
+		webSearch: false,
 		v3Voice: "cove",
 		v3AlternateVoice: "ember",
 		autoResumeRealtime: false,
@@ -77,6 +130,8 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
+		taskDelegationModel: "openai-codex/gpt-6-luna",
+		taskDelegationReasoning: "low",
 	},
 };
 
@@ -116,11 +171,12 @@ function normalizeVoiceContextModel(
 
 export function normalizeVoiceContextReasoning(
 	value: unknown,
+	fallback: VoiceContextReasoning = DEFAULT_VOICE_CONTEXT_REASONING,
 ): VoiceContextReasoning {
 	return typeof value === "string" &&
 		(VOICE_CONTEXT_REASONING_LEVELS as readonly string[]).includes(value)
 		? (value as VoiceContextReasoning)
-		: DEFAULT_VOICE_CONTEXT_REASONING;
+		: fallback;
 }
 
 export function normalizeRealtimeV3Voice(
@@ -149,6 +205,17 @@ export function normalizeGippityControlConfig(
 			...(port ? { port } : {}),
 		},
 		voice: {
+			model: normalizeGippityVoiceModel(voice["model"]) ?? "codex-live-1.1",
+			apiProvider:
+				voice["apiProvider"] === undefined
+					? "openai"
+					: (normalizeVoiceApiProvider(voice["apiProvider"]) ?? ""),
+			realtimeVoice:
+				normalizeOpenAIRealtimeVoice(voice["realtimeVoice"]) ?? "marin",
+			realtimeAlternateVoice:
+				normalizeOpenAIRealtimeVoice(voice["realtimeAlternateVoice"]) ??
+				"cedar",
+			webSearch: voice["webSearch"] === true,
 			v3Voice:
 				normalizeRealtimeV3Voice(voice["v3Voice"]) ??
 				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.v3Voice,
@@ -196,6 +263,14 @@ export function normalizeGippityControlConfig(
 					? "toggle"
 					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.dictationShortcutMode,
 			...(contextModel ? { contextModel } : {}),
+			taskDelegationModel: stringValue(
+				voice["taskDelegationModel"],
+				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.taskDelegationModel,
+			),
+			taskDelegationReasoning: normalizeVoiceContextReasoning(
+				voice["taskDelegationReasoning"],
+				"low",
+			),
 			contextReasoning: normalizeVoiceContextReasoning(
 				voice["contextReasoning"],
 			),

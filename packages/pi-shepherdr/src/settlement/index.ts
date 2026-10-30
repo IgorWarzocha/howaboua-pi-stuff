@@ -167,6 +167,18 @@ export class SettlementReporter {
 			const retryRequest = task ? { ...request, task } : request;
 			const expectedUser = activityExpectedUser(current.activity);
 			const blocked = settlement.status === "blocked";
+			// Status and session writes arrive separately. A tool call is not a reply,
+			// even if done arrives before the final message is visible on disk.
+			if (!blocked && settlement.session.assistantPending) {
+				if (!this.retry(lifecycle, retryRequest, retryState)) {
+					this.failReconciliation(
+						lifecycle,
+						current,
+						"the final assistant reply was not persisted",
+					);
+				}
+				return;
+			}
 			// Closing a message and publishing resumed status use separate transports.
 			if (blocked && replyingTo) {
 				if (

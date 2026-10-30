@@ -15,6 +15,7 @@ import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
 import { CodexVoiceController } from "../voice/controller.ts";
 import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
+import { hasRealtimeWebSearch } from "../voice/realtime-web-search.ts";
 import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { projectCodexDeveloperHistory } from "../adapter/developer-history.ts";
@@ -99,6 +100,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI, recordUsage?: Code
 				else pi.sendUserMessage(text, { deliverAs: "steer" });
 			},
 			dirname(getCodexConversionConfigPath()),
+			() => hasRealtimeWebSearch(pi),
 		),
 		execEnv(_config = state.config) {
 			return { ...process.env };

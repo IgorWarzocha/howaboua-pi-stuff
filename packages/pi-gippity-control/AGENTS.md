@@ -2,7 +2,7 @@
 - `src/voice/rust/**` and `scripts/build-voice-helper.mjs` must stay byte-identical with `pi-codex-conversion`; change and changeset both packages together.
 - DSP adaptations map to `~/Frameworks/codex/codex-rs/voice-host/src/{device_buffers,processing}.rs`. Before changing them, compare against the pin in `src/voice/rust/VENDORED.md`; preserve the local CPAL/WebRTC/IPC boundary. `rust/vendor/` holds attribution, not dependency source.
 - `src/register.ts` owns Pi lifecycle wiring. Voice modes own audio; LAN owns browser/session transport; config owns persisted user settings.
-- Realtime conversation is V3 only. Dictation is a separate manually bounded transcription path, not a selectable realtime protocol.
+- Codex Live and public OpenAI Realtime share the credential-free WebRTC helper, not wire protocols. Dictation is a separate manually bounded transcription path.
 - Keep the native helper credential-free and its stdout protocol-only. Preserve bounded external data and idempotent cleanup.
 - LAN control is intentionally unauthenticated and session-owned. Keep server startup lazy.
 - Unauthenticated does not mean cross-origin: enforce the same HTTPS Origin/Host boundary on HTTP control and audio upgrades while allowing originless native clients.

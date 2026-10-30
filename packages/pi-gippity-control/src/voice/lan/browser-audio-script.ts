@@ -12,6 +12,8 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     button.setAttribute('aria-busy', String(busy));
     button.setAttribute('aria-pressed', String(active));
     button.setAttribute('aria-label', active ? (mode === 'dictation' ? 'Finish dictation' : 'Stop voice') : (mode === 'dictation' ? 'Start dictation' : 'Start voice'));
+    if (audio.state === 'takeover') button.setAttribute('aria-label', 'Stop voice');
+    else if (busy && mode === 'conversation') button.setAttribute('aria-label', 'Cancel voice connection');
     muteButton.hidden = mode !== 'conversation' || !active;
     muteButton.disabled = busy || !active || mode !== 'conversation';
     muteButton.setAttribute('aria-pressed', String(audio.muted));
@@ -26,6 +28,8 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       opening:'Opening microphone…', connecting:'Connecting…', summarizing:'Summarizing conversation…',
       listening:'Listening', recording:'Recording', muted:'Microphone muted', transcribing:'Transcribing…',
       replaced:'Moved to another device', error:'Could not start',
+      takeover:'Switching session…',
+      reconnecting:'Reconnecting voice…',
       'transfer-ended':'Transferred session ended',
     };
     setStatus(labels[audio.state] || audio.state, audio.detail || (audio.state === 'recording' ? 'Tap to finish' : audio.state === 'listening' ? 'Tap to stop' : ''));

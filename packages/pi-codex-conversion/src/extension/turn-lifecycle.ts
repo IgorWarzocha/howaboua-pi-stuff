@@ -117,6 +117,10 @@ export function createCodexTurnLifecycle(
 				ctx.abort();
 				throw error;
 			}
+			// Tool results are persisted by this boundary. Commit selector changes here,
+			// before the next provider request, rather than waiting for agent settlement.
+			flushCodexReasoningUpdates(pi, ctx);
+			messages = runtime.projectContextMessages(ctx, messages);
 			return {
 				messages: state.developerMessages.prepare(
 					messages,

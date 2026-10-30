@@ -15,6 +15,8 @@ interface RealtimeDelegationHandoffCallbacks {
 		content: string,
 	): void;
 	onSettled(id: string): void;
+	// Enables immediate commentary deltas; speech boundaries only schedule output.
+	onStreamedContextReady?(target: RealtimeHandoffTarget): void;
 }
 
 /** Routes one Pi turn back into the active realtime conversation. */
@@ -23,6 +25,7 @@ export class RealtimeDelegationHandoff {
 	private target: RealtimeHandoffTarget | undefined;
 	private buffer = "";
 	private streamedProgress = false;
+	private streamedContext = "";
 	private readonly queuedSteers: string[] = [];
 	private readonly queuedFollowUps: Array<{ input: string; frame: string }> =
 		[];
@@ -100,6 +103,10 @@ export class RealtimeDelegationHandoff {
 
 	stream(delta: string): void {
 		if (!this.callbacks.isActive() || !this.target || !delta) return;
+		if (this.callbacks.onStreamedContextReady) {
+			this.callbacks.onContext({ type: "session" }, "commentary", delta);
+			this.streamedContext += delta;
+		}
 		this.buffer += delta;
 		for (;;) {
 			const boundary = this.streamedProgress
@@ -112,7 +119,7 @@ export class RealtimeDelegationHandoff {
 			const chunk = this.buffer.slice(0, boundary);
 			this.buffer = this.buffer.slice(boundary);
 			if (chunk.trim()) {
-				this.callbacks.onContext({ type: "session" }, "speakable", chunk);
+				this.publishSpeech({ type: "session" }, chunk);
 				this.streamedProgress = true;
 			}
 		}
@@ -125,11 +132,15 @@ export class RealtimeDelegationHandoff {
 		if (!this.callbacks.isActive() || !this.target || !text) return;
 		this.buffer = "";
 		this.streamedProgress = true;
-		this.callbacks.onContext({ type: "session" }, "speakable", text);
+		this.publishSpeech({ type: "session" }, text);
 	}
 
-	progress(content: string): void {
+	progress(content: string, reasoningSummary?: string): void {
 		this.finishProgress(content);
+		// Completed summaries are new context, not fallback for streamed text.
+		const summary = reasoningSummary?.trim();
+		if (!this.callbacks.isActive() || !this.target || !summary) return;
+		this.callbacks.onContext({ type: "session" }, "speakable", summary);
 	}
 
 	result(content: string): void {
@@ -147,25 +158,58 @@ export class RealtimeDelegationHandoff {
 		this.target = undefined;
 		this.buffer = "";
 		this.streamedProgress = false;
+		this.streamedContext = "";
 		this.clearQueuedInputs();
 	}
 
 	private finishProgress(fallback = ""): void {
+		this.completeStreamedContext(fallback);
 		const text = (this.streamedProgress ? this.buffer : fallback).trim();
+		const streamed = Boolean(this.streamedContext);
 		this.buffer = "";
 		this.streamedProgress = false;
+		this.streamedContext = "";
 		if (!this.callbacks.isActive() || !this.target || !text) return;
-		this.callbacks.onContext({ type: "session" }, "speakable", text);
+		this.publishSpeech({ type: "session" }, text, streamed);
 	}
 
 	private finishResult(fallback = ""): void {
+		this.completeStreamedContext(fallback);
 		const text = (
 			this.streamedProgress ? this.buffer : fallback || this.buffer
 		).trim();
+		const streamed = Boolean(this.streamedContext);
 		this.buffer = "";
 		this.streamedProgress = false;
+		this.streamedContext = "";
 		if (!this.callbacks.isActive() || !this.target || !text) return;
-		this.callbacks.onContext(this.target, "speakable", text);
+		this.publishSpeech(this.target, text, streamed);
+	}
+
+	private publishSpeech(
+		target: RealtimeHandoffTarget,
+		text: string,
+		streamed = Boolean(this.streamedContext),
+	): void {
+		if (streamed && this.callbacks.onStreamedContextReady)
+			this.callbacks.onStreamedContextReady(target);
+		else this.callbacks.onContext(target, "speakable", text);
+	}
+
+	private completeStreamedContext(content: string): void {
+		if (
+			!this.callbacks.isActive() ||
+			!this.target ||
+			!this.streamedContext ||
+			!content
+		)
+			return;
+		const missing = content.startsWith(this.streamedContext)
+			? content.slice(this.streamedContext.length)
+			: `Completed update (supersedes streamed fragments):\n${content}`;
+		if (!missing) return;
+		this.callbacks.onContext({ type: "session" }, "commentary", missing);
+		this.buffer += missing;
 	}
 
 	private clearQueuedInputs(): void {

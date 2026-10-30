@@ -24,6 +24,8 @@ Run `/reload`, then `/grok` to choose settings. Start with `/grok local`, or `/g
 - `/grok` opens tabbed settings for Voice, Context and Tools. Audio devices groups the microphone and speaker pickers. Use Tab or Shift+Tab to switch sections; Help contains usage, prompt paths and billing information. Settings apply to the next call; use `/reload` after changing shortcuts.
 - `/grok local` starts local microphone and speakers.
 - `/grok server` toggles browser control. Accept the local HTTPS certificate before granting microphone access.
+- `/grok server ensure` starts browser control without toggling an existing listener off. `/grok server status` checks it. [External callers](docs/server-requests.md) can request correlated JSON receipts.
+- `/grok server connect <browser-route> <UUID> [server-url]` opens and starts voice on a configured Pi Browser route, reporting the browser's listening state.
 - `/grok dictate` starts dictation. Run it again to finish into Pi's editor, where you can edit before sending. `/grok cancel` discards the active dictation.
 - `/grok mute` toggles microphone mute while keeping the call connected.
 - `/grok stop` stops voice and browser control.

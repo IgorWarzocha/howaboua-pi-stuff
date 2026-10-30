@@ -219,7 +219,7 @@ export class TsCompiler {
       const bindings: TsBinding[] = [];
       for (const binding of nodes) {
         const symbol = await checker.resolveName(binding.name, this.runtime.api.SymbolFlags.Value | this.runtime.api.SymbolFlags.Alias, binding.node);
-        const type = binding.kind === 'type' ? binding.name : await checker.typeToString(symbol ? await checker.getTypeOfSymbol(symbol) : await checker.getTypeAtLocation(binding.node), undefined, this.runtime.api.TypeFormatFlags.NoTruncation);
+        const type = binding.kind === 'type' ? binding.name : await checker.typeToString(symbol ? await checker.getTypeOfSymbol(symbol) : await checker.getTypeAtLocation(binding.node), binding.node, this.runtime.api.TypeFormatFlags.NoTruncation | this.runtime.api.TypeFormatFlags.UseFullyQualifiedType);
         let declaration = await this.bindingDeclaration(binding.name, binding.kind, type, declarationText);
         if (this.runtime.ast.isImportDeclaration(binding.node)) {
           const recipe = this.syntax.importRecipe(binding.node);
@@ -248,6 +248,8 @@ export class TsCompiler {
     const lease = await (await this.process).api.createSourceFile(this.fileName.replace('.mts', '.d.mts'), source);
     try {
       const declarations = this.syntax.inventory(lease.sourceFile).filter(binding => binding.name === name).map(binding => {
+        if (this.runtime.ast.isVariableDeclaration(binding.node) && !this.runtime.ast.isIdentifier(binding.node.name))
+          return `declare ${binding.kind} ${name}: ${type};`;
         const text = binding.node.getText(lease.sourceFile).replace(/^export\s+(?:default\s+)?/, '');
         if ((kind === 'function' || kind === 'class') && !text.startsWith('declare ')) return `declare ${text}`;
         return binding.kind === 'const' || binding.kind === 'let' ? `declare ${binding.kind} ${text};` : text;

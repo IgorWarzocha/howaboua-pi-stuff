@@ -3,7 +3,11 @@ import type {
 	VoiceHandoffChannel,
 } from "./handoff-contract.ts";
 import { type CapturedHandoffAudio, HandoffAudioHost } from "./handoff-peer.ts";
-import { asError, VoiceHandoffLink } from "./handoff-wire.ts";
+import { asError, isRecord, VoiceHandoffLink } from "./handoff-wire.ts";
+import {
+	decodeLanTakeoverOffer,
+	type LanTakeoverOffer,
+} from "./lan/takeover.ts";
 
 export function startVoiceDeparture(options: {
 	channel: VoiceHandoffChannel;
@@ -11,11 +15,17 @@ export function startVoiceDeparture(options: {
 	waitForSettled(signal: AbortSignal): Promise<void>;
 	onReleased(controls: TransferredVoiceControls): void;
 	onClosed(error: Error): void;
-}): { completion: Promise<void>; close(): void } {
+	lanTakeover?: (
+		offer: LanTakeoverOffer | undefined,
+		releaseAudio: (beforeStop?: () => Promise<void>) => Promise<void>,
+		verify: (value: unknown) => Promise<unknown>,
+	) => Promise<number | undefined>;
+}): { completion: Promise<void>; readonly detached: boolean; close(): void } {
 	const abort = new AbortController();
 	const listeners = new Set<(event: string, data: unknown) => void>();
 	let audio: HandoffAudioHost | undefined;
 	let cleanup: Promise<void> | undefined;
+	let takenOver = false;
 	const publish = (event: string, data: unknown) => {
 		for (const listener of listeners) listener(event, data);
 	};
@@ -38,7 +48,7 @@ export function startVoiceDeparture(options: {
 			abort.abort();
 			cleanup = audio?.close(error);
 			void cleanup?.catch(options.onClosed);
-			options.onClosed(error);
+			if (!takenOver) options.onClosed(error);
 		},
 	});
 	const controls: TransferredVoiceControls = {
@@ -71,11 +81,40 @@ export function startVoiceDeparture(options: {
 		try {
 			if (abort.signal.aborted)
 				throw new Error("Voice connection closed before transfer");
-			options.captured.bindControls(controls);
-			await Promise.all([
+			const [prepared] = await Promise.all([
 				link.waitFor("prepared"),
 				options.waitForSettled(abort.signal),
 			]);
+			if (options.lanTakeover) {
+				const offered = isRecord(prepared)
+					? prepared["lanTakeover"]
+					: undefined;
+				const offer =
+					offered === undefined ? undefined : decodeLanTakeoverOffer(offered);
+				const port = await options.lanTakeover(
+					offer,
+					(beforeStop) => {
+						options.captured.bindControls(controls);
+						return audio!.release(abort.signal, beforeStop);
+					},
+					(value) => link.request("lan.verify", value),
+				);
+				if (port !== undefined && offer) {
+					link.stage("activate", {
+						inputMuted: audio.inputMuted,
+						alternateVoice: !(options.captured.alternateVoice ?? false),
+						lanTakeover: { token: offer.token, port },
+					});
+					const active = await link.waitFor("active");
+					if (!isRecord(active) || active["lanTakeover"] !== true)
+						throw new Error("The target did not confirm its LAN listener");
+					takenOver = true;
+					link.close();
+					await cleanup;
+					return;
+				}
+			}
+			options.captured.bindControls(controls);
 			await audio.release(abort.signal);
 			options.onReleased(controls);
 			link.stage("activate", {
@@ -93,5 +132,11 @@ export function startVoiceDeparture(options: {
 			);
 		}
 	})();
-	return { completion, close: () => link.close() };
+	return {
+		completion,
+		get detached() {
+			return takenOver;
+		},
+		close: () => link.close(),
+	};
 }

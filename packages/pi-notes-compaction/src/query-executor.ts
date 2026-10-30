@@ -14,7 +14,13 @@ import {
 	sharedNotesUnavailable,
 } from "./shared-notes.js";
 import type { NotesStore } from "./store.js";
-import { queryArguments, queryHelp, result } from "./tool-contracts.js";
+import {
+	prepareHistoryArguments,
+	prepareNotesArguments,
+	queryArguments,
+	queryHelp,
+	result,
+} from "./tool-contracts.js";
 
 export function createQueryExecutor(
 	pi: ExtensionAPI,
@@ -35,7 +41,8 @@ export function createQueryExecutor(
 		signal: AbortSignal | undefined,
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<unknown>> {
-		const help = queryHelp("notes", input);
+		input = prepareNotesArguments(input, true);
+		const help = queryHelp("notes", input, false, lifecycle.gptPromptMode());
 		if (help) return help;
 		assertActive();
 		const raw = queryArguments("notes", input);
@@ -127,6 +134,7 @@ export function createQueryExecutor(
 		signal: AbortSignal | undefined,
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<unknown>> {
+		input = prepareHistoryArguments(input);
 		const help = queryHelp(
 			"history",
 			input,

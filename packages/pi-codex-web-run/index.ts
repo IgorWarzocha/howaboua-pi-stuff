@@ -2,22 +2,31 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import { webRunCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
+import type { WebSearchToolOptions } from "./src/contract.js";
+import { registerCodexWebRunService } from "./src/service.js";
 import { createWebSearchTool } from "./src/tool.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = CODE_MODE_PACKAGE + "/code-mode";
 
 export { webRunCodeModeResult } from "./src/code-mode.js";
+export type { WebRunExecutionResult } from "./src/execute.js";
 export { executeCodexWebSearch } from "./src/execute.js";
+export {
+	CODEX_WEB_RUN_SERVICE,
+	type CodexWebRunService,
+	type CodexWebRunServiceRequest,
+} from "./src/service.js";
 export { createWebSearchTool } from "./src/tool.js";
 
 export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
-	const tool = createWebSearchTool("web_run", {
+	const options: WebSearchToolOptions = {
 		allowCodexProviderFallback: true,
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),
 		promptSnippet: false,
-	});
+	};
+	const tool = createWebSearchTool("web_run", options);
 	pi.registerTool(tool);
 	let gpt = false;
 	let registration: Awaited<ReturnType<typeof registerWebRunInCodeMode>>;
@@ -61,6 +70,7 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 			throw error;
 	}
 	registration = await registerWebRunInCodeMode(pi, tool, () => gpt);
+	registerCodexWebRunService(pi, options);
 	pi.on("session_shutdown", () => registration?.unregister());
 }
 

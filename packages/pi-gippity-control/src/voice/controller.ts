@@ -50,6 +50,7 @@ export class CodexVoiceController {
 	private readonly connection: ControllerConnection;
 
 	constructor(pi: ExtensionAPI) {
+		this.runtime.pi = pi;
 		this.ownership = new ActiveVoiceGuard(
 			pi,
 			"GipPity",

@@ -1,4 +1,5 @@
 import type { GrokRealtimeController } from "./controller.ts";
+import { HandoffAudio } from "./handoff-audio.ts";
 import type {
 	TransferredVoiceControls,
 	VoiceHandoffChannel,
@@ -18,18 +19,61 @@ export function startVoiceDeparture(options: {
 	let released = false;
 	let muted = captured.inputMuted;
 	let cleanup: Promise<void> | undefined;
+	let audioOperation = Promise.resolve();
+	let audioRunning = true;
+	let audioGeneration = 0;
+	const callbacks = {
+		onAudio(pcm: Buffer) {
+			if (released && audioRunning && !muted && !link.closed)
+				link.notify({ type: "audio.input", pcm: pcm.toString("base64") });
+		},
+		onError(error: Error) {
+			link.fail(error);
+		},
+	};
 	const link = new VoiceHandoffLink(options.channel, {
 		async request(method) {
 			if (!released) throw new Error("Source audio is not ready");
 			if (method === "audio.drain") return captured.audio.drain();
+			if (method === "audio.close") {
+				audioGeneration++;
+				audioRunning = false;
+				if (captured.audio instanceof HandoffAudio) captured.audio.stopCall();
+				const closing = captured.audio.close();
+				audioOperation = Promise.all([audioOperation, closing]).then(() => {});
+				return audioOperation;
+			}
+			if (method === "audio.start") {
+				const generation = audioGeneration;
+				const start = audioOperation.then(async () => {
+					if (link.closed || generation !== audioGeneration)
+						throw new Error("Voice audio startup cancelled");
+					if (audioRunning) return;
+					audioRunning = true;
+					try {
+						await captured.audio.start(callbacks);
+						if (link.closed || generation !== audioGeneration)
+							throw new Error("Voice audio startup cancelled");
+						captured.audio.setMuted(muted);
+						if (captured.audio instanceof HandoffAudio)
+							captured.audio.resumeCall();
+					} catch (error) {
+						audioRunning = false;
+						await captured.audio.close();
+						throw error;
+					}
+				});
+				audioOperation = start.catch(() => {});
+				return start;
+			}
 			throw new Error("Invalid source voice control");
 		},
 		notification(message) {
 			if (message.type === "session.event") {
 				for (const listener of listeners) listener(message.event, message.data);
-			} else if (released && message.type === "audio.play")
-				captured.audio.play(decodePcm(message.pcm));
-			else if (released && message.type === "audio.clear")
+			} else if (released && message.type === "audio.play") {
+				if (audioRunning) captured.audio.play(decodePcm(message.pcm));
+			} else if (released && message.type === "audio.clear")
 				captured.audio.clear();
 			else if (released && message.type === "session.mute") {
 				muted = message.muted;
@@ -39,7 +83,12 @@ export function startVoiceDeparture(options: {
 		},
 		closed(error) {
 			abort.abort();
-			if (released) cleanup = captured.audio.close();
+			audioGeneration++;
+			audioRunning = false;
+			if (released) {
+				if (captured.audio instanceof HandoffAudio) captured.audio.disconnect();
+				cleanup = captured.audio.close();
+			}
 			if (released) captured.closed();
 			void cleanup?.catch(options.onClosed);
 			options.onClosed(error);
@@ -61,6 +110,12 @@ export function startVoiceDeparture(options: {
 		async sendText(text) {
 			await link.request("session.send", text);
 		},
+		async stopCall() {
+			await link.request("session.stop");
+		},
+		async startCall() {
+			await link.request("session.start");
+		},
 		rpc(body) {
 			return link.request("session.rpc", body);
 		},
@@ -76,18 +131,7 @@ export function startVoiceDeparture(options: {
 				options.waitForSettled(abort.signal),
 			]);
 			abort.signal.throwIfAborted();
-			await captured.release(
-				{
-					onAudio(pcm) {
-						if (released && !muted && !link.closed)
-							link.notify({ type: "audio.input", pcm: pcm.toString("base64") });
-					},
-					onError(error) {
-						link.fail(error);
-					},
-				},
-				controls,
-			);
+			await captured.release(callbacks, controls);
 			released = true;
 			if (link.closed) {
 				await captured.audio.close();

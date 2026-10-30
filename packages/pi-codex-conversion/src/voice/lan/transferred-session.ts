@@ -45,7 +45,7 @@ export class LanTransferredSession {
 		this.ended = true;
 		this.detach();
 		this.activity.settled(
-			"Transferred session ended. Start voice to return to this session",
+			"Selected session disconnected. Reconnect it before starting voice",
 		);
 	}
 
@@ -78,10 +78,20 @@ export class LanTransferredSession {
 		}
 	}
 
+	async stopCall(): Promise<void> {
+		this.assertActive();
+		await this.controls.stopCall();
+	}
+
+	async startCall(): Promise<void> {
+		this.assertActive();
+		await this.controls.startCall();
+	}
+
 	private assertActive(): void {
 		if (this.ended)
 			throw new Error(
-				"Transferred session ended; start voice to return to this session",
+				"Selected session disconnected; reconnect it before starting voice",
 			);
 	}
 

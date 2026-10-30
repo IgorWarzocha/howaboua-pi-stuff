@@ -1,3 +1,4 @@
+import type { PublicRealtimeAccess } from "./realtime-auth.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
 
@@ -5,6 +6,7 @@ export interface CodexVoiceAuth {
 	headers: Headers;
 	baseUrl: string;
 	officialCodex: boolean;
+ realtime?: PublicRealtimeAccess;
 	loginFailure?(): Error;
 	env?: Record<string, string>;
 }

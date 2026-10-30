@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { FAST_MODE_FAMILIES } from "../../adapter/activation/config-contract.ts";
@@ -22,6 +23,7 @@ import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
 import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
+import { hasRealtimeWebSearch } from "../../voice/realtime-web-search.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 import { COMPACTION_METHOD_LABELS } from "./config-items-context.ts";
 import { captureSpendReport } from "../../codex-usage/report.ts";
@@ -29,9 +31,9 @@ import { startUsageAnalysis } from "../../codex-usage/report.ts";
 import { isStandardCodexSubscriptionModel } from "../../adapter/prompt/codex-model.ts";
 import { NONSTANDARD_CODEX_USAGE_WARNING } from "../../codex-usage/format.ts";
 
-const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server", "voice setup"] as const;
+const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server", "voice server ensure", "voice server status", "voice server connect", "voice setup"] as const;
 const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS, "usage analyse"];
-const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage [analyse]|about]";
+const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server [ensure|status [UUIDv4]|connect <browser-route> <UUIDv4> [url]]|setup]|usage [analyse]|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -166,6 +168,7 @@ export function registerCodexCommand(
 		};
 		await openCodexSettingsScreen(ctx, {
 			setModel: model => pi.setModel(model),
+			hasWebSearch: () => hasRealtimeWebSearch(pi),
 			waitForIdle: async () => { do { await ctx.waitForIdle(); } while (!ctx.isIdle()); },
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
@@ -232,6 +235,11 @@ export function registerCodexCommand(
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
 			const arg = args.trim().toLowerCase();
+			if (/^voice\s+server\s+/i.test(args.trim())) {
+				const { runLanVoiceCommand } = await import("../../voice/lan/command.ts");
+				await runLanVoiceCommand(args.trim().replace(/^voice\s+server\s+/i, ""), ctx, lanVoice, dirname(getCodexConversionConfigPath()));
+				return;
+			}
 			if (arg === "usage analyse") {
 				await startUsageAnalysis(pi, ctx);
 				return;
