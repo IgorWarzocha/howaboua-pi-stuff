@@ -15,6 +15,8 @@ import type {
 	ScopedMonitoredAgent,
 } from "../types.js";
 import { renderAgentWidget } from "../widget.js";
+import { reloadCoreCatalog, reloadSshCatalog } from "./catalog.js";
+import { connectMachine } from "./connection.js";
 import {
 	connectedMachine,
 	listAgents,
@@ -211,41 +213,9 @@ export class AgentFleet {
 		if (process.env["HC_TERMINAL_SOCKET"]) {
 			const catalog = await this.coreCatalog();
 			if (!this.isCurrent(generation, ctx)) return;
-			for (const [id, runtime] of this.runtimes) {
-				if (
-					runtime.local ||
-					catalog.some(
-						(machine) =>
-							machine.id === id && machine.name === runtime.coreMachine?.name,
-					)
-				)
-					continue;
-				runtime.monitor?.deactivate();
-				if (runtime.client instanceof CoreConnection) runtime.client.close();
-				if (!catalog.some((machine) => machine.id === id))
-					this.runtimes.delete(id);
-				else {
-					runtime.pending = runtime.monitor?.list() ?? runtime.pending;
-					delete runtime.client;
-					delete runtime.monitor;
-					runtime.status = "unavailable";
-				}
-			}
-			for (const machine of catalog) {
-				let runtime = this.runtimes.get(machine.id);
-				if (runtime) runtime.coreMachine = machine;
-				else {
-					runtime = {
-						coreMachine: machine,
-						local: false,
-						pending: [],
-						status: "connecting",
-					};
-					this.runtimes.set(machine.id, runtime);
-				}
-				if (!runtime.client)
-					void this.connectMachine(machine.id, generation, true);
-			}
+			reloadCoreCatalog(this.runtimes, catalog, (id) => {
+				void this.connectMachine(id, generation, true);
+			});
 			this.changed();
 			return;
 		}
@@ -253,36 +223,7 @@ export class AgentFleet {
 			? {}
 			: await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
-		const reconnect: string[] = [];
-
-		for (const [name, runtime] of this.runtimes) {
-			if (runtime.local || catalog[name]?.enabled) continue;
-			runtime.monitor?.deactivate();
-			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
-			this.runtimes.delete(name);
-		}
-		for (const [name, machineConfig] of Object.entries(catalog)) {
-			if (!machineConfig.enabled) continue;
-			const runtime = this.runtimes.get(name);
-			if (
-				runtime?.config &&
-				runtime.config.target === machineConfig.target &&
-				runtime.config.session === machineConfig.session
-			) {
-				runtime.config = machineConfig;
-				continue;
-			}
-			const pending = runtime?.monitor?.list() ?? runtime?.pending ?? [];
-			runtime?.monitor?.deactivate();
-			if (runtime?.client instanceof RemoteHerdrClient) runtime.client.close();
-			this.runtimes.set(name, {
-				config: machineConfig,
-				local: false,
-				pending,
-				status: "connecting",
-			});
-			reconnect.push(name);
-		}
+		const reconnect = reloadSshCatalog(this.runtimes, catalog);
 		this.changed();
 		for (const name of reconnect) {
 			void this.connectMachine(name, generation, true);
@@ -399,101 +340,16 @@ export class AgentFleet {
 	): Promise<void> {
 		const runtime = this.runtimes.get(name);
 		const ctx = this.context;
-		if (
-			!runtime ||
-			(!runtime.config && !runtime.coreMachine) ||
-			runtime.local ||
-			runtime.status === "connected" ||
-			runtime.attempting ||
-			!ctx ||
-			generation !== this.generation
-		) {
-			return;
-		}
-		runtime.attempting = true;
-		runtime.status = "connecting";
-		delete runtime.reason;
-		this.refresh();
-		let attached = false;
-		let client: RemoteHerdrClient | CoreConnection | undefined;
-		try {
-			if (runtime.coreMachine) {
-				client = new CoreConnection(
-					process.env["HC_TERMINAL_SOCKET"],
-					runtime.coreMachine,
-				);
-			} else {
-				client = await RemoteHerdrClient.connect(runtime.config!, (error) => {
-					if (runtime.client === client)
-						this.disconnected(name, runtime, error.message);
-				});
-			}
-			if (
-				!this.isCurrent(generation, ctx) ||
-				this.runtimes.get(name) !== runtime
-			) {
-				client.close();
-				return;
-			}
-			await client.request("ping");
-			if (
-				!this.isCurrent(generation, ctx) ||
-				this.runtimes.get(name) !== runtime
-			) {
-				client.close();
-				return;
-			}
-			const pending = runtime.monitor?.list() ?? runtime.pending;
-			const monitor = this.createMonitor(name, runtime, client);
-			runtime.client = client;
-			runtime.monitor = monitor;
-			attached = true;
-			await monitor.activate(ctx, pending);
-			if (
-				!this.isCurrent(generation, ctx) ||
-				this.runtimes.get(name) !== runtime ||
-				runtime.client !== client ||
-				runtime.monitor !== monitor
-			) {
-				monitor.deactivate();
-				client.close();
-				return;
-			}
-			runtime.pending = [];
-			runtime.status = "connected";
-			delete runtime.attempting;
-			// Late connections must see optional sharing owners that finished startup.
-			if (this.needsContextRelay(ctx, name))
-				await this.prepareContextRelay(name, runtime, client, ctx).catch(
-					() => {},
-				);
-			if (!this.isCurrent(generation, ctx) || runtime.client !== client) return;
-			this.refresh();
-			if (!initial) ctx.ui.notify(`Connected to ${name}`, "info");
-		} catch (error) {
-			delete runtime.attempting;
-			if (
-				this.isCurrent(generation, ctx) &&
-				this.runtimes.get(name) === runtime &&
-				runtime.client === client &&
-				runtime.monitor &&
-				runtime.monitoringIssue?.state === "degraded"
-			) {
-				runtime.pending = [];
-				runtime.status = "connected";
-				this.refresh();
-				return;
-			}
-			client?.close();
-			if (generation !== this.generation || ctx !== this.context) return;
-			if (
-				this.runtimes.get(name) !== runtime ||
-				(attached && runtime.client !== client)
-			) {
-				return;
-			}
-			this.disconnected(name, runtime, errorMessage(error));
-		}
+		if (!runtime || !ctx) return;
+		return connectMachine(this.runtimes, name, runtime, ctx, initial, {
+			isCurrent: () => this.isCurrent(generation, ctx),
+			refresh: () => this.refresh(),
+			createMonitor: (client) => this.createMonitor(name, runtime, client),
+			needsContextRelay: () => this.needsContextRelay(ctx, name),
+			prepareContextRelay: (client) =>
+				this.prepareContextRelay(name, runtime, client, ctx),
+			disconnected: (reason) => this.disconnected(name, runtime, reason),
+		});
 	}
 
 	private disconnected(

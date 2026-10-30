@@ -38,3 +38,11 @@ export class UnstartedAgentLaunchError extends Error {
 		super(cause instanceof Error ? cause.message : String(cause), { cause });
 	}
 }
+
+export function requiredStartField(
+	value: string | undefined,
+	field: string,
+): string {
+	if (!value?.trim()) throw new Error(`${field} is required for start`);
+	return value.trim();
+}
