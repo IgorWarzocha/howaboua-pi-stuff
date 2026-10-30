@@ -170,6 +170,7 @@ export interface ExtensionReply {
 export interface SessionView {
 	extensionMessages?: ExtensionMessage[];
 	assistant?: LatestAssistant;
+	assistantPending?: boolean;
 	assistantAfterInput?: boolean;
 	input?: LatestInput;
 }

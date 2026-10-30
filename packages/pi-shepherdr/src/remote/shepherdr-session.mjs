@@ -103,6 +103,8 @@ async function sessionView(path, size) {
 	let targetId;
 	/** @type {import("../types.js").LatestAssistant | undefined} */
 	let assistant;
+	let assistantSeen = false;
+	let assistantPending = false;
 	/** @type {number | undefined} */
 	let assistantDepth;
 	/** @type {import("../types.js").ExtensionMessage[]} */
@@ -115,6 +117,7 @@ async function sessionView(path, size) {
 	const resolved = new Set();
 	const result = () => ({
 		...(assistant ? { assistant } : {}),
+		...(assistantPending ? { assistantPending: true } : {}),
 		...(extensionMessages.length ? { extensionMessages } : {}),
 		...(input ? { input } : {}),
 		...(assistantDepth !== undefined && inputDepth !== undefined
@@ -177,8 +180,12 @@ async function sessionView(path, size) {
 		}
 		const message = record(entry["message"]);
 		if (message && typeof message === "object") {
-			if (!assistant) {
-				assistant = assistantFromMessage(entry["id"], message);
+			// Never fall back to an older reply behind a tool call or empty final.
+			if (!assistantSeen && message["role"] === "assistant") {
+				assistantSeen = true;
+				assistantPending = message["stopReason"] === "toolUse";
+				if (!assistantPending)
+					assistant = assistantFromMessage(entry["id"], message);
 				if (assistant) assistantDepth = currentDepth;
 			}
 			if (!input) {
