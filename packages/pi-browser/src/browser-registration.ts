@@ -1,5 +1,5 @@
 import type { defineTool, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import type { Type } from "typebox";
 import { BrowserRoutes, loadBrowserRoutes } from "./browser/routes.js";
 import { BrowserRuntime } from "./browser/runtime.js";
 import { registerBrowserCommand } from "./browser/settings.js";
@@ -50,7 +50,7 @@ export default async function browserExtension(
 			throw error;
 	}
 
-	const registration = await registerBrowserInCodeMode(pi, tool);
+	const registration = await registerBrowserInCodeMode(pi, tool, sdk);
 	pi.on("session_shutdown", async () => {
 		registration?.unregister();
 		await runtime.close();
@@ -65,6 +65,7 @@ export default async function browserExtension(
 async function registerBrowserInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createBrowserTool>,
+	sdk: { Type: typeof Type },
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
@@ -73,7 +74,7 @@ async function registerBrowserInCodeMode(
 			adaptToolForCodeMode(
 				{
 					...tool,
-					parameters: Type.Object({}, { additionalProperties: true }),
+					parameters: sdk.Type.Object({}, { additionalProperties: true }),
 				},
 				{
 					prepareInput: prepareBrowserInput,
