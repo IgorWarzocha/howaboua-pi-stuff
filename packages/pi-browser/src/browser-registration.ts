@@ -1,5 +1,5 @@
 import type { defineTool, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { Type } from "typebox";
+import { Type } from "typebox";
 import { BrowserRoutes, loadBrowserRoutes } from "./browser/routes.js";
 import { BrowserRuntime } from "./browser/runtime.js";
 import { registerBrowserCommand } from "./browser/settings.js";
@@ -70,12 +70,17 @@ async function registerBrowserInCodeMode(
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		return registerCodeModeExtensionTools(pi, () => [
-			adaptToolForCodeMode(tool, {
-				kind: "freeform",
-				prepareInput: prepareBrowserInput,
-				discovery: "help",
-				resultValue: (result) => result.details,
-			}),
+			adaptToolForCodeMode(
+				{
+					...tool,
+					parameters: Type.Object({}, { additionalProperties: true }),
+				},
+				{
+					prepareInput: prepareBrowserInput,
+					discovery: "help",
+					resultValue: (result) => result.details,
+				},
+			),
 		]);
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return undefined;
