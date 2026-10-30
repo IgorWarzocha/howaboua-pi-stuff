@@ -1,0 +1,4 @@
+{
+	"extends": "../packages/pi-browser/tsconfig.build.json",
+	"include": ["../packages/pi-browser/src/browser/voice-start.ts"]
+}
