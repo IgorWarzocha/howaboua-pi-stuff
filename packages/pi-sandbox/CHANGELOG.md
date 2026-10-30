@@ -1,5 +1,10 @@
 # @howaboua/pi-sandbox
 
+## 0.1.4
+
+- Fixed TypeScript calls rejecting action objects while equivalent JSON strings worked.
+- Fixed concurrent first calls failing while the sandbox client was loading.
+
 ## 0.1.3
 
 - - Accept action objects alongside JSON text in Code and Notebook.

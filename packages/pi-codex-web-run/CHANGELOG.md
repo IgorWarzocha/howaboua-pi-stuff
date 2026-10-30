@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.10
+
+- Added an extension API for Web Run search and navigation, using the existing provider and login without adding conversation messages.
+
 ## 0.0.9
 
 - - Keep provider bookkeeping out of structured search results while preserving result references and content.

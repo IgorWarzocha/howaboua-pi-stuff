@@ -1,5 +1,9 @@
 # @howaboua/pi-gpt-switcher
 
+## 0.1.6
+
+- Added `/terra` to switch to GPT-6.1 Terra with configurable context and reasoning defaults.
+
 ## 0.1.5
 
 - Fixed model shortcuts rejecting configured context windows above their defaults.
