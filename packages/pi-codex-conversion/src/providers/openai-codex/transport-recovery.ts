@@ -173,9 +173,9 @@ export function createCodexTransportStream<TApi extends Api>(
 						// SSE gets its own bounded window, never the exhausted WebSocket signal.
 						recovery.start(true);
 						if (!immediateFallback && (retryPlan.serverDirected || retryPlan.overload)) await recovery.waitBeforeRetry(error, attempt + 1, retryPlan);
-						// Pi supplies resolved request auth, not a force-refresh handle. Keep 401
-						// fallback turn-local so refreshed auth can use WebSockets on the next turn.
-						if (!unauthorized) recordWebSocketSseFallback(effectiveOptions?.sessionId);
+						// A transient failure says nothing about the next request's connectivity.
+						// Only known WebSocket incompatibilities justify session-wide fallback.
+						if (upgradeRequired || messageTooBig) recordWebSocketSseFallback(effectiveOptions?.sessionId);
 						diagnostics?.({
 							type: "fallback",
 							lane,
