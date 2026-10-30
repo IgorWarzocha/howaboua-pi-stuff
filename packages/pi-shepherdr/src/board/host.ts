@@ -78,6 +78,7 @@ export class AgentBoard {
 						);
 				},
 				propagateEnabled: async (ctx, enabled) => {
+					let boardId: string | undefined;
 					await Promise.all(
 						children(ctx).map(async (child) => {
 							try {
@@ -85,7 +86,7 @@ export class AgentBoard {
 									sessionContextPath(child.sessionFile),
 									{
 										operation: "board-enabled",
-										boardId: binding(ctx).boardId,
+										boardId: (boardId ??= binding(ctx).boardId),
 										enabled,
 									},
 									AbortSignal.timeout(750),
