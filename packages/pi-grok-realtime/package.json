@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-grok-realtime",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "Grok realtime voice with Pi as the working agent, locally and over LAN",
 	"license": "MIT",
 	"type": "module",
@@ -42,7 +42,7 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"dependencies": {
-		"@howaboua/pi-browser": "^0.0.11",
+		"@howaboua/pi-browser": "^0.0.12",
 		"selfsigned": "^5.5.0",
 		"ws": "^8.22.0"
 	},

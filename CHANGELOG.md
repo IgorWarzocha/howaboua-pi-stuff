@@ -46,10 +46,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.11
+### @howaboua/pi-browser — 0.0.12
 
-- - Browser calls in Code and Notebook now return objects instead of JSON strings.
-  - GPT mode uses note-style browser help.
+- Added an API to start voice in local or configured remote browsers and report when the microphone is listening.
+- Added a voice-only setting that hides browser automation tools from agents.
+- Fixed TypeScript calls rejecting request objects while equivalent JSON strings worked.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -71,34 +72,31 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 4.0.5
+### @howaboua/pi-codex-conversion — 4.0.6
 
-- ### Breaking changes
-  - **BREAKING CHANGE:** Removed built-in notes, history, rollover settings and legacy Remote mode. Install `@howaboua/pi-notes-compaction` and use `/notes`. Existing Notes-enabled configurations block turns until Notes is loaded or continuity is explicitly disabled in the old configuration.
-  - **BREAKING CHANGE:** Moved the shared notes and history API from `pi-codex-conversion/context-sharing` to `pi-notes-compaction/context-sharing`. PCC's parent linkage and cache affinity API is now `pi-codex-conversion/agent-relationship`.
-
-  ### Features
-  - Added isolated Deno Notebook cells that run concurrently from saved checkpoints and save separate profile candidates.
-  - Added TS Notebook with strict TypeScript checking, persistent bindings, isolated concurrent cells and custom snapshot and restore helpers.
-  - Added project-shared JS Notebook with checkpoints that preserve closures, classes and cycles, isolated concurrent cells, profiles, pins and hooks.
-  - Added GPT-6.1 Terra with Responses Lite and live reasoning adjustments.
-  - TS and JS Notebook runtimes now install on demand and reuse matching installed packages or cached downloads.
-  - Realtime voice now uses `gpt-live-1.1-codex`.
-  - Auto-reasoning guidance now makes effort adjustments optional and clarifies that they apply to the next request.
-
-  ### Reliability and usability
-  - Fixed excessive SSE retries after WebSocket fallback. HTTP and stream retries within SSE now share one retry budget with a five-minute recovery limit.
-  - Overload and server-directed retries have a stricter three-minute total limit across WebSocket and SSE. Switching to SSE preserves overload backoff.
-  - GPT prompt mode uses dense checkpoint-style runtime guidance and notebook help.
-  - Tool guidance separates unfamiliar-tool discovery from large reads and limits batching by combined output. Truncated results explain how to recover missing output without repeating side effects.
-  - Pi's transport setting now replaces the Cached WebSocket upgrade toggle. Select `auto` or `websocket-cached` for cached continuation.
-  - Fixed temporary SSE fallback surviving a context-window rollover. New windows retry the configured WebSocket transport.
-  - Fixed Code, Notebook and reasoning tools reappearing after `/tree` when disabled.
-  - WebSocket prewarming now uses the final prepared request, including after compaction.
-  - Native checkpoint replay now preserves context changes made by other extensions.
-  - Notebook failures now retain recovery actions without exposing internal protocol diagnostics.
-  - Notebook and TS guidance now limits retained state to planned reuse and calls for cleanup when tasks finish.
-  - Added `pi-codex-conversion/compaction` with context-window preparation, compaction hooks and read-only branch projection.
+- Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default.
+- Added Pi API provider selection for Realtime, using the selected provider's credentials and endpoint.
+- Realtime voice supports Pi tasks, extension-provided voice tools and optional Web Run search.
+- Added model and reasoning settings for preparing Codex Live tasks from the voice conversation.
+- Voice tasks now run as ordinary Pi requests, with live progress sent back to the call.
+- Voice calls now finish the requested answer and farewell before closing. Accepted Pi tasks continue independently.
+- Fixed cached Voice Context summaries not appearing at call startup.
+- Fixed reasoning-summary forwarding skipping summaries when the same message also contained visible text.
+- LAN voice transfers now wait for speech to finish and reconnect automatically at the same browser address on the same machine.
+- Added automatic recovery from interrupted LAN voice connections, retaining the microphone where possible.
+- Fixed LAN voice transfers disconnecting the browser microphone.
+- Fixed voice tasks going to the original Pi session after a transfer.
+- Added `/codex voice server connect` to start voice in a local or configured remote browser and report whether it is listening.
+- Added `/codex voice server status` and `ensure` to inspect or start the LAN listener without toggling it.
+- Deferred Pi tools are now discoverable in Code and Notebook.
+- Code and Notebook tools now accept JSON strings alongside structured arguments, including bare `help` for help-backed tools.
+- Command-backed custom tools now accept objects and arrays directly.
+- Notebook controls now accept action objects alongside JSON-wrapped actions.
+- Fixed retained destructured bindings causing duplicate-declaration errors in later TypeScript cells.
+- Fixed conversation-tree navigation losing the selected execution mode and tools.
+- Code and Notebook guidance now supports help discovery and dependent tool calls within one cell.
+- Fixed temporary connection failures keeping later requests on SSE instead of retrying WebSockets.
+- Fixed GPT-6 reasoning changes during a tool-running turn unnecessarily breaking prompt-cache continuity.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -120,25 +118,37 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
-### @howaboua/pi-codex-web-run — 0.0.9
+### @howaboua/pi-codex-web-run — 0.0.10
 
-- - Keep provider bookkeeping out of structured search results while preserving result references and content.
-  - Report unreadable responses and invalid tool configuration without parser or filesystem diagnostics.
-  - GPT mode uses note-style search-reference guidance.
+- Added an extension API for Web Run search and navigation, using the existing provider and login without adding conversation messages.
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.100
+### @howaboua/pi-extensions — 0.0.101
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
+  - @howaboua/pi-gippity-control: - Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default. - Added Pi API provider selection for Realtime, using the selected provider's credentials and endpoint. - Realtime voice supports Pi tasks, extension-provided voice tools and optional Web Run search. - Added model and reasoning settings for preparing Codex Live tasks from the voice conversation. - Voice tasks now run as ordinary Pi requests, with live progress sent back to the call. - Voice calls now finish the requested answer and farewell before closing. Accepted Pi tasks continue independently. - Fixed cached Voice Context summaries not appearing at call startup. - Fixed reasoning-summary forwarding skipping summaries when the same message also contained visible text. - LAN voice transfers now wait for speech to finish and reconnect automatically at the same browser address on the same machine. - Added automatic recovery from interrupted LAN voice connections, retaining the microphone where possible. - Added `/gippity server connect` to start voice in a local or configured remote browser and report whether it is listening. - Added `/gippity server status` and `ensure` to inspect or start the LAN listener without toggling it.
+  - @howaboua/pi-gpt-switcher: Added `/terra` to switch to GPT-6.1 Terra with configurable context and reasoning defaults.
+  - @howaboua/pi-grok-realtime: - Added `/grok server connect` to start voice in a local or configured remote browser and report whether it is listening. - Added `/grok server status` and `ensure` to inspect or start the LAN listener without toggling it. - Fixed restarting a transferred call returning to the original Pi session.
+  - @howaboua/pi-shepherdr: - When switching from the older Herdr TUI or another Core instance, reselect local watches. - Added Herdr Core and Herdr app support for local and remote delegation, focus, voice transfers, shared Notes and boards, including Windows hosts. - Added Core session discovery by terminal title, with spaces, hyphens and underscores treated alike. - Added `/herdr close-idle` to close idle children spawned by the current session branch, leaving attached and busy sessions open. - Spawn results now return `contextAgent` and `boardAgent` inside `sharing` instead of at the top level. The agent `target` is unchanged. - Reduced resume delays in sessions with many delegated agents, including closed children. - Remote sharing helpers now start only when sharing is used or restored, avoiding idle polling on unrelated machines. - Fixed intermediate tool calls being reported as completed agent work. - Agent guidance now distinguishes automatic background reports from blocking calls that must be awaited. - Agent tool declarations now accept action fields discovered through help, including in native codemode.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.28
+### @howaboua/pi-gippity-control — 0.0.29
 
-- Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
+- Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default.
+- Added Pi API provider selection for Realtime, using the selected provider's credentials and endpoint.
+- Realtime voice supports Pi tasks, extension-provided voice tools and optional Web Run search.
+- Added model and reasoning settings for preparing Codex Live tasks from the voice conversation.
+- Voice tasks now run as ordinary Pi requests, with live progress sent back to the call.
+- Voice calls now finish the requested answer and farewell before closing. Accepted Pi tasks continue independently.
+- Fixed cached Voice Context summaries not appearing at call startup.
+- Fixed reasoning-summary forwarding skipping summaries when the same message also contained visible text.
+- LAN voice transfers now wait for speech to finish and reconnect automatically at the same browser address on the same machine.
+- Added automatic recovery from interrupted LAN voice connections, retaining the microphone where possible.
+- Added `/gippity server connect` to start voice in a local or configured remote browser and report whether it is listening.
+- Added `/gippity server status` and `ensure` to inspect or start the LAN listener without toggling it.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -149,34 +159,32 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-github-watch/CHANGELOG.md)
 
-### @howaboua/pi-gpt-switcher — 0.1.5
+### @howaboua/pi-gpt-switcher — 0.1.6
 
-- Fixed model shortcuts rejecting configured context windows above their defaults.
+- Added `/terra` to switch to GPT-6.1 Terra with configurable context and reasoning defaults.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
-### @howaboua/pi-grok-realtime — 0.0.2
+### @howaboua/pi-grok-realtime — 0.0.3
 
-- - Added `stay_quiet` so Grok can choose silence during pauses without losing later silence follow-ups. Follow-ups respect the configured interval, microphone mute and Pi's working state.
-  - Omit generated timestamps from agent work updates.
+- Added `/grok server connect` to start voice in a local or configured remote browser and report whether it is listening.
+- Added `/grok server status` and `ensure` to inspect or start the LAN listener without toggling it.
+- Fixed restarting a transferred call returning to the original Pi session.
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
-### @howaboua/pi-notes-compaction — 0.0.11
+### @howaboua/pi-notes-compaction — 0.0.12
 
-- - Fixed native SQLite addon crashes when saving notes or searching ranked history in standalone Bun-based Pi builds. Existing notes and history indexes remain compatible with Node-based Pi.
-  - Fixed the session auto-pruning submenu losing its frame and disappearing during pruning. Preview, confirmation and progress now stay inside the menu.
+- Added `/roles` for model preferences across providers and optional model-switch recommendations that preserve the current conversation.
+- Simplified Notes and History action names and Notes path and limit arguments. Existing calls remain supported.
+- Fixed fresh child agents being unable to join shared Notes when another extension had saved startup metadata.
+- Notes guidance now requires task checkpoints at meaningful milestones, completion and task switches, even before context runs low.
 
 [Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
 
-### @howaboua/pi-observatory — 0.0.2
+### @howaboua/pi-observatory — 0.0.3
 
-- - Existing Observatory indexes rebuild automatically once when the updated server starts. Source files are preserved.
-  - Call details and conversation excerpts now read original session files rather than stored copies.
-  - Missing or changed source records now appear as unavailable details while indexed statistics remain accessible.
-  - Added --detail for read-only call inspection without starting the viewer or collectors.
-  - Unchanged session scans no longer write to the index.
-  - Notes history pruning no longer interrupts indexing. Retained content stays readable; pruned content appears as unavailable while historical statistics remain accessible.
+- Cache diagnostics now index with less disk-sync overhead.
 
 [Full changelog](./packages/pi-observatory/CHANGELOG.md)
 
@@ -186,18 +194,25 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
-### @howaboua/pi-sandbox — 0.1.3
+### @howaboua/pi-sandbox — 0.1.4
 
-- - Accept action objects alongside JSON text in Code and Notebook.
+- Fixed TypeScript calls rejecting action objects while equivalent JSON strings worked.
+- Fixed concurrent first calls failing while the sandbox client was loading.
 
 [Full changelog](./packages/pi-sandbox/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.24
+### @howaboua/pi-shepherdr — 0.2.25
 
-- - **BREAKING CHANGE:** Shared notes and history now use Notes instead of PCC. Install `@howaboua/pi-notes-compaction` and update participating hosts together to retain sharing. PCC remains optional for native parent linkage and cache affinity. Ordinary agent management requires neither extension.
-  - Agent guidance now directs controllers to close finished workers without preceding acknowledgement messages.
-  - Attached note reads keep private routing details out of results while preserving read-only and stale-checkpoint warnings. Attachment acknowledgements omit internal bookkeeping.
-  - GPT mode uses note-style agent help and Board briefings.
+- When switching from the older Herdr TUI or another Core instance, reselect local watches.
+- Added Herdr Core and Herdr app support for local and remote delegation, focus, voice transfers, shared Notes and boards, including Windows hosts.
+- Added Core session discovery by terminal title, with spaces, hyphens and underscores treated alike.
+- Added `/herdr close-idle` to close idle children spawned by the current session branch, leaving attached and busy sessions open.
+- Spawn results now return `contextAgent` and `boardAgent` inside `sharing` instead of at the top level. The agent `target` is unchanged.
+- Reduced resume delays in sessions with many delegated agents, including closed children.
+- Remote sharing helpers now start only when sharing is used or restored, avoiding idle polling on unrelated machines.
+- Fixed intermediate tool calls being reported as completed agent work.
+- Agent guidance now distinguishes automatic background reports from blocking calls that must be awaited.
+- Agent tool declarations now accept action fields discovered through help, including in native codemode.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -252,11 +267,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.108
+### @howaboua/pi-stuff — 0.0.109
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Fixed LAN voice transfers disconnecting the browser microphone while replacing the voice connection.
+  - @howaboua/pi-gippity-control: - Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default. - Added Pi API provider selection for Realtime, using the selected provider's credentials and endpoint. - Realtime voice supports Pi tasks, extension-provided voice tools and optional Web Run search. - Added model and reasoning settings for preparing Codex Live tasks from the voice conversation. - Voice tasks now run as ordinary Pi requests, with live progress sent back to the call. - Voice calls now finish the requested answer and farewell before closing. Accepted Pi tasks continue independently. - Fixed cached Voice Context summaries not appearing at call startup. - Fixed reasoning-summary forwarding skipping summaries when the same message also contained visible text. - LAN voice transfers now wait for speech to finish and reconnect automatically at the same browser address on the same machine. - Added automatic recovery from interrupted LAN voice connections, retaining the microphone where possible. - Added `/gippity server connect` to start voice in a local or configured remote browser and report whether it is listening. - Added `/gippity server status` and `ensure` to inspect or start the LAN listener without toggling it.
+  - @howaboua/pi-gpt-switcher: Added `/terra` to switch to GPT-6.1 Terra with configurable context and reasoning defaults.
+  - @howaboua/pi-grok-realtime: - Added `/grok server connect` to start voice in a local or configured remote browser and report whether it is listening. - Added `/grok server status` and `ensure` to inspect or start the LAN listener without toggling it. - Fixed restarting a transferred call returning to the original Pi session.
+  - @howaboua/pi-shepherdr: - When switching from the older Herdr TUI or another Core instance, reselect local watches. - Added Herdr Core and Herdr app support for local and remote delegation, focus, voice transfers, shared Notes and boards, including Windows hosts. - Added Core session discovery by terminal title, with spaces, hyphens and underscores treated alike. - Added `/herdr close-idle` to close idle children spawned by the current session branch, leaving attached and busy sessions open. - Spawn results now return `contextAgent` and `boardAgent` inside `sharing` instead of at the top level. The agent `target` is unchanged. - Reduced resume delays in sessions with many delegated agents, including closed children. - Remote sharing helpers now start only when sharing is used or restored, avoiding idle polling on unrelated machines. - Fixed intermediate tool calls being reported as completed agent work. - Agent guidance now distinguishes automatic background reports from blocking calls that must be awaited. - Agent tool declarations now accept action fields discovered through help, including in native codemode.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

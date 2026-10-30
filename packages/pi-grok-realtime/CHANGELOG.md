@@ -1,5 +1,11 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.3
+
+- Added `/grok server connect` to start voice in a local or configured remote browser and report whether it is listening.
+- Added `/grok server status` and `ensure` to inspect or start the LAN listener without toggling it.
+- Fixed restarting a transferred call returning to the original Pi session.
+
 ## 0.0.2
 
 - - Added `stay_quiet` so Grok can choose silence during pauses without losing later silence follow-ups. Follow-ups respect the configured interval, microphone mute and Pi's working state.

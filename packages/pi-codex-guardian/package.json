@@ -42,7 +42,7 @@
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=1.0.0",
 		"@earendil-works/pi-coding-agent": ">=1.0.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.5",
+		"@howaboua/pi-codex-conversion": ">=4.0.6",
 		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"peerDependenciesMeta": {
@@ -54,7 +54,7 @@
 		"@biomejs/biome": "^2.6.3",
 		"@earendil-works/pi-ai": "1.4.0",
 		"@earendil-works/pi-coding-agent": "1.4.0",
-		"@howaboua/pi-codex-conversion": "4.0.5",
+		"@howaboua/pi-codex-conversion": "4.0.6",
 		"@types/node": "^26.6.5",
 		"typescript": "^7.0.2"
 	},

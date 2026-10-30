@@ -1,5 +1,9 @@
 # @howaboua/pi-observatory
 
+## 0.0.3
+
+- Cache diagnostics now index with less disk-sync overhead.
+
 ## 0.0.2
 
 - - Existing Observatory indexes rebuild automatically once when the updated server starts. Source files are preserved.
