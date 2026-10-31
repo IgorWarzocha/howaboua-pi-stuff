@@ -45,7 +45,7 @@
 		"@earendil-works/pi-coding-agent": ">=1.1.0",
 		"typebox": "*",
 		"@earendil-works/pi-tui": ">=1.0.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.6"
+		"@howaboua/pi-codex-conversion": ">=4.0.7"
 	},
 	"publishConfig": {
 		"access": "public"
@@ -56,6 +56,6 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.6"
+		"@howaboua/pi-codex-conversion": "4.0.7"
 	}
 }

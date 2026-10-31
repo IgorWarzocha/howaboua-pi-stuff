@@ -116,7 +116,7 @@
     },
     "packages/pi-browser": {
       "name": "@howaboua/pi-browser",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "bin": {
         "pi-browser-worker": "./dist/remote-worker.js",
       },
@@ -124,7 +124,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.4.0",
         "@earendil-works/pi-coding-agent": "1.4.0",
-        "@howaboua/pi-codex-conversion": "4.0.6",
+        "@howaboua/pi-codex-conversion": "4.0.7",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -133,7 +133,7 @@
         "@earendil-works/pi-ai": ">=1.0.0",
         "@earendil-works/pi-coding-agent": ">=1.0.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.6",
+        "@howaboua/pi-codex-conversion": ">=4.0.7",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -186,9 +186,9 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "4.0.6",
+      "version": "4.0.7",
       "dependencies": {
-        "@howaboua/pi-browser": "^0.0.12",
+        "@howaboua/pi-browser": "^0.0.13",
         "acorn": "8.19.0",
         "openai": "7.45.0",
         "proxy-from-env": "2.1.0",
@@ -295,7 +295,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.101",
+      "version": "0.0.102",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.17",
         "@howaboua/pi-auto-trees": "0.1.19",
@@ -322,7 +322,7 @@
     },
     "packages/pi-gippity-control": {
       "name": "@howaboua/pi-gippity-control",
-      "version": "0.0.29",
+      "version": "0.0.30",
       "dependencies": {
         "@howaboua/pi-browser": "^0.0.12",
         "proxy-from-env": "2.1.0",
@@ -383,7 +383,7 @@
     },
     "packages/pi-grok-realtime": {
       "name": "@howaboua/pi-grok-realtime",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "dependencies": {
         "@howaboua/pi-browser": "^0.0.12",
         "selfsigned": "^5.5.0",
@@ -590,7 +590,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.109",
+      "version": "0.0.110",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.17",
         "@howaboua/pi-auto-trees": "0.1.19",

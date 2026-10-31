@@ -1,5 +1,8 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.4
+
+- Updated package dependencies.
 ## 0.0.3
 
 - Added `/grok server connect` to start voice in a local or configured remote browser and report whether it is listening.

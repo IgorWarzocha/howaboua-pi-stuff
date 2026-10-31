@@ -1,5 +1,8 @@
 # Changelog
 
+## 4.0.7
+
+- Updated package dependencies.
 ## 4.0.6
 
 - Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default.
