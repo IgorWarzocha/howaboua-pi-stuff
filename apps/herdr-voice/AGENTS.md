@@ -3,5 +3,8 @@
 - Pane startup uses the session-addressed bridge mailbox and verified receipts. Never inject slash commands or keystrokes into an existing terminal's editor.
 - An unknown slash command becomes model input. Check the loaded command before dispatch and preserve `expandPromptTemplates: true`.
 - Only provision the marked bridge file. Preserve unrelated user extensions and kept Pi terminals after connection failure.
+- Manual and Quickstart bridge installs share that managed path. A separately registered copy duplicates handlers.
 - Test audio framing with disposable peers. Opening microphone capture or a real provider call needs separate approval.
 - A passing `herdr-app check` does not prove geometry. Inspect isolated dock and overlay renders; full-size roots need bounded parents.
+- Settings use a dismissible dialog. Floating windows let Escape reach the terminal underneath.
+- Native virtual-list rows cannot register handlers. Register keyed `on_item_click` on the list; keep keyboard focus on its container.

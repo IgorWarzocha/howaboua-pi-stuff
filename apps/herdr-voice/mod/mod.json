@@ -2,8 +2,7 @@
   "title": "Voice",
   "place": "none",
   "overlay": {
-    "kind": "window",
-    "key": "herdr-voice",
+    "kind": "dialog",
     "width": 420,
     "height": 0.85
   }

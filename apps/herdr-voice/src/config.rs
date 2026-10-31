@@ -65,7 +65,7 @@ pub fn private_write(path: &Path, bytes: &[u8], new: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn install(config: &Config, home: Option<PathBuf>) -> Result<()> {
+pub fn install(config: &Config, home: Option<PathBuf>, indicator_mods: &[String]) -> Result<()> {
     let home = match home {
         Some(path) => path,
         None => std::env::var_os("HERDR_APP_HOME")
@@ -81,6 +81,28 @@ pub fn install(config: &Config, home: Option<PathBuf>) -> Result<()> {
                     .join("herdr-app"),
             ),
     };
+    for name in indicator_mods {
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
+        {
+            bail!("Choose a personal cloned mod name for the voice indicator");
+        }
+        let target = home.join("mods").join(name);
+        let meta: serde_json::Value = serde_json::from_slice(&fs::read(target.join("mod.json"))?)?;
+        if !meta["cloned_from"].is_object() || !target.join("main.js").is_file() {
+            bail!("Clone {name} in Herdr before installing a voice indicator");
+        }
+        let helper = target.join("voice-indicator.js");
+        if helper.exists()
+            && !fs::read_to_string(&helper)?.starts_with("// herdr-voice-managed-indicator v1\n")
+        {
+            bail!(
+                "An unrelated voice-indicator.js already exists in {name}; move it before installing the indicator"
+            );
+        }
+    }
     let directory = home.join("mods/voice");
     if directory.exists() && !directory.join("companion.json").is_file() {
         bail!(
@@ -89,16 +111,31 @@ pub fn install(config: &Config, home: Option<PathBuf>) -> Result<()> {
         );
     }
     fs::create_dir_all(&directory)?;
-    fs::write(directory.join("main.js"), include_str!("../mod/main.js"))?;
-    fs::write(
-        directory.join("companion.js"),
-        include_str!("../mod/companion.js"),
-    )?;
-    fs::write(
-        directory.join("sidebar.js"),
-        include_str!("../mod/sidebar.js"),
-    )?;
-    fs::write(directory.join("mod.json"), include_str!("../mod/mod.json"))?;
+    fs::create_dir_all(directory.join("icons"))?;
+    for (name, content) in [
+        ("main.js", include_str!("../mod/main.js")),
+        ("companion.js", include_str!("../mod/companion.js")),
+        ("sidebar.js", include_str!("../mod/sidebar.js")),
+        ("settings.js", include_str!("../mod/settings.js")),
+        ("select.js", include_str!("../mod/select.js")),
+        ("state.js", include_str!("../mod/state.js")),
+        ("ui.js", include_str!("../mod/ui.js")),
+        ("indicator.js", include_str!("../mod/indicator.js")),
+        ("mod.json", include_str!("../mod/mod.json")),
+        ("icons/zap.svg", include_str!("../mod/icons/zap.svg")),
+        ("icons/plug.svg", include_str!("../mod/icons/plug.svg")),
+        ("icons/mic.svg", include_str!("../mod/icons/mic.svg")),
+        (
+            "icons/mic-off.svg",
+            include_str!("../mod/icons/mic-off.svg"),
+        ),
+        (
+            "icons/disconnect.svg",
+            include_str!("../mod/icons/disconnect.svg"),
+        ),
+    ] {
+        fs::write(directory.join(name), content)?;
+    }
     private_write(
         &directory.join("companion.json"),
         &serde_json::to_vec_pretty(&serde_json::json!({
@@ -106,6 +143,12 @@ pub fn install(config: &Config, home: Option<PathBuf>) -> Result<()> {
         }))?,
         false,
     )?;
+    for name in indicator_mods {
+        fs::write(
+            home.join("mods").join(name).join("voice-indicator.js"),
+            include_str!("../mod/indicator.js"),
+        )?;
+    }
     println!(
         "Installed {}. Run herdr-voice serve on this machine; open the voice mod in Herdr.",
         directory.display()

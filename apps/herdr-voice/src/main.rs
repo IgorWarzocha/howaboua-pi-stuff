@@ -28,6 +28,9 @@ enum Action {
     InstallMod {
         #[arg(long)]
         herdr_home: Option<PathBuf>,
+        /// Install the indicator helper into a personal cloned mod.
+        #[arg(long)]
+        indicator_mod: Vec<String>,
     },
     /// Show current connection state.
     Status,
@@ -52,7 +55,10 @@ async fn run() -> Result<()> {
     let config = config::load()?;
     match cli.command {
         Action::Serve => control::serve(config).await?,
-        Action::InstallMod { herdr_home } => config::install(&config, herdr_home)?,
+        Action::InstallMod {
+            herdr_home,
+            indicator_mod,
+        } => config::install(&config, herdr_home, &indicator_mod)?,
         Action::Devices => println!(
             "{}",
             serde_json::to_string_pretty(&audio::devices().await?)?

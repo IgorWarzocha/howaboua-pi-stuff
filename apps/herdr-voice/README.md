@@ -35,27 +35,31 @@ herdr-voice serve
 
 The companion stays in the foreground and opens no microphone until you connect. Keep it running in a local terminal, or run it under your own process supervisor. Closing it disconnects local audio. Opening or closing the Herdr panel does not stop it.
 
-Open `voice` from Herdr's command palette. Choose a provider and a machine, then **Quickstart**. Pi starts in that user's home directory. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
+Open `voice` from Herdr's command palette to choose a provider and audio devices. Choices persist across panel copies and app restarts.
 
 For compact controls beside your terminals, add this block to a personal Herdr layout. Clone a shipped layout before changing its structure.
 
 ```json
-{ "id": "voice", "type": "block", "size": { "px": 92 }, "content": { "mod": "voice", "props": { "compact": true } } }
+{ "id": "voice", "type": "block", "size": { "px": 44 }, "content": { "mod": "voice", "props": { "compact": true } } }
 ```
 
-The compact panel shows connection status and mute and disconnect controls. **Connect** or the **Voice** heading opens the full setup window.
+The lightning icon quickstarts Pi and voice on the focused pane's machine. Pi starts in that user's home directory. The plug icon connects voice to the focused Pi pane. Both start directly with your saved choices. Settings can override the machine or Pi pane. The gear opens settings, not another launch screen. Hover an icon for its action or current error.
+
+While connected, the microphone icon mutes or unmutes and the disconnect icon releases local audio. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
 
 Quickstart installs the bundled Pi bridge in that machine's auto-discovered Pi extensions directory. It does not install a voice backend, change account access or submit a model prompt when the backend is missing. A failed connection leaves the new Pi terminal available to inspect.
 
 ## Use an existing pane
 
-Install the bundled `pi-bridge.ts` as a Pi extension on that machine, then run `/reload` in the intended Pi session. For example, from the native bundle directory:
+Copy the bundled `pi-bridge.ts` into Pi's auto-discovered extensions directory as `herdr-voice-bridge.ts`, then run `/reload` in the intended Pi session. Use the same filename as Quickstart, not a second registered copy. From the native bundle directory:
 
 ```sh
-pi install ./pi-bridge.ts
+agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+mkdir -p "$agent_dir/extensions"
+cp pi-bridge.ts "$agent_dir/extensions/herdr-voice-bridge.ts"
 ```
 
-Choose that pane in the voice panel and start the selected backend. Requests use the bridge's session-addressed mailbox, not simulated keystrokes, so an existing draft is not overwritten. Pi must have the chosen voice extension loaded.
+Focus that Pi pane and click the plug icon. Requests use the bridge's session-addressed mailbox, not simulated keystrokes, so an existing draft is not overwritten. Pi must have the bridge and chosen voice extension loaded. Already-running Pi sessions need one `/reload` after installing the bridge.
 
 For remote Pi, the optional **SSH host** is the host alias from your local SSH configuration. Forwarding connects to the voice listener's loopback address on that host. It must be the same machine as the selected Pi session. Without forwarding, the returned server URL must be reachable on your trusted network.
 
@@ -64,6 +68,20 @@ For remote Pi, the optional **SSH host** is the host alias from your local SSH c
 The panel's manual connection controls can attach to a voice server you have already started with `/grok server ensure`, `/codex voice server ensure` for PCC, or `/gippity server ensure`. Select Grok or OpenAI to match the server, then enter its HTTPS URL. For a self-signed server, select a local copy of its PEM certificate. Certificate verification remains enabled. Manual connections use your selected protocol and cannot identify which OpenAI extension owns the server.
 
 Quickstart and pane-based connections obtain the server certificate through Herdr Core's authenticated machine connection. You do not need to export it manually.
+
+## Agent and pane indicators
+
+Personal agent-list and pane-header mods can show which Pi has this computer's active voice connection, including mute state. This is separate from Pi's working indicator. Manual URL connections cannot identify a Pi pane and do not mark one.
+
+Clone the shipped mods before customising them, then install the indicator helper into those personal copies:
+
+```sh
+herdr-app do mod.clone --name agents --as voice-agents
+herdr-app do mod.clone --name pane --as voice-pane
+herdr-voice install-mod --indicator-mod voice-agents --indicator-mod voice-pane
+```
+
+Each copy can import `voiceActive` and `voiceIndicator` from `./voice-indicator.js`. Render the indicator beside its existing status when `voiceActive(terminal)` is true. Pass the agent's full address or the pane header's terminal address. Point your personal layout at those customised mods. Herdr isolates each mod's JavaScript, so importing the helper directly from another mod is not supported.
 
 **Disconnect** releases this computer's audio. It leaves the host-owned voice call available for another device. End the call from Pi when you want to stop it entirely. A second device can replace the current audio connection.
 
