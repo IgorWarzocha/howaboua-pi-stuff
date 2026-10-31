@@ -26,6 +26,7 @@
 	"files": [
 		"dist/**/*.js",
 		"dist/**/*.d.ts",
+		"extension.ts",
 		"index.ts",
 		"remote-worker.ts",
 		"src",
@@ -68,7 +69,7 @@
 	"pi": {
 		"extensions": [
 			"./changelog.ts",
-			"./dist/extension.js"
+			"./extension.ts"
 		]
 	},
 	"engines": {
