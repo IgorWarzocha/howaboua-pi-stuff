@@ -1,0 +1,6 @@
+- Reuse the owning Grok audio bundle unchanged. Do not copy DSP or put provider credentials in the companion or Pi bridge.
+- Native input is a framed stream. Keep its reads in the owned reader task: cancelling partial reads in `select!` loses framing. UI lifetime must not own audio lifetime.
+- Pane startup uses the session-addressed bridge mailbox and verified receipts. Never inject slash commands or keystrokes into an existing terminal's editor.
+- An unknown slash command becomes model input. Check the loaded command before dispatch and preserve `expandPromptTemplates: true`.
+- Only provision the marked bridge file. Preserve unrelated user extensions and kept Pi terminals after connection failure.
+- Test audio framing with disposable peers. Opening microphone capture or a real provider call needs separate approval.

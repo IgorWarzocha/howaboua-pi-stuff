@@ -1,0 +1,55 @@
+name: Herdr Voice
+
+on:
+  pull_request:
+    paths:
+      - 'apps/herdr-voice/**'
+      - 'packages/pi-grok-realtime/src/audio/bin/**'
+      - '.github/workflows/herdr-voice.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'apps/herdr-voice/**'
+      - 'packages/pi-grok-realtime/src/audio/bin/**'
+      - '.github/workflows/herdr-voice.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            bundle: linux-x64
+          - os: macos-latest
+            bundle: darwin-arm64
+          - os: windows-latest
+            bundle: win32-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+      - uses: oven-sh/setup-bun@v2
+      - name: Install check dependencies without lifecycle scripts
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Check companion and Pi bridge
+        run: node apps/herdr-voice/check.mjs
+      - name: Build complete native bundle
+        run: node apps/herdr-voice/build.mjs
+      - name: Check bundled audio without devices
+        shell: bash
+        run: apps/herdr-voice/dist/herdr-voice-${{ matrix.bundle }}/grok-audio${{ runner.os == 'Windows' && '.exe' || '' }} --check
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herdr-voice-${{ matrix.bundle }}
+          path: apps/herdr-voice/dist/herdr-voice-${{ matrix.bundle }}/
+          if-no-files-found: error
