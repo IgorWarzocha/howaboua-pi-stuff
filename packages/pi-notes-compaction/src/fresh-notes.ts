@@ -14,6 +14,8 @@ export interface NestedNoteOutcome {
 	callId: string;
 	parentCallId: string;
 	saved: boolean;
+	/** Present when Notes records the write's start as well as its completion. */
+	pending?: boolean;
 	origin?: "routed";
 }
 export const NOTES_RUN_ENTRY = "notes-compaction:run:v1";
@@ -156,11 +158,16 @@ function noteEvidence(
 			typeof value.callId === "string" &&
 			typeof value.parentCallId === "string" &&
 			(value.origin === undefined || value.origin === "routed") &&
+			(value.pending === undefined || typeof value.pending === "boolean") &&
+			(!value.pending || value.saved === false) &&
 			typeof value.saved === "boolean"
 			? [value as NestedNoteOutcome]
 			: [];
 	});
-	return { messages, receipts, outcomes };
+	// Starts remain failed proof until their matching completion replaces them.
+	const latest = new Map<string, NestedNoteOutcome>();
+	for (const outcome of outcomes) latest.set(outcome.callId, outcome);
+	return { messages, receipts, outcomes: [...latest.values()] };
 }
 
 function completedWrites(
@@ -268,16 +275,22 @@ function completedWrites(
 				: noteCalls.filter(
 						(call) => !outcomes.some((item) => item.callId === call.id),
 					);
+		const untrackedWrites = uncovered.filter(
+			(call) => !call.arguments || isNoteWrite(call.arguments),
+		);
+		// Pi also marks argument omission as incomplete. Notes' start/end ledger
+		// proves write completion even when that bounded record loses arguments or calls.
+		const tracked =
+			completed.length > 0 && completed.every((item) => item.pending === false);
 		if (
-			uncovered.some(
-				(call) =>
-					call.status !== "ok" &&
-					(!call.arguments || isNoteWrite(call.arguments)),
-			) ||
-			(uncovered.length && !nested?.complete)
+			untrackedWrites.some((call) => call.status !== "ok") ||
+			(nested?.complete === false &&
+				(noteCalls.length > 0 || completed.length > 0) &&
+				!(legacy === true && !completed.length) &&
+				(!tracked || untrackedWrites.length > 0))
 		)
 			return false;
-		const nestedWrites = uncovered.filter((call) =>
+		const nestedWrites = untrackedWrites.filter((call) =>
 			isNoteWrite(call.arguments),
 		);
 		if (

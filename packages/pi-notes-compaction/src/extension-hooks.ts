@@ -63,12 +63,24 @@ export async function registerNotesHooks(
 			return;
 		const input = event.args as { action?: unknown } | undefined;
 		if (!isNoteWrite(input)) return;
-		nestedWrites.set(event.toolCallId, {
+		const write = {
 			runId: lifecycle.runId,
 			windowId: lifecycle.windows.current.currentWindowId,
 			parentCallId: event.parentToolCallId,
 			sessionId: ctx.sessionManager.getSessionId(),
-		});
+		};
+		// Persist before execution: even a call omitted from Pi's bounded record
+		// must prevent rollover until its completion arrives.
+		pi.appendEntry(NESTED_NOTE_OUTCOME, {
+			protocol: 1,
+			runId: write.runId,
+			windowId: write.windowId,
+			callId: event.toolCallId,
+			parentCallId: write.parentCallId,
+			pending: true,
+			saved: false,
+		} satisfies NestedNoteOutcome);
+		nestedWrites.set(event.toolCallId, write);
 	});
 	pi.on("tool_execution_end", (event, ctx) => {
 		const write = nestedWrites.get(event.toolCallId);
@@ -81,6 +93,7 @@ export async function registerNotesHooks(
 			windowId: write.windowId,
 			callId: event.toolCallId,
 			parentCallId: write.parentCallId,
+			pending: false,
 			...(details?.notesCompactionRouted === true
 				? { origin: "routed" as const }
 				: {}),
