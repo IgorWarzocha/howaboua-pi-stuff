@@ -1,5 +1,11 @@
 # @howaboua/pi-notes-compaction
 
+## 0.0.13
+
+- Model roles are now agent-operated. Configure them in `model-roles.json`. `/roles` is read-only, and the old `enabled` flag and accept/dismiss controls no longer apply.
+- Added `new_context({role})` to continue the next context window on a role's configured model and reasoning after saving a checkpoint.
+- Agents receive role names, descriptions and guidance to switch only for sustained scope changes, with subagents considered for bounded specialist work.
+
 ## 0.0.12
 
 - Added `/roles` for model preferences across providers and optional model-switch recommendations that preserve the current conversation.
