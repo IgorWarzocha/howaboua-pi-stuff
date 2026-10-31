@@ -4,6 +4,8 @@ The patch helper compares tracked paths with `origin/main`. Stage a newly added 
 
 Do not hand-author aggregate changesets. When deleting a bundled package, do not invent a changeset for the absent package either. `bun run changeset:aggregates` reads deleted manifests from the comparison base and releases affected bundles.
 
+GitHub closes linked issues only when their closing reference reaches `main`. Carry fully resolved issue references from topic PRs into the `dev` → `main` PR body as `Closes #N`; `Related` and `Refs` do not close issues. For issues deliberately awaiting npm publication, put closing references on the Changesets version PR before merge, then verify publication. After publication, close any remaining fully resolved issues with the shipped version and PR link. Keep partial fixes and outstanding verification open.
+
 Run a package's direct check while edits are uncommitted. After the implementation and changeset are committed, run `bun run check:changed` and `bun run changeset:check` against the branch diff. Run the umbrella gate once after a dependent batch converges.
 
 Keep exactly one changeset per changed extension in a release, with one extension per file. Consolidate pending entries before opening the release PR. Dependency-only and documentation changes still need none; aggregates remain CI-owned. Keep only changesets for package changes still present on the branch. Remove a changeset already consumed by an `origin/main` release commit.
