@@ -1,3 +1,4 @@
 - Recheck backend hit targets after mouse movement; hover can cover or move the original target.
 - Release dispatched keys/buttons even after cancellation; cleanup dispatch must not reuse the aborted signal.
 - Keep Pi loader aliases out of the lazy registration graph. Pass runtime SDK values from extension.ts; lazy modules use type-only imports for Pi and TypeBox.
+- Ship the TypeScript Pi entrypoint: its lazy optional integrations need Pi's loader aliases. Compiled public APIs and workers remain separate from the extension entry.

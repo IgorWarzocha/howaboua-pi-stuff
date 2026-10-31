@@ -204,9 +204,11 @@ function installRuntimeDependencies(packageRoot, isolatedRoot) {
 		for (const [name, range] of [
 			...Object.entries(pkg.dependencies ?? {}),
 			...Object.entries(pkg.peerDependencies ?? {}).filter(
-				([name]) => optionalPeers[name]?.optional !== true,
+				([name]) => optionalPeers[name]?.optional !== true || workspacePackages.has(name),
 			),
 		]) {
+			// Pi supplies these through its loader, not the managed npm tree.
+			if (allowedLoaderModules.has(name)) continue;
 			const workspace = workspacePackages.get(name);
 			if (workspace) {
 				if (visited.has(name)) continue;
