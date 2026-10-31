@@ -1,13 +1,17 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, Button, InputState, Input } from "gpui-base";
-import { theme, machines, panes, terminals, run } from "herdr";
+import { theme, machines, panes, terminals, run, props, closeOverlay } from "herdr";
 import { request, parseStatus, parseDevices, parsePreparation } from "./companion.js";
+import { renderSidebar } from "./sidebar.js";
 
 const PROVIDERS = { grok: "Grok", gippity: "OpenAI" };
 const BACKENDS = { grok: "Grok", gippity: "OpenAI · GipPity", codex: "OpenAI · PCC" };
 
 export default class Voice extends View {
   init(_props, cx) {
+    const options = props() ?? {};
+    this.compact = options.compact === true;
+    this.overlay = options.overlay;
     this.status = null;
     this.devices = { microphones: [], speakers: [] };
     this.pending = null;
@@ -45,7 +49,7 @@ export default class Voice extends View {
       state.on("change", (_e, cx) => { this.save(); cx.notify(); });
       this.inputs[key] = state;
     }
-    this.refresh(cx, true);
+    this.refresh(cx, !this.compact);
     cx.timer.every(3000, (cx) => this.refresh(cx));
   }
 
@@ -76,7 +80,7 @@ export default class Voice extends View {
           this.statusError = e.message;
         }
       }
-      if (devices || (this.status && this.deviceError)) {
+      if (!this.compact && (devices || (this.status && this.deviceError))) {
         try {
           this.devices = parseDevices(await request("/devices"));
           this.deviceError = null;
@@ -248,11 +252,20 @@ export default class Voice extends View {
     const phase = this.pending === "/prepare" ? "Preparing Pi…" : this.pending === "/connect" ? "Connecting…" : this.statusError ? "Unavailable" : status ? {
       idle: "Idle", connecting: "Connecting…", listening: "Listening", muted: "Muted", error: "Error",
     }[status.phase] : "Checking…";
+    if (this.compact) return renderSidebar({
+      status, phase: this.actionError ? "Error" : phase, busy,
+      error: this.statusError || this.actionError || status?.error,
+      onMute: (cx) => this.act("/mute", { muted: !this.status.muted }, cx),
+      onDisconnect: (cx) => this.act("/disconnect", {}, cx),
+    });
     const errors = [...new Set([this.statusError, status?.error, this.actionError, this.deviceError, this.storageError].filter(Boolean))];
-    return v_flex().id("voice").size_full().min_w(0).bg(t.surface).text_color(t.foreground).text_size(13)
-      .child(h_flex().px(12).py(10).justify_between().items_center()
+    return v_flex().id("voice").size_full().min_w(0).min_h(0).bg(t.surface).text_color(t.foreground).text_size(13)
+      .child(h_flex().flex_none().px(12).py(10).justify_between().items_center()
         .child(div().font_semibold().text_size(15).child("Voice"))
-        .child(div().text_color(this.statusError || status?.phase === "error" ? t.blocked : t.muted).child(phase)))
+        .child(h_flex().items_center().gap(10)
+          .child(div().text_color(this.statusError || status?.phase === "error" ? t.blocked : t.muted).child(phase))
+          .when(Boolean(this.overlay), (el) => el.child(Button.new("close-voice").accessibility_label("Close voice settings")
+            .px(4).text_color(t.muted).on_click(() => closeOverlay(this.overlay)).child("×")))))
       .child(v_flex().id("voice-form").flex_1().min_h(0).overflow_y_scrollbar().px(12).pb(12).gap(10)
         .when(Boolean(status?.provider), (el) => el.child(v_flex().gap(3)
           .child(div().child(status.provider === "gippity" && !this.target ? "OpenAI" : BACKENDS[status.provider]))

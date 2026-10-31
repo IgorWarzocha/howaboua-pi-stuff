@@ -8,7 +8,7 @@ const checks = [
   ["cargo", ["fmt", "--check"]],
   ["cargo", ["clippy", "--locked", "--all-targets", "--", "-D", "warnings"]],
   [process.execPath, [join(root, "../../node_modules/@typescript/native-preview/bin/tsgo"), "-p", "tsconfig.json"]],
-  ...["build.mjs", "check.mjs", "mod/main.js", "mod/companion.js"].map((file) => [process.execPath, ["--check", file]]),
+  ...["build.mjs", "check.mjs", "mod/main.js", "mod/companion.js", "mod/sidebar.js"].map((file) => [process.execPath, ["--check", file]]),
 ];
 for (const [command, args] of checks) {
   const result = spawnSync(command, args, { cwd: root, stdio: "inherit" });

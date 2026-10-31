@@ -1,5 +1,10 @@
 {
   "title": "Voice",
-  "place": "right",
-  "size": 320
+  "place": "none",
+  "overlay": {
+    "kind": "window",
+    "key": "herdr-voice",
+    "width": 420,
+    "height": 0.85
+  }
 }

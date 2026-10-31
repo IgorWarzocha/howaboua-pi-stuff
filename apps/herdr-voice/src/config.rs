@@ -94,6 +94,10 @@ pub fn install(config: &Config, home: Option<PathBuf>) -> Result<()> {
         directory.join("companion.js"),
         include_str!("../mod/companion.js"),
     )?;
+    fs::write(
+        directory.join("sidebar.js"),
+        include_str!("../mod/sidebar.js"),
+    )?;
     fs::write(directory.join("mod.json"), include_str!("../mod/mod.json"))?;
     private_write(
         &directory.join("companion.json"),

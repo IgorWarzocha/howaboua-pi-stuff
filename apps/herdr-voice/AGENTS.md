@@ -4,3 +4,4 @@
 - An unknown slash command becomes model input. Check the loaded command before dispatch and preserve `expandPromptTemplates: true`.
 - Only provision the marked bridge file. Preserve unrelated user extensions and kept Pi terminals after connection failure.
 - Test audio framing with disposable peers. Opening microphone capture or a real provider call needs separate approval.
+- A passing `herdr-app check` does not prove geometry. Inspect isolated dock and overlay renders; full-size roots need bounded parents.

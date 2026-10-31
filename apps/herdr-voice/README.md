@@ -37,6 +37,14 @@ The companion stays in the foreground and opens no microphone until you connect.
 
 Open `voice` from Herdr's command palette. Choose a provider and a machine, then **Quickstart**. Pi starts in that user's home directory. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
 
+For compact controls beside your terminals, add this block to a personal Herdr layout. Clone a shipped layout before changing its structure.
+
+```json
+{ "id": "voice", "type": "block", "size": { "px": 92 }, "content": { "mod": "voice", "props": { "compact": true } } }
+```
+
+The compact panel shows connection status and mute and disconnect controls. **Connect** or the **Voice** heading opens the full setup window.
+
 Quickstart installs the bundled Pi bridge in that machine's auto-discovered Pi extensions directory. It does not install a voice backend, change account access or submit a model prompt when the backend is missing. A failed connection leaves the new Pi terminal available to inspect.
 
 ## Use an existing pane
