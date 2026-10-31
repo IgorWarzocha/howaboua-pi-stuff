@@ -56,8 +56,24 @@ export function createModelRoles(
 					entry.type === "custom_message" && entry.customType === GUIDANCE_TYPE,
 			);
 		if (!config.roles.length && !previous) return;
+		const reasoning = pi.getThinkingLevel();
+		const matching = config.roles
+			.filter(
+				(role) =>
+					role.provider === ctx.model?.provider &&
+					role.model === ctx.model?.id &&
+					role.reasoning === reasoning,
+			)
+			.map((role) => role.id);
+		const currentRole =
+			matching.length === 0
+				? "none (no matching preset)"
+				: matching.length === 1
+					? matching.join(", ")
+					: `ambiguous (${matching.join(", ")})`;
 		const content = config.roles.length
 			? [
+					`Current role: ${currentRole}`,
 					lifecycle.gptPromptMode()
 						? 'Roles=user preferences, not capability limits. Switch only for clear, sustained task/scope change, not one specialised prompt. Any model can do general work. Bounded specialist detour→consider available subagent. Save notes→new_context({role: "name"}); omit role→keep model.'
 						: 'Roles are user preferences, not capability limits. Switch only for a clear, sustained change of task or scope, not a single specialised prompt. Any model can do general work. Consider an available subagent for a bounded specialist detour. Save notes, then call new_context({role: "name"}); omit role to keep the current model.',
