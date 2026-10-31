@@ -41,7 +41,7 @@ export function createQueryExecutor(
 		signal: AbortSignal | undefined,
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<unknown>> {
-		input = prepareNotesArguments(input, true);
+		input = prepareNotesArguments(input);
 		const help = queryHelp("notes", input, false, lifecycle.gptPromptMode());
 		if (help) return help;
 		assertActive();

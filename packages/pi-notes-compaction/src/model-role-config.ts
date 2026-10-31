@@ -1,13 +1,7 @@
-import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-export const THINKING_LEVELS = [
+const THINKING_LEVELS = [
 	"off",
 	"minimal",
 	"low",
@@ -16,7 +10,7 @@ export const THINKING_LEVELS = [
 	"xhigh",
 	"max",
 ] as const;
-export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export interface ModelRole {
 	id: string;
@@ -27,27 +21,24 @@ export interface ModelRole {
 }
 
 export interface RoleConfig {
-	enabled: boolean;
 	roles: ModelRole[];
 }
 
-function roleConfigPath(): string {
+export function roleConfigPath(): string {
 	return join(getAgentDir(), "notes-compaction", "model-roles.json");
 }
 
 export function readRoleConfig(path = roleConfigPath()): RoleConfig {
-	if (!existsSync(path)) return { enabled: false, roles: [] };
+	if (!existsSync(path)) return { roles: [] };
 	const value: unknown = JSON.parse(readFileSync(path, "utf8"));
 	if (
 		!value ||
 		typeof value !== "object" ||
-		!("enabled" in value) ||
-		typeof value.enabled !== "boolean" ||
 		!("roles" in value) ||
 		!Array.isArray(value.roles)
 	)
 		throw new Error(
-			"Model roles configuration must contain enabled and roles; repair it with /roles",
+			`Model roles configuration must contain a roles array. Edit ${path}; /roles shows the format`,
 		);
 	const ids = new Set<string>();
 	const roles = value.roles.map((role: unknown): ModelRole => {
@@ -72,7 +63,7 @@ export function readRoleConfig(path = roleConfigPath()): RoleConfig {
 			ids.has(role.id)
 		)
 			throw new Error(
-				"Invalid or duplicate model role; repair model-roles.json or use /roles to replace roles",
+				`Invalid or duplicate model role. Edit ${path}; /roles shows the format`,
 			);
 		ids.add(role.id);
 		return {
@@ -83,17 +74,5 @@ export function readRoleConfig(path = roleConfigPath()): RoleConfig {
 			reasoning: role.reasoning as ThinkingLevel,
 		};
 	});
-	return { enabled: value.enabled, roles };
-}
-
-export function writeRoleConfig(
-	config: RoleConfig,
-	path = roleConfigPath(),
-): void {
-	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-	const temporary = `${path}.${process.pid}.tmp`;
-	writeFileSync(temporary, `${JSON.stringify(config, null, 2)}\n`, {
-		mode: 0o600,
-	});
-	renameSync(temporary, path);
+	return { roles };
 }

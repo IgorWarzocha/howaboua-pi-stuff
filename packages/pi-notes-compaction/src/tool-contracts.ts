@@ -33,7 +33,7 @@ export const GPT_NEW_CONTEXT_DESCRIPTION =
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
-const NOTES_SCHEMA = Type.Object(
+export const NOTES_SCHEMA = Type.Object(
 	{
 		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
 		path: Type.Optional(
@@ -55,30 +55,18 @@ const NOTES_SCHEMA = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-export function notesSchema(roles: boolean) {
-	if (!roles) return NOTES_SCHEMA;
-	return Type.Object(
-		{
-			...NOTES_SCHEMA.properties,
-			action: Type.Optional(
-				StringEnum([...NOTES_ACTIONS, "roles", "recommend_handoff"]),
-			),
-			role: STRING,
-			reason: Type.Optional(
-				Type.String({
-					minLength: 1,
-					description: "Conversation evidence this role fits better now",
-				}),
-			),
-			continuity: Type.Optional(
-				Type.String({
-					minLength: 1,
-					description: "Goal, decisions, unfinished work and next step",
-				}),
-			),
-		},
-		{ additionalProperties: false },
-	);
+export const NEW_CONTEXT_SCHEMA = Type.Object(
+	{ role: Type.Optional(Type.String({ minLength: 1 })) },
+	{ additionalProperties: false },
+);
+
+export function prepareNewContextArguments(input: unknown) {
+	const args = input ?? {};
+	if (!Check(NEW_CONTEXT_SCHEMA, args))
+		throw new Error(
+			'Use {} to keep the current model, or {role: "name"} for a configured role.',
+		);
+	return args;
 }
 export const HISTORY_SCHEMA = Type.Object(
 	{
@@ -109,8 +97,6 @@ export const HISTORY_SCHEMA = Type.Object(
 );
 
 const FIELDS: Record<string, readonly string[]> = {
-	roles: [],
-	recommend_handoff: ["role", "reason", "continuity"],
 	list_files_by_prefix: [
 		"prefix",
 		"file_order",
@@ -271,16 +257,9 @@ export function queryHelp(
 	return undefined;
 }
 
-export function prepareNotesArguments(args: unknown, roles = false) {
+export function prepareNotesArguments(args: unknown) {
 	const params = normalizeQueryInput("notes", args);
-	if (
-		!roles &&
-		["roles", "recommend_handoff"].includes(String(params["action"]))
-	)
-		throw new Error(
-			"Role recommendations are off. The user can enable them with /roles",
-		);
-	validateArguments("notes", params, notesSchema(roles));
+	validateArguments("notes", params, NOTES_SCHEMA);
 	return params;
 }
 
