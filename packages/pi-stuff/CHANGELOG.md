@@ -1,5 +1,8 @@
 # @howaboua/pi-stuff
 
+## 0.0.110
+
+- Updated bundled packages.
 ## 0.0.109
 
 - Include bundled package updates:

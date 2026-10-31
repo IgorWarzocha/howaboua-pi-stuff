@@ -1,5 +1,8 @@
 # @howaboua/pi-extensions
 
+## 0.0.102
+
+- Updated bundled packages.
 ## 0.0.101
 
 - Include bundled package updates:

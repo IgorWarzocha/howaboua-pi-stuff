@@ -1,5 +1,8 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.30
+
+- Updated package dependencies.
 ## 0.0.29
 
 - Added Realtime 2.1 and Realtime 2.1 Mini, with model-specific voices in terminal and LAN settings. Codex Live remains the default.

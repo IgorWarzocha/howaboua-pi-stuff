@@ -40,7 +40,7 @@
 		]
 	},
 	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=4.0.6",
+		"@howaboua/pi-codex-conversion": ">=4.0.7",
 		"@earendil-works/pi-ai": ">=1.0.0",
 		"@earendil-works/pi-coding-agent": ">=1.0.0",
 		"@earendil-works/pi-tui": ">=1.0.0"
@@ -58,7 +58,7 @@
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.6",
+		"@howaboua/pi-codex-conversion": "4.0.7",
 		"@earendil-works/pi-ai": "1.4.0",
 		"@earendil-works/pi-coding-agent": "1.4.0",
 		"@types/node": "^26.6.5",

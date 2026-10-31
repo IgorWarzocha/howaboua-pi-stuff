@@ -50,7 +50,7 @@
 		"@earendil-works/pi-coding-agent": ">=1.0.0",
 		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*",
-		"@howaboua/pi-codex-conversion": ">=4.0.6"
+		"@howaboua/pi-codex-conversion": ">=4.0.7"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.3",
@@ -60,7 +60,7 @@
 		"tsx": "^4.23.15",
 		"typebox": "1.4.3",
 		"typescript": "^7.0.2",
-		"@howaboua/pi-codex-conversion": "4.0.6"
+		"@howaboua/pi-codex-conversion": "4.0.7"
 	},
 	"pi": {
 		"extensions": [

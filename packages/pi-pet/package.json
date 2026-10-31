@@ -74,11 +74,11 @@
   },
   "packageManager": "bun@1.4.2",
   "peerDependencies": {
-    "@howaboua/pi-gippity-control": ">=0.0.29",
+    "@howaboua/pi-gippity-control": ">=0.0.30",
     "@earendil-works/pi-coding-agent": ">=1.0.0",
     "@earendil-works/pi-tui": ">=1.0.0",
     "typebox": "*",
-    "@howaboua/pi-codex-conversion": ">=4.0.6"
+    "@howaboua/pi-codex-conversion": ">=4.0.7"
   },
   "peerDependenciesMeta": {
     "@howaboua/pi-gippity-control": {
@@ -98,7 +98,7 @@
     "typebox": "1.4.3",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "4.0.6"
+    "@howaboua/pi-codex-conversion": "4.0.7"
   },
   "publishConfig": {
     "access": "public"

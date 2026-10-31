@@ -1,5 +1,9 @@
 # @howaboua/pi-browser
 
+## 0.0.13
+
+- Fixed npm-installed Pi Browser blocking startup when Pi Codex Conversion is installed.
+
 ## 0.0.12
 
 - Added an API to start voice in local or configured remote browsers and report when the microphone is listening.
