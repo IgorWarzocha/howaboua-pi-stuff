@@ -35,7 +35,7 @@ export default function voiceBridge(pi: ExtensionAPI) {
 		if (
 			stopped ||
 			!uuid.test(requestId) ||
-			!["grok", "gippity"].includes(provider) ||
+			!["grok", "gippity", "codex"].includes(provider) ||
 			handled.has(requestId)
 		)
 			return;
@@ -47,14 +47,15 @@ export default function voiceBridge(pi: ExtensionAPI) {
 			void unlink(receipt).catch(() => {});
 		}, 90_000);
 		cleanup.unref();
-		if (
-			!pi
-				.getCommands()
-				.some(
-					(command) =>
-						command.name === provider && command.source === "extension",
-				)
-		) {
+		const commands = new Set(
+			pi.getCommands()
+				.filter((command) => command.source === "extension")
+				.map((command) => command.name),
+		);
+		// PCC includes GipPity voice. Select once, never retry through another account.
+		const backend =
+			provider === "gippity" && commands.has("codex") ? "codex" : provider;
+		if (!commands.has(backend)) {
 			await mkdir(receipts, { recursive: true, mode: 0o700 });
 			const temporary = `${receipt}.tmp`;
 			await writeFile(
@@ -67,7 +68,7 @@ export default function voiceBridge(pi: ExtensionAPI) {
 					provider,
 					running: false,
 					urls: [],
-					error: `Install the ${provider} Pi extension and run /reload before starting voice.`,
+					error: `Install ${provider === "gippity" ? "PCC or standalone GipPity" : backend === "codex" ? "PCC" : "the Grok Pi extension"} and run /reload before starting voice.`,
 				}),
 				{ mode: 0o600 },
 			);
@@ -75,7 +76,8 @@ export default function voiceBridge(pi: ExtensionAPI) {
 			return;
 		}
 		// Expansion is required: without it this is model input, not a slash command.
-		pi.sendUserMessage(`/${provider} server ensure ${requestId}`, {
+		const command = backend === "codex" ? "codex voice" : backend;
+		pi.sendUserMessage(`/${command} server ensure ${requestId}`, {
 			expandPromptTemplates: true,
 		});
 	}

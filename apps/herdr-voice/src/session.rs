@@ -214,7 +214,7 @@ async fn conversation(
                         if !playback.active { bail!("Voice is still connecting; wait before changing mute"); }
                         playback.mute(muted, audio, status).await?;
                         match options.provider {
-                            Provider::Gippity => transport.send(json!({"type":"mute","muted":muted})).await?,
+                            Provider::Gippity | Provider::Codex => transport.send(json!({"type":"mute","muted":muted})).await?,
                             Provider::Grok => connection.post("/control", json!({"action":"mute","muted":muted})).await?,
                         }
                         Ok(())
@@ -242,7 +242,7 @@ async fn conversation(
                 },
             };
             match value["type"].as_str() {
-                Some("active") if options.provider == Provider::Gippity => {
+                Some("active") if options.provider.is_openai() => {
                     playback.active = true;
                     playback.input_ready = true;
                     playback.suppressed = value["speakerSuppressed"].as_bool().unwrap_or(false);
@@ -275,7 +275,7 @@ async fn conversation(
                     return Ok(());
                 },
                 Some("error") => bail!("{}", value["message"].as_str().unwrap_or("Voice failed; check Pi and reconnect")),
-                Some("takeover") if options.provider == Provider::Gippity => {
+                Some("takeover") if options.provider.is_openai() => {
                     let token = value["token"].as_str().context("Invalid voice transfer request")?;
                     uuid::Uuid::parse_str(token).context("Invalid voice transfer token")?;
                     playback.resume_muted = Some(playback.muted);
@@ -287,7 +287,7 @@ async fn conversation(
                     playback.status(status).await;
                     transport.send(json!({"type":"takeover.ack","token":token})).await?;
                     transport.close().await;
-                    transport = Transport::replacement(connection, &client, token).await?;
+                    transport = Transport::replacement(connection, options.provider, &client, token).await?;
                 },
                 _ => (),
             }

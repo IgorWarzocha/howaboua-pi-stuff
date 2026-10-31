@@ -22,7 +22,7 @@ impl Transport {
         token: Option<&str>,
     ) -> Result<Self> {
         // Registration must precede audio: the server checks the client identity.
-        let events = if provider == Provider::Gippity {
+        let events = if provider.is_openai() {
             Some(
                 connection
                     .request(&format!("/api/events?client={client}"), None)
@@ -45,13 +45,13 @@ impl Transport {
         }
         let path = match provider {
             Provider::Grok => "/audio".into(),
-            Provider::Gippity => format!("/api/audio?client={client}"),
+            Provider::Gippity | Provider::Codex => format!("/api/audio?client={client}"),
         };
         let mut transport = Self {
             socket: connection.websocket(&path).await?,
             events,
         };
-        if provider == Provider::Gippity {
+        if provider.is_openai() {
             let mut start = json!({"type":"start","mode":"conversation"});
             if let Some(token) = token {
                 start["takeoverToken"] = token.into();
@@ -68,10 +68,15 @@ impl Transport {
         Ok(())
     }
 
-    pub async fn replacement(connection: &Connection, client: &str, token: &str) -> Result<Self> {
+    pub async fn replacement(
+        connection: &Connection,
+        provider: Provider,
+        client: &str,
+        token: &str,
+    ) -> Result<Self> {
         let replace = async {
             loop {
-                match Self::open(connection, Provider::Gippity, client, Some(token)).await {
+                match Self::open(connection, provider, client, Some(token)).await {
                     Ok(transport) => return Ok(transport),
                     Err(_) => tokio::time::sleep(std::time::Duration::from_millis(200)).await,
                 }

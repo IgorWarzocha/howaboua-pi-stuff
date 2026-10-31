@@ -27,6 +27,17 @@ use url::Url;
 pub enum Provider {
     Grok,
     Gippity,
+    Codex,
+}
+
+impl Provider {
+    pub fn is_openai(self) -> bool {
+        matches!(self, Self::Gippity | Self::Codex)
+    }
+
+    pub fn accepts(self, actual: Self) -> bool {
+        self == actual || (self == Self::Gippity && actual == Self::Codex)
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]

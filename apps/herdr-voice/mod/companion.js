@@ -36,7 +36,7 @@ export async function request(path, body) {
 export function parseStatus(data) {
   const nullableString = (value) => value === null || typeof value === "string";
   if (!data || !["idle", "connecting", "listening", "muted", "error"].includes(data.phase) ||
-      ![null, "grok", "gippity"].includes(data.provider) || typeof data.muted !== "boolean" ||
+      ![null, "grok", "gippity", "codex"].includes(data.provider) || typeof data.muted !== "boolean" ||
       !nullableString(data.url) || !nullableString(data.error)) {
     throw new Error("The voice companion returned an invalid status.");
   }
@@ -55,13 +55,13 @@ export function parseDevices(data) {
 export function parsePreparation(data, provider) {
   const connect = data?.connect;
   if (typeof data?.terminal !== "string" || !data.terminal.trim() ||
-      !connect || connect.provider !== provider || typeof connect.url !== "string" ||
+      !connect || !(connect.provider === provider || (provider === "gippity" && connect.provider === "codex")) || typeof connect.url !== "string" ||
       !/^https:\/\/[^\s/]+/.test(connect.url) ||
       ["sshHost", "certificate", "microphone", "speaker"].some((key) =>
         connect[key] !== undefined && connect[key] !== null && typeof connect[key] !== "string")) {
     throw new Error("Voice preparation returned an invalid connection. No microphone was started.");
   }
-  const body = { provider, url: connect.url };
+  const body = { provider: connect.provider, url: connect.url };
   for (const key of ["sshHost", "certificate", "microphone", "speaker"]) {
     if (connect[key]) body[key] = connect[key];
   }

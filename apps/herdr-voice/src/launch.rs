@@ -80,6 +80,7 @@ async fn prepare_inner(request: Prepare, created: &mut Option<String>) -> Result
     let provider = match request.provider {
         Provider::Grok => "grok",
         Provider::Gippity => "gippity",
+        Provider::Codex => "codex",
     };
     let quickstart = request.terminal.is_none();
     let terminal = match request.terminal {
@@ -190,7 +191,7 @@ async fn prepare_inner(request: Prepare, created: &mut Option<String>) -> Result
     }
     let certificate_dir = match request.provider {
         Provider::Grok => "grok-lan",
-        Provider::Gippity => "lan-voice",
+        Provider::Gippity | Provider::Codex => "lan-voice",
     };
     let pem = core
         .read(
@@ -214,7 +215,7 @@ async fn prepare_inner(request: Prepare, created: &mut Option<String>) -> Result
     }
     let url = select_url(&receipt.urls, on.is_none() || !request.ssh_host.is_empty()).await?;
     let connect = Connect {
-        provider: request.provider,
+        provider: receipt.provider,
         url,
         ssh_host: request.ssh_host,
         certificate: certificate.to_string_lossy().into_owned(),
@@ -241,7 +242,7 @@ async fn read_receipt(
             if receipt.request_id != id
                 || receipt.session_id != session
                 || receipt.terminal_id.as_deref() != Some(terminal)
-                || receipt.provider != provider
+                || !provider.accepts(receipt.provider)
             {
                 bail!(
                     "Pi voice startup returned a different session or pane; select the intended Pi pane again"

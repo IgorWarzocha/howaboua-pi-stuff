@@ -3,7 +3,8 @@ import { v_flex, h_flex, Button, InputState, Input } from "gpui-base";
 import { theme, machines, panes, terminals, run } from "herdr";
 import { request, parseStatus, parseDevices, parsePreparation } from "./companion.js";
 
-const PROVIDERS = { grok: "Grok", gippity: "GipPity" };
+const PROVIDERS = { grok: "Grok", gippity: "OpenAI" };
+const BACKENDS = { grok: "Grok", gippity: "OpenAI · GipPity", codex: "OpenAI · PCC" };
 
 export default class Voice extends View {
   init(_props, cx) {
@@ -254,7 +255,7 @@ export default class Voice extends View {
         .child(div().text_color(this.statusError || status?.phase === "error" ? t.blocked : t.muted).child(phase)))
       .child(v_flex().id("voice-form").flex_1().min_h(0).overflow_y_scrollbar().px(12).pb(12).gap(10)
         .when(Boolean(status?.provider), (el) => el.child(v_flex().gap(3)
-          .child(div().child(PROVIDERS[status.provider]))
+          .child(div().child(status.provider === "gippity" && !this.target ? "OpenAI" : BACKENDS[status.provider]))
           .child(div().text_color(t.muted).child(status.url || ""))))
         .when(Boolean(this.target), (el) => el.child(div().text_color(t.muted).child("Pi · " + this.target)))
         .child(h_flex().gap(6).children(Object.keys(PROVIDERS).map((provider) =>

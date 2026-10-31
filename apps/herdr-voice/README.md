@@ -2,7 +2,9 @@
 
 Use your computer's microphone and speakers with Pi sessions on other machines, without opening a browser. A native Herdr panel controls a local Rust companion. Pi keeps the voice call, credentials and working context on its own machine.
 
-Choose Grok or GipPity, quickstart Pi in your home directory, or start voice in an existing Herdr pane. Switch audio devices and mute without changing Pi's working environment. The companion keeps running when the panel is hidden or reloaded.
+Choose Grok or OpenAI, quickstart Pi in your home directory, or start voice in an existing Herdr pane. Switch audio devices and mute without changing Pi's working environment. The companion keeps running when the panel is hidden or reloaded.
+
+OpenAI uses PCC's bundled GipPity voice or standalone GipPity, whichever is loaded in Pi. If both are loaded, it uses PCC. The panel shows which backend connected. A startup failure does not retry through the other extension.
 
 ## Requirements
 
@@ -51,7 +53,7 @@ For remote Pi, the optional **SSH host** is the host alias from your local SSH c
 
 ## Manual connections
 
-The panel's manual connection controls can attach to a voice server you have already started with `/grok server ensure` or `/gippity server ensure`. Enter its HTTPS URL. For a self-signed server, select a local copy of its PEM certificate. Certificate verification remains enabled.
+The panel's manual connection controls can attach to a voice server you have already started with `/grok server ensure`, `/codex voice server ensure` for PCC, or `/gippity server ensure`. Select Grok or OpenAI to match the server, then enter its HTTPS URL. For a self-signed server, select a local copy of its PEM certificate. Certificate verification remains enabled. Manual connections use your selected protocol and cannot identify which OpenAI extension owns the server.
 
 Quickstart and pane-based connections obtain the server certificate through Herdr Core's authenticated machine connection. You do not need to export it manually.
 
