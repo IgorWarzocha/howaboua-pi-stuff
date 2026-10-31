@@ -14,9 +14,11 @@ import type { NotesStore } from "./store.js";
 import {
 	HISTORY_SCHEMA,
 	NEW_CONTEXT_DESCRIPTION,
+	NEW_CONTEXT_SCHEMA,
 	NOTES_DESCRIPTION,
-	notesSchema,
+	NOTES_SCHEMA,
 	prepareHistoryArguments,
+	prepareNewContextArguments,
 	prepareNotesArguments,
 	result,
 } from "./tool-contracts.js";
@@ -66,48 +68,11 @@ export function createTools(
 			name: "notes",
 			label: "notes",
 			description: NOTES_DESCRIPTION,
-			parameters: notesSchema(roles.enabled()),
+			parameters: NOTES_SCHEMA,
 			executionMode: "sequential",
-			prepareArguments: (args) => prepareNotesArguments(args, roles.enabled()),
-			execute: async (callId, input, signal, _update, ctx) => {
-				const params = prepareNotesArguments(input, roles.enabled());
-				if (
-					params["action"] === "roles" ||
-					params["action"] === "recommend_handoff"
-				) {
-					assertActive();
-					if (signal?.aborted)
-						throw new Error("Handoff recommendation cancelled");
-					if (params["action"] === "roles") return roles.query({}, ctx);
-					const role = params["role"],
-						reason = params["reason"],
-						continuity = params["continuity"];
-					if (
-						typeof role !== "string" ||
-						!role.trim() ||
-						typeof reason !== "string" ||
-						typeof continuity !== "string"
-					)
-						throw new Error(
-							"recommend_handoff requires role, reason and continuity; use notes action=roles to discover preferences",
-						);
-					return roles.query({ role, reason, continuity }, ctx);
-				}
-				const output = await queries.notes(callId, params, signal, ctx);
-				if (
-					roles.enabled() &&
-					(!params["action"] || params["action"] === "help")
-				) {
-					const part = output.content[0];
-					if (part?.type === "text") {
-						const help = JSON.parse(part.text);
-						help.actions.roles = "";
-						help.actions.recommend_handoff = "role reason continuity";
-						return result(help);
-					}
-				}
-				return output;
-			},
+			prepareArguments: prepareNotesArguments,
+			execute: (callId, input, signal, _update, ctx) =>
+				queries.notes(callId, input, signal, ctx),
 		},
 		{
 			name: "history",
@@ -124,13 +89,18 @@ export function createTools(
 			name: "new_context",
 			label: "new_context",
 			description: NEW_CONTEXT_DESCRIPTION,
-			parameters: Type.Object({}, { additionalProperties: false }),
+			parameters: NEW_CONTEXT_SCHEMA,
+			prepareArguments: prepareNewContextArguments,
 			exposure: "model-only",
 			executionMode: "sequential",
-			async execute(id, _input, signal, _update, ctx) {
+			async execute(id, input, signal, _update, ctx) {
 				assertActive();
 				if (signal?.aborted) throw new Error("Rollover cancelled");
-				const started = lifecycle.requestRollover(ctx, id);
+				const { role } = prepareNewContextArguments(input);
+				const handoff =
+					role === undefined ? undefined : await roles.prepare(role, ctx);
+				if (signal?.aborted) throw new Error("Rollover cancelled");
+				const started = lifecycle.requestRollover(ctx, id, handoff);
 				if (started) ctx.abort();
 				return {
 					...result({

@@ -19,6 +19,7 @@ import {
 	NOTES_RUN_ENTRY,
 } from "./fresh-notes.js";
 import { IdleAdmission } from "./idle-admission.js";
+import type { ModelRoleHandoff } from "./model-roles.js";
 import { noteHints, sessionRef } from "./notes.js";
 import { RolloverRequests } from "./rollover.js";
 import type { IdleMinutes, NewWindowRequests } from "./settings.js";
@@ -59,7 +60,8 @@ export class NotesLifecycle {
 		);
 		this.requests = new RolloverRequests(
 			this,
-			(ctx, triggerTurn, trim) => this.openWindow(ctx, triggerTurn, trim),
+			(ctx, triggerTurn, trim, handoff) =>
+				this.openWindow(ctx, triggerTurn, trim, handoff),
 			(message, options) => this.sendMessage(message, options),
 			(ctx, instructions) => this.checkpoint.start(ctx, instructions),
 		);
@@ -164,7 +166,11 @@ export class NotesLifecycle {
 			runId,
 		);
 	}
-	requestRollover(ctx: ExtensionContext, callId: string): boolean {
+	requestRollover(
+		ctx: ExtensionContext,
+		callId: string,
+		handoff?: ModelRoleHandoff,
+	): boolean {
 		if (this.newWindowRequests === "off")
 			throw new Error(
 				"New window requests are disabled. Continue in the current window.",
@@ -182,26 +188,35 @@ export class NotesLifecycle {
 			throw new Error(
 				"Save your progress in your own notes using a relative path, wait for the write to succeed, then call new_context next. Writing another agent's notes does not save your checkpoint.",
 			);
-		this.requests.schedule(ctx);
+		this.requests.schedule(ctx, handoff);
 		return true;
 	}
 	private async openWindow(
 		ctx: ExtensionContext,
 		triggerTurn: boolean,
 		trim: boolean,
+		handoff?: ModelRoleHandoff,
 	): Promise<void> {
 		if (!ctx.isIdle())
 			throw new Error("Wait for the current run to settle before rollover");
 		const sessionId = ctx.sessionManager.getSessionId();
 		const windowId = this.windows.current?.currentWindowId;
 		if (trim) await this.prepareWindow?.(ctx);
-		if (
-			!ctx.isIdle() ||
-			sessionId !== ctx.sessionManager.getSessionId() ||
-			windowId !== this.windows.current?.currentWindowId ||
-			!this.active
-		)
-			throw new Error("Session changed before rollover");
+		const assertCurrentWindow = () => {
+			if (
+				!ctx.isIdle() ||
+				sessionId !== ctx.sessionManager.getSessionId() ||
+				windowId !== this.windows.current?.currentWindowId ||
+				!this.active
+			)
+				throw new Error("Session changed before rollover");
+		};
+		assertCurrentWindow();
+		// Prepare the outgoing provider first; the successor's full kickoff sees the new model.
+		if (handoff) {
+			await handoff.activate(ctx);
+			assertCurrentWindow();
+		}
 		const ids = this.windows.next();
 		const hint = noteHints(this.store, ctx, this.agent(ctx));
 		const message = windowMessage(
@@ -213,6 +228,7 @@ export class NotesLifecycle {
 			this.gptPromptMode(),
 		);
 		this.windows.current = ids;
+		if (handoff) message.content = `${message.content}\n\nRole: ${handoff.id}`;
 		if (triggerTurn)
 			message.content = `${message.content}\n\n${this.gptPromptMode() ? "Saved notes→notes tool→resume task" : "Read your saved notes with the notes tool and resume the task."}`;
 		this.sendMessage(message, { triggerTurn });

@@ -96,7 +96,7 @@ export function registerNotesSettingsCommand(
 		},
 	});
 	pi.registerCommand("roles", {
-		description: "Configure model roles and in-conversation handoffs",
+		description: "View model roles and JSON configuration guidance",
 		handler: async (args, ctx) => {
 			if (args.trim()) {
 				await roles.command(args, ctx);

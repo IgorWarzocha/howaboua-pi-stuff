@@ -6,11 +6,13 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { prepareCompactionProjection } from "./compaction-projection.js";
 import type { NotesLifecycle } from "./lifecycle.js";
+import type { ModelRoleHandoff } from "./model-roles.js";
 
 type Rollover = {
 	sessionId: string;
 	windowId: string | undefined;
 	triggerTurn: boolean;
+	handoff?: ModelRoleHandoff;
 } & (
 	| { phase: "scheduled" | "compacting" }
 	| { phase: "checking"; accepted?: AbortSignal }
@@ -34,6 +36,7 @@ export class RolloverRequests {
 		ctx: ExtensionContext,
 		triggerTurn: boolean,
 		trim: boolean,
+		handoff?: ModelRoleHandoff,
 	) => Promise<void>;
 	private readonly sendMessage: (
 		message: Omit<CustomMessageEntryDraft, "type">,
@@ -64,12 +67,13 @@ export class RolloverRequests {
 	clear(): void {
 		this.rollover = undefined;
 	}
-	schedule(ctx: ExtensionContext): void {
+	schedule(ctx: ExtensionContext, handoff?: ModelRoleHandoff): void {
 		this.rollover = {
 			sessionId: ctx.sessionManager.getSessionId(),
 			windowId: this.host.windows.current?.currentWindowId,
 			phase: "scheduled",
 			triggerTurn: true,
+			...(handoff ? { handoff } : {}),
 		};
 	}
 	settled(ctx: ExtensionContext): Promise<void> | undefined {
@@ -80,15 +84,19 @@ export class RolloverRequests {
 			rollover.windowId === this.host.windows.current?.currentWindowId
 		) {
 			this.rollover = undefined;
-			return this.roll(ctx, rollover.triggerTurn);
+			return this.roll(ctx, rollover.triggerTurn, rollover.handoff);
 		}
 	}
 
-	async roll(ctx: ExtensionContext, triggerTurn: boolean): Promise<void> {
+	async roll(
+		ctx: ExtensionContext,
+		triggerTurn: boolean,
+		handoff?: ModelRoleHandoff,
+	): Promise<void> {
 		const policy = triggerTurn ? this.host.newWindowRequests : undefined;
 		const checkOnly = !this.host.normalCompaction && policy === "pi-limits";
 		if (!this.host.normalCompaction && !checkOnly) {
-			await this.openWindow(ctx, triggerTurn, true);
+			await this.openWindow(ctx, triggerTurn, true, handoff);
 			return;
 		}
 		const pending: Rollover = {
@@ -96,6 +104,7 @@ export class RolloverRequests {
 			windowId: this.host.windows.current?.currentWindowId,
 			phase: checkOnly ? "checking" : "compacting",
 			triggerTurn,
+			...(handoff ? { handoff } : {}),
 		};
 		this.rollover = pending;
 		await new Promise<void>((resolve, reject) => {
@@ -106,7 +115,10 @@ export class RolloverRequests {
 				pending.windowId === this.host.windows.current?.currentWindowId;
 			const finish = (trim: boolean) => {
 				this.rollover = undefined;
-				void this.openWindow(ctx, triggerTurn, trim).then(resolve, reject);
+				void this.openWindow(ctx, triggerTurn, trim, handoff).then(
+					resolve,
+					reject,
+				);
 			};
 			ctx.compact({
 				onComplete: () => {

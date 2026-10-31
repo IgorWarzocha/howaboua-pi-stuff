@@ -43,28 +43,42 @@ Idle rollover is off by default. Choose 25m, 55m, 2h, 6h or 12h in `/notes`. Hou
 ### Model roles
 
 `/roles` opens the Roles tab. `/notes` opens its existing Notes tab. Press Tab
-or Shift-Tab to move between them. Add a role with a description of when it
-fits, choose any available Pi provider and model, and set preferred reasoning.
-Roles have no shipped model assignments. You can switch to a role manually
-without enabling recommendations.
+or Shift-Tab to move between them. The Roles tab is read-only and shows the
+configuration path, configured values and a JSON example. Edit
+`<Pi agent directory>/notes-compaction/model-roles.json` to define roles:
 
-Recommendations are off by default. Enable them in `/roles` to let the agent
-discover your preferences through Notes and recommend a handoff when the
-conversation gives a better-fitting role a clear advantage. Recommendations
-appear after a successful run settles, with a reason and `/roles accept` as the
-next action. Accept to switch in the same conversation, or use `/roles dismiss`
-to stay put. There is no automatic hand-back or turn-count schedule.
+```json
+{
+	"roles": [
+		{
+			"id": "planning",
+			"description": "Sustained planning and design work",
+			"provider": "your-provider",
+			"model": "your-model-id",
+			"reasoning": "high"
+		}
+	]
+}
+```
 
-Manual model or reasoning changes, a new run, and session or branch navigation
-cancel pending recommendations. Notes must be active for both the current and
-target models. Pi handles authentication and clamps unsupported reasoning
-levels. Model switches retain Pi's existing context and tool results. Provider
-capabilities and context limits still apply, and switching does not guarantee
-cache reuse. Context retirement and recovery keep their existing Notes settings.
+Create the parent directory and file if missing. Use an available Pi provider
+and exact model ID. Role IDs start with a lowercase letter and contain only
+lowercase letters, numbers and hyphens. Reasoning accepts `off`, `minimal`,
+`low`, `medium`, `high`, `xhigh` or `max`. Roles have no shipped model assignments.
+Changes apply on the next turn or when reopening the tab. All defined roles
+are available to the agent. The old `enabled` property is ignored.
 
-Role preferences are saved in
-`<Pi agent directory>/notes-compaction/model-roles.json`. Changes take effect
-through the Roles tab.
+Only role IDs and descriptions are shared with the agent. After saving its
+checkpoint, it can call `new_context` with an optional `role` when a sustained
+scope shift warrants a different role. The next context window uses that role's
+model and reasoning in the same session. Without a role, `new_context` keeps the
+current model. There is no manual role switching or recommendation acceptance
+workflow.
+
+Notes must be active for both models. Pi handles authentication and clamps
+unsupported reasoning levels. Provider capabilities and context limits still
+apply, and switching does not guarantee cache reuse. Context retirement and
+recovery keep their existing Notes settings.
 
 ### Notes settings
 
