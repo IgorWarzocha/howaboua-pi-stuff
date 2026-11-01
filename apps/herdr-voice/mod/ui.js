@@ -2,10 +2,14 @@ import { svg } from "gpui-kit";
 import { Button } from "gpui-base";
 import { theme, settings } from "herdr";
 
-// Measurements include Herdr's zoom; builder dimensions do not.
-export function layoutWidth(measured) {
+export function layoutScale() {
   const zoom = settings().zoom;
-  return measured / (typeof zoom === "number" && zoom > 0 ? zoom : 1);
+  return typeof zoom === "number" && zoom > 0 ? zoom : 1;
+}
+
+// Measurements and virtual-list extents use physical pixels; builder sizes do not.
+export function layoutWidth(measured) {
+  return measured / layoutScale();
 }
 
 export function icon(name, size = 15) {

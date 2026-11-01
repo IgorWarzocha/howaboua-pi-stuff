@@ -18,7 +18,6 @@ export default class Voice extends View {
     this.pending = null;
     this.refreshing = false;
     this.revision = 0;
-    this.advanced = true;
     this.width = 860;
     this.host = this.compact ? null : new HostSettings(cx);
     this.statusError = this.deviceError = this.actionError = this.storageError = null;
@@ -29,7 +28,7 @@ export default class Voice extends View {
     this.choices = {};
     if (!this.compact) for (const [key, label] of Object.entries({
       provider: "Call provider", microphone: "Microphone", speaker: "Speaker",
-    })) this.choices[key] = new Choice("voice-" + key, label, cx, key === "provider" ? 200 : 360);
+    })) this.choices[key] = new Choice("voice-" + key, label, cx);
     this.refresh(cx, !this.compact);
     cx.timer.every(3000, cx => this.refresh(cx));
   }

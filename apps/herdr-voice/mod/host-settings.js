@@ -59,16 +59,15 @@ export class HostSettings {
     this.choices = {};
     this.inputs = {};
     for (const [key, label] of Object.entries(labels)) {
-      const width = key.toLowerCase().includes("voice") ? 220 : key.toLowerCase().includes("reasoning") ? 180 : 360;
-      this.choices[key] = new Choice("voice-host-" + key, label, cx, width);
+      this.choices[key] = new Choice("voice-host-" + key, label, cx);
     }
     for (const key of textKeys) {
       const state = InputState.new();
       state.on("change", (_e, cx) => { this.draft[key] = state.value(); this.message = null; cx.notify(); });
       this.inputs[key] = state;
     }
-    this.machineChoice = new Choice("voice-settings-machine", "Host", cx, 300);
-    this.providerChoice = new Choice("voice-settings-provider", "Extension", cx, 200);
+    this.machineChoice = new Choice("voice-settings-machine", "Host", cx);
+    this.providerChoice = new Choice("voice-settings-provider", "Extension", cx);
     // Pin the initial host; changing pane focus must not change a settings editor.
     setShared("voice.settingsTarget", hostTarget());
     this.transfer(cx);
@@ -163,7 +162,7 @@ export class HostSettings {
       if (!list.some(option => equal(option.value, this.draft[key]))) list.push({ value: this.draft[key], label: String(this.draft[key]) });
       return this.choices[key].render(list, this.draft[key], (value, cx) => set(key, value, cx), locked);
     };
-    const field = (key, width = 360) => !data.editableKeys.includes(key) ? div() : v_flex().w_full().max_w(width).gap(5)
+    const field = key => !data.editableKeys.includes(key) ? div() : v_flex().w_full().gap(5)
       .child(div().text_size(12).text_color(t.muted).child(labels[key]))
       .child(Input.new(this.inputs[key]).accessibility_label(labels[key]).disabled(locked).w_full().h(32).px(8)
         .rounded(6).border_1().border_color(t.border).bg(t.background).text_color(t.foreground));
@@ -185,7 +184,8 @@ export class HostSettings {
       return this.choices.contextModel.render(list, JSON.stringify(value), (next, cx) => set("contextModel", JSON.parse(next), cx), locked);
     };
     const section = label => div().pt(6).font_semibold().child(label);
-    const row = (...fields) => h_flex().w_full().flex_wrap().gap(12).items_start().children(fields.map(field => field.flex_none()));
+    const row = (...fields) => h_flex().w_full().flex_wrap().gap(12).items_start()
+      .children(fields.map(field => v_flex().flex_1().min_w(160).child(field)));
     const codex = data && this.draft.model === "codex-live-1.1";
     return v_flex().w_full().gap(10)
       .child(h_flex().w_full().gap(8).items_center()
@@ -202,8 +202,8 @@ export class HostSettings {
           choice(data.provider === "grok" ? "voice" : codex ? "v3Voice" : "realtimeVoice", data.provider === "grok" || codex ? "voices" : "realtimeVoices"),
           choice(data.provider === "grok" ? "alternateVoice" : codex ? "v3AlternateVoice" : "realtimeAlternateVoice", data.provider === "grok" || codex ? "voices" : "realtimeVoices")))
         .when(data.provider === "grok", el => el
-          .child(row(choice("reasoning", "reasoningLevels"), field("speed", 120)))
-          .child(field("language", 180)).child(field("silenceSeconds")))
+          .child(row(choice("reasoning", "reasoningLevels"), field("speed")))
+          .child(field("language")).child(field("silenceSeconds")))
         .child(section("Pi context"))
         .child(context())
         .child(row(choice("contextReasoning", "contextReasoningLevels"),
