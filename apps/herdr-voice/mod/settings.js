@@ -19,7 +19,7 @@ export function renderSettings(view) {
   };
   const errors = [...new Set([view.statusError, view.actionError, view.deviceError, view.storageError, view.status?.error].filter(Boolean))];
   const local = v_flex().w_full().min_w(0).gap(12)
-    .child(view.host.selectors())
+    .child(view.host.hostSelector())
     .child(view.choices.provider.render(Object.entries(PROVIDERS).map(([value, label]) => ({ value, label })), form.provider,
       (next, cx) => { view.save("provider", next); cx.notify(); }, busy || active))
     .child(h_flex().pt(6).items_center()

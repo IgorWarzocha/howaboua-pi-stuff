@@ -73,20 +73,18 @@ export class HostSettings {
     this.transfer(cx);
   }
 
-  selectors() {
+  selectTarget(key, value, cx) {
+    setShared("voice.settingsTarget", { ...hostTarget(), [key]: value });
+    this.loaded = null;
+    this.error = this.message = null;
+    this.transfer(cx);
+  }
+
+  hostSelector() {
     const target = hostTarget();
-    const select = (key, value, cx) => {
-      setShared("voice.settingsTarget", { ...hostTarget(), [key]: value });
-      this.loaded = null;
-      this.error = this.message = null;
-      this.transfer(cx);
-    };
     const hosts = machines().map(m => ({ value: m.name, label: (m.name || "This computer") + (m.layout === "ready" ? "" : " (unavailable)"), disabled: m.layout !== "ready" }));
     if (!hosts.some(m => m.value === target.machine)) hosts.push({ value: target.machine, label: (target.machine || "This computer") + " (unavailable)", disabled: true });
-    return v_flex().w_full().gap(12)
-      .child(this.machineChoice.render(hosts, target.machine, (value, cx) => select("machine", value, cx), Boolean(this.busy)))
-      .child(this.providerChoice.render(Object.entries(providers).map(([value, label]) => ({ value, label })), target.provider,
-        (value, cx) => select("provider", value, cx), Boolean(this.busy)));
+    return this.machineChoice.render(hosts, target.machine, (value, cx) => this.selectTarget("machine", value, cx), Boolean(this.busy));
   }
 
   current(target = hostTarget()) { return Boolean(this.loaded && sameTarget(this.loaded.target, target)); }
@@ -187,9 +185,11 @@ export class HostSettings {
     const row = (...fields) => h_flex().w_full().flex_wrap().gap(12).items_start()
       .children(fields.map(field => v_flex().flex_1().min_w(160).child(field)));
     const codex = data && this.draft.model === "codex-live-1.1";
-    return v_flex().w_full().gap(10)
-      .child(h_flex().w_full().gap(8).items_center()
-        .child(div().flex_1().font_semibold().child(providers[target.provider]))
+    return v_flex().w_full().gap(8)
+      .child(h_flex().w_full().gap(8).items_end()
+        .child(div().flex_1().min_w(0).child(this.providerChoice.render(
+          Object.entries(providers).map(([value, label]) => ({ value, label })), target.provider,
+          (value, cx) => this.selectTarget("provider", value, cx), locked)))
         .child(textButton("voice-host-load", this.busy === "Loading" ? "Loading…" : "Reload",
           (_e, cx) => this.transfer(cx), locked)))
       .when(Boolean(data), el => el
