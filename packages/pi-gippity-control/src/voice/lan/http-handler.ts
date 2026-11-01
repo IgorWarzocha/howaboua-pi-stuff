@@ -214,12 +214,12 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		if (path === "/api/stop") {
-			handlers.clients.release(
+			const stopped = await handlers.clients.release(
 				clientId,
 				undefined,
 				body["terminateConversation"] === true,
 			);
-			sendJson(response, 200, { ok: true });
+			sendJson(response, 200, { ok: true, stopped });
 			return;
 		}
 		if (path === "/api/draft") {

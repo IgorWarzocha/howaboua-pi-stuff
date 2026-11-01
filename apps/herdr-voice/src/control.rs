@@ -30,9 +30,9 @@ use tokio::{
 };
 
 struct Running {
-    cancel: watch::Sender<bool>,
+    cancel: watch::Sender<Option<bool>>,
     commands: mpsc::Sender<Command>,
-    task: JoinHandle<()>,
+    task: JoinHandle<Result<()>>,
 }
 
 struct Companion {
@@ -59,7 +59,7 @@ impl Companion {
             );
         }
         if let Some(previous) = running.take() {
-            previous
+            let _ = previous
                 .task
                 .await
                 .context("Voice task stopped unexpectedly")?;
@@ -71,7 +71,7 @@ impl Companion {
             muted: false,
             error: None,
         };
-        let (cancel, cancelled) = watch::channel(false);
+        let (cancel, cancelled) = watch::channel(None);
         let (commands, receiver) = mpsc::channel(8);
         let task = tokio::spawn(session::run(
             options,
@@ -87,14 +87,14 @@ impl Companion {
         Ok(self.status.read().await.clone())
     }
 
-    async fn disconnect(&self) -> Result<Status> {
+    async fn disconnect(&self, end_call: bool) -> Result<Status> {
         let mut running = self.running.lock().await;
         if let Some(active) = running.take() {
-            let _ = active.cancel.send(true);
+            let _ = active.cancel.send(Some(end_call));
             active
                 .task
                 .await
-                .context("Voice task stopped unexpectedly")?;
+                .context("Voice task stopped unexpectedly")??;
         }
         *self.status.write().await = Status::default();
         Ok(self.status.read().await.clone())
@@ -183,7 +183,7 @@ pub async fn serve(config: Config) -> Result<()> {
             wait_for_shutdown().await;
             shutdown.stopping.store(true, Ordering::Release);
             let _ = shutdown.shutdown.send(true);
-            if let Err(error) = shutdown.disconnect().await {
+            if let Err(error) = shutdown.disconnect(false).await {
                 eprintln!("Cannot finish voice shutdown: {error:#}");
             }
         })
@@ -232,7 +232,7 @@ async fn connect(
     Ok(Json(state.connect(options).await?))
 }
 async fn disconnect(State(state): State<Arc<Companion>>) -> ApiResult<Status> {
-    Ok(Json(state.disconnect().await?))
+    Ok(Json(state.disconnect(true).await?))
 }
 
 #[derive(Deserialize)]

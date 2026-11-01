@@ -138,7 +138,8 @@ export async function startCodexLanVoiceServer(options: {
 				}
 				const remote = conversation.transferred;
 				if (closing && remote) return;
-				conversation.conversationStart?.abort.abort();
+				const starting = conversation.conversationStart;
+				starting?.abort.abort();
 				const plan = conversation.realtimePlan;
 				conversation.realtimePlan = undefined;
 				conversation.activeConversation = undefined;
@@ -147,6 +148,7 @@ export async function startCodexLanVoiceServer(options: {
 					await options.voice.stopRealtimeWithPeerPlan(plan, {
 						announce: true,
 					});
+				await starting?.promise.catch(() => undefined);
 			},
 			conversationMuted: () =>
 				conversation.transferred?.controls.inputMuted ?? options.voice.inputMuted,

@@ -88,7 +88,7 @@ impl Transport {
     }
 
     pub async fn close(&mut self) {
-        // Disconnect releases this device, not the host-owned provider call.
+        // Socket close alone is device-only; explicit Disconnect sends Stop first.
         let _ =
             tokio::time::timeout(std::time::Duration::from_secs(1), self.socket.close(None)).await;
     }

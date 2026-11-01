@@ -46,6 +46,9 @@ export class LanVoiceBrowserSession {
 	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
 	private conversationOwnerId: string | undefined;
+	private stopCompletion:
+		| { clientId: string; promise: Promise<boolean> }
+		| undefined;
 	private conversationSpeakerSuppressed = false;
 	private readonly microphoneLevel: MicrophoneLevelMonitor;
 
@@ -92,31 +95,61 @@ export class LanVoiceBrowserSession {
 		clientId: string,
 		socket?: WebSocket,
 		terminateConversation = false,
-	): void {
+	): Promise<boolean> {
+		if (terminateConversation && this.stopCompletion?.clientId === clientId)
+			return this.stopCompletion.promise;
+		const starting = this.state;
+		const ownsConversation =
+			this.conversationOwnerId === clientId &&
+			(!socket ||
+				((starting.type === "active" || starting.type === "starting") &&
+					starting.socket === socket));
 		this.releaseStarting(clientId, socket);
-		void this.enqueue(async () => {
-			const active = this.state;
-			const ownsActive =
-				active.type === "active" &&
-				active.clientId === clientId &&
-				(!socket || active.socket === socket);
-			if (ownsActive) this.state = { type: "idle" };
-			if (ownsActive && active.mode === "conversation")
-				this.microphoneLevel.reset();
-			if (terminateConversation && this.conversationOwnerId === clientId) {
-				this.conversationOwnerId = undefined;
-				await this.options.onConversationActivity(false);
-				return;
-			}
-			if (!ownsActive) return;
-			if (active.mode === "dictation")
-				await this.options.finishDictation(clientId);
-		}).catch((error: unknown) =>
-			this.connections.sendControl(clientId, {
-				type: "error",
-				message: errorMessage(error),
-			}),
-		);
+		let completion: Promise<boolean>;
+		if (
+			terminateConversation &&
+			starting.type === "starting" &&
+			starting.mode === "conversation" &&
+			starting.clientId === clientId &&
+			(!socket || starting.socket === socket)
+		) {
+			this.conversationOwnerId = undefined;
+			// Stop must cancel startup before waiting for the serialized claim.
+			completion = Promise.resolve()
+				.then(() => this.options.onConversationActivity(false))
+				.then(() => true);
+			this.operation = Promise.all([this.operation, completion]).then(
+				() => undefined,
+				() => undefined,
+			);
+		} else {
+			completion = this.enqueue(async () => {
+				const active = this.state;
+				const ownsActive =
+					active.type === "active" &&
+					active.clientId === clientId &&
+					(!socket || active.socket === socket);
+				if (ownsActive) this.state = { type: "idle" };
+				if (ownsActive && active.mode === "conversation")
+					this.microphoneLevel.reset();
+				if (
+					terminateConversation &&
+					this.conversationOwnerId === clientId &&
+					(!socket || ownsActive)
+				) {
+					this.conversationOwnerId = undefined;
+					await this.options.onConversationActivity(false);
+					return true;
+				}
+				if (ownsActive && active.mode === "dictation")
+					await this.options.finishDictation(clientId);
+				return false;
+			});
+		}
+		// WS release and HTTP Stop share the actual completion, including failure.
+		if (terminateConversation && ownsConversation)
+			this.stopCompletion = { clientId, promise: completion };
+		return completion;
 	}
 
 	releaseStarting(clientId: string, socket?: WebSocket): void {
@@ -189,7 +222,10 @@ export class LanVoiceBrowserSession {
 			if (this.closed) return;
 			const starting = { type: "starting", clientId, socket, mode } as const;
 			this.state = starting;
-			if (mode === "conversation") this.conversationOwnerId = clientId;
+			if (mode === "conversation") {
+				this.stopCompletion = undefined;
+				this.conversationOwnerId = clientId;
+			}
 			try {
 				if (mode === "conversation")
 					await this.options.ensureConversation(takeoverToken);

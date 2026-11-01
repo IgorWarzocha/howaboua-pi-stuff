@@ -35,7 +35,14 @@ export class LanVoiceBrowserClients {
 				this.receive(clientId, socket, data, isBinary),
 			onReplaced: (previous) =>
 				this.session.releaseStarting(clientId, previous),
-			onClose: () => this.session.release(clientId, socket),
+			onClose: () => {
+				void this.session.release(clientId, socket).catch((error: unknown) =>
+					this.connections.sendControl(clientId, {
+						type: "error",
+						message: errorMessage(error),
+					}),
+				);
+			},
 		});
 	}
 
@@ -114,8 +121,8 @@ export class LanVoiceBrowserClients {
 		clientId: string,
 		socket?: WebSocket,
 		terminateConversation = false,
-	): void {
-		this.session.release(clientId, socket, terminateConversation);
+	): Promise<boolean> {
+		return this.session.release(clientId, socket, terminateConversation);
 	}
 
 	heartbeat(): void {
@@ -164,7 +171,9 @@ export class LanVoiceBrowserClients {
 					)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "release") {
-				this.session.release(clientId, socket, true);
+				void this.session
+					.release(clientId, socket, true)
+					.catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "mute") {
 				this.session.mute(clientId, socket, message.muted);
 			} else {

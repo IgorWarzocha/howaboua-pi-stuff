@@ -50,12 +50,12 @@ pub enum Command {
 pub async fn run(
     options: Connect,
     status: SharedStatus,
-    mut cancel: watch::Receiver<bool>,
+    mut cancel: watch::Receiver<Option<bool>>,
     mut commands: mpsc::Receiver<Command>,
-) {
+) -> Result<()> {
     let result = execute(&options, &status, &mut cancel, &mut commands).await;
     let mut state = status.write().await;
-    match result {
+    match &result {
         Ok(()) => *state = Status::default(),
         Err(error) => {
             state.phase = Phase::Error;
@@ -63,12 +63,13 @@ pub async fn run(
             state.error = Some(format!("{error:#}"));
         }
     }
+    result
 }
 
 async fn execute(
     options: &Connect,
     status: &SharedStatus,
-    cancel: &mut watch::Receiver<bool>,
+    cancel: &mut watch::Receiver<Option<bool>>,
     commands: &mut mpsc::Receiver<Command>,
 ) -> Result<()> {
     let mut connection = tokio::select! {
@@ -81,20 +82,59 @@ async fn execute(
     } {
         Some(Ok(audio)) => audio,
         other => {
-            connection.close().await?;
+            let stopped = if other.is_none()
+                && *cancel.borrow() == Some(true)
+                && options.provider == Provider::Grok
+            {
+                connection.post("/control", json!({"action":"stop"})).await
+                    .context("Local audio released, but ending the selected host call was not confirmed; stop it from Pi")
+            } else {
+                Ok(())
+            };
+            let closed = connection.close().await;
+            stopped.and(closed)?;
             return match other {
                 Some(Err(error)) => Err(error),
                 _ => Ok(()),
             };
         }
     };
-    let result = tokio::select! {
-        _ = cancel.changed() => Ok(()),
-        result = conversation(options, status, &mut connection, &mut audio, commands) => result,
+    let client = uuid::Uuid::new_v4().to_string();
+    let mut transport = None;
+    let (result, end_call) = tokio::select! {
+        biased;
+        _ = cancel.changed() => (Ok(()), *cancel.borrow() == Some(true)),
+        result = conversation(options, status, &mut connection, &mut audio, commands, &client, &mut transport) => (result, false),
     };
+    // Release hardware before waiting on the host, but retain transport/tunnel for Stop.
     let audio_closed = audio.close().await;
+    let stopped = if end_call {
+        let stop = async {
+            match options.provider {
+                Provider::Gippity | Provider::Codex => {
+                    if let Some(transport) = transport.as_mut() {
+                        // HTTP below confirms completion; a failed WS send is not an ACK.
+                        let _ = tokio::time::timeout(
+                            Duration::from_secs(1),
+                            transport.send(json!({"type":"release"})),
+                        )
+                        .await;
+                    }
+                    connection.stop_browser_call(&client).await
+                }
+                Provider::Grok => connection.post("/control", json!({"action":"stop"})).await,
+            }
+        }
+        .await;
+        stop.context("Local audio released, but ending the selected host call was not confirmed; stop it from Pi")
+    } else {
+        Ok(())
+    };
+    if let Some(transport) = transport.as_mut() {
+        transport.close().await;
+    }
     let tunnel_closed = connection.close().await;
-    result.and(audio_closed).and(tunnel_closed)
+    result.and(stopped).and(audio_closed).and(tunnel_closed)
 }
 
 struct Playback {
@@ -185,14 +225,20 @@ async fn conversation(
     connection: &mut Connection,
     audio: &mut Audio,
     commands: &mut mpsc::Receiver<Command>,
+    client: &str,
+    owned_transport: &mut Option<Transport>,
 ) -> Result<()> {
-    let client = uuid::Uuid::new_v4().to_string();
-    let mut transport = tokio::time::timeout(
-        Duration::from_secs(15),
-        Transport::open(connection, options.provider, &client, None),
-    )
-    .await
-    .context("Voice connection timed out; check the selected server and certificate")??;
+    *owned_transport = Some(
+        tokio::time::timeout(
+            Duration::from_secs(15),
+            Transport::open(connection, options.provider, client, None),
+        )
+        .await
+        .context("Voice connection timed out; check the selected server and certificate")??,
+    );
+    let transport = owned_transport
+        .as_mut()
+        .context("Voice transport did not open")?;
     let mut playback = Playback {
         active: false,
         input_ready: false,
@@ -204,10 +250,10 @@ async fn conversation(
         drains: VecDeque::new(),
     };
     let mut health = tokio::time::interval(Duration::from_secs(1));
-    let result = async {
+    async {
         loop {
             let value = tokio::select! {
-                frame = audio.read() => { playback.frame(frame?, audio, &mut transport).await?; continue; },
+                frame = audio.read() => { playback.frame(frame?, audio, transport).await?; continue; },
                 command = commands.recv() => {
                     let Some(Command::Mute(muted, reply)) = command else { return Ok(()); };
                     let result = async {
@@ -287,12 +333,10 @@ async fn conversation(
                     playback.status(status).await;
                     transport.send(json!({"type":"takeover.ack","token":token})).await?;
                     transport.close().await;
-                    transport = Transport::replacement(connection, options.provider, &client, token).await?;
+                    *transport = Transport::replacement(connection, options.provider, client, token).await?;
                 },
                 _ => (),
             }
         }
-    }.await;
-    transport.close().await;
-    result
+    }.await
 }

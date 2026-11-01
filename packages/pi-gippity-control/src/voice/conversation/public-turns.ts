@@ -13,7 +13,8 @@ import type { CodexConversationCallbacks } from "./session.ts";
 export const SEND_TASK_TOOL = {
 	type: "function",
 	name: "send_task",
-	description: "Delegate work; new instructions steer active work",
+	description:
+		"Delegate a new spoken user request once; never resubmit work progress",
 	parameters: {
 		type: "object",
 		properties: {
@@ -28,7 +29,7 @@ export const SEND_TASK_TOOL = {
 	},
 };
 export const PUBLIC_REALTIME_INSTRUCTIONS =
-	"This call has tools. Use send_task to delegate work without narrating the routing. Other listed tools run directly. Tool availability here supersedes earlier statements that voice has no tools. While work is underway, send only new instructions, not the same task again. Wait for findings rather than guessing. Updates are background context; speak useful progress and results without treating them as new user requests.";
+	"This call has tools. Delegate without narrating the routing. Other listed tools run directly. Tool availability supersedes earlier statements that voice has no tools. Pi updates describe work already underway, not new user instructions. Speak useful progress and results, then wait for the user.";
 
 function record(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object" && !Array.isArray(value)
@@ -59,6 +60,7 @@ export class PublicRealtimeTurns {
 	private activeResponse: string | undefined;
 	private awaitingResponse = false;
 	private speech = false;
+	private taskInputAvailable = false;
 	private pendingTools = 0;
 	private ending: false | "pending" | "notified" = false;
 	private completingResponse = false;
@@ -132,6 +134,7 @@ export class PublicRealtimeTurns {
 			);
 		} else if (type === "input_audio_buffer.speech_started") {
 			this.speech = true;
+			this.taskInputAvailable = true;
 			this.tracker.inputStarted();
 			// Server VAD owns the next response. Do not race its automatic creation.
 			this.awaitingResponse = true;
@@ -147,8 +150,8 @@ export class PublicRealtimeTurns {
 		) {
 			const transcript = text(event["transcript"]);
 			if (transcript) {
-				if (this.tracker.userFinished(transcript))
-					this.callbacks.onUserTranscript(transcript);
+				this.tracker.userFinished(transcript);
+				this.callbacks.onUserTranscript(transcript);
 			}
 		} else if (type === "response.created") {
 			const response = record(event["response"]);
@@ -200,10 +203,15 @@ export class PublicRealtimeTurns {
 				Array.isArray(response["output"])
 			) {
 				this.completingResponse = true;
-				for (const item of response["output"]) {
-					const call = record(item);
-					if (call?.["type"] === "function_call") void this.execute(call);
-				}
+				const calls = response["output"]
+					.map(record)
+					.filter(
+						(call): call is Record<string, unknown> =>
+							call?.["type"] === "function_call",
+					);
+				// A conversational answer closes unused input too; later progress is not that request.
+				if (!calls.length) this.taskInputAvailable = false;
+				for (const call of calls) void this.execute(call);
 				this.completingResponse = false;
 			}
 			this.schedule();
@@ -234,6 +242,7 @@ export class PublicRealtimeTurns {
 		this.calls.add(id);
 		this.pendingTools++;
 		let output: unknown;
+		let continueResponse = true;
 		try {
 			const name = text(call["name"], 64);
 			const raw = text(call["arguments"], 32 * 1024);
@@ -254,12 +263,23 @@ export class PublicRealtimeTurns {
 				const request = text(args["request"]);
 				if (!request || Object.keys(args).some((key) => key !== "request"))
 					throw new Error("send_task requires only a nonempty request");
-				const delegated = this.tracker.delegated(request, id);
-				if (delegated) {
-					if (delegated.displayInput) this.callbacks.onUserTranscript(request);
-					this.callbacks.onTurn(delegated.turn);
+				// Progress can provoke fresh call IDs. Only speech opens a new task interval;
+				// late transcription and tool receipts must not reopen one already delegated.
+				if (!this.taskInputAvailable) {
+					output = {
+						accepted: false,
+						reason:
+							"No new user speech. Wait for the work already submitted; do not retry.",
+					};
+					continueResponse = false;
+				} else {
+					this.taskInputAvailable = false;
+					const delegated = this.tracker.delegated(request, id);
+					if (delegated) {
+						this.callbacks.onTurn(delegated.turn);
+					}
+					output = { accepted: Boolean(delegated), task_id: id };
 				}
-				output = { accepted: Boolean(delegated), task_id: id };
 			} else {
 				if (!this.access)
 					throw new Error("Voice tool is unavailable; restart the call");
@@ -293,7 +313,7 @@ export class PublicRealtimeTurns {
 				output: JSON.stringify(output),
 			},
 		});
-		this.continuation = true;
+		if (continueResponse) this.continuation = true;
 		this.schedule();
 	}
 	private send(event: unknown): void {

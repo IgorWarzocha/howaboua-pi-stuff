@@ -185,16 +185,44 @@ impl Connection {
     }
 
     pub async fn post(&self, path: &str, body: serde_json::Value) -> Result<()> {
+        self.post_response(path, body).await.map(|_| ())
+    }
+
+    pub async fn stop_browser_call(&self, client: &str) -> Result<()> {
+        let bytes = self
+            .post_response(
+                "/api/stop",
+                serde_json::json!({
+                    "clientId": client, "terminateConversation": true,
+                }),
+            )
+            .await?;
+        let response = serde_json::from_slice::<serde_json::Value>(&bytes).ok();
+        match response
+            .as_ref()
+            .and_then(|value| value["stopped"].as_bool())
+        {
+            Some(true) => Ok(()),
+            Some(false) => bail!(
+                "This device no longer owns the selected host call; stop it from Pi if needed"
+            ),
+            None => bail!(
+                "The host did not acknowledge completed Stop; update its voice extension or stop the call from Pi"
+            ),
+        }
+    }
+
+    async fn post_response(&self, path: &str, body: serde_json::Value) -> Result<Vec<u8>> {
         let read = async {
             let mut response = self.request(path, Some(body)).await?;
-            let mut size = 0;
+            let mut result = Vec::new();
             while let Some(bytes) = response.next().await? {
-                size += bytes.len();
-                if size > 1024 * 1024 {
+                if result.len() + bytes.len() > 1024 * 1024 {
                     bail!("Voice server response is too large");
                 }
+                result.extend_from_slice(&bytes);
             }
-            Ok(())
+            Ok(result)
         };
         tokio::time::timeout(Duration::from_secs(10), read)
             .await

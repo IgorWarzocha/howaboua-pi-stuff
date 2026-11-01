@@ -45,7 +45,7 @@ For compact controls beside your terminals, add this block to a personal Herdr l
 
 The lightning icon quickstarts Pi and voice on the focused pane's machine. Pi starts in that user's home directory. The plug icon connects voice to the focused Pi pane. Both start directly with your saved choices. Settings can override the machine or Pi pane. The gear opens settings, not another launch screen. Hover an icon for its action or current error.
 
-While connected, the microphone icon mutes or unmutes and the disconnect icon releases local audio. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
+While connected, the microphone icon mutes or unmutes and the disconnect icon ends the selected host call and releases local audio. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
 
 Quickstart installs the bundled Pi bridge in that machine's auto-discovered Pi extensions directory. It does not install a voice backend, change account access or submit a model prompt when the backend is missing. A failed connection leaves the new Pi terminal available to inspect.
 
@@ -83,7 +83,7 @@ herdr-voice install-mod --indicator-mod voice-agents --indicator-mod voice-pane
 
 Each copy can import `voiceActive` and `voiceIndicator` from `./voice-indicator.js`. Render the indicator beside its existing status when `voiceActive(terminal)` is true. Pass the agent's full address or the pane header's terminal address. Point your personal layout at those customised mods. Herdr isolates each mod's JavaScript, so importing the helper directly from another mod is not supported.
 
-**Disconnect** releases this computer's audio. It leaves the host-owned voice call available for another device. End the call from Pi when you want to stop it entirely. A second device can replace the current audio connection.
+**Disconnect** immediately releases this computer's audio and waits for the selected host call to stop. If the host cannot confirm Stop, the companion reports the failure and leaves local audio closed. Older host extensions need an update to confirm completion. Stop the call from Pi if confirmation fails. Tasks already submitted to Pi cannot be retracted. Network loss, closing the companion and replacement by another device release only local audio and leave the host-owned call available for reconnection.
 
 The companion also provides `status`, `devices`, `mute true`, `mute false` and `disconnect` commands. Device discovery does not start a call.
 

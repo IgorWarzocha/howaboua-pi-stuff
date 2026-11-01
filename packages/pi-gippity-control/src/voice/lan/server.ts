@@ -186,12 +186,15 @@ export async function startCodexLanVoiceServer(options: {
 			}
 			const remote = conversation.transferred;
 
+			const starting = conversation.conversationStart;
+			starting?.abort.abort();
 			const plan = conversation.realtimePlan;
 			conversation.realtimePlan = undefined;
 			conversation.activeConversation = undefined;
 			if (remote) await remote.stop();
 			else if (plan)
 				await options.voice.stopRealtimeWithPeerPlan(plan, { announce: true });
+			await starting?.promise.catch(() => undefined);
 		},
 		conversationMuted: () =>
 			conversation.transferred?.controls.inputMuted ?? options.voice.inputMuted,
