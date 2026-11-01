@@ -2,7 +2,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, closeOverlay } from "herdr";
 import { connection, PROVIDERS, targets } from "./state.js";
-import { iconButton, textButton, layoutWidth } from "./ui.js";
+import { iconButton, layoutWidth } from "./ui.js";
 
 export function renderSettings(view) {
   const t = theme();
@@ -40,9 +40,9 @@ export function renderSettings(view) {
     .on_size_change((size, cx) => { if (view.width !== size.width) { view.width = size.width; cx.notify(); } })
     .child(h_flex().flex_none().px(16).h(48).gap(8).items_center()
       .child(div().flex_1().font_semibold().child("Voice settings"))
-      .child(textButton("voice-settings-connect", view.pending ? "Connecting…" : "Connect to focused pane", (_e, cx) => view.start(cx, false),
+      .child(iconButton("voice-settings-connect", "plug", view.pending ? "Connecting voice" : "Connect to focused pane", (_e, cx) => view.start(cx, false),
         busy || Boolean(view.host.busy) || active || !view.status || !target.terminal)
-        .tooltip(target.terminal || "Focus a live Pi pane to connect voice"))
+        .tooltip(target.terminal ? "Connect voice · " + target.terminal : "Focus a live Pi pane to connect voice"))
       .when(Boolean(view.overlay), el => el.child(iconButton("voice-close", "x", "Close voice settings", () => closeOverlay(view.overlay)))))
     .child(content);
 }
