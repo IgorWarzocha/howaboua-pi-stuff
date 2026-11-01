@@ -23,7 +23,7 @@
 			"project": ["src/**/*.ts", "scripts/*.mjs"]
 		},
 		"packages/pi-grok-realtime": {
-			"entry": ["changelog.ts", "examples/**/*.ts", "scripts/**/*.mjs"],
+			"entry": ["changelog.ts", "src/host-settings.ts", "examples/**/*.ts", "scripts/**/*.mjs"],
 			"project": ["*.ts", "src/**/*.ts", "examples/**/*.ts", "scripts/**/*.mjs"]
 		},
 		"packages/pi-auto-trees": {
@@ -55,6 +55,7 @@
 				"src/prompt-mode.ts",
 				"src/apply-patch-display.ts",
 				"src/realtime-voice.ts",
+				"src/host-settings.ts",
 				"src/codex-usage/analyse.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
@@ -73,7 +74,7 @@
 			"entry": ["changelog.ts"]
 		},
 		"packages/pi-gippity-control": {
-			"entry": ["changelog.ts"]
+			"entry": ["changelog.ts", "src/host-settings.ts"]
 		},
 		"packages/pi-github-watch": {
 			"entry": ["changelog.ts"]

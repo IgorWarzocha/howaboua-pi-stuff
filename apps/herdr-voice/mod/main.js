@@ -1,5 +1,4 @@
 import { View } from "gpui-kit";
-import { InputState } from "gpui-base";
 import { props, run } from "herdr";
 import { request, parseStatus, parseDevices, parsePreparation } from "./companion.js";
 import { connection, migrateConnection, updateConnection, targets, publishStatus, setTarget } from "./state.js";
@@ -20,7 +19,6 @@ export default class Voice extends View {
     this.refreshing = false;
     this.revision = 0;
     this.advanced = true;
-    this.manual = false;
     this.width = 860;
     this.host = this.compact ? null : new HostSettings(cx);
     this.statusError = this.deviceError = this.actionError = this.storageError = null;
@@ -28,17 +26,10 @@ export default class Voice extends View {
     try { legacy = JSON.parse(localStorage.getItem("connection") || "null"); }
     catch (_) { this.storageError = "Saved connection could not be read. Choose it again."; }
     migrateConnection(legacy);
-    const saved = connection();
-    this.inputs = {};
-    for (const key of ["url", "sshHost", "certificate"]) {
-      const state = InputState.new({ value: saved[key] });
-      state.on("change", (_e, cx) => { this.save(key, state.value()); cx.notify(); });
-      this.inputs[key] = state;
-    }
     this.choices = {};
     if (!this.compact) for (const [key, label] of Object.entries({
-      provider: "Provider", machine: "Pi host", terminal: "Pi pane", microphone: "Microphone", speaker: "Speaker",
-    })) this.choices[key] = new Choice("voice-" + key, label, cx, key === "provider" ? 200 : key === "machine" ? 300 : 360);
+      provider: "Call provider", microphone: "Microphone", speaker: "Speaker",
+    })) this.choices[key] = new Choice("voice-" + key, label, cx, key === "provider" ? 200 : 360);
     this.refresh(cx, !this.compact);
     cx.timer.every(3000, cx => this.refresh(cx));
   }
@@ -46,15 +37,12 @@ export default class Voice extends View {
   save(key, value) {
     try {
       updateConnection(key, value);
-      if (key === "machine") updateConnection("terminal", "");
       this.storageError = null;
     } catch (_) { this.storageError = "Voice settings could not be saved. Check the Herdr app home's permissions."; }
   }
 
   refresh(cx, devices = false) {
     if (this.pending || this.refreshing) return;
-    const saved = connection();
-    for (const [key, state] of Object.entries(this.inputs)) if (state.value() !== saved[key]) state.set_value(saved[key]);
     this.refreshing = true;
     const revision = this.revision;
     cx.spawn(async cx => {
@@ -88,21 +76,10 @@ export default class Voice extends View {
     });
   }
 
-  connect(cx) {
-    const saved = connection();
-    const body = { provider: saved.provider, url: saved.url.trim() };
-    if (!/^https:\/\/[^\s/]+/.test(body.url)) {
-      this.actionError = "Enter the voice server's HTTPS URL."; cx.notify(); return;
-    }
-    for (const key of ["sshHost", "certificate", "microphone", "speaker"]) if (saved[key]) body[key] = saved[key];
-    setTarget(null);
-    this.act("/connect", body, cx);
-  }
-
   start(cx, quick) {
     if (this.pending || this.host?.busy) return;
     const saved = connection();
-    const target = targets(saved);
+    const target = targets();
     if (quick ? !target.machineReady : !target.terminal) {
       this.actionError = quick ? "The selected machine is unavailable." : "Focus a live Pi pane, then connect voice.";
       cx.notify(); return;
@@ -145,11 +122,11 @@ export default class Voice extends View {
       idle: "Idle", connecting: "Connecting", listening: "Listening", muted: "Muted", error: "Error",
     }[this.status.phase] : "Checking";
     return this.compact ? renderSidebar({
-      status: this.status, phase, busy: Boolean(this.pending), target: targets(connection()), expanded: this.toolbar,
+      status: this.status, phase, busy: Boolean(this.pending), target: targets(), expanded: this.toolbar,
       error: this.statusError || this.actionError || this.status?.error,
       onQuick: cx => this.start(cx, true), onConnect: cx => this.start(cx, false),
       onMute: cx => this.act("/mute", { muted: !this.status.muted }, cx),
       onDisconnect: cx => this.act("/disconnect", {}, cx),
-    }) : renderSettings(this, phase);
+    }) : renderSettings(this);
   }
 }

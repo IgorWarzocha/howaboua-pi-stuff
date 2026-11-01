@@ -1,6 +1,6 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Checkbox } from "gpui-base";
-import { theme } from "herdr";
+import { theme, machines, shared, setShared } from "herdr";
 import { request } from "./companion.js";
 import { connection, targets } from "./state.js";
 import { Choice } from "./select.js";
@@ -18,19 +18,21 @@ const labels = {
 };
 const textKeys = ["apiProvider", "speed", "language", "silenceSeconds"];
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const sameTarget = (a, b) => a && b && a.provider === b.provider && a.terminal === b.terminal && a.sshHost === b.sshHost;
+const providers = { codex: "PCC Voice", gippity: "Gippity Voice", grok: "Grok" };
+const sameTarget = (a, b) => a && b && a.provider === b.provider && a.machine === b.machine;
 
 export function hostTarget() {
+  const saved = shared("voice.settingsTarget");
+  if (saved && Object.hasOwn(providers, saved.provider) && (saved.machine === null || typeof saved.machine === "string"))
+    return { provider: saved.provider, machine: saved.machine };
   const form = connection();
-  const target = targets(form);
-  return { provider: form.provider, terminal: target.terminal, sshHost: form.sshHost };
+  return { provider: form.provider === "grok" ? "grok" : "codex", machine: targets().machine };
 }
 
 function parseSnapshot(data, target) {
   const object = value => value && typeof value === "object" && !Array.isArray(value);
   if (!object(data) || typeof data.identity !== "string" || !data.identity ||
-      !sameTarget(data.target, target) || data.terminal !== target.terminal ||
-      !(data.provider === target.provider || (target.provider === "gippity" && data.provider === "codex")) ||
+      !sameTarget(data.target, target) || data.provider !== target.provider ||
       typeof data.scope !== "string" || !object(data.config) || !object(data.catalogs) ||
       !Array.isArray(data.editableKeys) || !data.editableKeys.every(key => typeof key === "string" && Object.hasOwn(labels, key)) ||
       !object(data.semantics) || typeof data.semantics.runtime !== "string") {
@@ -65,6 +67,27 @@ export class HostSettings {
       state.on("change", (_e, cx) => { this.draft[key] = state.value(); this.message = null; cx.notify(); });
       this.inputs[key] = state;
     }
+    this.machineChoice = new Choice("voice-settings-machine", "Host", cx, 300);
+    this.providerChoice = new Choice("voice-settings-provider", "Extension", cx, 200);
+    // Pin the initial host; changing pane focus must not change a settings editor.
+    setShared("voice.settingsTarget", hostTarget());
+    this.transfer(cx);
+  }
+
+  selectors() {
+    const target = hostTarget();
+    const select = (key, value, cx) => {
+      setShared("voice.settingsTarget", { ...hostTarget(), [key]: value });
+      this.loaded = null;
+      this.error = this.message = null;
+      this.transfer(cx);
+    };
+    const hosts = machines().map(m => ({ value: m.name, label: (m.name || "This computer") + (m.layout === "ready" ? "" : " (unavailable)"), disabled: m.layout !== "ready" }));
+    if (!hosts.some(m => m.value === target.machine)) hosts.push({ value: target.machine, label: (target.machine || "This computer") + " (unavailable)", disabled: true });
+    return v_flex().w_full().gap(16)
+      .child(this.machineChoice.render(hosts, target.machine, (value, cx) => select("machine", value, cx), Boolean(this.busy)))
+      .child(this.providerChoice.render(Object.entries(providers).map(([value, label]) => ({ value, label })), target.provider,
+        (value, cx) => select("provider", value, cx), Boolean(this.busy)));
   }
 
   current(target = hostTarget()) { return Boolean(this.loaded && sameTarget(this.loaded.target, target)); }
@@ -93,7 +116,6 @@ export class HostSettings {
     if (this.busy) return;
     const target = hostTarget();
     this.operationTarget = target;
-    if (!target.terminal) { this.error = "Choose a live Pi pane on the selected host."; cx.notify(); return; }
     let patch;
     if (save) {
       if (!this.current(target)) { this.error = "The target changed. Load its settings before saving."; cx.notify(); return; }
@@ -115,7 +137,7 @@ export class HostSettings {
           this.loaded = data;
           this.draft = { ...data.config };
           for (const key of textKeys) this.inputs[key].set_value(String(data.config[key] ?? ""));
-          this.message = save ? "Saved on " + (target.terminal.includes("/") ? target.terminal.split("/")[0] : "this computer") + ". Applies to the next call." : null;
+          this.message = save ? "Saved on " + (target.machine || "this computer") + ". Applies to the next call." : null;
         }
       } catch (error) { if (sameTarget(target, hostTarget())) this.error = error.message; }
       this.busy = null;
@@ -123,12 +145,12 @@ export class HostSettings {
     });
   }
 
-  render(disabled) {
+  render() {
     const t = theme();
     const target = hostTarget();
     const current = this.current(target);
     const data = current ? this.loaded : null;
-    const locked = disabled || Boolean(this.busy);
+    const locked = Boolean(this.busy);
     const set = (key, value, cx) => { this.draft[key] = value; this.message = null; cx.notify(); };
     const options = (key, catalog, values = this.loaded.catalogs[catalog]) => {
       if (!Array.isArray(values)) return [];
@@ -166,12 +188,11 @@ export class HostSettings {
     const codex = data && this.draft.model === "codex-live-1.1";
     return v_flex().w_full().gap(14)
       .child(h_flex().w_full().gap(8).items_center()
-        .child(div().flex_1().font_semibold().child(data ? { codex: "PCC Voice", gippity: "Gippity Voice", grok: "Grok" }[data.provider] : "Host settings"))
-        .child(textButton("voice-host-load", this.busy === "Loading" ? "Loading…" : data ? "Reload" : "Load settings",
-          (_e, cx) => this.transfer(cx), locked || !target.terminal)))
-      .child(div().text_color(t.muted).child(target.terminal || "Choose a live Pi pane on the left."))
+        .child(div().flex_1().font_semibold().child(providers[target.provider]))
+        .child(textButton("voice-host-load", this.busy === "Loading" ? "Loading…" : "Reload",
+          (_e, cx) => this.transfer(cx), locked)))
       .when(Boolean(data), el => el
-        .child(div().text_size(12).text_color(t.muted).child(data.scope + " settings on the Pi host · next call"))
+        .child(div().text_size(12).text_color(t.muted).child(data.scope + " settings · next call"))
         .child(choice("model", data.provider === "grok" ? "models" : "voiceModels"))
         .when(data.provider !== "grok", el => el
           .child(div().text_size(12).text_color(t.muted).child(codex ? "Uses the Pi host’s Codex login." : "Uses the Pi provider’s API key. API usage is billed separately."))

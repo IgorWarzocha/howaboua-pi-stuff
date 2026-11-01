@@ -9,7 +9,7 @@ const checks = [
   ["cargo", ["fmt", "--check"]],
   ["cargo", ["clippy", "--locked", "--all-targets", "--", "-D", "warnings"]],
   [process.execPath, [join(root, "../../node_modules/@typescript/native-preview/bin/tsgo"), "-p", "tsconfig.json"]],
-  ...["build.mjs", "check.mjs", ...readdirSync(join(root, "mod")).filter(file => file.endsWith(".js")).map(file => "mod/" + file)]
+  ...["build.mjs", "check.mjs", "machine-settings.cjs", ...readdirSync(join(root, "mod")).filter(file => file.endsWith(".js")).map(file => "mod/" + file)]
     .map((file) => [process.execPath, ["--check", file]]),
 ];
 for (const [command, args] of checks) {

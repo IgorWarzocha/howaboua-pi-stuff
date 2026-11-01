@@ -65,7 +65,8 @@
       "types": "./dist/realtime-voice.d.ts",
       "import": "./dist/realtime-voice.js"
     },
-    "./*": "./*"
+    "./*": "./*",
+    "./host-settings": "./dist/host-settings.js"
   },
   "pi": {
     "extensions": [
@@ -100,7 +101,7 @@
     "changelog.js"
   ],
   "scripts": {
-    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('changelog.js', { force: true })\" && tsc -p tsconfig.build.json && node ../../scripts/build-extension-changelog.mjs .",
+    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('changelog.js', { force: true })\" && tsc -p tsconfig.build.json && node ../../scripts/build-extension-changelog.mjs . && bun run build:host-settings",
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
@@ -117,7 +118,8 @@
     "build:changed-native-tools": "node scripts/build-changed-native-tool-binaries.mjs",
     "build:native-tool": "node scripts/build-native-tool-binary.mjs",
     "build:voice-helper": "node scripts/build-voice-helper.mjs",
-    "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
+    "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs",
+    "build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js"
   },
   "publishConfig": {
     "access": "public"

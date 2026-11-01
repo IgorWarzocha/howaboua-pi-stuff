@@ -37,13 +37,13 @@ export function piPanes(machine) {
     (p.app === "pi" || p.program?.key === "pi"));
 }
 
-export function targets(settings) {
+export function targets() {
   const focus = focused();
   const focusedMachine = focus?.terminal
     ? terminalMachine(focus.terminal)
     : spaces().find(s => s.id === focus?.space)?.machine ?? null;
-  const machine = Object.hasOwn(settings, "machine") ? settings.machine : focusedMachine;
-  const terminal = settings.terminal || focus?.terminal;
+  const machine = focusedMachine;
+  const terminal = focus?.terminal;
   const live = terminals().find(t => t.address === terminal && t.state === "live" &&
     terminalMachine(t.address) === machine &&
     (t.program?.key === "pi" || t.report?.app === "pi" || t.labels?.["herdr.voice"] === "1"));

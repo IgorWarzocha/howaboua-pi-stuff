@@ -8,7 +8,7 @@ use tokio::{
 };
 
 // A private Core transport: no inherited sender wrapper and no terminal input.
-pub(super) struct Core {
+pub(crate) struct Core {
     _child: Child,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
@@ -24,7 +24,7 @@ struct Execution {
 }
 
 impl Core {
-    pub(super) fn open() -> Result<Self> {
+    pub(crate) fn open() -> Result<Self> {
         let mut child = Command::new("hc")
             .arg("connect")
             .stdin(Stdio::piped())
@@ -41,7 +41,7 @@ impl Core {
         })
     }
 
-    pub(super) async fn call(&mut self, method: &str, params: Value) -> Result<Value> {
+    pub(crate) async fn call(&mut self, method: &str, params: Value) -> Result<Value> {
         self.sequence += 1;
         let mut bytes = serde_json::to_vec(
             &json!({"jsonrpc":"2.0", "id":self.sequence, "method":method, "params":params}),
@@ -69,7 +69,7 @@ impl Core {
         }
     }
 
-    pub(super) async fn node(
+    pub(crate) async fn node(
         &mut self,
         on: &Option<String>,
         script: &str,
@@ -90,16 +90,16 @@ impl Core {
             if let Ok(value) = serde_json::from_slice::<Value>(&decoded)
                 && let Some(error) = value["herdrVoiceError"].as_str()
             {
-                bail!("Cannot prepare Pi: {error}");
+                bail!("Selected machine: {error}");
             }
             bail!(
-                "Cannot prepare Pi on the selected machine; install Node.js and Pi and check Core access"
+                "Cannot reach Pi configuration on the selected machine; check Node.js, Pi and Core access"
             );
         }
-        serde_json::from_slice(&decoded).context("Invalid Pi preparation response")
+        serde_json::from_slice(&decoded).context("Invalid response from the selected machine")
     }
 
-    pub(super) async fn read(&mut self, on: &Option<String>, path: &str) -> Result<String> {
+    pub(crate) async fn read(&mut self, on: &Option<String>, path: &str) -> Result<String> {
         let result = self.call("file.read", json!({"on":on,"path":path})).await?;
         Ok(result["text"]
             .as_str()

@@ -4,6 +4,7 @@ mod connection;
 mod control;
 mod host_settings;
 mod launch;
+mod machine_core;
 mod session;
 mod wire;
 

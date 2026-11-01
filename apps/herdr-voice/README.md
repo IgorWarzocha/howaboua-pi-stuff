@@ -43,11 +43,11 @@ For compact controls beside your terminals, add this block to a personal Herdr l
 { "id": "voice", "type": "block", "size": { "px": 44 }, "content": { "mod": "voice", "props": { "compact": true } } }
 ```
 
-The lightning icon quickstarts Pi and voice on the focused pane's machine. Pi starts in that user's home directory. The plug icon connects voice to the focused Pi pane. Both start directly with your saved choices. Settings can override the machine or Pi pane. The gear opens settings, not another launch screen. Hover an icon for its action or current error.
+The lightning icon quickstarts Pi and voice on the focused pane's machine. Pi starts in that user's home directory. The plug icon connects voice to the focused Pi pane. Both use your saved call provider and audio choices. The gear opens settings. Hover an icon for its action or current error.
 
 Microphone and speaker choices always belong to the computer running the companion, even when Pi runs remotely. On Linux with PipeWire, the picker shows named local audio devices rather than ALSA plugin endpoints. System default follows this computer's audio configuration. A missing selected device fails instead of switching to another device.
 
-The Pi pane selector follows the chosen host. In **Advanced**, choose **Load settings** to edit that pane's PCC Voice, Gippity Voice or Grok settings. Loading starts its voice listener if needed, but does not open a microphone, start a call or create a Pi pane. Model, voice and other supported choices come from that host. **Save host settings** writes there, using the reported scope. Changes apply to the next call without restarting an active call. Changing the target requires loading its settings again. Manual URL connections cannot load host settings.
+Settings lets you choose a host and its PCC Voice, Gippity Voice or Grok extension independently of the focused pane. Its global settings load automatically, without starting Pi, a voice listener or a call. The extension must be installed and configured globally on that host. **Save host settings** writes there. Project overrides remain unchanged and take precedence. Changes apply to new calls, not the active call. The host selection only controls the settings editor, not where the toolbar connects.
 
 While connected, the microphone icon mutes or unmutes and the disconnect icon ends the selected host call and releases local audio. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
 
@@ -64,12 +64,6 @@ cp pi-bridge.ts "$agent_dir/extensions/herdr-voice-bridge.ts"
 ```
 
 Focus that Pi pane and click the plug icon. Requests use the bridge's session-addressed mailbox, not simulated keystrokes, so an existing draft is not overwritten. Pi must have the bridge and chosen voice extension loaded. Already-running Pi sessions need one `/reload` after installing the bridge.
-
-For remote Pi, the optional **SSH host** is the host alias from your local SSH configuration. Forwarding connects to the voice listener's loopback address on that host. It must be the same machine as the selected Pi session. Without forwarding, the returned server URL must be reachable on your trusted network.
-
-## Manual connections
-
-The panel's manual connection controls can attach to a voice server you have already started with `/grok server ensure`, `/codex voice server ensure` for PCC, or `/gippity server ensure`. Select Grok or OpenAI to match the server, then enter its HTTPS URL. For a self-signed server, select a local copy of its PEM certificate. Certificate verification remains enabled. Manual connections use your selected protocol and cannot identify which OpenAI extension owns the server.
 
 Quickstart and pane-based connections obtain the server certificate through Herdr Core's authenticated machine connection. You do not need to export it manually.
 
