@@ -37,7 +37,7 @@ enum Action {
     Status,
     /// Enumerate local microphones and speakers without starting a call.
     Devices,
-    /// Disconnect local audio without ending the remote Pi call.
+    /// Release local audio and stop the selected Pi voice call.
     Disconnect,
     /// Set microphone mute while keeping the connection.
     Mute { muted: bool },
