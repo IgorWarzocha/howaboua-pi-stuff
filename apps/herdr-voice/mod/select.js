@@ -1,5 +1,5 @@
 import { div } from "gpui-kit";
-import { v_flex, h_flex, Button, Select, Popup, v_virtual_list, VirtualListScrollHandle, Scrollbar } from "gpui-base";
+import { v_flex, h_flex, Select, Popup, v_virtual_list, VirtualListScrollHandle, Scrollbar } from "gpui-base";
 import { theme } from "herdr";
 import { icon } from "./ui.js";
 
@@ -16,6 +16,7 @@ export class Choice {
 
   render(options, value, change, disabled = false) {
     const t = theme();
+    const expanded = this.open && !disabled;
     const selected = options.find(o => o.value === value);
     const choose = (index, cx) => {
       const option = options[index];
@@ -33,10 +34,16 @@ export class Choice {
       this.scroll.scroll_to_item(this.highlight);
       cx.notify();
     };
-    const trigger = Button.new(this.id + "-trigger").accessibility_label(this.label)
-      .disabled(disabled).track_focus(this.trigger).w_full().h(32).px(9).rounded(6)
+    // Select owns accessible activation; the visual trigger must not expose a second Button.
+    const trigger = h_flex().id(this.id + "-trigger").items_center()
+      .when(!disabled, el => el.track_focus(this.trigger)).w_full().h(32).px(9).rounded(6)
       .border_1().border_color(t.border).bg(t.background).text_color(disabled ? t.dim : t.foreground)
-      .on_click((_e, cx) => open(cx))
+      .on_mouse_down("left", (_e, cx) => {
+        cx.stop_propagation();
+        // Click-away runs first in capture; use this render's state to toggle the same press.
+        if (expanded) { this.open = false; this.trigger.focus(); cx.notify(); }
+        else open(cx);
+      })
       .on_key_down((event, cx) => {
         if (["down", "up", "enter", "space"].includes(event.key)) { open(cx); cx.stop_propagation(); }
       })
@@ -84,8 +91,9 @@ export class Choice {
           }
           cx.notify();
         })
-        .child(Popup.new(this.id + "-popup", trigger).anchor("bottom_left")
+        .child(Popup.new(this.id + "-popup", trigger).anchor("top_left")
           .when(this.open && !disabled, el => el.content(v_flex().relative().w(360).p(4).rounded(6)
+            .on_mouse_down_out((_e, cx) => { this.open = false; cx.notify(); })
             .border_1().border_color(t.border).bg(t.popover).child(list)
             .child(Scrollbar.vertical(this.id + "-list").absolute().inset_0())))));
   }
