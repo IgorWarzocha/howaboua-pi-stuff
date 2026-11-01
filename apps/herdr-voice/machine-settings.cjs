@@ -3,6 +3,21 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const { pathToFileURL } = require("node:url");
+const { spawnSync } = require("node:child_process");
+
+function executableSdk(executable) {
+  if (!fs.existsSync(executable)) return;
+  let candidate = path.dirname(fs.realpathSync(executable));
+  for (let depth = 0; depth < 5; depth++, candidate = path.dirname(candidate)) {
+    const manifest = path.join(candidate, "package.json");
+    if (fs.existsSync(manifest) && JSON.parse(fs.readFileSync(manifest, "utf8")).name === "@earendil-works/pi-coding-agent") return candidate;
+  }
+}
+
+function packageManagerPath(command, args) {
+  const result = spawnSync(command, args, { encoding: "utf8", timeout: 2000, windowsHide: true });
+  return result.status === 0 ? result.stdout.trim() : null;
+}
 
 async function settings() {
   const request = JSON.parse(process.argv[1]);
@@ -12,19 +27,21 @@ async function settings() {
   let sdkRoot;
   for (const dir of (process.env.PATH || "").split(path.delimiter)) {
     const executable = path.resolve(dir, process.platform === "win32" ? "pi.cmd" : "pi");
-    if (!fs.existsSync(executable)) continue;
-    let candidate = path.dirname(fs.realpathSync(executable));
-    for (let depth = 0; depth < 5; depth++, candidate = path.dirname(candidate)) {
-      const manifest = path.join(candidate, "package.json");
-      if (fs.existsSync(manifest) && JSON.parse(fs.readFileSync(manifest, "utf8")).name === "@earendil-works/pi-coding-agent") {
-        sdkRoot = candidate;
-        break;
-      }
-    }
+    sdkRoot = executableSdk(executable);
     if (sdkRoot) break;
     // npm's Windows command shim sits beside node_modules, not inside the package.
     const installed = path.join(dir, "node_modules", "@earendil-works", "pi-coding-agent");
     if (fs.existsSync(path.join(installed, "package.json"))) { sdkRoot = installed; break; }
+  }
+  // A user's pi shell wrapper may hide its package-manager-owned executable.
+  if (!sdkRoot) {
+    const bunBin = packageManagerPath("bun", ["pm", "bin", "-g"]);
+    if (bunBin) sdkRoot = executableSdk(path.join(bunBin, process.platform === "win32" ? "pi.exe" : "pi"));
+  }
+  if (!sdkRoot) {
+    const npmRoot = packageManagerPath(process.platform === "win32" ? "npm.cmd" : "npm", ["root", "-g"]);
+    const installed = npmRoot && path.join(npmRoot, "@earendil-works", "pi-coding-agent");
+    if (installed && fs.existsSync(path.join(installed, "package.json"))) sdkRoot = installed;
   }
   if (!sdkRoot) throw new Error("Install the Node.js distribution of Pi and make its pi executable available on PATH");
   const sdk = await import(pathToFileURL(path.join(sdkRoot, "dist", "index.js")).href);
