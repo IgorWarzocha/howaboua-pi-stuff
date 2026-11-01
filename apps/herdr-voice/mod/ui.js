@@ -1,6 +1,12 @@
 import { svg } from "gpui-kit";
 import { Button } from "gpui-base";
-import { theme } from "herdr";
+import { theme, settings } from "herdr";
+
+// Measurements include Herdr's zoom; builder dimensions do not.
+export function layoutWidth(measured) {
+  const zoom = settings().zoom;
+  return measured / (typeof zoom === "number" && zoom > 0 ? zoom : 1);
+}
 
 export function icon(name, size = 15) {
   const voice = ["zap", "plug", "mic", "mic-off", "disconnect"].includes(name);

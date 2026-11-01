@@ -1,7 +1,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, Select, Popup, v_virtual_list, VirtualListScrollHandle, Scrollbar } from "gpui-base";
 import { theme } from "herdr";
-import { icon } from "./ui.js";
+import { icon, layoutWidth } from "./ui.js";
 
 export class Choice {
   constructor(id, label, cx, maxWidth = 360) {
@@ -38,7 +38,8 @@ export class Choice {
     // Select owns accessible activation; the visual trigger must not expose a second Button.
     const trigger = h_flex().id(this.id + "-trigger").items_center()
       .on_size_change((size, cx) => {
-        if (size.width > 0 && this.width !== size.width) { this.width = size.width; cx.notify(); }
+        const width = layoutWidth(size.width);
+        if (width > 0 && this.width !== width) { this.width = width; cx.notify(); }
       })
       .when(!disabled, el => el.track_focus(this.trigger)).w_full().h(32).px(9).rounded(6)
       .border_1().border_color(t.border).bg(t.background).text_color(disabled ? t.dim : t.foreground)

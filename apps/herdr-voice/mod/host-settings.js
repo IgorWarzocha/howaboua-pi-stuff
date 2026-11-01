@@ -84,7 +84,7 @@ export class HostSettings {
     };
     const hosts = machines().map(m => ({ value: m.name, label: (m.name || "This computer") + (m.layout === "ready" ? "" : " (unavailable)"), disabled: m.layout !== "ready" }));
     if (!hosts.some(m => m.value === target.machine)) hosts.push({ value: target.machine, label: (target.machine || "This computer") + " (unavailable)", disabled: true });
-    return v_flex().w_full().gap(16)
+    return v_flex().w_full().gap(12)
       .child(this.machineChoice.render(hosts, target.machine, (value, cx) => select("machine", value, cx), Boolean(this.busy)))
       .child(this.providerChoice.render(Object.entries(providers).map(([value, label]) => ({ value, label })), target.provider,
         (value, cx) => select("provider", value, cx), Boolean(this.busy)));
@@ -163,7 +163,7 @@ export class HostSettings {
       if (!list.some(option => equal(option.value, this.draft[key]))) list.push({ value: this.draft[key], label: String(this.draft[key]) });
       return this.choices[key].render(list, this.draft[key], (value, cx) => set(key, value, cx), locked);
     };
-    const field = key => !data.editableKeys.includes(key) ? div() : v_flex().w_full().max_w(360).gap(5)
+    const field = (key, width = 360) => !data.editableKeys.includes(key) ? div() : v_flex().w_full().max_w(width).gap(5)
       .child(div().text_size(12).text_color(t.muted).child(labels[key]))
       .child(Input.new(this.inputs[key]).accessibility_label(labels[key]).disabled(locked).w_full().h(32).px(8)
         .rounded(6).border_1().border_color(t.border).bg(t.background).text_color(t.foreground));
@@ -185,8 +185,9 @@ export class HostSettings {
       return this.choices.contextModel.render(list, JSON.stringify(value), (next, cx) => set("contextModel", JSON.parse(next), cx), locked);
     };
     const section = label => div().pt(6).font_semibold().child(label);
+    const row = (...fields) => h_flex().w_full().flex_wrap().gap(12).items_start().children(fields.map(field => field.flex_none()));
     const codex = data && this.draft.model === "codex-live-1.1";
-    return v_flex().w_full().gap(14)
+    return v_flex().w_full().gap(10)
       .child(h_flex().w_full().gap(8).items_center()
         .child(div().flex_1().font_semibold().child(providers[target.provider]))
         .child(textButton("voice-host-load", this.busy === "Loading" ? "Loading…" : "Reload",
@@ -194,20 +195,23 @@ export class HostSettings {
       .when(Boolean(data), el => el
         .child(div().text_size(12).text_color(t.muted).child(data.scope + " settings · next call"))
         .child(choice("model", data.provider === "grok" ? "models" : "voiceModels"))
-        .when(data.provider !== "grok", el => el
-          .child(div().text_size(12).text_color(t.muted).child(codex ? "Uses the Pi host’s Codex login." : "Uses the Pi provider’s API key. API usage is billed separately."))
-          .when(!codex, el => el.child(field("apiProvider"))))
-        .child(choice(data.provider === "grok" ? "voice" : codex ? "v3Voice" : "realtimeVoice", data.provider === "grok" || codex ? "voices" : "realtimeVoices"))
-        .child(choice(data.provider === "grok" ? "alternateVoice" : codex ? "v3AlternateVoice" : "realtimeAlternateVoice", data.provider === "grok" || codex ? "voices" : "realtimeVoices"))
-        .when(data.provider === "grok", el => el.child(choice("reasoning", "reasoningLevels")).child(field("speed")).child(field("language")).child(field("silenceSeconds")))
+        .when(data.provider !== "grok" && !codex, el => el
+          .child(field("apiProvider"))
+          .child(div().text_size(12).text_color(t.muted).child("API usage is billed separately.")))
+        .child(row(
+          choice(data.provider === "grok" ? "voice" : codex ? "v3Voice" : "realtimeVoice", data.provider === "grok" || codex ? "voices" : "realtimeVoices"),
+          choice(data.provider === "grok" ? "alternateVoice" : codex ? "v3AlternateVoice" : "realtimeAlternateVoice", data.provider === "grok" || codex ? "voices" : "realtimeVoices")))
+        .when(data.provider === "grok", el => el
+          .child(row(choice("reasoning", "reasoningLevels"), field("speed", 120)))
+          .child(field("language", 180)).child(field("silenceSeconds")))
         .child(section("Pi context"))
         .child(context())
-        .child(choice("contextReasoning", "contextReasoningLevels"))
+        .child(row(choice("contextReasoning", "contextReasoningLevels"),
+          ...(codex ? [choice("taskDelegationReasoning", "contextReasoningLevels")] : [])))
         .when(Boolean(codex), el => el
-          .child(div().text_color(t.muted).child("Task model: " + data.config.taskDelegationModel))
-          .child(choice("taskDelegationReasoning", "contextReasoningLevels")))
+          .child(div().text_color(t.muted).child("Task model: " + data.config.taskDelegationModel)))
         .child(section("Behaviour"))
-        .children(data.editableKeys.filter(key => typeof this.draft[key] === "boolean" && (key !== "webSearch" || !codex)).map(check))
+        .child(v_flex().w_full().children(data.editableKeys.filter(key => typeof this.draft[key] === "boolean" && (key !== "webSearch" || !codex)).map(check)))
         .when(data.catalogs.webSearchAvailable === false && !codex, el => el.child(div().text_color(t.muted).child("Web search is unavailable on this Pi host.")))
         .child(textButton("voice-host-save", this.busy === "Saving" ? "Saving…" : "Save host settings", (_e, cx) => this.transfer(cx, true), locked || !this.dirty())))
       .when(Boolean(this.error) && sameTarget(this.operationTarget, target), el => el.child(div().text_color(t.blocked).child(this.error)))

@@ -2,7 +2,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, closeOverlay } from "herdr";
 import { connection, PROVIDERS } from "./state.js";
-import { iconButton, textButton } from "./ui.js";
+import { iconButton, textButton, layoutWidth } from "./ui.js";
 
 export function renderSettings(view) {
   const t = theme();
@@ -17,7 +17,7 @@ export function renderSettings(view) {
     return view.choices[key].render(options, form[key], (next, cx) => { view.save(key, next); cx.notify(); }, busy || active);
   };
   const errors = [...new Set([view.statusError, view.deviceError, view.storageError].filter(Boolean))];
-  const local = v_flex().w_full().max_w(360).min_w(0).gap(16)
+  const local = v_flex().w_full().max_w(360).min_w(0).gap(12)
     .child(view.host.selectors())
     .child(view.choices.provider.render(Object.entries(PROVIDERS).map(([value, label]) => ({ value, label })), form.provider,
       (next, cx) => { view.save("provider", next); cx.notify(); }, busy || active))
@@ -29,7 +29,7 @@ export function renderSettings(view) {
     .children(errors.map(error => div().text_color(t.blocked).child(error)));
   const host = () => view.host.render();
   const scroll = (id, child) => v_flex().id(id).h_full().min_h(0).min_w(0).overflow_y_scrollbar().child(child);
-  const content = view.width < 700 || !view.advanced
+  const content = layoutWidth(view.width) < 700 || !view.advanced
     ? v_flex().id("voice-fields").flex_1().min_h(0).overflow_y_scrollbar().px(16).pb(16).gap(24).child(local)
       .when(view.advanced, el => el.child(v_flex().w_full().pt(20).border_t_1().border_color(t.border).child(host())))
     : h_flex().flex_1().min_h(0).px(16).pb(16).gap(24)
