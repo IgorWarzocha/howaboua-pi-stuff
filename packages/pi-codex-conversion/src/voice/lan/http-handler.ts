@@ -19,6 +19,7 @@ export interface LanVoiceHttpHandlers {
 	sessionSnapshot(): unknown;
 	rpc(body: Record<string, unknown>): Promise<unknown>;
 	ownerIsActive(): boolean;
+	shutdownServer(): void;
 	readonly closing: boolean;
 }
 
@@ -97,7 +98,10 @@ export async function handleLanVoiceHttpRequest(
 		}
 		if (path === "/api/stop") {
 			const stopped = await handlers.clients.release(clientId, undefined, body["terminateConversation"] === true);
-			sendJson(response, 200, { ok: true, stopped });
+			const serverStopping = stopped && body["shutdownServer"] === true;
+			// Flush the call's Stop receipt before closing its HTTP connection.
+			if (serverStopping) response.once("finish", () => handlers.shutdownServer());
+			sendJson(response, 200, { ok: true, stopped, serverStopping });
 			return;
 		}
 		if (path === "/api/draft") {

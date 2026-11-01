@@ -193,7 +193,7 @@ impl Connection {
             .post_response(
                 "/api/stop",
                 serde_json::json!({
-                    "clientId": client, "terminateConversation": true,
+                    "clientId": client, "terminateConversation": true, "shutdownServer": true,
                 }),
             )
             .await?;
@@ -202,14 +202,34 @@ impl Connection {
             .as_ref()
             .and_then(|value| value["stopped"].as_bool())
         {
-            Some(true) => Ok(()),
+            Some(true) => Self::confirm_server_shutdown(response.as_ref()),
             Some(false) => bail!(
                 "This device no longer owns the selected host call; stop it from Pi if needed"
             ),
             None => bail!(
-                "The host did not acknowledge completed Stop; update its voice extension or stop the call from Pi"
+                "The host did not acknowledge completed Stop; update its voice extension and run /reload in Pi, or stop the call from Pi"
             ),
         }
+    }
+
+    pub async fn stop_grok_call(&self) -> Result<()> {
+        let bytes = self
+            .post_response(
+                "/control",
+                serde_json::json!({"action":"stop", "shutdownServer":true}),
+            )
+            .await?;
+        let response = serde_json::from_slice::<serde_json::Value>(&bytes).ok();
+        Self::confirm_server_shutdown(response.as_ref())
+    }
+
+    fn confirm_server_shutdown(response: Option<&serde_json::Value>) -> Result<()> {
+        if response.and_then(|value| value["serverStopping"].as_bool()) != Some(true) {
+            bail!(
+                "The call ended, but the host did not confirm LAN server shutdown; update its voice extension and run /reload in Pi"
+            );
+        }
+        Ok(())
     }
 
     async fn post_response(&self, path: &str, body: serde_json::Value) -> Result<Vec<u8>> {

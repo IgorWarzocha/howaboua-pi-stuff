@@ -81,7 +81,7 @@ herdr-voice install-mod --indicator-mod voice-agents --indicator-mod voice-pane
 
 Each copy can import `voiceActive` and `voiceIndicator` from `./voice-indicator.js`. Render the indicator beside its existing status when `voiceActive(terminal)` is true. Pass the agent's full address or the pane header's terminal address. Point your personal layout at those customised mods. Herdr isolates each mod's JavaScript, so importing the helper directly from another mod is not supported.
 
-**Disconnect** immediately releases this computer's audio and waits for the selected host call to stop. If the host cannot confirm Stop, the companion reports the failure and leaves local audio closed. Older host extensions need an update to confirm completion. Stop the call from Pi if confirmation fails. Tasks already submitted to Pi cannot be retracted. Network loss, closing the companion and replacement by another device release only local audio and leave the host-owned call available for reconnection.
+**Disconnect** immediately releases this computer's audio, waits for the selected host call to stop and requests shutdown of its LAN listener. If the host cannot confirm Stop or accept the shutdown request, the companion reports the failure and leaves local audio closed. Update older host extensions and run `/reload` in Pi before reconnecting. Stop the call from Pi if confirmation fails. Tasks already submitted to Pi cannot be retracted. Browser Stop keeps the listener available. Network loss, closing the companion and replacement by another device release only local audio and leave the host-owned call available for reconnection.
 
 The companion also provides `status`, `devices`, `mute true`, `mute false` and `disconnect` commands. Device discovery does not start a call.
 

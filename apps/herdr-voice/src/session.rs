@@ -86,7 +86,7 @@ async fn execute(
                 && *cancel.borrow() == Some(true)
                 && options.provider == Provider::Grok
             {
-                connection.post("/control", json!({"action":"stop"})).await
+                connection.stop_grok_call().await
                     .context("Local audio released, but ending the selected host call was not confirmed; stop it from Pi")
             } else {
                 Ok(())
@@ -122,7 +122,7 @@ async fn execute(
                     }
                     connection.stop_browser_call(&client).await
                 }
-                Provider::Grok => connection.post("/control", json!({"action":"stop"})).await,
+                Provider::Grok => connection.stop_grok_call().await,
             }
         }
         .await;

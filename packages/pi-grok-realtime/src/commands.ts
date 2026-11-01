@@ -47,6 +47,11 @@ export function createGrokCommands(
 		lanOperation = result.catch(() => {});
 		return result;
 	};
+	const stop = async () => {
+		cancelLanStartup();
+		await runLan(stopLan);
+		await controls.stop();
+	};
 	const command: Parameters<ExtensionAPI["registerCommand"]>[1] = {
 		description: "Grok realtime voice and browser control",
 		getArgumentCompletions: (prefix) =>
@@ -129,9 +134,7 @@ export function createGrokCommands(
 					return;
 				}
 				if (action === "stop") {
-					cancelLanStartup();
-					await runLan(stopLan);
-					await controls.stop();
+					await stop();
 					return;
 				}
 				if (action === "dictate") {
@@ -213,6 +216,14 @@ export function createGrokCommands(
 										cancelDictation: () => controls.cancelDictation(),
 										stop: () => controls.stop(),
 										stopCall: () => controls.stopCall(),
+										shutdownServer: () => {
+											void stop().catch((error) =>
+												ctx.ui.notify(
+													`Grok browser control could not stop: ${error instanceof Error ? error.message : String(error)}`,
+													"error",
+												),
+											);
+										},
 										theme: () => ctx.ui.theme,
 										send: (text) => {
 											activity.working();
