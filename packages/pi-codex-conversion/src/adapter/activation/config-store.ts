@@ -16,10 +16,6 @@ export function writeCodexConversionConfig(config: CodexConversionConfig, config
 	return writeFileConfig(config, configPath, folderScope);
 }
 
-// Lite deliberately shares the original package's config so replacing either
-// package does not require a reset or a second settings file.
-export { CODEX_CONVERSION_CONFIG_BASENAME } from "./config-file.ts";
-
 export interface EffectiveCodexConversionConfigOptions {
 	cwd: string;
 	projectTrusted: boolean;
