@@ -28,6 +28,16 @@ pub struct Prepare {
 pub struct Prepared {
     pub terminal: String,
     pub connect: Connect,
+    #[serde(skip)]
+    pub(crate) identity: PaneIdentity,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct PaneIdentity {
+    address: String,
+    agent_dir: String,
+    session: String,
+    provider: Provider,
 }
 
 #[derive(Deserialize)]
@@ -223,7 +233,38 @@ async fn prepare_inner(request: Prepare, created: &mut Option<String>) -> Result
         speaker: String::new(),
     };
     connect.validate()?;
-    Ok(Prepared { terminal, connect })
+    let identity = PaneIdentity {
+        address: pane.address,
+        agent_dir: agent_dir.clone(),
+        session: session.clone(),
+        provider: receipt.provider,
+    };
+    Ok(Prepared {
+        terminal,
+        connect,
+        identity,
+    })
+}
+
+pub(crate) async fn verify_identity(terminal: &str, identity: &PaneIdentity) -> Result<()> {
+    let check = async {
+        let mut core = Core::open()?;
+        let pane: Pane = serde_json::from_value(
+            core.call("terminal.get", json!({"terminal":terminal,"caller":null}))
+                .await?,
+        )?;
+        if pane.address != identity.address
+            || pane.labels.get("herdr.voice").map(String::as_str) != Some("1")
+            || pane.labels.get("herdr.voice.agent-dir") != Some(&identity.agent_dir)
+            || pane.labels.get("herdr.voice.session") != Some(&identity.session)
+        {
+            bail!("The selected Pi session changed; reload host settings before saving");
+        }
+        Ok(())
+    };
+    tokio::time::timeout(Duration::from_secs(10), check)
+        .await
+        .context("Cannot verify the selected Pi session; reload host settings")?
 }
 
 async fn read_receipt(

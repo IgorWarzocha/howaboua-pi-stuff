@@ -26,20 +26,28 @@ export function updateConnection(key, value) {
   saveConnection(current);
 }
 
-export function piPanes() {
+export function terminalMachine(address) {
+  return address?.includes("/") ? address.slice(0, address.indexOf("/")) : null;
+}
+
+export function piPanes(machine) {
   const live = new Set(terminals().filter(t => t.state === "live").map(t => t.address));
   return panes().filter(p => p.terminal && live.has(p.terminal) &&
+    (machine === undefined || terminalMachine(p.terminal) === machine) &&
     (p.app === "pi" || p.program?.key === "pi"));
 }
 
 export function targets(settings) {
   const focus = focused();
+  const focusedMachine = focus?.terminal
+    ? terminalMachine(focus.terminal)
+    : spaces().find(s => s.id === focus?.space)?.machine ?? null;
+  const machine = Object.hasOwn(settings, "machine") ? settings.machine : focusedMachine;
   const terminal = settings.terminal || focus?.terminal;
   const live = terminals().find(t => t.address === terminal && t.state === "live" &&
+    terminalMachine(t.address) === machine &&
     (t.program?.key === "pi" || t.report?.app === "pi" || t.labels?.["herdr.voice"] === "1"));
-  const pane = piPanes().find(p => p.terminal === terminal);
-  const focusedMachine = spaces().find(s => s.id === focus?.space)?.machine ?? null;
-  const machine = Object.hasOwn(settings, "machine") ? settings.machine : focusedMachine;
+  const pane = piPanes(machine).find(p => p.terminal === terminal);
   return {
     terminal: pane?.terminal ?? live?.address ?? null,
     machine,

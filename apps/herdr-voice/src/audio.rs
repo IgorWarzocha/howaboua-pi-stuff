@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, bail};
-use serde_json::Value;
 use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -7,6 +6,9 @@ use tokio::{
     sync::mpsc,
     task::JoinHandle,
 };
+
+mod devices;
+pub use devices::list as devices;
 
 pub struct Frame {
     pub tag: u8,
@@ -20,6 +22,7 @@ pub struct Audio {
     reader: JoinHandle<()>,
     muted: bool,
     epoch: u32,
+    _routing: devices::Routing,
 }
 
 pub fn helper_path() -> Result<PathBuf> {
@@ -33,46 +36,13 @@ pub fn helper_path() -> Result<PathBuf> {
         }))
 }
 
-pub async fn devices() -> Result<Value> {
-    let mut child = Command::new(helper_path()?)
-        .arg("--devices")
-        .kill_on_drop(true)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .context("Cannot start bundled audio helper; install the complete native bundle")?;
-    let mut stdout = child.stdout.take().context("Missing device output")?;
-    let read = async {
-        let mut bytes = Vec::new();
-        stdout.read_to_end(&mut bytes).await?;
-        anyhow::Ok(bytes)
-    };
-    let bytes = tokio::time::timeout(Duration::from_secs(10), read)
-        .await
-        .context("Audio device discovery timed out")??;
-    if !child.wait().await?.success() {
-        bail!("Cannot enumerate audio devices; check system audio permissions");
-    }
-    let value: Value = serde_json::from_slice(&bytes).context("Invalid audio device list")?;
-    for kind in ["microphones", "speakers"] {
-        let list = value[kind]
-            .as_array()
-            .context("Invalid audio device list")?;
-        if list
-            .iter()
-            .any(|device| !device["name"].is_string() || !device["description"].is_string())
-        {
-            bail!("Invalid audio device entry");
-        }
-    }
-    Ok(value)
-}
-
 impl Audio {
     pub async fn start(microphone: &str, speaker: &str) -> Result<Self> {
-        let mut child = Command::new(helper_path()?)
-            .args([microphone, speaker])
+        let routing = devices::Routing::prepare(microphone, speaker).await?;
+        let mut command = Command::new(helper_path()?);
+        routing.apply(&mut command);
+        let mut child = command
+            .args([&routing.microphone, &routing.speaker])
             .kill_on_drop(true)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -99,6 +69,7 @@ impl Audio {
             reader,
             muted: false,
             epoch: 0,
+            _routing: routing,
         };
         let frame = tokio::time::timeout(Duration::from_secs(10), audio.read())
             .await

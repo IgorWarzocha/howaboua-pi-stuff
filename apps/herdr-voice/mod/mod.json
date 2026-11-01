@@ -3,7 +3,7 @@
   "place": "none",
   "overlay": {
     "kind": "dialog",
-    "width": 420,
+    "width": 860,
     "height": 0.85
   }
 }

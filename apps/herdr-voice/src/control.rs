@@ -39,6 +39,7 @@ struct Companion {
     config: Config,
     status: SharedStatus,
     running: Mutex<Option<Running>>,
+    host_settings: Mutex<Option<crate::host_settings::Loaded>>,
     preparing: Mutex<()>,
     stopping: AtomicBool,
     shutdown: watch::Sender<bool>,
@@ -159,6 +160,7 @@ pub async fn serve(config: Config) -> Result<()> {
         config,
         status: Arc::new(RwLock::new(Status::default())),
         running: Mutex::new(None),
+        host_settings: Mutex::new(None),
         preparing: Mutex::new(()),
         stopping: AtomicBool::new(false),
         shutdown: shutdown_signal,
@@ -168,6 +170,8 @@ pub async fn serve(config: Config) -> Result<()> {
         .route("/devices", get(devices))
         .route("/connect", post(connect))
         .route("/prepare", post(prepare))
+        .route("/settings/load", post(load_settings))
+        .route("/settings/save", post(save_settings))
         .route("/disconnect", post(disconnect))
         .route("/mute", post(mute))
         .layer(DefaultBodyLimit::max(16 * 1024))
@@ -268,6 +272,47 @@ async fn prepare(
     tokio::select! {
         _ = shutdown.changed() => Err(anyhow::anyhow!("Voice startup cancelled because the companion is shutting down").into()),
         result = crate::launch::prepare(options) => Ok(Json(result?)),
+    }
+}
+
+async fn load_settings(
+    State(state): State<Arc<Companion>>,
+    Json(target): Json<crate::host_settings::Target>,
+) -> ApiResult<Value> {
+    let mut shutdown = state.shutdown.subscribe();
+    let _preparing = state.preparing.lock().await;
+    if state.stopping.load(Ordering::Acquire) {
+        return Err(anyhow::anyhow!("Voice companion is shutting down").into());
+    }
+    let mut settings = state.host_settings.lock().await;
+    // A new selection invalidates its predecessor even if loading fails.
+    *settings = None;
+    tokio::select! {
+        _ = shutdown.changed() => Err(anyhow::anyhow!("Host settings load cancelled because the companion is shutting down").into()),
+        result = crate::host_settings::load(target) => {
+            let (loaded, response) = result?;
+            *settings = Some(loaded);
+            Ok(Json(response))
+        },
+    }
+}
+
+async fn save_settings(
+    State(state): State<Arc<Companion>>,
+    Json(request): Json<crate::host_settings::Save>,
+) -> ApiResult<Value> {
+    let mut shutdown = state.shutdown.subscribe();
+    let _preparing = state.preparing.lock().await;
+    if state.stopping.load(Ordering::Acquire) {
+        return Err(anyhow::anyhow!("Voice companion is shutting down").into());
+    }
+    let settings = state.host_settings.lock().await;
+    let loaded = settings
+        .as_ref()
+        .context("Load host settings before saving")?;
+    tokio::select! {
+        _ = shutdown.changed() => Err(anyhow::anyhow!("Host settings save was not confirmed because the companion is shutting down; reload settings before retrying").into()),
+        result = crate::host_settings::save(loaded, request) => Ok(Json(result?)),
     }
 }
 

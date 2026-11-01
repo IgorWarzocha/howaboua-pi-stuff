@@ -2,6 +2,7 @@ mod audio;
 mod config;
 mod connection;
 mod control;
+mod host_settings;
 mod launch;
 mod session;
 mod wire;

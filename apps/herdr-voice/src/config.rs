@@ -117,6 +117,7 @@ pub fn install(config: &Config, home: Option<PathBuf>, indicator_mods: &[String]
         ("companion.js", include_str!("../mod/companion.js")),
         ("sidebar.js", include_str!("../mod/sidebar.js")),
         ("settings.js", include_str!("../mod/settings.js")),
+        ("host-settings.js", include_str!("../mod/host-settings.js")),
         ("select.js", include_str!("../mod/select.js")),
         ("state.js", include_str!("../mod/state.js")),
         ("ui.js", include_str!("../mod/ui.js")),

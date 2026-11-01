@@ -16,3 +16,13 @@ export function iconButton(id, name, label, action, disabled = false, selected =
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .on_click(action).child(icon(name));
 }
+
+export function textButton(id, label, action, disabled = false, selected = false) {
+  const t = theme();
+  return Button.new(id).accessibility_label(label).disabled(disabled)
+    .h(30).px(10).flex_none().rounded(6).border_1().border_color(t.border)
+    .bg(selected ? t.selected : t.background).text_color(disabled ? t.dim : t.foreground)
+    .when(!disabled, el => el.hover(s => s.bg(t.hover)))
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .on_click(action).child(label);
+}

@@ -4,11 +4,12 @@ import { theme } from "herdr";
 import { icon } from "./ui.js";
 
 export class Choice {
-  constructor(id, label, cx) {
+  constructor(id, label, cx, maxWidth = 360) {
     this.id = id;
     this.label = label;
     this.open = false;
     this.highlight = 0;
+    this.width = this.maxWidth = maxWidth;
     this.trigger = cx.focus_handle();
     this.list = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
@@ -36,8 +37,12 @@ export class Choice {
     };
     // Select owns accessible activation; the visual trigger must not expose a second Button.
     const trigger = h_flex().id(this.id + "-trigger").items_center()
+      .on_size_change((size, cx) => {
+        if (size.width > 0 && this.width !== size.width) { this.width = size.width; cx.notify(); }
+      })
       .when(!disabled, el => el.track_focus(this.trigger)).w_full().h(32).px(9).rounded(6)
       .border_1().border_color(t.border).bg(t.background).text_color(disabled ? t.dim : t.foreground)
+      .tooltip(selected?.label ?? "Unavailable")
       .on_mouse_down("left", (_e, cx) => {
         cx.stop_propagation();
         // Click-away runs first in capture; use this render's state to toggle the same press.
@@ -79,7 +84,7 @@ export class Choice {
         this.scroll.scroll_to_item(this.highlight, "center");
         cx.stop_propagation(); cx.notify();
       });
-    return v_flex().w_full().gap(5)
+    return v_flex().w_full().max_w(this.maxWidth).gap(5)
       .child(div().text_color(t.muted).text_size(12).child(this.label))
       .child(Select.new(this.id).accessibility_label(this.label).disabled(disabled)
         .open(this.open && !disabled).track_focus(this.trigger).content_focus_handle(this.list)
@@ -92,7 +97,7 @@ export class Choice {
           cx.notify();
         })
         .child(Popup.new(this.id + "-popup", trigger).anchor("top_left")
-          .when(this.open && !disabled, el => el.content(v_flex().relative().w(360).p(4).rounded(6)
+          .when(this.open && !disabled, el => el.content(v_flex().relative().w(this.width).p(4).rounded(6)
             .on_mouse_down_out((_e, cx) => { this.open = false; cx.notify(); })
             .border_1().border_color(t.border).bg(t.popover).child(list)
             .child(Scrollbar.vertical(this.id + "-list").absolute().inset_0())))));

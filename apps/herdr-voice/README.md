@@ -45,6 +45,10 @@ For compact controls beside your terminals, add this block to a personal Herdr l
 
 The lightning icon quickstarts Pi and voice on the focused pane's machine. Pi starts in that user's home directory. The plug icon connects voice to the focused Pi pane. Both start directly with your saved choices. Settings can override the machine or Pi pane. The gear opens settings, not another launch screen. Hover an icon for its action or current error.
 
+Microphone and speaker choices always belong to the computer running the companion, even when Pi runs remotely. On Linux with PipeWire, the picker shows named local audio devices rather than ALSA plugin endpoints. System default follows this computer's audio configuration. A missing selected device fails instead of switching to another device.
+
+The Pi pane selector follows the chosen host. In **Advanced**, choose **Load settings** to edit that pane's PCC Voice, Gippity Voice or Grok settings. Loading starts its voice listener if needed, but does not open a microphone, start a call or create a Pi pane. Model, voice and other supported choices come from that host. **Save host settings** writes there, using the reported scope. Changes apply to the next call without restarting an active call. Changing the target requires loading its settings again. Manual URL connections cannot load host settings.
+
 While connected, the microphone icon mutes or unmutes and the disconnect icon ends the selected host call and releases local audio. The panel waits for the intended Pi session to confirm its voice server before connecting your microphone.
 
 Quickstart installs the bundled Pi bridge in that machine's auto-discovered Pi extensions directory. It does not install a voice backend, change account access or submit a model prompt when the backend is missing. A failed connection leaves the new Pi terminal available to inspect.

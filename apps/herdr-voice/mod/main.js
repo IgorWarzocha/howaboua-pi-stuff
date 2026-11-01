@@ -6,6 +6,7 @@ import { connection, migrateConnection, updateConnection, targets, publishStatus
 import { Choice } from "./select.js";
 import { renderSidebar } from "./sidebar.js";
 import { renderSettings } from "./settings.js";
+import { HostSettings } from "./host-settings.js";
 
 export default class Voice extends View {
   init(_props, cx) {
@@ -18,7 +19,10 @@ export default class Voice extends View {
     this.pending = null;
     this.refreshing = false;
     this.revision = 0;
-    this.advanced = false;
+    this.advanced = true;
+    this.manual = false;
+    this.width = 860;
+    this.host = this.compact ? null : new HostSettings(cx);
     this.statusError = this.deviceError = this.actionError = this.storageError = null;
     let legacy;
     try { legacy = JSON.parse(localStorage.getItem("connection") || "null"); }
@@ -33,8 +37,8 @@ export default class Voice extends View {
     }
     this.choices = {};
     if (!this.compact) for (const [key, label] of Object.entries({
-      provider: "Provider", machine: "Quick connect machine", terminal: "Connect to", microphone: "Microphone", speaker: "Speaker", advanced: "Connection",
-    })) this.choices[key] = new Choice("voice-" + key, label, cx);
+      provider: "Provider", machine: "Pi host", terminal: "Pi pane", microphone: "Microphone", speaker: "Speaker",
+    })) this.choices[key] = new Choice("voice-" + key, label, cx, key === "provider" ? 200 : key === "machine" ? 300 : 360);
     this.refresh(cx, !this.compact);
     cx.timer.every(3000, cx => this.refresh(cx));
   }
@@ -42,6 +46,7 @@ export default class Voice extends View {
   save(key, value) {
     try {
       updateConnection(key, value);
+      if (key === "machine") updateConnection("terminal", "");
       this.storageError = null;
     } catch (_) { this.storageError = "Voice settings could not be saved. Check the Herdr app home's permissions."; }
   }
@@ -70,7 +75,7 @@ export default class Voice extends View {
   }
 
   act(path, body, cx) {
-    if (this.pending) return;
+    if (this.pending || this.host?.busy) return;
     this.revision++;
     this.pending = path;
     this.actionError = null;
@@ -95,7 +100,7 @@ export default class Voice extends View {
   }
 
   start(cx, quick) {
-    if (this.pending) return;
+    if (this.pending || this.host?.busy) return;
     const saved = connection();
     const target = targets(saved);
     if (quick ? !target.machineReady : !target.terminal) {
