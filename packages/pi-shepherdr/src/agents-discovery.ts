@@ -95,8 +95,8 @@ export async function agentsHelp(
 				? "Idle target; stop selected membership; counterpart checkpoints remain readonly"
 				: "Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking: gpt
-				? "spawn/assign default true; profile overrides spawn; await blocking calls; JS parallel: await Promise.allSettled; false ONLY if other work continues; background reports automatic→do other work/end turn, NO poll or await timers/extra Promises"
-				: "spawn/assign default true; profile blocking overrides spawn. Await blocking calls; use await Promise.allSettled for parallel calls, including failures. Use false only to continue other work. Background reports arrive automatically: do other work or end this turn, never poll or await timers or extra Promises for reports",
+				? "spawn/assign default false→dispatch then return; true→wait for result; profile overrides spawn. Parallel blocking calls: await Promise.allSettled. Background reports automatic→do other work/end turn, NO poll or await timers/extra Promises"
+				: "spawn/assign return after dispatch by default. Set blocking:true to wait for the result; profile blocking overrides spawn. Use await Promise.allSettled for parallel blocking calls, including failures. Background reports arrive automatically: do other work or end this turn, never poll or await timers or extra Promises for reports",
 			share_context: gpt
 				? "Profile false→isolated notes/history; otherwise→controller sharing setting"
 				: "Profile false isolates notes/history; otherwise follows controller sharing setting",

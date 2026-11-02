@@ -22,7 +22,6 @@ const ACTIONS = [
 	"read",
 	"reply",
 ] as const;
-const BLOCKING_ACTIONS = new Set<string>(["spawn", "assign", "reply"]);
 export const READ_SOURCES = ["latest", "visible", "recent"] as const;
 const STATUSES = ["idle", "working", "blocked", "done", "unknown"] as const;
 
@@ -84,7 +83,7 @@ const AgentsRequest = Type.Object(
 		blocking: Type.Optional(
 			Type.Boolean({
 				description:
-					"Delegation only; profile policy overrides spawn; otherwise defaults true",
+					"Wait for delegated result; profile policy overrides spawn; default false",
 			}),
 		),
 		context: Type.Optional(Type.Boolean()),
@@ -213,7 +212,10 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 				),
 				value.blocking,
 			);
-		return BLOCKING_ACTIONS.has(value.action) && value.blocking !== false;
+		return (
+			value.action === "reply" ||
+			(value.action === "assign" && value.blocking === true)
+		);
 	} catch {
 		return false;
 	}
@@ -223,5 +225,5 @@ export function shouldBlockAgentSpawn(
 	profileBlocking: boolean | undefined,
 	blocking: boolean | undefined,
 ): boolean {
-	return profileBlocking ?? blocking ?? true;
+	return profileBlocking ?? blocking ?? false;
 }
