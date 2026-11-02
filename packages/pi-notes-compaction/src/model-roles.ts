@@ -29,6 +29,7 @@ export function createModelRoles(
 ) {
 	let config: RoleConfig = { roles: [] };
 	let configError: string | undefined;
+	let roleIdsChanged: ((ids: string[]) => void) | undefined;
 	const load = () => {
 		try {
 			config = readRoleConfig();
@@ -37,6 +38,7 @@ export function createModelRoles(
 			config = { roles: [] };
 			configError = error instanceof Error ? error.message : String(error);
 		}
+		roleIdsChanged?.(config.roles.map((role) => role.id).sort());
 	};
 	pi.on("before_agent_start", (event, ctx) => {
 		activation.refreshActivation(ctx);
@@ -213,5 +215,11 @@ export function createModelRoles(
 			? ("notes" as const)
 			: undefined;
 	}
-	return { prepare, command };
+	return {
+		prepare,
+		command,
+		onRoleIdsChanged(listener: (ids: string[]) => void) {
+			roleIdsChanged = listener;
+		},
+	};
 }

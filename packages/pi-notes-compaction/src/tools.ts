@@ -14,9 +14,11 @@ import type { NotesStore } from "./store.js";
 import {
 	HISTORY_SCHEMA,
 	NEW_CONTEXT_DESCRIPTION,
-	NEW_CONTEXT_SCHEMA,
+	NEW_CONTEXT_ORDER_GUIDELINE,
 	NOTES_DESCRIPTION,
+	NOTES_ROUTING_GUIDELINE,
 	NOTES_SCHEMA,
+	newContextSchema,
 	prepareHistoryArguments,
 	prepareNewContextArguments,
 	prepareNotesArguments,
@@ -63,11 +65,12 @@ export function createTools(
 			);
 	};
 	const queries = createQueryExecutor(pi, store, lifecycle, search);
-	return [
+	const tools: ToolDefinition[] = [
 		{
 			name: "notes",
 			label: "notes",
 			description: NOTES_DESCRIPTION,
+			promptGuidelines: [NOTES_ROUTING_GUIDELINE],
 			parameters: NOTES_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments: prepareNotesArguments,
@@ -89,7 +92,8 @@ export function createTools(
 			name: "new_context",
 			label: "new_context",
 			description: NEW_CONTEXT_DESCRIPTION,
-			parameters: NEW_CONTEXT_SCHEMA,
+			promptGuidelines: [NEW_CONTEXT_ORDER_GUIDELINE],
+			parameters: newContextSchema([]),
 			prepareArguments: prepareNewContextArguments,
 			exposure: "model-only",
 			executionMode: "sequential",
@@ -131,4 +135,14 @@ export function createTools(
 			},
 		},
 	];
+	const newContext = tools.find((tool) => tool.name === "new_context")!;
+	let advertisedRoles = "[]";
+	roles.onRoleIdsChanged((ids) => {
+		const key = JSON.stringify(ids);
+		if (key === advertisedRoles) return;
+		advertisedRoles = key;
+		newContext.parameters = newContextSchema(ids);
+		pi.registerTool(newContext);
+	});
+	return tools;
 }

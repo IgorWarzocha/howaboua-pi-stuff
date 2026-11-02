@@ -64,13 +64,13 @@ We reuse a provisioned Pi Sandbox instance and replace its candidate checkout:
 bun run sandbox:setup --name review
 ```
 
-The [repository setup command](../../scripts/setup-repo-sandbox.mjs) transfers tracked working files, verifies the archive, installs the frozen lockfile and builds the required artifacts. New files must be staged to enter the snapshot. `sandbox-snapshot.json` records the source revision and archive hash.
+The [repository setup command](../../scripts/setup-repo-sandbox.mjs) transfers tracked working files, verifies the archive, installs the frozen lockfile and builds the required artifacts. It uses JJ's file list when `.jj` exists, otherwise Git's index. JJ may track new files automatically, so unstaging them in Git does not exclude them. Keep evaluator prompts and answers outside the checkout during model comparisons. `sandbox-snapshot.json` records the source revision and archive hash.
 
 The command prints the guest launch command. It uses an isolated Pi agent directory and the candidate's PCC and Shepherdr packages. The reviewer adds other affected extensions, such as Notes or GitHub Watch, to that guest configuration. It then checks the running application, rather than assuming a successful build means the intended extensions loaded.
 
 The guest is not a live mirror. After a host fix, the reviewer stops its test agents, runs setup again and starts fresh processes against the replacement candidate. The VM's separate agent directory and test evidence survive candidate replacement.
 
-Image provisioning and prerequisites belong in [Pi Sandbox's repository-review guide](../../packages/pi-sandbox/README.md#review-this-repository). We do not bundle an image. Our reviews have needed a guest-built native helper when the bundled binary required a newer libc. That used the supported `tools.customRustBinariesDir` setting, not an installed-package patch.
+Image provisioning and prerequisites belong in [Pi Sandbox's repository-review guide](../../packages/pi-sandbox/README.md#review-this-repository). We do not bundle an image. Release acceptance must use the candidate's bundled native helpers without overrides. Check guest compatibility first and replace incompatible disposable guests rather than rebuilding helpers around them. For live TUI review, pass `--live-model openai-codex/MODEL` to setup with an available model so the guest's authenticated readiness is checked.
 
 ## How we drive the application
 
@@ -84,6 +84,7 @@ Controlled HTTP, WebSocket and GitHub boundaries let the reviewer trigger retrie
 
 - [Sandbox reviewer profile](assets/sandbox-reviewer/) contains the reusable review instructions. The profile's model runs the reviewer, not the application under test.
 - [Headless launch example](headless.md) shows the SDK path used for focused acceptance checks.
+- [Notes continuity procedure](notes-continuity.md) compares first-try checkpoint and fresh-context use during real tasks. The [2 November 2026 findings](notes-continuity-results.md) record improvements and remaining failures.
 - [Free-model verification skill](../../.pi/skills/pi-stuff-free-model-smoke/SKILL.md) covers live catalogue checks and a small tool-result round trip before selecting a free test model.
 
 The reviewer finishes with what passed, what failed, what was blocked and where the evidence lives. We keep a host-accessible summary as well as guest captures. Temporary test credentials and owned processes are removed, then the VM is stopped. The implementer runs the remaining source checks after fixes converge. A sandbox pass does not update the host's installed extensions or publish a release.

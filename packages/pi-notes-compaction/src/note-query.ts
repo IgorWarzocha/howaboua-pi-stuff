@@ -1,5 +1,8 @@
 import type { NoteRevision } from "./store.js";
 
+export const NOTES_PATH_USAGE =
+	"Create, list, read and update virtual notes with notes, never filesystem or shell tools";
+
 export function canonicalPath(
 	path: unknown,
 	agent: string,
@@ -58,11 +61,12 @@ export function readNotes(
 	if (action === "read_file") {
 		const path = params["path"] as string;
 		const note = notes.get(path);
-		if (!note) return { file: null };
+		if (!note) return { file: null, usage: NOTES_PATH_USAGE };
 		const lines = note.text.split("\n");
 		const start = lineIndex(params["start_line"], lines.length, 0);
 		const stop = lineIndex(params["stop_line"], lines.length, lines.length - 1);
 		return {
+			usage: NOTES_PATH_USAGE,
 			file: {
 				path: `${root}${note.path}`,
 				content: start <= stop ? lines.slice(start, stop + 1).join("\n") : "",
@@ -95,6 +99,7 @@ export function readNotes(
 			}));
 		const limit = integer(params["max_results"], 20, 100);
 		return {
+			usage: NOTES_PATH_USAGE,
 			files: files.slice(0, limit),
 			...(files.length > limit ? { truncated: true } : {}),
 		};
@@ -121,7 +126,8 @@ export function readNotes(
 			.map((line, index) => ({ line_number: index + 1, line }))
 			.filter(({ line }) => line.includes(query));
 		if (!matches.length) continue;
-		if (found.length === fileLimit) return { files: found, truncated: true };
+		if (found.length === fileLimit)
+			return { usage: NOTES_PATH_USAGE, files: found, truncated: true };
 		found.push({
 			path: `${root}${note.path}`,
 			matches: matches.slice(0, matchLimit),
@@ -129,7 +135,7 @@ export function readNotes(
 			...(note.mode === "append" ? { append_only: true } : {}),
 		});
 	}
-	return { files: found };
+	return { usage: NOTES_PATH_USAGE, files: found };
 }
 
 function lineIndex(

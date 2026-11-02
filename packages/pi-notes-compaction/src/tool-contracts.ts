@@ -21,15 +21,21 @@ const HISTORY_ACTIONS = [
 	"search",
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
+export const NOTES_CODE_DESCRIPTION =
+	"One function → Promise<object>; text(await tools.notes()) for help. Args: {action: write|append|read|list|search, path?, text?, query?}";
 export const HISTORY_USAGE = "await tools.history()";
 export const NOTES_DESCRIPTION =
-	"Persistent notes for handing off task state between context windows";
+	"Virtual note storage for task checkpoints across context windows";
 export const GPT_NOTES_DESCRIPTION =
-	"Persistent notes: task state handoff between context windows";
+	"Virtual notes: task checkpoints across context windows";
+export const NOTES_ROUTING_GUIDELINE =
+	"Create, list, read and update task checkpoints and internal handoffs only with the notes tool. Notes paths are virtual addresses, not disk paths: never pass them to filesystem or shell tools. Project files and requested deliverables belong on disk";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Start fresh from saved notes; recover earlier conversation through history";
+	"Continue this session automatically in a fresh window; call outside code cells with {} unless selecting a role; no code argument";
+export const NEW_CONTEXT_ORDER_GUIDELINE =
+	"For a fresh-context request, save notes, call new_context, and create requested deliverables only after the new window opens";
 export const GPT_NEW_CONTEXT_DESCRIPTION =
-	"Saved notes→fresh context; earlier conversation→history";
+	"Same session→fresh window→automatic continuation; call outside code cells; {} unless selecting a role; no code argument";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
@@ -38,7 +44,7 @@ export const NOTES_SCHEMA = Type.Object(
 		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
 		path: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
-				description: "File for read/write/append; prefix for list/search",
+				description: "Virtual note address or list/search prefix",
 			}),
 		),
 		text: STRING,
@@ -55,10 +61,25 @@ export const NOTES_SCHEMA = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-export const NEW_CONTEXT_SCHEMA = Type.Object(
-	{ role: Type.Optional(Type.String({ minLength: 1 })) },
+const NEW_CONTEXT_SCHEMA = Type.Object(
+	{
+		role: Type.Optional(
+			Type.String({
+				minLength: 1,
+				description:
+					"Configured model-role ID, not an agent name or handoff text",
+			}),
+		),
+	},
 	{ additionalProperties: false },
 );
+
+export function newContextSchema(roleIds: string[]) {
+	return Type.Object(
+		roleIds.length ? { role: Type.Optional(StringEnum(roleIds)) } : {},
+		{ additionalProperties: false },
+	);
+}
 
 export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
@@ -209,6 +230,9 @@ export function queryHelp(
 			throw new Error("Help accepts only action: help");
 		const actions = namespace === "notes" ? NOTES_ACTIONS : HISTORY_ACTIONS;
 		return result({
+			...(namespace === "notes"
+				? { results: "read: file.content; write/append: file.path" }
+				: {}),
 			actions: Object.fromEntries(
 				actions.map((action) => [
 					action,
@@ -230,9 +254,9 @@ export function queryHelp(
 							? "write=replace; append=add"
 							: "write replaces; append adds",
 						paths: gpt
-							? "Relative=current agent; cross-agent=<agent>/notes[/path]"
-							: "Relative uses current agent; cross-agent uses <agent>/notes[/path]",
-						usage: '{ "action": "read", "path": "checkpoint" }',
+							? "Virtual≠filesystem; relative=current agent; cross-agent=<agent>/notes[/path]"
+							: "Virtual note paths, not filesystem files; relative uses current agent; cross-agent uses <agent>/notes[/path]",
+						usage: 'Call notes with { "action": "read", "path": "checkpoint" }',
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
 							: "start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",

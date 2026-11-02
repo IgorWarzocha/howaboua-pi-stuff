@@ -15,17 +15,17 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not a diary. Write checkpoints and reports to relative paths in your own notes. Delegates do likewise and return their note paths. Keep one concise, authoritative note per task or topic at a stable path. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Use write to replace stale state and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
+Notes are recovery state, not a diary. Keep checkpoints and internal handoffs in your own virtual Notes storage. Delegates do likewise and return their note addresses. Keep one concise, authoritative note per task or topic at a stable address. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Replace stale checkpoints and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
 
-You must maintain a task checkpoint, updating it at each meaningful milestone and on completion or before switching substantive tasks, even with context room. Don't save every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
+You must maintain a task checkpoint, updating it at each meaningful milestone and on completion or before switching substantive tasks, even with context room. Don't save every reply or intermediate step. Before new_context or handoff, save current state with notes and wait for success; call new_context next for rollover, and include the checkpoint address in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
 
 Previous skill reads don’t carry into this window. Read the skills needed for the current task.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recovery state≠diary. Checkpoints/reports→write relative paths in own notes. Delegates→same→return note paths. One concise authoritative note per task/topic, stable path. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. write→replace stale state; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
+Notes=recovery state≠diary. Checkpoints/internal handoffs→own virtual Notes storage. Delegates→same→return note addresses. One concise authoritative note per task/topic, stable address. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. Replace stale checkpoints; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
 
-Must maintain task checkpoint→update@each meaningful milestone + completion/before switching substantive tasks, even with context room. Not every reply/step. Before new_context/handoff: save current state→await success; handoff includes checkpoint path. Post-rollover: read checkpoint→needed links only. In-context notes: reread only if possibly changed. Missing details→history.
+Must maintain task checkpoint→update@each meaningful milestone + completion/before switching substantive tasks, even with context room. Not every reply/step. Before new_context/handoff: save state via notes→await success; rollover→new_context next; handoff→checkpoint address. Post-rollover: read checkpoint→needed links only. In-context notes: reread only if possibly changed. Missing details→history.
 
 Prior skill reads≠current context. Read task-relevant skills.
 </context_window_guidance>`;

@@ -4,7 +4,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { NoteSnapshotData } from "./bridge.js";
-import { canonicalPath, readNotes } from "./note-query.js";
+import { canonicalPath, NOTES_PATH_USAGE, readNotes } from "./note-query.js";
 import { type NoteRevision, NotesStore, type SessionRef } from "./store.js";
 
 export { normalizeNoteParams, readNotes } from "./note-query.js";
@@ -231,7 +231,12 @@ export function noteHints(
 	const paths = [
 		...new Set([...notes, ...store.cachedPaths(sourceSessionIds(ctx))]),
 	].slice(0, 5);
-	return paths.length ? `Recent notes: ${paths.join(", ")}`.slice(0, 4000) : "";
+	return paths.length
+		? `Recent virtual notes (notes tool: action=read, path=listed address): ${paths.join(", ")}`.slice(
+				0,
+				4000,
+			)
+		: "";
 }
 
 export function useNotes(
@@ -290,6 +295,7 @@ export function useNotes(
 			);
 		}
 		return {
+			usage: NOTES_PATH_USAGE,
 			file: { path: `${root}${path}` },
 		};
 	}

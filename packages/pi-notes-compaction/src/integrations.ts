@@ -9,6 +9,7 @@ import {
 	GPT_NOTES_DESCRIPTION,
 	HISTORY_USAGE,
 	NEW_CONTEXT_DESCRIPTION,
+	NOTES_CODE_DESCRIPTION,
 	NOTES_DESCRIPTION,
 	NOTES_USAGE,
 } from "./tool-contracts.js";
@@ -66,23 +67,28 @@ export async function registerNotesToolIntegrations(
 				tools
 					.filter((tool) => tool.name === "notes" || tool.name === "history")
 					.map((tool) =>
-						adaptToolForCodeMode(tool, {
-							discovery: "help",
-							usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
-							deferLoading: true,
-							opaqueResult: tool.name === "notes",
-							resultValue(result) {
-								const [part] = result.content;
-								if (result.content.length === 1 && part?.type === "text") {
-									try {
-										return JSON.parse(part.text);
-									} catch {
-										return part.text;
+						adaptToolForCodeMode(
+							tool.name === "notes"
+								? { ...tool, description: NOTES_CODE_DESCRIPTION }
+								: tool,
+							{
+								discovery: "help",
+								usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
+								deferLoading: tool.name !== "notes",
+								opaqueResult: tool.name === "notes",
+								resultValue(result) {
+									const [part] = result.content;
+									if (result.content.length === 1 && part?.type === "text") {
+										try {
+											return JSON.parse(part.text);
+										} catch {
+											return part.text;
+										}
 									}
-								}
-								return { content: result.content };
+									return { content: result.content };
+								},
 							},
-						}),
+						),
 					),
 			{ isActive: () => lifecycle.active },
 		);
