@@ -1,9 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
-import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { BindingSchema } from "@howaboua/pi-agent-board/integration";
 import type { SharedContextResult } from "@howaboua/pi-notes-compaction/context-sharing";
-import type { Static, TSchema } from "typebox";
+import { type Static, type TSchema, Type } from "typebox";
 import { Check } from "typebox/value";
 
 const AgentPath = Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" });

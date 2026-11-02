@@ -1,10 +1,9 @@
 import { resolve } from "node:path";
-import { Type } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import { readBoardConfig } from "./config.js";
 

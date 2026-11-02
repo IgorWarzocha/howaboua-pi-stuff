@@ -1,6 +1,9 @@
-import { StringEnum, Type } from "@earendil-works/pi-ai";
-import type { Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
+
+function StringEnum<T extends readonly string[]>(values: T) {
+	return Type.Unsafe<T[number]>({ type: "string", enum: values });
+}
 
 const BOARD_ACTIONS = [
 	"help",

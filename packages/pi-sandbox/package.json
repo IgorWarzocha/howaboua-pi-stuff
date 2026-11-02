@@ -56,7 +56,7 @@
 		}
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "1.4.0",
+		"@earendil-works/pi-coding-agent": "1.5.0",
 		"@howaboua/pi-codex-conversion": "4.0.7",
 		"typebox": "1.4.3",
 		"@types/node": "^26.6.5",

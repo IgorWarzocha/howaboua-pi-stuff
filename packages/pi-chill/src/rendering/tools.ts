@@ -192,7 +192,13 @@ export class ActivityRenderers {
 						{ ...options, expanded: rawContext.expanded },
 						theme,
 						rawContext,
-					) ?? renderResultFallback(result, rawContext.expanded, theme);
+					) ??
+					renderResultFallback(
+						result,
+						rawContext.expanded,
+						theme,
+						context.keyHint,
+					);
 				view.resultComponent = child;
 				if (!this.isEnabled() && view.offShell) {
 					view.offShell.addChild(toggleDetails(child, context));

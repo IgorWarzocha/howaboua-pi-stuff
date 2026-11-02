@@ -1,4 +1,5 @@
-import { type Static, StringEnum, Type } from "@earendil-works/pi-ai";
+import { type Static, Type } from "typebox";
+import { StringEnum } from "../tools/string-enum.ts";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./activation/state.ts";
 import { resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";

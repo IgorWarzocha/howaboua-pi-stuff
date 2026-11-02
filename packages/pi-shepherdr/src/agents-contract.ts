@@ -1,8 +1,11 @@
-import { StringEnum, Type } from "@earendil-works/pi-ai";
-import type { Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import { START_PLACEMENTS } from "./launch.js";
 import { loadAgentProfileBlocking } from "./profiles.js";
+
+function StringEnum<T extends readonly string[]>(values: T) {
+	return Type.Unsafe<T[number]>({ type: "string", enum: values });
+}
 
 const ACTIONS = [
 	"help",

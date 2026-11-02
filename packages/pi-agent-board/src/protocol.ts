@@ -1,5 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
-import type { Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import { BindingSchema } from "./identity.js";
 

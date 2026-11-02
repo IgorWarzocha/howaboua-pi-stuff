@@ -7,3 +7,4 @@
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.
 - Read and save global voice settings from the host without starting Pi or a voice call.
+- Custom voice tools now type-check with Pi 1.5.

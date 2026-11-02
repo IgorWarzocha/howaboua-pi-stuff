@@ -1,12 +1,9 @@
-import {
-	type Static,
-	type TSchema,
-	validateToolArguments,
-} from "@earendil-works/pi-ai";
+import { validateToolArguments } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { Static, TSchema } from "typebox";
 
 export type GippityToolResult =
 	| null

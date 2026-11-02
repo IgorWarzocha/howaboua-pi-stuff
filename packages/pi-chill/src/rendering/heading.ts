@@ -1,4 +1,4 @@
-import { keyHint, type ToolRenderers } from "@earendil-works/pi-coding-agent";
+import type { ToolRenderers } from "@earendil-works/pi-coding-agent";
 import {
 	type Component,
 	Container,
@@ -15,6 +15,7 @@ export function renderResultFallback(
 	result: Parameters<NonNullable<ToolRenderers["renderResult"]>>[0],
 	expanded: boolean,
 	theme: RenderTheme,
+	keyHint: Parameters<CallRenderer>[2]["keyHint"],
 ): Component {
 	const output = result.content
 		.filter((block) => block.type === "text")
