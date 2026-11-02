@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -13,13 +13,21 @@ const aggregatePackageDirs = new Set([
 const diff = spawnSync("git", ["diff", "--name-only", `${base}...HEAD`], {
 	cwd: root,
 	encoding: "utf8",
-	...(process.env.CHANGED_GIT_DIR ? {
-		env: { ...process.env, GIT_DIR: process.env.CHANGED_GIT_DIR, GIT_WORK_TREE: root },
-	} : {}),
+	...(process.env.CHANGED_GIT_DIR
+		? {
+				env: {
+					...process.env,
+					GIT_DIR: process.env.CHANGED_GIT_DIR,
+					GIT_WORK_TREE: root,
+				},
+			}
+		: {}),
 });
 if (diff.status !== 0) {
 	if (process.env.CHANGED_GIT_DIR) {
-		process.stderr.write(diff.stderr || "Could not compare candidate Git metadata.\n");
+		process.stderr.write(
+			diff.stderr || "Could not compare candidate Git metadata.\n",
+		);
 		process.exit(diff.status ?? 1);
 	}
 	process.exit(0);
@@ -30,23 +38,27 @@ const packageChanged = files.some((file) => {
 	const dir = /^packages\/([^/]+)\//.exec(file)?.[1];
 	if (!dir || aggregatePackageDirs.has(dir)) return false;
 	const manifest = join(root, "packages", dir, "package.json");
-	return existsSync(manifest) && JSON.parse(readFileSync(manifest, "utf8")).private !== true;
+	return (
+		existsSync(manifest) &&
+		JSON.parse(readFileSync(manifest, "utf8")).private !== true
+	);
 });
 if (!packageChanged) process.exit(0);
 
-const changesetDir = join(root, ".changeset");
-const hasChangeset =
-	existsSync(changesetDir) &&
-	readdirSync(changesetDir).some(
-		(file) =>
-			file.endsWith(".md") &&
-			file !== "README.md" &&
-			file !== "aggregate-bundles.md",
-	);
+const hasChangeset = files.some(
+	(file) =>
+		/^\.(?:changeset|changesets-pending)\/(?!README\.md$|aggregate-bundles\.md$)[^/]+\.md$/.test(
+			file,
+		) && existsSync(join(root, file)),
+);
 if (hasChangeset) process.exit(0);
 
-console.error("Package files changed, but no changeset was found.");
-console.error("Run: bun changeset");
+console.error(
+	"Package files changed, but no active or pending changeset was added or updated in this diff.",
+);
+console.error(
+	"Run: bun changeset, or bun changeset -- --pending to defer publication.",
+);
 console.error(
 	"If this is intentionally unreleased, bypass with: SKIP_CHANGESET_CHECK=1 git push",
 );
