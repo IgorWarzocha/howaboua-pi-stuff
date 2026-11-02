@@ -187,9 +187,7 @@ rm -rf .install-tmp
 		`python3 -c ${quote(`import json,pathlib
 p=pathlib.Path(${JSON.stringify(settings)})
 s=json.loads(p.read_text()) if p.exists() else {}
-s["packages"]=s.get("packages",[])
-for package in ${JSON.stringify(packages)}:
-    if package not in s["packages"]: s["packages"].append(package)
+s["packages"]=${JSON.stringify(packages)}
 integration=pathlib.Path.home()/".pi/agent/extensions/herdr-agent-state.ts"
 if not integration.is_file(): raise SystemExit("Herdr Pi integration not found after installation")
 s["extensions"]=s.get("extensions",[])
