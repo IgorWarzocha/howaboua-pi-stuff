@@ -51,7 +51,7 @@ export default class State extends View {
       .child(this.busy === action ? svg('mods/state/spinner.svg').size(15).spin(900) : svg(`mods/state/${icon}.svg`).size(15));
     return h_flex().size_full().items_center().px(8).gap(3).bg(t.chrome)
       .border_t(1).border_color(t.border).text_size(12)
-      .child(div().flex_1().text_color(t.muted).child('State'))
+      .child(div().flex_1().text_color(t.dim).child('State'))
       .child(button('save', 'Save', 'state')).child(button('restore', 'Restore', 'restore'));
   }
 }
