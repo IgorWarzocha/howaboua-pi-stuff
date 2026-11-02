@@ -1,0 +1,7 @@
+{
+  "name": "herdr-state",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "check": "node --test test/*.test.mjs && node test/smoke.mjs && herdr-app check mod" }
+}
