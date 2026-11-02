@@ -177,8 +177,8 @@ function copyPackage(packageRoot, tempRoot) {
 	cpSync(join(packageRoot, "package.json"), join(unpacked, "package.json"));
 	const vendor = join(packageRoot, "vendor");
 	if (existsSync(vendor)) cpSync(vendor, join(unpacked, "vendor"), { recursive: true });
-	const changelogRuntime = join(packageRoot, "changelog.js");
-	if (existsSync(changelogRuntime)) cpSync(changelogRuntime, join(unpacked, "changelog.js"));
+	const changelog = join(packageRoot, "CHANGELOG.md");
+	if (existsSync(changelog)) cpSync(changelog, join(unpacked, "CHANGELOG.md"));
 	return unpacked;
 }
 

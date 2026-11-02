@@ -30,7 +30,6 @@
 		"UPSTREAM_SYNC.md",
 		"LICENSE",
 		"CHANGELOG.md",
-		"changelog.ts",
 		"tsconfig.json",
 		"biome.json"
 	],
@@ -46,7 +45,7 @@
 		"undici": "8.12.3"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*",
 		"@howaboua/pi-codex-conversion": ">=4.0.7"

@@ -151,17 +151,20 @@ export function buildProviderErrorMessage(error: unknown): string {
 	const usageLimitMessage = formatCodexUsageLimitError(message);
 	if (usageLimitMessage) return usageLimitMessage;
 	if (/^(?:WebSocket (?:error|closed|connect timeout|idle timeout)|WebSocket stream closed before response\.completed|Stream closed before response\.completed)/.test(message)) {
-		return `Connection error: ${message}`;
+		return boundedProviderErrorText(`Connection error: ${message}`);
 	}
-	return message;
+	return boundedProviderErrorText(message);
+}
+
+export function boundedProviderErrorText(text: string): string {
+	const maxChars = 4000;
+	if (text.length <= maxChars) return text;
+	// Own the excerpt: a V8 substring would otherwise retain the complete response body.
+	const excerpt = `${text.slice(0, maxChars)} `.slice(0, -1);
+	return `${excerpt}... [truncated ${text.length - maxChars} chars]`;
 }
 
 export function createErrorMessage(message: AssistantMessage, error: unknown, aborted: boolean): AssistantMessage {
-	for (const block of message.content) {
-		if (typeof block === "object" && block !== null && "partialJson" in block) {
-			delete (block as { partialJson?: string | undefined }).partialJson;
-		}
-	}
 	message.stopReason = aborted ? "aborted" : "error";
 	message.errorMessage = buildProviderErrorMessage(error);
 	return message;
@@ -214,5 +217,5 @@ export async function parseErrorResponse(response: Response, signal?: AbortSigna
 		// ignore malformed error bodies
 	}
 
-	return { message, friendlyMessage, ...(code ? { code } : {}) };
+	return { message: boundedProviderErrorText(message), friendlyMessage, ...(code ? { code } : {}) };
 }

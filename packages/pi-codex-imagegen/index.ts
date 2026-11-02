@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import { imagegenCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
 import { createImageGenerationTool } from "./src/tool.js";
@@ -15,7 +14,6 @@ export { createImageGenerationTool } from "./src/tool.js";
 export default async function imagegenExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
-	registerPackageChangelog(pi);
 	const tool = createImageGenerationTool({
 		allowCodexProviderFallback: true,
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),

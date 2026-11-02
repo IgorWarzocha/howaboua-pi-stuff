@@ -129,7 +129,14 @@ export class ActivityRenderers {
 					view.detailsOpen = undefined;
 					group.nativeExpansion(context.expanded, call.id);
 				}
-				const container = new Container();
+				const container = new (class extends Container {
+					override invalidate(): void {
+						// Folded children are detached, but retain native rendering caches.
+						view.callComponent?.invalidate();
+						view.resultComponent?.invalidate();
+						super.invalidate();
+					}
+				})();
 				view.offShell = undefined;
 				if (this.isEnabled() && group.anchorId === call.id) {
 					container.addChild(

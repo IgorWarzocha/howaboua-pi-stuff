@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "../changelog.js";
 import { transformChartMarkdown } from "./chart.js";
 
 const CHART_PROMPT = [
@@ -15,7 +14,6 @@ const GPT_CHART_PROMPT = [
 ].join("\n");
 
 export default async function unicodeCharts(pi: ExtensionAPI): Promise<void> {
-	registerPackageChangelog(pi);
 	let mode:
 		| typeof import("@howaboua/pi-codex-conversion/prompt-mode")
 		| undefined;

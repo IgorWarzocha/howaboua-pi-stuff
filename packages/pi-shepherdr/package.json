@@ -31,7 +31,6 @@
 		"LICENSE",
 		"tsconfig.json",
 		"biome.json",
-		"changelog.ts",
 		"CHANGELOG.md"
 	],
 	"scripts": {
@@ -46,7 +45,7 @@
 		"@howaboua/pi-notes-compaction": ">=0.0.13",
 		"@howaboua/pi-codex-conversion": ">=4.0.7",
 		"@earendil-works/pi-ai": ">=1.1.0",
-		"@earendil-works/pi-coding-agent": ">=1.2.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.1.0",
 		"typebox": "*"
 	},

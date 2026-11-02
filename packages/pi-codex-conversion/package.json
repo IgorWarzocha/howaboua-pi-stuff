@@ -96,12 +96,10 @@
     "code-mode/NOTICE",
     "scripts/code-mode",
     "!src/**/AGENTS.md",
-    "!src/tools/target/**",
-    "changelog.ts",
-    "changelog.js"
+    "!src/tools/target/**"
   ],
   "scripts": {
-    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('changelog.js', { force: true })\" && tsc -p tsconfig.build.json && node ../../scripts/build-extension-changelog.mjs . && bun run build:host-settings",
+    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun run build:host-settings",
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
@@ -125,8 +123,8 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": ">=1.4.0",
-    "@earendil-works/pi-coding-agent": ">=1.4.0",
+    "@earendil-works/pi-ai": ">=1.5.0",
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
     "@earendil-works/pi-tui": ">=1.0.0",
     "typebox": "*"
   },

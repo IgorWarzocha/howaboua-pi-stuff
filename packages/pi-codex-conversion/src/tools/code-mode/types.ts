@@ -2,6 +2,7 @@ import type {
 	AgentToolResult,
 	ExtensionContext,
 	ExtensionToolContext,
+	KeybindingHints,
 	ToolAnnotations,
 	ToolNamespace,
 } from "@earendil-works/pi-coding-agent";
@@ -110,7 +111,7 @@ export interface CodeModeRenderTheme {
 	bold(text: string): string;
 }
 
-export interface CodeModeNestedRenderContext {
+export interface CodeModeNestedRenderContext extends Partial<KeybindingHints> {
 	toolCallId?: string | undefined;
 	cwd?: string | undefined;
 	lastComponent?: Component | undefined;

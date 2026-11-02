@@ -1,4 +1,3 @@
-- index.ts wires features, changelog.ts is generated shared release UI.
 - ask is the sole human-input, review and handoff surface.
 - Wait/steer share one panel. Only wait reports blocked. Steer answers use developer role on active Codex Responses, user steering elsewhere.
 - Keep features under ask/. Coordinator owns queued delivery, pending owns restoration.

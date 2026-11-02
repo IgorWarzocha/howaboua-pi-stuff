@@ -3,7 +3,6 @@ import type {
 	ExtensionAPI,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { keyHint } from "@earendil-works/pi-coding-agent";
 import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { WindowIdentity } from "./bridge.js";
 
@@ -34,7 +33,7 @@ Prior skill reads≠current context. Read task-relevant skills.
 export function registerWindowRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer(
 		WINDOW_MESSAGE,
-		(message, { expanded, outputPad }, theme) => {
+		(message, { expanded, outputPad, keyHint }, theme) => {
 			const details = parseWindowDetails(message.details);
 			if (!details || typeof message.content !== "string") return undefined;
 			const title =

@@ -1,16 +1,8 @@
 import { buildFilePreviews, type PreviewLine } from "./patch-preview.ts";
 import { isAbsolute, relative } from "node:path";
-import { keyHint, renderDiff } from "@earendil-works/pi-coding-agent";
+import { renderDiff } from "@earendil-works/pi-coding-agent";
 import { parsePatchActions } from "../../patch/parser.ts";
 import type { ParsedPatchAction } from "../../patch/types.ts";
-
-function expandHint(): string {
-	try {
-		return keyHint("app.tools.expand", "to expand");
-	} catch {
-		return "ctrl+o to expand";
-	}
-}
 
 export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()): string {
 	let actions: ParsedPatchAction[];
@@ -44,15 +36,13 @@ export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()):
 	return lines.join("\n");
 }
 
-export function formatApplyPatchCollapsedDiff(patchText: string, cwd = process.cwd(), maxPreviewLines = 10): string {
-	const full = renderApplyPatchCall(patchText, cwd);
-	if (!full) return formatApplyPatchSummary(patchText, cwd);
+export function collapseApplyPatchDiff(full: string, maxPreviewLines: number, expandHint: string): string {
 	const fullLines = full.split("\n");
 	const visibleLines = fullLines.slice(0, maxPreviewLines + 1);
 	const remaining = fullLines.length - visibleLines.length;
 	const lines = [...visibleLines];
 	if (remaining > 0) {
-		lines.push(`    ... (${remaining} more lines, ${expandHint()})`);
+		lines.push(`    ... (${remaining} more lines, ${expandHint})`);
 	}
 	return lines.join("\n");
 }

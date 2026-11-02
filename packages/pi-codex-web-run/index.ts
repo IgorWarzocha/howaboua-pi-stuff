@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import { webRunCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
 import type { WebSearchToolOptions } from "./src/contract.js";
@@ -20,7 +19,6 @@ export {
 export { createWebSearchTool } from "./src/tool.js";
 
 export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
-	registerPackageChangelog(pi);
 	const options: WebSearchToolOptions = {
 		allowCodexProviderFallback: true,
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),

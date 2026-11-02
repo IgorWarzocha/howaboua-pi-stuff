@@ -7,7 +7,7 @@ import type { CodemodeWasmModule } from "@earendil-works/pi-codemode";
 export interface JsRuntime { wasm: CodemodeWasmModule; moduleUrl: string }
 
 export async function loadJsRuntime(agentDir: string, signal?: AbortSignal): Promise<JsRuntime> {
-	const installed = await runtimePackage("@earendil-works/pi-codemode", "1.4.0", agentDir, "JS Notebook", signal);
+	const installed = await runtimePackage("@earendil-works/pi-codemode", "1.5.0", agentDir, "JS Notebook", signal);
 	// This pinned package exposes its main only to ESM. Follow its published
 	// entrypoint, not require.resolve's unsupported "require" export condition.
 	const manifest: unknown = JSON.parse(await readFile(installed.manifest, "utf8"));

@@ -89,6 +89,10 @@ The [extension API guide](./docs/extension-apis.md) covers Board and Notes with 
 
 See [CHANGELOG.md](./CHANGELOG.md). Package-level changelogs remain beside packages that have them.
 
+Extension updates use Pi 1.5's native notices on the next fresh launch. The first launch records installed versions silently. Use `collapseChangelog` in Pi's settings for condensed notices. Bundles show their combined changelog rather than separate notices for each bundled extension. Direct extension-file loads do not show package update notices. `/changelog` shows Pi's own history; use the links above for package history.
+
+The old `howaboua-pi-stuff-changelog.json` state and its `suppress` preference are no longer read or migrated. Set Pi's `collapseChangelog` preference yourself if you want condensed notices. This condenses updates rather than hiding them.
+
 ## License
 
 Individual packages include their own license files. They are MIT-licensed unless noted in the package directory.

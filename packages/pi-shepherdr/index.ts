@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import { isBlockingAgentsCall } from "./src/agents-contract.js";
 import { acceptFocus, registerFocusArrivals } from "./src/agents-focus.js";
 import { createAgentsTool } from "./src/agents-tool.js";
@@ -26,7 +25,6 @@ export default async function shepherdrExtension(
 ): Promise<void> {
 	registerCoreStatus(pi);
 	const workerRole = registerWorkerRole(pi);
-	registerPackageChangelog(pi);
 
 	await installAgentProfiles();
 	registerProfilePrompt(pi);

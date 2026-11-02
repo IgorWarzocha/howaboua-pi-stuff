@@ -1,16 +1,16 @@
-import { parseToolCallArguments, type AssistantMessage, type AssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { ToolCallArgumentsStream, type AssistantMessage, type AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { ResponseStreamEvent } from "openai/resources/responses/responses.js";
-import type { GrammarToolInputJsonBuffer } from "../../constrained-sampling.js";
+import { appendGrammarToolInputJsonDelta, type GrammarToolInputJsonBuffer } from "../../constrained-sampling.js";
 import { encodeTextSignatureV1 } from "../signatures.ts";
 import { sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageGenerationCallBlock, type WebSearchCallBlock, type ResponsesToolCall } from "../native-items.ts";
 import type { OpenAIResponsesStreamOptions } from "../shared.ts";
-import { appendCustomInput } from "./tool-deltas.ts";
+import { closeCustomInput } from "./tool-deltas.ts";
 
 type InternalAssistantContent = AssistantMessage["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
 
 type ThinkingBlock = Extract<AssistantMessage["content"][number], { type: "thinking" }>;
 type TextBlock = Extract<AssistantMessage["content"][number], { type: "text" }>;
-type ToolCallBlock = ResponsesToolCall & { partialJson?: string | undefined };
+type ToolCallBlock = ResponsesToolCall;
 
 type ReasoningState = {
 	kind: "reasoning";
@@ -29,14 +29,15 @@ type FunctionCallState = {
 	kind: "function_call";
 	blockIndex: number;
 	block: ToolCallBlock;
+	arguments: ToolCallArgumentsStream;
 };
 export type CustomToolCallState = {
 	kind: "custom_tool_call";
 	blockIndex: number;
 	block: ToolCallBlock;
-	input: string;
 	property: string;
 	jsonBuffer: GrammarToolInputJsonBuffer;
+	unsent: string;
 };
 export type OutputState = ReasoningState | MessageState | FunctionCallState | CustomToolCallState;
 export interface ResponsesStreamOutput {
@@ -63,13 +64,14 @@ export function startResponsesOutputItem(event: Extract<ResponseStreamEvent, { t
 			...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}),
 		};
 		output.content.push(currentBlock);
+		const jsonBuffer = { input: "", started: false, closed: false };
 		outputStates.set(event.output_index, {
 			kind: "custom_tool_call",
 			blockIndex: blockIndex(),
 			block: currentBlock,
-			input,
 			property,
-			jsonBuffer: { input: "", started: false, closed: false },
+			jsonBuffer,
+			unsent: appendGrammarToolInputJsonDelta(jsonBuffer, property, input) ?? "",
 		});
 		stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
 	} else if (item.type === "reasoning") {
@@ -95,19 +97,20 @@ export function startResponsesOutputItem(event: Extract<ResponseStreamEvent, { t
 		stream.push({ type: "text_start", contentIndex: blockIndex(), partial: output });
 	} else if (item.type === "function_call") {
 		const namespace = (item as unknown as { namespace?: string }).namespace;
+		const args = new ToolCallArgumentsStream();
 		const currentBlock: ToolCallBlock = {
 			type: "toolCall",
 			id: `${item.call_id}|${item.id ?? ""}`,
 			name: item.name,
-			arguments: {},
+			arguments: item.arguments ? args.append(item.arguments) : {},
 			...(namespace !== undefined ? { namespace } : {}),
-			partialJson: item.arguments || "",
 		};
 		output.content.push(currentBlock);
 		outputStates.set(event.output_index, {
 			kind: "function_call",
 			blockIndex: blockIndex(),
 			block: currentBlock,
+			arguments: args,
 		});
 		stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
 	}
@@ -121,12 +124,12 @@ export function finishResponsesOutputItem(event: Extract<ResponseStreamEvent, { 
 		? item as unknown as { type: "custom_tool_call"; id?: string; call_id: string; name: string; input?: string; namespace?: string }
 		: undefined;
 	const customState = customItem ? outputStates.get(event.output_index) : undefined;
-	const customInput = customItem?.input ?? (customState?.kind === "custom_tool_call" ? customState.input : "");
+	const customInput = customItem?.input ?? (customState?.kind === "custom_tool_call" ? customState.jsonBuffer.input : "");
 	options?.onOutputItemDone?.(customItem ? { ...customItem, input: customInput } : item);
 	if (customItem) {
 		const state = customState;
 		if (state?.kind === "custom_tool_call") {
-			const delta = appendCustomInput(state, customInput, true);
+			const delta = closeCustomInput(state, customItem.input);
 			if (delta !== undefined) stream.push({
 				type: "toolcall_delta",
 				contentIndex: state.blockIndex,
@@ -179,12 +182,13 @@ export function finishResponsesOutputItem(event: Extract<ResponseStreamEvent, { 
 	} else if (item.type === "function_call") {
 		const state = outputStates.get(event.output_index);
 		const namespace = (item as unknown as { namespace?: string }).namespace;
-		const parsed = parseToolCallArguments(item.arguments || (state?.kind === "function_call" ? state.block.partialJson : undefined));
+		const args = state?.kind === "function_call" ? state.arguments : new ToolCallArgumentsStream();
+		if (item.arguments) args.replace(item.arguments);
+		const parsed = args.finish();
 		let toolCall: ToolCallBlock;
 		if (state?.kind === "function_call") {
 			Object.assign(state.block, parsed);
 			if (namespace !== undefined) state.block.namespace = namespace;
-			delete state.block.partialJson;
 			toolCall = state.block;
 		} else {
 			toolCall = {

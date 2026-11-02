@@ -32,8 +32,7 @@
 		"README.md",
 		"LICENSE",
 		"index.ts",
-		"CHANGELOG.md",
-		"changelog.ts"
+		"CHANGELOG.md"
 	],
 	"pi": {
 		"extensions": [
@@ -53,8 +52,8 @@
 		"prepack": "bun run ../../scripts/prepare-aggregate-package.mjs"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
+		"@earendil-works/pi-tui": ">=1.5.0"
 	},
 	"devDependencies": {
 		"@earendil-works/pi-coding-agent": "1.5.0"

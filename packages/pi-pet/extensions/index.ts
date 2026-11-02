@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import { CONFIG_DIR_NAME, defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import registerPackageChangelog from "../changelog.js";
 import { type PetRuntime, resolvePetRuntime } from "../src/pet-storage.ts";
 import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
 import { registerPetDevices } from "./desktop-command.ts";
@@ -125,7 +124,6 @@ export default async function piPetExtension(pi: ExtensionAPI): Promise<void> {
       throw error;
   }
 
-  registerPackageChangelog(pi);
   registerPetDevices(pi);
   pi.on("session_start", (_event, ctx) => {
     const resolution = resolvePetRuntime(packageRoot, join(ctx.cwd, CONFIG_DIR_NAME, "pi-pet.json"));

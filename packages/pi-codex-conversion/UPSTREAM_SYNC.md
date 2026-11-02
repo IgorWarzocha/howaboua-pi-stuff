@@ -4,14 +4,24 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi SDK baseline: published `0.99.2`
-- Stock provider comparison: published Pi `0.99.2` (2026-10-01)
+- Pi SDK baseline: published `1.5.0`
+- Stock provider comparison: published Pi `1.5.0` (2026-11-02)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## Pi 1.5 adoption
+
+PCC requires Pi 1.5. Tool-call JSON now uses Pi's incremental parser, and grammar input is escaped by delta and closed only on finalisation. Stream scratch state stays outside transcript content. Adapter-owned nested tools use Pi's argument validator and coercion. Pi-routed tools leave preparation and validation to Pi's native execution pipeline.
+
+Pi's catalogue owns GPT-6 model pricing, context limits and reasoning mappings. GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna support `off`; GPT-6 Astra and GPT-6.1 Sol do not. Codex maps Pi's `minimal` selector to `low`. Daybreak aliases, Reserve and the GPT-5.6 context clamp remain PCC-owned additions.
+
+The JS Notebook runtime pin is Pi codemode 1.5. Its runtime source and the separately pinned QuickJS WASM are unchanged, so existing snapshots retain their engine fingerprint.
+
+Pi now owns extension update notices. PCC's generated changelog renderer and state file are removed. Existing base-instruction placement, tool replay, namespace policy, request capture, continuation and transport-recovery differences remain intentional.
 
 ## October 23 continuity ownership
 
@@ -43,13 +53,13 @@ Compared the published SDK and stock Codex provider for request shape, headers, 
 - Browser OAuth callback errors settle login immediately. The new OpenAI API OAuth provider has separate credentials and does not replace this adapter's Codex backend.
 - Backend-reported `fast` uses the existing priority cost multiplier. Stock Pi's Codex provider still recognizes only `priority`; this is an intentional pricing correction.
 
-Pi's built-in GPT-6.1 Sol row maps `minimal` to `low`. Keep the adapter's `minimal: null` override rather than dropping it during catalogue consolidation.
+Pi 1.5 owns GPT-6.1 Sol's reasoning mapping, including the Codex `minimal` to `low` alias.
 
 ## GPT-6.1 Sol
 
-Model registration follows the [published model specification](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [Codex catalogue at `b1e72963c3b7`](https://github.com/openai/codex/blob/b1e72963c3b71a9265a551e54beff078384efed9/codex-rs/models-manager/models.json). The Codex catalogue confirms Responses Lite, native reasoning updates and a 272K default context window. Keep that default distinct from the public API's 1.05M window. API-equivalent pricing includes the 5% cache-read rate and long-context tier.
+Model registration follows Pi 1.5's catalogue, the [published model specification](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and the [Codex catalogue](https://github.com/openai/codex/blob/b1e72963c3b71a9265a551e54beff078384efed9/codex-rs/models-manager/models.json). The current Codex context window is 500K, distinct from the public API's 1.05M window. Responses Lite and native reasoning updates remain supported. API-equivalent pricing includes the 5% cache-read rate and long-context tier.
 
-Pi exposes `low`, `medium`, `high`, `xhigh` and `max`, with neither `off` nor `minimal`. The catalogue's `ultra` automatic-delegation mode is not exposed through Pi's reasoning selector.
+Pi exposes `low`, `medium`, `high`, `xhigh` and `max`, with `minimal` mapped to `low` and no `off`. The catalogue's `ultra` automatic-delegation mode is not exposed through Pi's reasoning selector.
 
 ## September 28 transport sync
 

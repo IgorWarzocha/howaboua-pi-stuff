@@ -108,10 +108,10 @@ function renderCodeModeResult(
 		&& !context?.isError && !details.scriptError && !details.notification;
 	const displayText = !showOutput ? "" : hidePreview
 		? [
-			previewText(text ? theme.fg(tone, text) : "", theme, true),
+			previewText(text ? theme.fg(tone, text) : "", theme, true, context),
 			status ? theme.fg(tone, status) : "",
 		].filter(Boolean).join("\n")
-		: options.expanded || options.isPartial ? renderedText : previewText(renderedText, theme);
+		: options.expanded || options.isPartial ? renderedText : previewText(renderedText, theme, false, context);
 	const output = showOutput ? renderTextAndImages(displayText, [], theme) : new Container();
 	const body = renderTraceAndOutput(
 		details.traces ?? [],

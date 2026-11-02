@@ -32,7 +32,6 @@
 		"biome.json",
 		"!src/**/AGENTS.md",
 		"!src/voice/rust/target/**",
-		"changelog.ts",
 		"CHANGELOG.md",
 		"dist/host-settings.js"
 	],
@@ -62,7 +61,7 @@
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.0.0",
 		"typebox": "*"
 	},

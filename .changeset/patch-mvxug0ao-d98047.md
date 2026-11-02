@@ -2,9 +2,16 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
+Requires Pi 1.5 or newer.
+
+- Extension updates now use Pi's native changelog notices and `collapseChangelog` setting. Custom suppression is removed.
+- Large streamed tool calls now parse incrementally instead of repeatedly parsing the accumulated input.
+- Code and Notebook now use the same tool-argument coercion and validation as native Pi calls.
+- Fixed repeated argument preparation for extension tools called through Code or Notebook.
+- GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off, following Pi's model catalogue.
+- Tool expansion hints now use your configured keybinding.
 - Fixed Realtime voice resubmitting Pi tasks from progress updates without new user speech.
 - Fixed generated task text appearing as user speech.
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.
 - Read and save global voice settings from the host without starting Pi or a voice call.
-- Fixed Pi 1.5 compatibility for Notebook, automatic reasoning and custom voice tools.

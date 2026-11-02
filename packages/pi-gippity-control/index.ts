@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.ts";
 import { registerGippityControl } from "./src/register.ts";
 
 export {
@@ -27,6 +26,5 @@ export {
 } from "./src/voice/realtime-tools.ts";
 
 export default function gippityControl(pi: ExtensionAPI): void {
-	registerPackageChangelog(pi);
 	registerGippityControl(pi);
 }
