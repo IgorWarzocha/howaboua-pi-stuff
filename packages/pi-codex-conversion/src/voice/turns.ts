@@ -92,12 +92,18 @@ class RealtimeTranscriptBuffer {
 		return transcript || undefined;
 	}
 
-	takeInterval(currentUser?: TranscriptEntry): { text?: string } {
+	takeInterval(
+		input: string,
+		currentUser?: TranscriptEntry,
+	): { text?: string } {
 		const user = currentUser ?? this.active.get("user");
-		const interval = this.entries.filter((entry) => entry !== user);
+		// A delegation may contain only a suffix. Keep captured speech unless
+		// the payload already repeats the complete utterance.
+		const interval = this.entries.filter(
+			(entry) => entry !== user || entry.text.trim() !== input.trim(),
+		);
 		const text = this.render(interval);
-		// Keep in-flight assistant boundaries for late finals. The yielded user
-		// input is already authoritative; transcript revisions must not block it.
+		// Keep in-flight assistant boundaries for late finals.
 		this.entries = interval.filter(
 			(entry) => !entry.final && entry.role === "assistant",
 		);
@@ -323,7 +329,7 @@ export class RealtimeVoiceTurnTracker {
 		currentUser?: TranscriptEntry,
 	): RealtimeVoiceTurn {
 		const interval = this.preserveInterval
-			? this.transcript.takeInterval(currentUser)
+			? this.transcript.takeInterval(delegation.input, currentUser)
 			: undefined;
 		const transcriptDelta = interval
 			? interval.text

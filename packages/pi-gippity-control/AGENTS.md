@@ -3,6 +3,7 @@
 - DSP adaptations map to `~/Frameworks/codex/codex-rs/voice-host/src/{device_buffers,processing}.rs`. Before changing them, compare against the pin in `src/voice/rust/VENDORED.md`; preserve the local CPAL/WebRTC/IPC boundary. `rust/vendor/` holds attribution, not dependency source.
 - `src/register.ts` owns Pi lifecycle wiring. Voice modes own audio; LAN owns browser/session transport; config owns persisted user settings.
 - Codex Live and public OpenAI Realtime share the credential-free WebRTC helper, not wire protocols. Dictation is a separate manually bounded transcription path.
+- Codex delegations can be partial. Keep captured user speech unless its complete trimmed text matches the delegation input; never guess missing words or clip novel context.
 - Keep the native helper credential-free and its stdout protocol-only. Preserve bounded external data and idempotent cleanup.
 - LAN control is intentionally unauthenticated and session-owned. Keep server startup lazy.
 - Unauthenticated does not mean cross-origin: enforce the same HTTPS Origin/Host boundary on HTTP control and audio upgrades while allowing originless native clients.
