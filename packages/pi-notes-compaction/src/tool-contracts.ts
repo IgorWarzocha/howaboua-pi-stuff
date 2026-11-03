@@ -32,11 +32,11 @@ export const GPT_NOTES_DESCRIPTION =
 export const NOTES_ROUTING_GUIDELINE =
 	"Use notes for task checkpoints and internal handoffs. To revise a checkpoint, use notes write or append, not filesystem edit or patch. Notes paths are virtual, never filesystem or shell targets. Project files and requested deliverables belong on disk";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Continue this session automatically in a fresh window; call outside code cells with {} unless selecting a role; no code argument";
+	"Continue this session automatically in a fresh window; save your notes this turn, await success, then call immediately outside code cells";
 export const NEW_CONTEXT_ORDER_GUIDELINE =
 	"For a fresh-context request, do not assume the window has changed. Write notes this turn, wait for success, then call new_context without intervening tool calls. Create requested deliverables only after the new window opens";
 export const GPT_NEW_CONTEXT_DESCRIPTION =
-	"Same session→fresh window→automatic continuation; call outside code cells; {} unless selecting a role; no code argument";
+	"Same session→fresh window→automatic continuation; save own notes this turn→await success→call immediately outside code cells";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
