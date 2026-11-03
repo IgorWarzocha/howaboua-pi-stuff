@@ -7,11 +7,8 @@ import type { NotesActivation } from "./activation.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import {
 	GPT_NEW_CONTEXT_DESCRIPTION,
-	GPT_NOTES_DESCRIPTION,
 	HISTORY_USAGE,
 	NEW_CONTEXT_DESCRIPTION,
-	NOTES_CODE_DESCRIPTION,
-	NOTES_DESCRIPTION,
 	NOTES_USAGE,
 } from "./tool-contracts.js";
 import type { createTools } from "./tools.js";
@@ -31,16 +28,13 @@ export async function registerNotesToolIntegrations(
 		);
 		const registration = registerGptPromptMode(pi, (active, ctx) => {
 			if (ctx) activation.refreshActivation(ctx);
-			for (const [name, normal, gpt] of [
-				["notes", NOTES_DESCRIPTION, GPT_NOTES_DESCRIPTION],
-				["new_context", NEW_CONTEXT_DESCRIPTION, GPT_NEW_CONTEXT_DESCRIPTION],
-			] as const) {
-				const tool = tools.find((tool) => tool.name === name);
-				const description = active ? gpt : normal;
-				if (tool && tool.description !== description) {
-					tool.description = description;
-					pi.registerTool(tool);
-				}
+			const tool = tools.find((tool) => tool.name === "new_context");
+			const description = active
+				? GPT_NEW_CONTEXT_DESCRIPTION
+				: NEW_CONTEXT_DESCRIPTION;
+			if (tool && tool.description !== description) {
+				tool.description = description;
+				pi.registerTool(tool);
 			}
 			return lifecycle.active ? tools : [];
 		});
@@ -68,20 +62,15 @@ export async function registerNotesToolIntegrations(
 				tools
 					.filter((tool) => tool.name === "notes" || tool.name === "history")
 					.map((tool) =>
-						adaptToolForCodeMode(
-							tool.name === "notes"
-								? { ...tool, description: NOTES_CODE_DESCRIPTION }
-								: tool,
-							{
-								discovery: "help",
-								usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
-								deferLoading: tool.name !== "notes",
-								opaqueResult: tool.name === "notes",
-								...(tool.name === "history"
-									? { resultValue: historyResultValue }
-									: {}),
-							},
-						),
+						adaptToolForCodeMode(tool, {
+							discovery: "help",
+							usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
+							deferLoading: tool.name !== "notes",
+							opaqueResult: tool.name === "notes",
+							...(tool.name === "history"
+								? { resultValue: historyResultValue }
+								: {}),
+						}),
 					),
 			{ isActive: () => lifecycle.active },
 		);

@@ -8,7 +8,7 @@ import type {
 } from "./history-search-protocol.js";
 
 const UNAVAILABLE =
-	"This history search failed. Use list/read or ask user to check /notes.";
+	"History request failed. Use list/read or ask user to check /notes.";
 
 /** Worker owns derived storage; JSONL and the caller own content and scope. */
 export class HistorySearch {
