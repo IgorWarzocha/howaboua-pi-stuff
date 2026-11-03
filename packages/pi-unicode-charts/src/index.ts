@@ -43,12 +43,17 @@ export default async function unicodeCharts(pi: ExtensionAPI): Promise<void> {
 		mode?.prepareGptPromptMode(pi, ctx);
 		const prompt = promptMode?.active ? GPT_CHART_PROMPT : CHART_PROMPT;
 		if (event.systemPrompt.includes(prompt)) return;
+		const options = event.systemPromptOptions;
+		if (options.forceSystemPrompt === undefined) {
+			options.sections["unicode_charts"] = prompt;
+			return;
+		}
+		// An earlier full-prompt override bypasses structured sections.
+		const forced = options.forceSystemPrompt;
 		const previous = promptMode?.active ? CHART_PROMPT : GPT_CHART_PROMPT;
-		return {
-			systemPrompt: event.systemPrompt.includes(previous)
-				? event.systemPrompt.replace(previous, prompt)
-				: `${event.systemPrompt}\n\n${prompt}`,
-		};
+		options.forceSystemPrompt = forced.includes(previous)
+			? forced.replace(previous, prompt)
+			: `${forced}\n\n${prompt}`;
 	});
 }
 
