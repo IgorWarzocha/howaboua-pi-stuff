@@ -83,6 +83,8 @@ export function normalizeQueryInput(
 		alias(params, "max_results", "limit");
 	}
 	const used = PRESENTATION[`${namespace}:${String(action)}`] ?? [];
+	if (namespace === "history" && action !== "read")
+		delete params["offset_chars"];
 	for (const hint of HINTS) if (!used.includes(hint)) delete params[hint];
 	return params;
 }
