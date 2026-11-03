@@ -46,7 +46,7 @@ export function createAgentsTool(
 		label: "Shepherdr",
 		description:
 			"Delegate to persistent agents; {} lists additional action fields",
-		promptGuidelines: ["Read agents help alone before first use"],
+		promptGuidelines: ["agents: Read help alone first"],
 		parameters: AgentsParameters,
 		executionMode: "parallel",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {

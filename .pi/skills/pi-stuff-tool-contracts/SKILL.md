@@ -5,6 +5,8 @@ description: "Read after general agent-tool design when reviewing or changing a 
 
 Discover and load applicable general agent tool design guidance before tool work. Load prompt caching guidance too when the active tool vector or system-prompt metadata changes.
 
+Start tool-specific standing guidance with `tool_name: concise guidance`, not "Use tool_name to..." framing. Preserve behavioural constraints and explicit action names.
+
 Inspect retained Notebook bindings before writing measurement tooling. Reuse `piStuffTokenCount` when available with existing package prompt and schema builders.
 
 Use `scripts/tool-token-lines.mjs` as this repo's preliminary migration and copy-cost probe. If its dependency is absent, install it once:
