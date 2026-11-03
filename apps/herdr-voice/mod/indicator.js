@@ -12,6 +12,7 @@ export function voiceIndicator(terminal) {
   const t = theme();
   const label = activity.phase === "connecting" ? "Voice connecting" : activity.muted ? "Voice muted" : "Voice active";
   return div().id(`voice-${terminal}`).flex_none().flex().items_center()
-    .accessibility_label(label).tooltip(label).text_color(activity.muted ? t.dim : t.accent)
+    .accessibility_label(label).tooltip(label)
+    .text_color(activity.muted ? t.ansi1 : activity.phase === "connecting" ? t.accent : t.ansi2)
     .child(svg(`mods/voice/icons/${activity.muted ? "mic-off" : "mic"}.svg`).size(13));
 }

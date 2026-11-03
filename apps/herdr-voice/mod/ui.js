@@ -19,10 +19,12 @@ export function icon(name, size = 15) {
 
 export function iconButton(id, name, label, action, disabled = false, selected = false) {
   const t = theme();
+  const callColor = ["disconnect", "mic-off"].includes(name) ? t.ansi1
+    : ["plug", "zap", "mic"].includes(name) ? t.ansi2 : null;
   return Button.new(id).accessibility_label(label).tooltip(label).disabled(disabled)
     .size(28).flex_none().flex().items_center().justify_center().rounded(6)
-    .bg(selected ? t.selected : t.chrome).text_color(disabled ? t.dim : selected ? t.accent : t.muted)
-    .when(!disabled, el => el.hover(s => s.bg(t.hover).text_color(t.foreground)))
+    .bg(selected ? t.selected : t.chrome).text_color(disabled ? t.dim : callColor ?? (selected ? t.accent : t.muted))
+    .when(!disabled, el => el.hover(s => s.bg(t.hover).text_color(callColor ?? t.foreground)))
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .on_click(action).child(icon(name));
 }
