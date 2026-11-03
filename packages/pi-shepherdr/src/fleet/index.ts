@@ -82,9 +82,13 @@ export class AgentFleet {
 	private readonly pi: ExtensionAPI;
 	private readonly runtimes = new Map<string, MachineRuntime>();
 	private localCoreId: string | undefined;
+	private lastPersistedState: string | undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.pi = pi;
+		pi.on("session_tree", () => {
+			this.lastPersistedState = undefined;
+		});
 	}
 
 	async activate(ctx: ExtensionContext): Promise<void> {
@@ -188,6 +192,7 @@ export class AgentFleet {
 	deactivate(): void {
 		this.generation += 1;
 		this.localCoreId = undefined;
+		this.lastPersistedState = undefined;
 		for (const runtime of this.runtimes.values()) {
 			runtime.monitor?.deactivate();
 			if (
@@ -383,11 +388,16 @@ export class AgentFleet {
 	private changed(): void {
 		if (!this.context) return;
 		const agents = this.persistedAgents();
-		this.pi.appendEntry(MONITOR_STATE_TYPE, {
+		const data = {
 			version: 2,
 			agents,
 			...(this.localCoreId ? { localCoreId: this.localCoreId } : {}),
-		});
+		};
+		const serialized = JSON.stringify(data);
+		if (serialized !== this.lastPersistedState) {
+			this.pi.appendEntry(MONITOR_STATE_TYPE, data);
+			this.lastPersistedState = serialized;
+		}
 		this.refresh();
 	}
 	private async coreCatalog(): Promise<CoreMachine[]> {
