@@ -69,8 +69,10 @@ export function normalizeQueryInput(
 	if (action !== undefined) params["action"] = action;
 	if (namespace === "notes") {
 		alias(params, "address", "path");
-		if (action === "write" || action === "append")
+		if (action === "write" || action === "append") {
 			alias(params, "content", "text");
+			alias(params, "body", "text");
+		}
 		if (action === "list" || action === "search") {
 			alias(params, "prefix", "path");
 			alias(params, "path_prefix", "path");

@@ -17,3 +17,4 @@ Requires Pi 1.5 or newer.
 - On-demand Notes help now identifies read and write result fields.
 - `new_context` now offers only configured role IDs.
 - Notes now accepts `address` as an alias for `path`.
+- Notes now accepts `body` as an alias for `text` on write and append.
