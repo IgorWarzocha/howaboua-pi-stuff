@@ -81,7 +81,7 @@ export function createTools(
 		{
 			name: "history",
 			label: "history",
-			description: "Search earlier conversation",
+			description: "Search past chat",
 			parameters: HISTORY_SCHEMA,
 			prepareArguments(args) {
 				return prepareHistoryArguments(args);

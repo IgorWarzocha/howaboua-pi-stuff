@@ -22,17 +22,15 @@ const HISTORY_ACTIONS = [
 	"search",
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
-export const NOTES_CODE_DESCRIPTION =
-	"Notes for handing off task state between context windows; virtual filesystem not disk";
 export const HISTORY_USAGE = "await tools.history()";
-export const NOTES_DESCRIPTION = "Virtual task checkpoints across windows";
-export const GPT_NOTES_DESCRIPTION = "Virtual task checkpoints across windows";
+export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
+export const GPT_NOTES_DESCRIPTION = NOTES_DESCRIPTION;
+export const NOTES_CODE_DESCRIPTION = NOTES_DESCRIPTION;
 export const NOTES_ROUTING_GUIDELINE =
-	"Use notes for task checkpoints and internal handoffs. To revise a checkpoint, you MUST use notes write or append. Notes paths are virtual, not accessible through other tools. MUST NOT use to save project files and deliverables";
+	"Use notes for task checkpoints and internal handoffs. To revise checkpoint, you MUST use notes write or append. Notes paths are virtual, not accessible through other tools. MUST NOT use for project files and deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Start a fresh context window. MUST save notes before calling";
-export const GPT_NEW_CONTEXT_DESCRIPTION =
-	"Saved notes→fresh context; earlier conversation→history";
+	"Start fresh context window. MUST save notes before calling";
+export const GPT_NEW_CONTEXT_DESCRIPTION = "Save notes→fresh context";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
@@ -213,7 +211,6 @@ export function result(payload: unknown): AgentToolResult<unknown> {
 export function queryHelp(
 	namespace: LookupQuery["namespace"],
 	input: unknown,
-	rankedHistory = false,
 	gpt = false,
 ): AgentToolResult<unknown> | undefined {
 	const params = input === undefined ? {} : input;
@@ -252,27 +249,23 @@ export function queryHelp(
 							? "write=replace; append=add"
 							: "write replaces; append adds",
 						paths: gpt
-							? "Virtual≠filesystem; relative=current agent; cross-agent=<agent>/notes[/path]"
-							: "Virtual note paths, not filesystem files; relative uses current agent; cross-agent uses <agent>/notes[/path]",
-						usage: 'Call notes with { "action": "read", "path": "checkpoint" }',
+							? "Virtual≠disk; relative=current agent; cross-agent=<agent>/notes[/path]"
+							: "Virtual note paths, not disk files; relative=current agent; cross-agent=<agent>/notes[/path]",
+						usage: 'notes: {"action":"read","path":"checkpoint"}',
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
-							: "start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
+							: "start_line/stop_line inclusive, 1-based; negative from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed returns empty content",
 						defaults: gpt
 							? "list limit=20; search limit/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending"
-							: "list limit 20; search limit/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
+							: "list limit 20; search limit/max_matches_per_file 20; limits clamp 1..100; list/search name ascending; recent_file_first sorts created_at descending",
 					}
 				: {
 						usage: gpt
-							? "query→action=search by default; earlierconversation→search≠browse; returned IDs unchanged"
-							: "With query, action defaults to search. Search earlier conversation, don't browse it. Pass returned IDs unchanged",
-						search: rankedHistory
-							? gpt
-								? "Own past user/assistant visible text: all keywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=full transcript; recent_first=true→newest first"
-								: "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
-							: gpt
-								? "Case-sensitive literal substring; recent_first=true→newest first"
-								: "Case-sensitive literal substring. recent_first=true uses newest first",
+							? "query→search default; past chat→search≠browse; returned IDs unchanged"
+							: "With query, action defaults to search. Search past chat, don't browse it. Pass returned IDs unchanged",
+						search: gpt
+							? "recent_first=true→newest first"
+							: "recent_first=true uses newest first",
 					}),
 		});
 	}

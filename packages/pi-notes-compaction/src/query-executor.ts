@@ -43,7 +43,7 @@ export function createQueryExecutor(
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<unknown>> {
 		input = prepareNotesArguments(input);
-		const help = queryHelp("notes", input, false, lifecycle.gptPromptMode());
+		const help = queryHelp("notes", input, lifecycle.gptPromptMode());
 		if (help) return help;
 		assertActive();
 		const raw = queryArguments("notes", input);
@@ -136,12 +136,7 @@ export function createQueryExecutor(
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<unknown>> {
 		input = prepareHistoryArguments(input);
-		const help = queryHelp(
-			"history",
-			input,
-			search.isEnabled(ctx.sessionManager.getSessionId()),
-			lifecycle.gptPromptMode(),
-		);
+		const help = queryHelp("history", input, lifecycle.gptPromptMode());
 		if (help) return help;
 		assertActive();
 		const params = queryArguments("history", input);

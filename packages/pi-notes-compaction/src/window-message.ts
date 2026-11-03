@@ -15,15 +15,17 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not a diary. They use virtual storage, not the filesystem. Use relative paths when creating notes.
+Notes are recovery state, not diary. They use virtual storage, not disk filesystem. Use relative paths when creating.
 
-MUST maintain one authoritative checkpoint per task/topic with request, constraints, decisions, status, next steps and relevant history IDs.
+MUST maintain one authoritative checkpoint per task/topic with request, constraints, decision, status, next steps and relevant history IDs.
 
 Use the notes tool write action to create or replace the checkpoint at milestones, task switches and completion. Use action append to add to it.
 
-Subagents MUST maintain their own notes and return paths. Link existing notes instead of duplicating content. Recording does not authorise implementation.
+Subagents MUST maintain their own notes and return paths. For subagent handoffs, include the checkpoint path.
 
-Before new_context or a handoff, MUST save the checkpoint with notes. Then, for rollover, call new_context. For subagent handoffs, include the checkpoint path.
+Link existing notes instead of duplicating content. Recording does not authorise implementation.
+
+Before new_context or a handoff, MUST save the checkpoint with notes. For rollover, call new_context.
 
 After rollover, use notes read action to recover the checkpoint, then read only necessary links. SHOULD NOT reread unchanged notes. Use the history tool for missing details.
 
@@ -31,9 +33,9 @@ Skill reads do not survive rollover. MUST reread required skills.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recovery state≠diary. Virtual Notes storage≠filesystem. Create notes with relative paths. One authoritative checkpoint per task/topic→request/constraints/decisions/status/next steps/history IDs. Existing notes→link≠duplicate. Recording≠implementation permission.
+Notes=recovery stateNOTdiary. Virtual Notes storageNOTfilesystem. Create notes with relative paths. One authoritative checkpoint per task/topic→request/constraints/decision/status/next steps/history IDs. Existing notes→linkNOTduplicate. RecordingNOTimplementation permission.
 
-MUST maintain task checkpoint→update@meaningful milestones, task switches + completion. Notes tool: write→create/replace stale checkpoint; append→add content. Subagents MUST maintain own notes→return paths. Not every reply/step.
+MUST maintain task checkpoint→update@ milestones, task switches + completion. Notes tool: write→create/replace stale checkpoint; append→add content. Not every reply/step. Subagents MUST maintain own notes→return paths.
 
 Before new_context/handoff: MUST save checkpoint via notes. Rollover→call new_context after save; subagent handoff→include checkpoint path. Post-rollover: notes read→checkpoint→necessary links only. SHOULD NOT reread unchanged notes. Missing details→history tool.
 

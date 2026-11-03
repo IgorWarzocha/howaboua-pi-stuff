@@ -13,7 +13,9 @@ Requires Pi 1.5 or newer.
 - Fix successful large note saves being rejected before a new context window or manual compaction.
 - `new_context` now recognises successful note saves alongside other calls in the preceding parallel group.
 - Tell agents which configured role matches their current model and reasoning settings.
-- Agent guidance now names Notes actions and distinguishes virtual storage from project files.
+- Notes guidance now distinguishes virtual checkpoints from project files.
+- Shortened tool descriptions, guidance and help.
+- History help no longer exposes search ranking details.
 - Notes results no longer repeat tool-usage instructions.
 - On-demand Notes help now identifies read and write result fields.
 - `new_context` now offers only configured role IDs.
