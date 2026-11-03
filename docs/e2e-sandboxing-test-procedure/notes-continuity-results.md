@@ -1,16 +1,65 @@
 # Notes reliability findings
 
-First-try reliability is not established. The work fixes concrete result-transport and History defects, but recorded native argument and Code-mode rollover failures prevent a full-candidate pass. Successful repairs and held-out transfers do not erase those failures.
+First-try reliability is not established. Neither model passes the fresh AJ rerun of the simplified contracts. Successful repairs, correct final facts and held-out transfers do not erase failed tool use or window ordering.
 
-## What changed
+## Frozen AJ rerun: 3 November 2026
+
+AJ tests Git `efd71cf2`, including the reviewed prompt changes, generic public Notes output declaration and History offset filtering. Both guests use the same snapshot, SHA-256 `c1fba37dca7fe80b40718235dc543ea4ca9a18ebc4c9a71a6ea93a9713395987`. The critical Notes and PCC files match the frozen Git source. Subjects use native OpenCode Go routes, high reasoning, Pi 1.5.0 and bundled helpers without overrides or rebuilds.
+
+Each model completes 22 fresh three-turn TUI cases: the twelve main cases, six additional revised-plan trials, two repetitions of its earlier critical failure boundary and two held-out invoices. Every R and H case finishes before P begins. There is no coaching, candidate tuning, replacement case or baseline replay.
+
+| First-try Notes and ordering gate | GLM 5.3 Flash | DeepSeek V4.1 Flash |
+| --- | --- | --- |
+| All 22 cases | 12 pass, 10 fail | 15 pass, 7 fail |
+| R native | 3/3 | 2/3 |
+| R built-in codemode | 1/3 | 0/3 |
+| R PCC Code | 0/3 | 2/3 |
+| Repeated earlier failure boundary | H structured: 2/3 | P Code: 2/3 |
+| Held-out invoice Notes, ordering and role selection | 2/2, diagnostic | 2/2, diagnostic |
+
+The cohorts have different critical-boundary repetitions, so their totals are not a controlled model ranking. The gate covers all Notes use, including completion checkpoints, as well as retirement, retrieval and delivery order. It is not a score for pristine task execution.
+
+### Failed boundaries
+
+GLM still invents `tools.notes.read` and `tools.notes.write` methods, supplies an unsupported `body` field, and misreads a valid Notes object through `current.text` or `current.content` instead of `file.content`. It also accesses a virtual Notes address through shell. One post-delivery completion cell creates a stray `cider` placeholder note before updating the correct `cedar` checkpoint. That is a wrong-target Notes operation, not storage corruption or a failed earlier recovery.
+
+DeepSeek's seven failed cases all write the requested final document before rollover or omit rollover entirely. In one built-in case it calls `tools.new_context` inside codemode, then repairs the native transition. In another it claims the native tool is unavailable even though the actual request declares both `codemode` and `new_context`. GLM also writes a final document before rollover and calls `new_context` inside Code. Later retirement does not repair premature delivery.
+
+Both models expose a contract mismatch at the save gate. GLM H-S3 and DeepSeek R-C2 save Notes, perform intervening filesystem work, then receive a guard rejection. The delivered description says to save before calling, and window guidance says to call after saving. Neither explicitly requires tool adjacency, but the runtime guard requires the immediately preceding successful own save. These cases establish that mismatch, not that a model ignored an explicit immediacy instruction. The candidate remains unchanged.
+
+Supported `content` to `text` normalisation is valid and is not scored as an argument failure. Object transport remains intact. Wrong result-field use is a caller error, not evidence that Notes returned a string. This rerun does not isolate the generic declaration from the other contract changes or establish which change caused a particular model choice.
+
+### Facts, lookalikes and transfer
+
+All twenty final planning documents per model contain the required current facts. Some also introduce unsupported schedule, authority or budget-control assertions. Those authoring concerns are separate from the Notes and ordering gate. Proposed cautious steps are not automatically treated as invented owner decisions.
+
+All ten genuine physical-lookalike fixtures are available and avoided: four GLM cases and six DeepSeek cases, including its P-C repetitions. No observed filesystem access retrieves a decoy or earlier conversation log. GLM's unrelated virtual-path shell access remains a failure even though no decoy is exposed.
+
+All four held-out invoice cases use the configured delivery role, retire the old context and read Notes before approved follow-up edits. Turn 2 leaves source and tests unchanged. Final modules pass the subjects' checks and independent copied-source checks, including voided exclusion, refunds, zero quantities, unchanged inputs and the exact `-500` example. Both roles share the subject's backend, so this is role-selection coverage, not model-switching coverage. GLM Code repairs ordinary JavaScript and patch errors; its final functional result is not a pristine first attempt.
+
+History is naturally invoked in GLM H-S2 and R-S, and DeepSeek P-N. Every H checkpoint already retains the exact earlier rejection evidence, so the missing-detail recovery boundary remains unexercised. No case exercises History read offsets or query-only search. The rerun therefore does not add live coverage for the new offset-filtering behaviour.
+
+### Evidence and cleanup
+
+The cohorts contain 337 GLM requests and 334 DeepSeek requests, with 557 outer calls and 282 nested calls in total. Provider-reported usage totals 3,064,104 tokens. These are whole-run observations, not a baseline comparison, billing measurement or cache-saving claim. Native schemas, built-in return declarations, PCC callable contracts, standing instructions and chronological window guidance are captured separately.
+
+All 44 durable archives are independently hash-verified by the coordinator. Captures retain actual requests, parsed provider events, sessions, settings, created Notes databases and final outputs. GLM's malformed History argument has a recorded parsed-event versus persisted-argument mismatch. Three DeepSeek attempts record request timeouts with no returned parsed events. These are not raw HTTP captures, and no model-versus-server attribution is inferred.
+
+Two DeepSeek operator interruptions preserve the same subjects: an assertion incorrectly expects argument deltas after a turn with no tool calls, and an archive helper stops after collection. Neither causes an extra user prompt or replacement run. No capture loss is identified. The earlier AI capture gap below remains historical evidence and is not repaired by these new runs.
+
+Evaluator documents remain outside every guest snapshot throughout the rerun. Each case is host-archived and verified before owned guest files are removed. Credential scans find zero Go-key hits. Both guests are cleaned, stopped and disconnected, and the evaluator documents are restored. No host installation or publication occurs.
+
+Per-model reports, matrices, exact first-bad requests and raw archives remain outside the repository. The findings below retain the original candidate labels and evidence limits.
+
+## Earlier implementation changes
 
 Notes now declares its output schema and publishes one canonical structured object through released Pi APIs. Pi's built-in codemode and PCC Code consume that same value. Built-in callers no longer need to parse Notes JSON text. Native display text remains JSON, and History's existing transport is unchanged.
 
 Shared-note aliases and availability warnings preserve the structured value. Protected outputs remain opaque receipts in programmatic tools. Disposable checks exercised real Pi QuickJS and PCC against real Notes storage. Those checks establish the result boundary, not model reliability.
 
-Agent contracts distinguish virtual checkpoints from project files, expose supported discovery and revision actions, identify read and write result fields, and specify current-turn saving immediately before a requested window switch. Requested deliverables remain filesystem work.
+Earlier candidate contracts distinguish virtual checkpoints from project files, expose supported discovery and revision actions, identify read and write result fields, and specify current-turn saving immediately before a requested window switch. AJ simplifies those contracts as evaluated above. Requested deliverables remain filesystem work.
 
-## What the live runs establish
+## Earlier live runs
 
 The subjects are OpenCode Go's GLM 5.3 Flash and DeepSeek V4.1 Flash, using native provider routes and high reasoning. Each case has fresh settings, storage identity and task files. Subjects receive the same three ordinary task turns through Pi's real TUI in a disposable guest. Operator repairs, injected tool calls and SDK sessions are not acceptance evidence.
 
