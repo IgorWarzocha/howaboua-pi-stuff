@@ -55,7 +55,7 @@ export function hasFreshNotes(
 	);
 }
 
-/** The current request is already in history; only its preceding completed invocation qualifies. */
+/** Only the preceding tool-call group (or completed same-group predecessors) qualifies. */
 export function hasPrecedingNoteWrite(
 	branch: readonly SessionEntry[],
 	windowId: string | undefined,
@@ -75,33 +75,34 @@ export function hasPrecedingNoteWrite(
 			),
 	);
 	if (request < 0) return false;
-	const calls = messages
+	const groups = messages
 		.slice(0, request + 1)
 		.flatMap((message) =>
 			message.role === "assistant"
-				? message.content.filter((block) => block.type === "toolCall")
+				? [message.content.filter((block) => block.type === "toolCall")]
 				: [],
-		);
-	const call =
-		calls[calls.findLastIndex((call) => call.id === requestCallId) - 1];
-	if (!call) return false;
-	const previous = messages.findLast(
-		(message) =>
-			message.role === "toolResult" &&
-			message.toolCallId === call.id &&
-			message.toolName === call.name,
+		)
+		.filter((calls) => calls.length > 0);
+	const current = groups.pop() ?? [];
+	const predecessors = current.slice(
+		0,
+		current.findIndex((call) => call.id === requestCallId),
+	);
+	const calls = predecessors.length ? predecessors : (groups.at(-1) ?? []);
+	const allResults = messages.flatMap((message) =>
+		message.role === "toolResult" ? [message] : [],
+	);
+	const results = allResults.filter((result) =>
+		calls.some(
+			(call) => call.id === result.toolCallId && call.name === result.toolName,
+		),
 	);
 	return (
-		previous?.role === "toolResult" &&
-		completedWrites(
-			[call],
-			[previous],
-			receipts,
-			outcomes,
-			messages.flatMap((message) =>
-				message.role === "toolResult" ? [message] : [],
-			),
-		)
+		calls.length > 0 &&
+		calls.every((call) =>
+			results.some((result) => result.toolCallId === call.id),
+		) &&
+		completedWrites(calls, results, receipts, outcomes, allResults)
 	);
 }
 
