@@ -23,34 +23,26 @@ const HISTORY_ACTIONS = [
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
 export const NOTES_CODE_DESCRIPTION =
-	"Virtual task checkpoints, not project files; discover with {action:'list'}, never filesystem tools. One function; const r = await tools.notes(args). read → r.file.content; write/append → r.file.path (receipt only). Help: text(await tools.notes()). path=relative note key. Args require action: {action:'read',path} | {action:'write'|'append',path,text} | {action:'list',path?} | {action:'search',query,path?}";
+	"Notes for handing off task state between context windows; virtual filesystem not disk";
 export const HISTORY_USAGE = "await tools.history()";
-export const NOTES_DESCRIPTION =
-	"Virtual task checkpoints across windows; discover with {action:'list'}. One function: const r = await tools.notes({action:'write',path,text}); write/append → r.file.path; read → r.file.content";
-export const GPT_NOTES_DESCRIPTION =
-	"Virtual task checkpoints across windows; discover with {action:'list'}; one function: const r = await tools.notes({action:'write',path,text}); write/append → r.file.path; read → r.file.content";
+export const NOTES_DESCRIPTION = "Virtual task checkpoints across windows";
+export const GPT_NOTES_DESCRIPTION = "Virtual task checkpoints across windows";
 export const NOTES_ROUTING_GUIDELINE =
-	"Use notes for task checkpoints and internal handoffs. To revise a checkpoint, use notes write or append, not filesystem edit or patch. Notes paths are virtual, never filesystem or shell targets. Project files and requested deliverables belong on disk";
+	"Use notes for task checkpoints and internal handoffs. To revise a checkpoint, you MUST use notes write or append. Notes paths are virtual, not accessible through other tools. MUST NOT use to save project files and deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Continue this session automatically in a fresh window; save your notes this turn, await success, then call immediately outside code cells";
-export const NEW_CONTEXT_ORDER_GUIDELINE =
-	"For a fresh-context request, do not assume the window has changed. Write notes this turn, wait for success, then call new_context without intervening tool calls. Create requested deliverables only after the new window opens";
+	"Start a fresh context window. MUST save notes before calling";
 export const GPT_NEW_CONTEXT_DESCRIPTION =
-	"Same session→fresh window→automatic continuation; save own notes this turn→await success→call immediately outside code cells";
+	"Saved notes→fresh context; earlier conversation→history";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
 export const NOTES_SCHEMA = Type.Object(
 	{
-		action: Type.Optional(
-			StringEnum(NOTES_ACTIONS, {
-				description: "Action name; path and text are separate fields",
-			}),
-		),
+		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
 		path: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
 				description:
-					"Required for read/write/append. Create with a relative key, never a filesystem path; reuse returned virtual addresses. Omit for unfiltered list/search",
+					"File for read/write/append; prefix for list/search; virtual filesystem, not files in the project",
 			}),
 		),
 		text: STRING,
@@ -97,19 +89,15 @@ export function prepareNewContextArguments(input: unknown) {
 }
 export const HISTORY_SCHEMA = Type.Object(
 	{
-		action: Type.Optional(
-			StringEnum(HISTORY_ACTIONS, {
-				description: "With query, defaults to search",
-			}),
-		),
+		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-		item_id: Type.Optional(Type.String({ description: "Required for read" })),
+		item_id: Type.Optional(Type.String()),
 		window_id: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
 				description: "Required with item_id for read",
 			}),
 		),
-		query: Type.Optional(Type.String({ description: "Required for search" })),
+		query: STRING,
 		limit: INTEGER,
 		limit_chars: INTEGER,
 		max_chars_per_item: INTEGER,

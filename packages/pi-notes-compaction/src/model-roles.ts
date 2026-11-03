@@ -77,8 +77,8 @@ export function createModelRoles(
 			? [
 					`Current role: ${currentRole}`,
 					lifecycle.gptPromptMode()
-						? 'Roles=user preferences, not capability limits. Switch only for clear, sustained task/scope change, not one specialised prompt. Any model can do general work. Bounded specialist detour→consider available subagent. Save notes→new_context({role: "name"}); omit role→keep model.'
-						: 'Roles are user preferences, not capability limits. Switch only for a clear, sustained change of task or scope, not a single specialised prompt. Any model can do general work. Consider an available subagent for a bounded specialist detour. Save notes, then call new_context({role: "name"}); omit role to keep the current model.',
+						? 'Roles=user preferences, not capability limits. Switch for clear, sustained task/scope change, not one specialised prompt. Any role can do general work. Bounded specialist detour→consider available subagent. Save notes→new_context({role: "name"}); omit role→keep role.'
+						: 'Roles are preferences, not capability limits. Switch for clear, sustained change of task or scope, not a single specialised prompt. Any role can do general work. Consider an available subagent for a bounded specialist detour. Save notes, then call new_context({role: "name"}); omit role to keep the current role.',
 					...config.roles.map((role) => `- ${role.id}: ${role.description}`),
 				].join("\n")
 			: "No model roles are available. Call new_context without role.";

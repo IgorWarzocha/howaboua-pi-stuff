@@ -15,19 +15,29 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not a diary. Keep checkpoints and internal handoffs in your own virtual Notes storage. Delegates do likewise and return their note addresses. Keep one concise, authoritative note per task or topic at a stable address. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Replace stale checkpoints and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
+Notes are recovery state, not a diary. They use virtual storage, not the filesystem. Use relative paths when creating notes.
 
-You must maintain a task checkpoint, updating it at each meaningful milestone and on completion or before switching substantive tasks, even with context room. Don't save every reply or intermediate step. Before new_context or handoff, save current state with notes and wait for success; call new_context next for rollover, and include the checkpoint address in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. For missing details or verification of earlier messages, use history, not raw session logs.
+MUST maintain one authoritative checkpoint per task/topic with request, constraints, decisions, status, next steps and relevant history IDs.
 
-Previous skill reads don’t carry into this window. Read the skills needed for the current task.
+Use the notes tool write action to create or replace the checkpoint at milestones, task switches and completion. Use action append to add to it.
+
+Subagents MUST maintain their own notes and return paths. Link existing notes instead of duplicating content. Recording does not authorise implementation.
+
+Before new_context or a handoff, MUST save the checkpoint with notes. Then, for rollover, call new_context. For subagent handoffs, include the checkpoint path.
+
+After rollover, use notes read action to recover the checkpoint, then read only necessary links. SHOULD NOT reread unchanged notes. Use the history tool for missing details.
+
+Skill reads do not survive rollover. MUST reread required skills.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recovery state≠diary. Checkpoints/internal handoffs→own virtual Notes storage. Delegates→same→return note addresses. One concise authoritative note per task/topic, stable address. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. Replace stale checkpoints; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
+Notes=recovery state≠diary. Virtual Notes storage≠filesystem. Create notes with relative paths. One authoritative checkpoint per task/topic→request/constraints/decisions/status/next steps/history IDs. Existing notes→link≠duplicate. Recording≠implementation permission.
 
-Must maintain task checkpoint→update@each meaningful milestone + completion/before switching substantive tasks, even with context room. Not every reply/step. Before new_context/handoff: save state via notes→await success; rollover→new_context next; handoff→checkpoint address. Post-rollover: read checkpoint→needed links only. In-context notes: reread only if possibly changed. Missing details/earlier-message verification→history, not raw session logs.
+MUST maintain task checkpoint→update@meaningful milestones, task switches + completion. Notes tool: write→create/replace stale checkpoint; append→add content. Subagents MUST maintain own notes→return paths. Not every reply/step.
 
-Prior skill reads≠current context. Read task-relevant skills.
+Before new_context/handoff: MUST save checkpoint via notes. Rollover→call new_context after save; subagent handoff→include checkpoint path. Post-rollover: notes read→checkpoint→necessary links only. SHOULD NOT reread unchanged notes. Missing details→history tool.
+
+Prior skill reads≠current context. MUST reread required skills after rollover.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

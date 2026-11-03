@@ -6,7 +6,13 @@ const OPTIONAL_STRING = Type.Optional(Type.String());
 const OPTIONAL_BOOLEAN = Type.Optional(Type.Boolean());
 const MATCH = Type.Object({ line_number: Type.Integer(), line: Type.String() });
 
+// Pi codemode needs this declaration to return structuredContent rather than text.
 export const NOTES_OUTPUT_SCHEMA = Type.Object(
+	{},
+	{ additionalProperties: true },
+);
+
+const NOTES_RESULT_SCHEMA = Type.Object(
 	{
 		file: Type.Optional(
 			Type.Union([
@@ -52,7 +58,7 @@ export const NOTES_OUTPUT_SCHEMA = Type.Object(
 
 /** One canonical payload for native text and every programmatic caller. */
 export function noteResult(payload: unknown): AgentToolResult<unknown> {
-	if (!Check(NOTES_OUTPUT_SCHEMA, payload))
+	if (!Check(NOTES_RESULT_SCHEMA, payload))
 		throw new Error(
 			"Notes returned invalid data. Read the note before retrying a write.",
 		);

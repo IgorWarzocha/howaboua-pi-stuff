@@ -71,7 +71,7 @@ export class FreshCheckpoint {
 				{
 					customType: "notes-compaction:checkpoint:v1",
 					details: { requestId },
-					content: `<context_window_reminder>\nSave the task state in notes, then finish your reply. A new window opens automatically after your reply; do not call new_context. If saving fails, report the error.\n</context_window_reminder>${instructions?.trim() ? `\n\nCheckpoint guidance:\n${instructions}` : ""}`,
+					content: `<context_window_reminder>\nSave the task state in notes, then finish your reply. A new window opens automatically after your reply; do not call new_context.\n</context_window_reminder>${instructions?.trim() ? `\n\nCheckpoint guidance:\n${instructions}` : ""}`,
 					display: true,
 				},
 				{ triggerTurn: true },

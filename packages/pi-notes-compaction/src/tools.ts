@@ -15,7 +15,6 @@ import type { NotesStore } from "./store.js";
 import {
 	HISTORY_SCHEMA,
 	NEW_CONTEXT_DESCRIPTION,
-	NEW_CONTEXT_ORDER_GUIDELINE,
 	NOTES_DESCRIPTION,
 	NOTES_ROUTING_GUIDELINE,
 	NOTES_SCHEMA,
@@ -94,7 +93,6 @@ export function createTools(
 			name: "new_context",
 			label: "new_context",
 			description: NEW_CONTEXT_DESCRIPTION,
-			promptGuidelines: [NEW_CONTEXT_ORDER_GUIDELINE],
 			parameters: newContextSchema([]),
 			prepareArguments: prepareNewContextArguments,
 			exposure: "model-only",
@@ -113,9 +111,9 @@ export function createTools(
 						started,
 						message: started
 							? lifecycle.newWindowRequests === "pi-limits"
-								? "Window request queued. Pi will check whether enough history can be compacted"
-								: "A new window will open after this run settles"
-							: "A checkpoint or rollover is already pending. Save notes and finish your response",
+								? "Window request queued"
+								: "New window queued"
+							: "Checkpoint or rollover is already pending. Save notes and finish your response",
 					}),
 					...(started ? { terminate: true } : {}),
 				};
