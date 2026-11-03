@@ -13,6 +13,7 @@ Requires Pi 1.5 or newer.
 - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off, following Pi's model catalogue.
 - Tool expansion hints now use your configured keybinding.
 - Fixed Realtime voice resubmitting Pi tasks from progress updates without new user speech.
+- Codex Live now ignores repeated identical handoffs within one user turn while preserving repeat requests from later turns.
 - Fixed generated task text appearing as user speech.
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.

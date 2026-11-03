@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export interface RealtimeVoiceTurn {
 	input: string;
 	transcriptDelta?: string;
@@ -172,6 +174,7 @@ export class RealtimeVoiceTurnTracker {
 	private delegatedUserFinishes = 0;
 	private readonly delegatedUserTurns = new Set<object>();
 	private readonly delegationIds = new Set<string>();
+	private readonly delegatedTurnInputs = new Set<string>();
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
 
@@ -213,11 +216,21 @@ export class RealtimeVoiceTurnTracker {
 	delegated(
 		input: string,
 		delegationId: string,
+		userTurnId?: string,
 	): TrackedRealtimeDelegation | undefined {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
 		if (!this.preserveInterval && this.outstandingInputs.has(input))
 			return undefined;
+		// Distinct handoff IDs can repeat one user request, even after Pi settles.
+		// Scope by provider turn; later speech may intentionally repeat the input.
+		const turnInput = userTurnId
+			? createHash("sha256")
+					.update(JSON.stringify([userTurnId, input]))
+					.digest("hex")
+			: undefined;
+		if (turnInput && this.delegatedTurnInputs.has(turnInput)) return undefined;
+		if (turnInput) this.delegatedTurnInputs.add(turnInput);
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
 
@@ -300,6 +313,7 @@ export class RealtimeVoiceTurnTracker {
 		this.delegatedUserFinishes = 0;
 		this.delegatedUserTurns.clear();
 		this.delegationIds.clear();
+		this.delegatedTurnInputs.clear();
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();
 	}
