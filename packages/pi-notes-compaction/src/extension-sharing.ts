@@ -73,18 +73,32 @@ export async function registerNotesSharing(
 				);
 			if (!result?.details.externalNotesResponses?.length) return result;
 			const { externalNotesResponses, ...details } = result.details;
-			if (!remote.projectResult || remote.canProject?.(ctx) === false)
+			if (!remote.projectResult || remote.canProject?.(ctx) === false) {
+				const warning =
+					"Shared encrypted contents are unavailable on this model. Local results remain available. Use a compatible Codex model with PCC for remote contents.";
+				const data = result.structuredContent;
 				return {
 					...result,
+					...(data && typeof data === "object" && !Array.isArray(data)
+						? {
+								structuredContent: {
+									...data,
+									warnings: [
+										...("warnings" in data && Array.isArray(data["warnings"])
+											? data["warnings"]
+											: []),
+										warning,
+									],
+								},
+							}
+						: {}),
 					details,
 					content: [
 						...result.content,
-						{
-							type: "text" as const,
-							text: "Shared encrypted contents are unavailable on this model. Local results remain available. Use a compatible Codex model with PCC for remote contents.",
-						},
+						{ type: "text" as const, text: warning },
 					],
 				};
+			}
 			return remote.projectResult(
 				{ ...result, details },
 				externalNotesResponses.map(({ bytesBase64, ...response }) => ({

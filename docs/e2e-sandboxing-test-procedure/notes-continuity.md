@@ -10,15 +10,23 @@ Any wrong Notes route, invalid Notes arguments, result-shape misuse, bad `new_co
 
 Record unrelated code or filesystem mistakes separately. Correct output without a real retirement boundary does not demonstrate continuity.
 
+Judge result use by the operation it supports. Printing only a nonexistent receipt field does not consume a valid receipt. Displaying a valid receipt plus optional metadata that may be absent is harmless unless it drives a false assertion, skips an intended operation or loses required checkpoint data.
+
+Judge rollover admission against the latest successful own save before the first `new_context` invocation. A valid Notes revision that corrects checkpoint authoring before that save is not an interrupted handoff. Preserve the authoring defect separately. An invalid window call followed by a corrective save remains a first-try failure.
+
 Score first-try toolkit use and task correctness separately. Wrong facts, weakened requirements or invented decisions fail the task even when every tool call is correct. Compare the saved checkpoint, retrieved checkpoint and final file to distinguish authoring errors from storage or recovery failures. Do not add scenario-specific tool instructions to fix general writing mistakes.
+
+Keep availability separate from invocation correctness. A valid discovery call that explicitly returns partial results is not a malformed invocation or proof of a complete empty store. Record the warning and whether required checkpoint data was unavailable. A successful later save does not prove every lookup source was available.
 
 ## Controlled runs
 
-Use consecutive turns in a real Pi TUI through Herdr. Do not use `pi -p`, SDK sessions, injected tool calls or extra operator messages as behavioural evidence. Keep the evaluator's prompts, answers and captures out of the subject's filesystem. Do not coach errors away.
+Use consecutive turns in a real Pi TUI through Herdr. Do not use `pi -p`, SDK sessions, injected tool calls or extra operator messages as behavioural evidence. Remove operator prompt files and expected-answer material from the guest before launching the subject. Keep runtime captures outside the task cwd and audit any access to them. This layout is not an operating-system access barrier. Do not coach errors away.
 
 Record the candidate revision and snapshot hash, Pi version, model and provider route, actual reasoning level, settings, loaded instructions, final provider tool schemas and session JSONL. Use the same task text, fixture bytes and supported reasoning level for baseline and candidate. Verify the candidate's bundled native helpers without overrides. Stop subjects before refreshing their snapshot through the repository's sandbox setup.
 
 Keep evaluator files physically outside the checkout until the comparisons finish. The setup command uses JJ's file list when `.jj` exists, so unstaging a new evaluator file in Git does not reliably exclude it from a snapshot. Verify its absence in the guest before launching a subject.
+
+Keep the scoped agent directory, session logs and provider captures outside the task cwd, as in a normal Pi project. Do not place an agent folder or a symlink to evaluator storage among the task files. Record layout corrections as environment changes, not isolated instruction improvements.
 
 Run each scenario in four modes:
 
@@ -35,7 +43,11 @@ Start every case with a fresh session, task directory, agent directory, settings
 
 Record any instructions or skills the model opens during execution, even when automatic discovery is disabled. Keep access equal across comparison arms. Incidental reads can make a run useful integration evidence without establishing an isolated instruction effect.
 
-Run one case at a time per guest. After each case, archive its full session, final requests, Notes database, settings and outputs to the host, verify the archive, then remove that case's owned guest files before starting another. Fresh settings do not hide old filesystem answers. Audit executed tool arguments and results for reads of sibling cases, evaluator captures, prompt scripts or raw retired-session logs. Exclude contaminated recovery and correctness claims.
+Run one case at a time per guest. After each case, archive its full session, final requests, Notes database, settings, outputs and owned native bash spill files to the host. Verify hashes and bytes before removing every owned case, agent, capture, prompt and spill file from the guest. Remove prompt files before launching the subject. Verify that old answer-bearing snapshots and evaluator documents are absent from every candidate checkout, not just the active one. Fresh settings do not hide old filesystem answers.
+
+Audit executed tool arguments and results for reads of sibling cases, evaluator captures, prompt scripts or raw conversation logs. An attempted raw-log lookup to recover or verify earlier conversation fails the recovery route even when it returns no facts. Distinguish that attempt from an actual leak. Do not treat ordinary inspection of newly generated task files as conversation recovery.
+
+Notes declares an output schema and supplies the same structured object to Pi's built-in codemode and PCC Code. Capture the actual built-in return declaration and the PCC callable contract separately. Native display text remains JSON. Other tools can still return strings. Check actual Notes result use without injecting type inspection or help calls into the subject's task.
 
 ## R: revised plan
 
@@ -81,14 +93,62 @@ Send R turn 3 unchanged. Record the exact virtual address, physical path and fir
 
 Run all R and H cases before P. Create only one lookalike per P case, never add another during the turn, and remove it afterwards even when its absolute path lies outside the task directory.
 
+## Held-out invoice continuation
+
+Reserve this case until calibration ends, without exposing its files or expected answers to earlier subjects. Run it in N and C for each model. If unresolved failures remain, label the transfer check diagnostic rather than calling it final acceptance.
+
+Configure legitimate `planning` and `delivery` roles in the scoped agent directory's `notes-compaction/model-roles.json`. Use the supported top-level `roles` array with `id`, `description`, `provider`, `model` and `reasoning`. Give both roles the subject's existing target model and high reasoning. Use these descriptions:
+
+- planning: Planning and analysis before implementation approval
+- delivery: Sustained implementation, checks and final delivery after approval
+
+Both roles intentionally share a backend. The user's explicit delivery selection is authoritative even if the initial matching-role label is ambiguous. This tests role selection, not model switching.
+
+Create `package.json`:
+
+```json
+{"name":"invoice-fixture","private":true,"type":"module","scripts":{"test":"node test.mjs"}}
+```
+
+Create `invoice.mjs`:
+
+```js
+export function lineTotal(line) { return line.unitPricePence; }
+export function invoiceTotal(lines) {
+  return lines.reduce((sum, line) => sum + lineTotal(line), 0);
+}
+```
+
+Create `test.mjs`:
+
+```js
+import assert from 'node:assert/strict';
+import { lineTotal, invoiceTotal } from './invoice.mjs';
+assert.equal(lineTotal({ quantity: 3, unitPricePence: 245 }), 735);
+assert.equal(invoiceTotal([{ quantity: 2, unitPricePence: 100 }, { quantity: 1, unitPricePence: 50 }]), 250);
+console.log('invoice checks passed');
+```
+
+Send these three turns unchanged:
+
+1. Fix the invoice total bug in this small package and run its checks. Keep amounts as integer pence, keep the exported functions and use no new dependencies. Do not round values or change the input data. Explain the cause briefly, then stop because I have a follow-up requirement.
+2. For the follow-up, voided lines must be excluded from the invoice total, but negative quantities are valid refunds and must still count. A zero quantity is a zero-value line, not an error. The field is voided, not cancelled. Don't implement this yet: outline the smallest change and wait for final approval. The review reference is INV-6842.
+3. Approved. Carry this work into a fresh context with the configured delivery role, then implement the follow-up and extend the checks for voided lines, a refund and zero quantity. Run the checks. Add review.md in this directory with the review reference, the accepted behaviour and the result. Keep the requested source and review files in this project.
+
+Capture source and test bytes after each turn. Turn 1 requests the initial quantity fix before rollover. Turn 2 must leave the follow-up unimplemented. After turn 3, verify the actual role enum, native `new_context({role:'delivery'})`, successor `Role:delivery`, retirement and Notes retrieval before the approved follow-up edits and report creation.
+
+Check the final exports, integer arithmetic, voided exclusion, negative refunds, zero quantities, unchanged inputs and lack of new dependencies. Execute the subject's checks and independent direct calls against a copied final module. In particular, `invoiceTotal([{quantity:-2,unitPricePence:250},{quantity:10,unitPricePence:100,voided:true}])` must return `-500`. A `cancelled` flag must not silently replace `voided`. Source, tests and `review.md` belong on disk, not in Notes.
+
 ## Compare and finish
 
-The main matrix is R, H and P across N, B, S and C: 12 fresh cases per model. Repeat the strongest baseline failure twice before calling it a pattern. A candidate must pass that same first-try boundary in three fresh trials before expanding the matrix. Stop on a core failure and preserve its evidence. Revise the owning contract only when the observed boundary justifies a correction. Otherwise report reliability as unmet rather than adding hints indefinitely or spending runs on unaffected rows.
+The main matrix is R, H and P across N, B, S and C: 12 fresh cases per model. Repeat the strongest baseline failure twice before calling it a pattern. A candidate must pass the affected first-try boundary in three fresh trials before acceptance coverage expands. For a change shared by all programmatic Notes callers, run three fresh R trials in each of B, N and C, starting with the mode that exposed the latest failure. Including their first main cases, this makes 18 sessions per model.
+
+On a core failure, finish only the active case unchanged, archive it and clean the guest before revising the candidate. Fix the owning result or routing boundary when implementation is inconsistent. Do not substitute format-specific prompt workarounds. Revise guidance only for a demonstrated choice the existing contract leaves unreliable. Preserve failed candidates and do not count repairs as acceptance. Reuse earlier evidence only when its actual affected contracts are identical, with the original candidate label visible.
+
+If a failure has no demonstrated fix in the product, freeze the candidate rather than repeatedly changing guidance. Remaining modes may receive diagnostic coverage with the failure retained. Label that plan change explicitly. Completing the matrix does not turn a failed first-try gate into acceptance.
 
 Verify contracts in actual final provider requests and tool results. A declared result contract can disappear when a promoted tool is omitted from deferred discovery. Likewise, `strict:true` in a request does not prove the provider enforces its schema. Inspect early provider argument events when malformed calls need attribution, and label parsed events rather than calling them raw HTTP evidence.
 
 Report each row's first-choice result, first bad call and JSONL entry IDs, successful checkpoint saves, actual retirement, first post-window retrieval, deliverable order and correctness, self-recovery, contamination and fixture availability. Include tool-call counts and provider-reported usage where available. Measure emitted schemas and standing prompt changes separately from chronological hints and result payloads. Text-token proxies are not whole-task savings.
-
-Reserve an unseen coding continuation until calibration converges. It should include a real source edit, revised requirements held pending approval, a fresh-context request and a requested project report. Where roles changed, configure legitimate presets and ask for one explicitly. Verify the emitted role enum, selected ID and successor role separately from backend model switching.
 
 Keep raw evidence outside the repository. Do not retain model-compliance runners as permanent tests. At completion, report passes, failures and gaps, remove owned credentials and processes, and stop disposable guests. Source changes do not update installed extensions or publish a release.

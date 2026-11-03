@@ -5,6 +5,7 @@
 - Retry server_is_overloaded and slow_down across WebSocket/SSE within one three-minute budget. Honour HTTP/streamed retry delays using monotonic deadlines. Fail if advice exceeds the budget, including across fallback.
 - Before npm/publish/release/merge work, compare src/providers/openai-codex-custom-provider.ts with Pi's stock openai-codex-responses provider: requests, transport/headers, reasoning/tier, retries, termination and touched behaviour.
 - Structured mode exposes top-level tool schemas. Code uses one-shot exec/wait cells; Deno, TS and JS notebooks retain state and add notebook lifecycle controls. Notes/history and window policy belong to pi-notes-compaction.
+- Nested adapters preserve declared structuredContent after protected-output checks. Protected results remain opaque receipts, never JavaScript data.
 - Keep prompt guidance short and argv-shaped.
 - Keep README sections foldable and user-facing. Integration contracts belong in `../../docs/extension-apis.md`, not duplicated API examples or developer setup in README.
 - Native runners execute bundled helpers directly. Rebuild locally and use the checkout, never patch installed npm files. Web/image tools belong to their TypeScript packages.

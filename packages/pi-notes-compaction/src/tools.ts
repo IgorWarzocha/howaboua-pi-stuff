@@ -9,6 +9,7 @@ import type { LookupQuery, SharedNotesDetails } from "./bridge.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import type { createModelRoles } from "./model-roles.js";
+import { NOTES_OUTPUT_SCHEMA } from "./note-result.js";
 import { createQueryExecutor } from "./query-executor.js";
 import type { NotesStore } from "./store.js";
 import {
@@ -72,6 +73,7 @@ export function createTools(
 			description: NOTES_DESCRIPTION,
 			promptGuidelines: [NOTES_ROUTING_GUIDELINE],
 			parameters: NOTES_SCHEMA,
+			outputSchema: NOTES_OUTPUT_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments: prepareNotesArguments,
 			execute: (callId, input, signal, _update, ctx) =>

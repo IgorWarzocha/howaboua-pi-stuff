@@ -173,20 +173,28 @@ export class AttachmentNotes {
 							: {}),
 					}),
 		};
+		const warning = `Read-only checkpoints captured ${details.captured_at}.${
+			detached
+				? " Counterpart detached."
+				: unavailable
+					? " Live owner and saved updates unavailable; these checkpoints may be stale. Resume the counterpart for current notes."
+					: " Live owner unavailable; reading saved checkpoints."
+		}`;
+		const data = result.structuredContent;
 		return {
-			content: [
-				...result.content,
-				{
-					type: "text",
-					text: `Read-only checkpoints captured ${details.captured_at}.${
-						detached
-							? " Counterpart detached."
-							: unavailable
-								? " Live owner and saved updates unavailable; these checkpoints may be stale. Resume the counterpart for current notes."
-								: " Live owner unavailable; reading saved checkpoints."
-					}`,
-				},
-			],
+			...result,
+			...(data && typeof data === "object" && !Array.isArray(data)
+				? {
+						structuredContent: {
+							...data,
+							read_only: true,
+							captured_at: details.captured_at,
+							...(savedAt === undefined ? {} : { saved_at: details.saved_at }),
+							warning,
+						},
+					}
+				: {}),
+			content: [...result.content, { type: "text", text: warning }],
 			details: { codexHistoryNotes: details },
 		};
 	}

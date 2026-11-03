@@ -6,6 +6,7 @@ import {
 	readRemoteNoteReference,
 } from "./attachment-snapshot.js";
 import type { ContextSharingService } from "./context-sharing.js";
+import { noteResult } from "./note-result.js";
 import { exportNotesSnapshot } from "./notes.js";
 
 export function createAttachmentSharing(
@@ -118,7 +119,7 @@ export function createAttachmentSharing(
 		readAttachmentNotes(snapshot, params) {
 			const details = readAttachmentSnapshot(snapshot, params);
 			return {
-				content: [{ type: "text", text: JSON.stringify(details) }],
+				...noteResult(details),
 				details: { codexHistoryNotes: details },
 			};
 		},

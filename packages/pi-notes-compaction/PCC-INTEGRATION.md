@@ -4,6 +4,8 @@ Notes owns its four tools, local storage, family sharing, checkpoint policy and 
 
 Notes uses PCC's public `code-mode`, `prompt-mode` and `developer-messages` exports. Code and Notebook promote Notes' compact discovery entry and routing guidance. History remains deferred. Notes' own on-demand help describes its result fields. `new_context` remains a sequential model-only tool, never a nested call. Freshness uses persisted Notes receipts and completed tool outcomes, including generic nested-call evidence through exec and wait.
 
+Notes declares Pi's `outputSchema` and returns its canonical payload as `structuredContent`. Pi's built-in codemode, Code and Notebook receive the same object without parsing display text. Native model-facing text remains unchanged. Shared reads preserve structured paths and availability warnings.
+
 Returned kickoff messages are annotated for developer-role delivery, not sent during preparation. Other models retain ordinary Pi custom messages. Context projection remains active for saved retirement boundaries even when Notes is disabled for the selected model.
 
 Notes owns automatic read-only hybrid note retrieval and its response cache. History reads Pi JSONL sessions, without backend lookup or protected delivery. PCC supplies provider authentication and generic protected-output delivery for encrypted notes. `canDeliverProtectedOutput(pi, ctx)` checks the active delivery capability, not merely whether the PCC package is installed. JavaScript receives ordinary values for plaintext results and receipts for encrypted notes while compatible provider requests receive the original encrypted blocks. Neither package decrypts them locally. Cached data retains account and backend provenance.

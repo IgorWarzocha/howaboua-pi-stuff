@@ -123,10 +123,13 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				if (resultError) throw new Error(resultError);
 				if (protectedResult)
 					return { result_id: toolCallId };
-				return contract.resultValue?.(result) ??
-					(contract.modelVisibleResult
-						? modelVisibleNestedResult(result)
-						: compactNestedResult(result));
+				const value = contract.resultValue?.(result);
+				if (value !== undefined && value !== null) return value;
+				if (tool.outputSchema && result.structuredContent !== undefined)
+					return result.structuredContent;
+				return contract.modelVisibleResult
+					? modelVisibleNestedResult(result)
+					: compactNestedResult(result);
 			} finally {
 				acceptingUpdates = false;
 				lifecycle.end?.(toolCallId);
@@ -158,6 +161,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
+		...(tool.outputSchema ? { output: JSON.stringify(tool.outputSchema) } : {}),
 		...(tool.renderCall
 			? {
 				renderCall: (input, theme, context) =>

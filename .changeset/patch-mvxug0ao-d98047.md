@@ -7,6 +7,8 @@ Requires Pi 1.5 or newer.
 - Extension updates now use Pi's native changelog notices and `collapseChangelog` setting. Custom suppression is removed.
 - Large streamed tool calls now parse incrementally instead of repeatedly parsing the accumulated input.
 - Code and Notebook now use the same tool-argument coercion and validation as native Pi calls.
+- Code and Notebook now preserve extension tools' declared structured results.
+- Code guidance now distinguishes printed output from the printers' undefined return value.
 - Fixed repeated argument preparation for extension tools called through Code or Notebook.
 - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off, following Pi's model catalogue.
 - Tool expansion hints now use your configured keybinding.

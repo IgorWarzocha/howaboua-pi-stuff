@@ -3,6 +3,7 @@ import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import type { LookupQuery } from "./bridge.js";
+import { noteResult } from "./note-result.js";
 import { internalQueryArguments, normalizeQueryInput } from "./query-input.js";
 
 const NOTES_ACTIONS = [
@@ -22,18 +23,18 @@ const HISTORY_ACTIONS = [
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
 export const NOTES_CODE_DESCRIPTION =
-	"One function → Promise<object>; text(await tools.notes()) for help. Args: {action: write|append|read|list|search, path?, text?, query?}";
+	"Virtual task checkpoints, not project files; discover with {action:'list'}, never filesystem tools. One function; const r = await tools.notes(args). read → r.file.content; write/append → r.file.path (receipt only). Help: text(await tools.notes()). path=relative note key. Args require action: {action:'read',path} | {action:'write'|'append',path,text} | {action:'list',path?} | {action:'search',query,path?}";
 export const HISTORY_USAGE = "await tools.history()";
 export const NOTES_DESCRIPTION =
-	"Virtual note storage for task checkpoints across context windows";
+	"Virtual task checkpoints across windows; discover with {action:'list'}. One function: const r = await tools.notes({action:'write',path,text}); write/append → r.file.path; read → r.file.content";
 export const GPT_NOTES_DESCRIPTION =
-	"Virtual notes: task checkpoints across context windows";
+	"Virtual task checkpoints across windows; discover with {action:'list'}; one function: const r = await tools.notes({action:'write',path,text}); write/append → r.file.path; read → r.file.content";
 export const NOTES_ROUTING_GUIDELINE =
-	"Create, list, read and update task checkpoints and internal handoffs only with the notes tool. Notes paths are virtual addresses, not disk paths: never pass them to filesystem or shell tools. Project files and requested deliverables belong on disk";
+	"Use notes for task checkpoints and internal handoffs. To revise a checkpoint, use notes write or append, not filesystem edit or patch. Notes paths are virtual, never filesystem or shell targets. Project files and requested deliverables belong on disk";
 export const NEW_CONTEXT_DESCRIPTION =
 	"Continue this session automatically in a fresh window; call outside code cells with {} unless selecting a role; no code argument";
 export const NEW_CONTEXT_ORDER_GUIDELINE =
-	"For a fresh-context request, save notes, call new_context, and create requested deliverables only after the new window opens";
+	"For a fresh-context request, do not assume the window has changed. Write notes this turn, wait for success, then call new_context without intervening tool calls. Create requested deliverables only after the new window opens";
 export const GPT_NEW_CONTEXT_DESCRIPTION =
 	"Same session→fresh window→automatic continuation; call outside code cells; {} unless selecting a role; no code argument";
 const STRING = Type.Optional(Type.String());
@@ -41,10 +42,15 @@ const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
 export const NOTES_SCHEMA = Type.Object(
 	{
-		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
+		action: Type.Optional(
+			StringEnum(NOTES_ACTIONS, {
+				description: "Action name; path and text are separate fields",
+			}),
+		),
 		path: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
-				description: "Virtual note address or list/search prefix",
+				description:
+					"Required for read/write/append. Create with a relative key, never a filesystem path; reuse returned virtual addresses. Omit for unfiltered list/search",
 			}),
 		),
 		text: STRING,
@@ -91,15 +97,19 @@ export function prepareNewContextArguments(input: unknown) {
 }
 export const HISTORY_SCHEMA = Type.Object(
 	{
-		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
+		action: Type.Optional(
+			StringEnum(HISTORY_ACTIONS, {
+				description: "With query, defaults to search",
+			}),
+		),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-		item_id: STRING,
+		item_id: Type.Optional(Type.String({ description: "Required for read" })),
 		window_id: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
 				description: "Required with item_id for read",
 			}),
 		),
-		query: STRING,
+		query: Type.Optional(Type.String({ description: "Required for search" })),
 		limit: INTEGER,
 		limit_chars: INTEGER,
 		max_chars_per_item: INTEGER,
@@ -229,7 +239,7 @@ export function queryHelp(
 		if (entries.some(([key]) => key !== "action"))
 			throw new Error("Help accepts only action: help");
 		const actions = namespace === "notes" ? NOTES_ACTIONS : HISTORY_ACTIONS;
-		return result({
+		return (namespace === "notes" ? noteResult : result)({
 			...(namespace === "notes"
 				? { results: "read: file.content; write/append: file.path" }
 				: {}),
@@ -266,8 +276,8 @@ export function queryHelp(
 					}
 				: {
 						usage: gpt
-							? "Earlierconversation→search≠browse; returned IDs unchanged"
-							: "Search earlier conversation, don't browse it. Pass returned IDs unchanged",
+							? "query→action=search by default; earlierconversation→search≠browse; returned IDs unchanged"
+							: "With query, action defaults to search. Search earlier conversation, don't browse it. Pass returned IDs unchanged",
 						search: rankedHistory
 							? gpt
 								? "Own past user/assistant visible text: all keywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=full transcript; recent_first=true→newest first"

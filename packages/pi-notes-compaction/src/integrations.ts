@@ -1,4 +1,5 @@
 import type {
+	AgentToolResult,
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
@@ -76,17 +77,9 @@ export async function registerNotesToolIntegrations(
 								usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
 								deferLoading: tool.name !== "notes",
 								opaqueResult: tool.name === "notes",
-								resultValue(result) {
-									const [part] = result.content;
-									if (result.content.length === 1 && part?.type === "text") {
-										try {
-											return JSON.parse(part.text);
-										} catch {
-											return part.text;
-										}
-									}
-									return { content: result.content };
-								},
+								...(tool.name === "history"
+									? { resultValue: historyResultValue }
+									: {}),
 							},
 						),
 					),
@@ -102,6 +95,18 @@ export async function registerNotesToolIntegrations(
 		if (!optionalPccMissing(error)) throw error;
 	}
 	return refreshNested;
+}
+
+function historyResultValue(result: AgentToolResult<unknown>): unknown {
+	const [part] = result.content;
+	if (result.content.length === 1 && part?.type === "text") {
+		try {
+			return JSON.parse(part.text);
+		} catch {
+			return part.text;
+		}
+	}
+	return { content: result.content };
 }
 
 export async function registerNotesCompactionIntegration(

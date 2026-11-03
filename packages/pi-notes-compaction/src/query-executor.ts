@@ -6,6 +6,7 @@ import type {
 import { useHistory } from "./history.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
+import { noteResult } from "./note-result.js";
 import { collectNotes, normalizeNoteParams, useNotes } from "./notes.js";
 import { lookupNotes } from "./notes-lookup.js";
 import {
@@ -59,11 +60,11 @@ export function createQueryExecutor(
 				signal?.throwIfAborted();
 				if (!sharedNotesUnavailable(error)) throw error;
 				const saved = await readSharedNotes(ctx, store, raw, signal);
-				if (saved) return result(saved);
+				if (saved) return noteResult(saved);
 				throw error;
 			}
 			const saved = await readSharedNotes(ctx, store, raw, signal);
-			if (saved) return result(saved);
+			if (saved) return noteResult(saved);
 		}
 		const params = queryArguments(
 			"notes",
@@ -85,7 +86,7 @@ export function createQueryExecutor(
 			params["action"] === "append_to_file"
 		)
 			return {
-				...result(local),
+				...noteResult(local),
 				details: {
 					...(shared
 						? { codexHistoryNotes: {}, notesCompactionRouted: true }
@@ -103,7 +104,7 @@ export function createQueryExecutor(
 			params["action"] === "read_file" &&
 			notes.get(params["path"] as string)?.mode === "replace"
 		)
-			return result(local);
+			return noteResult(local);
 		const prefix = String(params["prefix"] ?? params["path_prefix"] ?? "");
 		const replacementsInScope =
 			params["action"] !== "read_file" &&

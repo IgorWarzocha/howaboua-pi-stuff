@@ -21,6 +21,7 @@ import type {
 	SharedContextRequest,
 	SharedContextResult,
 } from "./context-sharing.js";
+import { noteResult } from "./note-result.js";
 
 const ENDPOINTS = {
 	list_files_by_prefix: [
@@ -259,7 +260,7 @@ export async function executeRemoteAttachment(
 		reference,
 	);
 	return {
-		content: [{ type: "text", text: "Saved remote read completed" }],
+		...noteResult({ usage: "Saved remote read completed" }),
 		details: {
 			codexHistoryNotes: {},
 			externalNotesResponses: responses.map(({ bytes, ...response }) => ({

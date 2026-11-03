@@ -58,6 +58,12 @@ export function normalizeQueryInput(
 	if (!input || typeof input !== "object" || Array.isArray(input))
 		throw new Error("Supply an action object; use {} for help");
 	const params = { ...input } as Record<string, unknown>;
+	if (
+		namespace === "history" &&
+		params["action"] === undefined &&
+		"query" in params
+	)
+		params["action"] = "search";
 	const action =
 		ACTIONS[namespace][String(params["action"])] ?? params["action"];
 	if (action !== undefined) params["action"] = action;

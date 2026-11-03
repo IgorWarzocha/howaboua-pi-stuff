@@ -13,12 +13,12 @@ import {
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Await work; use a timeout when an operation might not finish on its own
-Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
+Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
 
 export const GPT_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 Await work; possibly nonterminating→timeout
-Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serialized output, notify(value)→emit, yield_control()→yield`;
+Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
 
 export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
 export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
