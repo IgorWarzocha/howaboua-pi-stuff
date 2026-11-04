@@ -7,6 +7,7 @@ import { createNotesActivation } from "./activation.js";
 import { createNotesContextOwner } from "./context-owner.js";
 import { registerNotesHooks } from "./extension-hooks.js";
 import { registerNotesSharing } from "./extension-sharing.js";
+import { registerCheckpointRenderer } from "./fresh-checkpoint.js";
 import { HistorySearch } from "./history-search.js";
 import { registerNotesToolIntegrations } from "./integrations.js";
 import { NotesLifecycle } from "./lifecycle.js";
@@ -21,6 +22,7 @@ import { registerWindowRenderer } from "./windows.js";
 
 export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	registerWindowRenderer(pi);
+	registerCheckpointRenderer(pi);
 	const dir = join(getAgentDir(), "notes-compaction");
 	const settingsPath = join(dir, "settings.json");
 	const store = new NotesStore(join(dir, "notes.sqlite"));
@@ -75,6 +77,7 @@ export default async function notesCompaction(pi: ExtensionAPI): Promise<void> {
 	const markers = registerNoteSaveMarkers(
 		pi,
 		() => lifecycle.active && activation.settings.noteSaveMarkers,
+		() => lifecycle.windows.current?.currentWindowId,
 	);
 	await registerNotesHooks(
 		pi,

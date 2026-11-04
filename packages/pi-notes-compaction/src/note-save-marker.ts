@@ -11,9 +11,16 @@ const NOTE_SAVE_MARKER = "codex-note-save-marker";
 export function registerNoteSaveMarkers(
 	pi: ExtensionAPI,
 	enabled: () => boolean,
+	currentWindowId: () => string | undefined,
 ) {
 	let manager: ExtensionContext["sessionManager"] | undefined;
-	let cached: { leaf: string | null; id: string | undefined } | undefined;
+	let cached:
+		| {
+				leaf: string | null;
+				windowId: string | undefined;
+				id: string | undefined;
+		  }
+		| undefined;
 	const restore = (_event: unknown, ctx: ExtensionContext) => {
 		manager = ctx.sessionManager;
 		cached = undefined;
@@ -31,17 +38,24 @@ export function registerNoteSaveMarkers(
 		return new (class extends Text {
 			override render(width: number): string[] {
 				const leaf = manager?.getLeafId();
-				if (manager && (!cached || cached.leaf !== leaf))
+				const windowId = currentWindowId();
+				if (
+					manager &&
+					(!cached || cached.leaf !== leaf || cached.windowId !== windowId)
+				) {
+					const branch = manager.getBranch();
 					cached = {
 						leaf: manager.getLeafId(),
-						id: manager
-							.getBranch()
-							.findLast(
-								(item) =>
-									item.type === "custom" &&
-									item.customType === NOTE_SAVE_MARKER,
-							)?.id,
+						windowId,
+						id: hasFreshNotes(branch, windowId)
+							? branch.findLast(
+									(item) =>
+										item.type === "custom" &&
+										item.customType === NOTE_SAVE_MARKER,
+								)?.id
+							: undefined,
 					};
+				}
 				const visible = manager && enabled() && cached?.id === entry.id;
 				this.setText(visible ? content : "");
 				return visible ? super.render(width) : [];

@@ -7,17 +7,14 @@ import { NOTE_RECEIPT, type NoteReceipt, noteReceipt } from "./notes.js";
 import { isNoteWrite } from "./query-input.js";
 
 export const NESTED_NOTE_OUTCOME = "notes-compaction:nested-write:v1";
-export interface NestedNoteOutcome {
+export type NestedNoteOutcome = {
 	protocol: 1;
 	runId: string;
 	windowId: string;
 	callId: string;
 	parentCallId: string;
-	saved: boolean;
-	/** Present when Notes records the write's start as well as its completion. */
-	pending?: boolean;
 	origin?: "routed";
-}
+} & ({ pending: true; saved: false } | { pending: false; saved: boolean });
 export const NOTES_RUN_ENTRY = "notes-compaction:run:v1";
 
 /** A receipt proves persistence. Current-run tool outcomes prove the checkpoint actually completed. */
@@ -159,7 +156,7 @@ function noteEvidence(
 			typeof value.callId === "string" &&
 			typeof value.parentCallId === "string" &&
 			(value.origin === undefined || value.origin === "routed") &&
-			(value.pending === undefined || typeof value.pending === "boolean") &&
+			typeof value.pending === "boolean" &&
 			(!value.pending || value.saved === false) &&
 			typeof value.saved === "boolean"
 			? [value as NestedNoteOutcome]
