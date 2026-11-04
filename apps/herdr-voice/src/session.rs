@@ -73,7 +73,12 @@ async fn execute(
     commands: &mut mpsc::Receiver<Command>,
 ) -> Result<()> {
     let mut connection = tokio::select! {
-        _ = cancel.changed() => return Ok(()),
+        _ = cancel.changed() => {
+            if *cancel.borrow() == Some(true) {
+                bail!("Connection cancelled before host shutdown could be confirmed; stop the selected voice listener from Pi");
+            }
+            return Ok(());
+        },
         result = Connection::open(options) => result?,
     };
     let mut audio = match tokio::select! {
@@ -82,12 +87,15 @@ async fn execute(
     } {
         Some(Ok(audio)) => audio,
         other => {
-            let stopped = if other.is_none()
-                && *cancel.borrow() == Some(true)
-                && options.provider == Provider::Grok
-            {
-                connection.stop_grok_call().await
-                    .context("Local audio released, but ending the selected host call was not confirmed; stop it from Pi")
+            let stopped = if other.is_none() && *cancel.borrow() == Some(true) {
+                match options.provider {
+                    Provider::Grok => connection.stop_grok_call().await
+                        .context("Local audio released, but ending the selected host call was not confirmed; stop it from Pi"),
+                    // No transport client owns the browser call yet; do not stop another device's call.
+                    Provider::Gippity | Provider::Codex => Err(anyhow::anyhow!(
+                        "Connection cancelled before host shutdown could be confirmed; stop the selected voice listener from Pi"
+                    )),
+                }
             } else {
                 Ok(())
             };
