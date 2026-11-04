@@ -1,5 +1,5 @@
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS, DEFAULT_STREAM_MAX_RETRIES, DEFAULT_TRANSPORT_RECOVERY_BUDGET_MS, INITIAL_STREAM_RETRY_DELAY_MS, MAX_STREAM_MAX_RETRIES } from "../constants.ts";
-import { NonRetryableProviderError } from "../errors.ts";
+import { buildProviderErrorMessage, NonRetryableProviderError } from "../errors.ts";
 import { codexOverloadRetryDelay, codexStreamRetryDelay, isCodexOverloadError, isCodexRateLimitError } from "../stream-events.ts";
 import { combineAbortSignals, sleep } from "../sse.ts";
 import type { OpenAICodexStreamOptions } from "../types.ts";
@@ -25,6 +25,7 @@ export function retryAdviceRecoveryBudgetError(error: unknown): NonRetryableProv
 }
 
 export class CodexRecoveryBudget {
+	private lastTransportFailure: string | undefined;
 	private overloadRetryCount = 0;
 	private adviceStartedAt: number | undefined;
 	private adviceController: AbortController | undefined;
@@ -52,7 +53,14 @@ export class CodexRecoveryBudget {
 		this.recoveryController = new AbortController();
 		this.recoveryTimer = setTimeout(() => this.recoveryController?.abort(), DEFAULT_TRANSPORT_RECOVERY_BUDGET_MS);
 	};
-	deadlineError = () => this.adviceExpired() ? retryAdviceRecoveryBudgetError(undefined) : new NonRetryableProviderError(
+	// Pi classifies the final message text, not the exception class or diagnostic.
+	recordTransportFailure = (error: unknown) => {
+		this.lastTransportFailure = error === undefined ? undefined : buildProviderErrorMessage(error);
+	};
+	exhaustedError = (message: string) => new NonRetryableProviderError(
+		this.lastTransportFailure ? `${message} Last transport failure: ${this.lastTransportFailure}` : message,
+	);
+	deadlineError = () => this.adviceExpired() ? retryAdviceRecoveryBudgetError(undefined) : this.exhaustedError(
 		"Codex could not complete transport recovery within five minutes; the request was stopped before an answer completed. Retry the request.",
 	);
 	private adviceExpired = () => this.adviceController?.signal.aborted === true
@@ -93,7 +101,8 @@ export class CodexRecoveryBudget {
 			throw retryAdviceRecoveryBudgetError(error);
 		}
 		if (!switchingOnExpiry && this.recoveryDeadlineAt !== undefined && delayMs > Math.max(0, this.recoveryDeadlineAt - performance.now())) {
-			throw new NonRetryableProviderError("Codex retry advice exceeds the remaining transport recovery window; retry the request later.");
+			const message = "Codex retry advice exceeds the remaining transport recovery window; retry the request later.";
+			throw plan.serverDirected || plan.overload ? new NonRetryableProviderError(message) : this.exhaustedError(message);
 		}
 		const retrySignal = this.signal();
 		try {

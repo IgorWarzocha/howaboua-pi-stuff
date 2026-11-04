@@ -18,6 +18,7 @@ Custom voice-helper overrides must be rebuilt. Bundled helpers update with the p
 - Tool expansion hints now use your configured keybinding.
 - General guidance now tells agents to act on clear requests and defer work only when the user explicitly asks.
 - Removed unnecessary punctuation from tool guidance.
+- Fixed transient Codex transport failures becoming non-retryable after internal recovery was exhausted.
 - Fixed Realtime voice resubmitting Pi tasks from progress updates without new user speech.
 - Codex Live now ignores repeated identical handoffs within one user turn while preserving repeat requests from later turns.
 - Codex Live preserves captured speech when a handoff contains only part of the request.
