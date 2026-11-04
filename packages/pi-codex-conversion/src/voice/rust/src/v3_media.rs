@@ -7,7 +7,6 @@ use std::time::{Duration, Instant as StdInstant};
 use anyhow::{Context as _, Result};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use bytes::Bytes;
 use crossbeam_queue::ArrayQueue;
 use rtc::media::Sample;
 use rtc::peer_connection::configuration::media_engine::MIME_TYPE_OPUS;
@@ -204,6 +203,7 @@ pub async fn play_remote_track(
     let mut converted = Vec::new();
     let mut bridge_pending = Vec::new();
     let mut last_frame_samples = OPUS_FRAME_SAMPLES;
+    let mut last_packet_config = None;
     let mut last_activity = None;
     let mut diagnostics = AudioDiagnostics::default();
     let mut diagnostics_since = Instant::now();
@@ -255,6 +255,7 @@ pub async fn play_remote_track(
                 resampler.reset();
                 bridge_pending.clear();
                 last_frame_samples = OPUS_FRAME_SAMPLES;
+                last_packet_config = None;
                 match opus::Decoder::new(OPUS_RATE, opus::Channels::Stereo) {
                     Ok(replacement) => decoder = replacement,
                     Err(error) => {
@@ -330,24 +331,28 @@ pub async fn play_remote_track(
                         continue;
                     }
                     PlayoutFrame::Packet(payload) => (payload, &mut decoded[..]),
-                    PlayoutFrame::Missing => {
+                    PlayoutFrame::Missing { successor } => {
                         diagnostics.missing_packets = diagnostics.missing_packets.saturating_add(1);
-                        (Bytes::new(), &mut decoded[..last_frame_samples * 2])
+                        (successor.unwrap_or_default(), &mut decoded[..last_frame_samples * 2])
                     }
                 };
                 if flushing_tail {
                     diagnostics.tail_flushes = diagnostics.tail_flushes.saturating_add(1);
                 }
                 playout_clock.start(Instant::now());
-                let Ok(samples_per_channel) =
+                let decoded_frame = if received_frame {
                     decoder.decode_float(&payload, decoded_output, false)
-                else {
+                } else {
+                    decode_missing_frame(&mut decoder, last_packet_config, &payload, decoded_output)
+                };
+                let Ok(samples_per_channel) = decoded_frame else {
                     diagnostics.decode_failures = diagnostics.decode_failures.saturating_add(1);
                     diagnostics.clock_rebases = diagnostics.clock_rebases.saturating_add(u32::from(playout_clock.advance(last_frame_samples, OPUS_RATE)));
                     continue;
                 };
                 last_frame_samples = samples_per_channel;
                 if received_frame {
+                    last_packet_config = payload.first().map(|toc| toc & 0xfc);
                     let samples = samples_per_channel as u32;
                     diagnostics.decoded_packets = diagnostics.decoded_packets.saturating_add(1);
                     diagnostics.decoded_packet_samples = diagnostics.decoded_packet_samples.saturating_add(samples);
@@ -444,6 +449,28 @@ pub async fn play_remote_track(
             }
         }
     }
+}
+
+fn decode_missing_frame(
+    decoder: &mut opus::Decoder,
+    previous_config: Option<u8>,
+    successor: &[u8],
+    output: &mut [f32],
+) -> Result<usize, opus::Error> {
+    let samples = output.len() / 2;
+    // Match the prior mode/bandwidth/frame size/channels (TOC without framing).
+    // Only a matching single 10/20ms frame can safely repair this slot.
+    // No FEC in the successor is normal: libopus performs PLC instead.
+    if matches!(samples, 480 | 960)
+        && previous_config.is_some()
+        && successor.first().map(|toc| toc & 0xfc) == previous_config
+        && matches!(opus::packet::get_nb_frames(successor), Ok(1))
+        && opus::packet::get_nb_samples(successor, OPUS_RATE).is_ok_and(|count| count == samples)
+        && let Ok(samples) = decoder.decode_float(successor, output, true)
+    {
+        return Ok(samples);
+    }
+    decoder.decode_float(&[], output, false)
 }
 
 async fn read_rtp(remote: &Arc<dyn TrackRemote>) -> Result<rtc::rtp::Packet> {

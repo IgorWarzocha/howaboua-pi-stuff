@@ -14,7 +14,7 @@ const MAX_PENDING_PACKETS: usize = MAX_SEQUENCE_DISTANCE + 1;
 pub enum PlayoutFrame {
     Buffering,
     Packet(Bytes),
-    Missing,
+    Missing { successor: Option<Bytes> },
 }
 
 pub enum PacketAdmission {
@@ -143,7 +143,10 @@ impl PacketPlayout {
             .next()
             .is_some_and(|sequence| *sequence > expected)
         {
-            PlayoutFrame::Missing
+            // Borrow redundancy without consuming the successor's own slot.
+            PlayoutFrame::Missing {
+                successor: self.pending.get(&(expected + 1)).cloned(),
+            }
         } else {
             self.playing = false;
             self.buffering_since = None;
@@ -199,7 +202,12 @@ mod tests {
         gap.push(22, packet(22));
         gap.push(23, packet(23));
         assert_eq!(gap.next(), PlayoutFrame::Packet(packet(20)));
-        assert_eq!(gap.next(), PlayoutFrame::Missing);
+        assert_eq!(
+            gap.next(),
+            PlayoutFrame::Missing {
+                successor: Some(packet(22))
+            }
+        );
         assert_eq!(gap.next(), PlayoutFrame::Packet(packet(22)));
     }
 
