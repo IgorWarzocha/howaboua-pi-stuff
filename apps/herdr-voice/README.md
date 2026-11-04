@@ -8,28 +8,28 @@ OpenAI uses PCC's bundled GipPity voice or standalone GipPity, whichever is load
 
 ## Requirements
 
-- The new `herdr-app` and `herdr-core` installed locally.
-- Pi with the selected voice extension and account access configured on each machine where Pi runs.
+- Herdr with `herdr-app` and `herdr-core` installed locally.
+- Pi with the selected voice extension and account access configured on each machine where Pi runs. Install `@howaboua/pi-codex-conversion`, `@howaboua/pi-gippity-control` or `@howaboua/pi-grok-realtime` from the same coordinated release or source revision as this app. An older install may lack host settings or confirmed call shutdown. After updating an extension, run `/reload` in each Pi session you intend to connect.
 - Node.js on Pi's machine. The native companion itself does not require Node.js.
-- A working microphone and speakers. Linux needs the ALSA runtime and a configured audio device. Allow microphone access when your OS asks.
+- A working microphone and speakers. Allow microphone access when your OS asks. Linux needs the ALSA runtime and its configuration files. The bundled Linux x64 `grok-audio` helper requires glibc 2.34 or newer.
+- On Linux with PipeWire, a running local PipeWire session, `pw-dump` on the companion's `PATH` and the ALSA PipeWire PCM plugin are required for named device selection. Distribution package names vary. Without a local PipeWire session, the companion uses the audio helper's native device list.
 - For remote machines, add them to Herdr first. Configure key-based SSH access and accept their host keys in your terminal before using SSH forwarding.
 
 Voice control servers are unauthenticated and intended for trusted networks. Do not expose them to the internet. SSH forwarding protects traffic between machines, but does not change the server's existing network binding. Restrict access with your firewall when needed.
 
-## Build and start
+## Install and start a native bundle
 
-From this directory, with Rust, Node.js and the platform's native TLS development libraries installed:
+The source build below produces a native bundle directory. If someone has supplied you with that directory, use the bundle for your computer's operating system and architecture. You do not need Rust or the source checkout to run it. The bundle does not contain `build.mjs`.
 
-```sh
-node build.mjs
-```
-
-The result is `dist/herdr-voice-<platform>-<architecture>/`. Keep its `herdr-voice` and `grok-audio` executables together. Add the whole directory to your `PATH`, then run:
+Keep the whole directory, including `herdr-voice`, `grok-audio`, `pi-bridge.ts` and the licence files. On Linux or macOS, open a terminal in that bundle directory and run:
 
 ```sh
+export PATH="$PWD:$PATH"
 herdr-voice install-mod
 herdr-voice serve
 ```
+
+This adds the bundle to `PATH` for the current terminal only. Add its absolute directory to your shell's `PATH` configuration if you want to run the companion from other terminals. On Windows, the executables have an `.exe` suffix. From PowerShell in the bundle directory, run `./herdr-voice.exe install-mod`, then `./herdr-voice.exe serve`.
 
 `install-mod` installs the panel as `voice` in your Herdr app home. It respects `HERDR_APP_HOME`, or accepts `--herdr-home PATH` for a separate installation. It also installs the local panel's private authorisation token. Do not share `mods/voice/companion.json`.
 
@@ -53,17 +53,57 @@ While connected, the microphone icon mutes or unmutes and the disconnect icon en
 
 Quickstart installs the bundled Pi bridge in that machine's auto-discovered Pi extensions directory. It does not install a voice backend, change account access or submit a model prompt when the backend is missing. A failed connection leaves the new Pi terminal available to inspect.
 
+## Build from source
+
+Use a checkout of this repository, not a native bundle. You need Rust 1.89 or newer for the locked dependencies, Cargo, Node.js and the platform's native linker and TLS development libraries. On Linux, this includes OpenSSL development files and `pkg-config`.
+
+From the repository root:
+
+```sh
+cd apps/herdr-voice
+node build.mjs
+```
+
+The script builds for your machine and copies the repository's matching audio helper unchanged. It produces `dist/herdr-voice-<platform>-<architecture>/`, such as `dist/herdr-voice-linux-x64/`. It supports Linux, macOS and Windows on x64 and arm64. Keep the generated directory intact and follow the native bundle instructions above from inside it. No separate download is needed for a source build.
+
 ## Use an existing pane
 
-Copy the bundled `pi-bridge.ts` into Pi's auto-discovered extensions directory as `herdr-voice-bridge.ts`, then run `/reload` in the intended Pi session. Use the same filename as Quickstart, not a second registered copy. From the native bundle directory:
+Install the bundled `pi-bridge.ts` on the machine **running Pi**, not merely on the computer displaying Herdr. Use Pi's auto-discovered extensions directory and the filename `herdr-voice-bridge.ts`, the same managed path as Quickstart. Do not register a second copy. The commands below refuse to overwrite an unrelated extension at that path.
+
+If Pi runs on this computer, run this from the native bundle directory in a POSIX shell:
 
 ```sh
 agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 mkdir -p "$agent_dir/extensions"
-cp pi-bridge.ts "$agent_dir/extensions/herdr-voice-bridge.ts"
+bridge="$agent_dir/extensions/herdr-voice-bridge.ts"
+if [ ! -e "$bridge" ] || [ "$(head -n 1 "$bridge")" = '// herdr-voice-managed-bridge v1' ]; then
+  cp pi-bridge.ts "$bridge"
+else
+  printf '%s\n' "Unrelated extension at $bridge. Move it before retrying." >&2
+fi
 ```
 
-Focus that Pi pane and click the plug icon. Requests use the bridge's session-addressed mailbox, not simulated keystrokes, so an existing draft is not overwritten. Pi must have the bridge and chosen voice extension loaded. Already-running Pi sessions need one `/reload` after installing the bridge.
+If Pi runs remotely, replace `your-ssh-alias` with its configured SSH alias. From the native bundle directory on this computer, run:
+
+```sh
+pi_host='your-ssh-alias'
+ssh "$pi_host" '
+  set -eu
+  agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  mkdir -p "$agent_dir/extensions"
+  bridge="$agent_dir/extensions/herdr-voice-bridge.ts"
+  if [ -e "$bridge" ] && [ "$(head -n 1 "$bridge")" != "// herdr-voice-managed-bridge v1" ]; then
+    printf "%s\n" "Unrelated extension at $bridge. Move it before retrying." >&2
+    exit 1
+  fi
+  umask 077
+  cat > "$bridge"
+' < pi-bridge.ts
+```
+
+The file travels over SSH and is written only on Pi's host. If that Pi session uses a custom `PI_CODING_AGENT_DIR`, set `agent_dir` to that same directory in the remote script. The SSH environment may differ from the Pi pane's environment. These manual shell examples require a POSIX shell on Pi's host. For a Windows host without one, use Quickstart to provision the bridge instead.
+
+After a successful install, run `/reload` in the intended Pi session on that host. Focus that Pi pane and click the plug icon. Requests use the bridge's session-addressed mailbox, not simulated keystrokes, so an existing draft is not overwritten. Pi must have both the bridge and chosen voice extension loaded.
 
 Quickstart and pane-based connections obtain the server certificate through Herdr Core's authenticated machine connection. You do not need to export it manually.
 
@@ -93,3 +133,5 @@ The companion also provides `status`, `devices`, `mute true`, `mute false` and `
 - If startup times out, inspect the Pi pane before retrying. Its server may still be starting.
 - If SSH fails, check the alias, host key and key-based login in your terminal. The companion does not answer password prompts.
 - If a connection fails, check its certificate, server address and selected audio devices, then reconnect. It never disables TLS verification or switches providers automatically.
+- If a selected microphone or speaker disappears, reconnect the device or choose an available local device in settings, then connect again. Choose **System default** if you want to follow the computer's default device. A saved missing device is never silently replaced.
+- If Linux device discovery fails while PipeWire is running, check that `pw-dump` is available to the companion and the local PipeWire session is healthy. If named devices appear but cannot open, check the ALSA PipeWire PCM plugin and ALSA configuration files. Restart the companion after correcting its environment, then select the devices again.
