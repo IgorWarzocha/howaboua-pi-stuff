@@ -296,7 +296,7 @@ async fn select_url(urls: &[String], local: bool) -> Result<String> {
         }
     }
     bail!(
-        "Pi did not return a reachable voice URL; configure an SSH host for remote loopback access"
+        "Pi's voice listener is unreachable from this computer. Connect from a network that can reach Pi, then retry."
     )
 }
 
