@@ -167,6 +167,7 @@ pub async fn serve(config: Config) -> Result<()> {
     });
     let router = Router::new()
         .route("/status", get(status))
+        .route("/errors/acknowledge", post(acknowledge_error))
         .route("/devices", get(devices))
         .route("/connect", post(connect))
         .route("/prepare", post(prepare))
@@ -226,6 +227,30 @@ async fn authorize(State(state): State<Arc<Companion>>, request: Request, next: 
 async fn status(State(state): State<Arc<Companion>>) -> Json<Status> {
     Json(state.status.read().await.clone())
 }
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AcknowledgeError {
+    id: String,
+}
+
+async fn acknowledge_error(
+    State(state): State<Arc<Companion>>,
+    Json(options): Json<AcknowledgeError>,
+) -> Json<Status> {
+    let mut status = state.status.write().await;
+    // A stale panel must not acknowledge a newer failure or touch a live call.
+    if matches!(status.phase, Phase::Error)
+        && status
+            .error
+            .as_ref()
+            .is_some_and(|error| error.id == options.id)
+    {
+        *status = Status::default();
+    }
+    Json(status.clone())
+}
+
 async fn devices() -> ApiResult<Value> {
     Ok(Json(audio::devices().await?))
 }

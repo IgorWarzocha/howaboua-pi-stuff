@@ -35,12 +35,21 @@ export async function request(path, body) {
 
 export function parseStatus(data) {
   const nullableString = (value) => value === null || typeof value === "string";
+  const failure = data?.error;
+  const validFailure = failure === null || typeof failure === "string" ||
+    (failure && typeof failure.id === "string" && failure.id.length > 0 &&
+      (failure.occurred_at === null || (Number.isSafeInteger(failure.occurred_at) && failure.occurred_at >= 0 && failure.occurred_at <= 8640000000000000)) &&
+      typeof failure.message === "string" && failure.message.length > 0 &&
+      Array.isArray(failure.details) && failure.details.every(detail => typeof detail === "string"));
   if (!data || !["idle", "connecting", "listening", "muted", "error"].includes(data.phase) ||
       ![null, "grok", "gippity", "codex"].includes(data.provider) || typeof data.muted !== "boolean" ||
-      !nullableString(data.url) || !nullableString(data.error)) {
+      !nullableString(data.url) || !validFailure) {
     throw new Error("The voice companion returned an invalid status.");
   }
-  return { phase: data.phase, provider: data.provider, url: data.url, muted: data.muted, error: data.error };
+  const error = typeof failure === "string" ? {
+    id: null, occurred_at: null, message: "A previous voice connection failed.", details: [failure],
+  } : failure;
+  return { phase: data.phase, provider: data.provider, url: data.url, muted: data.muted, error };
 }
 
 export function parseDevices(data) {

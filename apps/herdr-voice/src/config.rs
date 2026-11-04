@@ -128,10 +128,6 @@ pub fn install(config: &Config, home: Option<PathBuf>, indicator_mods: &[String]
         ("mod.json", include_str!("../mod/mod.json")),
         ("icons/zap.svg", include_str!("../mod/icons/zap.svg")),
         ("icons/plug.svg", include_str!("../mod/icons/plug.svg")),
-        (
-            "icons/alert-triangle.svg",
-            include_str!("../mod/icons/alert-triangle.svg"),
-        ),
         ("icons/mic.svg", include_str!("../mod/icons/mic.svg")),
         (
             "icons/mic-off.svg",

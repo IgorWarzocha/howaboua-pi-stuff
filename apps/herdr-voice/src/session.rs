@@ -7,7 +7,11 @@ use anyhow::{Context, Result, bail};
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::{collections::VecDeque, sync::Arc, time::Duration};
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tokio::sync::{RwLock, mpsc, oneshot, watch};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -22,12 +26,20 @@ pub enum Phase {
 }
 
 #[derive(Clone, Serialize)]
+pub struct Failure {
+    pub id: String,
+    pub occurred_at: Option<u64>,
+    pub message: String,
+    pub details: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
 pub struct Status {
     pub phase: Phase,
     pub provider: Option<Provider>,
     pub url: Option<String>,
     pub muted: bool,
-    pub error: Option<String>,
+    pub error: Option<Failure>,
 }
 
 impl Default for Status {
@@ -58,9 +70,24 @@ pub async fn run(
     match &result {
         Ok(()) => *state = Status::default(),
         Err(error) => {
+            let message = if *cancel.borrow() == Some(true) {
+                "Voice could not finish disconnecting."
+            } else if matches!(state.phase, Phase::Connecting) {
+                "Voice could not connect to Pi."
+            } else {
+                "Voice ended unexpectedly."
+            };
             state.phase = Phase::Error;
             state.muted = true;
-            state.error = Some(format!("{error:#}"));
+            state.error = Some(Failure {
+                id: uuid::Uuid::new_v4().to_string(),
+                occurred_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .ok()
+                    .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok()),
+                message: message.to_owned(),
+                details: error.chain().map(ToString::to_string).collect(),
+            });
         }
     }
     result

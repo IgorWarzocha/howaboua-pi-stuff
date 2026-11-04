@@ -1,4 +1,4 @@
-import { shared, setShared, focused, spaces, panes, terminals, machines } from "herdr";
+import { shared, setShared, focused, spaces, panes, terminals, machines, notify } from "herdr";
 
 export const PROVIDERS = { grok: "Grok", gippity: "OpenAI" };
 const strings = ["microphone", "speaker", "sshHost", "url", "certificate", "terminal"];
@@ -55,7 +55,23 @@ export function targets() {
   };
 }
 
-export function publishStatus(status) {
+export function publishStatus(status, statusError = null) {
+  if (statusError !== shared("voice.statusError")) {
+    setShared("voice.statusError", statusError);
+    if (statusError) notify({ title: "Voice unavailable", body: statusError, level: "warning" });
+  }
+  if (status) {
+    const previous = shared("voice.observedFailure");
+    const failure = status.error;
+    const key = failure ? failure.id || JSON.stringify(failure.details) : null;
+    // The first successful snapshot is a baseline, not evidence of a new failure.
+    // Shared observation prevents polling, other views and reopen from repeating it.
+    if (previous?.key !== key || !previous) {
+      setShared("voice.observedFailure", { key });
+      if (previous && key && failureNotice(status)) notify({ title: "Voice ended", level: "warning",
+        body: failure.message + " Open Voice settings for details." });
+    }
+  }
   const target = shared("voice.target");
   if (status?.phase === "idle" && target) setShared("voice.target", null);
   const active = status && ["connecting", "listening", "muted"].includes(status.phase);
@@ -68,4 +84,15 @@ export function publishStatus(status) {
 
 export function setTarget(terminal, url) {
   setShared("voice.target", terminal ? { terminal, url } : null);
+}
+
+// Legacy companions have no event ID or occurrence time. Never invent either.
+export function failureNotice(status) {
+  const error = status?.error;
+  if (!error || (!error.id && shared("voice.acknowledgedLegacyError") === JSON.stringify(error.details))) return null;
+  return error;
+}
+
+export function acknowledgeLegacyFailure(error) {
+  setShared("voice.acknowledgedLegacyError", JSON.stringify(error.details));
 }

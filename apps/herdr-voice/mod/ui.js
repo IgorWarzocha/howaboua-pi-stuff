@@ -13,7 +13,7 @@ export function layoutWidth(measured) {
 }
 
 export function icon(name, size = 15) {
-  const voice = ["zap", "plug", "mic", "mic-off", "disconnect", "alert-triangle"].includes(name);
+  const voice = ["zap", "plug", "mic", "mic-off", "disconnect"].includes(name);
   return svg(`mods/${voice ? "voice/icons" : "workspace-chrome"}/${name}.svg`).size(size).flex_none();
 }
 
