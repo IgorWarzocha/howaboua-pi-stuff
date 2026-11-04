@@ -8,6 +8,7 @@ Older checkpoints may require a fresh note save before rollover.
 
 - The saved-notes indicator now follows the same readiness check as context rollover.
 - Checkpoint notices no longer expose internal labels or agent instructions.
+- Shared Notes warnings now match between text and structured results.
 - Notes results in Pi's built-in codemode are now objects, matching Code and Notebook. Remove `JSON.parse` around those results.
 - History now treats a query without an action as a search.
 - History now ignores `offset_chars` outside read requests.
