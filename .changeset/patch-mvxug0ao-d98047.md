@@ -4,6 +4,8 @@
 
 Requires Pi 1.5 or newer.
 
+Custom voice-helper overrides must be rebuilt. Bundled helpers update with the package.
+
 - Extension updates now use Pi's native changelog notices and `collapseChangelog` setting. Custom suppression is removed.
 - Large streamed tool calls now parse incrementally instead of repeatedly parsing the accumulated input.
 - Code and Notebook now use the same tool-argument coercion and validation as native Pi calls.
@@ -20,6 +22,8 @@ Requires Pi 1.5 or newer.
 - Codex Live preserves captured speech when a handoff contains only part of the request.
 - Voice task preparation now explicitly forbids turning instructions into questions or adding unrequested conversational next steps.
 - Voice task preparation now preserves the user's tone, register and emphasis.
+- Fixed voice playback stalling on short audio tails and bursting after delayed scheduling.
+- Voice playback now records content-free buffering, interruption and LAN-drop diagnostics.
 - Fixed generated task text appearing as user speech.
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.

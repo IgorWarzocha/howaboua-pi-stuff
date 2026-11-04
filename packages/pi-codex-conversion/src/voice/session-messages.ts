@@ -12,6 +12,7 @@ import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
 import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
 import { renderRealtimeTranscriptTail, renderRealtimeUserInput } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
+import type { VoiceAudioDiagnostics } from "./helper-protocol.ts";
 import {
 	CODEX_VOICE_MODE_MESSAGE_TYPE,
 	type CodexVoiceMode,
@@ -74,6 +75,10 @@ export class CodexVoiceSessionMessages {
 			REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 			{ transcript },
 		);
+	}
+
+	audioDiagnostics(diagnostics: VoiceAudioDiagnostics): void {
+		this.pi.appendEntry("codex-realtime-audio-diagnostics", diagnostics);
 	}
 
 	modeStarted(mode: CodexVoiceMode): void {

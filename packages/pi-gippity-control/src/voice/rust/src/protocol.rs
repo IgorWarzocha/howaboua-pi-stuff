@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 6;
+pub const PROTOCOL_VERSION: u8 = 7;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_PCM_BYTES: usize = 64 * 1024;
@@ -97,6 +97,9 @@ pub enum Event {
         epoch: Option<u64>,
     },
     PlaybackActivity,
+    AudioDiagnostics {
+        diagnostics: AudioDiagnostics,
+    },
     Error {
         message: String,
     },
@@ -108,6 +111,24 @@ pub struct AudioDevice {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+}
+
+// Interval totals may span epochs; epoch/suppressed describe the final state.
+// Counts and local relative timing only: never audio, captions or provider data.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct AudioDiagnostics {
+    pub epoch: u64,
+    pub suppressed: bool,
+    pub elapsed_ms: u32,
+    pub transitions: u32,
+    pub drained_packets: u32,
+    pub release_drained_packets: u32,
+    pub rejected_packets: u32,
+    pub buffering_entries: u32,
+    pub tail_flushes: u32,
+    pub clock_rebases: u32,
+    pub decode_failures: u32,
+    pub first_packet_ms: Option<u32>,
 }
 
 impl Command {

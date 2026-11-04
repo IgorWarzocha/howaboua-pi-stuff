@@ -25,7 +25,7 @@ use webrtc::rtp_transceiver::RtpSender;
 
 use crate::audio::{self, PlaybackSample, SpeakerControl, SpeakerState};
 use crate::playout::{PacketPlayout, PlayoutClock, PlayoutFrame};
-use crate::protocol::Event;
+use crate::protocol::{AudioDiagnostics, Event};
 use crate::resample::LinearResampler;
 
 #[path = "v3_capture.rs"]
@@ -43,7 +43,7 @@ pub(crate) const TRANSITION_DRAIN_PACKET_BUDGET: usize = 256;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ReadyDrain<E> {
-    Pending,
+    Pending(usize),
     ReadFailed(E),
     Exhausted,
 }
@@ -53,17 +53,17 @@ where
     F: Future<Output = std::result::Result<T, E>>,
     N: FnMut() -> Pin<Box<F>>,
 {
-    for _ in 0..TRANSITION_DRAIN_PACKET_BUDGET {
+    for drained in 0..TRANSITION_DRAIN_PACKET_BUDGET {
         match poll_once(read.as_mut()) {
             Poll::Ready(Ok(_)) => *read = next(),
             Poll::Ready(Err(error)) => return ReadyDrain::ReadFailed(error),
-            Poll::Pending => return ReadyDrain::Pending,
+            Poll::Pending => return ReadyDrain::Pending(drained),
         }
     }
     match poll_once(read.as_mut()) {
         Poll::Ready(Ok(_)) => ReadyDrain::Exhausted,
         Poll::Ready(Err(error)) => ReadyDrain::ReadFailed(error),
-        Poll::Pending => ReadyDrain::Pending,
+        Poll::Pending => ReadyDrain::Pending(TRANSITION_DRAIN_PACKET_BUDGET),
     }
 }
 
@@ -205,6 +205,11 @@ pub async fn play_remote_track(
     let mut bridge_pending = Vec::new();
     let mut last_frame_samples = OPUS_FRAME_SAMPLES;
     let mut last_activity = None;
+    let mut diagnostics = AudioDiagnostics::default();
+    let mut diagnostics_since = Instant::now();
+    let mut first_packet_since = None;
+    let mut diagnostics_tick = tokio::time::interval(Duration::from_secs(5));
+    diagnostics_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // Keep one remote-event read alive
     // across every select and transition-boundary readiness probe.
     let mut packet_read = Box::pin(read_rtp(&remote));
@@ -215,11 +220,12 @@ pub async fn play_remote_track(
                 if changed.is_err() {
                     return;
                 }
-                // Remote RTP events expose no packet arrival metadata. Discard each
-                // packet that is already readable while the old epoch is still
-                // installed, then apply the new epoch only once the read is pending.
-                match drain_ready_packets(&mut packet_read, || Box::pin(read_rtp(&remote))) {
-                    ReadyDrain::Pending => {}
+                // RTP lacks arrival/response identity. Drain before replacing the
+                // epoch, including on release, to isolate interrupted speech.
+                // New onset RTP already readable on release may also be lost;
+                // measure release drains rather than guessing packet identity.
+                let drained = match drain_ready_packets(&mut packet_read, || Box::pin(read_rtp(&remote))) {
+                    ReadyDrain::Pending(drained) => drained as u32,
                     ReadyDrain::ReadFailed(error) => {
                         report_terminal_error(
                             &output_events,
@@ -234,8 +240,14 @@ pub async fn play_remote_track(
                         ).await;
                         return;
                     }
-                }
+                };
                 control = *controls.borrow_and_update();
+                diagnostics.drained_packets = diagnostics.drained_packets.saturating_add(drained);
+                if !control.suppressed {
+                    diagnostics.release_drained_packets = diagnostics.release_drained_packets.saturating_add(drained);
+                }
+                diagnostics.transitions = diagnostics.transitions.saturating_add(1);
+                first_packet_since = (!control.suppressed).then(Instant::now);
                 playout.reset();
                 playout_clock.stop();
                 resampler.reset();
@@ -265,22 +277,29 @@ pub async fn play_remote_track(
                 };
                 packet_read = Box::pin(read_rtp(&remote));
                 if control.accepts_packet(speaker.get()) {
+                    if let Some(since) = first_packet_since.take() {
+                        diagnostics.first_packet_ms = Some(since.elapsed().as_millis().min(u32::MAX as u128) as u32);
+                    }
                     playout.push(packet.header.sequence_number, packet.payload);
                     if playout.ready() {
                         playout_clock.start(Instant::now());
                     }
+                } else {
+                    diagnostics.rejected_packets = diagnostics.rejected_packets.saturating_add(1);
                 }
             }
-            _ = wait_for_playout(playout_clock.deadline()) => {
+            _ = wait_for_playout(playout_clock.deadline().or_else(|| playout.buffering_deadline())) => {
                 if control.suppressed || speaker.get() != control {
                     playout.reset();
                     playout_clock.stop();
                     bridge_pending.clear();
                     continue;
                 }
+                let flushing_tail = !playout.ready() && playout.buffering_deadline().is_some();
                 let frame = playout.next();
                 let (payload, decoded_output) = match frame {
                     PlayoutFrame::Buffering => {
+                        diagnostics.buffering_entries = diagnostics.buffering_entries.saturating_add(1);
                         playout_clock.stop();
                         continue;
                     }
@@ -289,14 +308,19 @@ pub async fn play_remote_track(
                         (Bytes::new(), &mut decoded[..last_frame_samples * 2])
                     }
                 };
+                if flushing_tail {
+                    diagnostics.tail_flushes = diagnostics.tail_flushes.saturating_add(1);
+                }
+                playout_clock.start(Instant::now());
                 let Ok(samples_per_channel) =
                     decoder.decode_float(&payload, decoded_output, false)
                 else {
-                    playout_clock.advance(last_frame_samples, OPUS_RATE);
+                    diagnostics.decode_failures = diagnostics.decode_failures.saturating_add(1);
+                    diagnostics.clock_rebases = diagnostics.clock_rebases.saturating_add(u32::from(playout_clock.advance(last_frame_samples, OPUS_RATE)));
                     continue;
                 };
                 last_frame_samples = samples_per_channel;
-                playout_clock.advance(samples_per_channel, OPUS_RATE);
+                diagnostics.clock_rebases = diagnostics.clock_rebases.saturating_add(u32::from(playout_clock.advance(samples_per_channel, OPUS_RATE)));
                 let mut mono = Vec::with_capacity(samples_per_channel);
                 for pair in decoded[..samples_per_channel * 2].as_chunks::<2>().0 {
                     mono.push((pair[0] + pair[1]) * 0.5);
@@ -359,6 +383,20 @@ pub async fn play_remote_track(
                                 return;
                             }
                         }
+                    }
+                }
+            }
+            _ = diagnostics_tick.tick() => {
+                if diagnostics.transitions > 0 || diagnostics.rejected_packets > 0
+                    || diagnostics.buffering_entries > 0 || diagnostics.clock_rebases > 0
+                    || diagnostics.decode_failures > 0 || diagnostics.first_packet_ms.is_some()
+                {
+                    diagnostics.epoch = control.epoch;
+                    diagnostics.suppressed = control.suppressed;
+                    diagnostics.elapsed_ms = diagnostics_since.elapsed().as_millis().min(u32::MAX as u128) as u32;
+                    if output_events.try_send(Event::AudioDiagnostics { diagnostics: diagnostics.clone() }).is_ok() {
+                        diagnostics = AudioDiagnostics::default();
+                        diagnostics_since = Instant::now();
                     }
                 }
             }

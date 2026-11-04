@@ -2,6 +2,7 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { GippityControlConfig } from "../../config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
+import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
 import { ConversationSetup } from "./connection.ts";
 import type { PreparedVoiceTask } from "./end-call.ts";
@@ -17,6 +18,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
+	onAudioDiagnostics?(diagnostics: VoiceAudioDiagnostics): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
 	rewriteDelegation?(
 		turn: RealtimeVoiceTurn,
@@ -333,6 +335,8 @@ export class CodexRealtimeConversation {
 			if (this.turns instanceof PublicRealtimeTurns) this.turns.audioActivity();
 			else this.turns.playback.audioActivity();
 		}
+		if (event.type === "audio_diagnostics")
+			this.callbacks.onAudioDiagnostics?.(event.diagnostics);
 		if (event.type === "data") {
 			if (!event.message || typeof event.message !== "object") return;
 			const message = event.message as {

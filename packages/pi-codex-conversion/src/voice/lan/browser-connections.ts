@@ -2,6 +2,7 @@ import type { ServerResponse } from "node:http";
 import { WebSocket, type RawData } from "ws";
 
 const MAX_SOCKET_AUDIO_BACKLOG = 24_000 * 2;
+const AUDIO_DROP_REPORT_INTERVAL_MS = 5_000;
 
 interface AudioConnectionCallbacks {
 	onMessage(data: RawData, isBinary: boolean): void;
@@ -12,6 +13,7 @@ interface AudioConnectionCallbacks {
 export class LanVoiceBrowserConnections {
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
+	private readonly audioDrops = new WeakMap<WebSocket, { reportedAt: number; frames: number; bytes: number; backlogBytes: number }>();
 
 	hasAudioClients(): boolean {
 		return [...this.audioSockets.values()].some((socket) => socket.readyState === WebSocket.OPEN);
@@ -62,7 +64,23 @@ export class LanVoiceBrowserConnections {
 
 
 	sendAudio(socket: WebSocket, pcm: Buffer): void {
-		if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) socket.send(pcm);
+		if (socket.readyState !== WebSocket.OPEN) return;
+		if (socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) socket.send(pcm);
+		else {
+			const drops = this.audioDrops.get(socket) ?? { reportedAt: -Infinity, frames: 0, bytes: 0, backlogBytes: 0 };
+			drops.frames++;
+			drops.bytes += pcm.byteLength;
+			drops.backlogBytes = Math.max(drops.backlogBytes, socket.bufferedAmount);
+			this.audioDrops.set(socket, drops);
+		}
+		const drops = this.audioDrops.get(socket);
+		const now = performance.now();
+		if (drops && drops.frames > 0 && now - drops.reportedAt >= AUDIO_DROP_REPORT_INTERVAL_MS) {
+			// Keep the latency cap, but do not hide discontinuities it introduces.
+			console.warn("[voice audio] LAN playback dropped PCM", { frames: drops.frames, bytes: drops.bytes, backlogBytes: drops.backlogBytes });
+			drops.reportedAt = now;
+			drops.frames = drops.bytes = drops.backlogBytes = 0;
+		}
 	}
 
 	sendAudioControl(socket: WebSocket, value: unknown): void {

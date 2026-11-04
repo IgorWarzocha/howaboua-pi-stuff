@@ -9,10 +9,9 @@ export async function startRealtimeOffer(
 	mode: "native" | "bridge",
 ): Promise<string> {
 	await helper.start(config.tools.customRustBinariesDir);
-	if (helper.protocolVersion !== 6) {
-		const actualVersion = helper.protocolVersion ?? "unknown";
+	if (helper.protocolVersion !== 7) {
 		await helper.close();
-		throw new Error(`Incompatible Codex voice helper protocol ${actualVersion}; expected 6`);
+		throw new Error("Voice could not start because its helper does not match this package. Rebuild or remove any voice-helper override in tools.customRustBinariesDir, or reinstall the package, then try starting voice again.");
 	}
 	const offer = Promise.withResolvers<string>();
 	const removeEvent = helper.onEvent((event) => {

@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
@@ -24,6 +25,7 @@ interface RealtimeSessionLifecycle extends SessionLifecycle<CodexRealtimeConvers
 	onTurn(session: CodexRealtimeConversation, turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
+	onAudioDiagnostics(diagnostics: VoiceAudioDiagnostics): void;
 	onEvent(event: RealtimeVoiceEventDetails): void;
 }
 
@@ -57,6 +59,7 @@ export async function startControllerConversation(options: {
 		onTurn: (turn) => options.lifecycle.onTurn(session, turn),
 		onUserTranscript: options.lifecycle.onUserTranscript,
 		onTranscriptTail: options.lifecycle.onTranscriptTail,
+		onAudioDiagnostics: options.lifecycle.onAudioDiagnostics,
 		rewriteDelegation: (turn, signal) => rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
 		onDelegationError: (error) => options.ctx.ui.notify(error.message, "error"),
 		onEvent: options.lifecycle.onEvent,

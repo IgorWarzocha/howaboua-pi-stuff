@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { VoiceAudioDiagnostics } from "./helper-protocol.ts";
 import {
 	renderRealtimeTranscriptTail,
 	renderRealtimeUserInput,
@@ -57,6 +58,10 @@ export class CodexVoiceSessionMessages {
 			REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 			{ transcript },
 		);
+	}
+
+	audioDiagnostics(diagnostics: VoiceAudioDiagnostics): void {
+		this.pi.appendEntry("gippity-realtime-audio-diagnostics", diagnostics);
 	}
 
 	modeStarted(mode: CodexVoiceMode): void {

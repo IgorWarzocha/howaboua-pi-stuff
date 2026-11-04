@@ -1,6 +1,7 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
@@ -22,6 +23,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
+	onAudioDiagnostics?(diagnostics: VoiceAudioDiagnostics): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
 	rewriteDelegation?(turn: RealtimeVoiceTurn, signal: AbortSignal): Promise<PreparedVoiceTask>;
 	onEndCall?(finalOutputObserved?: boolean, resultDelegationId?: string): void;
@@ -343,6 +345,7 @@ export class CodexRealtimeConversation {
 			if (this.turns instanceof PublicRealtimeTurns) this.turns.audioActivity();
 			else this.turns.playback.audioActivity();
 		}
+		if (event.type === "audio_diagnostics") this.callbacks.onAudioDiagnostics?.(event.diagnostics);
 		if (event.type === "data") {
 			if (!event.message || typeof event.message !== "object") return;
 			const message = event.message as {

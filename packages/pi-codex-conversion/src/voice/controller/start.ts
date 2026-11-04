@@ -288,6 +288,7 @@ async function startConversation(
 			onEvent: (event) => options.messages.realtimeEvent(event),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
+			onAudioDiagnostics: (diagnostics) => options.messages.audioDiagnostics(diagnostics),
 			onTranscriptTail: (transcript) =>
 				options.messages.retainTranscriptTail(transcript),
 		},

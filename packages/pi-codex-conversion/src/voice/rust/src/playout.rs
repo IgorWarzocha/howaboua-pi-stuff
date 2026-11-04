@@ -5,6 +5,8 @@ use bytes::Bytes;
 use tokio::time::Instant;
 
 const START_PACKETS: usize = 3;
+// Retain the reorder warmup, but never strand a short utterance or resumed tail.
+const MAX_BUFFERING_WAIT: Duration = Duration::from_millis(60);
 const MAX_SEQUENCE_DISTANCE: usize = 6;
 const MAX_PENDING_PACKETS: usize = MAX_SEQUENCE_DISTANCE + 1;
 
@@ -19,6 +21,7 @@ pub struct PacketPlayout {
     pending: BTreeMap<i64, Bytes>,
     expected: Option<i64>,
     playing: bool,
+    buffering_since: Option<Instant>,
 }
 
 pub struct PlayoutClock {
@@ -38,12 +41,17 @@ impl PlayoutClock {
         self.deadline
     }
 
-    pub fn advance(&mut self, samples: usize, sample_rate: u32) {
+    pub fn advance(&mut self, samples: usize, sample_rate: u32) -> bool {
         let Some(deadline) = self.deadline else {
-            return;
+            return false;
         };
         let frame_duration = Duration::from_secs_f64(samples as f64 / sample_rate as f64);
-        self.deadline = Some(deadline + frame_duration);
+        let now = Instant::now();
+        let late = now.saturating_duration_since(deadline) >= frame_duration;
+        // Small scheduler jitter preserves cadence. A full missed frame rebases
+        // without discarding audio or emitting a run of immediately due frames.
+        self.deadline = Some(if late { now } else { deadline } + frame_duration);
+        late
     }
 
     pub fn stop(&mut self) {
@@ -57,6 +65,7 @@ impl PacketPlayout {
             pending: BTreeMap::new(),
             expected: None,
             playing: false,
+            buffering_since: None,
         }
     }
 
@@ -73,8 +82,12 @@ impl PacketPlayout {
             self.pending.clear();
             self.expected = Some(extended);
             self.playing = false;
+            self.buffering_since = None;
         }
         self.pending.entry(extended).or_insert(payload);
+        if !self.playing {
+            self.buffering_since.get_or_insert_with(Instant::now);
+        }
         while self.pending.len() > MAX_PENDING_PACKETS {
             let Some(oldest) = self.pending.keys().next().copied() else {
                 break;
@@ -87,6 +100,12 @@ impl PacketPlayout {
     }
 
     pub fn next(&mut self) -> PlayoutFrame {
+        if self
+            .buffering_deadline()
+            .is_some_and(|deadline| deadline <= Instant::now())
+        {
+            self.playing = true;
+        }
         if !self.playing {
             return PlayoutFrame::Buffering;
         }
@@ -104,6 +123,7 @@ impl PacketPlayout {
             PlayoutFrame::Missing
         } else {
             self.playing = false;
+            self.buffering_since = None;
             return PlayoutFrame::Buffering;
         };
         self.expected = Some(expected + 1);
@@ -114,10 +134,19 @@ impl PacketPlayout {
         self.playing
     }
 
+    pub fn buffering_deadline(&self) -> Option<Instant> {
+        if self.playing || self.pending.is_empty() {
+            None
+        } else {
+            self.buffering_since.map(|since| since + MAX_BUFFERING_WAIT)
+        }
+    }
+
     pub fn reset(&mut self) {
         self.pending.clear();
         self.expected = None;
         self.playing = false;
+        self.buffering_since = None;
     }
 }
 

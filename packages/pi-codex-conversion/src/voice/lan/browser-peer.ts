@@ -77,6 +77,6 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 }
 
 function toPeerEvent(event: VoiceHelperEvent): CodexRealtimePeerEvent | undefined {
-	if (event.type === "state" || event.type === "data" || event.type === "error" || event.type === "playback_activity") return event;
+	if (event.type === "state" || event.type === "data" || event.type === "error" || event.type === "playback_activity" || event.type === "audio_diagnostics") return event;
 	return undefined;
 }

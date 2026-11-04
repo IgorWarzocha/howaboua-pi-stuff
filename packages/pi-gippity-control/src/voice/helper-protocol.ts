@@ -27,6 +27,7 @@ export type VoiceHelperEvent =
 			epoch?: number;
 	  }
 	| { type: "playback_activity" }
+	| { type: "audio_diagnostics"; diagnostics: VoiceAudioDiagnostics }
 	| { type: "error"; message: string }
 	| { type: "stopped" };
 
@@ -34,6 +35,57 @@ interface VoiceDevice {
 	id: string;
 	name: string;
 	is_default: boolean;
+}
+
+export interface VoiceAudioDiagnostics {
+	epoch: number;
+	suppressed: boolean;
+	elapsed_ms: number;
+	transitions: number;
+	drained_packets: number;
+	release_drained_packets: number;
+	rejected_packets: number;
+	buffering_entries: number;
+	tail_flushes: number;
+	clock_rebases: number;
+	decode_failures: number;
+	first_packet_ms: number | null;
+}
+
+const AUDIO_COUNTERS = [
+	"elapsed_ms",
+	"transitions",
+	"drained_packets",
+	"release_drained_packets",
+	"rejected_packets",
+	"buffering_entries",
+	"tail_flushes",
+	"clock_rebases",
+	"decode_failures",
+] as const;
+
+function validAudioDiagnostics(value: unknown): value is VoiceAudioDiagnostics {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const data = value as Record<string, unknown>;
+	const counter = (item: unknown) =>
+		typeof item === "number" &&
+		Number.isInteger(item) &&
+		item >= 0 &&
+		item <= 0xffff_ffff;
+	return (
+		data["epoch"] !== undefined &&
+		validEpoch(data["epoch"]) &&
+		typeof data["suppressed"] === "boolean" &&
+		AUDIO_COUNTERS.every((key) => counter(data[key])) &&
+		(data["first_packet_ms"] === null || counter(data["first_packet_ms"])) &&
+		Object.keys(data).every(
+			(key) =>
+				key === "epoch" ||
+				key === "suppressed" ||
+				key === "first_packet_ms" ||
+				AUDIO_COUNTERS.some((field) => field === key),
+		)
+	);
 }
 
 const MAX_PCM_BYTES = 64 * 1024;
@@ -135,6 +187,11 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 		return event as VoiceHelperEvent;
 	if (event["type"] === "playback_activity")
 		return { type: "playback_activity" };
+	if (
+		event["type"] === "audio_diagnostics" &&
+		validAudioDiagnostics(event["diagnostics"])
+	)
+		return { type: "audio_diagnostics", diagnostics: event["diagnostics"] };
 	if (
 		event["type"] === "pcm" &&
 		validBase64(event["audio"], MAX_PCM_BYTES) &&
