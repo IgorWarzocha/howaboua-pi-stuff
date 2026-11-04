@@ -159,6 +159,8 @@ export async function startCodexLanVoiceServer(options: {
 		activity,
 	});
 	clients = new LanVoiceBrowserClients({
+		onAudioDiagnostics: (diagnostics) =>
+			options.voice.lanPlaybackDiagnostics(diagnostics),
 		ensureConversation,
 		async startDictation(clientId) {
 			await dictation.start(clientId);

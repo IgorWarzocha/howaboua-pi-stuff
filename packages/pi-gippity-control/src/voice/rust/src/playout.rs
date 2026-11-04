@@ -17,6 +17,15 @@ pub enum PlayoutFrame {
     Missing,
 }
 
+pub enum PacketAdmission {
+    // Reordering within the pending window, not a network loss estimate.
+    Accepted { reordered: bool },
+    // Includes already-played duplicates; only pending duplicates are distinct.
+    Late,
+    Duplicate,
+    Resynchronized { discarded: usize },
+}
+
 pub struct PacketPlayout {
     pending: BTreeMap<i64, Bytes>,
     expected: Option<i64>,
@@ -69,20 +78,33 @@ impl PacketPlayout {
         }
     }
 
-    pub fn push(&mut self, sequence: u16, payload: Bytes) {
+    pub fn push(&mut self, sequence: u16, payload: Bytes) -> PacketAdmission {
         let expected = *self.expected.get_or_insert(sequence as i64);
         let delta = sequence.wrapping_sub(expected as u16) as i16 as i64;
         let extended = expected + delta;
+        let mut admission = PacketAdmission::Accepted {
+            reordered: self
+                .pending
+                .keys()
+                .next_back()
+                .is_some_and(|last| *last > extended),
+        };
         if extended < expected {
             if self.playing || expected - extended > MAX_SEQUENCE_DISTANCE as i64 {
-                return;
+                return PacketAdmission::Late;
             }
             self.expected = Some(extended);
         } else if extended - expected > MAX_SEQUENCE_DISTANCE as i64 {
+            admission = PacketAdmission::Resynchronized {
+                discarded: self.pending.len(),
+            };
             self.pending.clear();
             self.expected = Some(extended);
             self.playing = false;
             self.buffering_since = None;
+        }
+        if self.pending.contains_key(&extended) {
+            admission = PacketAdmission::Duplicate;
         }
         self.pending.entry(extended).or_insert(payload);
         if !self.playing {
@@ -97,6 +119,7 @@ impl PacketPlayout {
         if !self.playing && self.pending.len() >= START_PACKETS {
             self.playing = true;
         }
+        admission
     }
 
     pub fn next(&mut self) -> PlayoutFrame {

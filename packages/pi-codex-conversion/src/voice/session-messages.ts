@@ -1,18 +1,22 @@
-import { admitCustomTurn } from "../custom-turn-admission.ts";
 import type {
 	ContextEvent,
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { admitCustomTurn } from "../custom-turn-admission.ts";
 import { trySendCodexDeveloperCustomMessage } from "../developer-messages.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
-import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
-import { renderRealtimeTranscriptTail, renderRealtimeUserInput } from "./prompts.ts";
-import type { RealtimeVoiceTurn } from "./turns.ts";
 import type { VoiceAudioDiagnostics } from "./helper-protocol.ts";
+import type { LanPlaybackDiagnostics } from "./lan/browser-connections.ts";
+import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
+import {
+	renderRealtimeTranscriptTail,
+	renderRealtimeUserInput,
+} from "./prompts.ts";
+import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
 	CODEX_VOICE_MODE_MESSAGE_TYPE,
 	type CodexVoiceMode,
@@ -31,7 +35,11 @@ const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	onDelegation(id: string, input: string, source: CodexRealtimeConversation | undefined): void;
+	onDelegation(
+		id: string,
+		input: string,
+		source: CodexRealtimeConversation | undefined,
+	): void;
 	onDelegationFailed(id: string): void;
 	onDeliveryUnavailable(message: string): void;
 	onWorking(): void;
@@ -81,6 +89,10 @@ export class CodexVoiceSessionMessages {
 		this.pi.appendEntry("codex-realtime-audio-diagnostics", diagnostics);
 	}
 
+	lanPlaybackDiagnostics(diagnostics: LanPlaybackDiagnostics): void {
+		this.pi.appendEntry("codex-realtime-lan-playback-diagnostics", diagnostics);
+	}
+
 	modeStarted(mode: CodexVoiceMode): void {
 		if (mode === "dictation") {
 			if (this.dictationAnnounced) return;
@@ -109,7 +121,10 @@ export class CodexVoiceSessionMessages {
 		this.replaceContext(undefined);
 	}
 
-	voiceTurn(turn: RealtimeVoiceTurn, source?: CodexRealtimeConversation): Promise<void> {
+	voiceTurn(
+		turn: RealtimeVoiceTurn,
+		source?: CodexRealtimeConversation,
+	): Promise<void> {
 		if (!turn.delegationId) {
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 				REALTIME_VOICE_MESSAGE_TYPE,
@@ -121,7 +136,8 @@ export class CodexVoiceSessionMessages {
 			return Promise.resolve();
 		}
 		const generation = this.contextGeneration;
-		const canDeliver = source?.finishingAcceptedWork || this.callbacks.canDelegate();
+		const canDeliver =
+			source?.finishingAcceptedWork || this.callbacks.canDelegate();
 		const delivery = this.delegationTail.then(() =>
 			this.deliverDelegation(turn, generation, canDeliver, source),
 		);
@@ -193,7 +209,10 @@ export class CodexVoiceSessionMessages {
 			customType?: string;
 			details?: { delegationId?: string };
 		};
-		if (candidate.role !== "custom" || candidate.customType !== REALTIME_DELEGATION_MESSAGE_TYPE)
+		if (
+			candidate.role !== "custom" ||
+			candidate.customType !== REALTIME_DELEGATION_MESSAGE_TYPE
+		)
 			return false;
 		const id = candidate.details?.delegationId;
 		if (!id) return false;
@@ -237,9 +256,15 @@ export class CodexVoiceSessionMessages {
 		source: CodexRealtimeConversation | undefined,
 	): Promise<void> {
 		const ctx = this.context;
-		if (generation !== this.contextGeneration || !turn.delegationId || !canDeliver) return;
+		if (
+			generation !== this.contextGeneration ||
+			!turn.delegationId ||
+			!canDeliver
+		)
+			return;
 		if (!ctx) {
-			const error = "Voice request was not sent to Pi because the session is unavailable. Please try again.";
+			const error =
+				"Voice request was not sent to Pi because the session is unavailable. Please try again.";
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 				REALTIME_DELEGATION_MESSAGE_TYPE,
 				{ input: turn.input, route: "delegation", error },
@@ -251,14 +276,14 @@ export class CodexVoiceSessionMessages {
 		let deliveryStarted = false;
 		try {
 			for (;;) {
-				const barrier = this.compactionBarrier?.promise ?? this.refreshBarriers.values().next().value;
+				const barrier =
+					this.compactionBarrier?.promise ??
+					this.refreshBarriers.values().next().value;
 				if (!barrier) break;
 				if ((await interruptible(barrier, signal)) === CANCELLED)
 					signal.throwIfAborted();
-				if (
-					generation !== this.contextGeneration ||
-					this.context !== ctx
-				) return;
+				if (generation !== this.contextGeneration || this.context !== ctx)
+					return;
 			}
 			signal.throwIfAborted();
 			const admission = admitCustomTurn(this.pi, ctx);
@@ -290,21 +315,22 @@ export class CodexVoiceSessionMessages {
 			);
 		} catch (error) {
 			this.pendingDelegations.delete(turn.delegationId);
-			if (
-				generation !== this.contextGeneration ||
-				this.context !== ctx
-			) return;
+			if (generation !== this.contextGeneration || this.context !== ctx) return;
 			if (deliveryStarted) {
 				try {
 					this.piTurnActive = this.context ? !this.context.isIdle() : false;
 				} catch {
 					this.piTurnActive = false;
 				}
-				try { this.callbacks.onDelegationFailed(turn.delegationId); } catch {}
+				try {
+					this.callbacks.onDelegationFailed(turn.delegationId);
+				} catch {}
 			}
 			const message = signal.aborted
 				? "Voice session stopped before the delegation was delivered"
-				: error instanceof Error ? error.message : String(error);
+				: error instanceof Error
+					? error.message
+					: String(error);
 			if (!signal.aborted) {
 				try {
 					ctx.ui.notify(

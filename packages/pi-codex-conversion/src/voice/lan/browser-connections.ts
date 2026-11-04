@@ -1,8 +1,34 @@
 import type { ServerResponse } from "node:http";
-import { WebSocket, type RawData } from "ws";
+import { type RawData, WebSocket } from "ws";
 
 const MAX_SOCKET_AUDIO_BACKLOG = 24_000 * 2;
-const AUDIO_DROP_REPORT_INTERVAL_MS = 5_000;
+const AUDIO_REPORT_INTERVAL_MS = 5_000;
+
+export interface LanPlaybackDiagnostics {
+	source: "lan-playback";
+	reason: "interval" | "closed" | "replaced" | "server-closed";
+	windowMs: number;
+	sentFrames: number;
+	sentBytes: number;
+	droppedFrames: number;
+	droppedBytes: number;
+	maxSocketBacklogBytes: number;
+	// Observed sendAudio entry timing, not network jitter; includes normal pauses.
+	sourcePcmArrivalGapMaxMs: number;
+	sourcePcmArrivalGapIncludesPauses: true;
+}
+
+interface AudioReportState {
+	startedAt: number;
+	lastArrivalAt: number;
+	sentFrames: number;
+	sentBytes: number;
+	droppedFrames: number;
+	droppedBytes: number;
+	maxSocketBacklogBytes: number;
+	sourcePcmArrivalGapMaxMs: number;
+	timer?: ReturnType<typeof setTimeout> | undefined;
+}
 
 interface AudioConnectionCallbacks {
 	onMessage(data: RawData, isBinary: boolean): void;
@@ -13,32 +39,63 @@ interface AudioConnectionCallbacks {
 export class LanVoiceBrowserConnections {
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
-	private readonly audioDrops = new WeakMap<WebSocket, { reportedAt: number; frames: number; bytes: number; backlogBytes: number }>();
+	private readonly audioReports = new WeakMap<WebSocket, AudioReportState>();
 
-	hasAudioClients(): boolean {
-		return [...this.audioSockets.values()].some((socket) => socket.readyState === WebSocket.OPEN);
+	private readonly onAudioDiagnostics:
+		| ((report: LanPlaybackDiagnostics) => void)
+		| undefined;
+
+	constructor(onAudioDiagnostics?: (report: LanPlaybackDiagnostics) => void) {
+		this.onAudioDiagnostics = onAudioDiagnostics;
 	}
 
-	connectEvents(clientId: string, response: ServerResponse, closed: boolean): void {
-		if (closed) { response.end(); return; }
+	hasAudioClients(): boolean {
+		return [...this.audioSockets.values()].some(
+			(socket) => socket.readyState === WebSocket.OPEN,
+		);
+	}
+
+	connectEvents(
+		clientId: string,
+		response: ServerResponse,
+		closed: boolean,
+	): void {
+		if (closed) {
+			response.end();
+			return;
+		}
 		const previous = this.eventResponses.get(clientId);
 		this.eventResponses.set(clientId, response);
 		previous?.end();
 		response.once("close", () => {
-			if (this.eventResponses.get(clientId) === response) this.eventResponses.delete(clientId);
+			if (this.eventResponses.get(clientId) === response)
+				this.eventResponses.delete(clientId);
 		});
 	}
 
-	connectAudio(clientId: string, socket: WebSocket, closed: boolean, callbacks: AudioConnectionCallbacks): void {
-		if (closed) { socket.close(1012, "server closing"); return; }
+	connectAudio(
+		clientId: string,
+		socket: WebSocket,
+		closed: boolean,
+		callbacks: AudioConnectionCallbacks,
+	): void {
+		if (closed) {
+			socket.close(1012, "server closing");
+			return;
+		}
 		const previous = this.audioSockets.get(clientId);
 		this.audioSockets.set(clientId, socket);
-		if (previous) callbacks.onReplaced(previous);
+		if (previous) {
+			this.finishAudioReport(previous, "replaced");
+			callbacks.onReplaced(previous);
+		}
 		previous?.close(4001, "replaced");
 		socket.send(JSON.stringify({ type: "connected" }));
 		socket.on("message", callbacks.onMessage);
 		socket.once("close", () => {
-			if (this.audioSockets.get(clientId) === socket) this.audioSockets.delete(clientId);
+			this.finishAudioReport(socket, "closed");
+			if (this.audioSockets.get(clientId) === socket)
+				this.audioSockets.delete(clientId);
 			callbacks.onClose();
 		});
 	}
@@ -49,55 +106,136 @@ export class LanVoiceBrowserConnections {
 
 	sendControl(clientId: string, value: unknown): void {
 		const response = this.eventResponses.get(clientId);
-		if (response && !response.writableEnded) response.write(`data: ${JSON.stringify(value)}\n\n`);
+		if (response && !response.writableEnded)
+			response.write(`data: ${JSON.stringify(value)}\n\n`);
 	}
 
 	broadcastControl(value: unknown): void {
-		for (const clientId of this.eventResponses.keys()) this.sendControl(clientId, value);
+		for (const clientId of this.eventResponses.keys())
+			this.sendControl(clientId, value);
 	}
 
 	broadcastTakeover(token: string): void {
 		const value = { type: "takeover", token };
 		this.broadcastControl(value);
-		for (const socket of this.audioSockets.values()) this.sendAudioControl(socket, value);
+		for (const socket of this.audioSockets.values())
+			this.sendAudioControl(socket, value);
 	}
-
 
 	sendAudio(socket: WebSocket, pcm: Buffer): void {
 		if (socket.readyState !== WebSocket.OPEN) return;
-		if (socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) socket.send(pcm);
-		else {
-			const drops = this.audioDrops.get(socket) ?? { reportedAt: -Infinity, frames: 0, bytes: 0, backlogBytes: 0 };
-			drops.frames++;
-			drops.bytes += pcm.byteLength;
-			drops.backlogBytes = Math.max(drops.backlogBytes, socket.bufferedAmount);
-			this.audioDrops.set(socket, drops);
-		}
-		const drops = this.audioDrops.get(socket);
 		const now = performance.now();
-		if (drops && drops.frames > 0 && now - drops.reportedAt >= AUDIO_DROP_REPORT_INTERVAL_MS) {
-			// Keep the latency cap, but do not hide discontinuities it introduces.
-			console.warn("[voice audio] LAN playback dropped PCM", { frames: drops.frames, bytes: drops.bytes, backlogBytes: drops.backlogBytes });
-			drops.reportedAt = now;
-			drops.frames = drops.bytes = drops.backlogBytes = 0;
+		const report = this.audioReports.get(socket) ?? {
+			startedAt: now,
+			lastArrivalAt: now,
+			sentFrames: 0,
+			sentBytes: 0,
+			droppedFrames: 0,
+			droppedBytes: 0,
+			maxSocketBacklogBytes: 0,
+			sourcePcmArrivalGapMaxMs: 0,
+		};
+		this.audioReports.set(socket, report);
+		report.sourcePcmArrivalGapMaxMs = Math.max(
+			report.sourcePcmArrivalGapMaxMs,
+			now - report.lastArrivalAt,
+		);
+		report.lastArrivalAt = now;
+		report.maxSocketBacklogBytes = Math.max(
+			report.maxSocketBacklogBytes,
+			socket.bufferedAmount,
+		);
+		if (socket.bufferedAmount < MAX_SOCKET_AUDIO_BACKLOG) {
+			socket.send(pcm);
+			report.maxSocketBacklogBytes = Math.max(
+				report.maxSocketBacklogBytes,
+				socket.bufferedAmount,
+			);
+			report.sentFrames++;
+			report.sentBytes += pcm.byteLength;
+		} else {
+			report.droppedFrames++;
+			report.droppedBytes += pcm.byteLength;
 		}
+		if (!report.timer) {
+			report.startedAt = now;
+			report.timer = setTimeout(
+				() => this.flushAudioReport(socket, "interval"),
+				AUDIO_REPORT_INTERVAL_MS,
+			);
+			report.timer.unref();
+		}
+	}
+
+	private flushAudioReport(
+		socket: WebSocket,
+		reason: LanPlaybackDiagnostics["reason"],
+	): void {
+		const report = this.audioReports.get(socket);
+		if (!report) return;
+		clearTimeout(report.timer);
+		report.timer = undefined;
+		if (report.sentFrames + report.droppedFrames === 0) return;
+		const diagnostics: LanPlaybackDiagnostics = {
+			source: "lan-playback",
+			reason,
+			windowMs: performance.now() - report.startedAt,
+			sentFrames: report.sentFrames,
+			sentBytes: report.sentBytes,
+			droppedFrames: report.droppedFrames,
+			droppedBytes: report.droppedBytes,
+			maxSocketBacklogBytes: report.maxSocketBacklogBytes,
+			sourcePcmArrivalGapMaxMs: report.sourcePcmArrivalGapMaxMs,
+			sourcePcmArrivalGapIncludesPauses: true,
+		};
+		report.sentFrames =
+			report.sentBytes =
+			report.droppedFrames =
+			report.droppedBytes =
+				0;
+		report.maxSocketBacklogBytes = report.sourcePcmArrivalGapMaxMs = 0;
+		// Persistence failures must not change playback or socket cleanup.
+		try {
+			this.onAudioDiagnostics?.(diagnostics);
+		} catch {
+			console.warn("[voice audio] LAN playback diagnostics could not be saved");
+		}
+	}
+
+	private finishAudioReport(
+		socket: WebSocket,
+		reason: LanPlaybackDiagnostics["reason"],
+	): void {
+		this.flushAudioReport(socket, reason);
+		this.audioReports.delete(socket);
 	}
 
 	sendAudioControl(socket: WebSocket, value: unknown): void {
-		if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+		if (socket.readyState === WebSocket.OPEN)
+			socket.send(JSON.stringify(value));
 	}
 
 	heartbeat(): void {
-		for (const response of this.eventResponses.values()) if (!response.writableEnded) response.write(": keepalive\n\n");
+		for (const response of this.eventResponses.values())
+			if (!response.writableEnded) response.write(": keepalive\n\n");
 	}
 
 	close(failures: unknown[]): void {
 		for (const socket of this.audioSockets.values()) {
-			try { socket.terminate(); } catch (error) { failures.push(error); }
+			this.finishAudioReport(socket, "server-closed");
+			try {
+				socket.terminate();
+			} catch (error) {
+				failures.push(error);
+			}
 		}
 		this.audioSockets.clear();
 		for (const response of this.eventResponses.values()) {
-			try { response.end(); } catch (error) { failures.push(error); }
+			try {
+				response.end();
+			} catch (error) {
+				failures.push(error);
+			}
 		}
 		this.eventResponses.clear();
 	}

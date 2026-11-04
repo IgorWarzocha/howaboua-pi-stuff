@@ -1,13 +1,10 @@
-import { createLanConversationStarter, type LanConversationState } from "./conversation-start.ts";
 import { randomUUID, X509Certificate } from "node:crypto";
 import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
 import type { CodexVoiceAuth } from "../auth.ts";
-import type {
-	PreparedRealtimeContext,
-} from "../controller/start.ts";
+import type { PreparedRealtimeContext } from "../controller/start.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import { LanVoiceActivity } from "./activity.ts";
 import { createLanVoiceWebManifest } from "./app-assets.ts";
@@ -19,6 +16,10 @@ import {
 	type LanVoiceCertificate,
 	resolveLanVoiceCertificate,
 } from "./certificate.ts";
+import {
+	createLanConversationStarter,
+	type LanConversationState,
+} from "./conversation-start.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { handleLanVoiceHttpRequest } from "./http-handler.ts";
@@ -94,7 +95,9 @@ export async function startCodexLanVoiceServer(options: {
 	const draft = new LanVoiceDraft({
 		publish: (message) => clients.broadcastControl(message),
 		sendMessage: (text) =>
-			conversation.transferred ? conversation.transferred.sendText(text) : options.sendUserMessage(text),
+			conversation.transferred
+				? conversation.transferred.sendText(text)
+				: options.sendUserMessage(text),
 	});
 	const dictation = new LanVoiceDictation({
 		resolveAuth: options.resolveAuth,
@@ -103,11 +106,18 @@ export async function startCodexLanVoiceServer(options: {
 	});
 
 	const ensureConversation = createLanConversationStarter({
- state: conversation, ctx: options.ctx, voice: options.voice,
- getConfig: () => settings.getConfig(), arrival, clients: () => clients, activity,
- });
+		state: conversation,
+		ctx: options.ctx,
+		voice: options.voice,
+		getConfig: () => settings.getConfig(),
+		arrival,
+		clients: () => clients,
+		activity,
+	});
 	clients = new LanVoiceBrowserClients(
 		{
+			onAudioDiagnostics: (diagnostics) =>
+				options.voice.lanPlaybackDiagnostics(diagnostics),
 			ensureConversation,
 			async startDictation(clientId) {
 				await dictation.start(clientId);
@@ -152,7 +162,8 @@ export async function startCodexLanVoiceServer(options: {
 				await starting?.promise.catch(() => undefined);
 			},
 			conversationMuted: () =>
-				conversation.transferred?.controls.inputMuted ?? options.voice.inputMuted,
+				conversation.transferred?.controls.inputMuted ??
+				options.voice.inputMuted,
 			onConversationMute(muted) {
 				if (conversation.transferred) {
 					conversation.transferred.controls.setInputMuted(muted);
@@ -162,7 +173,8 @@ export async function startCodexLanVoiceServer(options: {
 					throw new Error("Realtime voice is not active");
 			},
 			onConversationInputTooQuiet(inputTooQuiet) {
-				if (!conversation.transferred) options.voice.setInputTooQuiet(inputTooQuiet);
+				if (!conversation.transferred)
+					options.voice.setInputTooQuiet(inputTooQuiet);
 				clients.broadcastControl({
 					type: "microphone",
 					state: inputTooQuiet ? "too-quiet" : "ok",
@@ -213,19 +225,23 @@ export async function startCodexLanVoiceServer(options: {
 				draft,
 				sessionSnapshot: () => conversation.transferred?.snapshot(),
 				inputMuted: () =>
-					conversation.transferred?.controls.inputMuted ?? options.voice.inputMuted,
+					conversation.transferred?.controls.inputMuted ??
+					options.voice.inputMuted,
 				renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 				renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
 				async rpc(body) {
-					if (conversation.transferred) return conversation.transferred.rpc(body);
+					if (conversation.transferred)
+						return conversation.transferred.rpc(body);
 					throw new Error("RPC is not available in this Pi context");
 				},
 				ownerIsActive,
 				shutdownServer() {
-					void close().catch((error: unknown) => options.ctx.ui.notify(
-						`LAN voice could not shut down: ${error instanceof Error ? error.message : String(error)}`,
-						"error",
-					));
+					void close().catch((error: unknown) =>
+						options.ctx.ui.notify(
+							`LAN voice could not shut down: ${error instanceof Error ? error.message : String(error)}`,
+							"error",
+						),
+					);
 				},
 				get closing() {
 					return closing;
@@ -341,7 +357,8 @@ export async function startCodexLanVoiceServer(options: {
 		port: address.port,
 		certificateFingerprint: new X509Certificate(certificate.cert)
 			.fingerprint256,
-		hasActiveConversation: () => Boolean(conversation.activeConversation?.conversation),
+		hasActiveConversation: () =>
+			Boolean(conversation.activeConversation?.conversation),
 		browserAttached: () => clients.browserAttached(),
 		async verifyTakeoverHost(verify) {
 			const token = randomUUID();
@@ -367,7 +384,8 @@ export async function startCodexLanVoiceServer(options: {
 			if (!conversation.transferred) activity.waiting(title);
 		},
 		uiPromptEnded: (agentRunning) =>
-			!conversation.transferred && (agentRunning ? activity.working() : activity.settled()),
+			!conversation.transferred &&
+			(agentRunning ? activity.working() : activity.settled()),
 		close,
 	};
 }

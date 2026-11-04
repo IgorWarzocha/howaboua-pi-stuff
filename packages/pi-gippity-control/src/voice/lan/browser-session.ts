@@ -1,5 +1,8 @@
 import { WebSocket } from "ws";
-import { LanVoiceBrowserConnections } from "./browser-connections.ts";
+import type {
+	LanPlaybackDiagnostics,
+	LanVoiceBrowserConnections,
+} from "./browser-connections.ts";
 import { errorMessage } from "./browser-wire.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
 import { MicrophoneLevelMonitor } from "./microphone-level.ts";
@@ -23,6 +26,7 @@ type LanVoiceBrowserState =
 	| { type: "closed" };
 
 export interface LanVoiceBrowserClientsOptions {
+	onAudioDiagnostics?(diagnostics: LanPlaybackDiagnostics): void;
 	ensureConversation(takeoverToken?: string): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(

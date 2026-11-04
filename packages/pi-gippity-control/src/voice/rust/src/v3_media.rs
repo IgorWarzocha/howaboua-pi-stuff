@@ -24,7 +24,7 @@ use webrtc::peer_connection::PeerConnection;
 use webrtc::rtp_transceiver::RtpSender;
 
 use crate::audio::{self, PlaybackSample, SpeakerControl, SpeakerState};
-use crate::playout::{PacketPlayout, PlayoutClock, PlayoutFrame};
+use crate::playout::{PacketAdmission, PacketPlayout, PlayoutClock, PlayoutFrame};
 use crate::protocol::{AudioDiagnostics, Event};
 use crate::resample::LinearResampler;
 
@@ -208,6 +208,7 @@ pub async fn play_remote_track(
     let mut diagnostics = AudioDiagnostics::default();
     let mut diagnostics_since = Instant::now();
     let mut first_packet_since = None;
+    let mut last_packet_read: Option<Instant> = None;
     let mut diagnostics_tick = tokio::time::interval(Duration::from_secs(5));
     diagnostics_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // Keep one remote-event read alive
@@ -247,6 +248,7 @@ pub async fn play_remote_track(
                     diagnostics.release_drained_packets = diagnostics.release_drained_packets.saturating_add(drained);
                 }
                 diagnostics.transitions = diagnostics.transitions.saturating_add(1);
+                last_packet_read = None;
                 first_packet_since = (!control.suppressed).then(Instant::now);
                 playout.reset();
                 playout_clock.stop();
@@ -276,11 +278,30 @@ pub async fn play_remote_track(
                     }
                 };
                 packet_read = Box::pin(read_rtp(&remote));
+                diagnostics.received_packets = diagnostics.received_packets.saturating_add(1);
+                let now = Instant::now();
+                if let Some(last) = last_packet_read.replace(now) {
+                    let gap = now.saturating_duration_since(last);
+                    diagnostics.max_read_gap_ms = diagnostics.max_read_gap_ms.max(gap.as_millis().min(u32::MAX as u128) as u32);
+                    if gap >= Duration::from_millis(40) {
+                        diagnostics.read_gaps_over_40ms = diagnostics.read_gaps_over_40ms.saturating_add(1);
+                    }
+                }
                 if control.accepts_packet(speaker.get()) {
                     if let Some(since) = first_packet_since.take() {
                         diagnostics.first_packet_ms = Some(since.elapsed().as_millis().min(u32::MAX as u128) as u32);
                     }
-                    playout.push(packet.header.sequence_number, packet.payload);
+                    match playout.push(packet.header.sequence_number, packet.payload) {
+                        PacketAdmission::Accepted { reordered } => {
+                            diagnostics.reordered_packets = diagnostics.reordered_packets.saturating_add(u32::from(reordered));
+                        }
+                        PacketAdmission::Late => diagnostics.late_packets = diagnostics.late_packets.saturating_add(1),
+                        PacketAdmission::Duplicate => diagnostics.duplicate_packets = diagnostics.duplicate_packets.saturating_add(1),
+                        PacketAdmission::Resynchronized { discarded } => {
+                            diagnostics.resyncs = diagnostics.resyncs.saturating_add(1);
+                            diagnostics.resync_discarded_packets = diagnostics.resync_discarded_packets.saturating_add(discarded as u32);
+                        }
+                    }
                     if playout.ready() {
                         playout_clock.start(Instant::now());
                     }
@@ -289,6 +310,10 @@ pub async fn play_remote_track(
                 }
             }
             _ = wait_for_playout(playout_clock.deadline().or_else(|| playout.buffering_deadline())) => {
+                if let Some(deadline) = playout_clock.deadline() {
+                    let late = Instant::now().saturating_duration_since(deadline);
+                    diagnostics.max_playout_lateness_us = diagnostics.max_playout_lateness_us.max(late.as_micros().min(u32::MAX as u128) as u32);
+                }
                 if control.suppressed || speaker.get() != control {
                     playout.reset();
                     playout_clock.stop();
@@ -297,6 +322,7 @@ pub async fn play_remote_track(
                 }
                 let flushing_tail = !playout.ready() && playout.buffering_deadline().is_some();
                 let frame = playout.next();
+                let received_frame = matches!(&frame, PlayoutFrame::Packet(_));
                 let (payload, decoded_output) = match frame {
                     PlayoutFrame::Buffering => {
                         diagnostics.buffering_entries = diagnostics.buffering_entries.saturating_add(1);
@@ -305,6 +331,7 @@ pub async fn play_remote_track(
                     }
                     PlayoutFrame::Packet(payload) => (payload, &mut decoded[..]),
                     PlayoutFrame::Missing => {
+                        diagnostics.missing_packets = diagnostics.missing_packets.saturating_add(1);
                         (Bytes::new(), &mut decoded[..last_frame_samples * 2])
                     }
                 };
@@ -320,6 +347,13 @@ pub async fn play_remote_track(
                     continue;
                 };
                 last_frame_samples = samples_per_channel;
+                if received_frame {
+                    let samples = samples_per_channel as u32;
+                    diagnostics.decoded_packets = diagnostics.decoded_packets.saturating_add(1);
+                    diagnostics.decoded_packet_samples = diagnostics.decoded_packet_samples.saturating_add(samples);
+                    diagnostics.min_decoded_packet_samples = if diagnostics.min_decoded_packet_samples == 0 { samples } else { diagnostics.min_decoded_packet_samples.min(samples) };
+                    diagnostics.max_decoded_packet_samples = diagnostics.max_decoded_packet_samples.max(samples);
+                }
                 diagnostics.clock_rebases = diagnostics.clock_rebases.saturating_add(u32::from(playout_clock.advance(samples_per_channel, OPUS_RATE)));
                 let mut mono = Vec::with_capacity(samples_per_channel);
                 for pair in decoded[..samples_per_channel * 2].as_chunks::<2>().0 {
@@ -370,16 +404,24 @@ pub async fn play_remote_track(
                                     last_activity = Some(now);
                                 }
                             }
-                            if output_events
-                                .send(Event::Pcm {
-                                    audio: BASE64.encode(bytes),
-                                    sample_rate: BRIDGE_RATE,
-                                    num_channels: 1,
-                                    epoch: Some(control.epoch),
-                                })
-                                .await
-                                .is_err()
-                            {
+                            let event = Event::Pcm {
+                                audio: BASE64.encode(bytes),
+                                sample_rate: BRIDGE_RATE,
+                                num_channels: 1,
+                                epoch: Some(control.epoch),
+                            };
+                            if output_events.capacity() == 0 {
+                                diagnostics.bridge_channel_full = diagnostics.bridge_channel_full.saturating_add(1);
+                            }
+                            let send_started = Instant::now();
+                            let sent = output_events.send(event).await;
+                            let send_time = send_started.elapsed();
+                            diagnostics.bridge_frames = diagnostics.bridge_frames.saturating_add(1);
+                            diagnostics.max_bridge_send_us = diagnostics.max_bridge_send_us.max(send_time.as_micros().min(u32::MAX as u128) as u32);
+                            if send_time >= Duration::from_millis(1) {
+                                diagnostics.bridge_sends_over_1ms = diagnostics.bridge_sends_over_1ms.saturating_add(1);
+                            }
+                            if sent.is_err() {
                                 return;
                             }
                         }
@@ -387,7 +429,7 @@ pub async fn play_remote_track(
                 }
             }
             _ = diagnostics_tick.tick() => {
-                if diagnostics.transitions > 0 || diagnostics.rejected_packets > 0
+                if diagnostics.received_packets > 0 || diagnostics.transitions > 0 || diagnostics.rejected_packets > 0
                     || diagnostics.buffering_entries > 0 || diagnostics.clock_rebases > 0
                     || diagnostics.decode_failures > 0 || diagnostics.first_packet_ms.is_some()
                 {

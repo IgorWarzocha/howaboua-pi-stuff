@@ -49,6 +49,24 @@ export interface VoiceAudioDiagnostics {
 	tail_flushes: number;
 	clock_rebases: number;
 	decode_failures: number;
+	received_packets: number;
+	missing_packets: number;
+	decoded_packets: number;
+	decoded_packet_samples: number;
+	min_decoded_packet_samples: number;
+	max_decoded_packet_samples: number;
+	late_packets: number;
+	duplicate_packets: number;
+	reordered_packets: number;
+	resyncs: number;
+	resync_discarded_packets: number;
+	read_gaps_over_40ms: number;
+	max_read_gap_ms: number;
+	max_playout_lateness_us: number;
+	bridge_frames: number;
+	bridge_channel_full: number;
+	bridge_sends_over_1ms: number;
+	max_bridge_send_us: number;
 	first_packet_ms: number | null;
 }
 
@@ -62,6 +80,24 @@ const AUDIO_COUNTERS = [
 	"tail_flushes",
 	"clock_rebases",
 	"decode_failures",
+	"received_packets",
+	"missing_packets",
+	"decoded_packets",
+	"decoded_packet_samples",
+	"min_decoded_packet_samples",
+	"max_decoded_packet_samples",
+	"late_packets",
+	"duplicate_packets",
+	"reordered_packets",
+	"resyncs",
+	"resync_discarded_packets",
+	"read_gaps_over_40ms",
+	"max_read_gap_ms",
+	"max_playout_lateness_us",
+	"bridge_frames",
+	"bridge_channel_full",
+	"bridge_sends_over_1ms",
+	"max_bridge_send_us",
 ] as const;
 
 function validAudioDiagnostics(value: unknown): value is VoiceAudioDiagnostics {

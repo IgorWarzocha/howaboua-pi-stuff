@@ -47,7 +47,7 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	async start(_config: GippityControlConfig): Promise<string> {
 		await this.helper.start();
-		if (this.helper.protocolVersion !== 7) {
+		if (this.helper.protocolVersion !== 8) {
 			await this.helper.close();
 			throw new Error(
 				"Voice could not start because its helper does not match this package. Reinstall the package, reload Pi and try starting voice again.",

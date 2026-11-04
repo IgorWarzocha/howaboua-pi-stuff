@@ -10,7 +10,7 @@ import { decodeLanVoiceBrowserInput, errorMessage } from "./browser-wire.ts";
 export { MAX_CONTROL_BYTES } from "./browser-wire.ts";
 
 export class LanVoiceBrowserClients {
-	private readonly connections = new LanVoiceBrowserConnections();
+	private readonly connections: LanVoiceBrowserConnections;
 	private readonly session: LanVoiceBrowserSession;
 	private readonly takeoverToken: string | undefined;
 	private takeoverAck:
@@ -18,6 +18,9 @@ export class LanVoiceBrowserClients {
 		| undefined;
 
 	constructor(options: LanVoiceBrowserClientsOptions, takeoverToken?: string) {
+		this.connections = new LanVoiceBrowserConnections(
+			options.onAudioDiagnostics,
+		);
 		this.session = new LanVoiceBrowserSession(options, this.connections);
 		this.takeoverToken = takeoverToken;
 	}

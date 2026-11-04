@@ -11,7 +11,7 @@ Requires Pi 1.5 or newer.
 - Voice task preparation now explicitly forbids turning instructions into questions or adding unrequested conversational next steps.
 - Voice task preparation now preserves the user's tone, register and emphasis.
 - Fixed voice playback stalling on short audio tails and bursting after delayed scheduling.
-- Voice playback now records content-free buffering, interruption and LAN-drop diagnostics.
+- Voice playback now logs content-free packet timing, missing-packet concealment, buffering, scheduling and LAN-queue diagnostics.
 - Fixed generated task text appearing as user speech.
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.

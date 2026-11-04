@@ -9,7 +9,7 @@ export async function startRealtimeOffer(
 	mode: "native" | "bridge",
 ): Promise<string> {
 	await helper.start(config.tools.customRustBinariesDir);
-	if (helper.protocolVersion !== 7) {
+	if (helper.protocolVersion !== 8) {
 		await helper.close();
 		throw new Error("Voice could not start because its helper does not match this package. Rebuild or remove any voice-helper override in tools.customRustBinariesDir, or reinstall the package, then try starting voice again.");
 	}
