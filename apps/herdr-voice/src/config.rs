@@ -104,7 +104,10 @@ pub fn install(config: &Config, home: Option<PathBuf>, indicator_mods: &[String]
         }
     }
     let directory = home.join("mods/voice");
-    if directory.exists() && !directory.join("companion.json").is_file() {
+    if directory.exists()
+        && !fs::read_to_string(directory.join("indicator.js"))
+            .is_ok_and(|content| content.starts_with("// herdr-voice-managed-indicator v1\n"))
+    {
         bail!(
             "A different mod already occupies {}; choose another Herdr home",
             directory.display()
