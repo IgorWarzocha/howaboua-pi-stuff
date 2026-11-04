@@ -10,3 +10,4 @@ Requires Pi 1.5 or newer.
 - Agent guidance now uses compact tool-prefixed wording.
 - Agent snapshots and rollover briefings retain initial scope and the latest instruction instead of accumulating every message. Full messages remain in session history.
 - Unchanged agent snapshots are no longer written repeatedly.
+- Closed workers no longer trigger a misleading notices-unavailable reconnect warning.
