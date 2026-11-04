@@ -21,7 +21,7 @@ export function renderSidebar({ status, phase, error, busy, target, expanded, on
         active ? "Disconnect voice" : target.terminal ? `Connect voice · ${target.terminal}` : "Focus a Pi pane to connect voice",
         (_e, cx) => active ? onDisconnect(cx) : onConnect(cx), busy || !status || (!active && !target.terminal))))
     .when(active, el => el.child(iconButton("voice-mute", status.muted ? "mic-off" : "mic",
-      status.muted ? "Unmute voice" : "Mute voice", (_e, cx) => onMute(cx),
+      status.muted ? "Unmute microphone" : "Mute microphone", (_e, cx) => onMute(cx),
       busy || !["listening", "muted"].includes(status.phase), !status.muted)))
     .child(iconButton("voice-settings", "settings", error ? "Voice settings: " + error : "Voice settings", () => run("mod.open", { name: "voice" })));
 }

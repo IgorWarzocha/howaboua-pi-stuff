@@ -9,6 +9,7 @@ Requires Pi 1.5 or newer.
 - Codex Live now ignores repeated identical handoffs within one user turn while preserving repeat requests from later turns.
 - Codex Live preserves captured speech when a handoff contains only part of the request.
 - Voice task preparation now explicitly forbids turning instructions into questions or adding unrequested conversational next steps.
+- Voice task preparation now preserves the user's tone, register and emphasis.
 - Fixed generated task text appearing as user speech.
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.
