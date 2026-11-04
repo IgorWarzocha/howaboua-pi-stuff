@@ -9,6 +9,7 @@ Requires Pi 1.5 or newer.
 - Code and Notebook now use the same tool-argument coercion and validation as native Pi calls.
 - Code and Notebook now preserve extension tools' declared structured results.
 - Code guidance now distinguishes printed output from the printers' undefined return value.
+- TS execution now uses tsrs 0.21.0 with TypeScript 7.1 beta.
 - Fixed repeated argument preparation for extension tools called through Code or Notebook.
 - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off, following Pi's model catalogue.
 - Tool expansion hints now use your configured keybinding.
