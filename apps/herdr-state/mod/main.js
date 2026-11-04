@@ -13,7 +13,6 @@ export default class State extends View {
     cx.spawn(async cx => {
       const reports = await Promise.all(targets.map(async machine => {
         const name = machine.name || 'This computer';
-        if (machine.layout !== 'ready') return `${name}: unavailable; nothing changed`;
         try {
           const response = await exec('herdr-state', [action], { on: machine.name });
           let report;

@@ -95,7 +95,7 @@ Rerunning the installer alone does not repair a move. It preserves existing syml
 
 Restore supports native resume commands for 18 coding agents. Capturing their exact session identities requires the appropriate integration. Pi has native session-file capture. Command-hook agents and plugin adapters are described in [the integration guide](integrations/README.md), including installation and compatibility boundaries. OpenCode full-TUI capture is not supported without its missing selection event. Agents that cannot report an exact identity restore as shells, with a warning.
 
-Save and Restore act on ready machines connected to the current app. Offline machines are reported and left untouched. Busy or uninspectable terminals are not disturbed. The helper also accepts `herdr-state save`, `herdr-state restore` and `herdr-state status`.
+Save and Restore attempt every machine listed in the current app, even when its layout has not loaded in the viewing window. Each machine reads its own layout and snapshot from its Core. Results are reported per machine; an unreachable machine or failed helper is reported without stopping work on the others. Busy or uninspectable terminals are not disturbed. The helper also accepts `herdr-state save`, `herdr-state restore` and `herdr-state status`.
 
 ## Validation
 
