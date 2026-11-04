@@ -27,7 +27,7 @@ export function renderSettings(view) {
       .child(iconButton("voice-devices", "search", "Refresh local audio devices", (_e, cx) => view.refresh(cx, true), busy || view.refreshing)))
     .child(devices("microphone"))
     .child(devices("speaker"))
-    .children(errors.map(error => div().text_color(t.blocked).child(error)));
+    .when(view.errorDetails, el => el.children(errors.map(error => div().text_color(t.blocked).child(error))));
   const host = () => view.host.render();
   const scroll = (id, child) => v_flex().id(id).h_full().min_h(0).min_w(0).overflow_y_scrollbar().child(child);
   const content = layoutWidth(view.width) < 700
@@ -40,6 +40,8 @@ export function renderSettings(view) {
     .on_size_change((size, cx) => { if (view.width !== size.width) { view.width = size.width; cx.notify(); } })
     .child(h_flex().flex_none().px(16).h(48).gap(8).items_center()
       .child(div().flex_1().font_semibold().child("Voice settings"))
+      .when(errors.length > 0, el => el.child(iconButton("voice-error-details", "alert-triangle", "Voice error details: " + errors.join("\n"),
+        (_e, cx) => { view.errorDetails = !view.errorDetails; cx.notify(); }, false, view.errorDetails).text_color(t.blocked)))
       .child(iconButton("voice-settings-connect", "plug", view.pending ? "Connecting voice" : "Connect to focused pane", (_e, cx) => view.start(cx, false),
         busy || Boolean(view.host.busy) || active || !view.status || !target.terminal)
         .tooltip(target.terminal ? "Connect voice · " + target.terminal : "Focus a live Pi pane to connect voice"))

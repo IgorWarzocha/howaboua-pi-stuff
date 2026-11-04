@@ -19,6 +19,7 @@ export default class Voice extends View {
     this.refreshing = false;
     this.revision = 0;
     this.width = 860;
+    this.errorDetails = false;
     this.host = this.compact ? null : new HostSettings(cx);
     this.statusError = this.deviceError = this.actionError = this.storageError = null;
     let legacy;
