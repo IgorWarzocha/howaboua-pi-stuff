@@ -15,7 +15,7 @@ export const INCREMENTAL_WORKFLOW_PRIME_PROMPT = [
 ].join("\n");
 export const INCREMENTAL_WORKFLOW_GIT_END_PROMPT = [
 	INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT,
-	"Also explicitly capture the git commit that should be made for the completed changes, including a concise commit subject and any important commit-body notes.",
+	"Also explicitly capture the git commit that should be made for the completed changes, including a concise commit subject and any important commit-body notes",
 ].join("\n");
 
 type EndMode =

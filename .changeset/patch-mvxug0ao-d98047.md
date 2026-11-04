@@ -12,6 +12,8 @@ Requires Pi 1.5 or newer.
 - Fixed repeated argument preparation for extension tools called through Code or Notebook.
 - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off, following Pi's model catalogue.
 - Tool expansion hints now use your configured keybinding.
+- General guidance now tells agents to act on clear requests instead of discussing doing them.
+- Removed unnecessary punctuation from tool guidance.
 - Fixed Realtime voice resubmitting Pi tasks from progress updates without new user speech.
 - Codex Live now ignores repeated identical handoffs within one user turn while preserving repeat requests from later turns.
 - Codex Live preserves captured speech when a handoff contains only part of the request.

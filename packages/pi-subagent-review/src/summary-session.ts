@@ -16,7 +16,7 @@ import {
 import type { ResolvedReviewConfig } from "./types.js";
 
 const SUMMARY_SYSTEM_PROMPT =
-	"Summarize supplied conversation context for a separate code-review agent. Follow the user's summary format exactly and do not use tools.";
+	"Summarize supplied conversation context for a separate code-review agent. Follow the user's summary format exactly and do not use tools";
 
 function summaryCredentialStore(
 	providerId: string,

@@ -11,7 +11,7 @@ import { isPulseDue, isPulseQuietAt, pulseDueKey } from "./src/schedule.js";
 import { PulseStore } from "./src/state.js";
 
 const RESULT_GUIDANCE =
-	"Use appropriate available tools or destinations for substantive task results and logs. Your final assistant message to the main agent should briefly confirm completion and point to the outcome, without repeating it. Report failures, ambiguities or suggested improvements to the pulse procedure only in that final assistant message, separately from the completion summary. Do not put this procedural feedback in task logs, notes or boards. Do not edit the pulse definition unless its instructions explicitly authorise it.";
+	"Use appropriate available tools or destinations for substantive task results and logs. Your final assistant message to the main agent should briefly confirm completion and point to the outcome, without repeating it. Report failures, ambiguities or suggested improvements to the pulse procedure only in that final assistant message, separately from the completion summary. Do not put this procedural feedback in task logs, notes or boards. Do not edit the pulse definition unless its instructions explicitly authorise it";
 
 export default async function pulses(pi: ExtensionAPI) {
 	const bridge = connectPulseRunner(pi);

@@ -1,4 +1,4 @@
-const JS_HELP = `Actions use {"input":"<JSON action object>"}.
+const JS_HELP = `Actions use {"input":"<JSON action object>"}
 {"action":"status","query"?:string}  Inspect retained binding names, kinds and types; query filters with * and ? globs
 {"action":"diagnostics"}  Inspect runtime health
 {"action":"hook","name":string,"event":"startup"|"tool_result"|false}  Register an existing function or remove its registration
@@ -13,12 +13,12 @@ const JS_HELP = `Actions use {"input":"<JSON action object>"}.
 {"action":"restart"}  Stop active cells and restore the last checkpoint
 {"action":"reset"}  Reset the SHARED project notebook; pins and named profiles survive
 
-Conversations in the same Git project share the complete notebook, including hooks; outside Git, scope is the working folder. Normal cells serialize across conversations and refresh from the latest checkpoint. Failed cells may leave local live mutations; conflicting shared updates preserve a recovery profile instead of overwriting them. Cancellation stops that execution kernel; restart restores shared state, not external tool effects. Await all host calls. isolated:true saves a snapshot candidate; changed-base adoption requires explicit replacement. JS storage is separate from other modes.
-Selective profiles and pins support primitives, mutable plain objects and arrays with aliases/cycles, not functions, classes, accessors or proxies. Unsupported pins leave the whole checkpoint intact and report failed reset-survival sync. Data loads reject name collisions. Release preserves aliases and captured values in surviving closures, so redeclaring a released name does not retarget them. Unreferenced values can be reclaimed; older native-scope images report any roots still retained.
-Hooks persist across project conversations and full profiles. startup runs once per fresh execution kernel before its first user cell, without Pi tools; failure blocks user code until removal or restart. tool_result receives {type,toolName,input,status,result?,error?} after nested tools settle; hooks run in name order, awaited, without recursive triggering. Hook failures fail the cell and preserve live state. Registration does not run hooks.
-Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}) without query, list and diagnostics are available.`;
+Conversations in the same Git project share the complete notebook, including hooks; outside Git, scope is the working folder. Normal cells serialize across conversations and refresh from the latest checkpoint. Failed cells may leave local live mutations; conflicting shared updates preserve a recovery profile instead of overwriting them. Cancellation stops that execution kernel; restart restores shared state, not external tool effects. Await all host calls. isolated:true saves a snapshot candidate; changed-base adoption requires explicit replacement. JS storage is separate from other modes
+Selective profiles and pins support primitives, mutable plain objects and arrays with aliases/cycles, not functions, classes, accessors or proxies. Unsupported pins leave the whole checkpoint intact and report failed reset-survival sync. Data loads reject name collisions. Release preserves aliases and captured values in surviving closures, so redeclaring a released name does not retarget them. Unreferenced values can be reclaimed; older native-scope images report any roots still retained
+Hooks persist across project conversations and full profiles. startup runs once per fresh execution kernel before its first user cell, without Pi tools; failure blocks user code until removal or restart. tool_result receives {type,toolName,input,status,result?,error?} after nested tools settle; hooks run in name order, awaited, without recursive triggering. Hook failures fail the cell and preserve live state. Registration does not run hooks
+Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}) without query, list and diagnostics are available`;
 
-const NOTEBOOK_HELP = `Actions use {"input":"<JSON action object>"}.
+const NOTEBOOK_HELP = `Actions use {"input":"<JSON action object>"}
 Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 
 {"action":"status","query"?:string}  Memory, checkpoint and retained-state summary; query inspects matching live bindings
@@ -34,15 +34,15 @@ Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 {"action":"diagnostics"}  Check historical cells and runtime health without executing them
 {"action":"reset"}  Stop any active cell and discard the session checkpoint; durable project state, saved notebook and named profiles survive
 
-query uses case-insensitive * and ? globs. prune requires a nonempty query. names must be a nonempty array of binding-name strings. pin/release require existing JavaScript identifiers. Profile names: 1-64 letters, numbers, dots, underscores or hyphens, starting with a letter or number.
+query uses case-insensitive * and ? globs. prune requires a nonempty query. names must be a nonempty array of binding-name strings. pin/release require existing JavaScript identifiers. Profile names: 1-64 letters, numbers, dots, underscores or hyphens, starting with a letter or number
 
-Hooks must be self-contained fn(event), awaited when invoked. startup gets {type:"startup"} once per fresh kernel after restoration, not when pinned; Pi tools cannot run during startup. tool_result gets {type:"tool_result",toolName,input,status:"success"|"error",result?,error?} after nested tool settlement; handlers are awaited in name order and their tool calls do not retrigger hooks. Recreate imports and live handles inside the function. Startup failures block execution; unpin remains available. External side effects are not rolled back.
+Hooks must be self-contained fn(event), awaited when invoked. startup gets {type:"startup"} once per fresh kernel after restoration, not when pinned; Pi tools cannot run during startup. tool_result gets {type:"tool_result",toolName,input,status:"success"|"error",result?,error?} after nested tool settlement; handlers are awaited in name order and their tool calls do not retrigger hooks. Recreate imports and live handles inside the function. Startup failures block execution; unpin remains available. External side effects are not rolled back
 
-Run management calls after exec returns. Inside exec, tools.notebook({action,...}) supports status without query, list and diagnostics only. release/prune may restart the kernel for lexical bindings, clearing runtime-only handles.
+Run management calls after exec returns. Inside exec, tools.notebook({action,...}) supports status without query, list and diagnostics only. release/prune may restart the kernel for lexical bindings, clearing runtime-only handles
 
-Normal cells allow one active execution. isolated:true runs a separate Deno kernel from committed saved state, up to four isolated cells at once. Use wait to continue or terminate that isolated cell. Completion saves a named candidate without changing live state. list exposes candidates; load explicitly adds their saved bindings by value and rejects collisions, so release or rename colliding bindings first. Candidates never auto-adopt or replace the live kernel. Only checkpoint-supported state transfers, not arbitrary closures, types or imports. Tool and file effects are not rolled back.`;
+Normal cells allow one active execution. isolated:true runs a separate Deno kernel from committed saved state, up to four isolated cells at once. Use wait to continue or terminate that isolated cell. Completion saves a named candidate without changing live state. list exposes candidates; load explicitly adds their saved bindings by value and rejects collisions, so release or rename colliding bindings first. Candidates never auto-adopt or replace the live kernel. Only checkpoint-supported state transfers, not arbitrary closures, types or imports. Tool and file effects are not rolled back`;
 
-const TS_HELP = `Actions use {"input":"<JSON action object>"}.
+const TS_HELP = `Actions use {"input":"<JSON action object>"}
 Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 
 {"action":"status","query"?:string}  Inspect live bindings and active cells
@@ -58,13 +58,13 @@ Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 {"action":"diagnostics"}  Inspect state and runtime health
 {"action":"reset"}  Discard session state; project pins and named profiles survive
 
-query uses case-insensitive * and ? globs. Lifecycle changes, save and checkpoint require idle cells. Inside exec, tools.notebook({action:"status"}), list and diagnostics are available. Release/prune rebuild the kernel so names are reusable; live-only values are discarded.
+query uses case-insensitive * and ? globs. Lifecycle changes, save and checkpoint require idle cells. Inside exec, tools.notebook({action:"status"}), list and diagnostics are available. Release/prune rebuild the kernel so names are reusable; live-only values are discarded
 
-Hooks use self-contained fn(event). startup runs once per fresh kernel, including isolated workers, after restoration, not when pinned; Pi tools are unavailable during startup. tool_result runs after nested tool settlement with {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger hooks.
+Hooks use self-contained fn(event). startup runs once per fresh kernel, including isolated workers, after restoration, not when pinned; Pi tools are unavailable during startup. tool_result runs after nested tool settlement with {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger hooks
 
-checkpoint accepts one binding, no hook: named durable helpers snapshot(value) → portable current data, restore(data) → rebuilt value; both may be async. Restorers also run for profiles and isolated cells, so reconnecting resources can have external effects. Failed restoration blocks execution and preserves the checkpoint; unpin the names reported for recovery.
+checkpoint accepts one binding, no hook: named durable helpers snapshot(value) → portable current data, restore(data) → rebuilt value; both may be async. Restorers also run for profiles and isolated cells, so reconnecting resources can have external effects. Failed restoration blocks execution and preserves the checkpoint; unpin the names reported for recovery
 
-TS state is separate from Deno Notebook. Normal cells share live bindings, closures and module instances. Durable snapshots retain supported data and helper recipes, reporting skipped live-only values. Live errors can leave mutations; tool and file effects are not rolled back. Isolated cells use a checkpoint copy and save a candidate without changing live state. Loading a candidate replaces the kernel and discards current live-only values and unsaved changes.`;
+TS state is separate from Deno Notebook. Normal cells share live bindings, closures and module instances. Durable snapshots retain supported data and helper recipes, reporting skipped live-only values. Live errors can leave mutations; tool and file effects are not rolled back. Isolated cells use a checkpoint copy and save a candidate without changing live state. Loading a candidate replaces the kernel and discards current live-only values and unsaved changes`;
 
 const NOTEBOOK_GPT_HELP = `Native {"input":"<JSON action object>"}; nested tools.notebook({action,...})
 status query?:string→memory/checkpoint/state; query→live matches

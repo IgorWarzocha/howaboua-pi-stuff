@@ -2,10 +2,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { transformChartMarkdown } from "./chart.js";
 
 const CHART_PROMPT = [
-	"This session renders explicit fenced `chart` blocks as terminal-native Unicode charts.",
-	"Use them only when a compact visual communicates data better than prose or a table.",
+	"This session renders explicit fenced `chart` blocks as terminal-native Unicode charts",
+	"Use them only when a compact visual communicates data better than prose or a table",
 	"Format a fenced `chart` block with `type: bar|line|scatter|sparkline|heatmap`, optional `title:`, `data:`, and rows such as `Label 42`.",
-	"Charts are display-only and should stay small enough to read in a terminal.",
+	"Charts are display-only and should stay small enough to read in a terminal",
 ].join("\n");
 const GPT_CHART_PROMPT = [
 	"Fenced `chart` blocks→terminal-native Unicode charts; display-only.",

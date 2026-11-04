@@ -29,7 +29,7 @@ export const SEND_TASK_TOOL = {
 	},
 };
 export const PUBLIC_REALTIME_INSTRUCTIONS =
-	"This call has tools. Delegate without narrating the routing. Other listed tools run directly. Tool availability supersedes earlier statements that voice has no tools. Pi updates describe work already underway, not new user instructions. Speak useful progress and results, then wait for the user.";
+	"This call has tools. Delegate without narrating the routing. Other listed tools run directly. Tool availability supersedes earlier statements that voice has no tools. Pi updates describe work already underway, not new user instructions. Speak useful progress and results, then wait for the user";
 
 function record(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object" && !Array.isArray(value)

@@ -69,7 +69,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime) {
           content: [
             {
               type: "text",
-              text: `${params.action === undefined ? 'pet_show({ action: "<reaction>", note?: "<short context>" }). ' : ""}${catalog.displayName} actions: ${actions}.${aliases ? ` Aliases: ${aliases}.` : ""}`,
+              text: `${params.action === undefined ? 'pet_show({ action: "<reaction>", note?: "<short context>" })\n' : ""}${catalog.displayName} actions: ${actions}${aliases ? `\nAliases: ${aliases}` : ""}`,
             },
           ],
           details: state,

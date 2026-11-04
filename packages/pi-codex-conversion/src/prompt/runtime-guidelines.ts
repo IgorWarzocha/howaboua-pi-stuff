@@ -7,7 +7,10 @@ const PI_DEFAULT_GUIDELINES = new Set([
 ]);
 
 const RUNTIME_IDENTITY_GUIDELINE = ["You are running in Pi with Codex-native tools", "Pi; Codex-native tools"] as const;
-export const FOLLOW_THROUGH_GUIDELINE = ["Finish the requested work; ask only when missing information changes what you should do.", "Finish work; ask ONLY if missing info changes action"] as const;
+export const GENERAL_GUIDELINES = [
+	["Finish the requested work; ask only when missing information changes what you should do", "Finish work; ask ONLY if missing info changes action"],
+	["Act on clear requests; don't just talk about doing them", "Clear request→act; don't just discuss doing it"],
+] as const;
 
 const NORMAL_CODEX_GUIDELINES = [
 	["Use exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
@@ -63,7 +66,7 @@ const REMOVED_GUIDELINES = new Set([
 
 const ALL_STATIC_CODEX_GUIDELINES = [
 	RUNTIME_IDENTITY_GUIDELINE,
-	FOLLOW_THROUGH_GUIDELINE,
+	...GENERAL_GUIDELINES,
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
@@ -104,7 +107,7 @@ function buildCodexGuidelines(
 			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : mode === "js" ? JS_MODE_GUIDELINES : CODE_MODE_GUIDELINES).map(([guideline]) => guideline)
 			: [];
 	}
-	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE[0], FOLLOW_THROUGH_GUIDELINE[0]);
+	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE[0], ...GENERAL_GUIDELINES.map(([guideline]) => guideline));
 	if (piPackageRoot) {
 		guidelines.push(`Pi customization or integration: list ${piPackageRoot} before implementing`);
 	}

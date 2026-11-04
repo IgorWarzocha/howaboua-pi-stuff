@@ -13,7 +13,7 @@ export function injectionText(turns: BtwTurn[]) {
 			turn.question,
 			"The answer was:",
 			turn.answer || turn.error || "(no answer)",
-			"Take it into account while executing the current task.",
+			"Take it into account while executing the current task",
 		].join("\n");
 	}
 
@@ -27,6 +27,6 @@ export function injectionText(turns: BtwTurn[]) {
 			turn.answer || turn.error || "(no answer)",
 		]),
 		"",
-		"Take them into account while executing the current task.",
+		"Take them into account while executing the current task",
 	].join("\n");
 }
