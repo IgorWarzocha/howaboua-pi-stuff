@@ -11,6 +11,7 @@ Custom voice-helper overrides must be rebuilt. Bundled helpers update with the p
 - Code and Notebook now use the same tool-argument coercion and validation as native Pi calls.
 - Code and Notebook now preserve extension tools' declared structured results.
 - Code guidance now distinguishes printed output from the printers' undefined return value.
+- Code and Notebook guidance now requires help discovery when a tool's current arguments are unknown, without repeating help for known calls.
 - TS execution now uses tsrs 0.21.0 with TypeScript 7.1 beta.
 - Fixed repeated argument preparation for extension tools called through Code or Notebook.
 - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off, following Pi's model catalogue.
