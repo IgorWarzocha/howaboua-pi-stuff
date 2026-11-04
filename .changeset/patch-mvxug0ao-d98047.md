@@ -23,6 +23,7 @@ Custom voice-helper overrides must be rebuilt. Bundled helpers update with the p
 - Codex Live preserves captured speech when a handoff contains only part of the request.
 - Voice task preparation now explicitly forbids turning instructions into questions or adding unrequested conversational next steps.
 - Voice task preparation now preserves the user's tone, register and emphasis.
+- Voice task preparation now treats clear conversational wrap-ups as end-call requests.
 - Fixed voice playback stalling on short audio tails and bursting after delayed scheduling.
 - Voice playback now logs content-free packet timing, missing-packet concealment, buffering, scheduling and LAN-queue diagnostics.
 - Fixed generated task text appearing as user speech.
