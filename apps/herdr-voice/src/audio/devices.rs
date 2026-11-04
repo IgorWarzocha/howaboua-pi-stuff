@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail, ensure};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::process::Command;
 
@@ -58,6 +58,8 @@ async fn pipewire_devices() -> Result<Option<Value>> {
 
 #[cfg(target_os = "linux")]
 async fn pipewire_devices() -> Result<Option<Value>> {
+    use serde_json::json;
+
     // A machine without a local PipeWire server retains the native helper catalogue.
     // When a server is present, discovery failures must not masquerade as raw ALSA devices.
     let remote = std::env::var_os("PIPEWIRE_REMOTE");
