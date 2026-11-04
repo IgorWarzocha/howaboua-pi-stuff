@@ -10,6 +10,7 @@ const RUNTIME_IDENTITY_GUIDELINE = ["You are running in Pi with Codex-native too
 export const GENERAL_GUIDELINES = [
 	["Finish the requested work; ask only when missing information changes what you should do", "Finish work; ask ONLY if missing info changes action"],
 	["Act on clear requests; don't just talk about doing them", "Clear request→act; don't just discuss doing it"],
+	["Defer work only when the user explicitly asks to defer it", "Defer work ONLY if user explicitly asks"],
 ] as const;
 
 const NORMAL_CODEX_GUIDELINES = [
