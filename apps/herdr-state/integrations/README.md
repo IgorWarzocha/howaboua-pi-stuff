@@ -14,10 +14,10 @@ The installed Pi API emits `session_start` after startup, reload, new session, r
 
 ## Command hooks
 
-Print a configuration merge fragment:
+From the Herdr State directory, print a configuration merge fragment:
 
 ```sh
-node /home/igorw/Work/herdr-state/integrations/hooks.mjs claude
+node integrations/hooks.mjs claude
 ```
 
 Replace `claude` with any command-hook agent in the table. Output contains absolute paths to this Node executable and `src/capture.mjs`. It is a fragment, not a replacement for the whole settings file. Kimi output is TOML; the other outputs are JSON. Generated commands target POSIX shells. Windows command quoting and installation are manual.
@@ -69,12 +69,12 @@ Preserve any other enabled plugins. OpenCode and Kilo ignore unselected creation
 
 ## Manual bridge and clearing
 
-Any native hook can run the same CLI with JSON stdin:
+After installation, any native hook can run the helper with JSON stdin:
 
 ```sh
-printf '%s' '{"session_id":"exact-native-id"}' | node /home/igorw/Work/herdr-state/src/capture.mjs codex
-printf '%s' '{"session_path":"/absolute/native/session.jsonl"}' | node /home/igorw/Work/herdr-state/src/capture.mjs pi
-node /home/igorw/Work/herdr-state/src/capture.mjs pi --clear
+printf '%s' '{"session_id":"exact-native-id"}' | herdr-state capture codex
+printf '%s' '{"session_path":"/absolute/native/session.jsonl"}' | herdr-state capture pi
+herdr-state capture pi --clear
 ```
 
 Use identity values supplied by the agent, not these example strings. Capture recognises common snake_case and camelCase session, conversation and thread ID fields. Only Pi and OMP accept session file paths. `transcript_path` is deliberately not a session path. Missing or invalid identity reports fail visibly without changing labels.
