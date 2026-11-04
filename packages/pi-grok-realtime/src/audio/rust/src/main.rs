@@ -1,5 +1,7 @@
 mod devices;
 mod dsp;
+mod playback_buffer;
+mod playback_metrics;
 
 use cpal::{
     StreamInstant,
@@ -15,6 +17,8 @@ use std::{
 
 pub struct Response(u8, Vec<u8>);
 pub struct Shared {
+    playback: playback_buffer::PlaybackBuffer,
+    metrics: playback_metrics::Metrics,
     queue: VecDeque<f32>,
     dsp: Dsp,
     epoch: u32,
@@ -118,6 +122,8 @@ fn run(args: &[String]) -> Result<(), String> {
         .sample_rate();
     let (responses, receiver) = mpsc::channel();
     let shared = Arc::new(Mutex::new(Shared {
+        playback: playback_buffer::PlaybackBuffer::default(),
+        metrics: playback_metrics::Metrics::new(),
         queue: VecDeque::new(),
         dsp: Dsp::new(input_rate, output_rate),
         epoch: 0,
@@ -171,6 +177,8 @@ fn run(args: &[String]) -> Result<(), String> {
             {
                 let mut state = shared.lock().unwrap();
                 state.queue.clear();
+                state.playback.depleted();
+                state.metrics.clear();
                 state.drain = None;
                 state.last_playback = None;
                 state.render_delay = Duration::ZERO;
@@ -186,8 +194,11 @@ fn run(args: &[String]) -> Result<(), String> {
             continue;
         }
         let mut state = shared.lock().unwrap();
+        let mut report = None;
         match command.0 {
             b'P' => {
+                let queued = state.queue.len();
+                report = state.metrics.receive(queued, output_rate);
                 // Later PCM extends an outstanding drain; only clear cancels it.
                 let samples: Vec<f32> = command
                     .1
@@ -210,6 +221,10 @@ fn run(args: &[String]) -> Result<(), String> {
                 state.drain = Some(u32::from_le_bytes(command.1[..4].try_into().unwrap()));
             }
             _ => unreachable!(),
+        }
+        drop(state);
+        if let Some(report) = report {
+            eprintln!("{report}");
         }
     }
     drop(input);

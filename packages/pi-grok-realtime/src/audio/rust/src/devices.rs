@@ -185,6 +185,22 @@ where
             move |data: &mut [T], info: &cpal::OutputCallbackInfo| {
                 let timestamp = info.timestamp();
                 let mut state = shared.lock().unwrap();
+                let queued = state.queue.len();
+                let draining = state.drain.is_some();
+                let ready = state.playback.ready(queued, rate, draining, Instant::now());
+                let frames = data.len() / channels;
+                let queued = if ready { queued } else { 0 };
+                let first = if ready {
+                    state.queue.front().copied().unwrap_or(0.0)
+                } else {
+                    0.0
+                };
+                let last = state
+                    .queue
+                    .get(queued.min(frames).saturating_sub(1))
+                    .copied()
+                    .unwrap_or(0.0);
+                state.metrics.render(queued, frames, first, last);
                 if state.queue.is_empty()
                     && state
                         .last_playback
@@ -199,12 +215,13 @@ where
                 let mut reference = Vec::with_capacity(data.len() / channels);
                 let mut last = None;
                 for (index, frame) in data.chunks_exact_mut(channels).enumerate() {
-                    let sample = if let Some(sample) = state.queue.pop_front() {
-                        last = Some(index + 1);
-                        sample
-                    } else {
-                        0.0
-                    };
+                    let sample =
+                        if let Some(sample) = ready.then(|| state.queue.pop_front()).flatten() {
+                            last = Some(index + 1);
+                            sample
+                        } else {
+                            0.0
+                        };
                     let value = T::from_sample(sample);
                     frame.fill(value);
                     // Reference reflects the samples actually submitted, including format quantization and silence.
@@ -218,9 +235,13 @@ where
                             .unwrap_or_else(|| fail("Speaker timestamp overflow")),
                     );
                 }
+                if ready && state.queue.is_empty() {
+                    state.playback.depleted();
+                }
                 state.render_delay = timestamp
                     .playback
                     .saturating_duration_since(timestamp.callback);
+                state.metrics.activity(&reference);
                 state.dsp.render(&reference).unwrap_or_else(|e| fail(e));
             },
             |error| fail(error),
