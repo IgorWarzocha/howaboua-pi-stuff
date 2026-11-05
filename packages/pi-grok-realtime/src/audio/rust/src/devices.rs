@@ -207,9 +207,8 @@ where
                 let queued = state.queue.len();
                 let draining = state.drain.is_some();
                 let frames = data.len() / channels;
-                let ready = state
-                    .playback
-                    .ready(queued, rate, frames, draining, Instant::now());
+                let now = Instant::now();
+                let ready = state.playback.ready(queued, rate, frames, draining, now);
                 let queued = if ready { queued } else { 0 };
                 let padding = {
                     let Shared {
@@ -224,6 +223,7 @@ where
                         .is_none_or(|end| timestamp.callback >= end)
                     && let Some(id) = state.drain.take()
                 {
+                    state.playback.reset();
                     state.metrics.drain(true);
                     state
                         .responses
@@ -265,7 +265,13 @@ where
                     );
                 }
                 if ready && state.queue.is_empty() {
-                    state.playback.depleted();
+                    let remaining = state.last_playback.map_or(Duration::ZERO, |end| {
+                        end.saturating_duration_since(timestamp.callback)
+                    });
+                    let rendered_until = now
+                        .checked_add(remaining)
+                        .unwrap_or_else(|| fail("Speaker timestamp overflow"));
+                    state.playback.depleted(rendered_until, rate);
                 }
                 state.render_delay = timestamp
                     .playback

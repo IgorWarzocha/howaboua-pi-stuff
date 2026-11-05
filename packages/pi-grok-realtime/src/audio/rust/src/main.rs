@@ -189,7 +189,7 @@ fn run(args: &[String]) -> Result<(), String> {
             {
                 let mut state = shared.lock().unwrap();
                 state.queue.clear();
-                state.playback.depleted();
+                state.playback.reset();
                 state.metrics.clear();
                 state.drain = None;
                 state.last_playback = None;
