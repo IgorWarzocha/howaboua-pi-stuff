@@ -112,12 +112,15 @@ async fn exchange(target: &Target, loaded: Option<&Loaded>, patch: Option<Value>
         core.node(
             &target.machine,
             include_str!("../machine-settings.cjs"),
-            vec![serde_json::to_string(&json!({
-                "provider": target.provider,
-                "patch": patch,
-                "identity": loaded.map(|state| &state.backend_identity),
-                "packageRoot": loaded.map(|state| &state.package_root),
-            }))?],
+            vec![
+                serde_json::to_string(&json!({
+                    "provider": target.provider,
+                    "patch": patch,
+                    "identity": loaded.map(|state| &state.backend_identity),
+                    "packageRoot": loaded.map(|state| &state.package_root),
+                }))?,
+                include_str!("../machine-settings.ts").to_owned(),
+            ],
         )
         .await
     };
