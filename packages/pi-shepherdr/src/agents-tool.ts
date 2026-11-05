@@ -4,6 +4,7 @@ import {
 	getMarkdownTheme,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { resolveNativeAgent } from "./agent-identity.js";
 import {
 	AgentsParameters,
 	type AgentsParams,
@@ -98,6 +99,15 @@ export function createAgentsTool(
 				);
 				runtime = root.runtime;
 				target = root.target;
+			} else if (target.startsWith("/") && !target.slice(1).includes("/")) {
+				const native = await resolveNativeAgent(
+					fleet,
+					target,
+					params.machine,
+					executionSignal,
+				);
+				runtime = native.runtime;
+				target = native.panel.pane_id;
 			}
 			if (params.action === "focus") {
 				executionSignal.throwIfAborted();

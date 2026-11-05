@@ -4,7 +4,11 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { NotesActivation } from "./activation.js";
-import { contextAgentIdentity, contextTargetAgent } from "./agent-identity.js";
+import {
+	contextAgentIdentity,
+	contextAgentNames,
+	contextTargetAgent,
+} from "./agent-identity.js";
 import { type NotesOwner, OWNER_CHANNEL, type OwnerRequest } from "./bridge.js";
 import { optionalPccMissing } from "./integrations.js";
 import type { NotesLifecycle } from "./lifecycle.js";
@@ -57,7 +61,7 @@ export async function registerNotesSharing(
 				query.params,
 				identity.agentName,
 			);
-			if (target === identity.agentName) return undefined;
+			if (contextAgentNames(identity).includes(target)) return undefined;
 			const result = await route(
 				ctx,
 				{ ...query, sessionId: identity.sessionId, agentName: target },

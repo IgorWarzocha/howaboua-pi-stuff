@@ -1,13 +1,21 @@
 import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
+import {
+	CONTEXT_AGENT_PATTERN,
+	canonicalAgentName,
+	canonicalContextIdentity,
+	contextStorageAgentName,
+	pinnedContextIdentity,
+} from "./agent-identity.js";
 import type { SavedNotesSession } from "./saved-session.js";
 
-const Agent = Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" });
+const Agent = Type.String({ pattern: CONTEXT_AGENT_PATTERN });
 export const Identity = Type.Object({
 	protocol: Type.Literal(1),
 	sessionId: Type.String(),
 	threadId: Type.String(),
 	agentName: Agent,
+	storageAgentName: Type.Optional(Agent),
 	storage: Type.Optional(
 		Type.Union([Type.Literal("session"), Type.Literal("remote")]),
 	),
@@ -84,13 +92,14 @@ export function savedNotesIdentity(
 		if (found) throw new Error("Conflicting saved notes identities");
 		found = entry.data;
 	}
-	return (
-		found ?? {
-			protocol: 1,
-			threadId: session.threadId,
-			sessionId: session.threadId,
-			agentName: "/root",
-		}
+	return canonicalContextIdentity(
+		found ??
+			pinnedContextIdentity(session.threadId, session.entries) ?? {
+				protocol: 1,
+				threadId: session.threadId,
+				sessionId: session.threadId,
+				agentName: canonicalAgentName(session.threadId),
+			},
 	);
 }
 
@@ -98,6 +107,6 @@ export function sameOwner(a: Identity, b: Identity): boolean {
 	return (
 		a.threadId === b.threadId &&
 		a.sessionId === b.sessionId &&
-		a.agentName === b.agentName
+		contextStorageAgentName(a) === contextStorageAgentName(b)
 	);
 }

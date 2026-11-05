@@ -25,7 +25,7 @@ export const NOTES_USAGE = "await tools.notes()";
 export const HISTORY_USAGE = "await tools.history()";
 export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
 export const NOTES_ROUTING_GUIDELINE =
-	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual, even absolute /root/... paths: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";
+	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
 	"Start fresh context window. MUST save notes before calling";
 export const GPT_NEW_CONTEXT_DESCRIPTION = "Save notes→fresh context";
@@ -247,8 +247,8 @@ export function queryHelp(
 							? "write=replace; append=add"
 							: "write replaces; append adds",
 						paths: gpt
-							? "Virtual≠disk; own list/search→omit path; relative=current agent; absolute=<agent>/notes[/path], e.g. /root/notes not /root"
-							: "Virtual note paths, not disk files. Omit path to list/search your notes. Relative paths use your agent; absolute paths require <agent>/notes[/path], e.g. /root/notes, not /root",
+							? "Virtual≠disk; own list/search→omit path; relative=current agent; absolute=/<session ID>/notes[/path], not the agent ID alone"
+							: "Virtual note paths, not disk files. Omit path to list/search your notes. Relative paths use your agent; absolute paths require /<session ID>/notes[/path], not the agent ID alone",
 						usage: 'notes: {"action":"read","path":"checkpoint"}',
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"

@@ -38,6 +38,7 @@ const NOTE_ENTRIES = new Set([
 ]);
 const SHARING_ENTRIES = new Set([
 	"codex-context-agent",
+	"codex-context-backend",
 	"herdr-context-child",
 	"shepherdr-attachment-route",
 	"shepherdr-attachment-owner",

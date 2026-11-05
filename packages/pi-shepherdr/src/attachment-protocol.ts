@@ -5,17 +5,33 @@ import type { SharedContextResult } from "@howaboua/pi-notes-compaction/context-
 import { type Static, type TSchema, Type } from "typebox";
 import { Check } from "typebox/value";
 
-const AgentPath = Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" });
+const AgentPath = Type.String({
+	pattern: "^/(?:[a-zA-Z0-9_.-]+|root(?:/[a-zA-Z0-9_-]+)*)$",
+});
 export const Identity = Type.Object({
 	protocol: Type.Literal(1),
 	sessionId: Type.String({ minLength: 1 }),
 	threadId: Type.String({ minLength: 1 }),
 	agentName: AgentPath,
+	storageAgentName: Type.Optional(AgentPath),
 	storage: Type.Union([Type.Literal("session"), Type.Literal("remote")]),
 	accountScope: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$" })),
 	backendUrl: Type.Optional(Type.String({ minLength: 1 })),
 	routing: Type.Optional(Type.Unknown()),
 });
+// Persisted attachment records predate native agent references. Keep their storage address.
+export function canonicalContextIdentity(
+	identity: Static<typeof Identity>,
+): Static<typeof Identity> {
+	const agentName = `/${identity.threadId}`;
+	return identity.agentName === agentName
+		? identity
+		: {
+				...identity,
+				agentName,
+				storageAgentName: identity.storageAgentName ?? identity.agentName,
+			};
+}
 const ContextLink = Type.Object({
 	controller: Identity,
 	target: Identity,

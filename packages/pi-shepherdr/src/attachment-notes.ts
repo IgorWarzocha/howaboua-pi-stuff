@@ -98,14 +98,6 @@ export class AttachmentNotes {
 			)
 		);
 	}
-	unavailable(error: unknown) {
-		return (
-			error instanceof Error &&
-			/^(Shared context (?:owner|controller) is unavailable|Shared context response was lost|Herdr machine .* is (?:unavailable|disconnected)|remote Shepherdr bridge (?:is unavailable|closed|exited\b)|remote Shepherdr context timed out)/.test(
-				error.message,
-			)
-		);
-	}
 	async read(
 		request: SharedContextRequest,
 		identity: ContextAgentIdentity,

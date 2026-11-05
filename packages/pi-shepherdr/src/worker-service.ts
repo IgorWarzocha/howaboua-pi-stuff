@@ -192,7 +192,7 @@ export function registerWorkerService(
 							const sharing =
 								worker || profile.shareContext === false
 									? undefined
-									: await shared.spawns.prepare(ctx, runtime, name, args);
+									: await shared.spawns.prepare(ctx, runtime, args);
 							const boardBinding = worker
 								? undefined
 								: await board.prepare(ctx, runtime, name, args);

@@ -56,6 +56,7 @@ const Protocol = Type.Union([
 		operation: Type.Literal("board-notify"),
 		boardId: Type.String(),
 		target: Type.String(),
+		route: Type.Optional(Type.Array(Type.String())),
 		sessionId: Type.String(),
 		turnId: Type.String(),
 		notice: NoticeSchema,

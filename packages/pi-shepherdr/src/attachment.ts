@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type {
 	ExtensionAPI,
@@ -14,6 +13,7 @@ import {
 	type AttachmentPlan,
 	attachmentOwner,
 	attachmentRoutes,
+	canonicalContextIdentity,
 	ROUTE,
 	Snapshot,
 } from "./attachment-protocol.js";
@@ -123,7 +123,6 @@ export class AgentAttachment {
 			const upstream = runtime.local
 				? sessionContextPath(controllerFile)
 				: runtime.client.contextRelayPath();
-			const segment = `attached-${randomUUID()}`;
 			const plan: AttachmentPlan = {
 				controllerSessionId,
 				targetSessionId: current.sessionId,
@@ -133,8 +132,8 @@ export class AgentAttachment {
 							context: {
 								controller: controllerContext,
 								target: current.context,
-								alias: `${controllerContext.agentName}/${segment}`,
-								controllerAlias: `${current.context.agentName}/controller-${randomUUID()}`,
+								alias: `/${current.sessionId}`,
+								controllerAlias: `/${controllerSessionId}`,
 								...(runtime.local ? { controllerFile } : {}),
 								controllerNotes: await this.notes.export(ctx),
 								targetNotes: current.notes,
@@ -148,7 +147,7 @@ export class AgentAttachment {
 								desired: this.board.membership.prepareAttachment(
 									ctx,
 									upstream,
-									segment,
+									current.sessionId,
 								),
 								controller: binding(ctx),
 							},
@@ -193,19 +192,11 @@ export class AgentAttachment {
 		}
 		return {
 			attached: true,
+			agent: `/${route.plan.targetSessionId}`,
 			machine: runtime.machine,
 			target: panel.pane_id,
-			...(route.plan.context
-				? {
-						contextAgent: route.plan.context.alias,
-						controllerContextAgent: route.plan.context.controllerAlias,
-					}
-				: {}),
-			...(route.plan.board
-				? {
-						boardAgent: route.plan.board.desired.agentName,
-					}
-				: {}),
+			context: !!route.plan.context,
+			board: !!route.plan.board,
 		};
 	}
 	async detach(
@@ -248,7 +239,10 @@ export class AgentAttachment {
 					)) ||
 				(params.context &&
 					plan.context &&
-					!isDeepStrictEqual(currentContext, plan.context.controller)) ||
+					!isDeepStrictEqual(
+						currentContext,
+						canonicalContextIdentity(plan.context.controller),
+					)) ||
 				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
 			)
 				throw new Error(

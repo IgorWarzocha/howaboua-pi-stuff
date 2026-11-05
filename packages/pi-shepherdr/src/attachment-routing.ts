@@ -10,6 +10,7 @@ import {
 	type AttachmentRoute,
 	attachmentOwner,
 	attachmentRoutes,
+	canonicalContextIdentity,
 	detachment,
 	inside,
 	remap,
@@ -17,6 +18,7 @@ import {
 	remapResult,
 } from "./attachment-protocol.js";
 import {
+	isContextUnavailable,
 	requestContext,
 	sessionContextPath,
 } from "./remote/shepherdr-context.mjs";
@@ -45,19 +47,24 @@ export class AttachmentRouting {
 			(route) =>
 				route.phase === "ready" &&
 				route.plan.context &&
-				inside(request.agentName, route.plan.context.alias),
+				(inside(request.agentName, route.plan.context.alias) ||
+					request.agentName === `/${route.plan.targetSessionId}`),
 		);
 		if (child?.plan.context) {
 			const link = child.plan.context;
-			if (!isDeepStrictEqual(native, link.controller))
+			const alias =
+				request.agentName === `/${child.plan.targetSessionId}`
+					? request.agentName
+					: link.alias;
+			if (!isDeepStrictEqual(native, canonicalContextIdentity(link.controller)))
 				throw new Error(
 					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			const next = {
 				...request,
 				sessionId: link.target.sessionId,
-				agentName: remap(request.agentName, link.alias, link.target.agentName),
-				params: remapParams(request.params, link.alias, link.target.agentName),
+				agentName: remap(request.agentName, alias, link.target.agentName),
+				params: remapParams(request.params, alias, link.target.agentName),
 			};
 			let result: SharedContextResult;
 			if (link.target.storage === "remote") {
@@ -80,7 +87,7 @@ export class AttachmentRouting {
 					})) as SharedContextResult;
 				} catch (error) {
 					signal?.throwIfAborted();
-					if (!this.notes.canRead(next) || !this.notes.unavailable(error))
+					if (!this.notes.canRead(next) || !isContextUnavailable(error))
 						throw error;
 					result = await this.notes.read(
 						next,
@@ -103,28 +110,29 @@ export class AttachmentRouting {
 					true,
 					async () => undefined,
 				);
-			return remapResult(result, link.target.agentName, link.alias);
+			return remapResult(result, link.target.agentName, alias);
 		}
 		const owner = attachmentOwner(ctx);
 		const link = owner?.context;
-		if (owner && link && inside(request.agentName, link.controllerAlias)) {
-			if (!isDeepStrictEqual(native, link.target))
+		if (
+			owner &&
+			link &&
+			(inside(request.agentName, link.controllerAlias) ||
+				request.agentName === `/${owner.controllerSessionId}`)
+		) {
+			const alias =
+				request.agentName === `/${owner.controllerSessionId}`
+					? request.agentName
+					: link.controllerAlias;
+			if (!isDeepStrictEqual(native, canonicalContextIdentity(link.target)))
 				throw new Error(
 					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			const next = {
 				...request,
 				sessionId: link.controller.sessionId,
-				agentName: remap(
-					request.agentName,
-					link.controllerAlias,
-					link.controller.agentName,
-				),
-				params: remapParams(
-					request.params,
-					link.controllerAlias,
-					link.controller.agentName,
-				),
+				agentName: remap(request.agentName, alias, link.controller.agentName),
+				params: remapParams(request.params, alias, link.controller.agentName),
 			};
 			const detached = detachment(ctx, owner)?.context;
 			let result: SharedContextResult;
@@ -148,7 +156,7 @@ export class AttachmentRouting {
 					)) as SharedContextResult;
 				} catch (error) {
 					signal?.throwIfAborted();
-					if (!this.notes.canRead(next) || !this.notes.unavailable(error))
+					if (!this.notes.canRead(next) || !isContextUnavailable(error))
 						throw error;
 					result = await this.notes.read(
 						next,
@@ -177,11 +185,7 @@ export class AttachmentRouting {
 					true,
 					async () => undefined,
 				);
-			return remapResult(
-				result,
-				link.controller.agentName,
-				link.controllerAlias,
-			);
+			return remapResult(result, link.controller.agentName, alias);
 		}
 		return undefined;
 	}

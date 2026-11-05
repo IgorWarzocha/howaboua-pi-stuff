@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { Check } from "typebox/value";
+import { contextTargetAgent, isContextAgentName } from "./agent-identity.js";
 import type { RemoteNoteReference } from "./context-sharing.js";
 import { normalizeNoteParams, readNotes } from "./notes.js";
 import type { NoteRevision } from "./store.js";
@@ -39,14 +40,21 @@ export function readAttachmentSnapshot(
 			"Retained checkpoints are read-only; resume the attached owner to write notes",
 		);
 	const path = params["path"] ?? params["prefix"] ?? params["path_prefix"];
+	const owner = snapshot.files[0]
+		? contextTargetAgent("notes", { path: snapshot.files[0].path }, "/root")
+		: "/root";
 	const agent =
-		typeof path === "string"
-			? (/^(\/root(?:\/[a-zA-Z0-9_-]+)*?)\/notes(?:\/|$)/.exec(path)?.[1] ??
-				"/root")
-			: "/root";
+		typeof path === "string" && path.startsWith("/")
+			? contextTargetAgent("notes", { path }, "/root")
+			: owner;
 	const notes = new Map<string, NoteRevision>();
 	for (const file of snapshot.files) {
-		if (!/^\/root(?:\/[a-zA-Z0-9_-]+)*?\/notes\/.+/.test(file.path))
+		if (
+			!isContextAgentName(
+				contextTargetAgent("notes", { path: file.path }, agent),
+			) ||
+			!file.path.includes("/notes/")
+		)
 			throw new Error("Invalid retained note path");
 		if (!file.path.startsWith(`${agent}/notes/`)) continue;
 		const local = file.path.slice(`${agent}/notes/`.length);
@@ -93,7 +101,9 @@ export function readRemoteNoteReference(input: unknown): RemoteNoteReference {
 		identity.sessionId.length > 512 ||
 		typeof identity.agentName !== "string" ||
 		identity.agentName.length > 4096 ||
-		!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(identity.agentName) ||
+		!isContextAgentName(identity.agentName) ||
+		(identity.storageAgentName !== undefined &&
+			!isContextAgentName(identity.storageAgentName)) ||
 		typeof identity.accountScope !== "string" ||
 		!/^[a-f0-9]{64}$/.test(identity.accountScope) ||
 		identity.backendUrl !== input.baseUrl

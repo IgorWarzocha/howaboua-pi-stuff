@@ -2,7 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { binding, saveBinding } from "../identity.js";
+import { binding, parseBinding, saveBinding } from "../identity.js";
 import type { BoardAdapter } from "../integration.js";
 import { type BoardEnvelope, parseEnvelope } from "../protocol.js";
 import type { BoardOwner } from "./owner.js";
@@ -40,6 +40,15 @@ export class BoardRouting {
 		const request = parseEnvelope(value);
 		const own = binding(ctx);
 		if (request.operation === "board-bind") {
+			parseBinding(request.binding);
+			if (own.sessionId === request.binding.sessionId)
+				throw new Error(
+					"Child and controller have the same Pi session ID; start the child with a different ID",
+				);
+			if (request.binding.agentName !== `/${request.binding.sessionId}`)
+				throw new Error(
+					"Restart the controller with updated extensions before spawning shared-board agents",
+				);
 			if (
 				!ctx.isIdle() ||
 				ctx.sessionManager
@@ -55,7 +64,13 @@ export class BoardRouting {
 				throw new Error(
 					"Bind board identity only in a fresh idle child before its first task",
 				);
-			const adopted = { ...request.binding, sessionId: own.sessionId };
+			const { legacyAgentName: _legacy, ...proposed } = request.binding;
+			const adopted = {
+				...proposed,
+				sessionId: own.sessionId,
+				agentName: own.agentName,
+				parentSessionId: request.binding.sessionId,
+			};
 			saveBinding(this.pi, adopted);
 			await this.refresh(ctx);
 			return adopted;

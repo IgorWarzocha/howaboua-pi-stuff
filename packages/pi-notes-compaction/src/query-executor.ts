@@ -3,6 +3,11 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import {
+	contextAgentIdentity,
+	contextAgentNames,
+	contextStorageAgentName,
+} from "./agent-identity.js";
 import { useHistory } from "./history.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
@@ -66,9 +71,22 @@ export function createQueryExecutor(
 			const saved = await readSharedNotes(ctx, store, raw, signal);
 			if (saved) return noteResult(saved);
 		}
+		const identity = contextAgentIdentity(ctx);
+		const storageAgent = contextStorageAgentName(identity);
+		const localRaw = { ...raw };
+		for (const key of ["path", "prefix", "path_prefix"]) {
+			const value = localRaw[key];
+			if (typeof value !== "string") continue;
+			const alias = contextAgentNames(identity).find(
+				(name) =>
+					value === `${name}/notes` || value.startsWith(`${name}/notes/`),
+			);
+			if (alias)
+				localRaw[key] = `${identity.agentName}${value.slice(alias.length)}`;
+		}
 		const params = queryArguments(
 			"notes",
-			normalizeNoteParams(raw, lifecycle.agent(ctx)),
+			normalizeNoteParams(localRaw, lifecycle.agent(ctx)),
 		);
 		if (signal?.aborted) throw new Error("Note operation cancelled");
 		const local = useNotes(
@@ -115,7 +133,7 @@ export function createQueryExecutor(
 		for (const field of ["path", "prefix", "path_prefix"])
 			if (typeof remoteParams[field] === "string")
 				remoteParams[field] =
-					`${lifecycle.agent(ctx)}/notes${remoteParams[field] ? `/${remoteParams[field]}` : ""}`;
+					`${storageAgent}/notes${remoteParams[field] ? `/${remoteParams[field]}` : ""}`;
 		return lookupNotes(
 			pi,
 			store,
@@ -173,7 +191,12 @@ export function createQueryExecutor(
 			const saved = await readSharedHistory(ctx, store, search, params, signal);
 			if (saved) return result(saved);
 		}
-		if (params["agent_name"] && params["agent_name"] !== lifecycle.agent(ctx))
+		if (
+			params["agent_name"] &&
+			!contextAgentNames(contextAgentIdentity(ctx)).includes(
+				String(params["agent_name"]),
+			)
+		)
 			throw new Error(
 				"That agent's Pi session history is unavailable on this machine. Restore access to its saved JSONL session, or omit agent_name to search this session.",
 			);

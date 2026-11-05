@@ -13,6 +13,14 @@ export type {
 	ContextAgentBinding,
 	ContextAgentIdentity,
 } from "./agent-identity.js";
+export {
+	canonicalAgentName,
+	canonicalContextIdentity,
+	contextAgentNames,
+	contextStorageAgentName,
+	contextTargetAgent,
+	isContextAgentName,
+} from "./agent-identity.js";
 export type { ContextFamilyBindingOptions } from "./binding-startup.js";
 export type { NoteSnapshotData } from "./bridge.js";
 
@@ -55,7 +63,7 @@ export interface ContextSharingService {
 	verify(ctx: ExtensionContext): Promise<void>;
 	createChild(
 		ctx: ExtensionContext,
-		options: { name: string; routing?: unknown },
+		options: { threadId: string; routing?: unknown },
 	): Promise<{
 		binding: ContextAgentBinding;
 		adopt(): Promise<void>;

@@ -1,4 +1,7 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionContext,
+	SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 
 export const CONTEXT_AGENT_ENTRY = "codex-context-agent";
 const CONTEXT_BACKEND_ENTRY = "codex-context-backend";
@@ -8,6 +11,8 @@ export interface ContextAgentIdentity {
 	sessionId: string;
 	threadId: string;
 	agentName: string;
+	/** Original persisted Notes address; never changes authenticated remote ownership. */
+	storageAgentName?: string;
 	storage?: "remote" | "session";
 	accountScope?: string;
 	backendUrl?: string;
@@ -21,6 +26,61 @@ export type ContextAgentBinding = Omit<
 	storage: "remote" | "session";
 };
 
+export const CONTEXT_AGENT_PATTERN =
+	"^/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*(?:/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*)*$";
+
+export function isContextAgentName(value: unknown): value is string {
+	return (
+		typeof value === "string" && new RegExp(CONTEXT_AGENT_PATTERN).test(value)
+	);
+}
+
+export function canonicalAgentName(threadId: string): string {
+	if (threadId === "root")
+		throw new Error(
+			"Pi session ID root conflicts with the legacy /root reference; start a session with another ID",
+		);
+	const name = `/${threadId}`;
+	if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/.test(threadId))
+		throw new Error("Invalid Pi session identity");
+	return name;
+}
+
+export function contextStorageAgentName(
+	identity: Pick<ContextAgentIdentity, "agentName" | "storageAgentName">,
+): string {
+	return identity.storageAgentName ?? identity.agentName;
+}
+
+/** /root is a local compatibility alias, never an authenticated storage address. */
+export function contextAgentNames(
+	identity: Pick<
+		ContextAgentIdentity,
+		"agentName" | "storageAgentName" | "threadId" | "sessionId"
+	>,
+): string[] {
+	return [
+		...new Set([
+			identity.agentName,
+			contextStorageAgentName(identity),
+			...(identity.threadId === identity.sessionId ? ["/root"] : []),
+		]),
+	];
+}
+
+export function canonicalContextIdentity<T extends ContextAgentIdentity>(
+	identity: T,
+): T {
+	const agentName = canonicalAgentName(identity.threadId);
+	return {
+		...identity,
+		agentName,
+		...(contextStorageAgentName(identity) === agentName
+			? {}
+			: { storageAgentName: contextStorageAgentName(identity) }),
+	};
+}
+
 export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
 	const value = input as Partial<ContextAgentBinding> | undefined;
 	if (
@@ -28,7 +88,9 @@ export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
 		typeof value.sessionId !== "string" ||
 		!value.sessionId ||
 		typeof value.agentName !== "string" ||
-		!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(value.agentName) ||
+		!isContextAgentName(value.agentName) ||
+		(value.storageAgentName !== undefined &&
+			!isContextAgentName(value.storageAgentName)) ||
 		(value.storage !== "remote" && value.storage !== "session") ||
 		(value.backendUrl !== undefined &&
 			(typeof value.backendUrl !== "string" || !value.backendUrl)) ||
@@ -41,6 +103,9 @@ export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
 		protocol: 1,
 		sessionId: value.sessionId,
 		agentName: value.agentName,
+		...(value.storageAgentName === undefined
+			? {}
+			: { storageAgentName: value.storageAgentName }),
 		storage: value.storage,
 		...(value.accountScope === undefined
 			? {}
@@ -48,6 +113,37 @@ export function parseContextAgentBinding(input: unknown): ContextAgentBinding {
 		...(value.backendUrl === undefined ? {} : { backendUrl: value.backendUrl }),
 		...(value.routing === undefined ? {} : { routing: value.routing }),
 	};
+}
+
+/** Older standalone remote owners may have a backend pin without a family binding. */
+export function pinnedContextIdentity(
+	threadId: string,
+	entries: readonly SessionEntry[],
+): ContextAgentIdentity | undefined {
+	let identity: ContextAgentIdentity | undefined;
+	for (const entry of entries) {
+		if (entry.type !== "custom" || entry.customType !== CONTEXT_BACKEND_ENTRY)
+			continue;
+		const pin = entry.data as Partial<ContextAgentIdentity> | undefined;
+		if (pin?.threadId !== threadId) continue;
+		const binding = parseContextAgentBinding({
+			...pin,
+			protocol: 1,
+			storage: "remote",
+		});
+		if (!binding.backendUrl)
+			throw new Error("Saved remote context has no backend address");
+		if (
+			identity &&
+			(identity.sessionId !== binding.sessionId ||
+				identity.agentName !== binding.agentName ||
+				identity.accountScope !== binding.accountScope ||
+				identity.backendUrl !== binding.backendUrl)
+		)
+			throw new Error("Conflicting persisted Remote context backend");
+		identity = { ...binding, threadId };
+	}
+	return identity;
 }
 
 export function contextAgentIdentity(
@@ -65,6 +161,7 @@ export function contextAgentIdentity(
 			throw new Error("Conflicting persisted Codex context identities");
 		identity = { ...parseContextAgentBinding(value), threadId };
 	}
+	identity ??= pinnedContextIdentity(threadId, ctx.sessionManager.getEntries());
 	if (identity?.storage === "remote") {
 		for (const entry of ctx.sessionManager.getEntries()) {
 			if (entry.type !== "custom" || entry.customType !== CONTEXT_BACKEND_ENTRY)
@@ -73,7 +170,8 @@ export function contextAgentIdentity(
 			if (pin?.threadId !== threadId) continue;
 			if (
 				pin.sessionId !== identity.sessionId ||
-				pin.agentName !== identity.agentName ||
+				(pin.storageAgentName ?? pin.agentName) !==
+					contextStorageAgentName(identity) ||
 				pin.accountScope !== identity.accountScope ||
 				typeof pin.backendUrl !== "string" ||
 				!pin.backendUrl ||
@@ -83,13 +181,13 @@ export function contextAgentIdentity(
 			identity.backendUrl = pin.backendUrl;
 		}
 	}
-	return (
+	return canonicalContextIdentity(
 		identity ?? {
 			protocol: 1,
 			sessionId: threadId,
 			threadId,
-			agentName: "/root",
-		}
+			agentName: canonicalAgentName(threadId),
+		},
 	);
 }
 
@@ -107,13 +205,17 @@ export function contextTargetAgent(
 		throw new Error("Context path must be a string");
 	if (namespace === "notes") {
 		if (!value.startsWith("/")) return agentName;
-		const match = /^(\/root(?:\/[a-zA-Z0-9_-]+)*?)\/notes(?:\/|$)/.exec(value);
-		if (!match)
+		const boundary = /\/notes(?:\/|$)/.exec(value)?.index ?? -1;
+		const target = boundary < 0 ? "" : value.slice(0, boundary);
+		if (
+			!isContextAgentName(target) ||
+			!/^\/notes(?:\/|$)/.test(value.slice(boundary))
+		)
 			throw new Error("Absolute note paths must use <agent>/notes[/path]");
-		return match[1]!;
+		return target;
 	}
 	const target = value.startsWith("/") ? value : `${agentName}/${value}`;
-	if (!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(target))
+	if (!isContextAgentName(target))
 		throw new Error("Invalid history agent name");
 	return target;
 }

@@ -1,6 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { contextTargetAgent } from "./agent-identity.js";
+import {
+	canonicalContextIdentity,
+	contextStorageAgentName,
+	contextTargetAgent,
+} from "./agent-identity.js";
 import {
 	readAttachmentSnapshot,
 	readRemoteNoteReference,
@@ -49,16 +53,42 @@ export function createAttachmentSharing(
 			if (identity.storage === "remote") {
 				if (
 					!isDeepStrictEqual(
-						readRemoteNoteReference(snapshot).identity,
-						identity,
+						canonicalContextIdentity(
+							readRemoteNoteReference(snapshot).identity,
+						),
+						canonicalContextIdentity(identity),
 					)
 				)
 					throw new Error("Remote checkpoint owner changed");
-			} else
+			} else {
 				readAttachmentSnapshot(snapshot, {
 					action: "list_files_by_prefix",
 					prefix: `${identity.agentName}/notes`,
 				});
+				if (
+					!snapshot ||
+					typeof snapshot !== "object" ||
+					!("files" in snapshot) ||
+					!Array.isArray(snapshot.files) ||
+					snapshot.files.some(
+						(file: unknown) =>
+							!file ||
+							typeof file !== "object" ||
+							!("path" in file) ||
+							typeof file.path !== "string" ||
+							![identity.agentName, contextStorageAgentName(identity)].includes(
+								contextTargetAgent(
+									"notes",
+									{ path: file.path },
+									identity.agentName,
+								),
+							),
+					)
+				)
+					throw new Error(
+						"Retained checkpoint belongs to a different notes owner",
+					);
+			}
 		},
 		async verifyAttachmentAccess(ctx, snapshot) {
 			if (

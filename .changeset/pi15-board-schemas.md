@@ -4,5 +4,5 @@
 
 Requires Pi 1.5 or newer.
 
-- Extension updates now use Pi's native changelog notices and `collapseChangelog` setting. Custom suppression is removed.
-- Reduced token overhead in tool help.
+- Board agents now use Pi session IDs without changing identity on attachment. Existing authors, subscriptions and archives remain accessible.
+- Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.

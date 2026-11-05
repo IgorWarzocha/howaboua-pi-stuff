@@ -12,8 +12,11 @@ import {
 } from "@howaboua/pi-codex-conversion/code-mode";
 import {
 	type ContextAgentIdentity,
+	canonicalContextIdentity,
 	contextAgentIdentity,
+	contextStorageAgentName,
 	contextTargetAgent,
+	isContextAgentName,
 } from "./agent-identity.js";
 import type { CachedResponse, LookupQuery } from "./bridge.js";
 import type {
@@ -98,7 +101,7 @@ function scope(
 	return JSON.stringify({
 		threadId: identity.threadId,
 		sessionId: identity.sessionId,
-		agentName: identity.agentName,
+		agentName: contextStorageAgentName(identity),
 		accountScope: protectedAccountScope(accountId),
 		baseUrl,
 	});
@@ -155,6 +158,19 @@ async function lookup(
 	target?: RemoteNoteReference,
 ): Promise<readonly CachedResponse[]> {
 	const { action, args } = readQuery(query);
+	if (target) {
+		const identity = canonicalContextIdentity(target.identity);
+		for (const field of ["path", "prefix", "path_prefix"]) {
+			const value = args[field];
+			if (
+				typeof value === "string" &&
+				(value === `${identity.agentName}/notes` ||
+					value.startsWith(`${identity.agentName}/notes/`))
+			)
+				args[field] =
+					`${contextStorageAgentName(identity)}${value.slice(identity.agentName.length)}`;
+		}
+	}
 	const auth = await authenticated(ctx);
 	if (target) checkReference(target, auth.provider);
 	const headers = auth.provider.headers;
@@ -174,8 +190,9 @@ async function lookup(
 				...args,
 				context: {
 					session_id: target?.identity.sessionId ?? auth.identity.sessionId,
-					current_agent_name:
-						target?.identity.agentName ?? auth.identity.agentName,
+					current_agent_name: contextStorageAgentName(
+						target?.identity ?? auth.identity,
+					),
 				},
 			}),
 		},
@@ -238,10 +255,11 @@ export async function executeRemoteAttachment(
 		throw new Error(
 			"History is unavailable from a saved remote notes attachment. Open its saved Pi JSONL session on this machine, then retry.",
 		);
+	const identity = canonicalContextIdentity(reference.identity);
 	if (
 		request.sessionId !== reference.identity.sessionId ||
-		(request.agentName !== reference.identity.agentName &&
-			!request.agentName.startsWith(`${reference.identity.agentName}/`)) ||
+		(request.agentName !== identity.agentName &&
+			request.agentName !== contextStorageAgentName(identity)) ||
 		contextTargetAgent(
 			request.namespace,
 			request.params,
@@ -304,7 +322,7 @@ async function projectNotesResponses(
 			!provenance.sessionId ||
 			!("agentName" in provenance) ||
 			typeof provenance.agentName !== "string" ||
-			!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(provenance.agentName)
+			!isContextAgentName(provenance.agentName)
 		)
 			throw new Error(
 				"Shared protected contents belong to a different account or backend",
