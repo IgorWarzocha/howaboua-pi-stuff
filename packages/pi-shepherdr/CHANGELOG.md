@@ -1,5 +1,10 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.27
+
+- New remote workers retain their Core parent link for sidebar nesting.
+- Agent guidance now requires the agents tool for supported local and remote operations, including after failures, instead of bypassing it with shell commands.
+
 ## 0.2.26
 
 - Requires Pi 1.5 or newer.

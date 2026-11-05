@@ -5,7 +5,6 @@
 - Requires Pi 1.5 or newer.
 
   Older checkpoints may require a fresh note save before rollover.
-
   - Notes results in Pi's built-in codemode are now objects, matching Code and Notebook. Remove `JSON.parse` around those results.
   - Agent references now derive from Pi session IDs, with existing shared-note paths retained.
   - Fixed rollover rejecting successful large saves and saves in parallel tool groups. The saved-notes indicator uses the same readiness check.

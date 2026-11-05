@@ -57,12 +57,12 @@
 		"@earendil-works/pi-coding-agent": "1.5.0",
 		"@types/node": "^26.6.5",
 		"typescript": "^7.0.2",
-		"@howaboua/pi-codex-conversion": "4.0.8"
+		"@howaboua/pi-codex-conversion": "4.0.9"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.0.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.8"
+		"@howaboua/pi-codex-conversion": ">=4.0.9"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {

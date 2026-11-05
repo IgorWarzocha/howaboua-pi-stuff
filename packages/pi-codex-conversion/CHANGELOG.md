@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.9
+
+- Removed unsupported reasoning-off options for GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna on Codex.
+
 ## 4.0.8
 
 - Requires Pi 1.5 or newer.
