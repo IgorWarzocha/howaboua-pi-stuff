@@ -13,6 +13,7 @@ pub use devices::list as devices;
 pub struct Frame {
     pub tag: u8,
     pub bytes: Vec<u8>,
+    pub received_at: std::time::Instant,
 }
 
 pub struct Audio {
@@ -43,6 +44,7 @@ impl Audio {
         routing.apply(&mut command);
         let mut child = command
             .args([&routing.microphone, &routing.speaker])
+            .env("GROK_AUDIO_DIAGNOSTICS", "ipc")
             .kill_on_drop(true)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -139,10 +141,17 @@ async fn read_frame(output: &mut ChildStdout) -> Result<Frame> {
         .await
         .context("Audio helper stopped; check system devices")?;
     let size = output.read_u32_le().await? as usize;
-    if !matches!((tag, size), (b'R', 0) | (b'A', 964) | (b'D', 4)) {
+    if !matches!(
+        (tag, size),
+        (b'R', 0) | (b'A', 964) | (b'D', 4) | (b'J', 1..=8192)
+    ) {
         bail!("Invalid audio helper response; reinstall the native bundle");
     }
     let mut bytes = vec![0; size];
     output.read_exact(&mut bytes).await?;
-    Ok(Frame { tag, bytes })
+    Ok(Frame {
+        tag,
+        bytes,
+        received_at: std::time::Instant::now(),
+    })
 }

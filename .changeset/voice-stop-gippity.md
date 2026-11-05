@@ -15,7 +15,7 @@ Requires Pi 1.5 or newer.
 - Fixed duplicated LAN audio while waiting for speech to finish.
 - Codex Live now waits for supported LAN clients to finish speaker playback before ending the call.
 - Codex Live now uses available Opus repair data for missing audio packets.
-- Voice playback now logs content-free packet timing, missing-packet concealment, buffering, scheduling and LAN-queue diagnostics.
+- Voice playback now logs content-free packet timing, missing-packet concealment, buffering, scheduling and LAN-queue diagnostics. Herdr Voice also retains correlated connection, speaker buffering and device recovery timing without recording audio.
 - Fixed generated task text appearing as user speech.
 - LAN Stop now waits for the voice call and pending task preparation to stop.
 - Herdr Disconnect now shuts down the selected LAN listener after stopping the call.

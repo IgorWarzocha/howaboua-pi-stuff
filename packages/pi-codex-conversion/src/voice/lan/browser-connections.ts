@@ -1,11 +1,21 @@
 import type { ServerResponse } from "node:http";
 import { type RawData, WebSocket } from "ws";
+import {
+	type NativePlaybackDiagnostics,
+	nativePlaybackDiagnostics,
+} from "./native-audio-diagnostics.ts";
 
 const MAX_SOCKET_AUDIO_BACKLOG = 24_000 * 2;
 const AUDIO_REPORT_INTERVAL_MS = 5_000;
 
-export interface LanPlaybackDiagnostics {
+export type LanPlaybackDiagnostics =
+	| LanSourcePlaybackDiagnostics
+	| NativePlaybackDiagnostics;
+
+interface LanSourcePlaybackDiagnostics {
 	source: "lan-playback";
+	clientId: string;
+	hostUnixMs: number;
 	reason: "interval" | "closed" | "replaced" | "server-closed";
 	windowMs: number;
 	sentFrames: number;
@@ -40,6 +50,7 @@ export class LanVoiceBrowserConnections {
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
 	private readonly audioReports = new WeakMap<WebSocket, AudioReportState>();
+	private readonly clientIds = new WeakMap<WebSocket, string>();
 
 	private readonly onAudioDiagnostics:
 		| ((report: LanPlaybackDiagnostics) => void)
@@ -84,14 +95,63 @@ export class LanVoiceBrowserConnections {
 			return;
 		}
 		const previous = this.audioSockets.get(clientId);
+		this.clientIds.set(socket, clientId);
 		this.audioSockets.set(clientId, socket);
 		if (previous) {
 			this.finishAudioReport(previous, "replaced");
 			callbacks.onReplaced(previous);
 		}
 		previous?.close(4001, "replaced");
-		socket.send(JSON.stringify({ type: "connected" }));
-		socket.on("message", callbacks.onMessage);
+		socket.send(
+			JSON.stringify({ type: "connected", nativeAudioDiagnostics: 1 }),
+		);
+		let lastNativeReport = -Infinity;
+		socket.on("message", (data, isBinary) => {
+			if (!isBinary) {
+				const text = data.toString();
+				if (text.length <= 8192) {
+					let value: unknown;
+					try {
+						value = JSON.parse(text);
+					} catch {
+						/* Existing wire handler owns invalid JSON. */
+					}
+					if (
+						value &&
+						typeof value === "object" &&
+						"type" in value &&
+						value.type === "native_audio_diagnostics"
+					) {
+						if (
+							!this.isCurrentAudio(clientId, socket) ||
+							performance.now() - lastNativeReport < 500
+						)
+							return;
+						lastNativeReport = performance.now();
+						const report = nativePlaybackDiagnostics(
+							value as Record<string, unknown>,
+							clientId,
+						);
+						if (report) {
+							try {
+								this.onAudioDiagnostics?.(report);
+							} catch {
+								console.warn(
+									"[voice audio] Native playback diagnostics could not be saved",
+								);
+							}
+							this.sendAudioControl(socket, {
+								type: "native_audio_diagnostics_ack",
+								hostUnixMs: report.hostUnixMs,
+								probeId: report.client["probe_id"],
+							});
+						}
+						return;
+					}
+				}
+			}
+			callbacks.onMessage(data, isBinary);
+		});
 		socket.once("close", () => {
 			this.finishAudioReport(socket, "closed");
 			if (this.audioSockets.get(clientId) === socket)
@@ -169,7 +229,7 @@ export class LanVoiceBrowserConnections {
 
 	private flushAudioReport(
 		socket: WebSocket,
-		reason: LanPlaybackDiagnostics["reason"],
+		reason: LanSourcePlaybackDiagnostics["reason"],
 	): void {
 		const report = this.audioReports.get(socket);
 		if (!report) return;
@@ -178,6 +238,8 @@ export class LanVoiceBrowserConnections {
 		if (report.sentFrames + report.droppedFrames === 0) return;
 		const diagnostics: LanPlaybackDiagnostics = {
 			source: "lan-playback",
+			clientId: this.clientIds.get(socket) ?? "unknown",
+			hostUnixMs: Date.now(),
 			reason,
 			windowMs: performance.now() - report.startedAt,
 			sentFrames: report.sentFrames,
@@ -204,7 +266,7 @@ export class LanVoiceBrowserConnections {
 
 	private finishAudioReport(
 		socket: WebSocket,
-		reason: LanPlaybackDiagnostics["reason"],
+		reason: LanSourcePlaybackDiagnostics["reason"],
 	): void {
 		this.flushAudioReport(socket, reason);
 		this.audioReports.delete(socket);

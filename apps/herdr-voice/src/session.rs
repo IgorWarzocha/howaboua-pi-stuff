@@ -15,6 +15,8 @@ use std::{
 use tokio::sync::{RwLock, mpsc, oneshot, watch};
 use tokio_tungstenite::tungstenite::Message;
 
+mod diagnostics;
+
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Phase {
@@ -173,6 +175,9 @@ async fn execute(
 }
 
 struct Playback {
+    diagnostics: diagnostics::Diagnostics,
+    log: diagnostics::Log,
+    host_diagnostics: bool,
     active: bool,
     input_ready: bool,
     muted: bool,
@@ -226,13 +231,30 @@ impl Playback {
         audio: &mut Audio,
         transport: &mut Transport,
     ) -> Result<()> {
+        self.diagnostics.helper_read(frame.received_at);
         match frame.tag {
+            b'J' => {
+                let helper: Value = serde_json::from_slice(&frame.bytes)
+                    .context("Invalid speaker diagnostics; reinstall the native bundle")?;
+                let report = self.diagnostics.report(
+                    helper,
+                    self.suppressed,
+                    self.host_diagnostics,
+                    self.log.dropped,
+                );
+                self.log.submit(report.clone());
+                if self.host_diagnostics {
+                    transport.send(report).await?;
+                }
+            }
             b'A' if self.input_ready => {
                 if let Some(pcm) = audio.capture(&frame) {
+                    let start = std::time::Instant::now();
                     transport
                         .socket
                         .send(Message::Binary(pcm.to_vec().into()))
                         .await?;
+                    self.diagnostics.capture_send(start);
                 }
             }
             b'D' => {
@@ -276,6 +298,13 @@ async fn conversation(
         .as_mut()
         .context("Voice transport did not open")?;
     let mut playback = Playback {
+        diagnostics: diagnostics::Diagnostics::new(
+            &transport.socket,
+            client,
+            !options.ssh_host.is_empty(),
+        )?,
+        host_diagnostics: false,
+        log: diagnostics::Log::new(),
         active: false,
         input_ready: false,
         muted: false,
@@ -286,7 +315,7 @@ async fn conversation(
         drains: VecDeque::new(),
     };
     let mut health = tokio::time::interval(Duration::from_secs(1));
-    async {
+    let result = async {
         loop {
             let value = tokio::select! {
                 frame = audio.read() => { playback.frame(frame?, audio, transport).await?; continue; },
@@ -307,13 +336,24 @@ async fn conversation(
                     if failed { bail!("{}", message.as_deref().unwrap_or("Cannot update microphone mute")); }
                     continue;
                 },
-                _ = health.tick() => { connection.check_tunnel()?; continue; },
+                _ = health.tick() => {
+                    connection.check_tunnel()?;
+                    let start = std::time::Instant::now();
+                    audio.send(b'T', &[]).await?;
+                    playback.diagnostics.ipc(start);
+                    continue;
+                },
                 event = transport.events.next() => event?,
                 message = transport.socket.next() => {
                     match message.context("Voice connection closed; reconnect from the panel")?? {
                         Message::Binary(bytes) => {
                             if bytes.is_empty() || bytes.len() % 2 != 0 || bytes.len() > 48_000 { bail!("Invalid speaker audio from voice server"); }
-                            if !playback.suppressed { audio.send(b'P', &bytes).await?; }
+                            playback.diagnostics.receive(bytes.len(), playback.suppressed);
+                            if !playback.suppressed {
+                                let start = std::time::Instant::now();
+                                audio.send(b'P', &bytes).await?;
+                                playback.diagnostics.ipc(start);
+                            }
                             continue;
                         },
                         Message::Text(text) => serde_json::from_str::<Value>(&text).context("Invalid voice control message")?,
@@ -324,6 +364,10 @@ async fn conversation(
                 },
             };
             match value["type"].as_str() {
+                Some("connected") => {
+                    playback.host_diagnostics = value["nativeAudioDiagnostics"].as_u64() == Some(1);
+                },
+                Some("native_audio_diagnostics_ack") => playback.diagnostics.ack(&value),
                 Some("active") if options.provider.is_openai() => {
                     playback.active = true;
                     playback.input_ready = true;
@@ -377,9 +421,13 @@ async fn conversation(
                     transport.send(json!({"type":"takeover.ack","token":token})).await?;
                     transport.close().await;
                     *transport = Transport::replacement(connection, options.provider, client, token).await?;
+                    playback.diagnostics = diagnostics::Diagnostics::new(&transport.socket, client, !options.ssh_host.is_empty())?;
+                    playback.host_diagnostics = false;
                 },
                 _ => (),
             }
         }
-    }.await
+    }.await;
+    playback.log.close().await;
+    result
 }
