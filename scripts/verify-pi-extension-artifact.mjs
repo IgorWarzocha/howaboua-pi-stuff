@@ -149,6 +149,16 @@ function runtimeModuleFiles(packageRoot) {
 	return files;
 }
 
+function packedFilename(output, label) {
+	const packed = JSON.parse(output);
+	const entries = Array.isArray(packed) ? packed : Object.values(packed ?? {});
+	const filename = entries.length === 1 && typeof entries[0]?.filename === "string"
+		? entries[0].filename
+		: undefined;
+	if (!filename) throw new Error(`npm pack did not report an artifact for ${label}`);
+	return filename;
+}
+
 function packPackage(packageRoot, tempRoot) {
 	const output = run(
 		"npm",
@@ -159,11 +169,7 @@ function packPackage(packageRoot, tempRoot) {
 			env: { npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" },
 		},
 	);
-	const packed = JSON.parse(output);
-	const filename = Array.isArray(packed) && typeof packed[0]?.filename === "string"
-		? packed[0].filename
-		: undefined;
-	if (!filename) throw new Error(`npm pack did not report an artifact for ${packageRoot}`);
+	const filename = packedFilename(output, packageRoot);
 	const unpacked = join(tempRoot, "unpacked");
 	mkdirSync(unpacked);
 	run("tar", ["-xzf", join(tempRoot, filename), "-C", unpacked]);
@@ -248,11 +254,7 @@ function stageWorkspaceDependencies(names, isolatedRoot) {
 				env: { npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" },
 			},
 		);
-		const packed = JSON.parse(output);
-		const filename = Array.isArray(packed) && typeof packed[0]?.filename === "string"
-			? packed[0].filename
-			: undefined;
-		if (!filename) throw new Error(`npm pack did not report an artifact for ${name}`);
+		const filename = packedFilename(output, name);
 		const staged = join(isolatedRoot, "node_modules", ...name.split("/"));
 		rmSync(staged, { recursive: true, force: true });
 		mkdirSync(staged, { recursive: true });
