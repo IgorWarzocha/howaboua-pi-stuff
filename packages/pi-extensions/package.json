@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.103",
+	"version": "0.0.104",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -22,7 +22,7 @@
 		"@howaboua/pi-gpt-switcher": "0.1.6",
 		"@howaboua/pi-grok-realtime": "0.0.5",
 		"@howaboua/pi-pet": "0.1.7",
-		"@howaboua/pi-shepherdr": "0.2.26",
+		"@howaboua/pi-shepherdr": "0.2.27",
 		"@howaboua/pi-smart-btw": "0.2.8",
 		"@howaboua/pi-subagent-review": "0.2.25",
 		"@howaboua/pi-suggestions": "0.0.2",

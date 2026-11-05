@@ -38,13 +38,13 @@
         "unicode-case-folding": "1.1.2",
       },
       "devDependencies": {
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": ">=1.1.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.1.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -59,7 +59,7 @@
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
       },
@@ -67,7 +67,7 @@
         "@earendil-works/pi-ai": ">=1.0.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -80,13 +80,13 @@
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
@@ -99,7 +99,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -107,7 +107,7 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -124,7 +124,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.8",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -133,7 +133,7 @@
         "@earendil-works/pi-ai": ">=1.0.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.8",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -157,12 +157,12 @@
       "name": "@howaboua/pi-chatgpt-sites",
       "version": "0.0.3",
       "devDependencies": {
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -186,7 +186,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "4.0.8",
+      "version": "4.0.9",
       "dependencies": {
         "@howaboua/pi-browser": "^0.0.13",
         "acorn": "8.19.0",
@@ -226,7 +226,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typescript": "^7.0.2",
       },
@@ -234,7 +234,7 @@
         "@earendil-works/pi-ai": ">=1.0.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
@@ -251,7 +251,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -259,7 +259,7 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -277,7 +277,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "tsx": "^4.23.15",
         "typebox": "1.4.3",
@@ -286,7 +286,7 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -295,22 +295,22 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.103",
+      "version": "0.0.104",
       "dependencies": {
-        "@howaboua/pi-ask": "0.0.17",
+        "@howaboua/pi-ask": "0.0.18",
         "@howaboua/pi-auto-trees": "0.1.19",
         "@howaboua/pi-better-skills-tool": "0.0.12",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
-        "@howaboua/pi-gippity-control": "0.0.30",
+        "@howaboua/pi-gippity-control": "0.0.31",
         "@howaboua/pi-github-watch": "0.0.4",
         "@howaboua/pi-gpt-switcher": "0.1.6",
-        "@howaboua/pi-grok-realtime": "0.0.4",
+        "@howaboua/pi-grok-realtime": "0.0.5",
         "@howaboua/pi-pet": "0.1.7",
-        "@howaboua/pi-shepherdr": "0.2.25",
+        "@howaboua/pi-shepherdr": "0.2.27",
         "@howaboua/pi-smart-btw": "0.2.8",
         "@howaboua/pi-subagent-review": "0.2.25",
         "@howaboua/pi-suggestions": "0.0.2",
-        "@howaboua/pi-unicode-charts": "0.1.3",
+        "@howaboua/pi-unicode-charts": "0.1.4",
       },
       "devDependencies": {
         "@earendil-works/pi-coding-agent": "1.5.0",
@@ -354,7 +354,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -363,7 +363,7 @@
         "@earendil-works/pi-ai": ">=1.2.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "^1.3.37",
       },
       "optionalPeers": [
@@ -415,7 +415,7 @@
         "better-sqlite3": "13.0.3",
       },
       "devDependencies": {
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/better-sqlite3": "9.6.0",
       },
       "peerDependencies": {
@@ -423,7 +423,7 @@
         "@earendil-works/pi-ai": ">=1.0.4",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.4",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -455,7 +455,7 @@
         "@biomejs/biome": "2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "@typescript/native-preview": "^7.0.0-dev.20260707.2",
         "electron": "44.7.2",
@@ -466,8 +466,8 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
-        "@howaboua/pi-gippity-control": ">=0.0.30",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
+        "@howaboua/pi-gippity-control": ">=0.0.31",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -498,7 +498,7 @@
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -506,7 +506,7 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -515,17 +515,17 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.26",
+      "version": "0.2.27",
       "dependencies": {
-        "@howaboua/pi-agent-board": "0.0.4",
+        "@howaboua/pi-agent-board": "0.0.5",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
-        "@howaboua/pi-notes-compaction": "0.0.13",
+        "@howaboua/pi-codex-conversion": "4.0.9",
+        "@howaboua/pi-notes-compaction": "0.0.14",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -534,8 +534,8 @@
         "@earendil-works/pi-ai": ">=1.1.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.1.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
-        "@howaboua/pi-notes-compaction": ">=0.0.13",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
+        "@howaboua/pi-notes-compaction": ">=0.0.14",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -594,18 +594,18 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.111",
+      "version": "0.0.112",
       "dependencies": {
-        "@howaboua/pi-ask": "0.0.17",
+        "@howaboua/pi-ask": "0.0.18",
         "@howaboua/pi-auto-trees": "0.1.19",
         "@howaboua/pi-better-skills-tool": "0.0.12",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
-        "@howaboua/pi-gippity-control": "0.0.30",
+        "@howaboua/pi-gippity-control": "0.0.31",
         "@howaboua/pi-github-watch": "0.0.4",
         "@howaboua/pi-gpt-switcher": "0.1.6",
-        "@howaboua/pi-grok-realtime": "0.0.4",
+        "@howaboua/pi-grok-realtime": "0.0.5",
         "@howaboua/pi-pet": "0.1.7",
-        "@howaboua/pi-shepherdr": "0.2.25",
+        "@howaboua/pi-shepherdr": "0.2.27",
         "@howaboua/pi-skill-chrome-cdp": "0.0.5",
         "@howaboua/pi-skill-code": "0.0.4",
         "@howaboua/pi-skill-foundations": "0.0.3",
@@ -613,7 +613,7 @@
         "@howaboua/pi-smart-btw": "0.2.8",
         "@howaboua/pi-subagent-review": "0.2.25",
         "@howaboua/pi-suggestions": "0.0.2",
-        "@howaboua/pi-unicode-charts": "0.1.3",
+        "@howaboua/pi-unicode-charts": "0.1.4",
       },
       "devDependencies": {
         "@earendil-works/pi-coding-agent": "1.5.0",
@@ -630,7 +630,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typescript": "^7.0.2",
       },
@@ -638,7 +638,7 @@
         "@earendil-works/pi-ai": ">=1.0.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
@@ -650,13 +650,13 @@
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
@@ -677,14 +677,14 @@
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.9",
         "@types/node": "^26.6.5",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.9",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",
