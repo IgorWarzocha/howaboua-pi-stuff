@@ -8,3 +8,4 @@ Requires Pi 1.5 or newer.
 - Added `/imagegen` access selection and API model, quality and complexity preferences.
 - OpenAI API access now supports native GIF and SVG generation, per-request output controls and format-correct saved images.
 - Imagegen now exposes only controls supported by the selected access route. Code and Notebook discover the current contract on demand.
+- Imagegen guidance now requires explicit image references because requests are stateless.

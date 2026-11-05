@@ -1,7 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { imagegenCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
-import { imageGenerationParameters } from "./src/contract.js";
+import {
+	IMAGE_CONTEXT_GUIDANCE,
+	imageGenerationParameters,
+} from "./src/contract.js";
 import { readImagegenSettings } from "./src/settings.js";
 import { registerImagegenSettings } from "./src/settings-ui.js";
 import { createImageGenerationTool } from "./src/tool.js";
@@ -46,7 +49,8 @@ export default async function imagegenExtension(
 			if (gpt !== active) {
 				gpt = active;
 				tool.description = active
-					? "Generate/edit images; no selectors=generate"
+					? "Generate/edit images; no selectors=generate. " +
+						IMAGE_CONTEXT_GUIDANCE
 					: ordinary.description;
 				pi.registerTool(tool);
 				registration?.refresh();

@@ -3,6 +3,8 @@ import { Type } from "typebox";
 import type { CodexToolProvider } from "./codex-runtime/types.js";
 
 export const IMAGE_GENERATION_TOOL_NAME = "imagegen";
+export const IMAGE_CONTEXT_GUIDANCE =
+	"Stateless: supply prior/reference images via paths or recent count; earlier calls are not remembered";
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE =
 	"imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
 export const IMAGE_MODEL = "gpt-image-2.5";
