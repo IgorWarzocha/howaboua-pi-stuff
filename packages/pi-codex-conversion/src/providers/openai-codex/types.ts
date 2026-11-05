@@ -31,7 +31,7 @@ export interface AcquiredWebSocket {
 	entry?: SessionWebSocketCacheEntry | undefined;
 	reused: boolean;
 	socketAgeMs: number;
-	release: (options?: { keep?: boolean | undefined }) => void;
+	release: (options?: { keep?: boolean | undefined; closeAfter?: Promise<void> | undefined }) => void;
 }
 
 export interface CachedWebSocketContinuationState {

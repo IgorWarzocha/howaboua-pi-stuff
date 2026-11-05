@@ -4,3 +4,4 @@
 - `session-continuity.ts` owns the completed provider request/raw-output baseline across physical socket loss. Ordinary full reconnects deliberately send validated Pi reconstruction because raw provider replay breaks global prompt-cache hits; native compaction consumes canonical state. Only explicit transport resets clear it.
 - Keepalive uses an isolated lane and must not advance main continuation. Honour Pi's transport selection; preconnect follows WebSocket availability, non-generating warmup requires cached continuation, and generated keepalive remains independently opt-in.
 - Auto-preserve backend-proven cache reuse; keep spendful large-context keepalive explicit and separate.
+- TODO before the next PR: check upstream Codex's `interrupt_on_cancel` feature default in `codex-rs/features/src/lib.rs`. Keep our default aligned, currently off; enabling server cancellation must not imply socket reuse or guaranteed cache hits.

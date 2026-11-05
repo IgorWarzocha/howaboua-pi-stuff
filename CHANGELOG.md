@@ -21,7 +21,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 ### @howaboua/pi-agent-board — 0.0.5
 
 - Requires Pi 1.5 or newer.
-
   - Board agents now use Pi session IDs without changing identity on attachment. Existing authors, subscriptions and archives remain accessible.
   - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
@@ -30,7 +29,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 ### @howaboua/pi-ask — 0.0.18
 
 - Requires Pi 1.5 or newer.
-
   - Waiting prompts now report Pi's native blocked state. Steering prompts remain non-blocking.
   - Invalid question arguments now explain how to find the supported format.
   - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
@@ -84,7 +82,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
   - Code and Notebook now preserve declared structured results and apply native tool argument preparation once.
   - Code and Notebook guidance now separates help discovery from calls using unknown arguments and distinguishes printing from return values.
   - TS execution now uses tsrs 0.21.0 with TypeScript 7.1 beta.
-  - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off.
   - Expansion hints now use the configured keybinding.
   - Agent guidance now prioritises acting on clear requests without unsolicited deferral.
   - Fixed transient Codex transport failures becoming non-retryable after recovery attempts.
@@ -114,7 +111,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 ### @howaboua/pi-codex-imagegen — 0.0.13
 
 - Requires Pi 1.5 or newer.
-
   - Added `/imagegen` access selection and API model, quality and complexity preferences.
   - OpenAI API access now supports GIF and SVG generation and per-request output controls.
   - Tool discovery now shows controls for the selected access route and requires explicit image references for edits.
@@ -143,7 +139,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 ### @howaboua/pi-gippity-control — 0.0.31
 
 - Requires Pi 1.5 or newer.
-
   - Fixed duplicate voice task submissions from progress updates and repeated handoffs.
   - Voice task preparation now preserves captured speech, tone and instructions without adding questions or next steps.
   - Voice now recognises conversational wrap-ups and waits for LAN speaker playback before ending calls.
@@ -172,7 +167,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 ### @howaboua/pi-grok-realtime — 0.0.5
 
 - Requires Pi 1.5 or newer.
-
   - Added host-side voice settings without starting Pi or a call.
   - Herdr Disconnect now shuts down the LAN listener after stopping the call.
   - Reduced mid-word playback cutouts. Initial playback buffers about 500 ms plus one device callback, and quiet pauses can grow by up to 500 ms.
@@ -226,7 +220,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 - Requires Pi 1.5 or newer.
 
   Update and restart controllers and workers together for shared Notes and boards.
-
   - `spawn` and `assign` now return after task submission by default. Set `blocking: true` to wait for the result. A profile's `blocking` setting still overrides `spawn`.
   - Agent references now use Pi session IDs across delegation, Notes and boards. Spawn returns one `agent` reference and sharing flags instead of separate context and board references.
   - Attached Notes reads keep alias paths and read-only warnings consistent across native, Code and Notebook results.
@@ -321,7 +314,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 ### @howaboua/pi-unicode-charts — 0.1.4
 
 - Requires Pi 1.5 or newer.
-
   - Other extensions' later prompt sections now reach the model in interactive sessions.
   - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 

@@ -3,7 +3,7 @@ import { DEFAULT_WEBSOCKET_CLOSE_TIMEOUT_MS } from "./constants.ts";
 import { extractWebSocketCloseError, extractWebSocketError, isWebSocketMessageTooBigError } from "./websocket-connection.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
 
-async function decodeWebSocketData(data: unknown): Promise<string | null> {
+export async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	if (typeof data === "string") return data;
 	if (data instanceof ArrayBuffer) {
 		return new TextDecoder().decode(new Uint8Array(data));

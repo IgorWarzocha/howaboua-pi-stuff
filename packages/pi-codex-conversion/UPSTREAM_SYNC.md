@@ -5,7 +5,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 ## Reference baseline
 
 - Pi SDK baseline: published `1.5.0`
-- Stock provider comparison: published Pi `1.5.0` (2026-11-02)
+- Stock provider comparison: published Pi `1.5.0` (2026-11-05)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
@@ -17,11 +17,17 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 PCC requires Pi 1.5. Tool-call JSON now uses Pi's incremental parser, and grammar input is escaped by delta and closed only on finalisation. Stream scratch state stays outside transcript content. Adapter-owned nested tools use Pi's argument validator and coercion. Pi-routed tools leave preparation and validation to Pi's native execution pipeline.
 
-Pi's catalogue owns GPT-6 model pricing, context limits and reasoning mappings. GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna support `off`; GPT-6 Astra and GPT-6.1 Sol do not. Codex maps Pi's `minimal` selector to `low`. Daybreak aliases, Reserve and the GPT-5.6 context clamp remain PCC-owned additions.
+Pi's catalogue owns GPT-6 model pricing and context limits. PCC disables the catalogue's `off` option for GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna: the [Codex catalogue](https://github.com/openai/codex/blob/2e58636d16794a150e562cc34b63ca3035494e50/codex-rs/models-manager/models.json) starts at `low`, as it does for GPT-6 Astra and GPT-6.1 Sol. Codex maps Pi's `minimal` selector to `low`. Daybreak aliases, Reserve and the GPT-5.6 context clamp remain PCC-owned additions.
 
 The JS Notebook runtime pin is Pi codemode 1.5. Its runtime source and the separately pinned QuickJS WASM are unchanged, so existing snapshots retain their engine fingerprint.
 
 Pi now owns extension update notices. PCC's generated changelog renderer and state file are removed. Existing base-instruction placement, tool replay, namespace policy, request capture, continuation and transport-recovery differences remain intentional.
+
+## November 5 reasoning and cancellation
+
+Compared published Pi `1.5.0` for request shape, headers, reasoning, service tiers, retries and stream termination. The three Codex catalogue overrides above remove unsupported reasoning-off selections. Existing instruction placement, Lite requests, identity headers, service-tier pricing and transport-recovery differences remain intentional.
+
+Codex `2e58636d16794a150e562cc34b63ca3035494e50` still marks `interrupt_on_cancel` as under development with `default_enabled: false`. PCC includes dormant Responses Lite cancellation support behind a hard-disabled code guard, with no configuration switch. Cancellation still discards the connection and its continuation, as in stock Pi. Recheck the upstream default before the next PR. The dormant protocol path has not had live validation.
 
 ## October 23 continuity ownership
 

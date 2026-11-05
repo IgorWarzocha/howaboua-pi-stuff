@@ -10,7 +10,6 @@
   - Code and Notebook now preserve declared structured results and apply native tool argument preparation once.
   - Code and Notebook guidance now separates help discovery from calls using unknown arguments and distinguishes printing from return values.
   - TS execution now uses tsrs 0.21.0 with TypeScript 7.1 beta.
-  - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off.
   - Expansion hints now use the configured keybinding.
   - Agent guidance now prioritises acting on clear requests without unsolicited deferral.
   - Fixed transient Codex transport failures becoming non-retryable after recovery attempts.

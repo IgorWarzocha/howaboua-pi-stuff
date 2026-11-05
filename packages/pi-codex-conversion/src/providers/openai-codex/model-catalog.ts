@@ -53,6 +53,10 @@ export function openAICodexProviderModels(): Model<"openai-codex-responses">[] {
 	}
 	const existing = new Set(models.map(({ id }) => id));
 	return [...models, ...SUPPLEMENTAL_MODELS.filter(({ id }) => !existing.has(id))].map((model) => {
+		// Codex advertises low and above, not the API models' reasoning-off option.
+		if (["gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna"].includes(model.id)) {
+			return { ...model, thinkingLevelMap: { ...model.thinkingLevelMap, off: null } };
+		}
 		return /^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
 			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
 			: model;
