@@ -61,11 +61,10 @@ export async function buildOpenAIImageRequest(
 				throw new Error(
 					"OpenAI API edit inputs must be PNG, JPEG or WebP. Convert GIF inputs before editing.",
 				);
-			if (
-				Buffer.byteLength(item.image_url.split(",")[1] ?? "", "base64") >=
-				50 * 1024 * 1024
-			)
-				throw new Error("OpenAI API edit inputs must be smaller than 50 MB.");
+			if (item.image_url.length > 20 * 1024 * 1024)
+				throw new Error(
+					"OpenAI API edit image is too large. Resize or compress it and retry.",
+				);
 		}
 	}
 	Object.assign(request.body, {
