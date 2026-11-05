@@ -9,6 +9,7 @@ use serde_json::json;
 use std::{
     collections::{BTreeMap, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
+    net::IpAddr,
     time::Duration,
 };
 
@@ -259,7 +260,7 @@ async fn read_receipt(
 }
 
 async fn select_url(urls: &[String], local: bool) -> Result<String> {
-    let candidates: Vec<_> = urls
+    let mut candidates: Vec<_> = urls
         .iter()
         .filter_map(|value| url::Url::parse(value).ok())
         .filter(|url| url.scheme() == "https")
@@ -273,6 +274,16 @@ async fn select_url(urls: &[String], local: bool) -> Result<String> {
             .context("Pi did not return a voice URL")?;
         url.set_host(Some("localhost"))?;
         return Ok(url.to_string());
+    }
+    match if_addrs::get_if_addrs() {
+        Ok(interfaces) => {
+            // Only the client knows which advertised IPs share its local link.
+            // Keep server order within each tier, including all remote fallbacks.
+            candidates.sort_by_key(|url| !on_link(url, &interfaces));
+        }
+        Err(error) => eprintln!(
+            "Cannot inspect local networks; trying Pi's advertised voice addresses in order: {error}"
+        ),
     }
     for url in candidates {
         let Some(host) = url.host_str() else {
@@ -298,6 +309,40 @@ async fn select_url(urls: &[String], local: bool) -> Result<String> {
     bail!(
         "Pi's voice listener is unreachable from this computer. Connect from a network that can reach Pi, then retry."
     )
+}
+
+fn on_link(url: &url::Url, interfaces: &[if_addrs::Interface]) -> bool {
+    let ip = match url.host() {
+        Some(url::Host::Ipv4(ip)) => IpAddr::V4(ip),
+        Some(url::Host::Ipv6(ip)) => IpAddr::V6(ip),
+        _ => return false,
+    };
+    interfaces.iter().any(|interface| {
+        if !interface.is_oper_up()
+            || interface.is_loopback()
+            || interface.is_p2p()
+            || interface.ip() == ip
+        {
+            return false;
+        }
+        // Use the OS-reported prefix, not private-address ranges or interface
+        // names. Point-to-point overlay links must not earn LAN priority.
+        match (&interface.addr, ip) {
+            (if_addrs::IfAddr::V4(local), IpAddr::V4(remote))
+                if (1..=32).contains(&local.prefixlen) =>
+            {
+                let mask = u32::MAX << (32 - local.prefixlen);
+                u32::from(local.ip) & mask == u32::from(remote) & mask
+            }
+            (if_addrs::IfAddr::V6(local), IpAddr::V6(remote))
+                if (1..=128).contains(&local.prefixlen) =>
+            {
+                let mask = u128::MAX << (128 - local.prefixlen);
+                u128::from(local.ip) & mask == u128::from(remote) & mask
+            }
+            _ => false,
+        }
+    })
 }
 
 const PROVISION: &str = r#"
