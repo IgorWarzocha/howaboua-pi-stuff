@@ -10,7 +10,7 @@ export const MAX_EDIT_IMAGES = 5;
 const OUTPUT_FORMATS = ["png", "jpeg", "webp", "gif", "svg"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
-export const IMAGE_GENERATION_PARAMETERS = Type.Object(
+const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{
 		prompt: Type.String({
 			description: "Include target aspect ratio and quality",
