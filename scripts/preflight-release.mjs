@@ -32,7 +32,7 @@ for (const dir of listActivePackageDirs(root)) {
 
 for (const { pkg, cwd } of candidates) {
 	console.log(`\nPreflight ${pkg.name}@${pkg.version}`);
-	const result = spawnSync("npm", ["pack", "--dry-run", "--foreground-scripts", "--ignore-scripts=false"], {
+	const result = spawnSync("npm", ["publish", "--dry-run", "--foreground-scripts", "--ignore-scripts=false"], {
 		cwd: pkg.publishConfig?.directory ? resolve(cwd, pkg.publishConfig.directory) : cwd,
 		stdio: "inherit",
 	});
