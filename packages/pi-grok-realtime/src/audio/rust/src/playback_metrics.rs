@@ -34,6 +34,7 @@ pub struct Metrics {
     pub output_xruns: u64,
     held_callbacks: u64,
     zero_frames: u64,
+    quiet_padding_frames: u64,
 }
 
 impl Metrics {
@@ -146,7 +147,15 @@ impl Metrics {
         }
     }
 
-    pub fn render(&mut self, queued: usize, frames: usize, first: f32, last: f32, held: bool) {
+    pub fn render(
+        &mut self,
+        queued: usize,
+        frames: usize,
+        first: f32,
+        last: f32,
+        held: bool,
+        padding: usize,
+    ) {
         if !self.enabled {
             return;
         }
@@ -166,14 +175,16 @@ impl Metrics {
         }
         self.callbacks += 1;
         self.held_callbacks += u64::from(held);
-        self.zero_frames += frames.saturating_sub(queued) as u64;
-        self.empty += u64::from(queued == 0);
-        self.partial += u64::from(queued > 0 && queued < frames);
+        let supplied = queued.saturating_add(padding);
+        self.quiet_padding_frames += padding as u64;
+        self.zero_frames += (padding + frames.saturating_sub(supplied)) as u64;
+        self.empty += u64::from(supplied == 0);
+        self.partial += u64::from(supplied > 0 && supplied < frames);
         // A >0.5% full-scale cut to/from inserted zeros is a discontinuity,
         // not an audio recording or a claim of subjective audibility.
-        self.audible_partial += u64::from(queued > 0 && queued < frames && last.abs() > 0.005);
-        self.audible_resume += u64::from(self.zero_filled && queued > 0 && first.abs() > 0.005);
-        self.zero_filled = queued < frames;
+        self.audible_partial += u64::from(supplied > 0 && supplied < frames && last.abs() > 0.005);
+        self.audible_resume += u64::from(self.zero_filled && supplied > 0 && first.abs() > 0.005);
+        self.zero_filled = supplied < frames;
         self.max_queue_frames = self.max_queue_frames.max(queued);
         self.min_callback_frames = Some(
             self.min_callback_frames
@@ -218,6 +229,7 @@ impl Snapshot {
             "input_xruns": m.input_xruns, "output_xruns": m.output_xruns,
             "rate": rate, "device_delay_us": delay_us,
             "held_callbacks": m.held_callbacks, "inserted_zero_frames": m.zero_frames,
+            "quiet_padding_frames": m.quiet_padding_frames,
         })
     }
 }
