@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
 
-/// Device callbacks run independently of 20ms transport packets. Start with three
-/// packets of slack, and rebuild it after depletion instead of repeatedly
-/// chopping packets into short writes followed by zeros. Never strand a tail.
+/// Device callbacks run independently of 20ms transport packets. Seven packets
+/// leave about 120ms of steady playout slack for brief delivery stalls.
+/// Rebuild after depletion instead of chopping packets into short writes followed
+/// by zeros. Bound the wait for short tails; explicit drains bypass it.
 #[derive(Default)]
 pub struct PlaybackBuffer {
     playing: bool,
@@ -18,10 +19,10 @@ impl PlaybackBuffer {
         }
         let since = *self.waiting.get_or_insert(now);
         // Streaming interpolation retains one 24kHz boundary sample.
-        let target = (rate as usize * 60 / 1000).saturating_sub(rate.div_ceil(24_000) as usize);
+        let target = (rate as usize * 140 / 1000).saturating_sub(rate.div_ceil(24_000) as usize);
         if draining
             || queued >= target.max(1)
-            || now.duration_since(since) >= Duration::from_millis(60)
+            || now.duration_since(since) >= Duration::from_millis(140)
         {
             self.playing = true;
         }
