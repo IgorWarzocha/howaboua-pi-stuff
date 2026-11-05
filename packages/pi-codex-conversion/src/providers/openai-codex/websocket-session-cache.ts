@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import type { AcquiredWebSocket, CodexDiagnosticsSink, ProviderEnv, SessionWebSocketCacheEntry } from "./types.ts";
+import type { AcquiredWebSocket, CodexDiagnosticsSink, ProviderEnv, SessionWebSocketCacheEntry, WebSocketLike } from "./types.ts";
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable, observeWebSocketDiagnostics, resolveWebSocketProxyForTarget } from "./websocket-connection.ts";
 import { clearCanonicalSessions } from "./session-continuity.ts";
 
 const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
 const websocketPreparations = new Map<string, Set<AbortController>>();
 const websocketSseFallbackSessions = new Set<string>();
+const retiringWebSockets = new Map<WebSocketLike, string | undefined>();
 const CONTINUATION_HEADERS = new Set([
 	"openai-beta",
 	"session-id",
@@ -40,7 +41,23 @@ export function recordWebSocketSseFallback(sessionId: string | undefined): void 
 	if (sessionId) websocketSseFallbackSessions.add(sessionId);
 }
 
+function closeReleasedWebSocket(socket: WebSocketLike, sessionId: string | undefined, closeAfter?: Promise<void>): void {
+	if (!closeAfter) { closeWebSocketSilently(socket, 1000, "release"); return; }
+	// Detach the cancelled lane immediately; its bounded cleanup still belongs to
+	// session shutdown, but the next request must acquire a fresh cached socket.
+	retiringWebSockets.set(socket, sessionId);
+	const close = () => {
+		if (retiringWebSockets.delete(socket)) closeWebSocketSilently(socket, 1000, "release");
+	};
+	void closeAfter.then(close, close);
+}
+
 function closeWebSocketSessions(sessionId: string | undefined, cause = "session_shutdown"): void {
+	for (const [socket, owner] of retiringWebSockets) {
+		if (sessionId && owner !== sessionId) continue;
+		retiringWebSockets.delete(socket);
+		closeWebSocketSilently(socket, 1000, cause);
+	}
 	// A connecting preparation is not yet in the socket cache, but belongs to
 	// the same session teardown boundary as a connected lease.
 	const preparations = sessionId ? [websocketPreparations.get(sessionId)] : [...websocketPreparations.values()];
@@ -154,13 +171,7 @@ export async function acquireWebSocket(
 			socket,
 			reused: false,
 			socketAgeMs: 0,
-			release: ({ keep } = {}) => {
-				if (keep === false) {
-					closeWebSocketSilently(socket, 1000, "release");
-					return;
-				}
-				closeWebSocketSilently(socket, 1000, "release");
-			},
+			release: ({ closeAfter } = {}) => closeReleasedWebSocket(socket, sessionId, closeAfter),
 		};
 	}
 
@@ -178,9 +189,9 @@ export async function acquireWebSocket(
 				entry: cached,
 				reused: true,
 				socketAgeMs: Math.max(0, Date.now() - cached.createdAtMs),
-				release: ({ keep } = {}) => {
+				release: ({ keep, closeAfter } = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
-						closeWebSocketSilently(cached.socket, 1000, "release");
+						closeReleasedWebSocket(cached.socket, sessionId, closeAfter);
 						const currentEntries = websocketSessionCache.get(sessionId);
 						if (currentEntries?.get(routeKey) === cached) currentEntries.delete(routeKey);
 						if (currentEntries?.size === 0) websocketSessionCache.delete(sessionId);
@@ -198,9 +209,7 @@ export async function acquireWebSocket(
 				routeKey,
 				reused: false,
 				socketAgeMs: 0,
-				release: () => {
-					closeWebSocketSilently(socket, 1000, "release");
-				},
+				release: ({ closeAfter } = {}) => closeReleasedWebSocket(socket, sessionId, closeAfter),
 			};
 		}
 
@@ -229,9 +238,9 @@ export async function acquireWebSocket(
 		entry,
 		reused: false,
 		socketAgeMs: 0,
-		release: ({ keep } = {}) => {
+		release: ({ keep, closeAfter } = {}) => {
 			if (!keep || !isWebSocketReusable(entry.socket)) {
-				closeWebSocketSilently(entry.socket, 1000, "release");
+				closeReleasedWebSocket(entry.socket, sessionId, closeAfter);
 				const currentEntries = websocketSessionCache.get(sessionId);
 				if (currentEntries?.get(routeKey) === entry) currentEntries.delete(routeKey);
 				if (currentEntries?.size === 0) websocketSessionCache.delete(sessionId);

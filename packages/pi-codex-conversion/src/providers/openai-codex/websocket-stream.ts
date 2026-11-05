@@ -12,6 +12,12 @@ import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { recordCanonicalSessionResponse, type CanonicalSessionToken } from "./session-continuity.ts";
+import { isResponsesLiteRequest } from "./responses-lite.ts";
+import { observeWebSocketInterruption } from "./websocket-interrupt.ts";
+
+// TODO: recheck Codex's interrupt_on_cancel default before the next PR.
+// Keep dormant until upstream enables it; no settings or request option can opt in.
+const INTERRUPT_ON_CANCEL = false;
 
 export function codexCacheKeepaliveSocketSessionId(sessionId: string): string {
 	return `${sessionId}:cache-keepalive`;
@@ -65,7 +71,10 @@ export async function processWebSocketStream<TApi extends Api>(
 		});
 	}
 
-	const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
+	const interruption = INTERRUPT_ON_CANCEL && isResponsesLiteRequest(body) ? observeWebSocketInterruption(socket) : undefined;
+	let requestSent = false;
+	let backgroundCleanup: Promise<void> | undefined;
+	const releaseOnce = (releaseOptions?: { keep?: boolean | undefined; closeAfter?: Promise<void> | undefined }) => {
 		if (released) return;
 		released = true;
 		release(releaseOptions);
@@ -100,8 +109,10 @@ export async function processWebSocketStream<TApi extends Api>(
 				previousResponseId: Boolean(requestBody.previous_response_id),
 			});
 		}
+		if (INTERRUPT_ON_CANCEL && options?.signal?.aborted) throw new Error("Request was aborted");
 		diagnostics?.timing.sent();
 		socket.send(serializeCodexRequest({ type: "response.create", ...requestBody }));
+		requestSent = true;
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
 				mapCodexEvents(
@@ -160,9 +171,11 @@ export async function processWebSocketStream<TApi extends Api>(
 	} catch (error) {
 		if (entry) entry.continuation = undefined;
 		keepConnection = false;
-		releaseOnce({ keep: false });
+		if (requestSent && options?.signal?.aborted) backgroundCleanup = interruption?.cancel();
+		releaseOnce({ keep: false, closeAfter: backgroundCleanup });
 		throw error;
 	} finally {
+		if (!backgroundCleanup) interruption?.dispose();
 		releaseOnce({ keep: keepConnection });
 	}
 }

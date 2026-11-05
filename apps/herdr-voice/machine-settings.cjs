@@ -1,85 +1,76 @@
-// Runs through Core on the selected machine. Never starts Pi or loads extensions.
+// Runs through Core on the selected machine. Pi owns its SDK and package layout.
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { spawnSync } = require("node:child_process");
 const { createRequire } = require("node:module");
 const { pathToFileURL } = require("node:url");
-const { spawnSync } = require("node:child_process");
 
-function executableSdk(executable) {
-  if (!fs.existsSync(executable)) return;
-  let candidate = path.dirname(fs.realpathSync(executable));
-  for (let depth = 0; depth < 5; depth++, candidate = path.dirname(candidate)) {
-    const manifest = path.join(candidate, "package.json");
-    if (fs.existsSync(manifest) && JSON.parse(fs.readFileSync(manifest, "utf8")).name === "@earendil-works/pi-coding-agent") return candidate;
+function discover() {
+  if (!process.argv[2]) throw new Error("The host settings helper is missing; reinstall Herdr Voice");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "herdr-voice-settings-"));
+  try {
+    fs.chmodSync(directory, 0o700);
+    const responsePath = path.join(directory, "response.json");
+    fs.writeFileSync(path.join(directory, "host-settings.ts"), process.argv[2], { mode: 0o600 });
+    const child = spawnSync("pi", [
+      "--offline", "--no-session", "--no-extensions", "--no-mcp", "--no-tools",
+      "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
+      "--no-approve", "--print", "-e", "./host-settings.ts",
+    ], {
+      cwd: directory, input: "", encoding: "utf8", timeout: 8000, windowsHide: true,
+      // Only fixed arguments reach cmd.exe, which also supports npm's pi.cmd on PATH.
+      shell: process.platform === "win32",
+      env: { ...process.env, HERDR_VOICE_SETTINGS_RESPONSE: responsePath },
+    });
+    // The extension completes before Pi checks model availability. Its receipt,
+    // not Pi's later exit status or stdout, determines whether discovery succeeded.
+    if (!fs.existsSync(responsePath)) {
+      if (child.error?.code === "ENOENT") throw new Error("Cannot run pi on the selected machine; make pi available on its PATH");
+      throw new Error("Pi did not confirm the host settings operation; reload settings before retrying");
+    }
+    const response = JSON.parse(fs.readFileSync(responsePath, "utf8"));
+    if (response.error) throw new Error(response.error);
+    const discovery = response.discovery;
+    if (!discovery || typeof discovery.agentDir !== "string" || !path.isAbsolute(discovery.agentDir)
+      || !Array.isArray(discovery.models) || !Array.isArray(discovery.packageRoots)
+      || !discovery.packageRoots.every(root => typeof root === "string" && path.isAbsolute(root))) {
+      throw new Error("Pi returned incomplete settings information; update Pi and reload settings");
+    }
+    return discovery;
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
-}
-
-function packageManagerPath(command, args) {
-  const result = spawnSync(command, args, { encoding: "utf8", timeout: 2000, windowsHide: true });
-  return result.status === 0 ? result.stdout.trim() : null;
 }
 
 async function settings() {
   const request = JSON.parse(process.argv[1]);
   const names = { codex: "@howaboua/pi-codex-conversion", gippity: "@howaboua/pi-gippity-control", grok: "@howaboua/pi-grok-realtime" };
-  const name = names[request.provider];
+  const name = Object.hasOwn(names, request.provider) ? names[request.provider] : undefined;
   if (!name) throw new Error("Choose a supported voice extension");
-  let sdkRoot;
-  for (const dir of (process.env.PATH || "").split(path.delimiter)) {
-    const executable = path.resolve(dir, process.platform === "win32" ? "pi.cmd" : "pi");
-    sdkRoot = executableSdk(executable);
-    if (sdkRoot) break;
-    // npm's Windows command shim sits beside node_modules, not inside the package.
-    const installed = path.join(dir, "node_modules", "@earendil-works", "pi-coding-agent");
-    if (fs.existsSync(path.join(installed, "package.json"))) { sdkRoot = installed; break; }
-  }
-  // A user's pi shell wrapper may hide its package-manager-owned executable.
-  if (!sdkRoot) {
-    const bunBin = packageManagerPath("bun", ["pm", "bin", "-g"]);
-    if (bunBin) sdkRoot = executableSdk(path.join(bunBin, process.platform === "win32" ? "pi.exe" : "pi"));
-  }
-  if (!sdkRoot) {
-    const npmRoot = packageManagerPath(process.platform === "win32" ? "npm.cmd" : "npm", ["root", "-g"]);
-    const installed = npmRoot && path.join(npmRoot, "@earendil-works", "pi-coding-agent");
-    if (installed && fs.existsSync(path.join(installed, "package.json"))) sdkRoot = installed;
-  }
-  if (!sdkRoot) throw new Error("Install the Node.js distribution of Pi and make its pi executable available on PATH");
-  const sdk = await import(pathToFileURL(path.join(sdkRoot, "dist", "index.js")).href);
-  const agentDir = sdk.getAgentDir();
-  const manager = new sdk.DefaultPackageManager({
-    cwd: os.homedir(), agentDir,
-    settingsManager: sdk.SettingsManager.create(os.homedir(), agentDir, { projectTrusted: false }),
-  });
-  const roots = [];
-  for (const pkg of manager.listConfiguredPackages()) {
-    if (pkg.scope !== "user" || !pkg.installedPath) continue;
-    const manifest = path.join(pkg.installedPath, "package.json");
+  const { agentDir, models, packageRoots } = discover();
+  const roots = new Set();
+  for (const root of packageRoots) {
+    const manifest = path.join(root, "package.json");
     if (!fs.existsSync(manifest)) continue;
     const installed = JSON.parse(fs.readFileSync(manifest, "utf8"));
-    if (installed.name === name) roots.push(fs.realpathSync(pkg.installedPath));
+    if (installed.name === name) roots.add(fs.realpathSync(root));
     else if (["@howaboua/pi-stuff", "@howaboua/pi-extensions"].includes(installed.name) && installed.dependencies?.[name]) {
-      // Resolve from the configured bundle, without importing its extension entry point.
+      // Resolve our exported dist/host-settings.js in Node, without importing an
+      // extension entry point or relying on a standalone Pi's package resolver.
       let entry;
-      try { entry = createRequire(manifest).resolve(name); }
-      catch { throw new Error("Reinstall " + installed.name + " on this machine; its " + name + " dependency is unavailable"); }
-      roots.push(fs.realpathSync(path.dirname(entry)));
+      try { entry = createRequire(manifest).resolve(name + "/host-settings"); }
+      catch { throw new Error("Update " + installed.name + " on this machine; its " + name + " host settings are unavailable"); }
+      roots.add(path.dirname(path.dirname(fs.realpathSync(entry))));
     }
   }
-  const unique = [...new Set(roots)];
-  if (unique.length !== 1) throw new Error(unique.length ? "Multiple copies of this voice extension are configured; choose one in Pi settings" : "Install and configure " + name + " globally on this machine");
-  const packageRoot = unique[0];
+  if (roots.size !== 1) throw new Error(roots.size ? "Multiple copies of this voice extension are configured; choose one in Pi settings" : "Install and configure " + name + " globally on this machine");
+  const packageRoot = [...roots][0];
   if (request.packageRoot && request.packageRoot !== packageRoot) throw new Error("The voice extension changed; reload settings before saving");
   const entry = path.join(packageRoot, "dist", "host-settings.js");
-  if (!fs.existsSync(entry)) throw new Error("Update " + name + " on this machine to edit its settings without starting Pi");
-  const runtime = await sdk.ModelRuntime.create({
-    authPath: path.join(agentDir, "auth.json"),
-    modelsPath: path.join(agentDir, "models.json"), allowModelNetwork: false,
-  });
-  if (runtime.getError()) throw new Error("Cannot read the host model catalog: " + runtime.getError());
-  const models = runtime.getAvailableSnapshot().filter(model => model.input.includes("text"))
-    .map(model => ({ provider: model.provider, modelId: model.id }));
+  if (!fs.existsSync(entry)) throw new Error("Update " + name + " on this machine to edit its host settings");
   const { hostSettings } = await import(pathToFileURL(entry).href);
+  if (typeof hostSettings !== "function") throw new Error("Update " + name + " on this machine to edit its host settings");
   const result = await hostSettings({ agentDir, models,
     ...(request.patch ? { patch: request.patch, identity: request.identity } : {}),
   });
