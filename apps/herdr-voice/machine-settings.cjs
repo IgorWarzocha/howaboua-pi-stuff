@@ -2,6 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { createRequire } = require("node:module");
 const { pathToFileURL } = require("node:url");
 const { spawnSync } = require("node:child_process");
 
@@ -55,7 +56,15 @@ async function settings() {
     if (pkg.scope !== "user" || !pkg.installedPath) continue;
     const manifest = path.join(pkg.installedPath, "package.json");
     if (!fs.existsSync(manifest)) continue;
-    if (JSON.parse(fs.readFileSync(manifest, "utf8")).name === name) roots.push(fs.realpathSync(pkg.installedPath));
+    const installed = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    if (installed.name === name) roots.push(fs.realpathSync(pkg.installedPath));
+    else if (["@howaboua/pi-stuff", "@howaboua/pi-extensions"].includes(installed.name) && installed.dependencies?.[name]) {
+      // Resolve from the configured bundle, without importing its extension entry point.
+      let entry;
+      try { entry = createRequire(manifest).resolve(name); }
+      catch { throw new Error("Reinstall " + installed.name + " on this machine; its " + name + " dependency is unavailable"); }
+      roots.push(fs.realpathSync(path.dirname(entry)));
+    }
   }
   const unique = [...new Set(roots)];
   if (unique.length !== 1) throw new Error(unique.length ? "Multiple copies of this voice extension are configured; choose one in Pi settings" : "Install and configure " + name + " globally on this machine");
