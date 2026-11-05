@@ -1,10 +1,10 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import {
-	IMAGE_GENERATION_PARAMETERS,
 	IMAGE_GENERATION_TOOL_NAME,
 	IMAGE_GENERATION_UNSUPPORTED_MESSAGE,
 	type ImageGenerationToolOptions,
+	imageGenerationParameters,
 	supportsExecutableImageGeneration,
 	supportsImageInputs,
 } from "./contract.js";
@@ -19,7 +19,10 @@ import { readImagegenSettings } from "./settings.js";
 
 export function createImageGenerationTool(
 	options: ImageGenerationToolOptions = {},
-): ToolDefinition<typeof IMAGE_GENERATION_PARAMETERS, ImagegenOutput> {
+): ToolDefinition<
+	ReturnType<typeof imageGenerationParameters>,
+	ImagegenOutput
+> {
 	return {
 		name: IMAGE_GENERATION_TOOL_NAME,
 		label: IMAGE_GENERATION_TOOL_NAME,
@@ -27,7 +30,7 @@ export function createImageGenerationTool(
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Generate/edit" }),
-		parameters: IMAGE_GENERATION_PARAMETERS,
+		parameters: imageGenerationParameters(readImagegenSettings().access),
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
 			if (
 				!supportsExecutableImageGeneration(ctx.model, options) &&

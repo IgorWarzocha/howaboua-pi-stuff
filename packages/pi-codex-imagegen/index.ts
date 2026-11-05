@@ -1,6 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { imagegenCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
+import { imageGenerationParameters } from "./src/contract.js";
+import { readImagegenSettings } from "./src/settings.js";
 import { registerImagegenSettings } from "./src/settings-ui.js";
 import { createImageGenerationTool } from "./src/tool.js";
 
@@ -15,7 +17,6 @@ export { createImageGenerationTool } from "./src/tool.js";
 export default async function imagegenExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
-	registerImagegenSettings(pi);
 	const tool = createImageGenerationTool({
 		allowCodexProviderFallback: true,
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),
@@ -24,6 +25,16 @@ export default async function imagegenExtension(
 	pi.registerTool(tool);
 	let gpt = false;
 	let registration: Awaited<ReturnType<typeof registerImagegenInCodeMode>>;
+	const refresh = () => {
+		const parameters = imageGenerationParameters(readImagegenSettings().access);
+		if (tool.parameters === parameters) return;
+		tool.parameters = parameters;
+		pi.registerTool(tool);
+		registration?.refresh();
+	};
+	registerImagegenSettings(pi, refresh);
+	pi.on("session_start", refresh);
+	pi.on("before_agent_start", refresh);
 	const ordinary = {
 		description: tool.description,
 	};
@@ -67,18 +78,30 @@ async function registerImagegenInCodeMode(
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import(CODE_MODE_MODULE);
-		return registerCodeModeExtensionTools(pi, () => [
-			adaptToolForCodeMode(tool, {
-				usage:
-					'await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number,output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
-					(gpt()
-						? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; output controls=API only; GIF/SVG=generate; NEVER text/serialize base64"
-						: "prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; output controls require OpenAI API access; GIF/SVG generation only; never text/serialize base64 result"),
-				promptMetadata: false,
-				toolName: { namespace: "image_gen", name: "imagegen" },
-				resultValue: imagegenCodeModeResult,
-			}),
-		]);
+		return registerCodeModeExtensionTools(pi, () => {
+			const api = "size" in tool.parameters.properties;
+			return [
+				adaptToolForCodeMode(tool, {
+					usage:
+						"await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number" +
+						(api
+							? ',output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}'
+							: "") +
+						'}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
+						(gpt()
+							? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; " +
+								(api ? "GIF/SVG=generate; " : "") +
+								"NEVER text/serialize base64"
+							: "prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; " +
+								(api ? "GIF/SVG generation only; " : "") +
+								"never text/serialize base64 result"),
+					promptMetadata: false,
+					deferLoading: true,
+					toolName: { namespace: "image_gen", name: "imagegen" },
+					resultValue: imagegenCodeModeResult,
+				}),
+			];
+		});
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return undefined;
 		if (isOutdatedCodeModeExtension(error)) {

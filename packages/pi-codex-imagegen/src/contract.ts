@@ -17,12 +17,12 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 		}),
 		output_format: Type.Optional(
 			Type.Enum(OUTPUT_FORMATS, {
-				description: "OpenAI API only; GIF/SVG generation only",
+				description: "GIF/SVG generation only",
 			}),
 		),
 		size: Type.Optional(
 			Type.String({
-				description: "OpenAI API: auto or WIDTHxHEIGHT, multiples of 16",
+				description: "auto or WIDTHxHEIGHT, multiples of 16",
 			}),
 		),
 		gif: Type.Optional(
@@ -67,6 +67,18 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	},
 	{ additionalProperties: false },
 );
+
+const CODEX_IMAGE_GENERATION_PARAMETERS = Type.Omit(
+	IMAGE_GENERATION_PARAMETERS,
+	["output_format", "size", "gif"],
+	{ additionalProperties: false },
+);
+
+export function imageGenerationParameters(access: "codex" | "openai") {
+	return access === "openai"
+		? IMAGE_GENERATION_PARAMETERS
+		: CODEX_IMAGE_GENERATION_PARAMETERS;
+}
 
 export interface ImagegenArgs {
 	prompt: string;

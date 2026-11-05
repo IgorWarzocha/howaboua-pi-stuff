@@ -60,7 +60,10 @@ function items(settings: ImagegenSettings): SettingItem[] {
 	return result;
 }
 
-async function openSettings(ctx: ExtensionContext): Promise<void> {
+async function openSettings(
+	ctx: ExtensionContext,
+	refresh: () => void,
+): Promise<void> {
 	if (!ctx.hasUI)
 		throw new Error("/imagegen requires an interactive Pi session.");
 	let settings = readImagegenSettings();
@@ -82,6 +85,7 @@ async function openSettings(ctx: ExtensionContext): Promise<void> {
 					try {
 						writeImagegenSettings(next);
 						settings = next;
+						refresh();
 					} catch (error) {
 						ctx.ui.notify(
 							error instanceof Error ? error.message : String(error),
@@ -109,12 +113,15 @@ async function openSettings(ctx: ExtensionContext): Promise<void> {
 	});
 }
 
-export function registerImagegenSettings(pi: ExtensionAPI): void {
+export function registerImagegenSettings(
+	pi: ExtensionAPI,
+	refresh: () => void,
+): void {
 	pi.registerCommand("imagegen", {
 		description: "Image generation access and defaults",
 		handler: async (_args, ctx) => {
 			try {
-				await openSettings(ctx);
+				await openSettings(ctx, refresh);
 			} catch (error) {
 				ctx.ui.notify(
 					error instanceof Error ? error.message : String(error),
