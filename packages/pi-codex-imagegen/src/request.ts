@@ -5,6 +5,21 @@ import { validatedImageMime } from "./image-validation.js";
 
 const MAX_IMAGE_BYTES = 1024 * 1024 * 1024;
 
+interface ImageRequestBody extends Record<string, unknown> {
+	prompt: string;
+	model: string;
+	background: string;
+	quality: string;
+	size: string;
+}
+
+type ImageRequest =
+	| { operation: "generations"; body: ImageRequestBody }
+	| {
+			operation: "edits";
+			body: ImageRequestBody & { images: Array<{ image_url: string }> };
+	  };
+
 async function localImageDataUrl(value: string, cwd: string): Promise<string> {
 	const path = isAbsolute(value) ? value : resolve(cwd, value);
 	const info = await stat(path);
@@ -38,10 +53,7 @@ export async function buildImageGenerationRequest(
 	recentImages: string[] | undefined,
 	cwd: string,
 	model: string = IMAGE_MODEL,
-): Promise<{
-	operation: "generations" | "edits";
-	body: Record<string, unknown>;
-}> {
+): Promise<ImageRequest> {
 	const paths = args.referenced_image_paths ?? [];
 	const background =
 		args.transparent_background === true ? "transparent" : "opaque";

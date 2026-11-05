@@ -15,6 +15,7 @@ import {
 	imageContentsFromImagegenOutput,
 } from "./output.js";
 import { renderTextWithImages, renderToolCell } from "./render.js";
+import { readImagegenSettings } from "./settings.js";
 
 export function createImageGenerationTool(
 	options: ImageGenerationToolOptions = {},
@@ -28,7 +29,10 @@ export function createImageGenerationTool(
 			: { promptSnippet: "Generate/edit" }),
 		parameters: IMAGE_GENERATION_PARAMETERS,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
-			if (!supportsExecutableImageGeneration(ctx.model, options))
+			if (
+				!supportsExecutableImageGeneration(ctx.model, options) &&
+				readImagegenSettings().access !== "openai"
+			)
 				throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
 			const details = await executeCodexImageGeneration(
 				params,

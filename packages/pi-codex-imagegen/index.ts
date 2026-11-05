@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { imagegenCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
+import { registerImagegenSettings } from "./src/settings-ui.js";
 import { createImageGenerationTool } from "./src/tool.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
@@ -14,6 +15,7 @@ export { createImageGenerationTool } from "./src/tool.js";
 export default async function imagegenExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
+	registerImagegenSettings(pi);
 	const tool = createImageGenerationTool({
 		allowCodexProviderFallback: true,
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),
@@ -67,9 +69,11 @@ async function registerImagegenInCodeMode(
 			await import(CODE_MODE_MODULE);
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
-				usage: gpt()
-					? "generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; NEVER text/serialize base64"
-					: "generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; never text/serialize base64 result",
+				usage:
+					'await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number,output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
+					(gpt()
+						? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; output controls=API only; GIF/SVG=generate; NEVER text/serialize base64"
+						: "prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; output controls require OpenAI API access; GIF/SVG generation only; never text/serialize base64 result"),
 				promptMetadata: false,
 				toolName: { namespace: "image_gen", name: "imagegen" },
 				resultValue: imagegenCodeModeResult,

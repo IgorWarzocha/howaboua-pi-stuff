@@ -7,12 +7,38 @@ export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE =
 	"imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
 export const IMAGE_MODEL = "gpt-image-2.5";
 export const MAX_EDIT_IMAGES = 5;
+const OUTPUT_FORMATS = ["png", "jpeg", "webp", "gif", "svg"] as const;
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
 export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{
 		prompt: Type.String({
 			description: "Include target aspect ratio and quality",
 		}),
+		output_format: Type.Optional(
+			Type.Enum(OUTPUT_FORMATS, {
+				description: "OpenAI API only; GIF/SVG generation only",
+			}),
+		),
+		size: Type.Optional(
+			Type.String({
+				description: "OpenAI API: auto or WIDTHxHEIGHT, multiples of 16",
+			}),
+		),
+		gif: Type.Optional(
+			Type.Object(
+				{
+					frame_count: Type.Optional(Type.Integer({ minimum: 2, maximum: 64 })),
+					frame_duration_ms: Type.Optional(
+						Type.Integer({ minimum: 20, maximum: 2000, multipleOf: 10 }),
+					),
+				},
+				{
+					additionalProperties: false,
+					description: "Animated GIF; omit controls for API defaults",
+				},
+			),
+		),
 		transparent_background: Type.Optional(
 			Type.Boolean({
 				description:
@@ -44,6 +70,9 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 
 export interface ImagegenArgs {
 	prompt: string;
+	output_format?: OutputFormat;
+	size?: string;
+	gif?: { frame_count?: number; frame_duration_ms?: number };
 	transparent_background?: boolean;
 	referenced_image_paths?: string[] | null;
 	num_last_images_to_include?: number | null;
