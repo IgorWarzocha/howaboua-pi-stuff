@@ -17,6 +17,7 @@ export const LAN_REMOTE_AUDIO_SCRIPT = String.raw`  const audioWorkletSource = $
     const context = new AudioContext({ latencyHint:'interactive' });
     let source, microphoneBuffer, processor;
     let inputEpoch = 0, speakerSuppressed = false;
+    let closed = false;
     try {
       const microphoneUrl = URL.createObjectURL(new Blob([microphoneWorkletSource], { type:'text/javascript' }));
       const audioUrl = URL.createObjectURL(new Blob([audioWorkletSource], { type:'text/javascript' }));
@@ -32,6 +33,15 @@ export const LAN_REMOTE_AUDIO_SCRIPT = String.raw`  const audioWorkletSource = $
       processor.connect(context.destination);
       return {
         context, processor,
+        canDrain: typeof context.getOutputTimestamp === 'function',
+        drain(id) { processor.port.postMessage({ type:'drain', id }); },
+        async rendered(value) {
+          if (value?.type !== 'rendered' || typeof value.id !== 'string' || !Number.isFinite(value.endTime)) return;
+          while (!closed && context.state === 'running') {
+            if (context.getOutputTimestamp().contextTime >= value.endTime) return value.id;
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+        },
         acceptCapture(value) { return value?.type === 'capture' && value.epoch === inputEpoch && value.pcm instanceof ArrayBuffer ? value.pcm : undefined; },
         releaseInput() { microphoneBuffer.port.postMessage({ type:'release' }); },
         setInputMuted(muted) {
@@ -48,6 +58,7 @@ export const LAN_REMOTE_AUDIO_SCRIPT = String.raw`  const audioWorkletSource = $
         },
         play(pcm) { if (!speakerSuppressed) processor.port.postMessage(pcm, [pcm]); },
         close() {
+          closed = true;
           processor.disconnect(); microphoneBuffer.disconnect(); source.disconnect();
           void context.close().catch(() => {});
         },
@@ -165,6 +176,10 @@ export const LAN_REMOTE_AUDIO_SCRIPT = String.raw`  const audioWorkletSource = $
       if (event.data instanceof ArrayBuffer) { realtimeAudio?.play(event.data); return; }
       try {
         const message = JSON.parse(event.data);
+        if (message.type === 'drain' && typeof message.id === 'string') {
+          realtimeAudio?.drain(message.id);
+          return;
+        }
         if (message.type === 'takeover') { beginTakeover(message); return; }
         if (message.type === 'stop') { finishStop(false, message.reason || 'server'); return; }
         if (message.type === 'mute') setMuted(message.muted, false);
@@ -234,6 +249,13 @@ export const LAN_REMOTE_AUDIO_SCRIPT = String.raw`  const audioWorkletSource = $
           finishStop(false, 'connect-timeout'); publish('error', 'Connection timed out.');
         }, 10000);
         processor.port.onmessage = (event) => {
+          if (event.data?.type === 'rendered') {
+            void realtimeAudio?.rendered(event.data).then((id) => {
+              if (id && socket === current && current.readyState === WebSocket.OPEN)
+                current.send(JSON.stringify({ type:'drained', id }));
+            });
+            return;
+          }
           const pcm = realtimeAudio
             ? realtimeAudio.acceptCapture(event.data)
             : event.data?.type === 'capture' && event.data.epoch === 0 && event.data.pcm instanceof ArrayBuffer ? event.data.pcm : undefined;
@@ -241,7 +263,7 @@ export const LAN_REMOTE_AUDIO_SCRIPT = String.raw`  const audioWorkletSource = $
         };
         current.onopen = () => {
           if (socket !== current || !context) return;
-          clearTimeout(timer); current.send(JSON.stringify({ type:'start', mode, ...(takeoverToken ? { takeoverToken } : {}) })); publish('connecting');
+          clearTimeout(timer); current.send(JSON.stringify({ type:'start', mode, playbackDrain:Boolean(realtimeAudio?.canDrain), ...(takeoverToken ? { takeoverToken } : {}) })); publish('connecting');
         };
         current.onmessage = (event) => receive(current, event);
         current.onclose = (event) => {

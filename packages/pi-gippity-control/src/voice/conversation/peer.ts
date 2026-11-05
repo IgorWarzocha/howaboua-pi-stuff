@@ -16,6 +16,8 @@ interface CodexRealtimePeerBase {
 	sendData(message: unknown): void;
 	setInputMuted(muted: boolean): void;
 	setSpeakerSuppressed(suppressed: boolean): void;
+	finishPlayback?(signal: AbortSignal): Promise<void>;
+	readonly playbackSealed?: boolean;
 	close(): Promise<void>;
 }
 

@@ -112,6 +112,13 @@ export class LanVoiceBrowserClients {
 		this.session.sendConversationAudio(pcm);
 	}
 
+	drainConversationPlayback(
+		signal: AbortSignal,
+		seal: () => Promise<void>,
+	): Promise<void> {
+		return this.session.drainConversationPlayback(signal, seal);
+	}
+
 	setConversationSpeakerSuppressed(suppressed: boolean): void {
 		this.session.setConversationSpeakerSuppressed(suppressed);
 	}
@@ -161,8 +168,16 @@ export class LanVoiceBrowserClients {
 			const message = input.command;
 			if (message.type === "start") {
 				void this.session
-					.claim(clientId, socket, message.mode, message.takeoverToken)
+					.claim(
+						clientId,
+						socket,
+						message.mode,
+						message.takeoverToken,
+						message.playbackDrain,
+					)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
+			} else if (message.type === "drained") {
+				this.session.acknowledgePlayback(socket, message.id);
 			} else if (message.type === "finish") {
 				void this.session
 					.finish(

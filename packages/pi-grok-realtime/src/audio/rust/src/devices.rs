@@ -63,6 +63,15 @@ fn fail(error: impl std::fmt::Display) -> ! {
     std::process::exit(1)
 }
 
+fn stream_error(error: cpal::Error) {
+    if error.kind() == cpal::ErrorKind::Xrun {
+        // CPAL reports this before recovering the existing stream.
+        eprintln!("Audio device underrun or overrun; continuing with device recovery");
+    } else {
+        fail(error);
+    }
+}
+
 macro_rules! formats {
     ($format:expr, $function:ident, $device:expr, $config:expr, $shared:expr) => {
         match $format {
@@ -163,7 +172,7 @@ where
                         .unwrap_or_else(|e| fail(e));
                 }
             },
-            |error| fail(error),
+            stream_error,
             None,
         )
         .map_err(|e| format!("Cannot open microphone: {e}"))
@@ -244,7 +253,7 @@ where
                 state.metrics.activity(&reference);
                 state.dsp.render(&reference).unwrap_or_else(|e| fail(e));
             },
-            |error| fail(error),
+            stream_error,
             None,
         )
         .map_err(|e| format!("Cannot open speaker: {e}"))

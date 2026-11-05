@@ -26,6 +26,8 @@ Custom voice-helper overrides must be rebuilt. Bundled helpers update with the p
 - Voice task preparation now preserves the user's tone, register and emphasis.
 - Voice task preparation now treats clear conversational wrap-ups as end-call requests.
 - Fixed voice playback stalling on short audio tails and bursting after delayed scheduling.
+- Fixed duplicated LAN audio while waiting for speech to finish.
+- Codex Live now waits for supported LAN clients to finish speaker playback before ending the call.
 - Codex Live now uses available Opus repair data for missing audio packets.
 - Voice playback now logs content-free packet timing, missing-packet concealment, buffering, scheduling and LAN-queue diagnostics.
 - Fixed generated task text appearing as user speech.

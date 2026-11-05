@@ -6,6 +6,7 @@ import type {
 import { errorMessage } from "./browser-wire.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
 import { MicrophoneLevelMonitor } from "./microphone-level.ts";
+import { LanPlaybackDrain } from "./playback-drain.ts";
 
 export type LanVoiceBrowserMode = "conversation" | "dictation";
 
@@ -22,6 +23,7 @@ type LanVoiceBrowserState =
 			clientId: string;
 			socket: WebSocket;
 			mode: LanVoiceBrowserMode;
+			playbackDrain: boolean;
 	  }
 	| { type: "closed" };
 
@@ -54,6 +56,7 @@ export class LanVoiceBrowserSession {
 		| { clientId: string; promise: Promise<boolean> }
 		| undefined;
 	private conversationSpeakerSuppressed = false;
+	private readonly playbackDrain = new LanPlaybackDrain();
 	private readonly microphoneLevel: MicrophoneLevelMonitor;
 
 	constructor(
@@ -83,6 +86,29 @@ export class LanVoiceBrowserSession {
 			this.connections.sendAudio(active.socket, pcm);
 	}
 
+	drainConversationPlayback(
+		signal: AbortSignal,
+		seal: () => Promise<void>,
+	): Promise<void> {
+		const active = this.state;
+		if (
+			active.type !== "active" ||
+			active.mode !== "conversation" ||
+			!active.playbackDrain
+		)
+			return Promise.reject(
+				new Error(
+					"This voice device cannot confirm playback; update or reconnect it, or use Stop",
+				),
+			);
+		return this.playbackDrain.wait(active.socket, signal, seal);
+	}
+
+	acknowledgePlayback(socket: WebSocket, id: string): void {
+		if (this.conversationSocket === socket)
+			this.playbackDrain.acknowledge(socket, id);
+	}
+
 	setConversationSpeakerSuppressed(suppressed: boolean): void {
 		if (this.conversationSpeakerSuppressed === suppressed) return;
 		this.conversationSpeakerSuppressed = suppressed;
@@ -109,6 +135,11 @@ export class LanVoiceBrowserSession {
 				((starting.type === "active" || starting.type === "starting") &&
 					starting.socket === socket));
 		this.releaseStarting(clientId, socket);
+		if (
+			this.conversationSocket &&
+			(!socket || socket === this.conversationSocket)
+		)
+			this.playbackDrain.cancel();
 		let completion: Promise<boolean>;
 		if (
 			terminateConversation &&
@@ -179,6 +210,7 @@ export class LanVoiceBrowserSession {
 		socket: WebSocket,
 		mode: LanVoiceBrowserMode,
 		takeoverToken?: string,
+		playbackDrain = false,
 	): Promise<void> {
 		const starting = this.state.type === "starting" ? this.state : undefined;
 		if (
@@ -208,6 +240,7 @@ export class LanVoiceBrowserSession {
 				previous.mode === mode
 			)
 				return;
+			this.playbackDrain.cancel();
 			this.state = { type: "idle" };
 			if (previous?.mode === "conversation") this.microphoneLevel.reset();
 			if (previous && previous.socket !== socket) {
@@ -249,7 +282,7 @@ export class LanVoiceBrowserSession {
 				if (mode === "dictation") await this.options.cancelDictation(clientId);
 				return;
 			}
-			this.state = { type: "active", clientId, socket, mode };
+			this.state = { type: "active", clientId, socket, mode, playbackDrain };
 			if (mode === "conversation")
 				await this.options.onConversationActivity(true);
 			socket.send(
@@ -325,6 +358,7 @@ export class LanVoiceBrowserSession {
 	}
 
 	async close(): Promise<void> {
+		this.playbackDrain.cancel();
 		const active = this.state;
 		if (active.type === "closed") {
 			await this.operation;

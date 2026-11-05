@@ -247,9 +247,15 @@ export class CodexRealtimeConversation {
 		return this.ending;
 	}
 
+	get playbackSealed(): boolean {
+		return this.peer.playbackSealed === true;
+	}
+
 	/** Require the closing response observed since delegation, not an initially idle call. */
-	waitForFinalPlayback(): Promise<void> {
-		return this.waitForPlaybackEnd(this.closing.signal, this.endingOutput);
+	async waitForFinalPlayback(): Promise<void> {
+		await this.waitForPlaybackEnd(this.closing.signal, this.endingOutput);
+		if (!this.ending) throw new Error("Call ending interrupted by new speech");
+		await this.peer.finishPlayback?.(this.closing.signal);
 	}
 
 	/** Quiet peer activity is best-effort: the helper has no speaker-drain acknowledgement. */

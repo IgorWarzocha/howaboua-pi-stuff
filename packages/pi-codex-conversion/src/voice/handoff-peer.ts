@@ -5,8 +5,10 @@ import {
 	MAX_REALTIME_SDP_BYTES,
 } from "./conversation/peer.ts";
 import type { TransferredVoiceControls } from "./handoff-contract.ts";
+import { CANCELLED, interruptible } from "./cancellation.ts";
 import {
 	type HandoffNotification,
+	asError,
 	isRecord,
 	type VoiceHandoffLink,
 } from "./handoff-wire.ts";
@@ -34,6 +36,7 @@ export class HandoffAudioHost {
 		| {
 				generation: number;
 				peer: CodexRealtimePeer;
+				abort: AbortController;
 				removeEvent(): void;
 				removeExit(): void;
 		  }
@@ -98,7 +101,7 @@ export class HandoffAudioHost {
 					this.link.notify({ type: "peer.event", generation, event });
 			});
 			const removeExit = peer.onExit((error) => this.link.fail(error));
-			this.current = { generation, peer, removeEvent, removeExit };
+			this.current = { generation, peer, abort: new AbortController(), removeEvent, removeExit };
 			this.captured.transferred(peer, this.controls);
 			const sdp = await this.captured.start(peer);
 			if (this.closed || this.current?.generation !== generation)
@@ -114,6 +117,21 @@ export class HandoffAudioHost {
 			throw new Error("Invalid voice peer close");
 		if (value["generation"] !== this.current?.generation) return;
 		await this.closeCurrent();
+	}
+
+	async finishPlayback(value: unknown): Promise<{ sealed: boolean; error?: string }> {
+		if (!isRecord(value) || !Number.isSafeInteger(value["generation"]))
+			throw new Error("Invalid voice playback completion");
+		const current = this.current;
+		if (!current || value["generation"] !== current.generation)
+			throw new Error("Voice playback owner changed");
+		try {
+			await current.peer.finishPlayback?.(current.abort.signal);
+			return { sealed: current.peer.playbackSealed === true };
+		} catch (error) {
+			// Failure after sealing is terminal; carry that state with the error.
+			return { sealed: current.peer.playbackSealed === true, error: asError(error).message.slice(0, 4_000) };
+		}
 	}
 
 	command(
@@ -150,6 +168,7 @@ export class HandoffAudioHost {
 		const current = this.current;
 		this.current = undefined;
 		if (!current) return;
+		current.abort.abort();
 		current.removeEvent();
 		current.removeExit();
 		await current.peer.close();
@@ -166,6 +185,8 @@ export class HandoffRemotePeer implements CodexRealtimePeer {
 	private generation: number | undefined;
 	private starting: Promise<string> | undefined;
 	private closed = false;
+
+	private sealed = false;
 
 	private readonly link: VoiceHandoffLink;
 	constructor(link: VoiceHandoffLink) {
@@ -210,6 +231,26 @@ export class HandoffRemotePeer implements CodexRealtimePeer {
 	}
 	setSpeakerSuppressed(suppressed: boolean): void {
 		this.command("suppress", suppressed);
+	}
+
+	get playbackSealed(): boolean {
+		return this.sealed;
+	}
+
+	async finishPlayback(signal: AbortSignal): Promise<void> {
+		signal.throwIfAborted();
+		if (this.closed || this.generation === undefined)
+			throw new Error("Voice peer is not connected");
+		const result = await interruptible(
+			this.link.request("peer.finish", { generation: this.generation }),
+			signal,
+		);
+		if (result === CANCELLED) throw new Error("Playback wait cancelled");
+		if (!isRecord(result) || typeof result["sealed"] !== "boolean" ||
+			(result["error"] !== undefined && (typeof result["error"] !== "string" || result["error"].length > 4_000)))
+			throw new Error("Source audio did not confirm playback completion");
+		this.sealed = result["sealed"];
+		if (typeof result["error"] === "string") throw new Error(result["error"]);
 	}
 	private command(command: string, value: unknown): void {
 		if (this.closed) return;

@@ -52,7 +52,7 @@ impl Transport {
             events,
         };
         if provider.is_openai() {
-            let mut start = json!({"type":"start","mode":"conversation"});
+            let mut start = json!({"type":"start","mode":"conversation","playbackDrain":true});
             if let Some(token) = token {
                 start["takeoverToken"] = token.into();
             }

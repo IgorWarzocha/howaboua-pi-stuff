@@ -46,6 +46,14 @@ export class ControllerLifecycle {
 			if (currentVoiceSession(this.runtime.state) === session)
 				await this.stop({ announce: true, finishAcceptedWork: true });
 		} catch (error) {
+			if (currentVoiceSession(this.runtime.state) === session && session.playbackSealed) {
+				this.runtime.context?.ui.notify(
+					`Voice ended before speaker playback could be confirmed: ${error instanceof Error ? error.message : String(error)}`,
+					"error",
+				);
+				await this.stop({ announce: true, finishAcceptedWork: true });
+				return;
+			}
 			if (
 				currentVoiceSession(this.runtime.state) === session &&
 				session.isEndingCall

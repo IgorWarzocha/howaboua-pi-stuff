@@ -179,8 +179,8 @@ struct Playback {
     resume_muted: Option<bool>,
     suppressed: bool,
     next_drain: u32,
-    draining: Option<(u32, u64)>,
-    drains: VecDeque<u64>,
+    draining: Option<(u32, Value)>,
+    drains: VecDeque<Value>,
 }
 
 impl Playback {
@@ -237,9 +237,10 @@ impl Playback {
             }
             b'D' => {
                 let id = u32::from_le_bytes(frame.bytes[..4].try_into()?);
-                if let Some((pending, remote)) = self.draining
-                    && pending == id
+                if let Some((pending, remote)) = &self.draining
+                    && *pending == id
                 {
+                    let remote = remote.clone();
                     self.draining = None;
                     transport
                         .send(json!({"type":"drained","id":remote}))
@@ -347,8 +348,15 @@ async fn conversation(
                     playback.suppressed = value["suppressed"].as_bool().context("Invalid speaker state")?;
                     if playback.suppressed { playback.clear(audio).await?; }
                 },
-                Some("drain") if options.provider == Provider::Grok => {
-                    playback.drains.push_back(value["id"].as_u64().context("Invalid playback completion request")?);
+                Some("drain") => {
+                    let id = &value["id"];
+                    if options.provider == Provider::Grok {
+                        id.as_u64().context("Invalid playback completion request")?;
+                    } else {
+                        uuid::Uuid::parse_str(id.as_str().context("Invalid playback completion request")?)
+                            .context("Invalid playback completion request")?;
+                    }
+                    playback.drains.push_back(id.clone());
                     playback.next_drain(audio).await?;
                 },
                 Some("stop") => {

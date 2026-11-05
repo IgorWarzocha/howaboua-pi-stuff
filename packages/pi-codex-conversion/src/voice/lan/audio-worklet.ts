@@ -18,9 +18,8 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     this.playbackLength = 0;
     this.playing = false;
     this.playbackPhase = 0;
-    this.playbackCurrent = 0;
-    this.playbackNext = 0;
     this.speakerSuppressed = false;
+    this.drain = undefined;
     this.port.onmessage = (event) => this.handleMessage(event.data);
   }
 
@@ -29,6 +28,10 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     if (!this.inputMuted && input?.[0]) this.captureInput(input);
     const output = outputs[0]?.[0];
     if (output) this.renderPlayback(output);
+    if (output && this.drain && !this.playing && this.playbackLength === 0) {
+      this.port.postMessage({ type:'rendered', id:this.drain, endTime:(currentFrame + output.length) / sampleRate });
+      this.drain = undefined;
+    }
     return true;
   }
 
@@ -61,6 +64,10 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
   }
 
   handleMessage(value) {
+    if (value?.type === 'drain' && typeof value.id === 'string') {
+      this.drain = value.id;
+      return;
+    }
     if (value?.type === 'input_muted' && typeof value.muted === 'boolean' && Number.isSafeInteger(value.epoch)) {
       this.captureEpoch = value.epoch;
       this.inputMuted = value.muted;
@@ -99,41 +106,40 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
   }
 
   resetPlayback() {
+    this.drain = undefined;
     this.playback.fill(0);
     this.playbackRead = 0;
     this.playbackLength = 0;
     this.playing = false;
     this.playbackPhase = 0;
-    this.playbackCurrent = 0;
-    this.playbackNext = 0;
   }
 
   renderPlayback(output) {
     output.fill(0);
     if (!this.playing) {
-      if (this.playbackLength < PLAYBACK_START_SAMPLES) return;
+      if (this.playbackLength === 0 || (!this.drain && this.playbackLength < PLAYBACK_START_SAMPLES)) return;
       this.playing = true;
       this.playbackPhase = 0;
-      this.playbackCurrent = this.shiftPlayback();
-      this.playbackNext = this.shiftPlayback();
     }
     const step = TARGET_RATE / sampleRate;
     for (let index = 0; index < output.length; index++) {
-      output[index] = this.playbackCurrent + (this.playbackNext - this.playbackCurrent) * this.playbackPhase;
+      const current = this.playback[this.playbackRead];
+      const next = this.playbackLength > 1 ? this.playback[(this.playbackRead + 1) % PLAYBACK_MAX_SAMPLES] : current;
+      output[index] = current + (next - current) * this.playbackPhase;
       this.playbackPhase += step;
       while (this.playbackPhase >= 1) {
         this.playbackPhase -= 1;
-        this.playbackCurrent = this.playbackNext;
+        this.shiftPlayback();
         if (this.playbackLength === 0) {
           this.playing = false;
           return;
         }
-        this.playbackNext = this.shiftPlayback();
       }
     }
   }
 
   shiftPlayback() {
+    if (this.playbackLength === 0) return 0;
     const sample = this.playback[this.playbackRead] || 0;
     this.playbackRead = (this.playbackRead + 1) % PLAYBACK_MAX_SAMPLES;
     this.playbackLength -= 1;
