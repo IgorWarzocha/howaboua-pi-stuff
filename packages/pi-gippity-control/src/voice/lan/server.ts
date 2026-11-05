@@ -82,6 +82,7 @@ export async function startCodexLanVoiceServer(options: {
 	resolveAuth(): Promise<CodexVoiceAuth>;
 	sendUserMessage(text: string): void;
 	ownerSessionId: string;
+	onClosed?(): void;
 	port?: number | undefined;
 	certificateAgentDir: string;
 	remoteApps: GippityRemoteApps;
@@ -158,6 +159,8 @@ export async function startCodexLanVoiceServer(options: {
 		activity,
 	});
 	clients = new LanVoiceBrowserClients({
+		onAudioDiagnostics: (diagnostics) =>
+			options.voice.lanPlaybackDiagnostics(diagnostics),
 		ensureConversation,
 		async startDictation(clientId) {
 			await dictation.start(clientId);
@@ -186,12 +189,15 @@ export async function startCodexLanVoiceServer(options: {
 			}
 			const remote = conversation.transferred;
 
+			const starting = conversation.conversationStart;
+			starting?.abort.abort();
 			const plan = conversation.realtimePlan;
 			conversation.realtimePlan = undefined;
 			conversation.activeConversation = undefined;
 			if (remote) await remote.stop();
 			else if (plan)
 				await options.voice.stopRealtimeWithPeerPlan(plan, { announce: true });
+			await starting?.promise.catch(() => undefined);
 		},
 		conversationMuted: () =>
 			conversation.transferred?.controls.inputMuted ?? options.voice.inputMuted,
@@ -288,6 +294,14 @@ export async function startCodexLanVoiceServer(options: {
 					}
 				},
 				ownerIsActive,
+				shutdownServer() {
+					void close().catch((error: unknown) =>
+						options.ctx.ui.notify(
+							`GipPity LAN could not shut down: ${error instanceof Error ? error.message : String(error)}`,
+							"error",
+						),
+					);
+				},
 				get closing() {
 					return closing;
 				},
@@ -389,6 +403,10 @@ export async function startCodexLanVoiceServer(options: {
 		if (failures.length > 1)
 			throw new AggregateError(failures, "LAN voice server cleanup failed");
 	};
+	const close = (): Promise<void> => {
+		closePromise ??= closeServer().finally(() => options.onClosed?.());
+		return closePromise;
+	};
 
 	return {
 		ownerSessionId: options.ownerSessionId,
@@ -416,8 +434,7 @@ export async function startCodexLanVoiceServer(options: {
 			}
 		},
 		async releaseForTakeover() {
-			closePromise ??= closeServer();
-			await closePromise;
+			await close();
 		},
 		agentStarted: () => {
 			if (!conversation.transferred) activity.working();
@@ -453,9 +470,6 @@ export async function startCodexLanVoiceServer(options: {
 				data: serialized,
 			});
 		},
-		close() {
-			closePromise ??= closeServer();
-			return closePromise;
-		},
+		close,
 	};
 }

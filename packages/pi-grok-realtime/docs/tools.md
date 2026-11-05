@@ -2,7 +2,7 @@
 
 Pi extensions can expose functions directly to Grok during a voice call. They run locally in the current Pi session, without delegating to the Pi agent.
 
-Import `registerGrokTool` from `@howaboua/pi-grok-realtime/tools`. Pass the Pi extension API and a definition with `name`, `description`, a TypeBox `parameters` schema, and `execute(args, { signal, ctx, callId })`. Import `Type` from `@earendil-works/pi-ai`. Argument types are inferred from the schema and validated using Pi's argument validator before execution.
+Import `registerGrokTool` from `@howaboua/pi-grok-realtime/tools`. Pass the Pi extension API and a definition with `name`, `description`, a TypeBox `parameters` schema, and `execute(args, { signal, ctx, callId })`. Import `Type` from `typebox`. Argument types are inferred from the schema and validated using Pi's argument validator before execution.
 
 Return a JSON-compatible value or a promise of one. Undefined, non-finite numbers, class instances and circular values fail visibly. Execution errors are reported as tool failures. Use `ctx` for the current session. Preserve normal approval requirements when exposing actions.
 

@@ -7,15 +7,14 @@ import { NOTE_RECEIPT, type NoteReceipt, noteReceipt } from "./notes.js";
 import { isNoteWrite } from "./query-input.js";
 
 export const NESTED_NOTE_OUTCOME = "notes-compaction:nested-write:v1";
-export interface NestedNoteOutcome {
+export type NestedNoteOutcome = {
 	protocol: 1;
 	runId: string;
 	windowId: string;
 	callId: string;
 	parentCallId: string;
-	saved: boolean;
 	origin?: "routed";
-}
+} & ({ pending: true; saved: false } | { pending: false; saved: boolean });
 export const NOTES_RUN_ENTRY = "notes-compaction:run:v1";
 
 /** A receipt proves persistence. Current-run tool outcomes prove the checkpoint actually completed. */
@@ -53,7 +52,7 @@ export function hasFreshNotes(
 	);
 }
 
-/** The current request is already in history; only its preceding completed invocation qualifies. */
+/** Only the preceding tool-call group (or completed same-group predecessors) qualifies. */
 export function hasPrecedingNoteWrite(
 	branch: readonly SessionEntry[],
 	windowId: string | undefined,
@@ -73,33 +72,34 @@ export function hasPrecedingNoteWrite(
 			),
 	);
 	if (request < 0) return false;
-	const calls = messages
+	const groups = messages
 		.slice(0, request + 1)
 		.flatMap((message) =>
 			message.role === "assistant"
-				? message.content.filter((block) => block.type === "toolCall")
+				? [message.content.filter((block) => block.type === "toolCall")]
 				: [],
-		);
-	const call =
-		calls[calls.findLastIndex((call) => call.id === requestCallId) - 1];
-	if (!call) return false;
-	const previous = messages.findLast(
-		(message) =>
-			message.role === "toolResult" &&
-			message.toolCallId === call.id &&
-			message.toolName === call.name,
+		)
+		.filter((calls) => calls.length > 0);
+	const current = groups.pop() ?? [];
+	const predecessors = current.slice(
+		0,
+		current.findIndex((call) => call.id === requestCallId),
+	);
+	const calls = predecessors.length ? predecessors : (groups.at(-1) ?? []);
+	const allResults = messages.flatMap((message) =>
+		message.role === "toolResult" ? [message] : [],
+	);
+	const results = allResults.filter((result) =>
+		calls.some(
+			(call) => call.id === result.toolCallId && call.name === result.toolName,
+		),
 	);
 	return (
-		previous?.role === "toolResult" &&
-		completedWrites(
-			[call],
-			[previous],
-			receipts,
-			outcomes,
-			messages.flatMap((message) =>
-				message.role === "toolResult" ? [message] : [],
-			),
-		)
+		calls.length > 0 &&
+		calls.every((call) =>
+			results.some((result) => result.toolCallId === call.id),
+		) &&
+		completedWrites(calls, results, receipts, outcomes, allResults)
 	);
 }
 
@@ -156,11 +156,16 @@ function noteEvidence(
 			typeof value.callId === "string" &&
 			typeof value.parentCallId === "string" &&
 			(value.origin === undefined || value.origin === "routed") &&
+			typeof value.pending === "boolean" &&
+			(!value.pending || value.saved === false) &&
 			typeof value.saved === "boolean"
 			? [value as NestedNoteOutcome]
 			: [];
 	});
-	return { messages, receipts, outcomes };
+	// Starts remain failed proof until their matching completion replaces them.
+	const latest = new Map<string, NestedNoteOutcome>();
+	for (const outcome of outcomes) latest.set(outcome.callId, outcome);
+	return { messages, receipts, outcomes: [...latest.values()] };
 }
 
 function completedWrites(
@@ -268,16 +273,22 @@ function completedWrites(
 				: noteCalls.filter(
 						(call) => !outcomes.some((item) => item.callId === call.id),
 					);
+		const untrackedWrites = uncovered.filter(
+			(call) => !call.arguments || isNoteWrite(call.arguments),
+		);
+		// Pi also marks argument omission as incomplete. Notes' start/end ledger
+		// proves write completion even when that bounded record loses arguments or calls.
+		const tracked =
+			completed.length > 0 && completed.every((item) => item.pending === false);
 		if (
-			uncovered.some(
-				(call) =>
-					call.status !== "ok" &&
-					(!call.arguments || isNoteWrite(call.arguments)),
-			) ||
-			(uncovered.length && !nested?.complete)
+			untrackedWrites.some((call) => call.status !== "ok") ||
+			(nested?.complete === false &&
+				(noteCalls.length > 0 || completed.length > 0) &&
+				!(legacy === true && !completed.length) &&
+				(!tracked || untrackedWrites.length > 0))
 		)
 			return false;
-		const nestedWrites = uncovered.filter((call) =>
+		const nestedWrites = untrackedWrites.filter((call) =>
 			isNoteWrite(call.arguments),
 		);
 		if (

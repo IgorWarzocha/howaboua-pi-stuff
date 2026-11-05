@@ -10,9 +10,9 @@ import type {
 } from "./bridge.js";
 import { queryKey } from "./bridge.js";
 import type { NotesLifecycle } from "./lifecycle.js";
+import { noteResult } from "./note-result.js";
 import { CACHE_RECEIPT, sessionRef, sourceSessionIds } from "./notes.js";
 import type { NotesStore } from "./store.js";
-import { result } from "./tool-contracts.js";
 
 export async function lookupNotes(
 	pi: ExtensionAPI,
@@ -85,7 +85,10 @@ export async function lookupNotes(
 		warnings.push(
 			"Older matches may refer to replaced notes. Read a note before relying on its excerpt; read returns the current saved version.",
 		);
-	const output = result({ ...local, ...(warnings.length ? { warnings } : {}) });
+	const output = noteResult({
+		...local,
+		...(warnings.length ? { warnings } : {}),
+	});
 	if (shared)
 		return {
 			...output,

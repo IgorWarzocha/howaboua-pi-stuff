@@ -1,0 +1,142 @@
+import { View } from "gpui-kit";
+import { props, run, notify } from "herdr";
+import { request, parseStatus, parseDevices, parsePreparation } from "./companion.js";
+import { connection, migrateConnection, updateConnection, targets, publishStatus, setTarget, acknowledgeLegacyFailure } from "./state.js";
+import { Choice } from "./select.js";
+import { renderSidebar } from "./sidebar.js";
+import { renderSettings } from "./settings.js";
+import { HostSettings } from "./host-settings.js";
+
+export default class Voice extends View {
+  init(_props, cx) {
+    const options = props() ?? {};
+    this.compact = options.compact === true;
+    this.overlay = options.overlay;
+    this.toolbar = options.toolbar === true;
+    this.status = null;
+    this.devices = { microphones: [], speakers: [] };
+    this.pending = null;
+    this.refreshing = false;
+    this.revision = 0;
+    this.width = 860;
+    this.errorDetails = null;
+    this.host = this.compact ? null : new HostSettings(cx);
+    this.statusError = this.deviceError = this.actionError = this.storageError = null;
+    let legacy;
+    try { legacy = JSON.parse(localStorage.getItem("connection") || "null"); }
+    catch (_) { this.storageError = "Saved connection could not be read. Choose it again."; }
+    migrateConnection(legacy);
+    this.choices = {};
+    if (!this.compact) for (const [key, label] of Object.entries({
+      provider: "Call provider", microphone: "Microphone", speaker: "Speaker",
+    })) this.choices[key] = new Choice("voice-" + key, label, cx);
+    this.refresh(cx, !this.compact);
+    cx.timer.every(3000, cx => this.refresh(cx));
+  }
+
+  save(key, value) {
+    try {
+      updateConnection(key, value);
+      this.storageError = null;
+    } catch (_) { this.storageError = "Voice settings could not be saved. Check the Herdr app home's permissions."; }
+  }
+
+  refresh(cx, devices = false) {
+    if (this.pending || this.refreshing) return;
+    this.refreshing = true;
+    const revision = this.revision;
+    cx.spawn(async cx => {
+      const before = JSON.stringify([this.status, this.statusError, this.devices, this.deviceError]);
+      try {
+        const status = parseStatus(await request("/status"));
+        if (revision === this.revision) { this.status = status; this.statusError = null; publishStatus(status); }
+      } catch (e) {
+        if (revision === this.revision) { this.status = null; this.statusError = e.message; publishStatus(null, e.message); }
+      }
+      if (!this.compact && (devices || (this.status && this.deviceError))) {
+        try { this.devices = parseDevices(await request("/devices")); this.deviceError = null; }
+        catch (e) { this.deviceError = e.message; }
+      }
+      this.refreshing = false;
+      if (devices || before !== JSON.stringify([this.status, this.statusError, this.devices, this.deviceError])) cx.notify();
+    });
+  }
+
+  reportActionError(message) {
+    this.actionError = message;
+    if (this.compact) notify({ title: "Voice action failed", body: message, level: "warning" });
+  }
+
+  act(path, body, cx) {
+    if (this.pending || (path !== "/errors/acknowledge" && this.host?.busy)) return;
+    this.revision++;
+    this.pending = path;
+    this.actionError = null;
+    cx.notify();
+    cx.spawn(async cx => {
+      try { this.status = parseStatus(await request(path, body)); this.statusError = null; publishStatus(this.status); }
+      catch (e) { this.reportActionError(e.message); }
+      this.pending = null;
+      cx.notify();
+    });
+  }
+
+  start(cx, quick) {
+    if (this.pending || this.host?.busy) return;
+    const saved = connection();
+    const target = targets();
+    if (quick ? !target.machineReady : !target.terminal) {
+      this.reportActionError(quick ? "The selected machine is unavailable." : "Focus a live Pi pane, then connect voice.");
+      cx.notify(); return;
+    }
+    const body = { provider: saved.provider };
+    if (quick && target.machine) body.machine = target.machine;
+    if (!quick) body.terminal = target.terminal;
+    if (saved.sshHost) body.sshHost = saved.sshHost;
+    this.revision++;
+    this.pending = "/prepare";
+    this.actionError = null;
+    cx.notify();
+    cx.spawn(async cx => {
+      try {
+        const prepared = parsePreparation(await request("/prepare", body), saved.provider);
+        if (quick) run("terminal.keep", { terminal: prepared.terminal });
+        this.pending = "/connect";
+        cx.notify();
+        const audio = {};
+        for (const key of ["microphone", "speaker"]) if (saved[key]) audio[key] = saved[key];
+        this.status = parseStatus(await request("/connect", { ...prepared.connect, ...audio }));
+        setTarget(prepared.terminal, prepared.connect.url);
+        publishStatus(this.status);
+        this.statusError = null;
+      } catch (e) {
+        let message = e.message;
+        if (this.pending === "/prepare" && e.terminal) {
+          try { run("terminal.keep", { terminal: e.terminal }); }
+          catch (showError) { message += " Could not show Pi: " + showError.message; }
+        }
+        this.reportActionError(message);
+      }
+      this.pending = null;
+      cx.notify();
+    });
+  }
+
+  dismissFailure(error, cx) {
+    this.errorDetails = null;
+    if (error.id) this.act("/errors/acknowledge", { id: error.id }, cx);
+    else { acknowledgeLegacyFailure(error); cx.notify(); }
+  }
+
+  render() {
+    const phase = this.pending === "/prepare" ? "Preparing Pi" : this.pending === "/connect" ? "Connecting" : this.statusError ? "Unavailable" : this.status ? {
+      idle: "Idle", connecting: "Connecting", listening: "Listening", muted: "Muted", error: "Idle",
+    }[this.status.phase] : "Checking";
+    return this.compact ? renderSidebar({
+      status: this.status, phase, busy: Boolean(this.pending), target: targets(), expanded: this.toolbar,
+      onQuick: cx => this.start(cx, true), onConnect: cx => this.start(cx, false),
+      onMute: cx => this.act("/mute", { muted: !this.status.muted }, cx),
+      onDisconnect: cx => this.act("/disconnect", {}, cx),
+    }) : renderSettings(this);
+  }
+}

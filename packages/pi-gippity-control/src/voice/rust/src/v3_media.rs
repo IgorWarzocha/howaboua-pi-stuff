@@ -7,7 +7,6 @@ use std::time::{Duration, Instant as StdInstant};
 use anyhow::{Context as _, Result};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use bytes::Bytes;
 use crossbeam_queue::ArrayQueue;
 use rtc::media::Sample;
 use rtc::peer_connection::configuration::media_engine::MIME_TYPE_OPUS;
@@ -24,8 +23,8 @@ use webrtc::peer_connection::PeerConnection;
 use webrtc::rtp_transceiver::RtpSender;
 
 use crate::audio::{self, PlaybackSample, SpeakerControl, SpeakerState};
-use crate::playout::{PacketPlayout, PlayoutClock, PlayoutFrame};
-use crate::protocol::Event;
+use crate::playout::{PacketAdmission, PacketPlayout, PlayoutClock, PlayoutFrame};
+use crate::protocol::{AudioDiagnostics, Event};
 use crate::resample::LinearResampler;
 
 #[path = "v3_capture.rs"]
@@ -43,7 +42,7 @@ pub(crate) const TRANSITION_DRAIN_PACKET_BUDGET: usize = 256;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ReadyDrain<E> {
-    Pending,
+    Pending(usize),
     ReadFailed(E),
     Exhausted,
 }
@@ -53,17 +52,17 @@ where
     F: Future<Output = std::result::Result<T, E>>,
     N: FnMut() -> Pin<Box<F>>,
 {
-    for _ in 0..TRANSITION_DRAIN_PACKET_BUDGET {
+    for drained in 0..TRANSITION_DRAIN_PACKET_BUDGET {
         match poll_once(read.as_mut()) {
             Poll::Ready(Ok(_)) => *read = next(),
             Poll::Ready(Err(error)) => return ReadyDrain::ReadFailed(error),
-            Poll::Pending => return ReadyDrain::Pending,
+            Poll::Pending => return ReadyDrain::Pending(drained),
         }
     }
     match poll_once(read.as_mut()) {
         Poll::Ready(Ok(_)) => ReadyDrain::Exhausted,
         Poll::Ready(Err(error)) => ReadyDrain::ReadFailed(error),
-        Poll::Pending => ReadyDrain::Pending,
+        Poll::Pending => ReadyDrain::Pending(TRANSITION_DRAIN_PACKET_BUDGET),
     }
 }
 
@@ -204,7 +203,14 @@ pub async fn play_remote_track(
     let mut converted = Vec::new();
     let mut bridge_pending = Vec::new();
     let mut last_frame_samples = OPUS_FRAME_SAMPLES;
+    let mut last_packet_config = None;
     let mut last_activity = None;
+    let mut diagnostics = AudioDiagnostics::default();
+    let mut diagnostics_since = Instant::now();
+    let mut first_packet_since = None;
+    let mut last_packet_read: Option<Instant> = None;
+    let mut diagnostics_tick = tokio::time::interval(Duration::from_secs(5));
+    diagnostics_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // Keep one remote-event read alive
     // across every select and transition-boundary readiness probe.
     let mut packet_read = Box::pin(read_rtp(&remote));
@@ -215,11 +221,12 @@ pub async fn play_remote_track(
                 if changed.is_err() {
                     return;
                 }
-                // Remote RTP events expose no packet arrival metadata. Discard each
-                // packet that is already readable while the old epoch is still
-                // installed, then apply the new epoch only once the read is pending.
-                match drain_ready_packets(&mut packet_read, || Box::pin(read_rtp(&remote))) {
-                    ReadyDrain::Pending => {}
+                // RTP lacks arrival/response identity. Drain before replacing the
+                // epoch, including on release, to isolate interrupted speech.
+                // New onset RTP already readable on release may also be lost;
+                // measure release drains rather than guessing packet identity.
+                let drained = match drain_ready_packets(&mut packet_read, || Box::pin(read_rtp(&remote))) {
+                    ReadyDrain::Pending(drained) => drained as u32,
                     ReadyDrain::ReadFailed(error) => {
                         report_terminal_error(
                             &output_events,
@@ -234,13 +241,21 @@ pub async fn play_remote_track(
                         ).await;
                         return;
                     }
-                }
+                };
                 control = *controls.borrow_and_update();
+                diagnostics.drained_packets = diagnostics.drained_packets.saturating_add(drained);
+                if !control.suppressed {
+                    diagnostics.release_drained_packets = diagnostics.release_drained_packets.saturating_add(drained);
+                }
+                diagnostics.transitions = diagnostics.transitions.saturating_add(1);
+                last_packet_read = None;
+                first_packet_since = (!control.suppressed).then(Instant::now);
                 playout.reset();
                 playout_clock.stop();
                 resampler.reset();
                 bridge_pending.clear();
                 last_frame_samples = OPUS_FRAME_SAMPLES;
+                last_packet_config = None;
                 match opus::Decoder::new(OPUS_RATE, opus::Channels::Stereo) {
                     Ok(replacement) => decoder = replacement,
                     Err(error) => {
@@ -264,39 +279,87 @@ pub async fn play_remote_track(
                     }
                 };
                 packet_read = Box::pin(read_rtp(&remote));
+                diagnostics.received_packets = diagnostics.received_packets.saturating_add(1);
+                let now = Instant::now();
+                if let Some(last) = last_packet_read.replace(now) {
+                    let gap = now.saturating_duration_since(last);
+                    diagnostics.max_read_gap_ms = diagnostics.max_read_gap_ms.max(gap.as_millis().min(u32::MAX as u128) as u32);
+                    if gap >= Duration::from_millis(40) {
+                        diagnostics.read_gaps_over_40ms = diagnostics.read_gaps_over_40ms.saturating_add(1);
+                    }
+                }
                 if control.accepts_packet(speaker.get()) {
-                    playout.push(packet.header.sequence_number, packet.payload);
+                    if let Some(since) = first_packet_since.take() {
+                        diagnostics.first_packet_ms = Some(since.elapsed().as_millis().min(u32::MAX as u128) as u32);
+                    }
+                    match playout.push(packet.header.sequence_number, packet.payload) {
+                        PacketAdmission::Accepted { reordered } => {
+                            diagnostics.reordered_packets = diagnostics.reordered_packets.saturating_add(u32::from(reordered));
+                        }
+                        PacketAdmission::Late => diagnostics.late_packets = diagnostics.late_packets.saturating_add(1),
+                        PacketAdmission::Duplicate => diagnostics.duplicate_packets = diagnostics.duplicate_packets.saturating_add(1),
+                        PacketAdmission::Resynchronized { discarded } => {
+                            diagnostics.resyncs = diagnostics.resyncs.saturating_add(1);
+                            diagnostics.resync_discarded_packets = diagnostics.resync_discarded_packets.saturating_add(discarded as u32);
+                        }
+                    }
                     if playout.ready() {
                         playout_clock.start(Instant::now());
                     }
+                } else {
+                    diagnostics.rejected_packets = diagnostics.rejected_packets.saturating_add(1);
                 }
             }
-            _ = wait_for_playout(playout_clock.deadline()) => {
+            _ = wait_for_playout(playout_clock.deadline().or_else(|| playout.buffering_deadline())) => {
+                if let Some(deadline) = playout_clock.deadline() {
+                    let late = Instant::now().saturating_duration_since(deadline);
+                    diagnostics.max_playout_lateness_us = diagnostics.max_playout_lateness_us.max(late.as_micros().min(u32::MAX as u128) as u32);
+                }
                 if control.suppressed || speaker.get() != control {
                     playout.reset();
                     playout_clock.stop();
                     bridge_pending.clear();
                     continue;
                 }
+                let flushing_tail = !playout.ready() && playout.buffering_deadline().is_some();
                 let frame = playout.next();
+                let received_frame = matches!(&frame, PlayoutFrame::Packet(_));
                 let (payload, decoded_output) = match frame {
                     PlayoutFrame::Buffering => {
+                        diagnostics.buffering_entries = diagnostics.buffering_entries.saturating_add(1);
                         playout_clock.stop();
                         continue;
                     }
                     PlayoutFrame::Packet(payload) => (payload, &mut decoded[..]),
-                    PlayoutFrame::Missing => {
-                        (Bytes::new(), &mut decoded[..last_frame_samples * 2])
+                    PlayoutFrame::Missing { successor } => {
+                        diagnostics.missing_packets = diagnostics.missing_packets.saturating_add(1);
+                        (successor.unwrap_or_default(), &mut decoded[..last_frame_samples * 2])
                     }
                 };
-                let Ok(samples_per_channel) =
+                if flushing_tail {
+                    diagnostics.tail_flushes = diagnostics.tail_flushes.saturating_add(1);
+                }
+                playout_clock.start(Instant::now());
+                let decoded_frame = if received_frame {
                     decoder.decode_float(&payload, decoded_output, false)
-                else {
-                    playout_clock.advance(last_frame_samples, OPUS_RATE);
+                } else {
+                    decode_missing_frame(&mut decoder, last_packet_config, &payload, decoded_output)
+                };
+                let Ok(samples_per_channel) = decoded_frame else {
+                    diagnostics.decode_failures = diagnostics.decode_failures.saturating_add(1);
+                    diagnostics.clock_rebases = diagnostics.clock_rebases.saturating_add(u32::from(playout_clock.advance(last_frame_samples, OPUS_RATE)));
                     continue;
                 };
                 last_frame_samples = samples_per_channel;
-                playout_clock.advance(samples_per_channel, OPUS_RATE);
+                if received_frame {
+                    last_packet_config = payload.first().map(|toc| toc & 0xfc);
+                    let samples = samples_per_channel as u32;
+                    diagnostics.decoded_packets = diagnostics.decoded_packets.saturating_add(1);
+                    diagnostics.decoded_packet_samples = diagnostics.decoded_packet_samples.saturating_add(samples);
+                    diagnostics.min_decoded_packet_samples = if diagnostics.min_decoded_packet_samples == 0 { samples } else { diagnostics.min_decoded_packet_samples.min(samples) };
+                    diagnostics.max_decoded_packet_samples = diagnostics.max_decoded_packet_samples.max(samples);
+                }
+                diagnostics.clock_rebases = diagnostics.clock_rebases.saturating_add(u32::from(playout_clock.advance(samples_per_channel, OPUS_RATE)));
                 let mut mono = Vec::with_capacity(samples_per_channel);
                 for pair in decoded[..samples_per_channel * 2].as_chunks::<2>().0 {
                     mono.push((pair[0] + pair[1]) * 0.5);
@@ -346,24 +409,68 @@ pub async fn play_remote_track(
                                     last_activity = Some(now);
                                 }
                             }
-                            if output_events
-                                .send(Event::Pcm {
-                                    audio: BASE64.encode(bytes),
-                                    sample_rate: BRIDGE_RATE,
-                                    num_channels: 1,
-                                    epoch: Some(control.epoch),
-                                })
-                                .await
-                                .is_err()
-                            {
+                            let event = Event::Pcm {
+                                audio: BASE64.encode(bytes),
+                                sample_rate: BRIDGE_RATE,
+                                num_channels: 1,
+                                epoch: Some(control.epoch),
+                            };
+                            if output_events.capacity() == 0 {
+                                diagnostics.bridge_channel_full = diagnostics.bridge_channel_full.saturating_add(1);
+                            }
+                            let send_started = Instant::now();
+                            let sent = output_events.send(event).await;
+                            let send_time = send_started.elapsed();
+                            diagnostics.bridge_frames = diagnostics.bridge_frames.saturating_add(1);
+                            diagnostics.max_bridge_send_us = diagnostics.max_bridge_send_us.max(send_time.as_micros().min(u32::MAX as u128) as u32);
+                            if send_time >= Duration::from_millis(1) {
+                                diagnostics.bridge_sends_over_1ms = diagnostics.bridge_sends_over_1ms.saturating_add(1);
+                            }
+                            if sent.is_err() {
                                 return;
                             }
                         }
                     }
                 }
             }
+            _ = diagnostics_tick.tick() => {
+                if diagnostics.received_packets > 0 || diagnostics.transitions > 0 || diagnostics.rejected_packets > 0
+                    || diagnostics.buffering_entries > 0 || diagnostics.clock_rebases > 0
+                    || diagnostics.decode_failures > 0 || diagnostics.first_packet_ms.is_some()
+                {
+                    diagnostics.epoch = control.epoch;
+                    diagnostics.suppressed = control.suppressed;
+                    diagnostics.elapsed_ms = diagnostics_since.elapsed().as_millis().min(u32::MAX as u128) as u32;
+                    if output_events.try_send(Event::AudioDiagnostics { diagnostics: diagnostics.clone() }).is_ok() {
+                        diagnostics = AudioDiagnostics::default();
+                        diagnostics_since = Instant::now();
+                    }
+                }
+            }
         }
     }
+}
+
+fn decode_missing_frame(
+    decoder: &mut opus::Decoder,
+    previous_config: Option<u8>,
+    successor: &[u8],
+    output: &mut [f32],
+) -> Result<usize, opus::Error> {
+    let samples = output.len() / 2;
+    // Match the prior mode/bandwidth/frame size/channels (TOC without framing).
+    // Only a matching single 10/20ms frame can safely repair this slot.
+    // No FEC in the successor is normal: libopus performs PLC instead.
+    if matches!(samples, 480 | 960)
+        && previous_config.is_some()
+        && successor.first().map(|toc| toc & 0xfc) == previous_config
+        && matches!(opus::packet::get_nb_frames(successor), Ok(1))
+        && opus::packet::get_nb_samples(successor, OPUS_RATE).is_ok_and(|count| count == samples)
+        && let Ok(samples) = decoder.decode_float(successor, output, true)
+    {
+        return Ok(samples);
+    }
+    decoder.decode_float(&[], output, false)
 }
 
 async fn read_rtp(remote: &Arc<dyn TrackRemote>) -> Result<rtc::rtp::Packet> {

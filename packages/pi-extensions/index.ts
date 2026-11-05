@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import howabouaPiAsk from "@howaboua/pi-ask";
 import howabouaPiAutoTrees from "@howaboua/pi-auto-trees";
 import howabouaPiBetterSkillsTool from "@howaboua/pi-better-skills-tool";
@@ -16,7 +15,6 @@ import howabouaPiSuggestions from "@howaboua/pi-suggestions";
 import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
 
 export default async function (pi: ExtensionAPI) {
-	registerPackageChangelog(pi);
 	await howabouaPiAsk(pi);
 	await howabouaPiAutoTrees(pi);
 	await howabouaPiBetterSkillsTool(pi);

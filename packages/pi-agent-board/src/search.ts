@@ -19,10 +19,12 @@ export function searchBoard(
 		args.push(params.channel_name);
 	}
 	if (params.author !== undefined) {
-		clauses.push(`(author=? OR (kind='summary' AND EXISTS (
-			SELECT 1 FROM posts a WHERE a.board_id=c.board_id AND a.root=c.thread_id AND a.author=?)))`);
-		const author = agentPath(params.author, "/root");
-		args.push(author, author);
+		clauses.push(`(author IN (SELECT value FROM json_each(?)) OR (kind='summary' AND EXISTS (
+			SELECT 1 FROM posts a WHERE a.board_id=c.board_id AND a.root=c.thread_id AND a.author IN (SELECT value FROM json_each(?)))))`);
+		const authors = JSON.stringify(
+			store.agentIdentities(agentPath(params.author, "/root")),
+		);
+		args.push(authors, authors);
 	}
 	if (params.query !== undefined) {
 		clauses.push("instr(body_search,?)>0");

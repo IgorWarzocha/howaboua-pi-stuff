@@ -1,4 +1,4 @@
-import { getMarkdownTheme, keyHint, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, type KeybindingHints, type ExtensionAPI, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, MouseRegion, Text, TruncatedText, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
@@ -55,20 +55,20 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, backgroundShellShortcuts, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
 	const renderNotice = createNoticeRenderer();
 	pi.on("session_shutdown", () => invalidateUsageStatus());
-	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) =>
+	pi.registerMessageRenderer<{ title?: unknown }>(CODEX_DEVELOPER_MESSAGE_TYPE, (message, { expanded, outputPad, keyHint }, theme) =>
 		typeof message.content === "string" ? renderNotice(message,
 			typeof message.details?.title === "string" ? message.details.title : "Context update",
-			message.content, expanded, theme, outputPad) : undefined);
+			message.content, expanded, theme, keyHint, outputPad) : undefined);
 	// Toolkit entries already feed model context through projection. Render that
 	// same stored content without sending another message or queuing a turn.
-	pi.registerEntryRenderer(CODEX_TOOLKIT_UPDATE_TYPE, (entry, { expanded }, theme) => {
+	pi.registerEntryRenderer(CODEX_TOOLKIT_UPDATE_TYPE, (entry, { expanded, keyHint }, theme) => {
 		const update = readToolkitUpdate(entry.data);
 		const title = `${update.id === update.rootId ? "Tools" : "Tools updated"} · ${update.tools.length}`;
-		return renderNotice(entry, title, update.content, expanded, theme);
+		return renderNotice(entry, title, update.content, expanded, theme, keyHint);
 	});
-	pi.registerEntryRenderer(CODEX_NOTEBOOK_STATUS_TYPE, (entry, { expanded }, theme) => {
+	pi.registerEntryRenderer(CODEX_NOTEBOOK_STATUS_TYPE, (entry, { expanded, keyHint }, theme) => {
 		const status = readNotebookStatus(entry.data);
-		return renderNotice(entry, status.title, status.content, expanded, theme);
+		return renderNotice(entry, status.title, status.content, expanded, theme, keyHint);
 	});
 	const renderNativeCompaction = (
 		content: string,
@@ -157,7 +157,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 function createNoticeRenderer() {
 	// Pi recreates renderer output on invalidation. Preserve clicks until the next global toggle.
 	const expansion = new WeakMap<object, { globalExpanded: boolean; expanded: boolean }>();
-	return (key: object, title: string, content: string, expanded: boolean, theme: Theme, outputPad = 1) => {
+	return (key: object, title: string, content: string, expanded: boolean, theme: Theme, keyHint: KeybindingHints["keyHint"], outputPad = 1) => {
 		const previous = expansion.get(key);
 		const state = previous && previous.globalExpanded === expanded ? previous : { globalExpanded: expanded, expanded };
 		expansion.set(key, state);

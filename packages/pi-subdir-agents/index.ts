@@ -1,11 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import registerPackageChangelog from "./changelog.js";
 import { parsePersistedContextDetails } from "./src/core/subdir/details.js";
 import { registerSubdirContextAutoload } from "./src/core/subdir.js";
 
 export default async function (pi: ExtensionAPI): Promise<void> {
-	registerPackageChangelog(pi);
 	pi.registerMessageRenderer(
 		"subdir-agents-context",
 		(message, { expanded, outputPad }, theme) => {

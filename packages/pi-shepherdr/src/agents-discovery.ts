@@ -1,3 +1,4 @@
+import { nativeAgentName } from "./agent-identity.js";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { type AgentProfile, loadAgentProfiles } from "./profiles.js";
@@ -58,8 +59,8 @@ export async function agentsHelp(
 				? "machine omitted=local Pi host; list/find omitted=all machines; remote=list profile ID, NOT label/hostname"
 				: "Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
 			target: gpt
-				? "spawn/find target EXACT; /root=this family live root"
-				: "Use spawn/find target exactly; /root selects this family's live root",
+				? "target=agent (same Notes/Board ID) or terminal target; /root=this family live root"
+				: "Use agent for the same identity as Notes/Board, or the terminal target; /root selects this family's live root",
 			label: core
 				? "Short Pi session name; app tabs use default names"
 				: gpt
@@ -95,8 +96,8 @@ export async function agentsHelp(
 				? "Idle target; stop selected membership; counterpart checkpoints remain readonly"
 				: "Stop selected membership; retain counterpart checkpoints read-only; idle target",
 			blocking: gpt
-				? "spawn/assign default true; profile overrides spawn; await blocking calls; JS parallel: await Promise.allSettled; false ONLY if other work continues; background reports automatic→do other work/end turn, NO poll or await timers/extra Promises"
-				: "spawn/assign default true; profile blocking overrides spawn. Await blocking calls; use await Promise.allSettled for parallel calls, including failures. Use false only to continue other work. Background reports arrive automatically: do other work or end this turn, never poll or await timers or extra Promises for reports",
+				? "spawn/assign default false→dispatch then return; true→wait for result; profile overrides spawn. Parallel blocking calls: await Promise.allSettled. Background reports automatic→do other work/end turn, NO poll or await timers/extra Promises"
+				: "spawn/assign return after dispatch by default. Set blocking:true to wait for the result; profile blocking overrides spawn. Use await Promise.allSettled for parallel blocking calls, including failures. Background reports arrive automatically: do other work or end this turn, never poll or await timers or extra Promises for reports",
 			share_context: gpt
 				? "Profile false→isolated notes/history; otherwise→controller sharing setting"
 				: "Profile false isolates notes/history; otherwise follows controller sharing setting",
@@ -196,28 +197,46 @@ export async function listFleetAgents(
 		loadAgentProfiles(),
 		fleet.snapshots(params.machine),
 	]);
-	const agents = machines.flatMap((machine) => {
-		if (!machine.snapshot) return [];
-		return machine.snapshot.agents
-			.filter(
-				(agent) =>
-					agent.agent === "pi" &&
-					(!machine.local ||
-						agent.pane_id !==
-							(agent.backend === "core"
-								? process.env["HC_TERMINAL_ID"]
-								: process.env["HERDR_PANE_ID"])),
-			)
-			.map((agent) =>
-				compactAgent(
-					agent,
-					machine.snapshot!,
-					machine.id,
-					machine.monitoredPaneIds?.has(agent.pane_id) ?? false,
-				),
-			)
-			.filter((agent) => matchesAgent(agent, params.query, params.status));
-	});
+	const agents = (
+		await Promise.all(
+			machines.map(async (machine) => {
+				if (!machine.snapshot) return [];
+				const runtime = fleet.connected(machine.id);
+				return (
+					await Promise.all(
+						machine.snapshot.agents
+							.filter(
+								(agent) =>
+									agent.agent === "pi" &&
+									(!machine.local ||
+										agent.pane_id !==
+											(agent.backend === "core"
+												? process.env["HC_TERMINAL_ID"]
+												: process.env["HERDR_PANE_ID"])),
+							)
+							.map(async (agent) => {
+								const result = compactAgent(
+									agent,
+									machine.snapshot!,
+									machine.id,
+									machine.monitoredPaneIds?.has(agent.pane_id) ?? false,
+								);
+								try {
+									result["agent"] = await nativeAgentName(
+										runtime.client,
+										agent,
+									);
+								} catch {
+									// Older or unavailable receivers remain addressable by their terminal.
+									result["identityUnavailable"] = true;
+								}
+								return result;
+							}),
+					)
+				).filter((agent) => matchesAgent(agent, params.query, params.status));
+			}),
+		)
+	).flat();
 	const workspaces = machines.flatMap((machine) =>
 		(machine.snapshot?.workspaces ?? []).map((workspace) => ({
 			machine: machine.id,

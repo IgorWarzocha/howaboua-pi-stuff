@@ -3,6 +3,7 @@ import type {
 	ExtensionContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { isContextAgentName } from "./agent-identity.js";
 import type { NoteSnapshotData } from "./bridge.js";
 import { canonicalPath, readNotes } from "./note-query.js";
 import { type NoteRevision, NotesStore, type SessionRef } from "./store.js";
@@ -77,7 +78,9 @@ function relativeLegacyPath(path: string): string {
 	// Legacy canonical paths use the first notes component as the agent-root boundary.
 	const components = path.split("/");
 	const boundary = components.indexOf("notes");
-	return components[0] === "" && components[1] === "root" && boundary > 1
+	return components[0] === "" &&
+		isContextAgentName(components.slice(0, boundary).join("/")) &&
+		boundary > 1
 		? components.slice(boundary + 1).join("/")
 		: path;
 }
@@ -191,7 +194,7 @@ export function exportNotesSnapshot(
 	entries: readonly SessionEntry[],
 	agentName: string,
 ): NoteSnapshotData {
-	if (!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(agentName))
+	if (!isContextAgentName(agentName))
 		throw new Error("Invalid notes agent identity");
 	const notes = collectNotes({ read: () => undefined }, entries);
 	const snapshot: NoteSnapshotData = {
@@ -231,7 +234,9 @@ export function noteHints(
 	const paths = [
 		...new Set([...notes, ...store.cachedPaths(sourceSessionIds(ctx))]),
 	].slice(0, 5);
-	return paths.length ? `Recent notes: ${paths.join(", ")}`.slice(0, 4000) : "";
+	return paths.length
+		? `Recent notes in virtual filesystem: ${paths.join(", ")}`.slice(0, 4000)
+		: "";
 }
 
 export function useNotes(

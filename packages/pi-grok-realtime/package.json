@@ -7,7 +7,8 @@
 	"main": "./index.ts",
 	"exports": {
 		".": "./index.ts",
-		"./tools": "./tools.ts"
+		"./tools": "./tools.ts",
+		"./host-settings": "./dist/host-settings.js"
 	},
 	"engines": {
 		"node": ">=22.19.0"
@@ -25,12 +26,11 @@
 		"biome.json",
 		"!src/**/AGENTS.md",
 		"!src/audio/rust/target",
-		"changelog.ts",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"dist/host-settings.js"
 	],
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./index.ts"
 		]
 	},
@@ -39,7 +39,10 @@
 		"lint": "biome check .",
 		"typecheck": "tsgo --noEmit",
 		"build:audio-helper": "node scripts/build-audio-helper.mjs",
-		"pack:dry": "npm pack --dry-run"
+		"pack:dry": "npm pack --dry-run",
+		"build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js",
+		"prepack": "bun run check && bun run build:host-settings",
+		"prepare": "bun run build:host-settings"
 	},
 	"dependencies": {
 		"@howaboua/pi-browser": "^0.0.13",
@@ -47,17 +50,19 @@
 		"ws": "^8.22.0"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
+		"@earendil-works/pi-tui": ">=1.0.0",
+		"typebox": "*"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-coding-agent": "1.4.0",
-		"@earendil-works/pi-ai": "1.4.0",
-		"@earendil-works/pi-tui": "1.4.0",
+		"@earendil-works/pi-coding-agent": "1.5.0",
+		"@earendil-works/pi-ai": "1.5.0",
+		"@earendil-works/pi-tui": "1.5.0",
 		"@types/node": "^26.6.5",
 		"@types/ws": "^8.18.2",
-		"typescript": "^7.0.2"
+		"typescript": "^7.0.2",
+		"typebox": "1.4.3"
 	}
 }

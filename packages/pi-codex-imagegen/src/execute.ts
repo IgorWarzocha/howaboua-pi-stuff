@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { buildOpenAIImageRequest } from "./api-request.js";
 import { saveGeneratedImages } from "./artifacts.js";
 import {
 	codexLoginDiagnostic,
@@ -14,6 +15,7 @@ import {
 import { recentConversationImageUrls } from "./history.js";
 import type { ImagegenOutput } from "./output.js";
 import { buildImageGenerationRequest } from "./request.js";
+import { readImagegenSettings } from "./settings.js";
 
 function parseImageResponse(text: string): ImageResponse {
 	let parsed: unknown;
@@ -89,10 +91,21 @@ export async function executeCodexImageGeneration(
 	turnId?: string,
 ): Promise<ImagegenOutput> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
+	const settings = readImagegenSettings();
+	if (
+		settings.access === "codex" &&
+		(args.gif ||
+			args.size ||
+			(args.output_format && args.output_format !== "png"))
+	)
+		throw new Error(
+			"These output controls require OpenAI API access. The user can select it in /imagegen; Codex access is unchanged. For Codex, describe size and aspect ratio in the prompt.",
+		);
 	const { readCodexToolRouteConfig, resolveCodexToolModel } = await import(
 		"./codex-runtime/config.js"
 	);
-	const routeConfig = readCodexToolRouteConfig();
+	const routeConfig =
+		settings.access === "codex" ? readCodexToolRouteConfig() : undefined;
 	const recentImages =
 		args.num_last_images_to_include == null
 			? undefined
@@ -111,22 +124,41 @@ export async function executeCodexImageGeneration(
 				(recentImages?.length ?? 0) +
 				" were available",
 		);
-	const request = await buildImageGenerationRequest(
-		args,
-		recentImages,
-		ctx.cwd,
-		resolveCodexToolModel(routeConfig, ctx.model, IMAGE_MODEL),
-	);
-	const provider = await resolveProvider(ctx, options, routeConfig);
-	const [{ codexToolProviderHeaders }, { fetchCodexTool }] = await Promise.all([
-		import("./codex-runtime/headers.js"),
-		import("./codex-runtime/http.js"),
-	]);
+	const request = routeConfig
+		? await buildImageGenerationRequest(
+				args,
+				recentImages,
+				ctx.cwd,
+				resolveCodexToolModel(routeConfig, ctx.model, IMAGE_MODEL),
+			)
+		: await buildOpenAIImageRequest(args, recentImages, ctx.cwd, settings.api);
+	const provider = routeConfig
+		? await resolveProvider(ctx, options, routeConfig)
+		: undefined;
+	const { fetchCodexTool } = await import("./codex-runtime/http.js");
+	let headers: Headers;
+	if (provider) {
+		const { codexToolProviderHeaders } = await import(
+			"./codex-runtime/headers.js"
+		);
+		headers = codexToolProviderHeaders(provider);
+	} else {
+		const key = await ctx.modelRegistry.getApiKeyForProvider("openai");
+		if (!key)
+			throw new Error(
+				"OpenAI API credentials are unavailable. Configure the openai provider in Pi, or choose Codex access in /imagegen.",
+			);
+		headers = new Headers({
+			authorization: "Bearer " + key,
+			"content-type": "application/json",
+		});
+	}
 	const endpoint =
-		provider.baseUrl.replace(/\/+$/, "") + "/images/" + request.operation;
-	const headers = codexToolProviderHeaders(provider);
+		(provider?.baseUrl.replace(/\/+$/, "") ?? "https://api.openai.com/v1") +
+		"/images/" +
+		request.operation;
 	headers.set("accept", "application/json");
-	if (turnId) headers.set("x-codex-image-turn-id", turnId);
+	if (turnId && provider) headers.set("x-codex-image-turn-id", turnId);
 	const response = await fetchCodexTool(endpoint, {
 		method: "POST",
 		headers,
@@ -140,16 +172,48 @@ export async function executeCodexImageGeneration(
 				/auth|token|credential|access_enforcement|oauth/i.test(response.text))
 		)
 			throw new Error(
-				provider.route === "openai-codex" &&
+				provider?.route === "openai-codex" &&
 					provider.authProvider === "openai-codex"
 					? codexLoginDiagnostic(true)
-					: "Image generation access was rejected. Ask the user to check access for their configured provider.",
+					: settings.access === "openai"
+						? "OpenAI API access was rejected. Check the openai credentials and image model access in Pi. No Codex request was made."
+						: "Image generation access was rejected. Ask the user to check access for their configured provider.",
 			);
-		throw new Error("Image generation failed: HTTP " + response.status);
+		throw new Error(
+			"Image generation failed: HTTP " +
+				response.status +
+				(settings.access === "openai" ? apiErrorMessage(response.text) : ""),
+		);
 	}
 	return saveGeneratedImages(
 		ctx.cwd,
 		parseImageResponse(response.text),
-		response.headers.get("x-codex-imagegen-request-id") ?? undefined,
+		response.headers.get("x-codex-imagegen-request-id") ??
+			response.headers.get("x-request-id") ??
+			undefined,
+		settings.access === "openai"
+			? (args.output_format ?? (args.gif ? "gif" : "png"))
+			: "png",
 	);
+}
+
+function apiErrorMessage(text: string): string {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return "";
+	}
+	if (
+		!parsed ||
+		typeof parsed !== "object" ||
+		!("error" in parsed) ||
+		!parsed.error ||
+		typeof parsed.error !== "object"
+	)
+		return "";
+	const error = parsed.error;
+	return "message" in error && typeof error.message === "string"
+		? ": " + error.message.slice(0, 600)
+		: "";
 }

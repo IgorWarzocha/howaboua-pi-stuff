@@ -148,6 +148,10 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     }
     try {
       const message = JSON.parse(event.data);
+      if (message.type === 'drain' && typeof message.id === 'string') {
+        realtimeAudio?.drain(message.id);
+        return;
+      }
 	  if (message.type === 'takeover') { beginTakeover(message); return; }
 	  if (message.type === 'stop') { stop(false, message.reason || 'server'); return; }
 	  if (message.type === 'mute') setMuted(message.muted, false);
@@ -231,6 +235,13 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
         setStatus('Could not start', 'Connection timed out. Tap to retry.');
       }, 10000);
       if (processor) processor.port.onmessage = (event) => {
+        if (event.data?.type === 'rendered') {
+          void realtimeAudio?.rendered(event.data).then((id) => {
+            if (id && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN)
+              currentSocket.send(JSON.stringify({ type:'drained', id }));
+          });
+          return;
+        }
         const pcm = realtimeAudio
           ? realtimeAudio.acceptCapture(event.data)
           : event.data?.type === 'capture' && event.data.epoch === 0 && event.data.pcm instanceof ArrayBuffer ? event.data.pcm : undefined;
@@ -239,7 +250,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       currentSocket.onopen = () => {
 		if (socket !== currentSocket || !context) return;
         clearTimeout(connectTimer);
-        currentSocket.send(JSON.stringify({ type:'start', mode, ...(takeoverToken ? { takeoverToken } : {}) }));
+        currentSocket.send(JSON.stringify({ type:'start', mode, playbackDrain:Boolean(realtimeAudio?.canDrain), ...(takeoverToken ? { takeoverToken } : {}) }));
         setStatus('Connecting…');
       };
       currentSocket.onmessage = (event) => receiveMessage(currentSocket, event);

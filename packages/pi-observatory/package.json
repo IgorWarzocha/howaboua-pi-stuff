@@ -13,7 +13,6 @@
 		"dist",
 		"README.md",
 		"LICENSE",
-		"changelog.ts",
 		"CHANGELOG.md"
 	],
 	"main": "dist/index.js",
@@ -22,7 +21,6 @@
 	},
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./dist/index.js"
 		]
 	},
@@ -46,7 +44,7 @@
 		"shell-quote": "1.12.0"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.3.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.3.0"
 	},
 	"devDependencies": {

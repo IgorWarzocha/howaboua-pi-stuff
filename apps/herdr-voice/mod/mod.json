@@ -1,0 +1,8 @@
+{
+  "title": "Voice",
+  "place": "none",
+  "overlay": {
+    "kind": "dialog",
+    "width": 860
+  }
+}

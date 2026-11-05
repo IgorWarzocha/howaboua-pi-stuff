@@ -13,7 +13,6 @@
 		"dist",
 		"README.md",
 		"LICENSE",
-		"changelog.ts",
 		"CHANGELOG.md"
 	],
 	"main": "dist/index.js",
@@ -26,7 +25,6 @@
 	},
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./dist/index.js"
 		]
 	},
@@ -42,7 +40,7 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.1.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"typebox": "*",
 		"@earendil-works/pi-tui": ">=1.0.0",
 		"@howaboua/pi-codex-conversion": ">=4.0.7"

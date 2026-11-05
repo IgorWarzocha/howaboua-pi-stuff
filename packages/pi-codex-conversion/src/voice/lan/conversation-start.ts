@@ -42,6 +42,11 @@ export function createLanConversationStarter(options: {
 			createPeer: () => {
 				let peer!: LanHostRealtimePeer;
 				peer = new LanHostRealtimePeer({
+					drainPlayback: (signal, seal) => {
+						if (state.activeConversation?.peer !== peer)
+							return Promise.reject(new Error("Voice playback owner changed"));
+						return options.clients().drainConversationPlayback(signal, seal);
+					},
 					onAudio: (pcm) => {
 						if (state.activeConversation?.peer === peer)
 							options.clients().sendConversationAudio(pcm);

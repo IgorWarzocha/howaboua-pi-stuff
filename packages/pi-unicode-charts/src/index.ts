@@ -1,12 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "../changelog.js";
 import { transformChartMarkdown } from "./chart.js";
 
 const CHART_PROMPT = [
-	"This session renders explicit fenced `chart` blocks as terminal-native Unicode charts.",
-	"Use them only when a compact visual communicates data better than prose or a table.",
+	"This session renders explicit fenced `chart` blocks as terminal-native Unicode charts",
+	"Use them only when a compact visual communicates data better than prose or a table",
 	"Format a fenced `chart` block with `type: bar|line|scatter|sparkline|heatmap`, optional `title:`, `data:`, and rows such as `Label 42`.",
-	"Charts are display-only and should stay small enough to read in a terminal.",
+	"Charts are display-only and should stay small enough to read in a terminal",
 ].join("\n");
 const GPT_CHART_PROMPT = [
 	"Fenced `chart` blocks→terminal-native Unicode charts; display-only.",
@@ -15,7 +14,6 @@ const GPT_CHART_PROMPT = [
 ].join("\n");
 
 export default async function unicodeCharts(pi: ExtensionAPI): Promise<void> {
-	registerPackageChangelog(pi);
 	let mode:
 		| typeof import("@howaboua/pi-codex-conversion/prompt-mode")
 		| undefined;
@@ -45,12 +43,17 @@ export default async function unicodeCharts(pi: ExtensionAPI): Promise<void> {
 		mode?.prepareGptPromptMode(pi, ctx);
 		const prompt = promptMode?.active ? GPT_CHART_PROMPT : CHART_PROMPT;
 		if (event.systemPrompt.includes(prompt)) return;
+		const options = event.systemPromptOptions;
+		if (options.forceSystemPrompt === undefined) {
+			options.sections["unicode_charts"] = prompt;
+			return;
+		}
+		// An earlier full-prompt override bypasses structured sections.
+		const forced = options.forceSystemPrompt;
 		const previous = promptMode?.active ? CHART_PROMPT : GPT_CHART_PROMPT;
-		return {
-			systemPrompt: event.systemPrompt.includes(previous)
-				? event.systemPrompt.replace(previous, prompt)
-				: `${event.systemPrompt}\n\n${prompt}`,
-		};
+		options.forceSystemPrompt = forced.includes(previous)
+			? forced.replace(previous, prompt)
+			: `${forced}\n\n${prompt}`;
 	});
 }
 

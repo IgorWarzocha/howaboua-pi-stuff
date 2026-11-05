@@ -20,6 +20,7 @@ export interface BoardScope {
 	rootSessionId: string;
 	ownerFolder: string;
 	agentName: string;
+	legacyAgentName?: string;
 	callerSessionId: string;
 	members: readonly string[];
 }
@@ -42,7 +43,9 @@ export class BoardStore {
 	readonly db: DatabaseSync;
 	readonly summaries: ThreadSummaries;
 	private readonly hasThreadStatuses: boolean;
-	constructor(path: string, write: boolean) {
+	private readonly aliases: Map<string, string>;
+	constructor(path: string, write: boolean, aliases: [string, string][] = []) {
+		this.aliases = new Map(aliases);
 		const fresh = !existsSync(path);
 		if (write && fresh) mkdirSync(dirname(path), { recursive: true });
 		this.db = new DatabaseSync(path, { readOnly: !write });
@@ -74,6 +77,18 @@ export class BoardStore {
 			this.db.close();
 			throw error;
 		}
+	}
+	canonicalAgent(value: string) {
+		return this.aliases.get(value) ?? value;
+	}
+	agentIdentities(value: string) {
+		const canonical = this.canonicalAgent(value);
+		return [
+			canonical,
+			...[...this.aliases]
+				.filter(([, native]) => native === canonical)
+				.map(([legacy]) => legacy),
+		];
 	}
 	one<T>(sql: string, ...args: SQLInputValue[]): T | undefined {
 		return this.db.prepare(sql).get(...args) as T | undefined;
@@ -186,6 +201,16 @@ export class BoardStore {
 		enabled: boolean,
 		implicit = false,
 	) {
+		if (
+			implicit &&
+			this.one(
+				"SELECT 1 FROM subscriptions WHERE board_id=? AND target=? AND agent IN (SELECT value FROM json_each(?))",
+				board,
+				target,
+				JSON.stringify(this.agentIdentities(agent)),
+			)
+		)
+			return;
 		this.run(
 			implicit
 				? "INSERT OR IGNORE INTO subscriptions VALUES(?,?,?,1)"
@@ -194,7 +219,9 @@ export class BoardStore {
 		);
 	}
 	private resolve(scope: BoardScope, value: string) {
-		const path = agentPath(value, scope.agentName);
+		const path = this.canonicalAgent(
+			agentPath(value, scope.legacyAgentName ?? scope.agentName),
+		);
 		if (!scope.members.includes(path))
 			throw new Error(`Agent not bound to this tree: ${path}`);
 		return path;
@@ -307,11 +334,19 @@ export class BoardStore {
 			).channel_name;
 		const target = root === id ? `channel:${channel}` : `thread:${root}`;
 		for (const { agent } of this.all<{ agent: string }>(
-			"SELECT agent FROM subscriptions WHERE board_id=? AND target=? AND enabled=1",
+			`SELECT s.agent FROM subscriptions s WHERE s.board_id=? AND s.target=? AND s.enabled=1`,
 			board,
 			target,
-		))
-			recipients.add(agent);
+		)) {
+			const canonical = this.canonicalAgent(agent);
+			const override = this.one<{ enabled: number }>(
+				"SELECT enabled FROM subscriptions WHERE board_id=? AND target=? AND agent=?",
+				board,
+				target,
+				canonical,
+			);
+			if (!override || override.enabled) recipients.add(canonical);
+		}
 		recipients.delete(scope.agentName);
 		const post: PostRecord = {
 			message_id: id,

@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import { Check } from "typebox/value";
+import { type JsonObject, validateToolArguments } from "@earendil-works/pi-ai";
 import { runCodeModeToolWithHooks } from "../../tools/code-mode/nested-tool-completion.ts";
 import { opaqueToolOutputsFromDetails } from "../../providers/openai-responses/native-items.ts";
 import type {
@@ -63,11 +64,14 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 			throw new Error("Remote result delivery is unavailable; do not execute this operation");
 		const extensionContext = requireExtensionContext(context);
 		const toolInput = prepareInput(input);
-		const prepared = tool.prepareArguments
-			? tool.prepareArguments(toolInput)
-			: toolInput;
-		if (!Check(tool.parameters, prepared))
-			throw new Error(`Invalid ${tool.name} arguments`);
+		// Pi-routed tools prepare and validate inside their native admission pipeline.
+		const prepared: unknown = contract.executeViaPi ? toolInput : validateToolArguments(tool, {
+			type: "toolCall",
+			id: context.toolCallId ?? `code-mode-${tool.name}`,
+			name: tool.name,
+			// This validator checks unknown JS input; ToolCall types describe already-serialised transcript input.
+			arguments: (tool.prepareArguments ? tool.prepareArguments(toolInput) : toolInput) as JsonObject,
+		});
 		if (signal.aborted) throw new Error(`${tool.name} aborted`);
 		// Approval sees the canonical arguments that execute receives, including
 		// aliases and freeform adapters. Never transform input after admission.
@@ -119,10 +123,13 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 				if (resultError) throw new Error(resultError);
 				if (protectedResult)
 					return { result_id: toolCallId };
-				return contract.resultValue?.(result) ??
-					(contract.modelVisibleResult
-						? modelVisibleNestedResult(result)
-						: compactNestedResult(result));
+				const value = contract.resultValue?.(result);
+				if (value !== undefined && value !== null) return value;
+				if (tool.outputSchema && result.structuredContent !== undefined)
+					return result.structuredContent;
+				return contract.modelVisibleResult
+					? modelVisibleNestedResult(result)
+					: compactNestedResult(result);
 			} finally {
 				acceptingUpdates = false;
 				lifecycle.end?.(toolCallId);
@@ -154,6 +161,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
+		...(tool.outputSchema ? { output: JSON.stringify(tool.outputSchema) } : {}),
 		...(tool.renderCall
 			? {
 				renderCall: (input, theme, context) =>

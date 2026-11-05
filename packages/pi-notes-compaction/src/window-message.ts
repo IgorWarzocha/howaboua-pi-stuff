@@ -3,7 +3,6 @@ import type {
 	ExtensionAPI,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { keyHint } from "@earendil-works/pi-coding-agent";
 import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { WindowIdentity } from "./bridge.js";
 
@@ -16,25 +15,37 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not a diary. Write checkpoints and reports to relative paths in your own notes. Delegates do likewise and return their note paths. Keep one concise, authoritative note per task or topic at a stable path. Task checkpoints cover request, constraints, decisions, status, next steps and history IDs. Use write to replace stale state and mark completion. Link to existing notes instead of copying or summarising their contents. Recording isn't permission to implement.
+Notes are recovery state, not diary. They use virtual storage, not disk filesystem. Use relative paths when creating.
 
-You must maintain a task checkpoint, updating it at each meaningful milestone and on completion or before switching substantive tasks, even with context room. Don't save every reply or intermediate step. Before new_context or handoff, save current state and wait for success; include the checkpoint path in handoffs. After rollover, read the checkpoint, then only needed links. Don't reread notes still in context unless they may have changed. Use history for missing details.
+MUST maintain one authoritative checkpoint per task/topic with request, constraints, decision, status, next steps and relevant history IDs.
 
-Previous skill reads don’t carry into this window. Read the skills needed for the current task.
+Use the notes tool write action to create or replace the checkpoint at milestones, task switches and completion. Use action append to add to it.
+
+Subagents MUST maintain their own notes and return paths. For subagent handoffs, include the checkpoint path.
+
+Link existing notes instead of duplicating content. Recording does not authorise implementation.
+
+Before new_context or a handoff, MUST save the checkpoint with notes. For rollover, call new_context.
+
+After rollover, use notes read action to recover the checkpoint, then read only necessary links. SHOULD NOT reread unchanged notes. Use the history tool for missing details.
+
+Skill reads do not survive rollover. MUST reread required skills.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recovery state≠diary. Checkpoints/reports→write relative paths in own notes. Delegates→same→return note paths. One concise authoritative note per task/topic, stable path. Task checkpoint=request/constraints/decisions/status/next steps/history IDs. write→replace stale state; mark completion. Existing notes→link≠copy/summarise. Recording≠implementation permission.
+Notes=recovery stateNOTdiary. Virtual Notes storageNOTfilesystem. Create notes with relative paths. One authoritative checkpoint per task/topic→request/constraints/decision/status/next steps/history IDs. Existing notes→linkNOTduplicate. RecordingNOTimplementation permission.
 
-Must maintain task checkpoint→update@each meaningful milestone + completion/before switching substantive tasks, even with context room. Not every reply/step. Before new_context/handoff: save current state→await success; handoff includes checkpoint path. Post-rollover: read checkpoint→needed links only. In-context notes: reread only if possibly changed. Missing details→history.
+MUST maintain task checkpoint→update@ milestones, task switches + completion. Notes tool: write→create/replace stale checkpoint; append→add content. Not every reply/step. Subagents MUST maintain own notes→return paths.
 
-Prior skill reads≠current context. Read task-relevant skills.
+Before new_context/handoff: MUST save checkpoint via notes. Rollover→call new_context after save; subagent handoff→include checkpoint path. Post-rollover: notes read→checkpoint→necessary links only. SHOULD NOT reread unchanged notes. Missing details→history tool.
+
+Prior skill reads≠current context. MUST reread required skills after rollover.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer(
 		WINDOW_MESSAGE,
-		(message, { expanded, outputPad }, theme) => {
+		(message, { expanded, outputPad, keyHint }, theme) => {
 			const details = parseWindowDetails(message.details);
 			if (!details || typeof message.content !== "string") return undefined;
 			const title =

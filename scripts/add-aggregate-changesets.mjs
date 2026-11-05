@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
+import { promotePendingChangesets } from "./pending-changesets.mjs";
 
 const root = process.cwd();
 const changesetDir = join(root, ".changeset");
@@ -144,6 +145,9 @@ for (const file of generatedFiles) {
 	const path = join(changesetDir, file);
 	if (existsSync(path)) rmSync(path);
 }
+
+// Pending notes must reach package and bundle changelogs in the same release.
+promotePendingChangesets(root);
 
 const changesByPackage = new Map();
 for (const file of readdirSync(changesetDir).sort()) {

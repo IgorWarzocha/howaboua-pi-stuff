@@ -2,6 +2,13 @@ import { isDeepStrictEqual } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
+import {
+	canonicalAgentName,
+	contextAgentNames,
+	contextStorageAgentName,
+	contextTargetAgent,
+	isContextAgentName,
+} from "./agent-identity.js";
 import type { HistorySearch } from "./history-search.js";
 import {
 	readSavedNotesSession,
@@ -106,10 +113,14 @@ async function readSharedSession(
 	if (typeof path !== "string" || !path.startsWith("/")) return;
 	const target =
 		namespace === "history"
-			? /^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(path)
+			? isContextAgentName(path)
 				? path
 				: undefined
-			: /^(\/root(?:\/[a-zA-Z0-9_-]+)*?)\/notes(?:\/|$)/.exec(path)?.[1];
+			: contextTargetAgent(
+					"notes",
+					{ path },
+					canonicalAgentName(ctx.sessionManager.getSessionId()),
+				);
 	if (!target) return;
 	const outputAgent = target;
 	const current: SavedNotesSession = {
@@ -117,7 +128,7 @@ async function readSharedSession(
 		entries: ctx.sessionManager.getEntries(),
 		branch: ctx.sessionManager.getBranch(),
 	};
-	if (savedNotesIdentity(current).agentName === target) return;
+	if (contextAgentNames(savedNotesIdentity(current)).includes(target)) return;
 	const visited = new Set<string>();
 
 	const { read, reference } = createSharedSessionReader(
@@ -136,7 +147,7 @@ async function readSharedSession(
 		if (visited.has(session.threadId)) return;
 		visited.add(session.threadId);
 		const identity = savedNotesIdentity(session);
-		if (identity.agentName === destination) {
+		if (contextAgentNames(identity).includes(destination)) {
 			if (
 				namespace === "notes" &&
 				identity.storage === "remote" &&
@@ -147,7 +158,7 @@ async function readSharedSession(
 				)
 			)
 				return;
-			return read(session, query, identity.agentName);
+			return read(session, query, destination);
 		}
 		const routes = new Map<string, Static<typeof Route>>();
 		for (const value of records(session, "shepherdr-attachment-route"))
@@ -158,14 +169,18 @@ async function readSharedSession(
 				routes.set(`${value.machine}\0${value.sessionFile}`, value);
 		for (const route of routes.values()) {
 			const link = route.plan.context;
-			if (route.phase !== "ready" || !link || !inside(destination, link.alias))
-				continue;
+			if (route.phase !== "ready" || !link) continue;
+			const alias =
+				destination === canonicalAgentName(link.target.threadId)
+					? destination
+					: link.alias;
+			if (!inside(destination, alias)) continue;
 			if (!sameOwner(identity, link.controller))
 				throw new Error("Saved shared notes identity changed");
 			return reference(
 				link.target,
-				`${link.target.agentName}${destination.slice(link.alias.length)}`,
-				remap(query, link.alias, link.target.agentName),
+				`${link.target.agentName}${destination.slice(alias.length)}`,
+				remap(query, alias, link.target.agentName),
 				route.machine === "local" ? route.sessionFile : undefined,
 				route.detached?.context ?? link.targetNotes,
 				route.detached?.context !== undefined,
@@ -178,9 +193,14 @@ async function readSharedSession(
 		if (
 			Check(Plan, owner) &&
 			owner.context &&
-			inside(destination, owner.context.controllerAlias)
+			(inside(destination, owner.context.controllerAlias) ||
+				destination === canonicalAgentName(owner.context.controller.threadId))
 		) {
 			const link = owner.context;
+			const alias =
+				destination === canonicalAgentName(link.controller.threadId)
+					? destination
+					: link.controllerAlias;
 			if (!sameOwner(identity, link.target))
 				throw new Error("Saved shared notes identity changed");
 			const detached = records(
@@ -195,22 +215,21 @@ async function readSharedSession(
 				: undefined;
 			return reference(
 				link.controller,
-				`${link.controller.agentName}${destination.slice(link.controllerAlias.length)}`,
-				remap(query, link.controllerAlias, link.controller.agentName),
+				`${link.controller.agentName}${destination.slice(alias.length)}`,
+				remap(query, alias, link.controller.agentName),
 				link.controllerFile,
 				snapshot ?? link.controllerNotes,
 				snapshot !== undefined,
 			);
 		}
-		const member = records(session, "herdr-context-child").findLast(
+		const members = records(session, "herdr-context-child").filter(
 			(value) =>
 				Check(Member, value) &&
 				value.threadId === identity.threadId &&
-				value.sessionId === identity.sessionId &&
-				inside(destination, value.agentName),
+				value.sessionId === identity.sessionId,
 		);
-		if (Check(Member, member)) {
-			if (member.machine !== "local") return;
+		for (const member of members) {
+			if (!Check(Member, member) || member.machine !== "local") continue;
 			const saved = await readSavedNotesSession(
 				member.sessionFile,
 				signal,
@@ -219,12 +238,14 @@ async function readSharedSession(
 			const child = savedNotesIdentity(saved);
 			if (
 				child.sessionId !== identity.sessionId ||
-				child.agentName !== member.agentName
+				(child.agentName !== member.agentName &&
+					contextStorageAgentName(child) !== member.agentName)
 			)
 				throw new Error(
 					"Saved shared notes belong to a different agent family",
 				);
-			return resolve(saved, destination, query);
+			const result = await resolve(saved, destination, query);
+			if (result) return result;
 		}
 		const routing = identity.routing;
 		const suffix = ".jsonl.shepherdr-context.json";
@@ -237,7 +258,15 @@ async function readSharedSession(
 			const parent = savedNotesIdentity(saved);
 			if (
 				parent.sessionId !== identity.sessionId ||
-				!identity.agentName.startsWith(`${parent.agentName}/`)
+				!records(saved, "herdr-context-child").some(
+					(value) =>
+						Check(Member, value) &&
+						value.threadId === parent.threadId &&
+						value.sessionId === parent.sessionId &&
+						[identity.agentName, contextStorageAgentName(identity)].includes(
+							value.agentName,
+						),
+				)
 			)
 				throw new Error("Saved shared notes parent identity changed");
 			return resolve(saved, destination, query);

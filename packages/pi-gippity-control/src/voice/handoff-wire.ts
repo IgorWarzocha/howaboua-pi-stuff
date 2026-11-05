@@ -5,6 +5,7 @@ type RequestMethod =
 	| "lan.verify"
 	| "peer.start"
 	| "peer.close"
+	| "peer.finish"
 	| "session.send"
 	| "session.rpc";
 export type HandoffNotification =
@@ -284,6 +285,7 @@ function isRequestMethod(value: unknown): value is RequestMethod {
 		value === "lan.verify" ||
 		value === "peer.start" ||
 		value === "peer.close" ||
+		value === "peer.finish" ||
 		value === "session.send" ||
 		value === "session.rpc"
 	);

@@ -1,12 +1,12 @@
+import type { KeybindingHints } from "@earendil-works/pi-coding-agent";
 import type { ExecutePatchResult } from "../../patch/types.ts";
-import { formatApplyPatchCollapsedDiff, formatApplyPatchSummary, renderApplyPatchCall } from "./rendering.ts";
+import { collapseApplyPatchDiff, formatApplyPatchSummary, renderApplyPatchCall } from "./rendering.ts";
 
 interface ApplyPatchRenderState {
 	cwd: string;
 	patchText: string;
 	collapsed: string;
-	collapsedDiff: string;
-	expanded: string;
+	expanded?: { theme: object; text: string } | undefined;
 	status: "pending" | "partial_failure" | "failed";
 	failedTargets?: string[] | undefined;
 }
@@ -65,9 +65,7 @@ export function setApplyPatchRenderState(
 	failedTargets?: string[],
 ): void {
 	const collapsed = formatApplyPatchSummary(patchText, cwd);
-	const collapsedDiff = formatApplyPatchCollapsedDiff(patchText, cwd);
-	const expanded = renderApplyPatchCall(patchText, cwd);
-	applyPatchRenderStates.set(toolCallId, { cwd, patchText, collapsed, collapsedDiff, expanded, status, failedTargets });
+	applyPatchRenderStates.set(toolCallId, { cwd, patchText, collapsed, status, failedTargets });
 }
 
 export function markApplyPatchPartialFailure(toolCallId: string, failedTargets?: string[]): void {
@@ -138,17 +136,22 @@ function renderFailedCall(text: string, theme: { fg(role: string, text: string):
 	return lines.map((line, index) => failedLineIndexes.has(index) || index === 0 ? theme.fg("error", line) : line).join("\n");
 }
 
-export function renderApplyPatchCallFromState(args: { input?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: { toolCallId?: string | undefined; cwd?: string | undefined; expanded?: boolean | undefined; argsComplete?: boolean | undefined; showCollapsedDiff?: boolean | undefined }): string {
+export function renderApplyPatchCallFromState(args: { input?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: Partial<KeybindingHints> & { toolCallId?: string | undefined; cwd?: string | undefined; expanded?: boolean | undefined; argsComplete?: boolean | undefined; showCollapsedDiff?: boolean | undefined }): string {
 	if (context?.argsComplete === false) return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;
 	const patchText = typeof args.input === "string" ? args.input : "";
 	if (patchText.trim().length === 0) return `${theme.fg("dim", "•")} ${theme.bold("Patching")}`;
 	const cached = context?.toolCallId ? applyPatchRenderStates.get(context.toolCallId) : undefined;
 	const cwd = context?.cwd ?? cached?.cwd;
 	const effectivePatchText = cached?.patchText ?? patchText;
+	// Keep styled diff work with its owning call; collapsed hints remain host-derived.
+	const expanded = context?.expanded || context?.showCollapsedDiff
+		? cached?.expanded?.theme === theme ? cached.expanded.text : renderApplyPatchCall(effectivePatchText, cwd)
+		: "";
+	if (cached && expanded) cached.expanded = { theme, text: expanded };
 	const baseText = context?.expanded
-		? cached?.expanded ?? renderApplyPatchCall(effectivePatchText, cwd)
+		? expanded
 		: context?.showCollapsedDiff
-			? cached?.collapsedDiff ?? formatApplyPatchCollapsedDiff(effectivePatchText, cwd)
+			? collapseApplyPatchDiff(expanded, 10, context?.keyHint?.("app.tools.expand", "to expand") ?? "expand tool details")
 		: cached?.collapsed ?? formatApplyPatchSummary(effectivePatchText, cwd);
 	if (baseText.trim().length === 0) {
 		if (cached?.status === "failed") return theme.fg("error", "• Edit failed");

@@ -26,11 +26,10 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	async start(config: GippityControlConfig): Promise<string> {
 		await this.helper.start();
-		if (this.helper.protocolVersion !== 6) {
-			const actualVersion = this.helper.protocolVersion ?? "unknown";
+		if (this.helper.protocolVersion !== 8) {
 			await this.helper.close();
 			throw new Error(
-				`Incompatible Codex voice helper protocol ${actualVersion}; expected 6`,
+				"Voice could not start because its helper does not match this package. Reinstall the package, reload Pi and try starting voice again.",
 			);
 		}
 		const offer = Promise.withResolvers<string>();
@@ -94,7 +93,8 @@ function toPeerEvent(
 		event.type === "state" ||
 		event.type === "data" ||
 		event.type === "error" ||
-		event.type === "playback_activity"
+		event.type === "playback_activity" ||
+		event.type === "audio_diagnostics"
 	)
 		return event;
 	return undefined;

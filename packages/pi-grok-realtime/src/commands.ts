@@ -3,14 +3,7 @@ import {
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type { PiActivity } from "./activity.ts";
-import {
-	MODELS,
-	normalizeConfig,
-	readConfig,
-	SPEEDS,
-	VOICES,
-	writeConfig,
-} from "./config.ts";
+import { normalizeConfig, readConfig, writeConfig } from "./config.ts";
 import type { GrokControls } from "./controls.ts";
 import { validateAccess } from "./credentials.ts";
 import { type BrowserReceipt, connectBrowserVoice } from "./lan/connect.ts";
@@ -21,6 +14,7 @@ import {
 } from "./lan/receipt.ts";
 import type { startLan } from "./lan/server.ts";
 import { openSettings } from "./settings.ts";
+import { grokSettingsSnapshot } from "./settings-snapshot.ts";
 
 const MAX_CONNECT_REQUESTS = 256;
 
@@ -52,6 +46,11 @@ export function createGrokCommands(
 		const result = lanOperation.then(action, action);
 		lanOperation = result.catch(() => {});
 		return result;
+	};
+	const stop = async () => {
+		cancelLanStartup();
+		await runLan(stopLan);
+		await controls.stop();
 	};
 	const command: Parameters<ExtensionAPI["registerCommand"]>[1] = {
 		description: "Grok realtime voice and browser control",
@@ -135,9 +134,7 @@ export function createGrokCommands(
 					return;
 				}
 				if (action === "stop") {
-					cancelLanStartup();
-					await runLan(stopLan);
-					await controls.stop();
+					await stop();
 					return;
 				}
 				if (action === "dictate") {
@@ -219,6 +216,14 @@ export function createGrokCommands(
 										cancelDictation: () => controls.cancelDictation(),
 										stop: () => controls.stop(),
 										stopCall: () => controls.stopCall(),
+										shutdownServer: () => {
+											void stop().catch((error) =>
+												ctx.ui.notify(
+													`Grok browser control could not stop: ${error instanceof Error ? error.message : String(error)}`,
+													"error",
+												),
+											);
+										},
 										theme: () => ctx.ui.theme,
 										send: (text) => {
 											activity.working();
@@ -239,19 +244,14 @@ export function createGrokCommands(
 											dictation: dictation.state(),
 										}),
 										mute: (muted) => voice.mute(muted),
-										settings: () => ({
-											config: readConfig(),
-											voices: VOICES,
-											models: MODELS,
-											contextModels: [
-												"current",
-												"off",
-												...ctx.modelRegistry
-													.getAvailable()
-													.map((model) => `${model.provider}/${model.id}`),
-											],
-											speeds: SPEEDS,
-										}),
+										settings: () =>
+											grokSettingsSnapshot(
+												readConfig(),
+												ctx.modelRegistry.getAvailable().map((model) => ({
+													provider: model.provider,
+													modelId: model.id,
+												})),
+											),
 										configure: (patch) => {
 											const config = normalizeConfig(patch, readConfig());
 											if (

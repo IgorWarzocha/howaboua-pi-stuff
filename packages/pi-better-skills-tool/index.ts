@@ -1,5 +1,4 @@
 import type { ExtensionAPI, Skill } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import { createSkillsTool, prepareSkillsCodeModeInput } from "./src/tool.js";
 
 export { createSkillsTool, prepareSkillsCodeModeInput } from "./src/tool.js";
@@ -11,7 +10,6 @@ const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 
 export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
-	registerPackageChangelog(pi);
 	const sharedState = pi.events as typeof pi.events & {
 		[REGISTRATION_KEY]?: object;
 	};

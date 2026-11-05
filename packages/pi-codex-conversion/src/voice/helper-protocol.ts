@@ -21,6 +21,7 @@ export type VoiceHelperEvent =
 	| { type: "data"; message: unknown }
 	| { type: "pcm"; audio: string; sample_rate: number; num_channels: number; epoch?: number }
 	| { type: "playback_activity" }
+	| { type: "audio_diagnostics"; diagnostics: VoiceAudioDiagnostics }
 	| { type: "error"; message: string }
 	| { type: "stopped" };
 
@@ -28,6 +29,72 @@ export interface VoiceDevice {
 	id: string;
 	name: string;
 	is_default: boolean;
+}
+
+export interface VoiceAudioDiagnostics {
+	epoch: number;
+	suppressed: boolean;
+	elapsed_ms: number;
+	transitions: number;
+	drained_packets: number;
+	release_drained_packets: number;
+	rejected_packets: number;
+	buffering_entries: number;
+	tail_flushes: number;
+	clock_rebases: number;
+	decode_failures: number;
+	received_packets: number;
+	missing_packets: number;
+	decoded_packets: number;
+	decoded_packet_samples: number;
+	min_decoded_packet_samples: number;
+	max_decoded_packet_samples: number;
+	late_packets: number;
+	duplicate_packets: number;
+	reordered_packets: number;
+	resyncs: number;
+	resync_discarded_packets: number;
+	read_gaps_over_40ms: number;
+	max_read_gap_ms: number;
+	max_playout_lateness_us: number;
+	bridge_frames: number;
+	bridge_channel_full: number;
+	bridge_sends_over_1ms: number;
+	max_bridge_send_us: number;
+	first_packet_ms: number | null;
+}
+
+const AUDIO_COUNTERS = [
+	"elapsed_ms", "transitions", "drained_packets", "release_drained_packets", "rejected_packets", "buffering_entries", "tail_flushes", "clock_rebases", "decode_failures",
+	"received_packets",
+	"missing_packets",
+	"decoded_packets",
+	"decoded_packet_samples",
+	"min_decoded_packet_samples",
+	"max_decoded_packet_samples",
+	"late_packets",
+	"duplicate_packets",
+	"reordered_packets",
+	"resyncs",
+	"resync_discarded_packets",
+	"read_gaps_over_40ms",
+	"max_read_gap_ms",
+	"max_playout_lateness_us",
+	"bridge_frames",
+	"bridge_channel_full",
+	"bridge_sends_over_1ms",
+	"max_bridge_send_us",
+] as const;
+
+function validAudioDiagnostics(value: unknown): value is VoiceAudioDiagnostics {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const data = value as Record<string, unknown>;
+	const counter = (item: unknown) => typeof item === "number" && Number.isInteger(item) && item >= 0 && item <= 0xffff_ffff;
+	return data["epoch"] !== undefined && validEpoch(data["epoch"])
+		&& typeof data["suppressed"] === "boolean"
+		&& AUDIO_COUNTERS.every((key) => counter(data[key]))
+		&& (data["first_packet_ms"] === null || counter(data["first_packet_ms"]))
+		&& Object.keys(data).every((key) => key === "epoch" || key === "suppressed" || key === "first_packet_ms" || AUDIO_COUNTERS.some((field) => field === key));
 }
 
 const MAX_PCM_BYTES = 64 * 1024;
@@ -106,6 +173,7 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 	if (event["type"] === "state" && boundedString(event["state"], 128)) return event as VoiceHelperEvent;
 	if (event["type"] === "data" && boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "playback_activity") return { type: "playback_activity" };
+	if (event["type"] === "audio_diagnostics" && validAudioDiagnostics(event["diagnostics"])) return { type: "audio_diagnostics", diagnostics: event["diagnostics"] };
 	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1 && validEpoch(event["epoch"])) return event as VoiceHelperEvent;
 	if (event["type"] === "error" && boundedString(event["message"], MAX_TEXT_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "stopped") return event as VoiceHelperEvent;

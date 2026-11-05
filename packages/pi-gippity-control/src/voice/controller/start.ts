@@ -289,6 +289,8 @@ async function startConversation(
 				options.messages.voiceTurn(turn, session.finishingAcceptedWork),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
+			onAudioDiagnostics: (diagnostics) =>
+				options.messages.audioDiagnostics(diagnostics),
 			onTranscriptTail: (transcript) =>
 				options.messages.retainTranscriptTail(transcript),
 		},

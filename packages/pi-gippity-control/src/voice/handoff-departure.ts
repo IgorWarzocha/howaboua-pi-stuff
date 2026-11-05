@@ -34,6 +34,7 @@ export function startVoiceDeparture(options: {
 			if (!audio) throw new Error("Source audio is not ready");
 			if (method === "peer.start") return audio.start();
 			if (method === "peer.close") return audio.closePeer(value);
+			if (method === "peer.finish") return audio.finishPlayback(value);
 			throw new Error(
 				"Voice control was sent to the audio host instead of the selected session",
 			);

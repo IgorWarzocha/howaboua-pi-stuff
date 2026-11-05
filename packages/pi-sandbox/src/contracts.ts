@@ -281,14 +281,14 @@ export const HELP = {
 		prepare:
 			"name, config: host YAML path. Run setup and save reusable disk template, without services or credentials",
 		create:
-			"name, config: host YAML path OR template: name. Fresh independent disk, starts services",
+			"name, config:host YAML path OR template:name. Fresh independent disk, starts services",
 		start:
 			"name. Reopen stopped instance from disk, rerun resume hooks and services. Running is unchanged",
 		stop: "name. Stop processes and preserve disk. No memory/process resume",
 		inspect: "name",
-		exec: "name, cmd, cwd?: workspace-relative, timeoutMs?: 10000 (0..60000). Wait only, never kills. Running returns opaque pid handle",
+		exec: "name, cmd, cwd?:workspace-relative, timeoutMs?:10000 (0..60000). Wait only, never kills. Running returns opaque pid handle",
 		"exec-status":
-			"name, pid, timeoutMs?: 10000 (0..60000). Wait and return new output. Keeps 128 completed handles; new launches may expire older handles and unread output",
+			"name, pid, timeoutMs?:10000 (0..60000). Wait and return new output. Keeps 128 completed handles; new launches may expire older handles and unread output",
 		"exec-kill": "name, pid. Stop command process group",
 		read: "name, path: guest absolute path. Text up to 64 KiB",
 		write: "name, path: guest absolute path, content. Parent must exist",
@@ -298,7 +298,7 @@ export const HELP = {
 			"name, service, command, cwd?, port?, env?, preview?, title?, description?, previews?, health?. Ad-hoc service, rejects declared name",
 		preview:
 			"name, port, title?, description?. Link an already-listening HTTP server without supervision",
-		logs: "name, service?: name (omit for controller log), lines?: 100 (max 500)",
+		logs: "name, service?:name (omit for controller log), lines?:100 (max 500)",
 		destroy:
 			"name, confirm: same name, kind?: instances|templates. Irreversibly removes owned disk and logs",
 	},
@@ -325,7 +325,7 @@ export const HELP = {
 	},
 	profiles,
 	serviceConfig:
-		"Guest workspace/.sandbox.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health is a GET path or process (running process only). Preview true or {url?: /, title?: service, description?}; previews additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits 10s then continues in background",
+		"Guest workspace/.sandbox.yaml is the independent editable declaration source. Ensure/restart reload it. Port optional and sticky; TCP readiness unless health is a GET path or process (running process only). Preview true or {url?:/, title?:service, description?}; previews additional {url,title,description?} links or {folder,links}. env supports ${services.NAME.publicURL}, starts dependencies first. platforms filters guest OS (linux). Setup deadline 20min; resume waits 10s then continues in background",
 	boundaries:
 		"Linux KVM or macOS HVF with QEMU. Guest requires Python 3 for commands and services. Terminal requires OpenSSH server and Gondolin SSH helper. Sparse virtual disk capacity, not host quota. Unauthenticated localhost HTTP/WebSocket previews, not public or remote-host links. Guest HTTP responses need Content-Length or chunked framing. No host mounts/auth. Pi exit leaves instances running, explicit stop/destroy required. Templates must contain no secrets. Empty network allowlist blocks outbound HTTP",
 };

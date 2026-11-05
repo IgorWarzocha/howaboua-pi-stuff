@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { nativeAgentName } from "./agent-identity.js";
 import {
 	type AgentsParams,
 	requiredAgentField as required,
@@ -140,7 +141,7 @@ export async function spawnAgent(
 		const sharing =
 			profile.shareContext === false
 				? undefined
-				: await sharedContext.spawns.prepare(ctx, runtime, name, agentArgs);
+				: await sharedContext.spawns.prepare(ctx, runtime, agentArgs);
 		const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
 		const started = await startAgent(
 			runtime.client,
@@ -154,9 +155,11 @@ export async function spawnAgent(
 		let dispatch;
 		let shared: { agentName?: string; warning?: string } | undefined;
 		let boardAgent: string | undefined;
+		let agentName: string | undefined;
 		let relationshipWarning: string | undefined;
 		const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 		try {
+			agentName = await nativeAgentName(runtime.client, started.agent, signal);
 			await recordSpawn(started.agent, agentArgs);
 			relationshipWarning = (await relationship?.accept(started.agent))
 				?.warning;
@@ -212,13 +215,12 @@ export async function spawnAgent(
 								status: "working",
 								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 							}),
+				agent: agentName,
 				...(boardAgent || shared?.agentName
 					? {
 							sharing: {
-								...(boardAgent ? { boardAgent } : {}),
-								...(shared?.agentName
-									? { contextAgent: shared.agentName }
-									: {}),
+								board: !!boardAgent,
+								context: !!shared?.agentName,
 							},
 						}
 					: {}),

@@ -3,9 +3,35 @@ import type {
 	AgentSettledEvent,
 	BeforeAgentStartEvent,
 	CustomMessageEntryDraft,
+	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import type { NotesLifecycle } from "./lifecycle.js";
+
+const CHECKPOINT_MESSAGE = "notes-compaction:checkpoint:v1";
+
+export function registerCheckpointRenderer(pi: ExtensionAPI): void {
+	pi.registerMessageRenderer<{ instructions?: string }>(
+		CHECKPOINT_MESSAGE,
+		(message, _options, theme) => {
+			const instructions =
+				message.details?.instructions ??
+				(typeof message.content === "string"
+					? message.content
+							.split("\n\nCheckpoint guidance:\n")
+							.slice(1)
+							.join("\n\nCheckpoint guidance:\n")
+					: "");
+			return new Text(
+				theme.fg("customMessageLabel", "Context checkpoint") +
+					(instructions ? `\n${instructions}` : ""),
+				0,
+				0,
+			);
+		},
+	);
+}
 
 interface Checkpoint {
 	sessionId: string;
@@ -45,7 +71,7 @@ export class FreshCheckpoint {
 		if (
 			this.checkpoint &&
 			event.messageType === "custom" &&
-			event.message.customType === "notes-compaction:checkpoint:v1" &&
+			event.message.customType === CHECKPOINT_MESSAGE &&
 			(event.message.details as { requestId?: string } | undefined)
 				?.requestId === this.checkpoint.requestId
 		)
@@ -69,9 +95,9 @@ export class FreshCheckpoint {
 		try {
 			this.sendMessage(
 				{
-					customType: "notes-compaction:checkpoint:v1",
-					details: { requestId },
-					content: `<context_window_reminder>\nSave the task state in notes, then finish your reply. A new window opens automatically after your reply; do not call new_context. If saving fails, report the error.\n</context_window_reminder>${instructions?.trim() ? `\n\nCheckpoint guidance:\n${instructions}` : ""}`,
+					customType: CHECKPOINT_MESSAGE,
+					details: { requestId, instructions: instructions?.trim() },
+					content: `<context_window_reminder>\nSave task state in notes, then finish reply. New window opens automatically after reply; do not call new_context.\n</context_window_reminder>${instructions?.trim() ? `\n\nCheckpoint guidance:\n${instructions}` : ""}`,
 					display: true,
 				},
 				{ triggerTurn: true },

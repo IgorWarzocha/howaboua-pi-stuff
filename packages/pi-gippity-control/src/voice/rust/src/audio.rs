@@ -253,7 +253,7 @@ mod tests {
             crate::v3_media::drain_ready_packets(&mut read, || {
                 Box::pin(queued_read(Arc::clone(&remaining)))
             }),
-            crate::v3_media::ReadyDrain::Pending
+            crate::v3_media::ReadyDrain::Pending(budget)
         );
         assert_eq!(remaining.load(Ordering::Acquire), 0);
         remaining.store(1, Ordering::Release);
@@ -261,7 +261,7 @@ mod tests {
             crate::v3_media::drain_ready_packets(&mut read, || {
                 Box::pin(queued_read(Arc::clone(&remaining)))
             }),
-            crate::v3_media::ReadyDrain::Pending
+            crate::v3_media::ReadyDrain::Pending(1)
         );
         assert_eq!(remaining.load(Ordering::Acquire), 0);
 

@@ -126,6 +126,9 @@ export class MonitorState {
 			...(existing?.instructions
 				? { instructions: existing.instructions }
 				: {}),
+			...(existing?.latestInstruction
+				? { latestInstruction: existing.latestInstruction }
+				: {}),
 			...recordForPanel(
 				panel,
 				activity,
@@ -185,11 +188,19 @@ export class MonitorState {
 	noteMessage(paneId: string, message: string): boolean {
 		const record = this.byPane(paneId);
 		if (!record) return false;
-		const prior = record.instructions ?? activityTask(record.activity);
+		const instructions =
+			record.instructions ?? activityTask(record.activity) ?? message;
+		const latestInstruction = message !== instructions ? message : undefined;
+		const { latestInstruction: previousInstruction, ...prior } = record;
+		if (
+			record.instructions === instructions &&
+			previousInstruction === latestInstruction
+		)
+			return false;
 		this.agents.set(record.terminalId, {
-			...record,
-			instructions:
-				prior && prior !== message ? `${prior}\n\n${message}` : message,
+			...prior,
+			instructions,
+			...(latestInstruction ? { latestInstruction } : {}),
 		});
 		return true;
 	}
@@ -390,6 +401,9 @@ export class MonitorState {
 
 			const updated = {
 				...(record.instructions ? { instructions: record.instructions } : {}),
+				...(record.latestInstruction
+					? { latestInstruction: record.latestInstruction }
+					: {}),
 				...recordForPanel(
 					panel,
 					activity,

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 6;
+pub const PROTOCOL_VERSION: u8 = 8;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_PCM_BYTES: usize = 64 * 1024;
@@ -97,6 +97,9 @@ pub enum Event {
         epoch: Option<u64>,
     },
     PlaybackActivity,
+    AudioDiagnostics {
+        diagnostics: AudioDiagnostics,
+    },
     Error {
         message: String,
     },
@@ -108,6 +111,45 @@ pub struct AudioDevice {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+}
+
+// Interval totals may span epochs; epoch/suppressed describe the final state.
+// Counts and local relative timing only: never audio, captions or provider data.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct AudioDiagnostics {
+    pub epoch: u64,
+    pub suppressed: bool,
+    pub elapsed_ms: u32,
+    pub transitions: u32,
+    pub drained_packets: u32,
+    pub release_drained_packets: u32,
+    pub rejected_packets: u32,
+    pub buffering_entries: u32,
+    pub tail_flushes: u32,
+    pub clock_rebases: u32,
+    pub decode_failures: u32,
+    pub received_packets: u32,
+    pub missing_packets: u32,
+    // Successful received-packet decodes only (not PLC), per channel at 48 kHz.
+    // Min/max are zero if no packet was decoded in the interval.
+    pub decoded_packets: u32,
+    pub decoded_packet_samples: u32,
+    pub min_decoded_packet_samples: u32,
+    pub max_decoded_packet_samples: u32,
+    pub late_packets: u32,
+    pub duplicate_packets: u32,
+    pub reordered_packets: u32,
+    pub resyncs: u32,
+    pub resync_discarded_packets: u32,
+    // Observed read spacing, not network arrival time; includes ordinary pauses.
+    pub read_gaps_over_40ms: u32,
+    pub max_read_gap_ms: u32,
+    pub max_playout_lateness_us: u32,
+    pub bridge_frames: u32,
+    pub bridge_channel_full: u32,
+    pub bridge_sends_over_1ms: u32,
+    pub max_bridge_send_us: u32,
+    pub first_packet_ms: Option<u32>,
 }
 
 impl Command {

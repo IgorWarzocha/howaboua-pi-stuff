@@ -193,37 +193,42 @@ export function getGrammarToolInput(
 export function appendGrammarToolInputJsonDelta(
 	buffer: GrammarToolInputJsonBuffer,
 	inputProperty: string,
-	nextInput: string,
-	close: boolean,
+	inputDelta: string,
 ): string | undefined {
 	if (buffer.closed) {
-		if (close && nextInput === buffer.input) return undefined;
 		throw new Error(
 			`grammar tool input for property "${inputProperty}" changed after it was closed`,
 		);
 	}
-	if (!nextInput.startsWith(buffer.input)) {
+	if (inputDelta.length === 0) return undefined;
+	buffer.input += inputDelta;
+	return grammarToolInputJsonStart(buffer, inputProperty) + JSON.stringify(inputDelta).slice(1, -1);
+}
+
+export function closeGrammarToolInputJson(
+	buffer: GrammarToolInputJsonBuffer,
+	inputProperty: string,
+	finalInput: string | undefined,
+): string | undefined {
+	if (buffer.closed) {
+		if (finalInput === undefined || finalInput === buffer.input) return undefined;
+		throw new Error(`grammar tool input for property "${inputProperty}" changed after it was closed`);
+	}
+	if (finalInput !== undefined && !finalInput.startsWith(buffer.input)) {
 		throw new Error(
 			`grammar tool input for property "${inputProperty}" changed non-monotonically`,
 		);
 	}
+	const rest = finalInput === undefined ? "" : finalInput.slice(buffer.input.length);
+	if (finalInput !== undefined) buffer.input = finalInput;
+	buffer.closed = true;
+	return `${grammarToolInputJsonStart(buffer, inputProperty)}${JSON.stringify(rest).slice(1, -1)}"}`;
+}
 
-	const inputDelta = nextInput.slice(buffer.input.length);
-	if (!close && inputDelta.length === 0) return undefined;
-
-	let delta = "";
-	if (!buffer.started) {
-		delta += `{${JSON.stringify(inputProperty)}:"`;
-		buffer.started = true;
-	}
-	delta += JSON.stringify(inputDelta).slice(1, -1);
-	buffer.input = nextInput;
-
-	if (close) {
-		delta += '"}';
-		buffer.closed = true;
-	}
-	return delta;
+function grammarToolInputJsonStart(buffer: GrammarToolInputJsonBuffer, inputProperty: string): string {
+	if (buffer.started) return "";
+	buffer.started = true;
+	return `{${JSON.stringify(inputProperty)}:"`;
 }
 
 function inferGrammarInputProperty(tool: Tool): string {

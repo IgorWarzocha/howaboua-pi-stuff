@@ -88,7 +88,8 @@ export class BoardAwareness {
 				ids?: unknown;
 			};
 			return data?.boardId === own.boardId &&
-				data.agentName === own.agentName &&
+				(data.agentName === own.agentName ||
+					data.agentName === own.legacyAgentName) &&
 				Array.isArray(data.ids)
 				? data.ids.filter((id): id is string => typeof id === "string")
 				: [];

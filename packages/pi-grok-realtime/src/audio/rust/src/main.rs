@@ -1,5 +1,7 @@
 mod devices;
 mod dsp;
+mod playback_buffer;
+mod playback_metrics;
 
 use cpal::{
     StreamInstant,
@@ -15,6 +17,8 @@ use std::{
 
 pub struct Response(u8, Vec<u8>);
 pub struct Shared {
+    playback: playback_buffer::PlaybackBuffer,
+    metrics: playback_metrics::Metrics,
     queue: VecDeque<f32>,
     dsp: Dsp,
     epoch: u32,
@@ -61,7 +65,7 @@ fn read_command(reader: &mut impl Read) -> Result<Option<Response>, String> {
 }
 fn valid(command: &Response) -> bool {
     match command.0 {
-        b'Q' | b'C' => command.1.is_empty(),
+        b'Q' | b'C' | b'T' => command.1.is_empty(),
         b'M' => command.1.len() == 5 && command.1[4] <= 1,
         b'D' => command.1.len() == 4,
         b'P' => !command.1.is_empty() && command.1.len().is_multiple_of(2),
@@ -118,6 +122,8 @@ fn run(args: &[String]) -> Result<(), String> {
         .sample_rate();
     let (responses, receiver) = mpsc::channel();
     let shared = Arc::new(Mutex::new(Shared {
+        playback: playback_buffer::PlaybackBuffer::default(),
+        metrics: playback_metrics::Metrics::new(),
         queue: VecDeque::new(),
         dsp: Dsp::new(input_rate, output_rate),
         epoch: 0,
@@ -165,12 +171,26 @@ fn run(args: &[String]) -> Result<(), String> {
         if command.0 == b'Q' {
             break;
         }
+        if command.0 == b'T' {
+            let report = {
+                let mut state = shared.lock().unwrap();
+                let queued = state.queue.len();
+                let delay = state.render_delay.as_micros();
+                state.metrics.snapshot(queued, output_rate, delay)
+            };
+            responses
+                .send(Response(b'J', report.json().to_string().into_bytes()))
+                .map_err(|e| e.to_string())?;
+            continue;
+        }
         if command.0 == b'C' {
             // CPAL has no flush: drop the stream before resetting echo history.
             drop(output.take());
             {
                 let mut state = shared.lock().unwrap();
                 state.queue.clear();
+                state.playback.reset();
+                state.metrics.clear();
                 state.drain = None;
                 state.last_playback = None;
                 state.render_delay = Duration::ZERO;
@@ -186,8 +206,11 @@ fn run(args: &[String]) -> Result<(), String> {
             continue;
         }
         let mut state = shared.lock().unwrap();
+        let mut report = None;
         match command.0 {
             b'P' => {
+                let queued = state.queue.len();
+                report = state.metrics.receive(queued, output_rate);
                 // Later PCM extends an outstanding drain; only clear cancels it.
                 let samples: Vec<f32> = command
                     .1
@@ -205,11 +228,16 @@ fn run(args: &[String]) -> Result<(), String> {
                 state.dsp.reset_capture();
             }
             b'D' => {
+                state.metrics.drain(false);
                 // Flush interpolation's final boundary sample without inventing queue padding.
                 converter.finish(&mut state.queue);
                 state.drain = Some(u32::from_le_bytes(command.1[..4].try_into().unwrap()));
             }
             _ => unreachable!(),
+        }
+        drop(state);
+        if let Some(report) = report {
+            eprintln!("{report}");
         }
     }
     drop(input);

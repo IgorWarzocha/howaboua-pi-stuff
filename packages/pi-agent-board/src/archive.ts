@@ -8,22 +8,27 @@ import { boundedBoardRead, checkMutationBudget } from "./response.js";
 export async function readSubscribedUpdates(
 	caller: BoardBinding,
 	seen: string[],
+	aliases: [string, string][] = [],
 ) {
 	if (!existsSync(caller.databasePath)) return [];
 	const { BoardStore } = await import("./store.js");
-	const store = new BoardStore(caller.databasePath, false);
+	const store = new BoardStore(caller.databasePath, false, aliases);
 	try {
+		const identities = JSON.stringify(store.agentIdentities(caller.agentName));
 		return store.all<{ message_id: string; thread_id: string }>(
 			`SELECT p.id AS message_id,p.root AS thread_id FROM posts p
-			WHERE p.board_id=? AND p.author<>? AND NOT EXISTS
+			WHERE p.board_id=? AND p.author NOT IN (SELECT value FROM json_each(?)) AND NOT EXISTS
 			(SELECT 1 FROM json_each(?) WHERE value=p.id) AND EXISTS
 			(SELECT 1 FROM subscriptions s WHERE s.board_id=p.board_id
-			AND s.agent=? AND s.enabled=1 AND s.target=CASE WHEN p.id=p.root
-			THEN 'channel:'||p.channel ELSE 'thread:'||p.root END)
+			AND s.agent IN (SELECT value FROM json_each(?)) AND s.enabled=1
+			AND (s.agent=? OR NOT EXISTS (SELECT 1 FROM subscriptions n WHERE n.board_id=s.board_id AND n.target=s.target AND n.agent=?))
+			AND s.target=CASE WHEN p.id=p.root THEN 'channel:'||p.channel ELSE 'thread:'||p.root END)
 			ORDER BY p.seq ASC LIMIT 50`,
 			caller.boardId,
-			caller.agentName,
+			identities,
 			JSON.stringify(seen),
+			identities,
+			caller.agentName,
 			caller.agentName,
 		);
 	} finally {
@@ -36,6 +41,7 @@ export async function executeArchive(
 	memberNames: readonly string[],
 	params: BoardParams,
 	requestId: string,
+	aliases: [string, string][] = [],
 ) {
 	if (
 		params.action === "set_status" &&
@@ -65,7 +71,8 @@ export async function executeArchive(
 			...(params.agents_to_notify ?? []),
 			...(params.target_agent === undefined ? [] : [params.target_agent]),
 		]) {
-			const target = agentPath(value, caller.agentName);
+			const path = agentPath(value, caller.legacyAgentName ?? caller.agentName);
+			const target = new Map(aliases).get(path) ?? path;
 			if (!memberNames.includes(target))
 				throw new Error(`Agent not bound to this tree: ${target}`);
 		}
@@ -87,7 +94,7 @@ export async function executeArchive(
 			return { value: page([], params), recipients: [] };
 		throw new Error("This board has no channels or posts yet");
 	}
-	const store = new storage.BoardStore(caller.databasePath, write);
+	const store = new storage.BoardStore(caller.databasePath, write, aliases);
 	try {
 		const scope = {
 			boardId: caller.boardId,
@@ -95,6 +102,9 @@ export async function executeArchive(
 			ownerFolder: caller.ownerFolder,
 			callerSessionId: caller.sessionId,
 			agentName: caller.agentName,
+			...(caller.legacyAgentName
+				? { legacyAgentName: caller.legacyAgentName }
+				: {}),
 			members: memberNames,
 		};
 		return write

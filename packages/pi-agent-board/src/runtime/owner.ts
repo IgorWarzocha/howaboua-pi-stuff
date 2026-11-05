@@ -6,7 +6,7 @@ import {
 	boardHelp,
 	parseBoardRequest,
 } from "../contract.js";
-import { binding, members } from "../identity.js";
+import { binding, boardAliases, members } from "../identity.js";
 import type { BoardAdapter } from "../integration.js";
 import type { BoardEnvelope } from "../protocol.js";
 import type { BoardSummarizer } from "../summarizer.js";
@@ -68,7 +68,9 @@ export class BoardOwner {
 			return true;
 		}
 		if (request.operation === "board-catchup")
-			return own.enabled ? readSubscribedUpdates(caller, request.seen) : [];
+			return own.enabled
+				? readSubscribedUpdates(caller, request.seen, boardAliases(ctx))
+				: [];
 		if (request.operation !== "board-call")
 			throw new Error("Invalid board owner operation");
 		const params = parseBoardRequest(request.params);
@@ -80,7 +82,7 @@ export class BoardOwner {
 					: {
 							...boardHelp.rules,
 							agents:
-								"Absolute /root/... or child path relative to you; notices require registered members",
+								"Agent reference /<Pi session ID>; notices require registered members",
 						},
 				enabled: own.enabled,
 			};
@@ -89,13 +91,20 @@ export class BoardOwner {
 		const prepared: BoardParams =
 			params.author === undefined
 				? params
-				: { ...params, author: agentPath(params.author, caller.agentName) };
+				: {
+						...params,
+						author: agentPath(
+							params.author,
+							caller.legacyAgentName ?? caller.agentName,
+						),
+					};
 		const active = new Map(this.turns.active);
 		const result = await executeArchive(
 			{ ...caller, enabled: own.enabled },
 			directory.map((member) => member.agentName),
 			prepared,
 			request.requestId,
+			boardAliases(ctx, params.board_id),
 		);
 		if ("notice" in result && result.notice) {
 			// Replayed mutations have no notice: never start or cancel twice for a retry.
@@ -115,6 +124,21 @@ export class BoardOwner {
 					result.recipients.slice(start, start + 16).map(async (target) => {
 						const turn = active.get(target);
 						if (!turn) return;
+						const route: string[] = [];
+						let member = directory.find(
+							(entry) => entry.sessionId === turn.sessionId,
+						);
+						while (
+							member &&
+							member.sessionId !== own.sessionId &&
+							route.length < directory.length
+						) {
+							route.unshift(member.sessionId);
+							member = directory.find(
+								(entry) => entry.sessionId === member?.parentSessionId,
+							);
+						}
+						if (member?.sessionId !== own.sessionId) return;
 						try {
 							await this.notify(
 								ctx,
@@ -122,6 +146,7 @@ export class BoardOwner {
 									operation: "board-notify",
 									boardId: own.boardId,
 									target,
+									route,
 									...turn,
 									notice: result.notice,
 								},

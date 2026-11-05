@@ -29,6 +29,7 @@ export function createModelRoles(
 ) {
 	let config: RoleConfig = { roles: [] };
 	let configError: string | undefined;
+	let roleIdsChanged: ((ids: string[]) => void) | undefined;
 	const load = () => {
 		try {
 			config = readRoleConfig();
@@ -37,6 +38,7 @@ export function createModelRoles(
 			config = { roles: [] };
 			configError = error instanceof Error ? error.message : String(error);
 		}
+		roleIdsChanged?.(config.roles.map((role) => role.id).sort());
 	};
 	pi.on("before_agent_start", (event, ctx) => {
 		activation.refreshActivation(ctx);
@@ -56,14 +58,30 @@ export function createModelRoles(
 					entry.type === "custom_message" && entry.customType === GUIDANCE_TYPE,
 			);
 		if (!config.roles.length && !previous) return;
+		const reasoning = pi.getThinkingLevel();
+		const matching = config.roles
+			.filter(
+				(role) =>
+					role.provider === ctx.model?.provider &&
+					role.model === ctx.model?.id &&
+					role.reasoning === reasoning,
+			)
+			.map((role) => role.id);
+		const currentRole =
+			matching.length === 0
+				? "none (no matching preset)"
+				: matching.length === 1
+					? matching.join(", ")
+					: `ambiguous (${matching.join(", ")})`;
 		const content = config.roles.length
 			? [
+					`Current role: ${currentRole}`,
 					lifecycle.gptPromptMode()
-						? 'Roles=user preferences, not capability limits. Switch only for clear, sustained task/scope change, not one specialised prompt. Any model can do general work. Bounded specialist detour→consider available subagent. Save notes→new_context({role: "name"}); omit role→keep model.'
-						: 'Roles are user preferences, not capability limits. Switch only for a clear, sustained change of task or scope, not a single specialised prompt. Any model can do general work. Consider an available subagent for a bounded specialist detour. Save notes, then call new_context({role: "name"}); omit role to keep the current model.',
+						? 'Roles=user preferences, not capability limits. Switch for clear, sustained task/scope change, not one specialised prompt. Any role can do general work. Bounded specialist detour→consider subagent. Save notes→new_context({role: "name"}); omit role→keep role.'
+						: 'Roles are user preferences, not capability limits. Switch for clear, sustained change of task or scope, not single specialised prompt. Any role can do general work. Consider subagents for a bounded specialist detour. Save notes, then call new_context({role: "name"}); omit role to keep the current role.',
 					...config.roles.map((role) => `- ${role.id}: ${role.description}`),
 				].join("\n")
-			: "No model roles are available. Call new_context without role.";
+			: "No model roles available. Call new_context without role.";
 		if (
 			startingWindow?.kind !== "window" &&
 			previous?.type === "custom_message" &&
@@ -197,5 +215,11 @@ export function createModelRoles(
 			? ("notes" as const)
 			: undefined;
 	}
-	return { prepare, command };
+	return {
+		prepare,
+		command,
+		onRoleIdsChanged(listener: (ids: string[]) => void) {
+			roleIdsChanged = listener;
+		},
+	};
 }

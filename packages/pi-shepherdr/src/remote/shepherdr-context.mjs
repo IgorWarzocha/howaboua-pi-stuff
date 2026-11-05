@@ -10,6 +10,16 @@ import { readReceiver } from "./shepherdr-peer.mjs";
 const MAX_BYTES = 8 * 1024 * 1024;
 const TIMEOUT = 35_000;
 
+/** @param {unknown} error */
+export function isContextUnavailable(error) {
+	return (
+		error instanceof Error &&
+		/^(Shared context (?:owner|controller) is unavailable|Shared context response was lost|Herdr machine .* is (?:unavailable|disconnected)|remote Shepherdr bridge (?:is unavailable|closed|exited\b)|remote Shepherdr context timed out)/.test(
+			error.message,
+		)
+	);
+}
+
 function contextDirectory() {
 	return join(
 		process.env["PI_CODING_AGENT_DIR"] || join(homedir(), ".pi", "agent"),
@@ -20,7 +30,7 @@ function contextDirectory() {
 
 /** @param {string} threadId @param {string} routeId */
 export function relayContextPath(threadId, routeId) {
-	if (typeof threadId !== "string" || !/^[a-zA-Z0-9_-]+$/.test(threadId))
+	if (typeof threadId !== "string" || !/^[a-zA-Z0-9_.-]+$/.test(threadId))
 		throw new Error("Invalid context thread ID");
 	if (typeof routeId !== "string" || !/^[a-f0-9]{32}$/.test(routeId))
 		throw new Error("Invalid context route ID");
@@ -66,7 +76,9 @@ export async function requestContext(path, request, signal) {
 			!identity.sessionId ||
 			!("agentName" in identity) ||
 			typeof identity.agentName !== "string" ||
-			!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(identity.agentName) ||
+			!/^\/(?:[a-zA-Z0-9_.-]+|root(?:\/[a-zA-Z0-9_-]+)*)$/.test(
+				identity.agentName,
+			) ||
 			!("storage" in identity) ||
 			identity.storage !== "session"
 		)

@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
+import { nativeAgentName } from "./agent-identity.js";
 import type { ConnectedMachine } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
@@ -100,7 +101,6 @@ export class SpawnContext {
 	async prepare(
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,
-		name: string,
 		args: readonly string[] = [],
 	) {
 		const service = this.getService();
@@ -129,15 +129,16 @@ export class SpawnContext {
 				? sessionContextPath(parentFile)
 				: runtime.client.contextRelayPath(),
 		};
-		const { binding, adopt } = await service.createChild(ctx, {
-			name,
-			routing,
-		});
 		return {
 			accept: async (agent: PaneInfo) => {
 				const sessionFile = sessionPath(agent);
 				if (!sessionFile)
 					throw new Error("Spawned agent has no native Pi session path");
+				const agentName = await nativeAgentName(runtime.client, agent);
+				const { binding, adopt } = await service.createChild(ctx, {
+					threadId: agentName.slice(1),
+					routing,
+				});
 				const value = await runtime.client.requestContext(
 					sessionContextPath(sessionFile),
 					{ operation: "bind", binding },

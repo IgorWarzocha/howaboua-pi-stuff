@@ -44,6 +44,7 @@ export {
 	children,
 	members,
 	parseBinding,
+	parseBinding as canonicalBoardBinding,
 	removeMember,
 	rootBoardSetting,
 	saveBinding,

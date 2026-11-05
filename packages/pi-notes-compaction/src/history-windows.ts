@@ -91,13 +91,23 @@ export async function historyWindows(
 	});
 	let windowId = `session:${sessionId}`;
 	let activeStart = 0;
+	let hasWindowBoundary = false;
 	const positions = new Map(
 		entries.map((entry, position) => [entry.id, position]),
 	);
 	for (const [position, entry] of entries.entries()) {
 		const boundary = windowDetails(entry);
-		if (boundary?.kind === "window" && boundary.trim)
-			activeStart = position + 1;
+		if (boundary?.kind === "window") {
+			// Pi persists the initial kickoff before the returned window message.
+			if (
+				!hasWindowBoundary &&
+				!boundary.trim &&
+				boundary.identity.windowNumber === 0
+			)
+				windowId = boundary.identity.currentWindowId;
+			hasWindowBoundary = true;
+			if (boundary.trim) activeStart = position + 1;
+		}
 		if (entry.type === "compaction") {
 			const kept = positions.get(entry.firstKeptEntryId);
 			if (kept !== undefined && kept <= position)

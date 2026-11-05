@@ -63,6 +63,23 @@ fn fail(error: impl std::fmt::Display) -> ! {
     std::process::exit(1)
 }
 
+fn stream_error(error: cpal::Error, shared: &Mutex<Shared>, input: bool) {
+    if error.kind() == cpal::ErrorKind::Xrun {
+        {
+            let mut state = shared.lock().unwrap();
+            if input {
+                state.metrics.input_xruns += 1;
+            } else {
+                state.metrics.output_xruns += 1;
+            }
+        }
+        // CPAL reports this before recovering the existing stream.
+        eprintln!("Audio device underrun or overrun; continuing with device recovery");
+    } else {
+        fail(error);
+    }
+}
+
 macro_rules! formats {
     ($format:expr, $function:ident, $device:expr, $config:expr, $shared:expr) => {
         match $format {
@@ -119,6 +136,7 @@ where
 {
     let channels = config.channels as usize;
     let rate = config.sample_rate as f64;
+    let errors = shared.clone();
     device
         .build_input_stream(
             *config,
@@ -163,7 +181,7 @@ where
                         .unwrap_or_else(|e| fail(e));
                 }
             },
-            |error| fail(error),
+            move |error| stream_error(error, &errors, true),
             None,
         )
         .map_err(|e| format!("Cannot open microphone: {e}"))
@@ -179,18 +197,34 @@ where
 {
     let channels = config.channels as usize;
     let rate = config.sample_rate;
+    let errors = shared.clone();
     device
         .build_output_stream(
             *config,
             move |data: &mut [T], info: &cpal::OutputCallbackInfo| {
                 let timestamp = info.timestamp();
                 let mut state = shared.lock().unwrap();
+                let queued = state.queue.len();
+                let draining = state.drain.is_some();
+                let frames = data.len() / channels;
+                let now = Instant::now();
+                let ready = state.playback.ready(queued, rate, frames, draining, now);
+                let queued = if ready { queued } else { 0 };
+                let padding = {
+                    let Shared {
+                        playback, queue, ..
+                    } = &mut *state;
+                    playback.padding(queue, rate, frames, draining)
+                };
+                let held = !ready && !state.queue.is_empty();
                 if state.queue.is_empty()
                     && state
                         .last_playback
                         .is_none_or(|end| timestamp.callback >= end)
                     && let Some(id) = state.drain.take()
                 {
+                    state.playback.reset();
+                    state.metrics.drain(true);
                     state
                         .responses
                         .send(Response(b'D', id.to_le_bytes().to_vec()))
@@ -199,8 +233,11 @@ where
                 let mut reference = Vec::with_capacity(data.len() / channels);
                 let mut last = None;
                 for (index, frame) in data.chunks_exact_mut(channels).enumerate() {
-                    let sample = if let Some(sample) = state.queue.pop_front() {
+                    let sample = if index < padding {
+                        0.0
+                    } else if let Some(sample) = ready.then(|| state.queue.pop_front()).flatten() {
                         last = Some(index + 1);
+                        state.playback.played(sample, rate);
                         sample
                     } else {
                         0.0
@@ -210,6 +247,15 @@ where
                     // Reference reflects the samples actually submitted, including format quantization and silence.
                     reference.push(f32::from_sample(value));
                 }
+                let supplied = (queued + padding).min(frames);
+                let first = reference.first().copied().unwrap_or(0.0);
+                let end = reference
+                    .get(supplied.saturating_sub(1))
+                    .copied()
+                    .unwrap_or(0.0);
+                state
+                    .metrics
+                    .render(queued, frames, first, end, held, padding);
                 if let Some(frames) = last {
                     state.last_playback = Some(
                         timestamp
@@ -218,12 +264,22 @@ where
                             .unwrap_or_else(|| fail("Speaker timestamp overflow")),
                     );
                 }
+                if ready && state.queue.is_empty() {
+                    let remaining = state.last_playback.map_or(Duration::ZERO, |end| {
+                        end.saturating_duration_since(timestamp.callback)
+                    });
+                    let rendered_until = now
+                        .checked_add(remaining)
+                        .unwrap_or_else(|| fail("Speaker timestamp overflow"));
+                    state.playback.depleted(rendered_until, rate);
+                }
                 state.render_delay = timestamp
                     .playback
                     .saturating_duration_since(timestamp.callback);
+                state.metrics.activity(&reference);
                 state.dsp.render(&reference).unwrap_or_else(|e| fail(e));
             },
-            |error| fail(error),
+            move |error| stream_error(error, &errors, false),
             None,
         )
         .map_err(|e| format!("Cannot open speaker: {e}"))

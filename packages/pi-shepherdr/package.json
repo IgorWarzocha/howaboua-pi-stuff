@@ -31,7 +31,6 @@
 		"LICENSE",
 		"tsconfig.json",
 		"biome.json",
-		"changelog.ts",
 		"CHANGELOG.md"
 	],
 	"scripts": {
@@ -46,7 +45,7 @@
 		"@howaboua/pi-notes-compaction": ">=0.0.13",
 		"@howaboua/pi-codex-conversion": ">=4.0.7",
 		"@earendil-works/pi-ai": ">=1.1.0",
-		"@earendil-works/pi-coding-agent": ">=1.2.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.1.0",
 		"typebox": "*"
 	},
@@ -65,9 +64,9 @@
 		"@howaboua/pi-notes-compaction": "0.0.13",
 		"@howaboua/pi-codex-conversion": "4.0.7",
 		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-ai": "1.4.0",
-		"@earendil-works/pi-coding-agent": "1.4.0",
-		"@earendil-works/pi-tui": "1.4.0",
+		"@earendil-works/pi-ai": "1.5.0",
+		"@earendil-works/pi-coding-agent": "1.5.0",
+		"@earendil-works/pi-tui": "1.5.0",
 		"@types/node": "^26.6.5",
 		"typebox": "1.4.3",
 		"typescript": "^7.0.2"

@@ -1,0 +1,31 @@
+[package]
+name = "herdr-voice"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "=1.0.104"
+axum = "=0.8.8"
+clap = { version = "=4.5.58", features = ["derive"] }
+dirs = "=6.0.0"
+futures-util = "=0.3.32"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+if-addrs = "=0.15.0"
+native-tls = "=0.2.14"
+reqwest = { version = "=0.12.28", default-features = false, features = ["native-tls", "json", "stream"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.154"
+tokio = { version = "=1.54.1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-native-tls = "=0.3.1"
+tokio-tungstenite = { version = "=0.28.0", features = ["native-tls"] }
+url = "=2.5.8"
+uuid = { version = "=1.29.0", features = ["v4"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

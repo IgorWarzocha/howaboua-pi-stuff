@@ -30,6 +30,7 @@ import {
 } from "./controller/support.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { CapturedHandoffAudio } from "./handoff-peer.ts";
+import type { LanPlaybackDiagnostics } from "./lan/browser-connections.ts";
 import type { CodexVoiceSessionMessages } from "./session-messages.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
@@ -292,6 +293,11 @@ export class CodexVoiceController {
 	agentStarted(): void {
 		this.agent.agentStarted();
 	}
+
+	lanPlaybackDiagnostics(diagnostics: LanPlaybackDiagnostics): void {
+		this.messages.lanPlaybackDiagnostics(diagnostics);
+	}
+
 	filterContext(messages: ContextEvent["messages"]): ContextEvent["messages"] {
 		return this.agent.filterContext(messages);
 	}

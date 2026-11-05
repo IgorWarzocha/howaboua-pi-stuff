@@ -16,7 +16,6 @@ import {
 import { isAskHelpInput, isSteeringAskInput } from "./ask/normalize.js";
 import { PENDING_ASK_ENTRY_TYPE, readPendingAsks } from "./ask/pending.js";
 import { createAskRuntime, createAskTool } from "./ask/tool.js";
-import registerPackageChangelog from "./changelog.js";
 
 export { createAskTool } from "./ask/tool.js";
 
@@ -28,7 +27,6 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 const DEVELOPER_MESSAGES_MODULE = `${CODE_MODE_PACKAGE}/developer-messages`;
 
 export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
-	registerPackageChangelog(pi);
 	const trySendCodexDeveloperMessage = await loadCodexDeveloperMessageSender();
 	let gpt = false;
 	const askRuntime = createAskRuntime({

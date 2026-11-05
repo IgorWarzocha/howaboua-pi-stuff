@@ -142,7 +142,13 @@ export class ConversationTurns {
 			);
 			return;
 		}
-		const delegated = this.turnTracker.delegated(input, delegationId);
+		const delegated = this.turnTracker.delegated(
+			input,
+			delegationId,
+			typeof record["user_bidi_turn_id"] === "string"
+				? record["user_bidi_turn_id"]
+				: undefined,
+		);
 		this.callbacks.onEvent?.(
 			realtimeEventDetails(this.callId, event, input, Boolean(delegated)),
 		);

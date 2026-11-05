@@ -5,6 +5,7 @@ import type { RealtimeInitialMessageItem } from "../context.ts";
 import type { CodexRealtimePeer } from "../conversation/peer.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import type { CodexDictationSession } from "../dictation/session.ts";
+import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import { rewriteTaskDelegation } from "../task-delegation.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
 
@@ -24,6 +25,7 @@ interface RealtimeSessionLifecycle
 	onTurn(session: CodexRealtimeConversation, turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
+	onAudioDiagnostics(diagnostics: VoiceAudioDiagnostics): void;
 }
 
 interface DictationSessionLifecycle
@@ -73,6 +75,7 @@ export async function startControllerConversation(options: {
 			onTurn: (turn) => options.lifecycle.onTurn(session, turn),
 			onUserTranscript: options.lifecycle.onUserTranscript,
 			onTranscriptTail: options.lifecycle.onTranscriptTail,
+			onAudioDiagnostics: options.lifecycle.onAudioDiagnostics,
 			rewriteDelegation: (turn, signal) =>
 				rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
 			onDelegationError: (error) =>

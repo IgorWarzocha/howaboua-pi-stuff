@@ -58,12 +58,21 @@ export function normalizeQueryInput(
 	if (!input || typeof input !== "object" || Array.isArray(input))
 		throw new Error("Supply an action object; use {} for help");
 	const params = { ...input } as Record<string, unknown>;
+	if (
+		namespace === "history" &&
+		params["action"] === undefined &&
+		"query" in params
+	)
+		params["action"] = "search";
 	const action =
 		ACTIONS[namespace][String(params["action"])] ?? params["action"];
 	if (action !== undefined) params["action"] = action;
 	if (namespace === "notes") {
-		if (action === "write" || action === "append")
+		alias(params, "address", "path");
+		if (action === "write" || action === "append") {
 			alias(params, "content", "text");
+			alias(params, "body", "text");
+		}
 		if (action === "list" || action === "search") {
 			alias(params, "prefix", "path");
 			alias(params, "path_prefix", "path");
@@ -76,6 +85,8 @@ export function normalizeQueryInput(
 		alias(params, "max_results", "limit");
 	}
 	const used = PRESENTATION[`${namespace}:${String(action)}`] ?? [];
+	if (namespace === "history" && action !== "read")
+		delete params["offset_chars"];
 	for (const hint of HINTS) if (!used.includes(hint)) delete params[hint];
 	return params;
 }

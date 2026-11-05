@@ -9,14 +9,16 @@ import type { LookupQuery, SharedNotesDetails } from "./bridge.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import type { createModelRoles } from "./model-roles.js";
+import { NOTES_OUTPUT_SCHEMA } from "./note-result.js";
 import { createQueryExecutor } from "./query-executor.js";
 import type { NotesStore } from "./store.js";
 import {
 	HISTORY_SCHEMA,
 	NEW_CONTEXT_DESCRIPTION,
-	NEW_CONTEXT_SCHEMA,
 	NOTES_DESCRIPTION,
+	NOTES_ROUTING_GUIDELINE,
 	NOTES_SCHEMA,
+	newContextSchema,
 	prepareHistoryArguments,
 	prepareNewContextArguments,
 	prepareNotesArguments,
@@ -63,12 +65,14 @@ export function createTools(
 			);
 	};
 	const queries = createQueryExecutor(pi, store, lifecycle, search);
-	return [
+	const tools: ToolDefinition[] = [
 		{
 			name: "notes",
 			label: "notes",
 			description: NOTES_DESCRIPTION,
+			promptGuidelines: [NOTES_ROUTING_GUIDELINE],
 			parameters: NOTES_SCHEMA,
+			outputSchema: NOTES_OUTPUT_SCHEMA,
 			executionMode: "sequential",
 			prepareArguments: prepareNotesArguments,
 			execute: (callId, input, signal, _update, ctx) =>
@@ -77,7 +81,7 @@ export function createTools(
 		{
 			name: "history",
 			label: "history",
-			description: "Search earlier conversation",
+			description: "Search past chat",
 			parameters: HISTORY_SCHEMA,
 			prepareArguments(args) {
 				return prepareHistoryArguments(args);
@@ -89,7 +93,7 @@ export function createTools(
 			name: "new_context",
 			label: "new_context",
 			description: NEW_CONTEXT_DESCRIPTION,
-			parameters: NEW_CONTEXT_SCHEMA,
+			parameters: newContextSchema([]),
 			prepareArguments: prepareNewContextArguments,
 			exposure: "model-only",
 			executionMode: "sequential",
@@ -107,9 +111,9 @@ export function createTools(
 						started,
 						message: started
 							? lifecycle.newWindowRequests === "pi-limits"
-								? "Window request queued. Pi will check whether enough history can be compacted"
-								: "A new window will open after this run settles"
-							: "A checkpoint or rollover is already pending. Save notes and finish your response",
+								? "Window request queued"
+								: "New window queued"
+							: "Checkpoint or rollover is already pending. Save notes and finish your response",
 					}),
 					...(started ? { terminate: true } : {}),
 				};
@@ -131,4 +135,14 @@ export function createTools(
 			},
 		},
 	];
+	const newContext = tools.find((tool) => tool.name === "new_context")!;
+	let advertisedRoles = "[]";
+	roles.onRoleIdsChanged((ids) => {
+		const key = JSON.stringify(ids);
+		if (key === advertisedRoles) return;
+		advertisedRoles = key;
+		newContext.parameters = newContextSchema(ids);
+		pi.registerTool(newContext);
+	});
+	return tools;
 }

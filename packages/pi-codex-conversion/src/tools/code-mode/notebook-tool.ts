@@ -1,6 +1,6 @@
 import { notebookHelpForMode } from "./notebook-help.ts";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { StringEnum } from "@earendil-works/pi-ai";
+import { StringEnum } from "../string-enum.ts";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { registerGptPromptMode, type GptPromptModeRegistration } from "../../prompt-mode.ts";

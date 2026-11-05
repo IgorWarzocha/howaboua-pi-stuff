@@ -18,6 +18,7 @@ import { buildRequestBody, resolveCodexTranscript } from "./openai-codex/request
 import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { hasRemoteCompactionV2Input, withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { boundedProviderErrorText } from "./openai-codex/errors.ts";
 import type { BeforeCodexRequestSend, OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
@@ -144,11 +145,8 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			stream.push({ type: "done", reason: output.stopReason, message: output });
 			stream.end();
 		} catch (error) {
-			for (const block of output.content) {
-				if (typeof block === "object" && block !== null) delete (block as { partialJson?: unknown }).partialJson;
-			}
 			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-			output.errorMessage = error instanceof Error ? error.message : String(error);
+			output.errorMessage = boundedProviderErrorText(error instanceof Error ? error.message : String(error));
 			stream.push({ type: "error", reason: output.stopReason, error: output });
 			stream.end();
 		}

@@ -55,7 +55,9 @@ export class VoiceHelperClient {
 						event.version === 3 ||
 						event.version === 4 ||
 						event.version === 5 ||
-						event.version === 6
+						event.version === 6 ||
+						event.version === 7 ||
+						event.version === 8
 					) {
 						this.helperProtocolVersion = event.version;
 						ready.resolve();

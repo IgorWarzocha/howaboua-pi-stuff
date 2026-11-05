@@ -2,7 +2,6 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import {
 	type CacheLane,
 	type CachePrediction,
@@ -50,7 +49,6 @@ function laneFor(model: ModelIdentity, thinkingLevel: string): CacheLane {
 }
 
 export default function (pi: ExtensionAPI) {
-	registerPackageChangelog(pi);
 	let history = scanCacheHistory([]);
 	let pendingPredictionTimer: ReturnType<typeof setTimeout> | undefined;
 

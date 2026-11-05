@@ -10,7 +10,7 @@ import { decodeLanVoiceBrowserInput, errorMessage } from "./browser-wire.ts";
 export { MAX_CONTROL_BYTES } from "./browser-wire.ts";
 
 export class LanVoiceBrowserClients {
-	private readonly connections = new LanVoiceBrowserConnections();
+	private readonly connections: LanVoiceBrowserConnections;
 	private readonly session: LanVoiceBrowserSession;
 	private readonly takeoverToken: string | undefined;
 	private takeoverAck:
@@ -18,6 +18,9 @@ export class LanVoiceBrowserClients {
 		| undefined;
 
 	constructor(options: LanVoiceBrowserClientsOptions, takeoverToken?: string) {
+		this.connections = new LanVoiceBrowserConnections(
+			options.onAudioDiagnostics,
+		);
 		this.session = new LanVoiceBrowserSession(options, this.connections);
 		this.takeoverToken = takeoverToken;
 	}
@@ -66,7 +69,14 @@ export class LanVoiceBrowserClients {
 				this.receive(clientId, socket, data, isBinary),
 			onReplaced: (previous) =>
 				this.session.releaseStarting(clientId, previous),
-			onClose: () => this.session.release(clientId, socket),
+			onClose: () => {
+				void this.session.release(clientId, socket).catch((error: unknown) =>
+					this.connections.sendControl(clientId, {
+						type: "error",
+						message: errorMessage(error),
+					}),
+				);
+			},
 		});
 	}
 
@@ -82,6 +92,10 @@ export class LanVoiceBrowserClients {
 		this.session.sendConversationAudio(pcm);
 	}
 
+	drainConversationPlayback(signal: AbortSignal, seal: () => Promise<void>): Promise<void> {
+		return this.session.drainConversationPlayback(signal, seal);
+	}
+
 	setConversationSpeakerSuppressed(suppressed: boolean): void {
 		this.session.setConversationSpeakerSuppressed(suppressed);
 	}
@@ -94,8 +108,8 @@ export class LanVoiceBrowserClients {
 		clientId: string,
 		socket?: WebSocket,
 		terminateConversation = false,
-	): void {
-		this.session.release(clientId, socket, terminateConversation);
+	): Promise<boolean> {
+		return this.session.release(clientId, socket, terminateConversation);
 	}
 
 	heartbeat(): void {
@@ -137,8 +151,10 @@ export class LanVoiceBrowserClients {
 			const message = input.command;
 			if (message.type === "start") {
 				void this.session
-					.claim(clientId, socket, message.mode, message.takeoverToken)
+					.claim(clientId, socket, message.mode, message.takeoverToken, message.playbackDrain)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
+			} else if (message.type === "drained") {
+				this.session.acknowledgePlayback(socket, message.id);
 			} else if (message.type === "finish") {
 				void this.session
 					.finish(
@@ -150,7 +166,9 @@ export class LanVoiceBrowserClients {
 					)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "release") {
-				this.session.release(clientId, socket, true);
+				void this.session
+					.release(clientId, socket, true)
+					.catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "mute") {
 				this.session.mute(clientId, socket, message.muted);
 			} else {

@@ -113,6 +113,7 @@ export class CodexLanVoiceServerController {
 							resolveAuth: () => resolveCodexVoiceAuth(ctx),
 							sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 							ownerSessionId,
+							onClosed: () => this.serverClosed(server, ctx),
 							certificateAgentDir: this.agentDir,
 							remoteApps: this.remoteApps,
 							port,
@@ -224,7 +225,7 @@ export class CodexLanVoiceServerController {
 		if (this.server?.ownerSessionId === sessionId) return this.status();
 		await this.stopCurrent(ctx);
 		const { startCodexLanVoiceServer } = await import("./server.ts");
-		this.server = await startCodexLanVoiceServer({
+		const server = await startCodexLanVoiceServer({
 			ctx,
 			pi: this.pi,
 			getConfig: this.getConfig,
@@ -232,9 +233,11 @@ export class CodexLanVoiceServerController {
 			resolveAuth: () => resolveCodexVoiceAuth(ctx),
 			sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 			ownerSessionId: sessionId,
+			onClosed: () => this.serverClosed(server, ctx),
 			certificateAgentDir: this.agentDir,
 			remoteApps: this.remoteApps,
 		});
+		this.server = server;
 		ctx.ui.setStatus(
 			"gippity-lan",
 			ctx.ui.theme.fg("accent", "GipPity LAN: on"),
@@ -295,6 +298,16 @@ export class CodexLanVoiceServerController {
 
 	piEvent(event: string, data: unknown): void {
 		this.server?.piEvent(event, data);
+	}
+
+	private serverClosed(
+		server: CodexLanVoiceServer,
+		ctx: ExtensionContext,
+	): void {
+		if (this.server !== server) return;
+		this.server = undefined;
+		this.pendingAssistantText = undefined;
+		ctx.ui.setStatus("gippity-lan", undefined);
 	}
 
 	private async stopCurrent(ctx?: ExtensionContext): Promise<void> {

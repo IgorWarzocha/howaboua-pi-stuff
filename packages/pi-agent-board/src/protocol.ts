@@ -1,5 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
-import type { Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import { BindingSchema } from "./identity.js";
 
@@ -57,6 +56,7 @@ const Protocol = Type.Union([
 		operation: Type.Literal("board-notify"),
 		boardId: Type.String(),
 		target: Type.String(),
+		route: Type.Optional(Type.Array(Type.String())),
 		sessionId: Type.String(),
 		turnId: Type.String(),
 		notice: NoticeSchema,

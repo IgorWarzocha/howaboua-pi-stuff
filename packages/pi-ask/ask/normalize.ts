@@ -57,7 +57,7 @@ function unknownField(
 	const field = Object.keys(value).find((key) => !fields.includes(key));
 	return field === undefined
 		? undefined
-		: `Unknown ask field ${path}${field}; allowed: ${fields.join(", ")}`;
+		: `Ask doesn't recognise ${path}${field}. Use ${fields.join(", ")}; call ask({}) for the supported format.`;
 }
 
 /** Why a tool call would lose input to normalization, so a misnamed field fails instead of vanishing. */

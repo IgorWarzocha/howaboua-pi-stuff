@@ -3,6 +3,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { VoiceAudioDiagnostics } from "./helper-protocol.ts";
+import type { LanPlaybackDiagnostics } from "./lan/browser-connections.ts";
 import {
 	renderRealtimeTranscriptTail,
 	renderRealtimeUserInput,
@@ -56,6 +58,17 @@ export class CodexVoiceSessionMessages {
 		this.pi.appendEntry<RealtimeUserTranscriptMessageDetails>(
 			REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 			{ transcript },
+		);
+	}
+
+	audioDiagnostics(diagnostics: VoiceAudioDiagnostics): void {
+		this.pi.appendEntry("gippity-realtime-audio-diagnostics", diagnostics);
+	}
+
+	lanPlaybackDiagnostics(diagnostics: LanPlaybackDiagnostics): void {
+		this.pi.appendEntry(
+			"gippity-realtime-lan-playback-diagnostics",
+			diagnostics,
 		);
 	}
 

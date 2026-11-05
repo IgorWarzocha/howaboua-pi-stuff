@@ -16,8 +16,17 @@ import type {
 } from "@howaboua/pi-notes-compaction/context-sharing";
 import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
-import { attachmentRoutes, Identity } from "./attachment-protocol.js";
+import {
+	attachmentRoutes,
+	canonicalContextIdentity,
+	Identity,
+} from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
+import {
+	contextRouteMatches,
+	countContextTargets,
+	sendContextRoute,
+} from "./context-routing.js";
 import type { AgentFleet } from "./fleet/index.js";
 import { sessionPath } from "./herdr.js";
 import {
@@ -34,6 +43,7 @@ interface ContextEnvelope {
 	operation: "context";
 	request: SharedContextRequest;
 	visited: string[];
+	downstream?: boolean;
 }
 
 export class SharedAgentContext {
@@ -105,6 +115,13 @@ export class SharedAgentContext {
 			value &&
 			typeof value === "object" &&
 			"operation" in value &&
+			value.operation === "agent-identity"
+		)
+			return { sessionId: ctx.sessionManager.getSessionId() };
+		if (
+			value &&
+			typeof value === "object" &&
+			"operation" in value &&
 			value.operation === "agent-root"
 		) {
 			const own = binding(ctx);
@@ -130,7 +147,7 @@ export class SharedAgentContext {
 			const upstream =
 				value.scope === "board"
 					? own.upstream
-					: identity?.agentName !== "/root" &&
+					: identity?.threadId !== identity?.sessionId &&
 							routing?.transport === "shepherdr"
 						? routing.parent
 						: undefined;
@@ -144,8 +161,8 @@ export class SharedAgentContext {
 					signal,
 				);
 			if (
-				(value.scope === "board" ? own.agentName : identity?.agentName) !==
-				"/root"
+				(value.scope === "board" ? own.sessionId : identity?.threadId) !==
+				family
 			)
 				throw new Error("No live /root in this agent family");
 			return {
@@ -175,7 +192,10 @@ export class SharedAgentContext {
 				!file ||
 				!("identity" in value) ||
 				!Check(Identity, value.identity) ||
-				!isDeepStrictEqual(identity, value.identity) ||
+				!isDeepStrictEqual(
+					identity,
+					canonicalContextIdentity(value.identity),
+				) ||
 				identity?.threadId !== ctx.sessionManager.getSessionId()
 			)
 				throw new Error("Invalid saved checkpoint owner");
@@ -195,6 +215,14 @@ export class SharedAgentContext {
 		}
 		if (!identity || !service)
 			throw new Error("Context sharing is unavailable in this session");
+		if ("operation" in value && value.operation === "context-resolve")
+			return countContextTargets(
+				ctx,
+				identity,
+				value as Record<string, unknown>,
+				this.fleet,
+				signal,
+			);
 		const envelope = value as Partial<ContextEnvelope>;
 		const request = envelope.request;
 		if (
@@ -208,17 +236,49 @@ export class SharedAgentContext {
 			envelope.visited.includes(identity.threadId)
 		)
 			throw new Error("Invalid shared context route or session family");
-		if (identity.agentName === request.agentName) {
+		const forwarded = {
+			...envelope,
+			visited: [...envelope.visited, identity.threadId],
+		};
+		const nativeTarget =
+			/^\/[^/]+$/.test(request.agentName) && request.agentName !== "/root";
+		const routing = identity.routing as Partial<Routing> | undefined;
+		let resolved: Awaited<ReturnType<typeof contextRouteMatches>> | undefined;
+		if (nativeTarget && !envelope.downstream) {
+			if (
+				routing?.transport === "shepherdr" &&
+				typeof routing.parent === "string"
+			)
+				return requestContext(routing.parent, forwarded, signal);
+			resolved = await contextRouteMatches(
+				ctx,
+				identity,
+				request.agentName,
+				[identity.threadId],
+				this.fleet,
+				signal,
+			);
+			const count = resolved.reduce(
+				(total, match) => total + match.count,
+				identity.agentName === request.agentName ? 1 : 0,
+			);
+			if (count > 1)
+				throw new Error(
+					`Multiple shared agents use ${request.agentName}; start sessions with distinct Pi IDs`,
+				);
+		}
+		if (
+			identity.agentName === request.agentName ||
+			identity.storageAgentName === request.agentName ||
+			(request.agentName === "/root" &&
+				identity.threadId === identity.sessionId)
+		) {
 			if (!ctx.isIdle() && !this.running)
 				throw new Error(
 					"Context owner is changing branches; retry after it settles",
 				);
 			return service.execute(ctx, request, signal);
 		}
-		const forwarded = {
-			...envelope,
-			visited: [...envelope.visited, identity.threadId],
-		};
 		const attached = await this.attachment.routing.route(
 			ctx,
 			request,
@@ -235,6 +295,7 @@ export class SharedAgentContext {
 		);
 		if (attached) return attached;
 		const member = ctx.sessionManager.getEntries().findLast((entry) => {
+			if (!request.agentName.startsWith("/root/")) return false;
 			if (entry.type !== "custom" || entry.customType !== MEMBER_ENTRY)
 				return false;
 			const candidate = entry.data as Member;
@@ -261,12 +322,46 @@ export class SharedAgentContext {
 				signal,
 			);
 		}
-		const routing = identity.routing as Partial<Routing> | undefined;
 		if (
+			!envelope.downstream &&
 			routing?.transport === "shepherdr" &&
 			typeof routing.parent === "string"
 		)
 			return requestContext(routing.parent, forwarded, signal);
+		if (nativeTarget) {
+			// Change direction only at the family owner. Descending never relays upstream.
+			const visited = envelope.downstream
+				? forwarded.visited
+				: [identity.threadId];
+			const matches =
+				resolved ??
+				(await contextRouteMatches(
+					ctx,
+					identity,
+					request.agentName,
+					visited,
+					this.fleet,
+					signal,
+				));
+			const count = matches.reduce((total, match) => total + match.count, 0);
+			if (count > 1)
+				throw new Error(
+					`Multiple shared agents use ${request.agentName}; start sessions with distinct Pi IDs`,
+				);
+			const match = matches.find((candidate) => candidate.count === 1);
+			if (match)
+				return sendContextRoute(
+					this.fleet,
+					match.route,
+					{
+						operation: "context",
+						request: { ...request, sessionId: match.route.sessionId },
+						visited,
+						downstream: true,
+					},
+					signal,
+				);
+		}
 		throw new Error(
 			`No shared context agent ${request.agentName} in this session family`,
 		);

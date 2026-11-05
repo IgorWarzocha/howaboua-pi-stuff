@@ -1,5 +1,5 @@
 import {
-	keyHint,
+	type KeybindingHints,
 	truncateToVisualLines,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -29,23 +29,19 @@ export function imagesByMimeType(
 	return images;
 }
 
-export function previewText(text: string, theme: CodeModeRenderTheme, hideBody = false): string {
+export function previewText(text: string, theme: CodeModeRenderTheme, hideBody = false, hints?: Partial<KeybindingHints>): string {
 	if (!text) return "";
 	const preview = truncateToVisualLines(text, 5, 100, 0);
 	if (hideBody) {
 		const lines = preview.skippedCount + preview.visualLines.length;
-		return theme.fg("muted", `... (${lines} ${lines === 1 ? "line" : "lines"}, ${expandHint()})`);
+		return theme.fg("muted", `... (${lines} ${lines === 1 ? "line" : "lines"}, ${expandHint(hints)})`);
 	}
 	if (preview.skippedCount <= 0) return preview.visualLines.join("\n");
-	return `${theme.fg("muted", `... (${preview.skippedCount} more lines, ${expandHint()})`)}\n${preview.visualLines.join("\n")}`;
+	return `${theme.fg("muted", `... (${preview.skippedCount} more lines, ${expandHint(hints)})`)}\n${preview.visualLines.join("\n")}`;
 }
 
-export function expandHint(): string {
-	try {
-		return keyHint("app.tools.expand", "to expand");
-	} catch {
-		return "ctrl+o to expand";
-	}
+export function expandHint(hints?: Partial<KeybindingHints>): string {
+	return hints?.keyHint?.("app.tools.expand", "to expand") ?? "expand tool details";
 }
 
 export function renderTextAndImages(

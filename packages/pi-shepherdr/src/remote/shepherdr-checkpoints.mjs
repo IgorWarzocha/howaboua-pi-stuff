@@ -23,7 +23,19 @@ async function* reverseSessionLines(file, size) {
 	yield partial;
 }
 
-/** @param {string} path @param {{protocol: 1, threadId: string, sessionId: string, agentName: string, storage: "session"}} identity */
+/** @param {{threadId: string, agentName: string, storageAgentName?: string}} identity */
+function canonicalIdentity(identity) {
+	const agentName = `/${identity.threadId}`;
+	return identity.agentName === agentName
+		? identity
+		: {
+				...identity,
+				agentName,
+				storageAgentName: identity.storageAgentName ?? identity.agentName,
+			};
+}
+
+/** @param {string} path @param {{protocol: 1, threadId: string, sessionId: string, agentName: string, storageAgentName?: string, storage: "session"}} identity */
 export async function readPersistedNoteEntries(path, identity) {
 	const file = await open(path, "r");
 	try {
@@ -55,7 +67,13 @@ export async function readPersistedNoteEntries(path, identity) {
 				entry.customType === "codex-context-agent" &&
 				entry.data?.threadId === identity.threadId
 			) {
-				if (identityChecked || !isDeepStrictEqual(entry.data, identity))
+				if (
+					identityChecked ||
+					!isDeepStrictEqual(
+						canonicalIdentity(entry.data),
+						canonicalIdentity(identity),
+					)
+				)
 					throw new Error("Saved checkpoint owner identity changed");
 				identityChecked = true;
 			}

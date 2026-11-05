@@ -117,7 +117,13 @@ export class ConversationTurns {
 			this.onFailure(new Error("Codex voice delegation was empty"));
 			return;
 		}
-		const delegated = this.turnTracker.delegated(input, record["id"]);
+		const delegated = this.turnTracker.delegated(
+			input,
+			record["id"],
+			typeof record["user_bidi_turn_id"] === "string"
+				? record["user_bidi_turn_id"]
+				: undefined,
+		);
 		if (!delegated) return;
 		if (delegated.displayInput) this.callbacks.onUserTranscript(input);
 		this.enqueueDelegation(delegated.turn);

@@ -13,12 +13,12 @@ import {
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Await work; use a timeout when an operation might not finish on its own
-Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
+Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
 
 export const GPT_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 Await work; possibly nonterminating→timeout
-Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→serialized output, notify(value)→emit, yield_control()→yield`;
+Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
 
 export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
 export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
@@ -163,10 +163,10 @@ export function buildCodeModeToolsPrompt(
 			: undefined,
 		executionKind === "ts"
 			? gpt ? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
-				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal.'
+				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal'
 			: undefined,
-		gpt ? "No call signature→noargs help ONLY; structured→{}. Unfamiliar help→read BEFORE use"
-			: "For tools listed without a call signature, call with no arguments to get usage without performing an operation. Structured calls use {}. Read unfamiliar tool help before use.",
+		gpt ? "No signature+unknown current args→separate help-only call (noargs; structured:{}), read result→compose operation. No guessing/bundling operation with help. Shown signature/known current args→reuse, no repeat help"
+			: "Tools without a shown call signature: if current arguments are unknown, make a separate help-only call with no arguments (structured: {}), read its result, then compose the operation. Do not guess arguments or bundle the operation with help. Reuse shown signatures or known current arguments without repeating help",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",

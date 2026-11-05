@@ -34,8 +34,7 @@
 		"LICENSE",
 		"CHANGELOG.md",
 		"tsconfig.json",
-		"biome.json",
-		"changelog.ts"
+		"biome.json"
 	],
 	"scripts": {
 		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build remote-worker.ts --target=node --format=esm --outfile=dist/remote-worker.js --banner='// @howaboua/pi-browser managed worker'",
@@ -48,7 +47,7 @@
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=4.0.7",
 		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"typebox": "*",
 		"@earendil-works/pi-tui": ">=1.0.0"
 	},
@@ -60,15 +59,14 @@
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "4.0.7",
 		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-ai": "1.4.0",
-		"@earendil-works/pi-coding-agent": "1.4.0",
+		"@earendil-works/pi-ai": "1.5.0",
+		"@earendil-works/pi-coding-agent": "1.5.0",
 		"@types/node": "^26.6.5",
 		"typebox": "1.4.3",
 		"typescript": "^7.0.2"
 	},
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./extension.ts"
 		]
 	},

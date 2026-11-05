@@ -1,5 +1,5 @@
 import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { keyHint, truncateToVisualLines } from "@earendil-works/pi-coding-agent";
+import { truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { renderCodexToolCell } from "./codex-tool-cell.ts";
 import { renderTextWithImages } from "./media.ts";
@@ -30,7 +30,7 @@ export function auxiliaryToolRenderers(
 			const body = context.isError ? toolResultText(result) : view.body ?? toolResultText(result);
 			const summary = context.isError ? undefined : view.summary;
 			const warning = context.isError ? undefined : view.warning;
-			const hint = keyHint("app.tools.expand", "to expand");
+			const hint = context.keyHint("app.tools.expand", "to expand");
 			return {
 				render(width) {
 					const lines: string[] = [];

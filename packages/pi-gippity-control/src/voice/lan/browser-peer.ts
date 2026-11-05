@@ -12,16 +12,37 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	private readonly helper = new VoiceHelperClient();
 	private readonly onAudio: (pcm: Buffer) => void;
 	private readonly onSpeakerSuppressed: (suppressed: boolean) => void;
+	private readonly drainPlayback: (
+		signal: AbortSignal,
+		seal: () => Promise<void>,
+	) => Promise<void>;
+	private finishing = false;
 	private playbackEpoch = 0;
 	private speakerSuppressed = false;
-	private inputState: "pending" | "ready" | "closed" = "pending";
+	private inputState: "pending" | "ready" | "finishing" | "closed" = "pending";
 
 	constructor(options: {
 		onAudio(pcm: Buffer): void;
 		onSpeakerSuppressed(suppressed: boolean): void;
+		drainPlayback(
+			signal: AbortSignal,
+			seal: () => Promise<void>,
+		): Promise<void>;
 	}) {
 		this.onAudio = options.onAudio;
 		this.onSpeakerSuppressed = options.onSpeakerSuppressed;
+		this.drainPlayback = options.drainPlayback;
+		// PCM forwarding has one owner, independent of event subscriptions.
+		this.helper.onEvent((event) => {
+			if (
+				event.type !== "pcm" ||
+				this.inputState === "closed" ||
+				this.speakerSuppressed ||
+				event.epoch !== this.playbackEpoch
+			)
+				return;
+			this.onAudio(Buffer.from(event.audio, "base64"));
+		});
 	}
 
 	get isSpeakerSuppressed(): boolean {
@@ -30,12 +51,8 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
 		return this.helper.onEvent((event) => {
-			if (event.type === "pcm") {
-				if (this.speakerSuppressed || event.epoch !== this.playbackEpoch)
-					return;
-				this.onAudio(Buffer.from(event.audio, "base64"));
+			if (this.finishing && event.type === "state" && event.state === "closed")
 				return;
-			}
 			const peerEvent = toPeerEvent(event);
 			if (peerEvent) listener(peerEvent);
 		});
@@ -45,13 +62,16 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 		return this.helper.onExit(listener);
 	}
 
+	get playbackSealed(): boolean {
+		return this.finishing;
+	}
+
 	async start(_config: GippityControlConfig): Promise<string> {
 		await this.helper.start();
-		if (this.helper.protocolVersion !== 6) {
-			const actualVersion = this.helper.protocolVersion ?? "unknown";
+		if (this.helper.protocolVersion !== 8) {
 			await this.helper.close();
 			throw new Error(
-				`Incompatible Codex voice helper protocol ${actualVersion}; expected 6`,
+				"Voice could not start because its helper does not match this package. Reinstall the package, reload Pi and try starting voice again.",
 			);
 		}
 		const offer = Promise.withResolvers<string>();
@@ -82,6 +102,7 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 
 	sendData(message: unknown): void {
+		if (this.finishing) return;
 		this.helper.send({ type: "send_data", message });
 	}
 
@@ -96,11 +117,12 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 
 	setInputMuted(muted: boolean): void {
+		if (this.finishing) return;
 		this.helper.send({ type: "set_input_muted", muted });
 	}
 
 	setSpeakerSuppressed(suppressed: boolean): void {
-		if (this.speakerSuppressed === suppressed) return;
+		if (this.finishing || this.speakerSuppressed === suppressed) return;
 		const epoch = this.playbackEpoch + 1;
 		this.helper.send({ type: "set_speaker_suppressed", suppressed, epoch });
 		this.playbackEpoch = epoch;
@@ -112,6 +134,19 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 		this.inputState = "closed";
 		return this.helper.close();
 	}
+
+	async finishPlayback(signal: AbortSignal): Promise<void> {
+		signal.throwIfAborted();
+		// Final-only: seal this source before placing the marker on the PCM socket.
+		// stopped follows all PCM emitted by its workers; no old source can race
+		// the device acknowledgement or a successor call.
+		await this.drainPlayback(signal, async () => {
+			this.finishing = true;
+			this.inputState = "finishing";
+			await this.helper.stop();
+			signal.throwIfAborted();
+		});
+	}
 }
 
 function toPeerEvent(
@@ -121,7 +156,8 @@ function toPeerEvent(
 		event.type === "state" ||
 		event.type === "data" ||
 		event.type === "error" ||
-		event.type === "playback_activity"
+		event.type === "playback_activity" ||
+		event.type === "audio_diagnostics"
 	)
 		return event;
 	return undefined;

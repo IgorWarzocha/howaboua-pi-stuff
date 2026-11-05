@@ -103,9 +103,9 @@ export function createCodexTransportStream<TApi extends Api>(
 							},
 						);
 						if (callerSignal?.aborted) throw new Error("Request was aborted");
-						if (recovery.expired()) throw recovery.deadlineError();
 						finalizeUsage(output);
 						assertSuccessfulCodexOutput(output);
+						if (recovery.expired()) throw recovery.deadlineError();
 						timing.finish("completed");
 						recordUsage(diagnostics, lane, "websocket", output);
 						await deps.recordUsage?.(accountId, { ...model, id: body.model }, output.usage);
@@ -119,6 +119,10 @@ export function createCodexTransportStream<TApi extends Api>(
 						const unauthorized = isWebSocketUnauthorizedError(error);
 						const retryableWebSocketError = (isCodexApiError(error) || !isPermanentWebSocketError(error)) && isRetryableCodexStreamError(error);
 						const connectionFailure = !isCodexApiError(error) && isWebSocketConnectionError(error);
+						if (recovery.expired() && !retryableWebSocketError && (error instanceof CodexProtocolError || isCodexApiError(error))) throw error;
+						if (!recovery.expired()) recovery.recordTransportFailure(
+							retryableWebSocketError && connectionFailure && !upgradeRequired && !messageTooBig && !unauthorized ? error : undefined,
+						);
 						if (retryableWebSocketError && connectionFailure) {
 							recovery.start();
 						}
@@ -257,12 +261,12 @@ export function createCodexTransportStream<TApi extends Api>(
 					);
 					finalizeUsage(output);
 					if (callerSignal?.aborted) throw new Error("Request was aborted");
+					assertSuccessfulCodexOutput(output);
 					if (recovery.expired()) {
 						const error = recovery.deadlineError();
 						recordFailure("sse", error);
 						throw error;
 					}
-					assertSuccessfulCodexOutput(output);
 					timing?.finish("completed");
 					recordUsage(diagnostics, lane, "sse", output);
 					await deps.recordUsage?.(accountId, { ...model, id: body.model }, output.usage);
@@ -281,12 +285,18 @@ export function createCodexTransportStream<TApi extends Api>(
 				} catch (error) {
 					timing?.finish(callerSignal?.aborted ? "aborted" : "failed");
 					if (callerSignal?.aborted) throw error;
+					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
+					// Recovery-triggered aborts must not replace the failure that started it.
+					if (!recovery.expired() || isCodexApiError(error) || !retryable) {
+						recovery.recordTransportFailure(retryable && !isCodexApiError(error) ? error : undefined);
+					}
 					if (recovery.expired()) {
+						// A completed terminal response wins over an older transport failure.
+						if (!retryable) throw error;
 						const deadlineError = recovery.deadlineError();
 						recordFailure("sse", deadlineError);
 						throw deadlineError;
 					}
-					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
 					if (retryable) recovery.start();
 					const retryPlan = recovery.planRetry(error, attempt + 1);
 					const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
@@ -316,7 +326,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						throw retryAdviceRecoveryBudgetError(error);
 					}
 					recordFailure("sse", error);
-					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");
+					if (retryable) throw recovery.exhaustedError("Codex stream retry budget was exhausted before a response completed.");
 					throw error;
 				} finally {
 					sseSignal?.cleanup();

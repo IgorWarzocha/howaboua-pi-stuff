@@ -3,6 +3,7 @@ import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import type { LookupQuery } from "./bridge.js";
+import { noteResult } from "./note-result.js";
 import { internalQueryArguments, normalizeQueryInput } from "./query-input.js";
 
 const NOTES_ACTIONS = [
@@ -22,14 +23,12 @@ const HISTORY_ACTIONS = [
 ] as const;
 export const NOTES_USAGE = "await tools.notes()";
 export const HISTORY_USAGE = "await tools.history()";
-export const NOTES_DESCRIPTION =
-	"Persistent notes for handing off task state between context windows";
-export const GPT_NOTES_DESCRIPTION =
-	"Persistent notes: task state handoff between context windows";
+export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
+export const NOTES_ROUTING_GUIDELINE =
+	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
-	"Start fresh from saved notes; recover earlier conversation through history";
-export const GPT_NEW_CONTEXT_DESCRIPTION =
-	"Saved notes→fresh context; earlier conversation→history";
+	"Start fresh context window. MUST save notes before calling";
+export const GPT_NEW_CONTEXT_DESCRIPTION = "Save notes→fresh context";
 const STRING = Type.Optional(Type.String());
 const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
 const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
@@ -38,7 +37,8 @@ export const NOTES_SCHEMA = Type.Object(
 		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
 		path: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
-				description: "File for read/write/append; prefix for list/search",
+				description:
+					"File for read/write/append; prefix for list/search; virtual filesystem, not files in the project",
 			}),
 		),
 		text: STRING,
@@ -55,10 +55,25 @@ export const NOTES_SCHEMA = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-export const NEW_CONTEXT_SCHEMA = Type.Object(
-	{ role: Type.Optional(Type.String({ minLength: 1 })) },
+const NEW_CONTEXT_SCHEMA = Type.Object(
+	{
+		role: Type.Optional(
+			Type.String({
+				minLength: 1,
+				description:
+					"Configured model-role ID, not an agent name or handoff text",
+			}),
+		),
+	},
 	{ additionalProperties: false },
 );
+
+export function newContextSchema(roleIds: string[]) {
+	return Type.Object(
+		roleIds.length ? { role: Type.Optional(StringEnum(roleIds)) } : {},
+		{ additionalProperties: false },
+	);
+}
 
 export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
@@ -72,7 +87,7 @@ export const HISTORY_SCHEMA = Type.Object(
 	{
 		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-		item_id: STRING,
+		item_id: Type.Optional(Type.String()),
 		window_id: Type.Optional(
 			Type.Union([Type.String(), Type.Null()], {
 				description: "Required with item_id for read",
@@ -194,7 +209,6 @@ export function result(payload: unknown): AgentToolResult<unknown> {
 export function queryHelp(
 	namespace: LookupQuery["namespace"],
 	input: unknown,
-	rankedHistory = false,
 	gpt = false,
 ): AgentToolResult<unknown> | undefined {
 	const params = input === undefined ? {} : input;
@@ -208,7 +222,10 @@ export function queryHelp(
 		if (entries.some(([key]) => key !== "action"))
 			throw new Error("Help accepts only action: help");
 		const actions = namespace === "notes" ? NOTES_ACTIONS : HISTORY_ACTIONS;
-		return result({
+		return (namespace === "notes" ? noteResult : result)({
+			...(namespace === "notes"
+				? { results: "read: file.content; write/append: file.path" }
+				: {}),
 			actions: Object.fromEntries(
 				actions.map((action) => [
 					action,
@@ -230,27 +247,23 @@ export function queryHelp(
 							? "write=replace; append=add"
 							: "write replaces; append adds",
 						paths: gpt
-							? "Relative=current agent; cross-agent=<agent>/notes[/path]"
-							: "Relative uses current agent; cross-agent uses <agent>/notes[/path]",
-						usage: '{ "action": "read", "path": "checkpoint" }',
+							? "Virtual≠disk; own list/search→omit path; relative=current agent; absolute=/<session ID>/notes[/path], not the agent ID alone"
+							: "Virtual note paths, not disk files. Omit path to list/search your notes. Relative paths use your agent; absolute paths require /<session ID>/notes[/path], not the agent ID alone",
+						usage: 'notes: {"action":"read","path":"checkpoint"}',
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
-							: "start_line/stop_line inclusive, 1-based; negative counts from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed range returns empty content",
+							: "start_line/stop_line inclusive, 1-based; negative from end; 0/null/omitted uses first/last line; out-of-range clamps; reversed returns empty content",
 						defaults: gpt
 							? "list limit=20; search limit/max_matches_per_file=20; limits clamp 1..100; list/search name ascending; recent_file_first→created_at descending"
-							: "list limit 20; search limit/max_matches_per_file 20; limits clamp to 1..100; list name ascending; search name ascending, recent_file_first sorts created_at descending",
+							: "list limit 20; search limit/max_matches_per_file 20; limits clamp 1..100; list/search name ascending; recent_file_first sorts created_at descending",
 					}
 				: {
 						usage: gpt
-							? "Earlierconversation→search≠browse; returned IDs unchanged"
-							: "Search earlier conversation, don't browse it. Pass returned IDs unchanged",
-						search: rankedHistory
-							? gpt
-								? "Own past user/assistant visible text: all keywords, case/accent-insensitive, BM25-ranked. Explicit live/tool/metadata/agent_name scopes→case-sensitive literal substring. list/read=full transcript; recent_first=true→newest first"
-								: "Own earlier conversation: user/assistant visible text, all keywords, case/accent-insensitive, relevance order. Explicit live/tool/metadata scopes or agent_name: case-sensitive literal substring. list/read retain the full transcript. recent_first=true uses newest first"
-							: gpt
-								? "Case-sensitive literal substring; recent_first=true→newest first"
-								: "Case-sensitive literal substring. recent_first=true uses newest first",
+							? "query→search default; past chat→search≠browse; returned IDs unchanged"
+							: "With query, action defaults to search. Search past chat, don't browse it. Pass returned IDs unchanged",
+						search: gpt
+							? "recent_first=true→newest first"
+							: "recent_first=true uses newest first",
 					}),
 		});
 	}

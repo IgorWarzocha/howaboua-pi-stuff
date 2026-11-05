@@ -36,7 +36,6 @@
 		"LICENSE",
 		"tsconfig.json",
 		"biome.json",
-		"changelog.ts",
 		"CHANGELOG.md"
 	],
 	"pi": {
@@ -45,12 +44,12 @@
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.0.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-coding-agent": "1.4.0",
+		"@earendil-works/pi-coding-agent": "1.5.0",
 		"typescript": "^7.0.2"
 	},
 	"scripts": {

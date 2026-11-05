@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -62,20 +61,20 @@ export class AgentBoard {
 				request: requestContext,
 				commitDirectory: (own, directory, caller, request) =>
 					this.membership.commitDirectory(own, directory, caller, request),
-				routeNotice: (ctx, request, signal) => {
+				routeNotice: async (ctx, request, signal) => {
+					const next = request.route?.[0] ?? request.sessionId;
 					const child = children(ctx).find(
-						(entry) =>
-							request.target === entry.binding.agentName ||
-							request.target.startsWith(`${entry.binding.agentName}/`),
+						(entry) => entry.binding.sessionId === next,
 					);
-					if (!child) return Promise.resolve(false);
-					return fleet
-						.connected(child.machine)
-						.client.requestContext(
-							sessionContextPath(child.sessionFile),
-							request,
-							signal,
-						);
+					if (!child) return false;
+					return fleet.connected(child.machine).client.requestContext(
+						sessionContextPath(child.sessionFile),
+						{
+							...request,
+							...(request.route ? { route: request.route.slice(1) } : {}),
+						},
+						signal,
+					);
 				},
 				propagateEnabled: async (ctx, enabled) => {
 					let boardId: string | undefined;
@@ -134,7 +133,7 @@ export class AgentBoard {
 	async prepare(
 		ctx: ExtensionContext,
 		runtime: ConnectedMachine,
-		name: string,
+		_name: string,
 		args: readonly string[],
 	) {
 		if (!this.enabled(ctx)) return undefined;
@@ -154,9 +153,6 @@ export class AgentBoard {
 			throw new Error(
 				"Board child binding requires a saved controller session",
 			);
-		const segment =
-			name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "agent";
-		const agentName = `${own.agentName}/${segment}-${randomUUID()}`;
 		await runtime.prepareSharing();
 		const upstream = runtime.local
 			? sessionContextPath(file)
@@ -168,7 +164,7 @@ export class AgentBoard {
 				const sessionFile = sessionPath(agent);
 				if (!sessionFile)
 					throw new Error("Spawned agent has no native Pi session path");
-				const prepared = { ...own, agentName, upstream };
+				const prepared = { ...own, upstream };
 				const result = await runtime.client.requestContext(
 					sessionContextPath(sessionFile),
 					{ operation: "board-bind", binding: prepared },
@@ -177,7 +173,8 @@ export class AgentBoard {
 				if (
 					adopted.boardId !== own.boardId ||
 					adopted.databasePath !== own.databasePath ||
-					adopted.agentName !== agentName ||
+					adopted.agentName !== `/${adopted.sessionId}` ||
+					adopted.parentSessionId !== own.sessionId ||
 					adopted.rootSessionId !== own.rootSessionId ||
 					adopted.upstream !== upstream ||
 					adopted.sessionId === own.sessionId

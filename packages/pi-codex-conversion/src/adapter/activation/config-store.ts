@@ -1,16 +1,20 @@
-import { OWNED_CONFIG_KEYS, LEGACY_OWNED_CONFIG_KEYS, isRecord, mergeConfigDocument, clearAbsentOwnedOptionals, writeConfigDocumentAtomic, withoutProjectOnlyConfig, withoutProjectOnlyDocument, withoutGlobalOnlyDocument, withoutDisabledProjectCacheKeepalive } from "./config-document.ts";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { CODEX_CONVERSION_CONFIG_BASENAME } from "./config-file.ts";
+import { OWNED_CONFIG_KEYS, LEGACY_OWNED_CONFIG_KEYS, isRecord, mergeConfigDocument, writeConfigDocumentAtomic, withoutGlobalOnlyDocument } from "./config-document.ts";
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { migrateCodexConversionConfigIfNeeded, type CompactionMigrationInheritance } from "./config-migration.ts";
-import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes, type LunaCacheKeepaliveIntervalMinutes, type CacheKeepaliveIntervalMinutes } from "./config.ts";
+import { normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes, type LunaCacheKeepaliveIntervalMinutes, type CacheKeepaliveIntervalMinutes } from "./config.ts";
 import { readCodexCacheEnvironment } from "./cache-environment.ts";
 import { normalizeFastMode } from "./fast-mode.ts";
-import { maintainNotebookJournals, scheduleNotebookStorageMaintenance } from "../../tools/notebook-mode/storage-retention.ts";
+import { readConfigDocument, normalizeGlobalConfigDocument, readCodexConversionConfig as readFileConfig, writeCodexConversionConfig as writeFileConfig } from "./config-file.ts";
 
-// Lite deliberately shares the original package's config so replacing either
-// package does not require a reset or a second settings file.
-export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
+export function readCodexConversionConfig(configPath = getCodexConversionConfigPath()): CodexConversionConfig {
+	return readFileConfig(configPath);
+}
+export function writeCodexConversionConfig(config: CodexConversionConfig, configPath = getCodexConversionConfigPath(), folderScope = false) {
+	return writeFileConfig(config, configPath, folderScope);
+}
 
 export interface EffectiveCodexConversionConfigOptions {
 	cwd: string;
@@ -27,33 +31,6 @@ export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): 
 
 export function getProjectCodexConversionConfigPath(cwd: string): string {
 	return join(cwd, CONFIG_DIR_NAME, CODEX_CONVERSION_CONFIG_BASENAME);
-}
-
-function readConfigDocument(configPath: string, scope: "global" | "trusted project"): unknown | undefined {
-	if (!existsSync(configPath)) return undefined;
-	try {
-		return JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-codex-conversion] Failed to read ${scope} config ${configPath}: ${message}`);
-		return undefined;
-	}
-}
-
-export function readCodexConversionConfig(configPath: string = getCodexConversionConfigPath()): CodexConversionConfig {
-	return normalizeGlobalConfigDocument(readConfigDocument(configPath, "global"));
-}
-
-function normalizeGlobalConfigDocument(parsed: unknown): CodexConversionConfig {
-	if (parsed === undefined) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
-	const migration = migrateCodexConversionConfigIfNeeded(parsed);
-	const config = withoutProjectOnlyConfig(normalizeCodexConversionConfig(migration.config));
-	const voice = isRecord(parsed) && isRecord(parsed["voice"])
-		? parsed["voice"]
-		: undefined;
-	if (typeof voice?.["audioSetupCompleted"] !== "boolean")
-		config.voice.audioSetupCompleted = true;
-	return config;
 }
 
 /** Read before normalization drops settings now owned by Notes. */
@@ -228,58 +205,6 @@ export function clearFolderCodexConversionConfig(
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-codex-conversion] Failed to clear folder config ${path}: ${message}`);
-		return { ok: false, error: message };
-	}
-}
-
-export function writeCodexConversionConfig(
-	config: CodexConversionConfig,
-	configPath: string = getCodexConversionConfigPath(),
-	folderScope = false,
-): { ok: true; warning?: string } | { ok: false; error: string } {
-	try {
-		const normalizedConfig = normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>;
-		const normalized = folderScope
-			? withoutDisabledProjectCacheKeepalive(withoutGlobalOnlyDocument(normalizedConfig))
-			: withoutProjectOnlyDocument(normalizedConfig);
-		let document = normalized;
-		let previousJournals: unknown = "week";
-		let previousCheckpointCleanup: unknown = "never";
-		if (existsSync(configPath)) {
-			try {
-				const existing = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
-				if (isRecord(existing)) {
-					if (isRecord(existing["notebook"])) previousJournals = existing["notebook"]["journals"] ?? "week";
-					if (isRecord(existing["notebook"])) previousCheckpointCleanup = existing["notebook"]["checkpointCleanup"] ?? "never";
-					document = mergeConfigDocument(existing, normalized);
-				}
-			} catch {
-				// A valid explicit settings write replaces an unreadable document.
-			}
-		}
-		document = folderScope
-			? withoutDisabledProjectCacheKeepalive(withoutGlobalOnlyDocument(document))
-			: withoutProjectOnlyDocument(document);
-		clearAbsentOwnedOptionals(document, normalized, folderScope);
-		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
-		const compaction = document["compaction"];
-		if (isRecord(compaction))
-			for (const key of ["contextManagement", "hybridCompaction", "responsesCompaction", "portableSummary"]) delete compaction[key];
-		writeConfigDocumentAtomic(configPath, document);
-		if (!folderScope && (previousJournals !== config.notebook.journals || config.notebook.journals === "off")) {
-			try { maintainNotebookJournals(dirname(configPath)); } catch (error) {
-				const warning = `Settings saved, but journal cleanup failed: ${error instanceof Error ? error.message : String(error)}. Retry Notebook journals in /codex`;
-				console.warn(warning);
-				return { ok: true, warning };
-			}
-		}
-		if (!folderScope && (previousCheckpointCleanup !== config.notebook.checkpointCleanup || previousJournals !== config.notebook.journals)) {
-			scheduleNotebookStorageMaintenance(dirname(configPath), true);
-		}
-		return { ok: true };
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-codex-conversion] Failed to write ${configPath}: ${message}`);
 		return { ok: false, error: message };
 	}
 }

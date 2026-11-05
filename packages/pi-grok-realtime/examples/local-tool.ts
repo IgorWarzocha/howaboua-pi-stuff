@@ -1,6 +1,6 @@
-import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerGrokTool } from "@howaboua/pi-grok-realtime/tools";
+import { Type } from "typebox";
 
 export default function (pi: ExtensionAPI) {
 	registerGrokTool(pi, {

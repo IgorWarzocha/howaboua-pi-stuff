@@ -1,5 +1,5 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { keyHint, truncateToVisualLines } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, KeybindingHints } from "@earendil-works/pi-coding-agent";
+import { truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { getPiConfiguredShellPath } from "../../adapter/prompt/runtime-shell.ts";
@@ -37,7 +37,7 @@ interface ExecCommandToolOptions {
 	showOutputWhenCollapsed?: boolean | undefined;
 }
 
-interface ExecCommandRenderContextLike {
+interface ExecCommandRenderContextLike extends Partial<KeybindingHints> {
 	toolCallId?: string | undefined;
 	expanded?: boolean | undefined;
 	args?: { cmd?: unknown } | undefined;
@@ -79,14 +79,6 @@ const COLLAPSED_OUTPUT_MAX_RAW_CHARS = 16_000;
 const COLLAPSED_OUTPUT_MAX_RAW_LINES = 160;
 type CollapsedExecOutput = Pick<UnifiedExecResult, "output"> & Partial<Pick<UnifiedExecResult, "exit_code" | "session_id" | "wall_time_seconds">>;
 
-function expandHint(): string {
-	try {
-		return keyHint("app.tools.expand", "to expand");
-	} catch {
-		return "ctrl+o to expand";
-	}
-}
-
 function collapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }): { text: string; truncated: boolean } {
 	let output = renderTerminalOutput(result.output).trimEnd();
 	let truncated = false;
@@ -108,7 +100,7 @@ function collapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, 
 	return { text: parts.filter(Boolean).join("\n"), truncated };
 }
 
-function renderCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }) {
+function renderCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }, context: ExecCommandRenderContextLike | undefined) {
 	let cached: { width: number; lines: string[]; skipped: number; rawTruncated: boolean } | undefined;
 	return {
 		render(width: number): string[] {
@@ -121,7 +113,7 @@ function renderCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: st
 			}
 			if (!cached.rawTruncated && cached.skipped <= 0) return cached.lines;
 			const hint = cached.rawTruncated ? "... (earlier output hidden," : `... (${cached.skipped} earlier lines,`;
-			return [truncateToWidth(`    ${theme.fg("muted", hint)} ${expandHint()}${theme.fg("muted", ")")}`, width, "..."), ...cached.lines];
+			return [truncateToWidth(`    ${theme.fg("muted", hint)} ${context?.keyHint?.("app.tools.expand", "to expand") ?? "expand tool details"}${theme.fg("muted", ")")}`, width, "..."), ...cached.lines];
 		},
 		invalidate(): void { cached = undefined; },
 	};
@@ -159,7 +151,7 @@ function renderResult(
 	const plainText = textContent?.text ?? "";
 	if (!renderOptions.expanded) {
 		const collapsed = details ?? (plainText ? { output: plainText } : undefined);
-		return options.showOutputWhenCollapsed && collapsed ? renderCollapsedOutput(collapsed, theme) : new Container();
+		return options.showOutputWhenCollapsed && collapsed ? renderCollapsedOutput(collapsed, theme, context) : new Container();
 	}
 	let text = theme.fg("dim", renderTerminalOutput(details?.output ?? plainText) || "(no output)");
 	if (details?.session_id !== undefined) text += `\n${theme.fg("accent", `Session ${details.session_id} still running`)}`;

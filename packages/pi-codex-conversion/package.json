@@ -65,7 +65,8 @@
       "types": "./dist/realtime-voice.d.ts",
       "import": "./dist/realtime-voice.js"
     },
-    "./*": "./*"
+    "./*": "./*",
+    "./host-settings": "./dist/host-settings.js"
   },
   "pi": {
     "extensions": [
@@ -95,12 +96,10 @@
     "code-mode/NOTICE",
     "scripts/code-mode",
     "!src/**/AGENTS.md",
-    "!src/tools/target/**",
-    "changelog.ts",
-    "changelog.js"
+    "!src/tools/target/**"
   ],
   "scripts": {
-    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('changelog.js', { force: true })\" && tsc -p tsconfig.build.json && node ../../scripts/build-extension-changelog.mjs .",
+    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun run build:host-settings",
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
@@ -117,27 +116,28 @@
     "build:changed-native-tools": "node scripts/build-changed-native-tool-binaries.mjs",
     "build:native-tool": "node scripts/build-native-tool-binary.mjs",
     "build:voice-helper": "node scripts/build-voice-helper.mjs",
-    "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
+    "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs",
+    "build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js"
   },
   "publishConfig": {
     "access": "public"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": ">=1.4.0",
-    "@earendil-works/pi-coding-agent": ">=1.4.0",
+    "@earendil-works/pi-ai": ">=1.5.0",
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
     "@earendil-works/pi-tui": ">=1.0.0",
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "1.4.0",
-    "@earendil-works/pi-ai": "1.4.0",
-    "@earendil-works/pi-coding-agent": "1.4.0",
-    "@earendil-works/pi-codemode": "1.4.0",
-    "@earendil-works/pi-tui": "1.4.0",
+    "@earendil-works/pi-agent-core": "1.5.0",
+    "@earendil-works/pi-ai": "1.5.0",
+    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-codemode": "1.5.0",
+    "@earendil-works/pi-tui": "1.5.0",
     "@types/node": "26.6.5",
     "@types/ws": "^8.18.2",
     "quickjs-wasi": "3.6.3",
-    "tsrs": "0.20.0-ts7.1.0-beta",
+    "tsrs": "0.21.0-ts7.1.0-beta",
     "tsx": "^4.23.15",
     "typebox": "1.4.3",
     "typescript": "^7.0.2"

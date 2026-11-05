@@ -1,1 +1,2 @@
 - The stream loop owns one output-index map and unfinished-tool cleanup; item/delta handlers mutate that same map. Validate item identity before dispatch, and never let settlement or exceptions retain unfinished tool calls.
+- Keep incremental JSON parsers and grammar buffers in output state, never content blocks. Flush initial grammar input with the first delta or close; replay keeps the final bytes and recorded input property.

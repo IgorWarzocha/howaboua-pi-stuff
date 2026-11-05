@@ -22,6 +22,7 @@ export interface LanOptions {
 		cancelStartup(): void;
 		stop(): Promise<void>;
 		stopCall(): Promise<void>;
+		shutdownServer(): void;
 		send(text: string): void;
 		state(): {
 			status: string;
@@ -232,8 +233,18 @@ export async function startLan(options: LanOptions): Promise<{
 			publish();
 		});
 		if (response.writableEnded) return;
+		const serverStopping =
+			command["action"] === "stop" && command["shutdownServer"] === true;
+		if (serverStopping)
+			// Full shutdown waits for this queue and closes HTTP connections.
+			response.once("finish", () => options.callbacks.shutdownServer());
 		response.writeHead(200, { "Content-Type": "application/json" });
-		response.end(JSON.stringify(options.callbacks.state()));
+		response.end(
+			JSON.stringify({
+				...options.callbacks.state(),
+				...(serverStopping ? { serverStopping: true } : {}),
+			}),
+		);
 	}
 	server.on("upgrade", (request, socket, head) => {
 		if (

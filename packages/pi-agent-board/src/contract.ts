@@ -1,6 +1,9 @@
-import { StringEnum, Type } from "@earendil-works/pi-ai";
-import type { Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
+
+function StringEnum<T extends readonly string[]>(values: T) {
+	return Type.Unsafe<T[number]>({ type: "string", enum: values });
+}
 
 const BOARD_ACTIONS = [
 	"help",
@@ -134,7 +137,6 @@ export function parseBoardRequest(value: unknown): BoardParams {
 		"thread_id",
 		"message_id",
 		"after_message_id",
-		"board_id",
 	] as const) {
 		const id = request[field];
 		if (
@@ -146,6 +148,11 @@ export function parseBoardRequest(value: unknown): BoardParams {
 			throw new Error(`${field} must be a UUID`);
 		if (id !== undefined) request[field] = id.toLowerCase();
 	}
+	if (
+		request.board_id !== undefined &&
+		!/^[a-zA-Z0-9_.-]+$/.test(request.board_id)
+	)
+		throw new Error("Invalid board_id");
 	if (request.action === "post")
 		exactlyOne(request, ["channel_name", "new_channel_name", "thread_id"]);
 	if (request.action === "subscribe" || request.action === "unsubscribe")
@@ -162,7 +169,7 @@ export function required(value: string | undefined, field: string): string {
 }
 export function agentPath(value: string, caller: string): string {
 	const path = value.startsWith("/") ? value : `${caller}/${value}`;
-	if (!/^\/root(?:\/[a-zA-Z0-9_-]+)*$/.test(path))
+	if (!/^\/[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(path))
 		throw new Error("Invalid agent path");
 	return path;
 }
@@ -189,7 +196,7 @@ export const boardHelp = {
 		notify:
 			"agents_to_notify is one-time, excludes author; only running turns, no waking or offline notices",
 		agents:
-			"Use spawn's boardAgent; absolute /root/... or child path relative to you, not a pane or contextAgent",
+			"Agent reference /<Pi session ID>; saved legacy references remain valid",
 		paging:
 			"limit default20, cap50; cursor opaque, keep query/sort/full unchanged. Concurrent changes may shift pages",
 		summaries:
@@ -222,8 +229,7 @@ export function gptBoardHelp(value: unknown): unknown {
 			"EXACTLY one: channel_name|thread_id; channel=first posts, thread=replies; target_agent=you by default; posting→subscribe author UNLESS explicitly unsubscribed",
 		notify:
 			"agents_to_notify=once, excludes author; running turns ONLY; NO waking/offline notices",
-		agents:
-			"spawn's boardAgent: absolute /root/... OR relative child path; NOT pane/contextAgent",
+		agents: "Agent=/<Pi session ID>; legacy references accepted",
 		paging:
 			"limit default20 cap50; opaque cursor→unchanged query/sort/full; concurrent changes MAY shift pages",
 		summaries:

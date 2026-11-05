@@ -3,16 +3,44 @@ import { Type } from "typebox";
 import type { CodexToolProvider } from "./codex-runtime/types.js";
 
 export const IMAGE_GENERATION_TOOL_NAME = "imagegen";
+export const IMAGE_CONTEXT_GUIDANCE =
+	"Stateless: supply prior/reference images via paths or recent count; earlier calls are not remembered";
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE =
 	"imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
 export const IMAGE_MODEL = "gpt-image-2.5";
 export const MAX_EDIT_IMAGES = 5;
+const OUTPUT_FORMATS = ["png", "jpeg", "webp", "gif", "svg"] as const;
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
-export const IMAGE_GENERATION_PARAMETERS = Type.Object(
+const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{
 		prompt: Type.String({
 			description: "Include target aspect ratio and quality",
 		}),
+		output_format: Type.Optional(
+			Type.Enum(OUTPUT_FORMATS, {
+				description: "GIF/SVG generation only",
+			}),
+		),
+		size: Type.Optional(
+			Type.String({
+				description: "auto or WIDTHxHEIGHT, multiples of 16",
+			}),
+		),
+		gif: Type.Optional(
+			Type.Object(
+				{
+					frame_count: Type.Optional(Type.Integer({ minimum: 2, maximum: 64 })),
+					frame_duration_ms: Type.Optional(
+						Type.Integer({ minimum: 20, maximum: 2000, multipleOf: 10 }),
+					),
+				},
+				{
+					additionalProperties: false,
+					description: "Animated GIF; omit controls for API defaults",
+				},
+			),
+		),
 		transparent_background: Type.Optional(
 			Type.Boolean({
 				description:
@@ -42,8 +70,23 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{ additionalProperties: false },
 );
 
+const CODEX_IMAGE_GENERATION_PARAMETERS = Type.Omit(
+	IMAGE_GENERATION_PARAMETERS,
+	["output_format", "size", "gif"],
+	{ additionalProperties: false },
+);
+
+export function imageGenerationParameters(access: "codex" | "openai") {
+	return access === "openai"
+		? IMAGE_GENERATION_PARAMETERS
+		: CODEX_IMAGE_GENERATION_PARAMETERS;
+}
+
 export interface ImagegenArgs {
 	prompt: string;
+	output_format?: OutputFormat;
+	size?: string;
+	gif?: { frame_count?: number; frame_duration_ms?: number };
 	transparent_background?: boolean;
 	referenced_image_paths?: string[] | null;
 	num_last_images_to_include?: number | null;

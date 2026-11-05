@@ -1,6 +1,7 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { VoiceAudioDiagnostics } from "../helper-protocol.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import type { RealtimeVoiceTurn } from "../turns.ts";
@@ -22,6 +23,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onDrop(error: Error): void;
 	onStatus(status: string): void;
+	onAudioDiagnostics?(diagnostics: VoiceAudioDiagnostics): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
 	rewriteDelegation?(turn: RealtimeVoiceTurn, signal: AbortSignal): Promise<PreparedVoiceTask>;
 	onEndCall?(finalOutputObserved?: boolean, resultDelegationId?: string): void;
@@ -245,9 +247,15 @@ export class CodexRealtimeConversation {
 		return this.ending;
 	}
 
+	get playbackSealed(): boolean {
+		return this.peer.playbackSealed === true;
+	}
+
 	/** Require the closing response observed since delegation, not an initially idle call. */
-	waitForFinalPlayback(): Promise<void> {
-		return this.waitForPlaybackEnd(this.closing.signal, this.endingOutput);
+	async waitForFinalPlayback(): Promise<void> {
+		await this.waitForPlaybackEnd(this.closing.signal, this.endingOutput);
+		if (!this.ending) throw new Error("Call ending interrupted by new speech");
+		await this.peer.finishPlayback?.(this.closing.signal);
 	}
 
 	/** Quiet peer activity is best-effort: the helper has no speaker-drain acknowledgement. */
@@ -343,6 +351,7 @@ export class CodexRealtimeConversation {
 			if (this.turns instanceof PublicRealtimeTurns) this.turns.audioActivity();
 			else this.turns.playback.audioActivity();
 		}
+		if (event.type === "audio_diagnostics") this.callbacks.onAudioDiagnostics?.(event.diagnostics);
 		if (event.type === "data") {
 			if (!event.message || typeof event.message !== "object") return;
 			const message = event.message as {

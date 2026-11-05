@@ -73,6 +73,7 @@ export class CodexLanVoiceServerController {
 						ctx, settings: createLanVoiceSettings(ctx, this.getConfig, this.hasWebSearch), voice: this.voice,
 						resolveAuth: () => resolveCodexVoiceAuth(ctx), sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 						ownerSessionId, certificateAgentDir: this.agentDir, port, certificate: prepared.certificate,
+						onClosed: () => this.serverClosed(server, ctx),
 						takeover: { token: prepared.offer.token, prepared: context, inputMuted, alternateVoice },
 					});
 					if (this.takeoverReservation !== reservation || ctx.sessionManager.getSessionId() !== ownerSessionId) {
@@ -123,15 +124,17 @@ export class CodexLanVoiceServerController {
 			if (this.server?.ownerSessionId === sessionId) return this.status();
 			await this.stopCurrent(ctx);
 			const { startCodexLanVoiceServer } = await import("./server.ts");
-			this.server = await startCodexLanVoiceServer({
+			const server = await startCodexLanVoiceServer({
 				ctx,
 				settings: createLanVoiceSettings(ctx, this.getConfig, this.hasWebSearch),
 				voice: this.voice,
 				resolveAuth: () => resolveCodexVoiceAuth(ctx),
 				sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 				ownerSessionId: sessionId,
+				onClosed: () => this.serverClosed(server, ctx),
 				certificateAgentDir: this.agentDir,
 			});
+			this.server = server;
 			ctx.ui.setStatus(
 				"codex-lan-voice",
 				ctx.ui.theme.fg("accent", "voice LAN: on"),
@@ -174,6 +177,13 @@ export class CodexLanVoiceServerController {
 		if (!this.server) return;
 		this.server.agentSettled(this.pendingAssistantText);
 		this.pendingAssistantText = undefined;
+	}
+
+	private serverClosed(server: CodexLanVoiceServer, ctx: ExtensionContext): void {
+		if (this.server !== server) return;
+		this.server = undefined;
+		this.pendingAssistantText = undefined;
+		ctx.ui.setStatus("codex-lan-voice", undefined);
 	}
 
 	private async stopCurrent(ctx?: ExtensionContext): Promise<void> {

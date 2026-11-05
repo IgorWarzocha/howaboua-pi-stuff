@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import { CONFIG_DIR_NAME, defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import registerPackageChangelog from "../changelog.js";
 import { type PetRuntime, resolvePetRuntime } from "../src/pet-storage.ts";
 import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
 import { registerPetDevices } from "./desktop-command.ts";
@@ -48,7 +47,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime) {
     name: "pet_show",
     label: "Pet",
     description: "Show a named reaction on the connected Pi Pet",
-    promptGuidelines: ["Use pet_show sparingly; routine task activity animates automatically"],
+    promptGuidelines: ["pet_show: sparingly; routine task activity animates automatically"],
     parameters: Type.Object({
       action: Type.Optional(
         Type.String({
@@ -70,7 +69,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime) {
           content: [
             {
               type: "text",
-              text: `${params.action === undefined ? 'pet_show({ action: "<reaction>", note?: "<short context>" }). ' : ""}${catalog.displayName} actions: ${actions}.${aliases ? ` Aliases: ${aliases}.` : ""}`,
+              text: `${params.action === undefined ? 'pet_show({ action: "<reaction>", note?: "<short context>" })\n' : ""}${catalog.displayName} actions: ${actions}${aliases ? `\nAliases: ${aliases}` : ""}`,
             },
           ],
           details: state,
@@ -125,7 +124,6 @@ export default async function piPetExtension(pi: ExtensionAPI): Promise<void> {
       throw error;
   }
 
-  registerPackageChangelog(pi);
   registerPetDevices(pi);
   pi.on("session_start", (_event, ctx) => {
     const resolution = resolvePetRuntime(packageRoot, join(ctx.cwd, CONFIG_DIR_NAME, "pi-pet.json"));

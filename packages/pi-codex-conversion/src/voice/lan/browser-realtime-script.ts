@@ -12,6 +12,7 @@ async function createRealtimeBrowserAudio(stream) {
   let processor;
   let inputEpoch = 0;
   let speakerSuppressed = false;
+  let closed = false;
   try {
     const microphoneUrl = URL.createObjectURL(new Blob([${MICROPHONE_WORKLET_SOURCE}], { type:'text/javascript' }));
     const audioUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
@@ -28,6 +29,15 @@ async function createRealtimeBrowserAudio(stream) {
     return {
       context,
       processor,
+      canDrain: typeof context.getOutputTimestamp === 'function',
+      drain(id) { processor.port.postMessage({ type:'drain', id }); },
+      async rendered(value) {
+        if (value?.type !== 'rendered' || typeof value.id !== 'string' || !Number.isFinite(value.endTime)) return;
+        while (!closed && context.state === 'running') {
+          if (context.getOutputTimestamp().contextTime >= value.endTime) return value.id;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      },
       acceptCapture(value) { return value?.type === 'capture' && value.epoch === inputEpoch && value.pcm instanceof ArrayBuffer ? value.pcm : undefined; },
       releaseInput() { microphoneBuffer.port.postMessage({ type:'release' }); },
       setInputMuted(muted) {
@@ -44,6 +54,7 @@ async function createRealtimeBrowserAudio(stream) {
       },
       play(pcm) { if (!speakerSuppressed) processor.port.postMessage(pcm, [pcm]); },
       close() {
+        closed = true;
         processor.disconnect();
         microphoneBuffer.disconnect();
         source.disconnect();

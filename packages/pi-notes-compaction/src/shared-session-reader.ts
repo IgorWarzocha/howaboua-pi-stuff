@@ -1,5 +1,6 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Check } from "typebox/value";
+import { contextStorageAgentName } from "./agent-identity.js";
 import { useHistory } from "./history.js";
 import type { HistorySearch } from "./history-search.js";
 import { normalizeNoteParams, readNotes } from "./note-query.js";
@@ -99,7 +100,8 @@ export function createSharedSessionReader(
 		}
 		if (
 			namespace === "history" ||
-			destination !== identity.agentName ||
+			(destination !== identity.agentName &&
+				destination !== contextStorageAgentName(identity)) ||
 			!Check(Snapshot, retained)
 		)
 			return;
@@ -111,8 +113,10 @@ export function createSharedSessionReader(
 			customType: "codex-context-note-snapshot",
 			data: {
 				...retained,
-				files: retained.files.filter((file) =>
-					file.path.startsWith(`${identity.agentName}/notes/`),
+				files: retained.files.filter(
+					(file) =>
+						file.path.startsWith(`${identity.agentName}/notes/`) ||
+						file.path.startsWith(`${contextStorageAgentName(identity)}/notes/`),
 				),
 			},
 		};
@@ -120,7 +124,7 @@ export function createSharedSessionReader(
 			...(await read(
 				{ threadId: identity.threadId, entries: [], branch: [entry] },
 				query,
-				identity.agentName,
+				destination,
 			)),
 			captured_at: new Date(retained.timestamp).toISOString(),
 			warning: detached

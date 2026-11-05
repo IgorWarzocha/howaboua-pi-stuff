@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type {
 	ExtensionAPI,
@@ -6,7 +5,9 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	CONTEXT_AGENT_ENTRY,
+	canonicalAgentName,
 	contextAgentIdentity,
+	contextAgentNames,
 	contextTargetAgent,
 	parseContextAgentBinding,
 } from "./agent-identity.js";
@@ -79,8 +80,14 @@ export function registerContextSharingService(
 			const parent = describe(ctx);
 			if (!parent)
 				throw new Error("Shared context requires notes-based continuity");
-			if (!/^[a-zA-Z0-9_-]+$/.test(options.name))
-				throw new Error("Invalid context agent name");
+			if (
+				options.threadId === parent.threadId ||
+				options.threadId === parent.sessionId
+			)
+				throw new Error(
+					"Child Pi session ID conflicts with its controller or family root; start a session with another ID",
+				);
+			const agentName = canonicalAgentName(options.threadId);
 			if (!router || options.routing === undefined)
 				throw new Error("Local sharing requires a registered context router");
 
@@ -91,7 +98,7 @@ export function registerContextSharingService(
 			const binding = {
 				protocol: 1 as const,
 				sessionId: parent.sessionId,
-				agentName: `${parent.agentName}/${options.name}-${randomUUID()}`,
+				agentName,
 				storage: "session" as const,
 				...(parent.accountScope ? { accountScope: parent.accountScope } : {}),
 				...(parent.backendUrl ? { backendUrl: parent.backendUrl } : {}),
@@ -120,8 +127,18 @@ export function registerContextSharingService(
 		},
 		async bind(ctx, input, options) {
 			const binding = parseContextAgentBinding(input);
-			if (binding.agentName === "/root")
-				throw new Error("Shared context binding requires a child agent path");
+			if (ctx.sessionManager.getSessionId() === binding.sessionId)
+				throw new Error(
+					"Child Pi session ID conflicts with its family root; start a session with another ID",
+				);
+			if (
+				binding.agentName !==
+					canonicalAgentName(ctx.sessionManager.getSessionId()) ||
+				binding.storageAgentName !== undefined
+			)
+				throw new Error(
+					"Shared context binding must use this Pi session identity",
+				);
 			const identity = {
 				...binding,
 				threadId: ctx.sessionManager.getSessionId(),
@@ -176,7 +193,7 @@ export function registerContextSharingService(
 			if (
 				!identity ||
 				identity.sessionId !== request.sessionId ||
-				identity.agentName !== request.agentName ||
+				!contextAgentNames(identity).includes(request.agentName) ||
 				(request.namespace !== "notes" && request.namespace !== "history") ||
 				!request.params ||
 				typeof request.params !== "object" ||
@@ -185,7 +202,7 @@ export function registerContextSharingService(
 					request.namespace,
 					request.params,
 					identity.agentName,
-				) !== identity.agentName
+				) !== request.agentName
 			)
 				throw new Error("Shared context request does not belong to this agent");
 			if (request.encryptedArguments)

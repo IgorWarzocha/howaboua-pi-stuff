@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { type ExtensionAPI, type ToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, type KeybindingHints, type ToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { parsePatchActions } from "../../patch/parser.ts";
 import { resolvePatchPath } from "../../patch/paths.ts";
@@ -29,7 +29,7 @@ const APPLY_PATCH_PARAMETERS = Type.Object({
 	}),
 });
 
-interface ApplyPatchRenderContextLike {
+interface ApplyPatchRenderContextLike extends Partial<KeybindingHints> {
 	toolCallId?: string | undefined;
 	cwd?: string | undefined;
 	executionStarted?: boolean | undefined;

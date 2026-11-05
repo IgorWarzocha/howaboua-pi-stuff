@@ -1,22 +1,37 @@
 import { isDeepStrictEqual } from "node:util";
-import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { BindingSchema } from "@howaboua/pi-agent-board/integration";
 import type { SharedContextResult } from "@howaboua/pi-notes-compaction/context-sharing";
-import type { Static, TSchema } from "typebox";
+import { type Static, type TSchema, Type } from "typebox";
 import { Check } from "typebox/value";
 
-const AgentPath = Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" });
+const AgentPath = Type.String({
+	pattern: "^/(?:[a-zA-Z0-9_.-]+|root(?:/[a-zA-Z0-9_-]+)*)$",
+});
 export const Identity = Type.Object({
 	protocol: Type.Literal(1),
 	sessionId: Type.String({ minLength: 1 }),
 	threadId: Type.String({ minLength: 1 }),
 	agentName: AgentPath,
+	storageAgentName: Type.Optional(AgentPath),
 	storage: Type.Union([Type.Literal("session"), Type.Literal("remote")]),
 	accountScope: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$" })),
 	backendUrl: Type.Optional(Type.String({ minLength: 1 })),
 	routing: Type.Optional(Type.Unknown()),
 });
+// Persisted attachment records predate native agent references. Keep their storage address.
+export function canonicalContextIdentity(
+	identity: Static<typeof Identity>,
+): Static<typeof Identity> {
+	const agentName = `/${identity.threadId}`;
+	return identity.agentName === agentName
+		? identity
+		: {
+				...identity,
+				agentName,
+				storageAgentName: identity.storageAgentName ?? identity.agentName,
+			};
+}
 const ContextLink = Type.Object({
 	controller: Identity,
 	target: Identity,
@@ -111,6 +126,19 @@ export function remapResult(
 	from: string,
 	to: string,
 ): SharedContextResult {
+	const remapField = (key: string, value: unknown) =>
+		(key === "path" || key === "agent_name") && typeof value === "string"
+			? remap(value, from, to)
+			: value;
+	const structured =
+		result.structuredContent === undefined
+			? {}
+			: {
+					structuredContent: JSON.parse(
+						JSON.stringify(result.structuredContent),
+						remapField,
+					),
+				};
 	if (
 		typeof result.details.codexHistoryNotes["encrypted_output"] === "string" ||
 		("externalNotesResponses" in result.details &&
@@ -122,32 +150,24 @@ export function remapResult(
 		result.details.codexHistoryNotes["attachment_hint"] = hint;
 		return {
 			...result,
+			...structured,
 			content: [{ type: "text", text: hint }, ...result.content],
 		};
 	}
 	const details = JSON.parse(
 		JSON.stringify(result.details.codexHistoryNotes),
-		(key, value: unknown) =>
-			(key === "path" || key === "agent_name") && typeof value === "string"
-				? remap(value, from, to)
-				: value,
+		remapField,
 	) as Record<string, unknown>;
 	return {
 		...result,
+		...structured,
 		// Remap the public payload, never regenerate it from private receipts.
 		content: result.content.map((item) => {
 			if (item.type !== "text") return item;
 			try {
 				return {
 					...item,
-					text: JSON.stringify(
-						JSON.parse(item.text, (key, value: unknown) =>
-							(key === "path" || key === "agent_name") &&
-							typeof value === "string"
-								? remap(value, from, to)
-								: value,
-						),
-					),
+					text: JSON.stringify(JSON.parse(item.text, remapField)),
 				};
 			} catch {
 				return item;

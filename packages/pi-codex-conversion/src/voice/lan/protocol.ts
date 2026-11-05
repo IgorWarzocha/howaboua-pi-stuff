@@ -3,8 +3,10 @@ export type LanVoiceAudioCommand =
 			type: "start";
 			mode: "conversation" | "dictation";
 			takeoverToken?: string;
+			playbackDrain?: boolean;
 	  }
 	| { type: "mute"; muted: boolean }
+	| { type: "drained"; id: string }
 	| {
 			type: "finish";
 			draft: string;
@@ -25,6 +27,8 @@ export function decodeLanVoiceAudioCommand(
 	)
 		throw invalidCommand();
 	if (value.type === "start") {
+		if ("playbackDrain" in value && typeof value.playbackDrain !== "boolean") throw invalidCommand();
+		const playbackDrain = "playbackDrain" in value && value.playbackDrain === true;
 		if (
 			!("mode" in value) ||
 			(value.mode !== "conversation" && value.mode !== "dictation")
@@ -41,9 +45,10 @@ export function decodeLanVoiceAudioCommand(
 				type: "start",
 				mode: value.mode,
 				takeoverToken: value.takeoverToken,
+				...(playbackDrain ? { playbackDrain } : {}),
 			};
 		}
-		return { type: "start", mode: value.mode };
+		return { type: "start", mode: value.mode, ...(playbackDrain ? { playbackDrain } : {}) };
 	}
 	if (value.type === "finish") {
 		if (!("draft" in value) || typeof value.draft !== "string")
@@ -75,6 +80,10 @@ export function decodeLanVoiceAudioCommand(
 		if (!("muted" in value) || typeof value.muted !== "boolean")
 			throw invalidCommand();
 		return { type: "mute", muted: value.muted };
+	}
+	if (value.type === "drained") {
+		if (!("id" in value) || typeof value.id !== "string" || !/^[a-f0-9-]{36}$/.test(value.id)) throw invalidCommand();
+		return { type: "drained", id: value.id };
 	}
 	if (value.type === "release" || value.type === "cancel")
 		return { type: value.type };

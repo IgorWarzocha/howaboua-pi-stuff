@@ -14,83 +14,6 @@ const UNKNOWN_SUBSCRIPTION_COST = {
 
 const SUPPLEMENTAL_MODELS: Model<"openai-codex-responses">[] = [
 	{
-		id: "gpt-6.1-terra",
-		name: "GPT-6.1 Terra",
-		api: "openai-codex-responses",
-		provider: "openai-codex",
-		baseUrl: DEFAULT_CODEX_BASE_URL,
-		reasoning: true,
-		input: ["text", "image"],
-		// https://developers.openai.com/api/docs/models/gpt-6.1-terra
-		cost: {
-			input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25,
-			tiers: [{ inputTokensAbove: 272_000, input: 2, output: 7.5, cacheRead: 0.1, cacheWrite: 2.5 }],
-		},
-		contextWindow: 500_000,
-		maxTokens: 128_000,
-		thinkingLevelMap: { off: null, minimal: null, xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
-	},
-	{
-		id: "gpt-6-astra",
-		name: "GPT-6 Astra",
-		api: "openai-codex-responses",
-		provider: "openai-codex",
-		baseUrl: DEFAULT_CODEX_BASE_URL,
-		reasoning: true,
-		input: ["text", "image"],
-		cost: {
-			input: 10,
-			output: 50,
-			cacheRead: 1,
-			cacheWrite: 12.5,
-			tiers: [{ inputTokensAbove: 272_000, input: 20, output: 75, cacheRead: 2, cacheWrite: 25 }],
-		},
-		contextWindow: 272_000,
-		maxTokens: 128_000,
-		thinkingLevelMap: { off: null, minimal: "low", xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
-	},
-	{
-		id: "gpt-6.1-sol",
-		name: "GPT-6.1 Sol",
-		api: "openai-codex-responses",
-		provider: "openai-codex",
-		baseUrl: DEFAULT_CODEX_BASE_URL,
-		reasoning: true,
-		input: ["text", "image"],
-		// https://developers.openai.com/api/docs/models/gpt-6.1-sol
-		cost: {
-			input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5,
-			tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }],
-		},
-		contextWindow: 500_000,
-		maxTokens: 128_000,
-		thinkingLevelMap: { off: null, minimal: null, xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
-	},
-	...(["Sol", "Luna"] as const).map((tier): Model<"openai-codex-responses"> => ({
-		id: `gpt-6-${tier.toLowerCase()}`,
-		name: `GPT-6 ${tier}`,
-		api: "openai-codex-responses",
-		provider: "openai-codex",
-		baseUrl: DEFAULT_CODEX_BASE_URL,
-		reasoning: true,
-		input: ["text", "image"],
-		// Standard API rates: https://developers.openai.com/api/docs/pricing
-		cost: tier === "Sol" ? {
-			input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5,
-			tiers: [{ inputTokensAbove: 272_000, input: 4, output: 15, cacheRead: 0.4, cacheWrite: 5 }],
-		} : {
-			input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125,
-			tiers: [{ inputTokensAbove: 272_000, input: 0.2, output: 0.75, cacheRead: 0.02, cacheWrite: 0.25 }],
-		},
-		contextWindow: 272_000,
-		maxTokens: 128_000,
-		thinkingLevelMap: { off: null, minimal: "low", xhigh: "xhigh", max: "max" },
-		compat: { supportsOpenAIGrammarTools: true, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true, supportsToolSearch: true },
-	})),
-	{
 		id: "gpt-daybreak-blue-latest",
 		name: "Daybreak Blue",
 		api: "openai-codex-responses",
@@ -130,14 +53,6 @@ export function openAICodexProviderModels(): Model<"openai-codex-responses">[] {
 	}
 	const existing = new Set(models.map(({ id }) => id));
 	return [...models, ...SUPPLEMENTAL_MODELS.filter(({ id }) => !existing.has(id))].map((model) => {
-		// Codex advertises 500K by default and low through max, unlike the API catalogue.
-		if (model.id === "gpt-6.1-sol" || model.id === "gpt-6.1-terra") {
-			return { ...model, contextWindow: 500_000, thinkingLevelMap: { ...model.thinkingLevelMap, off: null, minimal: null } };
-		}
-		// Pi's built-ins can advertise "none", but the Codex catalog has no off effort here.
-		if (/^gpt-6-(?:sol|luna)$/.test(model.id)) {
-			return { ...model, thinkingLevelMap: { ...model.thinkingLevelMap, off: null } };
-		}
 		return /^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
 			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
 			: model;

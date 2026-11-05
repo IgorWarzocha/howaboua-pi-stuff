@@ -1,7 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerPackageChangelog from "./changelog.js";
 import { imagegenCodeModeResult } from "./src/code-mode.js";
 import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
+import {
+	IMAGE_CONTEXT_GUIDANCE,
+	imageGenerationParameters,
+} from "./src/contract.js";
+import { readImagegenSettings } from "./src/settings.js";
+import { registerImagegenSettings } from "./src/settings-ui.js";
 import { createImageGenerationTool } from "./src/tool.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
@@ -15,7 +20,6 @@ export { createImageGenerationTool } from "./src/tool.js";
 export default async function imagegenExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
-	registerPackageChangelog(pi);
 	const tool = createImageGenerationTool({
 		allowCodexProviderFallback: true,
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),
@@ -24,6 +28,16 @@ export default async function imagegenExtension(
 	pi.registerTool(tool);
 	let gpt = false;
 	let registration: Awaited<ReturnType<typeof registerImagegenInCodeMode>>;
+	const refresh = () => {
+		const parameters = imageGenerationParameters(readImagegenSettings().access);
+		if (tool.parameters === parameters) return;
+		tool.parameters = parameters;
+		pi.registerTool(tool);
+		registration?.refresh();
+	};
+	registerImagegenSettings(pi, refresh);
+	pi.on("session_start", refresh);
+	pi.on("before_agent_start", refresh);
 	const ordinary = {
 		description: tool.description,
 	};
@@ -35,7 +49,8 @@ export default async function imagegenExtension(
 			if (gpt !== active) {
 				gpt = active;
 				tool.description = active
-					? "Generate/edit images; no selectors=generate"
+					? "Generate/edit images; no selectors=generate. " +
+						IMAGE_CONTEXT_GUIDANCE
 					: ordinary.description;
 				pi.registerTool(tool);
 				registration?.refresh();
@@ -67,16 +82,51 @@ async function registerImagegenInCodeMode(
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import(CODE_MODE_MODULE);
-		return registerCodeModeExtensionTools(pi, () => [
-			adaptToolForCodeMode(tool, {
-				usage: gpt()
-					? "generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; NEVER text/serialize base64"
-					: "generatedImage(await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number})) // prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; never text/serialize base64 result",
+		return registerCodeModeExtensionTools(pi, () => {
+			const api = "size" in tool.parameters.properties;
+			const adapted = adaptToolForCodeMode(tool, {
+				discovery: "help",
+				usage:
+					"await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number" +
+					(api
+						? ',output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}'
+						: "") +
+					'}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
+					(gpt()
+						? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; " +
+							(api ? "GIF/SVG=generate; " : "") +
+							"NEVER text/serialize base64"
+						: "prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; " +
+							(api ? "GIF/SVG generation only; " : "") +
+							"never text/serialize base64 result"),
 				promptMetadata: false,
+				deferLoading: true,
 				toolName: { namespace: "image_gen", name: "imagegen" },
 				resultValue: imagegenCodeModeResult,
-			}),
-		]);
+			});
+			return [
+				{
+					...adapted,
+					description: "Generate/edit images",
+					promptGuidelines: [IMAGE_CONTEXT_GUIDANCE],
+					async invoke(...args: Parameters<typeof adapted.invoke>) {
+						const [input] = args;
+						if (
+							input == null ||
+							(typeof input === "object" &&
+								!Array.isArray(input) &&
+								Object.keys(input).length === 0)
+						)
+							return [
+								"Usage: " + adapted.usage,
+								IMAGE_CONTEXT_GUIDANCE,
+								"Schema: " + JSON.stringify(adapted.inputSchema),
+							].join("\n");
+						return adapted.invoke(...args);
+					},
+				},
+			];
+		});
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return undefined;
 		if (isOutdatedCodeModeExtension(error)) {

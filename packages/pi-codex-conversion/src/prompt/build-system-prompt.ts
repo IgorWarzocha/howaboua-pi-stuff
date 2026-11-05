@@ -1,4 +1,4 @@
-import { FOLLOW_THROUGH_GUIDELINE, formatGuidelines, mergeCodexGuidelines, selectedToolGuidelines, withoutCodexGuidelines } from "./runtime-guidelines.ts";
+import { GENERAL_GUIDELINES, formatGuidelines, mergeCodexGuidelines, selectedToolGuidelines, withoutCodexGuidelines } from "./runtime-guidelines.ts";
 import { getPackageDir, type NormalizedBuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
 import type { HeavySystemPromptOverwrite } from "../adapter/activation/config-contract.js";
 import { codeModeCustomizationGuidance } from "../tools/code-mode/custom-tool-prompt.js";
@@ -166,8 +166,8 @@ export function prepareCodexSystemPrompt(
 		return;
 	}
 
-	const heavyPreamble = `Guidelines:\n${formatGuidelines([FOLLOW_THROUGH_GUIDELINE[0]])}`;
-	const gptPreamble = FOLLOW_THROUGH_GUIDELINE[1];
+	const heavyPreamble = `Guidelines:\n${formatGuidelines(GENERAL_GUIDELINES.map(([guideline]) => guideline))}`;
+	const gptPreamble = GENERAL_GUIDELINES.map(([, guideline]) => guideline).join("\n");
 	const customPrompt = options.customPrompt === heavyPreamble || options.customPrompt === gptPreamble ? undefined : options.customPrompt;
 	if (config.heavySystemPromptOverwrite) {
 		if (!customPrompt) options.customPrompt = gpt ? gptPreamble : heavyPreamble;
@@ -185,7 +185,7 @@ export function prepareCodexSystemPrompt(
 			});
 			const sectionGuidelines = customPrompt
 				? guidelines
-				: guidelines.filter((guideline) => guideline !== FOLLOW_THROUGH_GUIDELINE[0]);
+				: guidelines.filter((guideline) => !GENERAL_GUIDELINES.some(([general]) => general === guideline));
 			return formatGuidelines(sectionGuidelines, shell, codeModeCustomizationGuidance(options), gpt);
 		});
 	} else {

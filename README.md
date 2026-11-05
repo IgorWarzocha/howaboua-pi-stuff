@@ -79,6 +79,15 @@ Pi discovers installed skills automatically and loads them when a task matches. 
 
 [`pi-chill`](./packages/pi-chill) folds routine tool activity into expandable progress blocks. It is a customisable starting point, installed from a checkout rather than npm, and is not included in the bundles.
 
+## Herdr apps
+
+These apps run alongside Herdr, separate from the npm bundles. Each README covers requirements, installation and everyday use.
+
+| App | What it does |
+|---|---|
+| [Herdr Voice](./apps/herdr-voice) | Use this computer's microphone and speakers with local or remote Pi sessions through a native panel |
+| [Herdr State](./apps/herdr-state) | Manually save Herdr layouts and exact agent conversations, then restore them after a reboot without submitting new tasks |
+
 ## Build an integration
 
 The [extension API guide](./docs/extension-apis.md) covers Board and Notes with other subagent extensions, PCC tool and context APIs, voice tools, and browser miniapps. It includes lifecycle diagrams, public contracts and small integration examples.
@@ -88,6 +97,10 @@ The [extension API guide](./docs/extension-apis.md) covers Board and Notes with 
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md). Package-level changelogs remain beside packages that have them.
+
+Extension updates use Pi 1.5's native notices on the next fresh launch. The first launch records installed versions silently. Use `collapseChangelog` in Pi's settings for condensed notices. Bundles show their combined changelog rather than separate notices for each bundled extension. Direct extension-file loads do not show package update notices. `/changelog` shows Pi's own history; use the links above for package history.
+
+The old `howaboua-pi-stuff-changelog.json` state and its `suppress` preference are no longer read or migrated. Set Pi's `collapseChangelog` preference yourself if you want condensed notices. This condenses updates rather than hiding them.
 
 ## License
 

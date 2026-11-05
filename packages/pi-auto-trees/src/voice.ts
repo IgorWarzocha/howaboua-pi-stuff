@@ -4,9 +4,9 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 
 const END_STARTED_PROMPT =
-	"The conversation is being summarized before returning to its marker. Please announce this briefly in your natural voice.";
+	"The conversation is being summarized before returning to its marker. Please announce this briefly in your natural voice";
 const END_COMPLETED_PROMPT =
-	"The conversation summary has been saved, and the marker has advanced. Please announce this briefly in your natural voice.";
+	"The conversation summary has been saved, and the marker has advanced. Please announce this briefly in your natural voice";
 
 function announce(pi: ExtensionAPI, id: string, prompt: string): void {
 	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: true, prompt });
@@ -18,7 +18,7 @@ export function announceEndStarted(pi: ExtensionAPI, gpt = false): void {
 		pi,
 		"pi-auto-trees:end-started",
 		gpt
-			? "Brief natural announcement: summarising conversation BEFORE return to marker."
+			? "Brief natural announcement: summarising conversation BEFORE return to marker"
 			: END_STARTED_PROMPT,
 	);
 }
@@ -28,7 +28,7 @@ export function announceEndCompleted(pi: ExtensionAPI, gpt = false): void {
 		pi,
 		"pi-auto-trees:end-completed",
 		gpt
-			? "Brief natural announcement: conversation summary saved; marker advanced."
+			? "Brief natural announcement: conversation summary saved; marker advanced"
 			: END_COMPLETED_PROMPT,
 	);
 }

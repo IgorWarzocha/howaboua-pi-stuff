@@ -2,7 +2,7 @@
 - Summary wording/density belongs in activity/current-stage.ts, headings in activity/group.ts. Distinguish running, completed, failed and blocked. Nested evidence may replace executor labels, never invent activity.
 - Fit current width, preserve renderer state and both expansion levels. Empty children cannot remove native parent spacers.
 - Standalone watch notices stay at their native positions, outside work groups. Saved notices do not identify whether delivery queued a continuation or started an idle run.
-- Keep notice text and heading components across frames. Group changes must refresh members; invalidate retained headings even while detached from their anchor row.
+- Keep notice text and heading components across frames. Group changes must refresh members; invalidate retained headings and folded native children even while detached.
 - Timeline changes cover live index.ts handlers, restore and compaction pruning. Only agent_settled completes runs. Repeated starts/queued input preserve duration and open state.
 - Anchors select rows, never move them. Assistant rows precede streamed text/tools. Retire only earlier rows after visible text arrives. Final answers may have no successor activity row, so settlement must retain disclosure at a surviving position.
 - Restore only the active branch. Never fabricate archived tool rows for rollover continuity.

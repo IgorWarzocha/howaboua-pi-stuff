@@ -111,21 +111,6 @@ export async function registerSharedAgentContext(
 					request: SharedContextRequest,
 					signal?: AbortSignal,
 				) => {
-					const attached = await shared.attachment.routing.route(
-						context,
-						request,
-						[],
-						(route, next) =>
-							fleet
-								.connected(route.machine)
-								.client.requestContext(
-									sessionContextPath(route.sessionFile),
-									next,
-									signal,
-								),
-						signal,
-					);
-					if (attached) return attached;
 					return shared.handle(
 						context,
 						{ operation: "context", request, visited: [] },

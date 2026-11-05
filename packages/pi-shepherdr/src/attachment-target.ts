@@ -3,7 +3,11 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { binding } from "@howaboua/pi-agent-board/integration";
+import {
+	type BoardBinding,
+	binding,
+	canonicalBoardBinding,
+} from "@howaboua/pi-agent-board/integration";
 import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
@@ -12,6 +16,7 @@ import {
 	type AttachmentPlan,
 	attachmentOwner,
 	attachmentRoutes,
+	canonicalContextIdentity,
 	DETACHED,
 	Detachment,
 	detachment,
@@ -25,6 +30,12 @@ import {
 	attachmentMessage,
 	detachmentMessage,
 } from "./messages/attachments.js";
+
+function sameBoard(left: BoardBinding, right: BoardBinding) {
+	const { legacyAgentName: _left, ...a } = canonicalBoardBinding(left);
+	const { legacyAgentName: _right, ...b } = canonicalBoardBinding(right);
+	return isDeepStrictEqual(a, b);
+}
 
 /** Validates and commits attachment membership in the settled target session. */
 export class AttachmentTarget {
@@ -135,22 +146,37 @@ export class AttachmentTarget {
 			(plan.context &&
 				(plan.context.controller.threadId !== plan.controllerSessionId ||
 					plan.context.target.threadId !== plan.targetSessionId ||
-					!plan.context.alias.startsWith(
-						`${plan.context.controller.agentName}/`,
+					!(
+						plan.context.alias === `/${plan.targetSessionId}` ||
+						plan.context.alias.startsWith(
+							`${plan.context.controller.agentName}/`,
+						)
 					) ||
-					!plan.context.controllerAlias.startsWith(
-						`${plan.context.target.agentName}/`,
+					!(
+						plan.context.controllerAlias === `/${plan.controllerSessionId}` ||
+						plan.context.controllerAlias.startsWith(
+							`${plan.context.target.agentName}/`,
+						)
 					))) ||
 			(plan.board &&
 				(plan.board.controller.sessionId !== plan.controllerSessionId ||
 					plan.board.previous.sessionId !== plan.targetSessionId ||
-					!isDeepStrictEqual(plan.board.desired, {
-						...plan.board.controller,
-						agentName: plan.board.desired.agentName,
-						upstream: plan.upstream,
-					}) ||
-					!plan.board.desired.agentName.startsWith(
-						`${plan.board.controller.agentName}/`,
+					!(
+						sameBoard(plan.board.desired, {
+							...plan.board.controller,
+							sessionId: plan.targetSessionId,
+							agentName: `/${plan.targetSessionId}`,
+							parentSessionId: plan.controllerSessionId,
+							upstream: plan.upstream,
+						}) ||
+						(isDeepStrictEqual(plan.board.desired, {
+							...plan.board.controller,
+							agentName: plan.board.desired.agentName,
+							upstream: plan.upstream,
+						}) &&
+							plan.board.desired.agentName.startsWith(
+								`${plan.board.controller.agentName}/`,
+							))
 					)))
 		)
 			throw new Error("Invalid attachment identities or routes");
@@ -173,13 +199,16 @@ export class AttachmentTarget {
 			if (
 				plan.context &&
 				(!current.context ||
-					!isDeepStrictEqual(current.context, plan.context.target))
+					!isDeepStrictEqual(
+						current.context,
+						canonicalContextIdentity(plan.context.target),
+					))
 			)
 				throw new Error(
 					current.contextError ?? "Target context changed during attachment",
 				);
 			if (plan.board && current.boardError) throw new Error(current.boardError);
-			if (plan.board && !isDeepStrictEqual(current.board, plan.board.previous))
+			if (plan.board && !sameBoard(current.board, plan.board.previous))
 				throw new Error("Target board changed during attachment");
 			// Authentication completes before either membership mutation.
 			if (plan.context) {
@@ -196,8 +225,11 @@ export class AttachmentTarget {
 				if (
 					!ctx.isIdle() ||
 					ctx.sessionManager.getSessionId() !== plan.targetSessionId ||
-					!isDeepStrictEqual(identity, plan.context.target) ||
-					(plan.board && !isDeepStrictEqual(binding(ctx), plan.board.previous))
+					!isDeepStrictEqual(
+						identity,
+						canonicalContextIdentity(plan.context.target),
+					) ||
+					(plan.board && !sameBoard(binding(ctx), plan.board.previous))
 				)
 					throw new Error(
 						"Target changed during attachment authentication; retry after it settles",
@@ -230,16 +262,20 @@ export class AttachmentTarget {
 		} else {
 			if (
 				plan.context &&
-				!isDeepStrictEqual(await this.context(ctx, false), plan.context.target)
+				!isDeepStrictEqual(
+					await this.context(ctx, false),
+					canonicalContextIdentity(plan.context.target),
+				)
 			)
 				throw new Error(
 					"Shared notes are unavailable. Use messages to exchange the context you need.",
 				);
 			if (
 				plan.board &&
-				!isDeepStrictEqual(binding(ctx), {
+				!sameBoard(binding(ctx), {
 					...plan.board.desired,
 					sessionId: plan.targetSessionId,
+					parentSessionId: plan.controllerSessionId,
 				})
 			)
 				throw new Error("Attached board changed; resolve the target again");
@@ -275,7 +311,10 @@ export class AttachmentTarget {
 		const previous = detachment(ctx, plan);
 		if (requested.context && plan.context) {
 			if (
-				!isDeepStrictEqual(await this.context(ctx, false), plan.context.target)
+				!isDeepStrictEqual(
+					await this.context(ctx, false),
+					canonicalContextIdentity(plan.context.target),
+				)
 			)
 				throw new Error("Target context changed before detach");
 			this.notes.validate(requested.context, plan.context.controller);

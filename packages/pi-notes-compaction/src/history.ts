@@ -62,7 +62,13 @@ export async function useHistory(
 			throw new Error(
 				`history read requires ${typeof windowId !== "string" ? "window_id" : "item_id"} as a string. Copy window_id and item_id from the same search or list result`,
 			);
-		const item = windows.get(windowId)?.find((item) => item.item_id === itemId);
+		// Keep exact pre-initialisation references saved by earlier releases readable.
+		const items =
+			windows.get(windowId) ??
+			(windowId === `session:${sessionId}`
+				? windows.values().next().value
+				: undefined);
+		const item = items?.find((item) => item.item_id === itemId);
 		if (!item) return { item: null };
 		const offset = integer(params["offset_chars"], 0, item.content.length);
 		const limit = integer(params["limit_chars"], 8000, 8000);
