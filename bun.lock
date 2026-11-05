@@ -31,7 +31,7 @@
     },
     "packages/pi-agent-board": {
       "name": "@howaboua/pi-agent-board",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "dependencies": {
         "dompurify": "3.4.17",
         "marked": "18.1.2",
@@ -53,7 +53,7 @@
     },
     "packages/pi-ask": {
       "name": "@howaboua/pi-ask",
-      "version": "0.0.17",
+      "version": "0.0.18",
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
@@ -124,7 +124,7 @@
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
-        "@howaboua/pi-codex-conversion": "4.0.7",
+        "@howaboua/pi-codex-conversion": "4.0.8",
         "@types/node": "^26.6.5",
         "typebox": "1.4.3",
         "typescript": "^7.0.2",
@@ -133,7 +133,7 @@
         "@earendil-works/pi-ai": ">=1.0.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.0.0",
-        "@howaboua/pi-codex-conversion": ">=4.0.7",
+        "@howaboua/pi-codex-conversion": ">=4.0.8",
         "typebox": "*",
       },
       "optionalPeers": [
@@ -186,7 +186,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "4.0.7",
+      "version": "4.0.8",
       "dependencies": {
         "@howaboua/pi-browser": "^0.0.13",
         "acorn": "8.19.0",
@@ -242,7 +242,7 @@
     },
     "packages/pi-codex-imagegen": {
       "name": "@howaboua/pi-codex-imagegen",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.12.3",
@@ -295,7 +295,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.102",
+      "version": "0.0.103",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.17",
         "@howaboua/pi-auto-trees": "0.1.19",
@@ -322,7 +322,7 @@
     },
     "packages/pi-gippity-control": {
       "name": "@howaboua/pi-gippity-control",
-      "version": "0.0.30",
+      "version": "0.0.31",
       "dependencies": {
         "@howaboua/pi-browser": "^0.0.13",
         "proxy-from-env": "2.1.0",
@@ -385,7 +385,7 @@
     },
     "packages/pi-grok-realtime": {
       "name": "@howaboua/pi-grok-realtime",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "dependencies": {
         "@howaboua/pi-browser": "^0.0.13",
         "selfsigned": "^5.5.0",
@@ -410,7 +410,7 @@
     },
     "packages/pi-notes-compaction": {
       "name": "@howaboua/pi-notes-compaction",
-      "version": "0.0.13",
+      "version": "0.0.14",
       "dependencies": {
         "better-sqlite3": "13.0.3",
       },
@@ -515,7 +515,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.2.25",
+      "version": "0.2.26",
       "dependencies": {
         "@howaboua/pi-agent-board": "0.0.4",
       },
@@ -594,7 +594,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.110",
+      "version": "0.0.111",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.17",
         "@howaboua/pi-auto-trees": "0.1.19",
@@ -673,7 +673,7 @@
     },
     "packages/pi-unicode-charts": {
       "name": "@howaboua/pi-unicode-charts",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@earendil-works/pi-coding-agent": "1.5.0",
@@ -1154,13 +1154,13 @@
 
     "@tsrs/darwin-x64": ["@tsrs/darwin-x64@0.21.0-ts7.1.0-beta", "", { "os": "darwin", "cpu": "x64" }, "sha512-7WUGrCYqz94dRpSTungOh90LL/5NhhnLQrMQqRYvmirHcp1sRlcVziJ2w+cynKwQ81/I2UajsNiKho/YSObcyA=="],
 
-    "@tsrs/linux-arm64-gnu": ["@tsrs/linux-arm64-gnu@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-bNWkz4lu+bOzl+sl9btE4pQ0RbLkv0Zm4FE2oKvBrt56vCnl7khcAcsqpSxBXApOkp5OwvyyY+XuOGuROBt7yg=="],
+    "@tsrs/linux-arm64-gnu": ["@tsrs/linux-arm64-gnu@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "arm64" }, "sha512-bNWkz4lu+bOzl+sl9btE4pQ0RbLkv0Zm4FE2oKvBrt56vCnl7khcAcsqpSxBXApOkp5OwvyyY+XuOGuROBt7yg=="],
 
-    "@tsrs/linux-arm64-musl": ["@tsrs/linux-arm64-musl@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "arm64", "libc": "musl" }, "sha512-TwvKTiOD8Fwb3HB+CrhnpYgKf7He1BobtjefTja0iGAzDtfaiGwoF06zLUdmey27kmCmxjBPybS45VRyZBkQnQ=="],
+    "@tsrs/linux-arm64-musl": ["@tsrs/linux-arm64-musl@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "arm64" }, "sha512-TwvKTiOD8Fwb3HB+CrhnpYgKf7He1BobtjefTja0iGAzDtfaiGwoF06zLUdmey27kmCmxjBPybS45VRyZBkQnQ=="],
 
-    "@tsrs/linux-x64-gnu": ["@tsrs/linux-x64-gnu@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-0OAYWOp33xHJbY/zwowbq4IKg1aCzD98sb2ksZb/1um2l28HYhJyhMEEsNczLpUFipQDE+zVBNkFoBML/KRNvA=="],
+    "@tsrs/linux-x64-gnu": ["@tsrs/linux-x64-gnu@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "x64" }, "sha512-0OAYWOp33xHJbY/zwowbq4IKg1aCzD98sb2ksZb/1um2l28HYhJyhMEEsNczLpUFipQDE+zVBNkFoBML/KRNvA=="],
 
-    "@tsrs/linux-x64-musl": ["@tsrs/linux-x64-musl@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "x64", "libc": "musl" }, "sha512-OtYmWa1tzjSt/bXxotPBrPrzlfZqz+azkkfotmuYMQfxiOgmRRm7cl022iV4lE21EOUicqp0NAnuDGDLfDlNBg=="],
+    "@tsrs/linux-x64-musl": ["@tsrs/linux-x64-musl@0.21.0-ts7.1.0-beta", "", { "os": "linux", "cpu": "x64" }, "sha512-OtYmWa1tzjSt/bXxotPBrPrzlfZqz+azkkfotmuYMQfxiOgmRRm7cl022iV4lE21EOUicqp0NAnuDGDLfDlNBg=="],
 
     "@tsrs/win32-x64": ["@tsrs/win32-x64@0.21.0-ts7.1.0-beta", "", { "os": "win32", "cpu": "x64" }, "sha512-ITwz3wOx161DNwEC4qYrrRwWgQyZQR4Os/GA3g67dKml0CQ4LPWHXniCzXrMagwYyH2vBBhPYT+7o+bKDj0qtA=="],
 

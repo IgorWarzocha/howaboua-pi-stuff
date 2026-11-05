@@ -18,18 +18,22 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-agent-board — 0.0.4
+### @howaboua/pi-agent-board — 0.0.5
 
-- - Board and connected extension briefings now refresh after Notes context-window rollover.
-  - Board listings now omit internal session identifiers.
-  - GPT mode uses note-style Board help and briefings.
+- Requires Pi 1.5 or newer.
+
+  - Board agents now use Pi session IDs without changing identity on attachment. Existing authors, subscriptions and archives remain accessible.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-agent-board/CHANGELOG.md)
 
-### @howaboua/pi-ask — 0.0.17
+### @howaboua/pi-ask — 0.0.18
 
-- - Removed redundant help-call instructions from Ask's help.
-  - GPT mode uses note-style question and handoff guidance.
+- Requires Pi 1.5 or newer.
+
+  - Waiting prompts now report Pi's native blocked state. Steering prompts remain non-blocking.
+  - Invalid question arguments now explain how to find the supported format.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -70,9 +74,29 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 4.0.7
+### @howaboua/pi-codex-conversion — 4.0.8
 
-- Updated package dependencies.
+- Requires Pi 1.5 or newer.
+
+  Custom voice-helper overrides must be rebuilt. Bundled helpers update with the package.
+
+  - Reduced parsing overhead for large streamed tool calls.
+  - Code and Notebook now preserve declared structured results and apply native tool argument preparation once.
+  - Code and Notebook guidance now separates help discovery from calls using unknown arguments and distinguishes printing from return values.
+  - TS execution now uses tsrs 0.21.0 with TypeScript 7.1 beta.
+  - GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna now support reasoning off.
+  - Expansion hints now use the configured keybinding.
+  - Agent guidance now prioritises acting on clear requests without unsolicited deferral.
+  - Fixed transient Codex transport failures becoming non-retryable after recovery attempts.
+  - Fixed duplicate voice task submissions from progress updates and repeated handoffs.
+  - Voice task preparation now preserves captured speech, tone and instructions without adding questions or next steps.
+  - Voice now recognises conversational wrap-ups and waits for LAN speaker playback before ending calls.
+  - Fixed stalled short audio tails, playback bursts and duplicated LAN audio. Codex Live now uses Opus packet repair.
+  - Added content-free connection and playback diagnostics without recording audio.
+  - Fixed generated task text appearing as user speech.
+  - LAN Stop now cancels pending task preparation. Herdr Disconnect also closes the listener.
+  - Added host-side voice settings without starting Pi or a call.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -87,10 +111,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-guardian/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.12
+### @howaboua/pi-codex-imagegen — 0.0.13
 
-- - Report invalid or unreadable tool configuration without parser or filesystem diagnostics.
-  - GPT mode uses note-style image-generation guidance in Code and Notebook.
+- Requires Pi 1.5 or newer.
+
+  - Added `/imagegen` access selection and API model, quality and complexity preferences.
+  - OpenAI API access now supports GIF and SVG generation and per-request output controls.
+  - Tool discovery now shows controls for the selected access route and requires explicit image references for edits.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
@@ -100,15 +128,31 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.102
+### @howaboua/pi-extensions — 0.0.103
 
-- Updated bundled packages.
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Requires Pi 1.5 or newer. - Waiting prompts now report Pi's native blocked state. Steering prompts remain non-blocking. - Invalid question arguments now explain how to find the supported format. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-gippity-control: Requires Pi 1.5 or newer. - Fixed duplicate voice task submissions from progress updates and repeated handoffs. - Voice task preparation now preserves captured speech, tone and instructions without adding questions or next steps. - Voice now recognises conversational wrap-ups and waits for LAN speaker playback before ending calls. - Fixed stalled short audio tails, playback bursts and duplicated LAN audio. Codex Live now uses Opus packet repair. - Added content-free connection and playback diagnostics without recording audio. - Fixed generated task text appearing as user speech. - LAN Stop now cancels pending task preparation. Herdr Disconnect also closes the listener. - Added host-side voice settings without starting Pi or a call. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-grok-realtime: Requires Pi 1.5 or newer. - Added host-side voice settings without starting Pi or a call. - Herdr Disconnect now shuts down the LAN listener after stopping the call. - Reduced mid-word playback cutouts. Initial playback buffers about 500 ms plus one device callback, and quiet pauses can grow by up to 500 ms. - Recoverable audio-device underruns and overruns no longer end calls. - Added bounded playback and device-recovery diagnostics without recording audio. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-shepherdr: Requires Pi 1.5 or newer. Update and restart controllers and workers together for shared Notes and boards. - `spawn` and `assign` now return after task submission by default. Set `blocking: true` to wait for the result. A profile's `blocking` setting still overrides `spawn`. - Agent references now use Pi session IDs across delegation, Notes and boards. Spawn returns one `agent` reference and sharing flags instead of separate context and board references. - Attached Notes reads keep alias paths and read-only warnings consistent across native, Code and Notebook results. - Rollover briefings now retain initial scope and the latest instruction without accumulating every message. Full messages remain in session history. - Fixed repeated writes of unchanged agent snapshots. - Closed workers no longer trigger a misleading notices-unavailable reconnect warning. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-unicode-charts: Requires Pi 1.5 or newer. - Other extensions' later prompt sections now reach the model in interactive sessions. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.30
+### @howaboua/pi-gippity-control — 0.0.31
 
-- Updated package dependencies.
+- Requires Pi 1.5 or newer.
+
+  - Fixed duplicate voice task submissions from progress updates and repeated handoffs.
+  - Voice task preparation now preserves captured speech, tone and instructions without adding questions or next steps.
+  - Voice now recognises conversational wrap-ups and waits for LAN speaker playback before ending calls.
+  - Fixed stalled short audio tails, playback bursts and duplicated LAN audio. Codex Live now uses Opus packet repair.
+  - Added content-free connection and playback diagnostics without recording audio.
+  - Fixed generated task text appearing as user speech.
+  - LAN Stop now cancels pending task preparation. Herdr Disconnect also closes the listener.
+  - Added host-side voice settings without starting Pi or a call.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -125,17 +169,36 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
-### @howaboua/pi-grok-realtime — 0.0.4
+### @howaboua/pi-grok-realtime — 0.0.5
 
-- Updated package dependencies.
+- Requires Pi 1.5 or newer.
+
+  - Added host-side voice settings without starting Pi or a call.
+  - Herdr Disconnect now shuts down the LAN listener after stopping the call.
+  - Reduced mid-word playback cutouts. Initial playback buffers about 500 ms plus one device callback, and quiet pauses can grow by up to 500 ms.
+  - Recoverable audio-device underruns and overruns no longer end calls.
+  - Added bounded playback and device-recovery diagnostics without recording audio.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
-### @howaboua/pi-notes-compaction — 0.0.13
+### @howaboua/pi-notes-compaction — 0.0.14
 
-- Model roles are now agent-operated. Configure them in `model-roles.json`. `/roles` is read-only, and the old `enabled` flag and accept/dismiss controls no longer apply.
-- Added `new_context({role})` to continue the next context window on a role's configured model and reasoning after saving a checkpoint.
-- Agents receive role names, descriptions and guidance to switch only for sustained scope changes, with subagents considered for bounded specialist work.
+- Requires Pi 1.5 or newer.
+
+  Older checkpoints may require a fresh note save before rollover.
+
+  - Notes results in Pi's built-in codemode are now objects, matching Code and Notebook. Remove `JSON.parse` around those results.
+  - Agent references now derive from Pi session IDs, with existing shared-note paths retained.
+  - Fixed rollover rejecting successful large saves and saves in parallel tool groups. The saved-notes indicator uses the same readiness check.
+  - Shared-note paths and read-only warnings now match across text and structured results.
+  - History now defaults query-only requests to search and includes the first window's opening request.
+  - History now ignores read-only hints on other actions.
+  - Model-role guidance now identifies the current role and offers only configured roles for rollover.
+  - Notes help now distinguishes virtual note paths from agent references and filesystem paths.
+  - Added `address` and `body` aliases for note paths and write text.
+  - Expansion hints now use the configured keybinding.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
 
@@ -158,18 +221,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-sandbox/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.25
+### @howaboua/pi-shepherdr — 0.2.26
 
-- When switching from the older Herdr TUI or another Core instance, reselect local watches.
-- Added Herdr Core and Herdr app support for local and remote delegation, focus, voice transfers, shared Notes and boards, including Windows hosts.
-- Added Core session discovery by terminal title, with spaces, hyphens and underscores treated alike.
-- Added `/herdr close-idle` to close idle children spawned by the current session branch, leaving attached and busy sessions open.
-- Spawn results now return `contextAgent` and `boardAgent` inside `sharing` instead of at the top level. The agent `target` is unchanged.
-- Reduced resume delays in sessions with many delegated agents, including closed children.
-- Remote sharing helpers now start only when sharing is used or restored, avoiding idle polling on unrelated machines.
-- Fixed intermediate tool calls being reported as completed agent work.
-- Agent guidance now distinguishes automatic background reports from blocking calls that must be awaited.
-- Agent tool declarations now accept action fields discovered through help, including in native codemode.
+- Requires Pi 1.5 or newer.
+
+  Update and restart controllers and workers together for shared Notes and boards.
+
+  - `spawn` and `assign` now return after task submission by default. Set `blocking: true` to wait for the result. A profile's `blocking` setting still overrides `spawn`.
+  - Agent references now use Pi session IDs across delegation, Notes and boards. Spawn returns one `agent` reference and sharing flags instead of separate context and board references.
+  - Attached Notes reads keep alias paths and read-only warnings consistent across native, Code and Notebook results.
+  - Rollover briefings now retain initial scope and the latest instruction without accumulating every message. Full messages remain in session history.
+  - Fixed repeated writes of unchanged agent snapshots.
+  - Closed workers no longer trigger a misleading notices-unavailable reconnect warning.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -224,9 +288,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.110
+### @howaboua/pi-stuff — 0.0.111
 
-- Updated bundled packages.
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Requires Pi 1.5 or newer. - Waiting prompts now report Pi's native blocked state. Steering prompts remain non-blocking. - Invalid question arguments now explain how to find the supported format. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-gippity-control: Requires Pi 1.5 or newer. - Fixed duplicate voice task submissions from progress updates and repeated handoffs. - Voice task preparation now preserves captured speech, tone and instructions without adding questions or next steps. - Voice now recognises conversational wrap-ups and waits for LAN speaker playback before ending calls. - Fixed stalled short audio tails, playback bursts and duplicated LAN audio. Codex Live now uses Opus packet repair. - Added content-free connection and playback diagnostics without recording audio. - Fixed generated task text appearing as user speech. - LAN Stop now cancels pending task preparation. Herdr Disconnect also closes the listener. - Added host-side voice settings without starting Pi or a call. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-grok-realtime: Requires Pi 1.5 or newer. - Added host-side voice settings without starting Pi or a call. - Herdr Disconnect now shuts down the LAN listener after stopping the call. - Reduced mid-word playback cutouts. Initial playback buffers about 500 ms plus one device callback, and quiet pauses can grow by up to 500 ms. - Recoverable audio-device underruns and overruns no longer end calls. - Added bounded playback and device-recovery diagnostics without recording audio. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-shepherdr: Requires Pi 1.5 or newer. Update and restart controllers and workers together for shared Notes and boards. - `spawn` and `assign` now return after task submission by default. Set `blocking: true` to wait for the result. A profile's `blocking` setting still overrides `spawn`. - Agent references now use Pi session IDs across delegation, Notes and boards. Spawn returns one `agent` reference and sharing flags instead of separate context and board references. - Attached Notes reads keep alias paths and read-only warnings consistent across native, Code and Notebook results. - Rollover briefings now retain initial scope and the latest instruction without accumulating every message. Full messages remain in session history. - Fixed repeated writes of unchanged agent snapshots. - Closed workers no longer trigger a misleading notices-unavailable reconnect warning. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - @howaboua/pi-unicode-charts: Requires Pi 1.5 or newer. - Other extensions' later prompt sections now reach the model in interactive sessions. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
@@ -248,9 +318,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-suggestions/CHANGELOG.md)
 
-### @howaboua/pi-unicode-charts — 0.1.3
+### @howaboua/pi-unicode-charts — 0.1.4
 
-- GPT mode uses note-style chart guidance.
+- Requires Pi 1.5 or newer.
+
+  - Other extensions' later prompt sections now reach the model in interactive sessions.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
 
 [Full changelog](./packages/pi-unicode-charts/CHANGELOG.md)
 

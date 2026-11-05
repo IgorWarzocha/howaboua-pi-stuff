@@ -1,5 +1,12 @@
 # @howaboua/pi-unicode-charts
 
+## 0.1.4
+
+- Requires Pi 1.5 or newer.
+
+  - Other extensions' later prompt sections now reach the model in interactive sessions.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+
 ## 0.1.3
 
 - GPT mode uses note-style chart guidance.

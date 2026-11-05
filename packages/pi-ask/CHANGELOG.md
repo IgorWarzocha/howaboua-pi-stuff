@@ -1,5 +1,13 @@
 # @howaboua/pi-ask
 
+## 0.0.18
+
+- Requires Pi 1.5 or newer.
+
+  - Waiting prompts now report Pi's native blocked state. Steering prompts remain non-blocking.
+  - Invalid question arguments now explain how to find the supported format.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+
 ## 0.0.17
 
 - - Removed redundant help-call instructions from Ask's help.
