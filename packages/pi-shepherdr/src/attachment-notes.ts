@@ -148,7 +148,6 @@ export class AttachmentNotes {
 				unavailable = String(error);
 			}
 		}
-		const result = this.service().read(snapshot, request.params);
 		if (
 			!snapshot ||
 			typeof snapshot !== "object" ||
@@ -157,7 +156,6 @@ export class AttachmentNotes {
 		)
 			throw new Error("Invalid retained checkpoint timestamp");
 		const details = {
-			...result.details.codexHistoryNotes,
 			source,
 			read_only: true,
 			captured_at: new Date(snapshot.timestamp).toISOString(),
@@ -180,22 +178,25 @@ export class AttachmentNotes {
 					? " Live owner and saved updates unavailable; these checkpoints may be stale. Resume the counterpart for current notes."
 					: " Live owner unavailable; reading saved checkpoints."
 		}`;
-		const data = result.structuredContent;
+		const result = this.service().read(snapshot, request.params, {
+			read_only: true,
+			captured_at: details.captured_at,
+			...(savedAt === undefined ? {} : { saved_at: details.saved_at }),
+			warning,
+		});
+		if (
+			!result.structuredContent ||
+			typeof result.structuredContent !== "object" ||
+			!("warning" in result.structuredContent) ||
+			result.structuredContent["warning"] !== warning
+		)
+			throw new Error("Update Notes to read retained attached checkpoints");
 		return {
 			...result,
-			...(data && typeof data === "object" && !Array.isArray(data)
-				? {
-						structuredContent: {
-							...data,
-							read_only: true,
-							captured_at: details.captured_at,
-							...(savedAt === undefined ? {} : { saved_at: details.saved_at }),
-							warning,
-						},
-					}
-				: {}),
-			content: [...result.content, { type: "text", text: warning }],
-			details: { codexHistoryNotes: details },
+			details: {
+				...result.details,
+				codexHistoryNotes: { ...result.details.codexHistoryNotes, ...details },
+			},
 		};
 	}
 }

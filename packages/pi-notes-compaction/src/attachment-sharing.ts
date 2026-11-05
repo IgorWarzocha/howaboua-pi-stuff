@@ -116,10 +116,10 @@ export function createAttachmentSharing(
 				),
 			};
 		},
-		readAttachmentNotes(snapshot, params) {
+		readAttachmentNotes(snapshot, params, annotation) {
 			const details = readAttachmentSnapshot(snapshot, params);
 			return {
-				...noteResult(details),
+				...noteResult({ ...details, ...annotation }),
 				details: { codexHistoryNotes: details },
 			};
 		},

@@ -8,7 +8,7 @@ Older checkpoints may require a fresh note save before rollover.
 
 - The saved-notes indicator now follows the same readiness check as context rollover.
 - Checkpoint notices no longer expose internal labels or agent instructions.
-- Shared Notes warnings now match between text and structured results.
+- Shared Notes warnings now match between text and structured results, including retained attached checkpoints.
 - Notes results in Pi's built-in codemode are now objects, matching Code and Notebook. Remove `JSON.parse` around those results.
 - History now treats a query without an action as a search.
 - History now ignores `offset_chars` outside read requests.
@@ -18,7 +18,7 @@ Older checkpoints may require a fresh note save before rollover.
 - Fix successful large note saves being rejected before a new context window or manual compaction.
 - `new_context` now recognises successful note saves alongside other calls in the preceding parallel group.
 - Tell agents which configured role matches their current model and reasoning settings.
-- Notes guidance now distinguishes virtual checkpoints from project files.
+- Notes guidance now directs agents to read and write virtual paths through Notes, never filesystem tools.
 - Shortened tool descriptions, guidance and help.
 - History help no longer exposes search ranking details.
 - Notes results no longer repeat tool-usage instructions.

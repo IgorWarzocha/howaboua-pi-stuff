@@ -97,6 +97,12 @@ export interface ContextSharingService {
 	readAttachmentNotes?(
 		snapshot: unknown,
 		params: Record<string, unknown>,
+		annotation?: {
+			read_only: true;
+			captured_at: string;
+			saved_at?: string;
+			warning: string;
+		},
 	): SharedContextResult;
 	execute(
 		ctx: ExtensionContext,
