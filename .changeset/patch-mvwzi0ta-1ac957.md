@@ -22,7 +22,7 @@ Older checkpoints may require a fresh note save before rollover.
 - Shortened tool descriptions, guidance and help.
 - History help no longer exposes search ranking details.
 - Notes results no longer repeat tool-usage instructions.
-- On-demand Notes help now identifies read and write result fields.
+- On-demand Notes help now identifies read and write result fields and distinguishes note paths from agent IDs.
 - `new_context` now offers only configured role IDs.
 - Notes now accepts `address` as an alias for `path`.
 - Notes now accepts `body` as an alias for `text` on write and append.

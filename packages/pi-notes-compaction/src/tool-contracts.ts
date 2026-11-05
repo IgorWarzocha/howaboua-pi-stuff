@@ -247,8 +247,8 @@ export function queryHelp(
 							? "write=replace; append=add"
 							: "write replaces; append adds",
 						paths: gpt
-							? "Virtual≠disk; relative=current agent; cross-agent=<agent>/notes[/path]"
-							: "Virtual note paths, not disk files; relative=current agent; cross-agent=<agent>/notes[/path]",
+							? "Virtual≠disk; own list/search→omit path; relative=current agent; absolute=<agent>/notes[/path], e.g. /root/notes not /root"
+							: "Virtual note paths, not disk files. Omit path to list/search your notes. Relative paths use your agent; absolute paths require <agent>/notes[/path], e.g. /root/notes, not /root",
 						usage: 'notes: {"action":"read","path":"checkpoint"}',
 						ranges: gpt
 							? "start_line/stop_line=1-based inclusive; negative=from end; 0/null/omitted=first/last; out-of-range→clamp; reversed→empty"
