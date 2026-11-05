@@ -47,7 +47,10 @@ export function createAgentsTool(
 		label: "Shepherdr",
 		description:
 			"Delegate to persistent agents; {} lists additional action fields",
-		promptGuidelines: ["agents: Read help alone first"],
+		promptGuidelines: [
+			"agents: Read help alone first",
+			"agents: MUST use for supported agent operations, local or remote; never bypass with hc or shell commands, even after failure. Report blockers. hc remains available for non-agent processes",
+		],
 		parameters: AgentsParameters,
 		executionMode: "parallel",
 		async execute(_toolCallId, input: AgentsToolParams, signal, onUpdate, ctx) {

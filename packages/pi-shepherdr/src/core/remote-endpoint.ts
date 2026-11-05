@@ -66,8 +66,6 @@ export class RemoteCoreEndpoint {
 					{
 						...params,
 						on: this.machine.id,
-						no_parent: true,
-						parent: undefined,
 						env: {},
 					},
 					options,
