@@ -84,26 +84,47 @@ async function registerImagegenInCodeMode(
 			await import(CODE_MODE_MODULE);
 		return registerCodeModeExtensionTools(pi, () => {
 			const api = "size" in tool.parameters.properties;
+			const adapted = adaptToolForCodeMode(tool, {
+				discovery: "help",
+				usage:
+					"await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number" +
+					(api
+						? ',output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}'
+						: "") +
+					'}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
+					(gpt()
+						? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; " +
+							(api ? "GIF/SVG=generate; " : "") +
+							"NEVER text/serialize base64"
+						: "prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; " +
+							(api ? "GIF/SVG generation only; " : "") +
+							"never text/serialize base64 result"),
+				promptMetadata: false,
+				deferLoading: true,
+				toolName: { namespace: "image_gen", name: "imagegen" },
+				resultValue: imagegenCodeModeResult,
+			});
 			return [
-				adaptToolForCodeMode(tool, {
-					usage:
-						"await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number" +
-						(api
-							? ',output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}'
-							: "") +
-						'}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
-						(gpt()
-							? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; " +
-								(api ? "GIF/SVG=generate; " : "") +
-								"NEVER text/serialize base64"
-							: "prompt: include target aspect ratio and quality; transparency for cutouts, preserve existing transparency in edits; no selectors=generate; paths/recent count=edit; " +
-								(api ? "GIF/SVG generation only; " : "") +
-								"never text/serialize base64 result"),
-					promptMetadata: false,
-					deferLoading: true,
-					toolName: { namespace: "image_gen", name: "imagegen" },
-					resultValue: imagegenCodeModeResult,
-				}),
+				{
+					...adapted,
+					description: "Generate/edit images",
+					promptGuidelines: [IMAGE_CONTEXT_GUIDANCE],
+					async invoke(...args: Parameters<typeof adapted.invoke>) {
+						const [input] = args;
+						if (
+							input == null ||
+							(typeof input === "object" &&
+								!Array.isArray(input) &&
+								Object.keys(input).length === 0)
+						)
+							return [
+								"Usage: " + adapted.usage,
+								IMAGE_CONTEXT_GUIDANCE,
+								"Schema: " + JSON.stringify(adapted.inputSchema),
+							].join("\n");
+						return adapted.invoke(...args);
+					},
+				},
 			];
 		});
 	} catch (error) {
