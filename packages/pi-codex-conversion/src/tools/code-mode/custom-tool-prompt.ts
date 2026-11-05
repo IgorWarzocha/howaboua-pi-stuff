@@ -165,8 +165,8 @@ export function buildCodeModeToolsPrompt(
 			? gpt ? 'Markdown/multiline text→ordinary quoted line arrays joined with "\\n"; template literals require escaping backticks and ${...}'
 				: 'For Markdown or multiline text, use ordinary quoted line arrays joined with "\\n". Template literals require escaping backticks and ${...} to keep them literal'
 			: undefined,
-		gpt ? "No signature+unknown current args→MUST call noargs help, READ result, then compose; structured:{}; known current args→reuse, NO repeat help"
-			: "Tools without a shown call signature: help is REQUIRED only while their current arguments are unknown. Call with no arguments and read the result before composing an operation. Reuse known arguments without repeating help. Structured discovery uses {}",
+		gpt ? "No signature+unknown current args→separate help-only call (noargs; structured:{}), read result→compose operation. No guessing/bundling operation with help. Shown signature/known current args→reuse, no repeat help"
+			: "Tools without a shown call signature: if current arguments are unknown, make a separate help-only call with no arguments (structured: {}), read its result, then compose the operation. Do not guess arguments or bundle the operation with help. Reuse shown signatures or known current arguments without repeating help",
 		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled, [
 			"exec_command", "write_stdin", "apply_patch", "view_image",
 			"change_reasoning", "get_context_remaining",

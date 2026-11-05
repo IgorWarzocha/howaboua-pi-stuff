@@ -58,7 +58,9 @@ export function createAskRuntime({
 			const problem = askInputProblem(params);
 			if (problem) throw new Error(problem);
 			if (!Check(AskParameters, params))
-				throw new Error("Invalid ask arguments; ask({}) returns help");
+				throw new Error(
+					"Ask couldn't read these arguments. Call ask({}) for the supported format.",
+				);
 			return params;
 		},
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
@@ -88,7 +90,7 @@ export function createAskRuntime({
 			const { delivery, handoff, prompts } = normalizeAskInput(params);
 			if (prompts.length === 0) {
 				throw new Error(
-					"ask requires at least one prompt with a non-empty title.",
+					"Add at least one prompt with a non-empty title. Call ask({}) for the format.",
 				);
 			}
 			if (!askInComposer && !ctx.hasUI)

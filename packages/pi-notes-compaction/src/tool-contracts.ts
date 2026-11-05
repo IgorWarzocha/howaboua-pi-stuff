@@ -25,7 +25,7 @@ export const NOTES_USAGE = "await tools.notes()";
 export const HISTORY_USAGE = "await tools.history()";
 export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
 export const NOTES_ROUTING_GUIDELINE =
-	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Virtual paths inaccessible to other tools. MUST NOT store project files or deliverables";
+	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual, even absolute /root/... paths: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";
 export const NEW_CONTEXT_DESCRIPTION =
 	"Start fresh context window. MUST save notes before calling";
 export const GPT_NEW_CONTEXT_DESCRIPTION = "Save notes→fresh context";
