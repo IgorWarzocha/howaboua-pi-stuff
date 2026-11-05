@@ -3,7 +3,6 @@
 ## 0.0.31
 
 - Requires Pi 1.5 or newer.
-
   - Fixed duplicate voice task submissions from progress updates and repeated handoffs.
   - Voice task preparation now preserves captured speech, tone and instructions without adding questions or next steps.
   - Voice now recognises conversational wrap-ups and waits for LAN speaker playback before ending calls.

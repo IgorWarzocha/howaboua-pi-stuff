@@ -35,6 +35,7 @@ if (diff.status !== 0) {
 
 const files = diff.stdout.split("\n").filter(Boolean);
 const packageChanged = files.some((file) => {
+	if (/^packages\/[^/]+\/CHANGELOG\.md$/.test(file)) return false;
 	const dir = /^packages\/([^/]+)\//.exec(file)?.[1];
 	if (!dir || aggregatePackageDirs.has(dir)) return false;
 	const manifest = join(root, "packages", dir, "package.json");
