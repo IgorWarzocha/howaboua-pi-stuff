@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
 
@@ -47,6 +48,15 @@ for (const dir of packageDirs) {
 			: "Updated package dependencies.",
 	);
 	if (after !== before) writeFileSync(changelogPath, after);
+	const packageDir = join(root, "packages", dir);
+	if (existsSync(join(packageDir, "biome.json")) || existsSync(join(packageDir, "biome.jsonc"))) {
+		const result = spawnSync(join(root, "node_modules", ".bin", "biome"), ["format", "--write", "CHANGELOG.md"], {
+			cwd: packageDir,
+			stdio: "inherit",
+		});
+		if (result.error) throw result.error;
+		if (result.status !== 0) process.exit(result.status ?? 1);
+	}
 }
 
 console.log("Polished package changelog headings.");
