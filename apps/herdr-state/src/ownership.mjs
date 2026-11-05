@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { readFile, realpath } from 'node:fs/promises';
+import { basename, isAbsolute, resolve } from 'node:path';
 import { Core } from './rpc.mjs';
 
 const aliases = new Map(['claude', 'codex', 'copilot', 'devin', 'droid', 'kimi',
@@ -68,13 +68,31 @@ async function lineage(pid, root, read) {
   return null;
 }
 
+async function codexLauncherPair(parent, child) {
+  if (!child || child.ppid !== parent.pid || basename(child.argv[0]) !== 'codex'
+      || !['node', 'bun'].includes(basename(parent.argv[0])) || !parent.argv[1]) return false;
+  if (JSON.stringify(child.argv.slice(1)) !== JSON.stringify(parent.argv.slice(2))) return false;
+  try {
+    const script = isAbsolute(parent.argv[1]) ? parent.argv[1]
+      : resolve(await realpath(`/proc/${parent.pid}/cwd`), parent.argv[1]);
+    return /\/@openai\/codex\/bin\/codex\.js$/.test(await realpath(script));
+  } catch (error) {
+    if (['ENOENT', 'ENOTDIR', 'EACCES'].includes(error.code)) return false;
+    throw error;
+  }
+}
+
 // Only the outermost native coding agent below the terminal's actual root may
 // claim it. A launcher/shell is not an agent. Unknown ancestry fails closed.
 export async function ownershipDecision(terminal, agent, caller, read = linuxProcess) {
   if (terminal.state !== 'live' || !Number.isSafeInteger(terminal.pid)) return { allowed: false, reason: 'terminal has no live local root' };
   const chain = await lineage(caller, terminal.pid, read);
   if (!chain) return { allowed: false, reason: 'caller is not a verified descendant of this terminal' };
-  const agents = chain.filter(record => nativeAgent(record.argv));
+  const agents = [];
+  for (let index = 0; index < chain.length; index++) {
+    const record = chain[index];
+    if (nativeAgent(record.argv) && !await codexLauncherPair(record, chain[index - 1])) agents.push(record);
+  }
   if (!agents.length || nativeAgent(agents[0].argv) !== agent) return { allowed: false, reason: 'native agent process could not be verified' };
   const candidate = agents[0].pid;
   if (agents.length > 1) return { allowed: false, reason: 'nested coding agent does not own the terminal' };
