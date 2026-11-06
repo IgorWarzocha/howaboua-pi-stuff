@@ -174,6 +174,7 @@ async function readSharedSession(
 		signal,
 		load,
 		resolve,
+		sharedNotesUnavailable,
 	);
 	async function resolve(
 		session: SavedNotesSession,

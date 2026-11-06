@@ -28,6 +28,7 @@ export function createSharedSessionReader(
 		destination: string,
 		query: Record<string, unknown>,
 	) => Promise<Record<string, unknown> | undefined>,
+	unavailable: (error: unknown) => boolean,
 ) {
 	const { namespace } = access;
 	async function read(
@@ -96,11 +97,7 @@ export function createSharedSessionReader(
 				signal?.throwIfAborted();
 				if (
 					!(
-						error instanceof Error &&
-						"code" in error &&
-						["ENOENT", "SAVED_SESSION_UNAVAILABLE"].includes(
-							String(error.code),
-						) &&
+						unavailable(error) &&
 						retained !== undefined &&
 						namespace === "notes"
 					)
