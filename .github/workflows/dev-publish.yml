@@ -1,0 +1,47 @@
+name: Publish preview package
+
+on:
+  push:
+    tags:
+      - 'dev/*/*'
+      - 'core/*/*'
+
+concurrency:
+  group: npm-preview-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      - uses: oven-sh/setup-bun@v2
+      - name: Validate preview target
+        run: node scripts/prepare-preview-release.mjs
+      - run: npm run install:ci
+      - name: Set ephemeral preview version
+        id: preview
+        run: node scripts/prepare-preview-release.mjs --write
+      - name: Publish selected package only
+        working-directory: ${{ steps.preview.outputs.directory }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PREVIEW_TAG: ${{ steps.preview.outputs.tag }}
+        # Preserve the package's prepublishOnly/prepack checks and build hooks.
+        run: npm publish --tag "$PREVIEW_TAG" --provenance --access public
+      - name: Report preview
+        env:
+          PACKAGE_NAME: ${{ steps.preview.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.preview.outputs.version }}
+          PREVIEW_TAG: ${{ steps.preview.outputs.tag }}
+        run: |
+          echo "Published $PACKAGE_NAME@$PACKAGE_VERSION under @$PREVIEW_TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "Install: pi install npm:$PACKAGE_NAME@$PREVIEW_TAG" >> "$GITHUB_STEP_SUMMARY"

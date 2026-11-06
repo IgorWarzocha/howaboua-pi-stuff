@@ -94,6 +94,31 @@ The [extension API guide](./docs/extension-apis.md) covers Board and Notes with 
 
 [How we test changes in a sandbox](./docs/e2e-sandboxing-test-procedure/) explains our reviewer workflow, model and provider comparisons, and headless application checks.
 
+## Preview releases
+
+The `core` and `dev` npm tags are opt-in test builds. They do not change `latest` or update the bundles. For example:
+
+```sh
+pi install npm:@howaboua/pi-shepherdr@core
+```
+
+Use `@latest` instead to return to the stable package. Restart participating Pi sessions after changing versions. The Shepherdr Core preview requires Herdr Core 0.1.18+, Pi 1.5+, Node.js 22.18+ and, for shared Notes, Notes Compaction 0.0.15+.
+
+<details>
+<summary>Publish a preview</summary>
+
+From the reviewed commit, push an explicit tag for one package:
+
+```sh
+tag="core/pi-shepherdr/$(git rev-parse --short=12 HEAD)"
+git tag "$tag"
+git push origin "refs/tags/$tag"
+```
+
+Use `dev/<package>/<commit>` for the `dev` channel. GitHub Actions runs the selected package's publish hooks and publishes only that package. Its temporary version uses the next patch number plus the channel, workflow run, attempt and commit. Source versions, lockfiles and changesets are not committed or consumed. Stable releases still follow the Changesets workflow on `main`.
+
+</details>
+
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md). Package-level changelogs remain beside packages that have them.
