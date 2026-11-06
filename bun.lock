@@ -410,7 +410,7 @@
     },
     "packages/pi-notes-compaction": {
       "name": "@howaboua/pi-notes-compaction",
-      "version": "0.0.14",
+      "version": "0.0.15",
       "dependencies": {
         "better-sqlite3": "13.0.3",
       },

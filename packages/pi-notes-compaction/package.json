@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-notes-compaction",
-	"version": "0.0.14",
+	"version": "0.0.15",
 	"publishConfig": {
 		"access": "public"
 	},
