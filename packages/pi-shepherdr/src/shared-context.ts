@@ -68,8 +68,14 @@ export class SharedAgentContext {
 		this.getService = getService;
 		this.board = board;
 		this.getRelationships = getRelationships;
-		this.attachment = new AgentAttachment(pi, board, getService);
-		this.spawns = new SpawnContext(pi, getService, getRelationships);
+		const localMachine = () => fleet.localMachine();
+		this.attachment = new AgentAttachment(pi, board, getService, localMachine);
+		this.spawns = new SpawnContext(
+			pi,
+			getService,
+			getRelationships,
+			localMachine,
+		);
 		pi.on("before_agent_start", () => {
 			this.running = true;
 		});

@@ -1,6 +1,8 @@
 import { isSettledStatus } from "../activity.js";
-import { getAgent, getSnapshot, sessionPath } from "../core/agents.js";
+import { getSnapshot, sessionPath } from "../core/agents.js";
 import type { CoreConnection } from "../core/backend.js";
+import { object } from "../core/protocol.js";
+import { terminalPane } from "../core/terminal.js";
 import { type AssistantReader, SessionReader } from "../session-reader.js";
 import type {
 	ExtensionMessage,
@@ -76,11 +78,28 @@ export class SettlementCollector {
 	async collect(
 		record: MonitoredAgent,
 		reportedStatus?: "blocked",
-	): Promise<CollectedSettlementWithSession | undefined> {
-		const [current, snapshot] = await Promise.all([
-			getAgent(this.client, record.paneId),
-			getSnapshot(this.client),
-		]);
+	): Promise<CollectedSettlementWithSession | "closed" | undefined> {
+		let terminal: unknown;
+		try {
+			terminal = await this.client.core.request("terminal.get", {
+				terminal: record.terminalId,
+			});
+		} catch (error) {
+			// Only this exact lookup proves closure; snapshot/read/transport failures do not.
+			if (
+				error instanceof Error &&
+				"kind" in error &&
+				error.kind === "not_found"
+			)
+				return "closed";
+			throw error;
+		}
+		const current = terminalPane(terminal);
+		if (
+			current.terminal_id === record.terminalId &&
+			object(terminal)["state"] === "finished"
+		)
+			return "closed";
 		if (current.terminal_id !== record.terminalId || current.agent !== "pi") {
 			return reportedStatus === "blocked"
 				? blockedSettlement(record)
@@ -92,6 +111,7 @@ export class SettlementCollector {
 				? current.agent_status
 				: undefined);
 		if (!status) return undefined;
+		const snapshot = await getSnapshot(this.client);
 		let view: SessionView;
 		try {
 			view = await this.reader.view(sessionPath(current));

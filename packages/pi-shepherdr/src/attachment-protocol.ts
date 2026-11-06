@@ -38,6 +38,7 @@ const ContextLink = Type.Object({
 	alias: AgentPath,
 	controllerAlias: AgentPath,
 	controllerFile: Type.Optional(Type.String()),
+	controllerMachine: Type.Optional(Type.String({ minLength: 1 })),
 	controllerNotes: Type.Unknown(),
 	targetNotes: Type.Unknown(),
 });

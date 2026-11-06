@@ -22,6 +22,7 @@ export interface Member {
 interface Routing {
 	transport: "shepherdr";
 	parent: string;
+	savedParent: { machine: string; sessionFile: string };
 }
 
 export class SpawnContext {
@@ -30,14 +31,17 @@ export class SpawnContext {
 		| CodexAgentRelationshipService
 		| undefined;
 	private readonly getService: () => ContextSharingService | undefined;
+	private readonly localMachine: () => string;
 	constructor(
 		pi: ExtensionAPI,
 		getService: () => ContextSharingService | undefined,
 		getRelationships: () => CodexAgentRelationshipService | undefined,
+		localMachine: () => string,
 	) {
 		this.pi = pi;
 		this.getRelationships = getRelationships;
 		this.getService = getService;
+		this.localMachine = localMachine;
 	}
 	canShare(ctx: ExtensionContext): boolean {
 		return this.getService()?.canCreateChild(ctx) === true;
@@ -125,6 +129,10 @@ export class SpawnContext {
 		await runtime.prepareSharing();
 		const routing: Routing = {
 			transport: "shepherdr",
+			savedParent: {
+				machine: this.localMachine(),
+				sessionFile: parentFile,
+			},
 			parent: runtime.local
 				? sessionContextPath(parentFile)
 				: runtime.client.contextRelayPath(),

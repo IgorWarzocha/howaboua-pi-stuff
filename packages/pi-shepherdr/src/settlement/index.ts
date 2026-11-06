@@ -64,8 +64,12 @@ export class SettlementReporter {
 	private readonly reporting = new Map<string, SettledAgentStatus>();
 	private readonly pendingBlocked = new Map<string, PendingBlockedSettlement>();
 	private readonly delivery: SettlementDelivery;
-	private readonly retries = new Map<string, NodeJS.Timeout>();
+	private readonly retries = new Map<
+		string,
+		{ terminalId: string; timer: NodeJS.Timeout }
+	>();
 	private readonly state: MonitorState;
+	private readonly onClosed: (record: MonitoredAgent) => Promise<void>;
 
 	constructor(
 		pi: ExtensionAPI,
@@ -74,11 +78,13 @@ export class SettlementReporter {
 		persist: () => void,
 		reader: AssistantReader | undefined,
 		origin: { machine: string; label: () => string; operatorPrefix: string },
+		onClosed: (record: MonitoredAgent) => Promise<void>,
 	) {
 		this.delivery = new SettlementDelivery(pi, origin);
 		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
+		this.onClosed = onClosed;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -93,7 +99,7 @@ export class SettlementReporter {
 		this.reporting.clear();
 		this.pendingBlocked.clear();
 		this.delivery.stop();
-		for (const timer of this.retries.values()) clearTimeout(timer);
+		for (const { timer } of this.retries.values()) clearTimeout(timer);
 		this.retries.clear();
 	}
 
@@ -108,6 +114,15 @@ export class SettlementReporter {
 		this.delivery.releaseClaim(attempt, error);
 	}
 	releaseAgentClaim(record: MonitoredAgent, error: unknown) {
+		for (const [key, retry] of this.retries) {
+			if (retry.terminalId !== record.terminalId) continue;
+			clearTimeout(retry.timer);
+			this.retries.delete(key);
+		}
+		for (const [key, pending] of this.pendingBlocked) {
+			if (pending.request.record.terminalId === record.terminalId)
+				this.pendingBlocked.delete(key);
+		}
 		this.delivery.releaseAgentClaim(record, error);
 	}
 	async report(
@@ -145,6 +160,10 @@ export class SettlementReporter {
 				request.status === "blocked" && !replyingTo ? "blocked" : undefined,
 			);
 			if (!settlement || !lifecycle.isCurrent()) return;
+			if (settlement === "closed") {
+				await this.onClosed(request.record);
+				return;
+			}
 			if (this.pendingBlocked.has(key)) return;
 			const current = this.state.byPane(settlement.agent.pane_id);
 			if (!current || current.terminalId !== request.record.terminalId) return;
@@ -320,7 +339,7 @@ export class SettlementReporter {
 	private clearRetry(terminalId: string, attemptId: string | undefined): void {
 		const key = attemptKey(terminalId, attemptId);
 		const retry = this.retries.get(key);
-		if (retry) clearTimeout(retry);
+		if (retry) clearTimeout(retry.timer);
 		this.retries.delete(key);
 	}
 
@@ -363,7 +382,7 @@ export class SettlementReporter {
 				{ ...retry, count: retry.count + 1 },
 			);
 		}, delay);
-		this.retries.set(key, timer);
+		this.retries.set(key, { terminalId: request.record.terminalId, timer });
 		timer.unref();
 		return true;
 	}

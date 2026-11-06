@@ -95,6 +95,10 @@ export class AgentMonitor {
 				label: options.machineLabel,
 				operatorPrefix: options.operatorPrefix,
 			},
+			async (record) => {
+				if (this.state.byPane(record.paneId)?.terminalId === record.terminalId)
+					await this.unwatch(record.paneId);
+			},
 		);
 		this.events = new MonitorEvents({
 			client: this.client,

@@ -30,16 +30,19 @@ export class AgentAttachment {
 	private readonly pi: ExtensionAPI;
 	private readonly board: AgentBoard;
 	private readonly notes: AttachmentNotes;
+	private readonly localMachine: () => string;
 	readonly target: AttachmentTarget;
 	readonly routing: AttachmentRouting;
 	constructor(
 		pi: ExtensionAPI,
 		board: AgentBoard,
 		getService: () => ContextSharingService | undefined,
+		localMachine: () => string,
 	) {
 		this.pi = pi;
 		this.board = board;
 		this.notes = new AttachmentNotes(getService);
+		this.localMachine = localMachine;
 		this.target = new AttachmentTarget(pi, board, getService, this.notes);
 		this.routing = new AttachmentRouting(getService, this.notes);
 	}
@@ -134,7 +137,8 @@ export class AgentAttachment {
 								target: current.context,
 								alias: `/${current.sessionId}`,
 								controllerAlias: `/${controllerSessionId}`,
-								...(runtime.local ? { controllerFile } : {}),
+								controllerFile,
+								controllerMachine: this.localMachine(),
 								controllerNotes: await this.notes.export(ctx),
 								targetNotes: current.notes,
 							},

@@ -535,7 +535,7 @@
         "@earendil-works/pi-coding-agent": ">=1.5.0",
         "@earendil-works/pi-tui": ">=1.1.0",
         "@howaboua/pi-codex-conversion": ">=4.0.9",
-        "@howaboua/pi-notes-compaction": ">=0.0.14",
+        "@howaboua/pi-notes-compaction": ">=0.0.15",
         "typebox": "*",
       },
       "optionalPeers": [

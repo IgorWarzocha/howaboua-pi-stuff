@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import { CoreClient } from "./client.js";
 import { attachCoreTerminal } from "./focus-channel-stream.js";
 import { focusWire } from "./focus-channel-wire.mjs";
@@ -9,6 +11,35 @@ import { type CoreObject, object } from "./protocol.js";
 const moduleUrl = (source: string) =>
 	`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 let bundle: ReturnType<typeof sources> | undefined;
+async function savedSessionSource(): Promise<string | undefined> {
+	let path: string;
+	try {
+		path = createRequire(import.meta.url).resolve(
+			"@howaboua/pi-notes-compaction/saved-session",
+		);
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			"code" in error &&
+			["MODULE_NOT_FOUND", "ERR_PACKAGE_PATH_NOT_EXPORTED"].includes(
+				String(error.code),
+			)
+		)
+			return undefined;
+		throw error;
+	}
+	const url = pathToFileURL(path);
+	const [source, manifest] = await Promise.all([
+		readFile(url, "utf8"),
+		readFile(new URL("./tree-archive-manifest.mjs", url), "utf8"),
+	]);
+	return moduleUrl(
+		source.replace(
+			'"./tree-archive-manifest.mjs"',
+			JSON.stringify(moduleUrl(manifest)),
+		),
+	);
+}
 async function sources() {
 	const read = (path: string) =>
 		readFile(new URL(path, import.meta.url), "utf8");
@@ -40,10 +71,20 @@ async function sources() {
 		read("./terminal-peer.mjs"),
 	]);
 	const peerUrl = moduleUrl(peer);
+	const savedSession = await savedSessionSource();
+	const checkpointsUrl = moduleUrl(
+		savedSession
+			? checkpoints.replace(
+					'"@howaboua/pi-notes-compaction/saved-session"',
+					JSON.stringify(savedSession),
+				)
+			: checkpoints,
+	);
 	return {
 		bootstrap,
 		wire: moduleUrl(wire),
 		modules: {
+			...(savedSession ? { savedSession } : {}),
 			helper: moduleUrl(helper),
 			core: moduleUrl(core),
 			contextHost: moduleUrl(contextHost),
@@ -57,7 +98,7 @@ async function sources() {
 					.replace('"./shepherdr-peer.mjs"', JSON.stringify(peerUrl))
 					.replace(
 						'"./shepherdr-checkpoints.mjs"',
-						JSON.stringify(moduleUrl(checkpoints)),
+						JSON.stringify(checkpointsUrl),
 					),
 			),
 		},

@@ -42,12 +42,12 @@ export function helperContext(context, send) {
 		});
 	}
 	return {
-		async request(id, path, request) {
+		async request(id, execute) {
 			if (closed) throw new Error("Shared context connection closed");
 			const controller = new AbortController();
 			incoming.set(id, controller);
 			try {
-				return await context.requestContext(path, request, controller.signal);
+				return await execute(controller.signal);
 			} finally {
 				incoming.delete(id);
 			}

@@ -29,6 +29,7 @@ export async function serve(input, send, fail) {
 	);
 	const subscriptions = new Map();
 	const relay = helperContext(context, send);
+	let savedSession;
 	let closed = false;
 	const close = async () => {
 		if (closed) return;
@@ -104,7 +105,34 @@ export async function serve(input, send, fail) {
 					message.reply,
 				);
 			case "context":
-				return relay.request(message.id, message.path, message.request);
+				return relay.request(message.id, (signal) =>
+					context.requestContext(message.path, message.request, signal),
+				);
+			case "saved_session":
+				return relay.request(message.id, async (signal) => {
+					if (!input.modules.savedSession)
+						throw new Error(
+							"Saved session reads are unavailable; update Notes and restart the controller",
+						);
+					if (
+						typeof message.path !== "string" ||
+						typeof message.history !== "boolean"
+					)
+						throw new Error("Invalid saved session location");
+					const reader = await (savedSession ??= import(
+						input.modules.savedSession
+					));
+					const result = await reader.readSavedNotesSession(
+						message.path,
+						signal,
+						message.history,
+					);
+					if (Buffer.byteLength(JSON.stringify(result)) > 7 * 1024 * 1024)
+						throw new Error(
+							"Saved session is too large to transfer; open it on its machine to read it",
+						);
+					return result;
+				});
 			case "context_relay":
 				return relay.start(message.threadId, message.routeId);
 			case "view":

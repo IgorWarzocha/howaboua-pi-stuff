@@ -69,15 +69,20 @@ export async function registerSharedAgentContext(
 		)
 			throw error;
 	}
+	const notes = () =>
+		connection?.service?.registerSavedSessionLoader
+			? connection.service
+			: undefined;
 	const shared = new SharedAgentContext(
 		pi,
 		fleet,
-		() => connection?.service,
+		notes,
 		board,
 		() => relationships?.service,
 	);
 	let close: (() => Promise<void>) | undefined;
 	let unregister: (() => void) | undefined;
+	let unregisterSaved: (() => void) | undefined;
 	const publish = async (ctx: ExtensionContext) => {
 		const file = ctx.sessionManager.getSessionFile();
 		if (!file) return;
@@ -100,11 +105,23 @@ export async function registerSharedAgentContext(
 			);
 		}
 	};
-	pi.on("session_start", async () => {
+	pi.on("session_start", async (_event, ctx) => {
 		await close?.();
 		close = undefined;
 		unregister?.();
-		unregister = connection?.service?.registerRouter(
+		unregisterSaved?.();
+		if (connection?.service && !notes())
+			ctx.ui.notify(
+				"Shared Notes require Notes 0.0.15 or newer. Update Notes and restart participating sessions. Agent delegation remains available.",
+				"warning",
+			);
+		unregisterSaved = notes()?.registerSavedSessionLoader?.(
+			(location, history, signal) =>
+				fleet
+					.connected(location.machine)
+					.client.readSavedSession(location.sessionFile, history, signal),
+		);
+		unregister = notes()?.registerRouter(
 			Object.assign(
 				async (
 					context: ExtensionContext,
@@ -136,6 +153,7 @@ export async function registerSharedAgentContext(
 	});
 	pi.on("session_shutdown", async () => {
 		unregister?.();
+		unregisterSaved?.();
 		await close?.();
 		connection?.dispose();
 		relationships?.dispose();

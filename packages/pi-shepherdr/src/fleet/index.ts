@@ -209,6 +209,11 @@ export class AgentFleet {
 	list(): ScopedMonitoredAgent[] {
 		return listAgents(this.runtimes);
 	}
+	localMachine(): string {
+		if (!this.localCoreId)
+			throw new Error("Core is unavailable; reconnect before sharing context");
+		return this.localCoreId;
+	}
 	connected(machine?: string): ConnectedMachine {
 		const ctx = this.context;
 		return connectedMachine(

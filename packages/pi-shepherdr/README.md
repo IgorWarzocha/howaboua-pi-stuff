@@ -18,7 +18,7 @@ Requires Pi 1.5 or newer, Node.js 22.18 or newer and Herdr Core 0.1.18 or newer.
 
 Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; they own the same agent surface.
 
-Pi Codex is optional. Without it, Shepherdr remains a normal Pi extension.
+Pi Codex is optional. Without it, Shepherdr remains a normal Pi extension. Shared Notes require Notes Compaction 0.0.15 or newer. Update Notes and Shepherdr together on participating machines, then restart their Pi sessions. Ordinary delegation works without Notes.
 
 Workers start as background Core terminals by default. Use `placement: "new_workspace"` for a new app workspace, or `placement: "new_tab"` with a `workspace` ID advertised by a live terminal on the target Core. A connected Herdr app adopts these terminals. Pane placement is no longer supported. Focus requires a Herdr app window running on the target Core's machine and connected to that Core.
 
@@ -181,7 +181,7 @@ Context attachment requires compatible Notes Compaction in both sessions. Each o
 
 The target must be idle and both Pi sessions must be saved. Existing shared-context members and controllers with context children cannot be context targets. Existing board members and roots with board children cannot switch boards. A target supports one controller and one fixed set of attachment choices. Attachment starts no task or watch; `assign` and `send` never attach implicitly.
 
-Attachments survive resume, not forks. Live notes and history access needs the owning Pi processes and machine connections. After an interrupted attachment, resume the original sessions and retry the same target and choices. Retries reuse the original aliases and membership.
+Attachments survive resume, not forks. Saved checkpoints remain readable without the owning Pi process when its saved session and machine are accessible. Writes and live history access need the owner. After an interrupted attachment, resume the original sessions and retry the same target and choices. Retries reuse the original aliases and membership.
 
 To detach, call `agents` with `action: "detach"`, the same target, and both booleans. Enable each membership you want to leave. Context detach retains counterpart notes under the existing aliases read-only. Local notes use captured checkpoints. Historical Remote references retain their original authenticated address, not a plaintext snapshot. Counterpart history and writes stop at detach. Native identities remain unchanged. Board detach restores the target's previous board without deleting either archive. Board members with children cannot detach. Reattachment is unsupported.
 
@@ -211,7 +211,7 @@ Set `"share_context": false` in a profile to keep its new workers' notes and his
 
 Pi creates each worker session normally. The worker records its shared identity before Shepherdr delivers the first task; no pre-created session file or launch override is needed.
 
-Shared notes route through their owning Pi sessions and Core connections. Those owners and intermediate controllers must be running. Resume the owner and reconnect under `/herdr` → **Status** after a connection loss. No note store is copied or silently substituted. New writes stay local; optional hybrid lookup is read-only.
+Shared local checkpoints remain readable after workers or intermediate controllers close. Notes verifies saved family membership and reads the selected session branch. Cross-machine reads need a Core connection and access to the saved session, not a running Pi owner. Update Notes and Shepherdr together for durable cross-machine routes. Older relay-only sessions may need their original controller to be resumed. Writes and optional hybrid lookup still use their owning services. Reconnect machines under `/herdr` → **Status** after a connection loss.
 
 Shepherdr works without Notes or PCC. A target without active Notes sharing still starts independently with a warning. Invalid bindings fail before task delivery. Profiles selecting existing sessions cannot participate in shared `spawn`; use `attach`, then `assign`.
 

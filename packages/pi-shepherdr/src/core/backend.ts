@@ -91,6 +91,21 @@ export class CoreConnection {
 			);
 		return requestContext(path, request, signal);
 	}
+	async readSavedSession(
+		path: string,
+		history: boolean,
+		signal?: AbortSignal,
+	): Promise<unknown> {
+		if (this.core instanceof RemoteCoreEndpoint)
+			return this.core.call(
+				{ op: "saved_session", path, history },
+				{ ...(signal ? { signal } : {}) },
+			);
+		const { readSavedNotesSession } = await import(
+			"@howaboua/pi-notes-compaction/saved-session"
+		);
+		return readSavedNotesSession(path, signal, history);
+	}
 	async startContextRelay(
 		threadId: string,
 		_routeId: string,
