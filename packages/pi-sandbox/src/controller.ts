@@ -260,6 +260,7 @@ export async function offline(dir: string): Promise<unknown> {
 		createdAt: record.createdAt,
 		template: record.template,
 		workspace: record.config.workspace,
+		...(record.config.image ? { image: record.config.image } : {}),
 		status,
 		connected: false,
 		services: Object.keys(record.config.services),
