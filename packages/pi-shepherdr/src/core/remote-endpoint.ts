@@ -1,3 +1,4 @@
+import { CoreAdmission } from "./admission.js";
 import {
 	CoreClient,
 	type CoreEventFilter,
@@ -15,9 +16,15 @@ export class RemoteCoreEndpoint {
 	private ended = false;
 	private readonly socketPath: string;
 	readonly machine: CoreMachine;
-	constructor(socketPath: string, machine: CoreMachine) {
+	private readonly admission: CoreAdmission;
+	constructor(
+		socketPath: string,
+		machine: CoreMachine,
+		admission = new CoreAdmission(socketPath, machine.id),
+	) {
 		this.socketPath = socketPath;
 		this.machine = machine;
+		this.admission = admission;
 		this.host = new CoreClient(socketPath);
 	}
 	get bridge(): CoreRemoteTransport {
@@ -29,10 +36,21 @@ export class RemoteCoreEndpoint {
 	}
 	close(): void {
 		this.ended = true;
+		this.admission.close();
 		void this.transport?.close();
 		this.host.close();
 	}
 	call(input: CoreObject, options: CoreRequestOptions = {}): Promise<unknown> {
+		if (
+			["saved_session", "find_saved_sessions", "view"].includes(
+				String(input["op"]),
+			)
+		)
+			return this.admission.run(
+				"bulk",
+				() => this.bridge.call(input, options),
+				options.signal,
+			);
 		return this.bridge.call(input, options);
 	}
 	localSnapshot(): Promise<unknown> {

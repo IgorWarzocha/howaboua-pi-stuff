@@ -135,7 +135,7 @@ export async function spawnAgent(
 			startParams,
 			runtime.fallbackCwd,
 			runtime.resolveDirectory,
-			{ agentArgs },
+			{ agentArgs, signal },
 		);
 		let promptSubmissionStarted = false;
 		let promptAccepted = false;

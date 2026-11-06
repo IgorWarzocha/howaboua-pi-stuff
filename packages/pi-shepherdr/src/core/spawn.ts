@@ -16,7 +16,9 @@ export async function startCoreAgent(
 	params: StartAgentParams,
 	cwd: string,
 	args: string[],
+	signal?: AbortSignal,
 ): Promise<StartedAgent> {
+	signal?.throwIfAborted();
 	const labels: Record<string, string> = {};
 	if (params.placement === "new_tab") {
 		const snapshot = terminalSnapshot(
@@ -50,6 +52,7 @@ export async function startCoreAgent(
 			: await piExecutable(cwd);
 	if (typeof executable !== "string" || !executable)
 		throw new Error("Could not resolve Pi on the target machine");
+	signal?.throwIfAborted();
 	const result = object(
 		await client.core.request("terminal.run", {
 			argv: [executable, ...args],
@@ -70,18 +73,24 @@ export async function startCoreAgent(
 		);
 	const cleanup = { id: terminal };
 	try {
+		signal?.throwIfAborted();
 		await client.core.request("terminal.label", {
 			terminal,
 			labels: { "pi.shepherdr.name": params.name },
 		});
-		const agent = await waitReady(client, terminal);
+		const agent = await waitReady(client, terminal, signal);
+		signal?.throwIfAborted();
 		return { agent, id: terminal, cleanup };
 	} catch (error) {
 		return rollbackCreatedLocation(client, cleanup, error);
 	}
 }
 
-async function waitReady(client: CoreConnection, terminal: string) {
+async function waitReady(
+	client: CoreConnection,
+	terminal: string,
+	signal?: AbortSignal,
+) {
 	const abort = new AbortController();
 	let chain = Promise.resolve();
 	let resolve!: (agent: ReturnType<typeof terminalPane>) => void;
@@ -90,6 +99,10 @@ async function waitReady(client: CoreConnection, terminal: string) {
 		resolve = yes;
 		reject = no;
 	});
+	const cancelled = () =>
+		reject(signal?.reason ?? new Error("Agent launch cancelled"));
+	signal?.addEventListener("abort", cancelled, { once: true });
+	if (signal?.aborted) cancelled();
 	const inspect = (value: unknown) => {
 		const record = object(value);
 		if (record["state"] !== "live")
@@ -158,6 +171,7 @@ async function waitReady(client: CoreConnection, terminal: string) {
 		return agent;
 	} finally {
 		clearTimeout(timer);
+		signal?.removeEventListener("abort", cancelled);
 		abort.abort();
 	}
 }

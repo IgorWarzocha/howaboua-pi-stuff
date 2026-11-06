@@ -50,6 +50,7 @@ export async function resolvePreparationDirectory(
 
 interface StartAgentOptions {
 	agentArgs?: string[];
+	signal?: AbortSignal;
 }
 
 export async function startAgent(
@@ -89,7 +90,20 @@ export async function startAgent(
 	} catch (error) {
 		throw new UnstartedAgentLaunchError(error);
 	}
-	return startCoreAgent(client, params, cwd, args);
+	let entered = false;
+	try {
+		return await client.admission.run(
+			"launch",
+			() => {
+				entered = true;
+				return startCoreAgent(client, params, cwd, args, options.signal);
+			},
+			options.signal,
+		);
+	} catch (error) {
+		if (!entered) throw new UnstartedAgentLaunchError(error);
+		throw error;
+	}
 }
 
 export async function rollbackStartedAgent(

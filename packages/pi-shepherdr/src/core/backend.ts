@@ -15,6 +15,7 @@ import type {
 	PeerChannel,
 	PeerMessage,
 } from "../types.js";
+import { CoreAdmission } from "./admission.js";
 import { CoreClient } from "./client.js";
 import { openCoreFocusChannel } from "./focus-channel.js";
 import type { CoreMachine } from "./machines.js";
@@ -33,6 +34,7 @@ export class CoreConnection {
 	readonly core: CoreClient | RemoteCoreEndpoint;
 	readonly remote: CoreMachine | undefined;
 	readonly reader: CoreRemoteReader | undefined;
+	readonly admission: CoreAdmission;
 	constructor(
 		socketPath = process.env["HC_TERMINAL_SOCKET"],
 		remote?: CoreMachine,
@@ -41,8 +43,9 @@ export class CoreConnection {
 			throw new Error("Run Pi inside a Core terminal to connect Shepherdr");
 		this.remote = remote;
 		this.socketPath = socketPath;
+		this.admission = new CoreAdmission(socketPath, remote?.id);
 		this.core = remote
-			? new RemoteCoreEndpoint(socketPath, remote)
+			? new RemoteCoreEndpoint(socketPath, remote, this.admission)
 			: new CoreClient(socketPath);
 		this.reader =
 			this.core instanceof RemoteCoreEndpoint
@@ -51,6 +54,7 @@ export class CoreConnection {
 	}
 	close(): void {
 		this.lifetime.abort();
+		this.admission.close();
 		for (const channel of this.focusChannels) channel.close();
 		this.focusChannels.clear();
 		this.core.close();
@@ -101,10 +105,16 @@ export class CoreConnection {
 				{ op: "saved_session", path, history },
 				{ ...(signal ? { signal } : {}) },
 			);
-		const { readSavedNotesSession } = await import(
-			"@howaboua/pi-notes-compaction/saved-session"
+		return this.admission.run(
+			"bulk",
+			async () => {
+				const { readSavedNotesSession } = await import(
+					"@howaboua/pi-notes-compaction/saved-session"
+				);
+				return readSavedNotesSession(path, signal, history);
+			},
+			signal,
 		);
-		return readSavedNotesSession(path, signal, history);
 	}
 	async findSavedSessions(
 		threadId: string,
@@ -116,10 +126,16 @@ export class CoreConnection {
 				{ op: "find_saved_sessions", threadId },
 				{ ...(signal ? { signal } : {}) },
 			);
-		const { findSavedNotesSessions } = await import(
-			"@howaboua/pi-notes-compaction/saved-session-index"
+		return this.admission.run(
+			"bulk",
+			async () => {
+				const { findSavedNotesSessions } = await import(
+					"@howaboua/pi-notes-compaction/saved-session-index"
+				);
+				return findSavedNotesSessions(threadId, undefined, signal);
+			},
+			signal,
 		);
-		return findSavedNotesSessions(threadId, undefined, signal);
 	}
 	async startContextRelay(
 		threadId: string,

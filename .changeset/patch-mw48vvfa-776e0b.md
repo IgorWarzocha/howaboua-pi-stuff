@@ -7,3 +7,4 @@
 - Remote supervision and shared Notes now use a persistent Core attachment instead of SSH helpers and execution polling. Monitoring no longer depends on aggregate terminal lists that can omit slow machines.
 - Shared local checkpoints remain readable after workers and intermediate controllers close, including older sessions across connected machines. Update Notes and Shepherdr together.
 - Closed agents no longer trigger collection warnings or settlement retries during shutdown.
+- Concurrent Pi sessions now share machine-local limits for agent launches and saved-session reads. Tool calls still return their normal results after the operation completes.
