@@ -83,7 +83,7 @@ async function admit(input) {
 	const hello = object(await rpc("hello"));
 	if (
 		object(hello["core"])["id"] !== input.coreId ||
-		process.env["HC_SESSION"] !== input.session
+		(process.env["HC_SESSION"] ?? "default") !== input.session
 	)
 		throw new Error(
 			"Remote Core identity/session changed; refresh machines before retrying",
