@@ -211,7 +211,7 @@ Set `"share_context": false` in a profile to keep its new workers' notes and his
 
 Pi creates each worker session normally. The worker records its shared identity before Shepherdr delivers the first task; no pre-created session file or launch override is needed.
 
-Shared local checkpoints remain readable after workers or intermediate controllers close. Notes verifies saved family membership and reads the selected session branch. Cross-machine reads need a Core connection and access to the saved session, not a running Pi owner. Update Notes and Shepherdr together for durable cross-machine routes. Older relay-only sessions may need their original controller to be resumed. Writes and optional hybrid lookup still use their owning services. Reconnect machines under `/herdr` → **Status** after a connection loss.
+Shared local checkpoints remain readable after workers or intermediate controllers close. Notes verifies saved family membership and reads the selected session branch. Cross-machine reads need a Core connection and access to the saved session, not a running Pi owner. Update Notes and Shepherdr together. Older sessions without a saved parent location can find family checkpoints across connected machines through their Notes index or standard Pi session directory. Writes and optional hybrid lookup still use their owning services. Reconnect machines under `/herdr` → **Status** after a connection loss.
 
 Shepherdr works without Notes or PCC. A target without active Notes sharing still starts independently with a warning. Invalid bindings fail before task delivery. Profiles selecting existing sessions cannot participate in shared `spawn`; use `attach`, then `assign`.
 

@@ -30,6 +30,7 @@ export async function serve(input, send, fail) {
 	const subscriptions = new Map();
 	const relay = helperContext(context, send);
 	let savedSession;
+	let savedSessionIndex;
 	let closed = false;
 	const close = async () => {
 		if (closed) return;
@@ -130,6 +131,28 @@ export async function serve(input, send, fail) {
 					if (Buffer.byteLength(JSON.stringify(result)) > 7 * 1024 * 1024)
 						throw new Error(
 							"Saved session is too large to transfer; open it on its machine to read it",
+						);
+					return result;
+				});
+			case "find_saved_sessions":
+				return relay.request(message.id, async (signal) => {
+					if (!input.modules.savedSessionIndex)
+						throw new Error(
+							"Saved session lookup is unavailable; update Notes and restart the controller",
+						);
+					if (typeof message.threadId !== "string")
+						throw new Error("Invalid saved session identity");
+					const index = await (savedSessionIndex ??= import(
+						input.modules.savedSessionIndex
+					));
+					const result = await index.findSavedNotesSessions(
+						message.threadId,
+						undefined,
+						signal,
+					);
+					if (Buffer.byteLength(JSON.stringify(result)) > 7 * 1024 * 1024)
+						throw new Error(
+							"Saved session lookup is too large to transfer; open the session on its machine",
 						);
 					return result;
 				});

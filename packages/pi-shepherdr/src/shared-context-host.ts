@@ -13,6 +13,7 @@ import {
 	listenContext,
 	sessionContextPath,
 } from "./remote/shepherdr-context.mjs";
+import { savedContextLoader } from "./saved-context.js";
 import { SharedAgentContext } from "./shared-context.js";
 
 export async function registerSharedAgentContext(
@@ -116,10 +117,7 @@ export async function registerSharedAgentContext(
 				"warning",
 			);
 		unregisterSaved = notes()?.registerSavedSessionLoader?.(
-			(location, history, signal) =>
-				fleet
-					.connected(location.machine)
-					.client.readSavedSession(location.sessionFile, history, signal),
+			savedContextLoader(fleet),
 		);
 		unregister = notes()?.registerRouter(
 			Object.assign(

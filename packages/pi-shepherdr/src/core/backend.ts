@@ -106,6 +106,21 @@ export class CoreConnection {
 		);
 		return readSavedNotesSession(path, signal, history);
 	}
+	async findSavedSessions(
+		threadId: string,
+		signal?: AbortSignal,
+	): Promise<unknown> {
+		signal?.throwIfAborted();
+		if (this.core instanceof RemoteCoreEndpoint)
+			return this.core.call(
+				{ op: "find_saved_sessions", threadId },
+				{ ...(signal ? { signal } : {}) },
+			);
+		const { findSavedNotesSessions } = await import(
+			"@howaboua/pi-notes-compaction/saved-session-index"
+		);
+		return findSavedNotesSessions(threadId, undefined, signal);
+	}
 	async startContextRelay(
 		threadId: string,
 		_routeId: string,

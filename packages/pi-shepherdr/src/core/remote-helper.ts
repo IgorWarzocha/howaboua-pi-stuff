@@ -11,11 +11,13 @@ import { type CoreObject, object } from "./protocol.js";
 const moduleUrl = (source: string) =>
 	`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 let bundle: ReturnType<typeof sources> | undefined;
-async function savedSessionSource(): Promise<string | undefined> {
+async function notesModule(
+	exportName: "saved-session" | "saved-session-index",
+): Promise<URL | undefined> {
 	let path: string;
 	try {
 		path = createRequire(import.meta.url).resolve(
-			"@howaboua/pi-notes-compaction/saved-session",
+			`@howaboua/pi-notes-compaction/${exportName}`,
 		);
 	} catch (error) {
 		if (
@@ -28,7 +30,11 @@ async function savedSessionSource(): Promise<string | undefined> {
 			return undefined;
 		throw error;
 	}
-	const url = pathToFileURL(path);
+	return pathToFileURL(path);
+}
+async function savedSessionSource(): Promise<string | undefined> {
+	const url = await notesModule("saved-session");
+	if (!url) return undefined;
 	const [source, manifest] = await Promise.all([
 		readFile(url, "utf8"),
 		readFile(new URL("./tree-archive-manifest.mjs", url), "utf8"),
@@ -39,6 +45,10 @@ async function savedSessionSource(): Promise<string | undefined> {
 			JSON.stringify(moduleUrl(manifest)),
 		),
 	);
+}
+async function savedSessionIndexSource(): Promise<string | undefined> {
+	const url = await notesModule("saved-session-index");
+	return url ? moduleUrl(await readFile(url, "utf8")) : undefined;
 }
 async function sources() {
 	const read = (path: string) =>
@@ -72,6 +82,7 @@ async function sources() {
 	]);
 	const peerUrl = moduleUrl(peer);
 	const savedSession = await savedSessionSource();
+	const savedSessionIndex = await savedSessionIndexSource();
 	const checkpointsUrl = moduleUrl(
 		savedSession
 			? checkpoints.replace(
@@ -85,6 +96,7 @@ async function sources() {
 		wire: moduleUrl(wire),
 		modules: {
 			...(savedSession ? { savedSession } : {}),
+			...(savedSessionIndex ? { savedSessionIndex } : {}),
 			helper: moduleUrl(helper),
 			core: moduleUrl(core),
 			contextHost: moduleUrl(contextHost),
