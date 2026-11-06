@@ -46,8 +46,6 @@ jobs:
         run: bun run --cwd packages/pi-sandbox build
       - name: Verify packed Pi extensions load in isolation
         run: node scripts/verify-pi-extension-artifact.mjs --no-build packages/pi-codex-conversion packages/pi-sandbox
-      - name: Add aggregate package changesets
-        run: bun run changeset:aggregates
       - name: Verify bundled Grok audio binaries
         run: node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs --check
       - name: Changesets release
