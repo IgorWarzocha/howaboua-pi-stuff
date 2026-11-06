@@ -46,9 +46,7 @@ export class CoreAdmission {
 		// execution/cleanup owner and is never replayed after broker loss.
 		for (const waiter of this.waiting.values())
 			waiter.reject(
-				new Error(
-					"Agent connection lost before starting; try the operation again",
-				),
+				new Error("Agent connection lost before the operation started"),
 			);
 	}
 
@@ -98,7 +96,7 @@ export class CoreAdmission {
 					)
 						waiter?.reject(
 							new Error(
-								"Too many simultaneous agent operations; finish existing calls before starting more",
+								"Agent operation could not start: concurrent operation limit reached",
 							),
 						);
 					else throw new Error("Invalid agent connection response");
@@ -120,7 +118,7 @@ export class CoreAdmission {
 		if (this.ended) throw this.ended;
 		if (this.waiting.size >= 64)
 			throw new Error(
-				"Too many simultaneous agent operations; finish existing calls before starting more",
+				"Agent operation could not start: concurrent operation limit reached",
 			);
 		const id = randomUUID();
 		const admission = AbortSignal.any([
@@ -141,7 +139,7 @@ export class CoreAdmission {
 			reject(
 				new Error(
 					admission.reason?.name === "TimeoutError"
-						? "Agent operation could not start before its deadline; try again when current work finishes"
+						? "Agent operation could not start before its deadline"
 						: "Agent operation cancelled before starting",
 					{ cause: admission.reason },
 				),
@@ -161,7 +159,7 @@ export class CoreAdmission {
 				for (const waiter of this.waiting.values())
 					waiter.reject(
 						new Error(
-							"Agent operations could not start; check local runtime permissions and try again",
+							"Agent operations could not start. Check Core and local runtime permissions",
 							{ cause: error },
 						),
 					);
