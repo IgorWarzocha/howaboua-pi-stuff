@@ -2,11 +2,14 @@ import type {
 	BranchSummaryEntry,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import {
+	isTreeArchiveManifestData,
+	MAX_ARCHIVE_DEPTH,
+	TREE_ARCHIVE_ENTRY_TYPE,
+} from "./tree-archive-manifest.mjs";
 import { windowDetails } from "./windows.js";
 
-export const TREE_ARCHIVE_ENTRY_TYPE = "codex-context-tree-archive";
-const TREE_ARCHIVE_PROTOCOL = 1;
-export const MAX_ARCHIVE_DEPTH = 50_000;
+export { TREE_ARCHIVE_ENTRY_TYPE } from "./tree-archive-manifest.mjs";
 
 export interface TreeArchiveManifestData {
 	protocol: 1;
@@ -110,29 +113,6 @@ function archivedPath(
 	}
 	if (!foundBoundary) return undefined;
 	return reverse.reverse();
-}
-
-export function isTreeArchiveManifestData(
-	value: unknown,
-): value is TreeArchiveManifestData {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-	const manifest = value as Record<string, unknown>;
-	return (
-		manifest["protocol"] === TREE_ARCHIVE_PROTOCOL &&
-		manifest["strategy"] === "codex-context-tree" &&
-		nonEmptyString(manifest["windowId"]) &&
-		nonEmptyString(manifest["boundaryEntryId"]) &&
-		nonEmptyString(manifest["summaryEntryId"]) &&
-		nonEmptyString(manifest["archivedLeafId"]) &&
-		(manifest["compactionEntryId"] === undefined ||
-			nonEmptyString(manifest["compactionEntryId"])) &&
-		(manifest["branchBaseId"] === null ||
-			nonEmptyString(manifest["branchBaseId"]))
-	);
-}
-
-function nonEmptyString(value: unknown): value is string {
-	return typeof value === "string" && value !== "";
 }
 
 export function hasTreeArchiveSuccessor(

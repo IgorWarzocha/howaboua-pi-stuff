@@ -38,6 +38,7 @@ export const Plan = Type.Object({
 			alias: Agent,
 			controllerAlias: Agent,
 			controllerFile: Type.Optional(Type.String()),
+			controllerMachine: Type.Optional(Type.String()),
 			controllerNotes: Type.Unknown(),
 			targetNotes: Type.Unknown(),
 		}),
@@ -75,8 +76,30 @@ export const Snapshot = Type.Object({
 export const Parent = Type.Object({
 	transport: Type.Literal("shepherdr"),
 	parent: Type.String(),
+	savedParent: Type.Optional(
+		Type.Object({ machine: Type.String(), sessionFile: Type.String() }),
+	),
 });
 export type Identity = Static<typeof Identity>;
+
+/** Ordinary family membership is immutable, explicit and native-session owned. */
+export function savedFamilyIdentity(
+	session: Pick<SavedNotesSession, "threadId" | "entries">,
+): Identity | undefined {
+	const identity = savedNotesIdentity(session);
+	if (
+		identity.storage === undefined ||
+		!session.entries.some(
+			(entry) =>
+				entry.type === "custom" &&
+				entry.customType === "codex-context-agent" &&
+				Check(Identity, entry.data) &&
+				entry.data.threadId === session.threadId,
+		)
+	)
+		return;
+	return identity;
+}
 
 /** Persisted sharing is session-scoped. Forks never inherit the source agent's address. */
 export function savedNotesIdentity(

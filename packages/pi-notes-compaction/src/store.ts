@@ -132,6 +132,16 @@ export class NotesStore {
 			?.prepare("UPDATE sessions SET file_path = ? WHERE id = ?")
 			.run(session.file, session.id);
 	}
+	/** Exact native thread lookup only. The JSONL header and binding remain authoritative. */
+	sessionFile(threadId: string): string | undefined {
+		return (
+			this.open()
+				?.prepare<[string], { file_path: string | null }>(
+					"SELECT file_path FROM sessions WHERE id = ?",
+				)
+				.get(threadId)?.file_path ?? undefined
+		);
+	}
 	cache(session: SessionRef, responses: readonly CachedResponse[]): void {
 		if (!responses.length) return;
 		for (const response of responses) {

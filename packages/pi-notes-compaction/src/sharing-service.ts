@@ -19,6 +19,7 @@ import {
 	CONTEXT_SHARING_REQUEST,
 	type ContextRouter,
 	type ContextSharingService,
+	type SavedSessionLoader,
 	type SharedContextRequest,
 	type SharedContextResult,
 } from "./context-sharing.js";
@@ -35,8 +36,9 @@ export function registerContextSharingService(
 		): Promise<SharedContextResult>;
 		owner(): NotesOwner;
 	},
-): ContextRouter {
+): ContextRouter & { loadSavedSession: SavedSessionLoader } {
 	let router: ContextRouter | undefined;
+	let savedSessionLoader: SavedSessionLoader | undefined;
 	const describe: ContextSharingService["describe"] = (ctx) => {
 		const storageMode = config.enabled(ctx);
 		if (!storageMode) return undefined;
@@ -212,6 +214,14 @@ export function registerContextSharingService(
 			return config.execute(ctx, request, signal);
 		},
 		...createAttachmentSharing(describe),
+		registerSavedSessionLoader(next) {
+			if (savedSessionLoader && savedSessionLoader !== next)
+				throw new Error("A saved session loader is already registered");
+			savedSessionLoader = next;
+			return () => {
+				if (savedSessionLoader === next) savedSessionLoader = undefined;
+			};
+		},
 		registerRouter(next) {
 			if (router && router !== next)
 				throw new Error("A context router is already registered");
@@ -228,6 +238,7 @@ export function registerContextSharingService(
 	pi.on("session_shutdown", () => {
 		off();
 		router = undefined;
+		savedSessionLoader = undefined;
 	});
 	return Object.assign(
 		async (
@@ -244,6 +255,26 @@ export function registerContextSharingService(
 			return router(ctx, request, signal);
 		},
 		{
+			loadSavedSession: Object.defineProperty(
+				(
+					locator: import("./context-sharing.js").SavedSessionLocator,
+					history: boolean,
+					signal?: AbortSignal,
+				) => {
+					if (!savedSessionLoader)
+						throw Object.assign(
+							new Error(
+								"Saved shared sessions on that machine are unavailable. Resume the shared agent and reconnect its machine, or make its saved Pi JSONL session available locally.",
+							),
+							{ code: "SAVED_SESSION_UNAVAILABLE" },
+						);
+					return savedSessionLoader(locator, history, signal);
+				},
+				"find",
+				{
+					get: () => savedSessionLoader?.find?.bind(savedSessionLoader),
+				},
+			),
 			requiresRemoteScope: (ctx: ExtensionContext) =>
 				router?.requiresRemoteScope?.(ctx) ?? false,
 		},

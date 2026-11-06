@@ -55,6 +55,8 @@
 	},
 	"exports": {
 		".": "./src/index.ts",
-		"./context-sharing": "./src/context-sharing.ts"
+		"./context-sharing": "./src/context-sharing.ts",
+		"./saved-session": "./src/saved-session.mjs",
+		"./saved-session-index": "./src/saved-session-index.mjs"
 	}
 }
