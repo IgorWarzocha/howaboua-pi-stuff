@@ -146,8 +146,9 @@ for (const file of generatedFiles) {
 	if (existsSync(path)) rmSync(path);
 }
 
-// Pending notes must reach package and bundle changelogs in the same release.
-promotePendingChangesets(root);
+// Bootstrap lets package removals trigger versioning. In CI, merge pending notes
+// inside version-packages, after the Changesets action resets tracked files.
+if (!process.argv.includes("--bootstrap")) promotePendingChangesets(root);
 
 const changesByPackage = new Map();
 for (const file of readdirSync(changesetDir).sort()) {

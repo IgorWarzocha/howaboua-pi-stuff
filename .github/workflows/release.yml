@@ -48,6 +48,8 @@ jobs:
         run: node scripts/verify-pi-extension-artifact.mjs --no-build packages/pi-codex-conversion packages/pi-sandbox
       - name: Verify bundled Grok audio binaries
         run: node packages/pi-grok-realtime/scripts/plan-audio-binaries.mjs --check
+      - name: Bootstrap aggregate package changesets
+        run: bun run changeset:aggregates --bootstrap
       - name: Changesets release
         id: changesets
         uses: changesets/action@v2
