@@ -46,6 +46,20 @@ export type ContextRouter = ((
 	requiresRemoteScope?(ctx: ExtensionContext): boolean;
 };
 
+export interface SavedSessionLocator {
+	machine: string;
+	sessionFile: string;
+}
+
+export type SavedSessionLoader = ((
+	locator: SavedSessionLocator,
+	history: boolean,
+	signal?: AbortSignal,
+) => Promise<unknown>) & {
+	/** Exact native-thread discovery only; returned locators are untrusted hints. */
+	find?(threadId: string, signal?: AbortSignal): Promise<unknown>;
+};
+
 /** Remote checkpoints retain an authenticated address, never decrypted note contents. */
 export interface RemoteNoteReference {
 	protocol: 1;
@@ -118,6 +132,7 @@ export interface ContextSharingService {
 		signal?: AbortSignal,
 	): Promise<SharedContextResult>;
 	registerRouter(router: ContextRouter): () => void;
+	registerSavedSessionLoader?(loader: SavedSessionLoader): () => void;
 }
 
 export const CONTEXT_SHARING_AVAILABLE =

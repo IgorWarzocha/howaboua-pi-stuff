@@ -53,6 +53,21 @@ export function createQueryExecutor(
 		assertActive();
 		const raw = queryArguments("notes", input);
 		if (!shared) {
+			let unavailable: unknown;
+			try {
+				const saved = await readSharedNotes(
+					ctx,
+					store,
+					raw,
+					signal,
+					lifecycle.bridge?.loadSavedSession,
+				);
+				if (saved) return noteResult(saved);
+			} catch (error) {
+				signal?.throwIfAborted();
+				if (!sharedNotesUnavailable(error)) throw error;
+				unavailable = error;
+			}
 			try {
 				const routed = await lifecycle.bridge?.route?.(
 					{ namespace: "notes", params: raw },
@@ -63,13 +78,10 @@ export function createQueryExecutor(
 				if (routed) return routed;
 			} catch (error) {
 				signal?.throwIfAborted();
-				if (!sharedNotesUnavailable(error)) throw error;
-				const saved = await readSharedNotes(ctx, store, raw, signal);
-				if (saved) return noteResult(saved);
-				throw error;
+				if (!unavailable || !sharedNotesUnavailable(error)) throw error;
+				throw unavailable;
 			}
-			const saved = await readSharedNotes(ctx, store, raw, signal);
-			if (saved) return noteResult(saved);
+			if (unavailable) throw unavailable;
 		}
 		const identity = contextAgentIdentity(ctx);
 		const storageAgent = contextStorageAgentName(identity);
@@ -184,11 +196,19 @@ export function createQueryExecutor(
 					search,
 					params,
 					signal,
+					lifecycle.bridge?.loadSavedSession,
 				);
 				if (saved) return result(saved);
 				throw error;
 			}
-			const saved = await readSharedHistory(ctx, store, search, params, signal);
+			const saved = await readSharedHistory(
+				ctx,
+				store,
+				search,
+				params,
+				signal,
+				lifecycle.bridge?.loadSavedSession,
+			);
 			if (saved) return result(saved);
 		}
 		if (

@@ -1,14 +1,12 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Check } from "typebox/value";
 import { contextStorageAgentName } from "./agent-identity.js";
+import type { SavedSessionLocator } from "./context-sharing.js";
 import { useHistory } from "./history.js";
 import type { HistorySearch } from "./history-search.js";
 import { normalizeNoteParams, readNotes } from "./note-query.js";
 import { collectNotes } from "./notes.js";
-import {
-	readSavedNotesSession,
-	type SavedNotesSession,
-} from "./saved-session.js";
+import { type SavedNotesSession } from "./saved-session.js";
 import {
 	type Identity,
 	Snapshot,
@@ -24,6 +22,7 @@ export function createSharedSessionReader(
 		| { namespace: "history"; search: HistorySearch },
 	outputAgent: string,
 	signal: AbortSignal | undefined,
+	load: (locator: SavedSessionLocator) => Promise<SavedNotesSession>,
 	resolve: (
 		session: SavedNotesSession,
 		destination: string,
@@ -35,7 +34,25 @@ export function createSharedSessionReader(
 		session: SavedNotesSession,
 		query: Record<string, unknown>,
 		native: string,
-	) {
+	): Promise<Record<string, unknown> | undefined> {
+		if (namespace === "notes") {
+			const normalized = normalizeNoteParams(query, native);
+			const replacement =
+				normalized["action"] === "read_file" &&
+				collectNotes(store, session.branch).get(String(normalized["path"]))
+					?.mode === "replace";
+			// Never replace a merged hybrid read with a local-only saved branch.
+			if (
+				!replacement &&
+				(savedNotesIdentity(session).storage === "remote" ||
+					session.branch.some(
+						(entry) =>
+							entry.type === "custom" &&
+							entry.customType === "notes-compaction:cache:v1",
+					))
+			)
+				return;
+		}
 		return {
 			...(access.namespace === "history"
 				? await useHistory(
@@ -67,25 +84,23 @@ export function createSharedSessionReader(
 		identity: Identity,
 		destination: string,
 		query: Record<string, unknown>,
-		file: string | undefined,
+		locator: SavedSessionLocator | undefined,
 		retained?: unknown,
 		detached = false,
 	): Promise<Record<string, unknown> | undefined> {
-		if (file && (!detached || namespace === "history")) {
+		if (locator && (!detached || namespace === "history")) {
 			let saved: SavedNotesSession | undefined;
 			try {
-				saved = await readSavedNotesSession(
-					file,
-					signal,
-					namespace === "history",
-				);
+				saved = await load(locator);
 			} catch (error) {
 				signal?.throwIfAborted();
 				if (
 					!(
 						error instanceof Error &&
 						"code" in error &&
-						error.code === "ENOENT" &&
+						["ENOENT", "SAVED_SESSION_UNAVAILABLE"].includes(
+							String(error.code),
+						) &&
 						retained !== undefined &&
 						namespace === "notes"
 					)

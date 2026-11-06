@@ -85,6 +85,7 @@ export interface NotesOwner {
 
 export interface NotesBridge {
 	protocol: 1;
+	loadSavedSession?: import("./context-sharing.js").SavedSessionLoader;
 	/** Preserve the owner's chronological entry while enabling developer-role delivery. */
 	prepareReminder?(entry: CustomMessageEntryDraft): CustomMessageEntryDraft;
 	lookup?(

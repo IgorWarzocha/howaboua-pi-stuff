@@ -48,6 +48,7 @@ export async function registerNotesSharing(
 	const family = {
 		...remote,
 		protocol: 1 as const,
+		loadSavedSession: route.loadSavedSession,
 		agentName: (ctx: ExtensionContext) => contextAgentIdentity(ctx).agentName,
 		route: async (
 			query: import("./bridge.js").LookupQuery,
