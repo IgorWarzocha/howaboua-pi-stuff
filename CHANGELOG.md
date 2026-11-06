@@ -184,10 +184,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
-### @howaboua/pi-sandbox — 0.1.4
+### @howaboua/pi-sandbox — 0.1.5
 
-- Fixed TypeScript calls rejecting action objects while equivalent JSON strings worked.
-- Fixed concurrent first calls failing while the sandbox client was loading.
+- Requires Pi 1.5 or newer.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+
+  Sandbox list and inspect now show configured base-image asset paths for reuse in new environment YAML, including stopped instances and prepared templates.
 
 [Full changelog](./packages/pi-sandbox/CHANGELOG.md)
 

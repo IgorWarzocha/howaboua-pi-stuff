@@ -489,7 +489,7 @@
     },
     "packages/pi-sandbox": {
       "name": "@howaboua/pi-sandbox",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@earendil-works/gondolin": "0.14.0",
         "yaml": "2.9.1",
