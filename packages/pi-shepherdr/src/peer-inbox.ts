@@ -25,6 +25,7 @@ export function registerPeerInbox(
 	catchup: (
 		ctx: ExtensionContext,
 	) => Promise<{ content: string; accepted: () => void }>,
+	isWorker: (ctx: ExtensionContext) => boolean,
 ): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
@@ -42,6 +43,7 @@ export function registerPeerInbox(
 			commands,
 			fleet,
 			catchup,
+			isWorker(ctx),
 		);
 	};
 	pi.on("before_agent_start", () => {
@@ -74,6 +76,7 @@ async function openInbox(
 	catchup: (
 		ctx: ExtensionContext,
 	) => Promise<{ content: string; accepted: () => void }>,
+	worker: boolean,
 ): Promise<() => Promise<void>> {
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
@@ -356,7 +359,7 @@ async function openInbox(
 			{ mode: 0o600, flag: "wx" },
 		);
 		await rename(temporary, path);
-		clearCoreSession = await publishCoreSession(core, sessionFile);
+		clearCoreSession = await publishCoreSession(core, sessionFile, worker);
 	} catch (error) {
 		try {
 			await unlink(temporary).catch((failure: NodeJS.ErrnoException) => {

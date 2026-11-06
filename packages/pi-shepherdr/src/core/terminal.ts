@@ -1,6 +1,6 @@
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "../types.js";
 import { object } from "./protocol.js";
-import { CORE_SESSION_LABEL } from "./registration.js";
+import { CORE_SESSION_LABEL, CORE_WORKER_LABEL } from "./registration.js";
 
 export function terminalPane(value: unknown): PaneInfo {
 	const terminal = object(value);
@@ -27,6 +27,9 @@ export function terminalPane(value: unknown): PaneInfo {
 		terminal_id: address,
 		agent: typeof session === "string" && session ? "pi" : null,
 		agent_status: agentStatus,
+		...(session && labels[CORE_WORKER_LABEL] === session
+			? { worker: true as const }
+			: {}),
 		interactive_ready: live && typeof session === "string" && !!session,
 		launch_pending: live && !session,
 		...(typeof terminal["cwd"] === "string" ? { cwd: terminal["cwd"] } : {}),

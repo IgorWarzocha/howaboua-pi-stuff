@@ -36,7 +36,13 @@ export default async function shepherdrExtension(
 		acceptFocus(pi, ctx, fleet, pane, request),
 	);
 	const board = AgentBoard.create(pi, fleet);
-	registerPeerInbox(pi, peerCommands, fleet, (ctx) => board.promptCatchup(ctx));
+	registerPeerInbox(
+		pi,
+		peerCommands,
+		fleet,
+		(ctx) => board.promptCatchup(ctx),
+		(ctx) => workerRole.isWorker(ctx.sessionManager),
+	);
 	const sharedContext = await registerSharedAgentContext(pi, fleet, board);
 	registerWorkerService(pi, fleet, sharedContext, board, workerRole);
 	let promptMode: { readonly active: boolean } | undefined;

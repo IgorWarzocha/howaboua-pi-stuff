@@ -72,6 +72,7 @@ interface AgentSessionInfo {
 
 export interface PaneInfo {
 	agent?: string | null;
+	worker?: true;
 	agent_session?: AgentSessionInfo | null;
 	agent_status: AgentStatus;
 	cwd?: string | null;
@@ -106,6 +107,7 @@ export interface SessionSnapshot {
 }
 
 export interface MonitoredAgent {
+	readonly worker?: true;
 	readonly instructions?: string;
 	readonly latestInstruction?: string;
 	readonly scope: "task" | "persistent";
