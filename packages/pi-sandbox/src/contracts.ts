@@ -277,7 +277,7 @@ export const replySchema = z.discriminatedUnion("ok", [
 export const HELP = {
 	actions: {
 		help: "",
-		list: "kind?: instances|templates",
+		list: "kind?: instances|templates. Templates are prepared disks, not a base-image inventory",
 		prepare:
 			"name, config: host YAML path. Run setup and save reusable disk template, without services or credentials",
 		create:
@@ -285,7 +285,8 @@ export const HELP = {
 		start:
 			"name. Reopen stopped instance from disk, rerun resume hooks and services. Running is unchanged",
 		stop: "name. Stop processes and preserve disk. No memory/process resume",
-		inspect: "name",
+		inspect:
+			"name. Configured image asset path, when present, is reusable as image in new host YAML",
 		exec: "name, cmd, cwd?:workspace-relative, timeoutMs?:10000 (0..60000). Wait only, never kills. Running returns opaque pid handle",
 		"exec-status":
 			"name, pid, timeoutMs?:10000 (0..60000). Wait and return new output. Keeps 128 completed handles; new launches may expire older handles and unread output",

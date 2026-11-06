@@ -230,6 +230,9 @@ export class SandboxRuntime {
 				createdAt: this.record.createdAt,
 				template: this.record.template,
 				workspace: this.record.config.workspace,
+				...(this.record.config.image
+					? { image: this.record.config.image }
+					: {}),
 				configPath: posix.join(this.record.config.workspace, ".sandbox.yaml"),
 				status: this.status(),
 				connected: true,
