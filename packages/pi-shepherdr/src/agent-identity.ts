@@ -1,12 +1,12 @@
+import { sessionPath } from "./core/agents.js";
+import type { CoreConnection } from "./core/backend.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
-import type { HerdrConnection } from "./herdr-client.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
 
 /** Read the live Pi owner, never infer identity from a filename or terminal ID. */
 export async function nativeAgentName(
-	client: HerdrConnection,
+	client: CoreConnection,
 	panel: PaneInfo,
 	signal?: AbortSignal,
 ): Promise<string> {

@@ -6,9 +6,8 @@ import type {
 import { activityTask } from "./activity.js";
 import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
-import { CoreConnection } from "./core/backend.js";
+import { sessionPath } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
 import {
 	RolledBackAgentLaunchError,
 	rollbackStartedAgent,
@@ -66,7 +65,7 @@ export function registerWorkerService(
 		if (!worker) throw new Error("Worker is not owned by this session branch");
 		const identity = await fleet.connected().client.machineIdentity();
 		if (identity.host !== worker.host || identity.session !== worker.session)
-			throw new Error("Worker belongs to another host or Herdr session");
+			throw new Error("Worker belongs to another host or Core");
 		return worker;
 	}
 
@@ -196,9 +195,6 @@ export function registerWorkerService(
 							const boardBinding = worker
 								? undefined
 								: await board.prepare(ctx, runtime, name, args);
-							const workspace = runtime.local
-								? process.env["HERDR_WORKSPACE_ID"]
-								: undefined;
 							stage = "launch";
 							const started = await startAgent(
 								runtime.client,
@@ -206,13 +202,7 @@ export function registerWorkerService(
 									name,
 									label: input.title,
 									cwd: input.cwd,
-									placement:
-										runtime.client instanceof CoreConnection
-											? "terminal"
-											: workspace
-												? "new_tab"
-												: "new_workspace",
-									...(workspace ? { workspace } : {}),
+									placement: "terminal",
 								},
 								runtime.fallbackCwd,
 								runtime.resolveDirectory,

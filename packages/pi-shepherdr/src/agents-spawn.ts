@@ -17,9 +17,7 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
-import { CoreConnection } from "./core/backend.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
-import { isDispatchRejected } from "./herdr-client.js";
 import {
 	resolvePreparationDirectory,
 	rollbackStartedAgent,
@@ -31,6 +29,7 @@ import {
 	prepareProfileMessage,
 	profileAgentArgs,
 } from "./profiles.js";
+import { isDispatchRejected } from "./remote/shepherdr-peer.mjs";
 import type { SharedAgentContext } from "./shared-context.js";
 import { prepareSpawnOwnership } from "./spawn-ownership.js";
 
@@ -74,28 +73,16 @@ export async function spawnAgent(
 	const reservation = await reserveAgentName(runtime, label, params.name);
 	const { name } = reservation;
 	try {
-		const placement =
-			params.placement ??
-			(runtime.client instanceof CoreConnection
-				? "terminal"
-				: runtime.local && process.env["HERDR_WORKSPACE_ID"]
-					? "new_tab"
-					: "new_workspace");
-		const workspace =
-			params.workspace ??
-			(placement === "new_tab" && runtime.local
-				? process.env["HERDR_WORKSPACE_ID"]
-				: undefined);
+		const placement = params.placement ?? "terminal";
+		const workspace = params.workspace;
 		const startParams = {
 			name,
 			label,
 			placement,
 			...(workspace ? { workspace } : {}),
-			...(params.pane ? { pane: params.pane } : {}),
 			...(params.cwd ? { cwd: params.cwd } : {}),
 		};
 		const cwd = await resolvePreparationDirectory(
-			runtime.client,
 			startParams,
 			runtime.fallbackCwd,
 			runtime.resolveDirectory,

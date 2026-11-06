@@ -1,5 +1,6 @@
 import { nativeAgentName } from "./agent-identity.js";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
+import { readTerminal } from "./core/agents.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { type AgentProfile, loadAgentProfiles } from "./profiles.js";
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
@@ -27,7 +28,6 @@ function describeProfiles(profiles: Map<string, AgentProfile>) {
 export async function agentsHelp(
 	boardAvailable = false,
 	gpt = false,
-	core = false,
 ): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
@@ -40,7 +40,7 @@ export async function agentsHelp(
 			find: "query? status? machine?",
 			focus: "target machine? voice? handoff?",
 			spawn:
-				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?" +
+				"agent_type label message name? machine? placement? workspace? cwd? base? blocking?" +
 				(boardAvailable ? " board_thread_id?" : ""),
 			watch: "target machine?",
 			unwatch: "target machine?",
@@ -56,19 +56,14 @@ export async function agentsHelp(
 				? "Extension report/read template required; send≠resolve; blocking waits resumed work; others return after semantic delivery"
 				: "Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",
 			machine: gpt
-				? "machine omitted=local Pi host; list/find omitted=all machines; remote=list profile ID, NOT label/hostname"
-				: "Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
+				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
+				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",
 			target: gpt
 				? "target=agent (same Notes/Board ID) or terminal target; /root=this family live root"
 				: "Use agent for the same identity as Notes/Board, or the terminal target; /root selects this family's live root",
-			label: core
-				? "Short Pi session name; app tabs use default names"
-				: gpt
-					? "Short tab/session name; two words IF useful"
-					: "Short tab/session name; prefer two words when useful",
-			placement: core
-				? "terminal (default), new_tab, new_workspace; new_tab needs space ID"
-				: "new_tab, new_workspace, pane",
+			label: "Short Pi session name; app tabs use default names",
+			placement:
+				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
 			...(boardAvailable
 				? {
 						board_thread_id: gpt
@@ -108,8 +103,8 @@ export async function agentsHelp(
 				? "Distinct scope/outcome/project context/issue refs; define success, NOT forbidden investigations"
 				: "Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
 			slash: gpt
-				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes pane"
-				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
+				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
+				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
 			reuse: gpt
 				? "Reuse ONLY same investigation; reviews independent; new scope=new agent"
 				: "Reuse only same investigation; reviews independent; new scope = new agent",
@@ -120,9 +115,7 @@ export async function agentsHelp(
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
-		advanced: core
-			? "hc --skill: terminal processes and machines"
-			: "herdr --skill: workspace/tab/pane/process/focus/layout/terminal",
+		advanced: "hc --skill: terminal processes and machines",
 	};
 }
 
@@ -209,10 +202,7 @@ export async function listFleetAgents(
 								(agent) =>
 									agent.agent === "pi" &&
 									(!machine.local ||
-										agent.pane_id !==
-											(agent.backend === "core"
-												? process.env["HC_TERMINAL_ID"]
-												: process.env["HERDR_PANE_ID"])),
+										agent.terminal_id !== process.env["HC_TERMINAL_ID"]),
 							)
 							.map(async (agent) => {
 								const result = compactAgent(
@@ -283,35 +273,19 @@ export async function readAgentTerminal(
 	source: Exclude<(typeof READ_SOURCES)[number], "latest">,
 	lines: number,
 ): Promise<Record<string, unknown>> {
-	const value = await runtime.client.request<unknown>("agent.read", {
-		target: panel.pane_id,
-		source,
-		format: "text",
-		lines,
-		strip_ansi: true,
-	});
-	if (
-		typeof value !== "object" ||
-		value === null ||
-		!("read" in value) ||
-		typeof value.read !== "object" ||
-		value.read === null ||
-		!("text" in value.read) ||
-		typeof value.read.text !== "string"
-	) {
-		throw new Error("Herdr agent.read returned no text");
-	}
-	const truncated = value.read.text.length > MAX_TERMINAL_READ_CHARS;
+	const value = await readTerminal(
+		runtime.client,
+		panel.terminal_id,
+		source === "visible" ? 0 : lines,
+	);
+	const truncated = value.text.length > MAX_TERMINAL_READ_CHARS;
 	return {
 		machine: runtime.machine,
 		target: panel.pane_id,
 		status: panel.agent_status,
 		text: truncated
-			? `${value.read.text.slice(0, MAX_TERMINAL_READ_CHARS)}\n…`
-			: value.read.text,
-		...(truncated ||
-		("truncated" in value.read && value.read.truncated === true)
-			? { truncated: true }
-			: {}),
+			? `${value.text.slice(0, MAX_TERMINAL_READ_CHARS)}\n…`
+			: value.text,
+		...(truncated || value.truncated ? { truncated: true } : {}),
 	};
 }

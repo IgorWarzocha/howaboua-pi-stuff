@@ -1,9 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "../core/backend.js";
-import { getSnapshot } from "../herdr.js";
-import { LOCAL_MACHINE } from "../machine-catalog.js";
+import { getSnapshot } from "../core/agents.js";
 import { parseMonitoredAgent } from "../monitor-record.js";
-import { RemoteHerdrClient } from "../remote/client.js";
 import type {
 	MachineStatus,
 	MonitoredAgent,
@@ -12,8 +9,10 @@ import type {
 import {
 	type ConnectedMachine,
 	errorMessage,
+	LOCAL_MACHINE,
 	type MachineRuntime,
 	type MachineSnapshot,
+	resolveMachine,
 } from "./machine.js";
 
 export function listAgents(
@@ -38,23 +37,19 @@ export function connectedMachine(
 	) => Promise<void>,
 	machine?: string,
 ): ConnectedMachine {
-	const name = machine?.trim() || LOCAL_MACHINE;
+	const name = resolveMachine(runtimes, machine?.trim() || LOCAL_MACHINE);
 	const runtime = runtimes.get(name);
 	if (!runtime) {
 		throw new Error(
-			`unknown Herdr machine ${JSON.stringify(name)}; use list to see configured machines`,
+			`Unknown Core machine ${JSON.stringify(name)}; use list to see current machines`,
 		);
 	}
 	if (runtime.status !== "connected" || !runtime.client || !runtime.monitor) {
 		throw new Error(
-			`Herdr machine ${JSON.stringify(name)} is ${runtime.status}${runtime.reason ? `: ${runtime.reason}` : ""}; open /herdr → Status to reconnect`,
+			`Core machine ${JSON.stringify(name)} is ${runtime.status}${runtime.reason ? `: ${runtime.reason}` : ""}; open /herdr → Status to reconnect`,
 		);
 	}
-	const remote =
-		runtime.client instanceof RemoteHerdrClient ||
-		(runtime.client instanceof CoreConnection && runtime.client.remote)
-			? runtime.client
-			: undefined;
+	const remote = runtime.client.remote ? runtime.client : undefined;
 	const client = runtime.client;
 	return {
 		prepareSharing: () => prepareSharing(name, runtime, client),
@@ -77,7 +72,7 @@ export async function machineSnapshots(
 	machine?: string,
 ): Promise<MachineSnapshot[]> {
 	const selected = machine?.trim()
-		? [statusFor(runtimes, machine.trim())]
+		? [statusFor(runtimes, resolveMachine(runtimes, machine))]
 		: [...runtimes.keys()].map((name) => statusFor(runtimes, name));
 	return Promise.all(
 		selected.map(async (status) => {
@@ -127,18 +122,10 @@ export function statusFor(
 	name: string,
 ): MachineStatus {
 	const runtime = runtimes.get(name);
-	if (!runtime)
-		throw new Error(`unknown Herdr machine ${JSON.stringify(name)}`);
+	if (!runtime) throw new Error(`Unknown Core machine ${JSON.stringify(name)}`);
 	return {
 		id: name,
 		local: runtime.local,
-		...(runtime.config
-			? {
-					label: runtime.config.label,
-					target: runtime.config.target,
-					session: runtime.config.session,
-				}
-			: {}),
 		...(runtime.coreMachine
 			? {
 					label: runtime.coreMachine.name,

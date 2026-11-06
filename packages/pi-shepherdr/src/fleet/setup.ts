@@ -1,15 +1,11 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "../core/backend.js";
-import { RemoteHerdrClient } from "../remote/client.js";
+import type { CoreConnection } from "../core/backend.js";
 import { errorMessage, type MachineRuntime } from "./machine.js";
 
 /** Explicitly requested sharing/monitor readiness; fleet supplies current-selection leases. */
 export class FleetSetup {
 	// Concurrent publishers share one start; existing children retain its route.
-	private readonly relays = new WeakMap<
-		RemoteHerdrClient | CoreConnection,
-		Promise<void>
-	>();
+	private readonly relays = new WeakMap<CoreConnection, Promise<void>>();
 	private readonly refresh: () => void;
 	constructor(refresh: () => void) {
 		this.refresh = refresh;
@@ -33,7 +29,7 @@ export class FleetSetup {
 	prepareContextRelay(
 		name: string,
 		runtime: MachineRuntime,
-		client: RemoteHerdrClient | CoreConnection,
+		client: CoreConnection,
 		ctx: ExtensionContext,
 		isSelected: () => boolean,
 	): Promise<void> {
@@ -56,7 +52,7 @@ export class FleetSetup {
 	private async openContextRelay(
 		name: string,
 		runtime: MachineRuntime,
-		client: RemoteHerdrClient | CoreConnection,
+		client: CoreConnection,
 		ctx: ExtensionContext,
 		isSelected: () => boolean,
 	): Promise<void> {
@@ -79,9 +75,7 @@ export class FleetSetup {
 				(request: unknown, signal: AbortSignal) =>
 					this.contextRelay!(ctx, request, signal),
 			] as const;
-			if (client instanceof CoreConnection)
-				await client.startContextRelay(...args, failed);
-			else await client.startContextRelay(...args);
+			await client.startContextRelay(...args, failed);
 			if (!isSelected()) return;
 			delete runtime.contextRelayError;
 		} catch (error) {
@@ -103,11 +97,7 @@ export class FleetSetup {
 		runtime.attempting = true;
 		this.refresh();
 		try {
-			if (
-				runtime.contextRelayError &&
-				(runtime.client instanceof RemoteHerdrClient ||
-					runtime.client instanceof CoreConnection)
-			)
+			if (runtime.contextRelayError && runtime.client)
 				await this.prepareContextRelay(
 					name,
 					runtime,

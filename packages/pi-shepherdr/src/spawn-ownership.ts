@@ -2,8 +2,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
 import type { PaneInfo } from "./types.js";
 
 const ENTRY = "herdr-spawn-ownership-v1";

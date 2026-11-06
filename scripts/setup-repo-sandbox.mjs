@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const usage = `Usage: bun run sandbox:setup --name NAME [--config YAML] [--live-model openai-codex/MODEL]
 Snapshot this checkout's tracked working files into an existing sandbox, or create
 one from YAML. Replaces this script's previous disposable candidate.
-Requires host Node 24+, installed repo dependencies, and guest bun, node, tar, python3, make, g++, node-gyp, herdr, fd.
+Requires host Node 24+, installed repo dependencies, and guest bun, node, tar, python3, make, g++, node-gyp, hc 0.1.18+, fd.
 Without --live-model, never copies credentials. Live mode explicitly syncs only the
 selected provider's short-lived host access token, clears its guest model override,
 and verifies a real candidate response. Refresh credentials stay on the host.
@@ -35,10 +35,11 @@ if (args.includes("--live-model") && !/^openai-codex\/[a-zA-Z0-9._-]+$/.test(liv
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 const host = (command, argv) => execFileSync(command, argv, { cwd: root });
-// JJ workspaces have no .git. Both paths export tracked working files, not HEAD.
+// Prefer this checkout's Git index; a colocated .jj may be stale after Git work.
+// JJ-only workspaces use their working revision. Both export working files, not HEAD.
 let files;
 let source;
-if (existsSync(join(root, ".jj"))) {
+if (!existsSync(join(root, ".git")) && existsSync(join(root, ".jj"))) {
 	files = host("jj", ["file", "list"]).toString().trimEnd().split("\n");
 	source = host("jj", [
 		"log",
@@ -129,10 +130,18 @@ try {
 		}
 	}
 	await execute(`set -eu
-for tool in bun node tar python3 make g++ node-gyp herdr fd; do
+for tool in bun node tar python3 make g++ node-gyp hc fd; do
   command -v "$tool" || { echo "Missing guest prerequisite: $tool"; exit 1; }
 done
 node -e 'if (Number(process.versions.node.split(".")[0]) < 24) process.exit(1)'
+python3 - <<'PY'
+import re, subprocess
+version = subprocess.check_output(["hc", "--version"], text=True).strip()
+match = re.fullmatch(r"(?:hc|herdr-core) (\\d+)\\.(\\d+)\\.(\\d+)", version)
+if not match or tuple(map(int, match.groups())) < (0, 1, 18):
+    raise SystemExit("Guest requires released Herdr Core 0.1.18 or newer. Provision a compatible hc before retrying.")
+print("Guest Core prerequisite:", version)
+PY
 if [ -e ${quote(home)} ]; then
   test -f ${quote(`${home}/.owned-by-setup-repo-sandbox`)} || { echo 'Refusing unrelated review directory'; exit 1; }
 fi
@@ -175,10 +184,8 @@ rm -rf .install-tmp
 			2,
 		),
 	});
-	// Isolated agent settings contain only local package paths. Auth remains guest-owned.
-	await execute(
-		`mkdir -p ${quote(`${home}/agent`)} "$HOME/.pi/agent/extensions"; herdr integration install pi`,
-	);
+	// Shepherdr reports Core status itself. No global Pi integration is installed.
+	await execute(`mkdir -p ${quote(`${home}/agent`)}`);
 	const settings = `${home}/agent/settings.json`;
 	const packages = ["pi-codex-conversion", "pi-shepherdr", "pi-notes-compaction", "pi-agent-board"].map(
 		(p) => `${home}/current/packages/${p}`,
@@ -188,10 +195,8 @@ rm -rf .install-tmp
 p=pathlib.Path(${JSON.stringify(settings)})
 s=json.loads(p.read_text()) if p.exists() else {}
 s["packages"]=${JSON.stringify(packages)}
-integration=pathlib.Path.home()/".pi/agent/extensions/herdr-agent-state.ts"
-if not integration.is_file(): raise SystemExit("Herdr Pi integration not found after installation")
-s["extensions"]=s.get("extensions",[])
-if str(integration) not in s["extensions"]: s["extensions"].append(str(integration))
+legacy=str(pathlib.Path.home()/".pi/agent/extensions/herdr-agent-state.ts")
+s["extensions"]=[e for e in s.get("extensions",[]) if e != legacy]
 p.write_text(json.dumps(s,indent=2)+"\\n")`)} `,
 	);
 	await execute(`set -eu
@@ -247,7 +252,7 @@ console.log(JSON.stringify({liveReady:true,provider:message.provider,model:messa
 JS`);
 	}
 	console.log(
-		`Snapshot ${source} (${digest}) selected. Not a live mirror.\nLaunch in a guest Herdr pane: cd ${quote(`${home}/current`)} && PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} ./node_modules/.bin/pi\nRestart existing review Pi processes to load the new candidate. Existing sandbox services were not changed.`,
+		`Snapshot ${source} (${digest}) selected. Not a live mirror.\nRun inside the guest to create a Core terminal:\nhc run --bg --cwd ${quote(`${home}/current`)} -- env PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} ./node_modules/.bin/pi\nThen run hc attach <returned-terminal>, or open that terminal in a Herdr app connected to the guest Core.\nRestart existing review Pi processes to load the new candidate. Existing sandbox services were not changed.`,
 	);
 } finally {
 	await rm(temporary, { recursive: true, force: true });

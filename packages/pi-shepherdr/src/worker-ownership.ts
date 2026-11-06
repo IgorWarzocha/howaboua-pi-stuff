@@ -1,7 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "./core/backend.js";
+import { getSnapshot, sessionPath } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getSnapshot, sessionPath } from "./herdr.js";
 import type { PaneInfo } from "./types.js";
 
 export const ENTRY = "herdr-owned-worker-v1";
@@ -69,12 +68,7 @@ export async function panelFor(
 	);
 	if (panel) {
 		if (
-			panel.pane_id ===
-				process.env[
-					fleet.connected().client instanceof CoreConnection
-						? "HC_TERMINAL_ID"
-						: "HERDR_PANE_ID"
-				] ||
+			panel.pane_id === process.env["HC_TERMINAL_ID"] ||
 			panel.terminal_id !== worker.terminal ||
 			panel.agent !== "pi" ||
 			sessionPath(panel) !== worker.sessionPath

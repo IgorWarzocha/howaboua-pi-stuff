@@ -27,9 +27,8 @@ import {
 	toolResult,
 } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
-import { CoreConnection } from "./core/backend.js";
+import { resolvePiAgent } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { resolvePiAgent } from "./herdr.js";
 import { attributeAgentPrompt } from "./messages/attribution.js";
 import type { createPeerCommands } from "./peer-commands.js";
 import type { SharedAgentContext } from "./shared-context.js";
@@ -58,16 +57,7 @@ export function createAgentsTool(
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
 			if (params.action === "help" && !params.commands) {
-				return toolResult(
-					await agentsHelp(
-						board.enabled(ctx),
-						gpt(),
-						Boolean(
-							process.env["HC_TERMINAL_ID"] &&
-								process.env["HC_TERMINAL_SOCKET"],
-						),
-					),
-				);
+				return toolResult(await agentsHelp(board.enabled(ctx), gpt()));
 			}
 			if (params.commands && params.target === undefined)
 				return toolResult({ commands: commands.available() });
@@ -148,13 +138,7 @@ export function createAgentsTool(
 			const panel = await resolvePiAgent(
 				runtime.client,
 				target,
-				runtime.local
-					? process.env[
-							runtime.client instanceof CoreConnection
-								? "HC_TERMINAL_ID"
-								: "HERDR_PANE_ID"
-						]
-					: "",
+				runtime.local ? process.env["HC_TERMINAL_ID"] : "",
 			);
 			if (params.commands) {
 				return toolResult({

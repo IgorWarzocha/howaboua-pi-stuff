@@ -20,8 +20,8 @@ import {
 import { AttachmentRouting } from "./attachment-routing.js";
 import { AttachmentTarget } from "./attachment-target.js";
 import type { AgentBoard } from "./board/host.js";
+import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
 

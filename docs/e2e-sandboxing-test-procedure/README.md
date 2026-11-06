@@ -1,6 +1,6 @@
 # How we test Pi changes in a sandbox
 
-Our E2E reviews pair an implementing agent with a dedicated sandbox reviewer. The implementer works in the host checkout. The reviewer controls a disposable VM and uses the changed application: Pi, its extensions, Herdr agents and, where relevant, the Deno Notebook kernel.
+Our E2E reviews pair an implementing agent with a dedicated sandbox reviewer. The implementer works in the host checkout. The reviewer controls a disposable VM and uses the changed application: Pi, its extensions, agents in Herdr Core terminals and, where relevant, the Deno Notebook kernel.
 
 Two Pi extensions provide the machinery:
 
@@ -37,14 +37,14 @@ flowchart LR
     Agent[Reviewer in host Pi] --> Tool[Pi Sandbox extension]
     Tool --> Controller[Persistent host controller]
     Controller --> Gondolin[Gondolin and QEMU]
-    Gondolin --> Guest[Guest Pi, Herdr and candidate extensions]
+    Gondolin --> Guest[Guest Pi, Herdr Core and candidate extensions]
 ```
 
 The controller outlives the calling Pi session. A reviewer can change context, reload Pi or exit without automatically killing the VM. The agent explicitly starts and stops named instances through the tool.
 
 Inside the guest, the extension runs shell commands, exposes their output and exit status, and provides file reads and writes. Long commands return a handle so the reviewer can retrieve later output or stop the process. Ending a wait does not kill the guest command. The extension also supports supervised services, localhost previews and a temporary SSH terminal for interactive work.
 
-For our reviews, this gives the agent somewhere to install and build the candidate, launch Pi and Herdr, create test fixtures, inspect logs and repeat a failing workflow. The guest has its own filesystem. Our repository setup script copies a candidate into it rather than mounting the live host checkout. Pi Sandbox supplies the environment controls; it does not install a reviewer or decide what counts as a passing test.
+For our reviews, this gives the agent somewhere to install and build the candidate, launch Pi inside Herdr Core, create test fixtures, inspect logs and repeat a failing workflow. The guest has its own filesystem. Our repository setup script copies a candidate into it rather than mounting the live host checkout. Pi Sandbox supplies the environment controls; it does not install a reviewer or decide what counts as a passing test.
 
 Stopping an instance checkpoints its disk. Installed tools, saved sessions and evidence can survive reopening, but memory and running processes do not. That is why we can reuse a provisioned guest while still restarting the application after a candidate refresh. The image itself is supplied separately; the extension does not ship one.
 
@@ -61,20 +61,22 @@ The reviewer reports concrete failures as they appear. The implementer fixes hos
 We reuse a provisioned Pi Sandbox instance and replace its candidate checkout:
 
 ```sh
-bun run sandbox:setup --name review
+bun run sandbox:setup --name review --live-model openai-codex/MODEL
 ```
 
-The [repository setup command](../../scripts/setup-repo-sandbox.mjs) transfers tracked working files, verifies the archive, installs the frozen lockfile and builds the required artifacts. It uses JJ's file list when `.jj` exists, otherwise Git's index. JJ may track new files automatically, so unstaging them in Git does not exclude them. Keep evaluator prompts and answers outside the checkout during model comparisons. `sandbox-snapshot.json` records the source revision and archive hash.
+The [repository setup command](../../scripts/setup-repo-sandbox.mjs) transfers tracked working files, verifies the archive, installs the frozen lockfile and builds the required artifacts. It uses Git's index when `.git` exists, including colocated JJ workspaces. JJ-only workspaces use JJ's file list, which may include automatically tracked new files. Keep evaluator prompts and answers outside the checkout during model comparisons. `sandbox-snapshot.json` records the source revision and archive hash.
 
-The command prints the guest launch command. It uses an isolated Pi agent directory and the candidate's PCC and Shepherdr packages. The reviewer adds other affected extensions, such as Notes or GitHub Watch, to that guest configuration. It then checks the running application, rather than assuming a successful build means the intended extensions loaded.
+Replace `MODEL` with an available live model. Setup reuses the host Pi login through a scoped, short-lived access-token sync and requires a real candidate response. It does not copy refresh credentials or change host model preferences. Omit `--live-model` only for offline or deliberately fixture-backed preparation, not live acceptance.
+
+The command checks for guest `hc` 0.1.18 or newer and prints an `hc run --bg` launch command. Run it inside the guest, then attach to the returned Core terminal with `hc attach` or a Herdr app connected to that guest Core. It uses an isolated Pi agent directory and the candidate's PCC, Shepherdr, Notes and Board packages. Shepherdr supplies Core status and session discovery without installing a global Pi integration. Legacy Herdr TUI sessions and plain SSH-shell Pi launches do not satisfy this setup. The reviewer adds other affected extensions, such as GitHub Watch, to that guest configuration. It then checks the running application, rather than assuming a successful build means the intended extensions loaded.
 
 The guest is not a live mirror. After a host fix, the reviewer stops its test agents, runs setup again and starts fresh processes against the replacement candidate. The VM's separate agent directory and test evidence survive candidate replacement.
 
-Image provisioning and prerequisites belong in [Pi Sandbox's repository-review guide](../../packages/pi-sandbox/README.md#review-this-repository). We do not bundle an image. Release acceptance must use the candidate's bundled native helpers without overrides. Check guest compatibility first and replace incompatible disposable guests rather than rebuilding helpers around them. For live TUI review, pass `--live-model openai-codex/MODEL` to setup with an available model so the guest's authenticated readiness is checked.
+Image provisioning and prerequisites belong in [Pi Sandbox's repository-review guide](../../packages/pi-sandbox/README.md#review-this-repository). We do not bundle an image. Release acceptance must use the candidate's bundled native helpers without overrides. Check guest compatibility first and replace incompatible disposable guests rather than rebuilding helpers around them. Setup's authenticated response is a readiness check, not interactive acceptance.
 
 ## How we drive the application
 
-Interactive Pi and Herdr cover pane behaviour, commands, child agents and visible streaming. For narrower backend-acceptance checks, we also create a headless Pi session with the SDK, load the real extensions and call `bindExtensions` before sending the task. This still exercises application lifecycle and tools. It does not establish terminal UX.
+Interactive Pi in Herdr Core covers terminal behaviour, commands, child agents and visible streaming. Sandbox acceptance requires normal consecutive TUI turns that execute tools and use the guest environment. For narrower backend-acceptance checks, we also create a headless Pi session with the SDK, load the real extensions and call `bindExtensions` before sending the task. This still exercises application lifecycle and tools. Programmatic probes do not establish terminal UX or replace interactive sandbox acceptance.
 
 Scenarios combine actions rather than just checking startup. For example: save a unique fact in a note, start a new context, read the fact back, search earlier history and continue with another tool. We have also left real idle and polling intervals running when timing itself was the behaviour under review.
 

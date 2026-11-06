@@ -18,7 +18,7 @@ export interface PeerCommand {
 	description: string;
 }
 
-export interface MachineIdentity {
+interface MachineIdentity {
 	host: string;
 	session: string;
 }
@@ -71,7 +71,6 @@ interface AgentSessionInfo {
 }
 
 export interface PaneInfo {
-	backend?: "core";
 	agent?: string | null;
 	agent_session?: AgentSessionInfo | null;
 	agent_status: AgentStatus;
@@ -94,7 +93,7 @@ interface TabInfo {
 	workspace_id: string;
 }
 
-export interface WorkspaceInfo {
+interface WorkspaceInfo {
 	label: string;
 	workspace_id: string;
 }
@@ -174,9 +173,4 @@ export interface SessionView {
 	assistantPending?: boolean;
 	assistantAfterInput?: boolean;
 	input?: LatestInput;
-}
-
-export interface HerdrEvent {
-	data: Record<string, unknown>;
-	event: string;
 }

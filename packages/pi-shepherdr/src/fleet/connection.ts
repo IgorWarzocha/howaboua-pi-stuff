@@ -1,17 +1,14 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CoreConnection } from "../core/backend.js";
 import type { AgentMonitor } from "../monitor.js";
-import { RemoteHerdrClient } from "../remote/client.js";
 import { errorMessage, type MachineRuntime } from "./machine.js";
 
 interface ConnectionEvents {
 	isCurrent(): boolean;
 	refresh(): void;
-	createMonitor(client: RemoteHerdrClient | CoreConnection): AgentMonitor;
+	createMonitor(client: CoreConnection): AgentMonitor;
 	needsContextRelay(): boolean;
-	prepareContextRelay(
-		client: RemoteHerdrClient | CoreConnection,
-	): Promise<void>;
+	prepareContextRelay(client: CoreConnection): Promise<void>;
 	disconnected(reason: string): void;
 }
 
@@ -25,7 +22,7 @@ export async function connectMachine(
 	events: ConnectionEvents,
 ): Promise<void> {
 	if (
-		(!runtime.config && !runtime.coreMachine) ||
+		!runtime.coreMachine ||
 		runtime.local ||
 		runtime.status === "connected" ||
 		runtime.attempting ||
@@ -38,23 +35,17 @@ export async function connectMachine(
 	delete runtime.reason;
 	events.refresh();
 	let attached = false;
-	let client: RemoteHerdrClient | CoreConnection | undefined;
+	let client: CoreConnection | undefined;
 	try {
-		if (runtime.coreMachine) {
-			client = new CoreConnection(
-				process.env["HC_TERMINAL_SOCKET"],
-				runtime.coreMachine,
-			);
-		} else {
-			client = await RemoteHerdrClient.connect(runtime.config!, (error) => {
-				if (runtime.client === client) events.disconnected(error.message);
-			});
-		}
+		client = new CoreConnection(
+			process.env["HC_TERMINAL_SOCKET"],
+			runtime.coreMachine,
+		);
 		if (!events.isCurrent() || runtimes.get(name) !== runtime) {
 			client.close();
 			return;
 		}
-		await client.request("ping");
+		await client.machineIdentity();
 		if (!events.isCurrent() || runtimes.get(name) !== runtime) {
 			client.close();
 			return;

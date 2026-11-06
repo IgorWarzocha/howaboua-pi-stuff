@@ -4,29 +4,39 @@ import {
 	type CoreRequestOptions,
 	type CoreSubscribeOptions,
 } from "./client.js";
+import type { CoreMachine } from "./machines.js";
 import { type CoreNotification, type CoreObject, object } from "./protocol.js";
-import { type CoreMachine, remoteExec } from "./remote-exec.js";
+import { CoreRemoteTransport } from "./remote-transport.js";
 
-/** Terminal addresses are local within this machine-scoped fleet runtime. */
+/** A verified remote Core, addressed by ID; native terminal addresses stay local. */
 export class RemoteCoreEndpoint {
 	readonly host: CoreClient;
+	private transport: CoreRemoteTransport | undefined;
+	private ended = false;
+	private readonly socketPath: string;
 	readonly machine: CoreMachine;
 	constructor(socketPath: string, machine: CoreMachine) {
-		this.host = new CoreClient(socketPath);
+		this.socketPath = socketPath;
 		this.machine = machine;
+		this.host = new CoreClient(socketPath);
+	}
+	get bridge(): CoreRemoteTransport {
+		if (this.ended) throw new Error("Remote Core connection closed");
+		return (this.transport ??= new CoreRemoteTransport(
+			this.socketPath,
+			this.machine,
+		));
 	}
 	close(): void {
+		this.ended = true;
+		void this.transport?.close();
 		this.host.close();
 	}
-	private local(value: unknown): CoreObject {
-		const terminal = object(value);
-		const prefix = `${this.machine.name}/`;
-		if (
-			typeof terminal["address"] !== "string" ||
-			!terminal["address"].startsWith(prefix)
-		)
-			throw new Error("Remote Core returned another machine's terminal");
-		return { ...terminal, address: terminal["address"].slice(prefix.length) };
+	call(input: CoreObject, options: CoreRequestOptions = {}): Promise<unknown> {
+		return this.bridge.call(input, options);
+	}
+	localSnapshot(): Promise<unknown> {
+		return this.call({ op: "core", method: "terminal.list", params: {} });
 	}
 	async request(
 		method: string,
@@ -34,84 +44,62 @@ export class RemoteCoreEndpoint {
 		options: CoreRequestOptions = {},
 	): Promise<unknown> {
 		if (method === "hello") {
-			const identity = object(
-				await remoteExec(this.host, this.machine, { op: "identity" }, options),
-			);
-			return { core: { id: identity["session"], name: identity["host"] } };
-		}
-		if (method === "terminal.list") {
-			const result = object(
+			// Catalogue connection checks do not launch idle filesystem helpers.
+			const catalog = object(
 				await this.host.request("machine.list", {}, options),
-			);
-			const machines = result["machines"];
-			const machine = Array.isArray(machines)
-				? machines.map(object).find((entry) => entry["id"] === this.machine.id)
+			)["machines"];
+			const selected = Array.isArray(catalog)
+				? catalog.map(object).find((entry) => entry["id"] === this.machine.id)
 				: undefined;
-			if (
-				!machine ||
-				machine["state"] !== "connected" ||
-				machine["name"] !== this.machine.name
-			)
+			if (selected?.["state"] !== "connected")
 				throw new Error(
-					"Remote Core is disconnected or renamed; refresh machines and reconnect before continuing",
+					"Remote Core is disconnected; open /herdr → Status to reconnect",
 				);
-			// Aggregate terminal.list silently omits machines slower than 3 seconds.
-			// Query the selected Core itself so an incomplete list cannot drop watches.
-			return remoteExec(this.host, this.machine, { op: "list" }, options);
+			return {
+				version: selected["version"],
+				core: { id: this.machine.id, name: this.machine.host },
+			};
 		}
-		if (method === "terminal.run")
+		if (method === "terminal.run") {
+			// The originating Core qualifies caller ancestry across the route.
 			return this.local(
 				await this.host.request(
 					method,
-					{
-						...params,
-						on: this.machine.id,
-						env: {},
-					},
+					{ ...params, on: this.machine.id, env: {} },
 					options,
 				),
 			);
-		if (
-			typeof params["terminal"] !== "string" ||
-			!/^t[0-9a-z]+$/.test(params["terminal"])
-		)
-			throw new Error("Use an exact terminal address from this machine");
-		const result = await this.host.request(
-			method,
-			{ ...params, terminal: `${this.machine.id}/${params["terminal"]}` },
-			options,
-		);
-		return method === "terminal.get" || method === "terminal.kill"
-			? this.local(result)
-			: result;
+		}
+		if (typeof params["terminal"] === "string") {
+			if (!/^t[1-9][0-9bcdfghjkmnpqrstvwxyz]*$/.test(params["terminal"]))
+				throw new Error("Use an exact terminal address from this machine");
+			const result = await this.host.request(
+				method,
+				{ ...params, terminal: `${this.machine.id}/${params["terminal"]}` },
+				options,
+			);
+			return ["terminal.get", "terminal.kill", "terminal.label"].includes(
+				method,
+			)
+				? this.local(result)
+				: result;
+		}
+		return this.call({ op: "core", method, params }, options);
+	}
+	private local(value: unknown): CoreObject {
+		const record = object(value);
+		const address = record["address"];
+		const terminal =
+			typeof address === "string" ? address.split("/").at(-1) : undefined;
+		if (!terminal || !/^t[1-9][0-9bcdfghjkmnpqrstvwxyz]*$/.test(terminal))
+			throw new Error("Remote Core returned an invalid terminal address");
+		return { ...record, address: terminal };
 	}
 	subscribe(
-		_filter: CoreEventFilter,
+		filter: CoreEventFilter,
 		onNotification: (message: CoreNotification) => void,
 		options: CoreSubscribeOptions = {},
 	) {
-		// Core 0.1.14 can retain a pre-rename alias in its event mirror.
-		// Treat events only as invalidations; get/list remain authoritative by ID.
-		return this.host.subscribe(
-			{},
-			(message) => {
-				if (message.method === "snapshot" || message.method === "missed")
-					onNotification({
-						...message,
-						terminals: [],
-					});
-				else if (message.method === "heartbeat") onNotification(message);
-				else if (message.method === "event")
-					onNotification({
-						...message,
-						event: {
-							seq: message.event.seq,
-							type: "reconcile",
-							data: {},
-						},
-					});
-			},
-			options,
-		);
+		return this.bridge.subscribe({ ...filter }, onNotification, options);
 	}
 }

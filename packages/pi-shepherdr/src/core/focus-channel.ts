@@ -5,23 +5,25 @@ import type { FocusRequest, PaneInfo, PeerChannel } from "../types.js";
 import type { CoreClient } from "./client.js";
 import { attachCoreTerminal } from "./focus-channel-stream.js";
 import { focusWire } from "./focus-channel-wire.mjs";
+import type { CoreMachine } from "./machines.js";
 import { object } from "./protocol.js";
-import type { CoreMachine } from "./remote-exec.js";
 
 const moduleUrl = (text: string) =>
 	`data:text/javascript;base64,${Buffer.from(text).toString("base64")}`;
 async function helperSources() {
 	const read = (name: string) =>
 		readFile(new URL(name, import.meta.url), "utf8");
-	const [helper, wire, channel, peer] = await Promise.all([
+	const [helper, wire, channel, peer, terminal] = await Promise.all([
 		read("./focus-channel-helper.mjs"),
 		read("./focus-channel-wire.mjs"),
 		read("../remote/shepherdr-channel.mjs"),
 		read("../remote/shepherdr-peer.mjs"),
+		read("./terminal-peer.mjs"),
 	]);
 	return {
 		helper,
 		modules: {
+			terminal: moduleUrl(terminal),
 			wire: moduleUrl(wire),
 			channel: moduleUrl(
 				channel.replace(
@@ -190,7 +192,7 @@ export async function openCoreFocusChannel(
 							session: machine.session,
 							expected,
 							focus,
-							modules: { channel: modules.channel },
+							modules: { channel: modules.channel, terminal: modules.terminal },
 						},
 					});
 				}

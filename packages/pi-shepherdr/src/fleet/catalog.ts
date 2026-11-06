@@ -1,39 +1,34 @@
-import { CoreConnection } from "../core/backend.js";
-import type { CoreMachine } from "../core/remote-exec.js";
-import type { SshMachine } from "../machine-catalog.js";
-import { RemoteHerdrClient } from "../remote/client.js";
+import type { CoreMachine } from "../core/machines.js";
 import type { MachineRuntime } from "./machine.js";
 
-/** Reconcile catalog changes without changing fleet identity or scheduling retries. */
+/** Catalog names are metadata: renames must not replace stable connection owners. */
 export function reloadCoreCatalog(
 	runtimes: Map<string, MachineRuntime>,
 	catalog: CoreMachine[],
 	connect: (id: string) => void,
 ): void {
+	const ids = new Set(catalog.map((machine) => machine.id));
 	for (const [id, runtime] of runtimes) {
+		if (runtime.local || ids.has(id)) continue;
+		runtime.monitor?.deactivate();
+		runtime.client?.close();
+		runtimes.delete(id);
+	}
+	for (const machine of catalog) {
 		if (
-			runtime.local ||
-			catalog.some(
-				(machine) =>
-					machine.id === id && machine.name === runtime.coreMachine?.name,
+			[...runtimes.values()].some(
+				(runtime) => runtime.local && runtime.coreId === machine.id,
 			)
 		)
 			continue;
-		runtime.monitor?.deactivate();
-		if (runtime.client instanceof CoreConnection) runtime.client.close();
-		if (!catalog.some((machine) => machine.id === id)) runtimes.delete(id);
-		else {
-			runtime.pending = runtime.monitor?.list() ?? runtime.pending;
-			delete runtime.client;
-			delete runtime.monitor;
-			runtime.status = "unavailable";
-		}
-	}
-	for (const machine of catalog) {
 		let runtime = runtimes.get(machine.id);
-		if (runtime) runtime.coreMachine = machine;
+		if (runtime?.coreMachine) {
+			// Live Core endpoints retain this object for address qualification.
+			Object.assign(runtime.coreMachine, machine);
+		} else if (runtime) runtime.coreMachine = machine;
 		else {
 			runtime = {
+				coreId: machine.id,
 				coreMachine: machine,
 				local: false,
 				pending: [],
@@ -43,41 +38,4 @@ export function reloadCoreCatalog(
 		}
 		if (!runtime.client) connect(machine.id);
 	}
-}
-
-export function reloadSshCatalog(
-	runtimes: Map<string, MachineRuntime>,
-	catalog: Record<string, SshMachine>,
-): string[] {
-	const reconnect: string[] = [];
-
-	for (const [name, runtime] of runtimes) {
-		if (runtime.local || catalog[name]?.enabled) continue;
-		runtime.monitor?.deactivate();
-		if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
-		runtimes.delete(name);
-	}
-	for (const [name, machineConfig] of Object.entries(catalog)) {
-		if (!machineConfig.enabled) continue;
-		const runtime = runtimes.get(name);
-		if (
-			runtime?.config &&
-			runtime.config.target === machineConfig.target &&
-			runtime.config.session === machineConfig.session
-		) {
-			runtime.config = machineConfig;
-			continue;
-		}
-		const pending = runtime?.monitor?.list() ?? runtime?.pending ?? [];
-		runtime?.monitor?.deactivate();
-		if (runtime?.client instanceof RemoteHerdrClient) runtime.client.close();
-		runtimes.set(name, {
-			config: machineConfig,
-			local: false,
-			pending,
-			status: "connecting",
-		});
-		reconnect.push(name);
-	}
-	return reconnect;
 }

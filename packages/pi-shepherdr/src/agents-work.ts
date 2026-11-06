@@ -1,10 +1,11 @@
 import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
 import { activityTask } from "./activity.js";
+import { getSnapshot } from "./core/agents.js";
+import type { CoreConnection } from "./core/backend.js";
 import type { ConnectedMachine } from "./fleet/index.js";
-import { getSnapshot } from "./herdr.js";
-import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
 import { agentSource } from "./messages/attribution.js";
 import type { WorkAttempt } from "./monitor-state.js";
+import { isDispatchRejected } from "./remote/shepherdr-peer.mjs";
 import type { ClaimedSettlement } from "./settlement/index.js";
 import type { ExtensionReply, PaneInfo, PeerDelivery } from "./types.js";
 
@@ -38,7 +39,7 @@ function slugify(value: string): string {
 	return named.slice(0, 32).replace(/-+$/u, "") || "agent";
 }
 
-const startingNames = new WeakMap<HerdrConnection, Set<string>>();
+const startingNames = new WeakMap<CoreConnection, Set<string>>();
 
 export async function reserveAgentName(
 	runtime: ConnectedMachine,

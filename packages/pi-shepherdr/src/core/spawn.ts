@@ -1,28 +1,22 @@
 import { randomUUID } from "node:crypto";
 import {
-	RolledBackAgentLaunchError,
 	type StartAgentParams,
 	type StartedAgent,
 	UnstartedAgentLaunchError,
 } from "../launch-contract.js";
+import { rollbackCreatedLocation } from "../launch-location.js";
 import type { CoreConnection } from "./backend.js";
 import { piExecutable } from "./pi-executable.mjs";
 import { object } from "./protocol.js";
 import { RemoteCoreEndpoint } from "./remote-endpoint.js";
-import { remoteExec } from "./remote-exec.js";
 import { terminalPane, terminalSnapshot } from "./terminal.js";
 
 export async function startCoreAgent(
 	client: CoreConnection,
 	params: StartAgentParams,
 	cwd: string,
-	_label: string,
 	args: string[],
 ): Promise<StartedAgent> {
-	if (params.placement === "pane")
-		throw new Error(
-			"Core cannot launch a program inside an existing terminal without terminal input. Use terminal placement for a background worker or new_tab/new_workspace for a Herdr window location.",
-		);
 	const labels: Record<string, string> = {};
 	if (params.placement === "new_tab") {
 		const snapshot = terminalSnapshot(
@@ -49,7 +43,7 @@ export async function startCoreAgent(
 	}
 	const executable =
 		client.core instanceof RemoteCoreEndpoint
-			? await remoteExec(client.core.host, client.core.machine, {
+			? await client.core.call({
 					op: "pi-executable",
 					cwd,
 				})
@@ -74,7 +68,7 @@ export async function startCoreAgent(
 		throw new Error(
 			"Core launch returned no local terminal address; inspect Core terminals before retrying",
 		);
-	const cleanup = { method: "terminal.close" as const, id: terminal };
+	const cleanup = { id: terminal };
 	try {
 		await client.core.request("terminal.label", {
 			terminal,
@@ -83,15 +77,7 @@ export async function startCoreAgent(
 		const agent = await waitReady(client, terminal);
 		return { agent, id: terminal, cleanup };
 	} catch (error) {
-		try {
-			await client.request(cleanup.method, { id: cleanup.id });
-		} catch (cleanupError) {
-			throw new Error(
-				`${String(error)}; cleanup failed: ${String(cleanupError)}`,
-				{ cause: error },
-			);
-		}
-		throw new RolledBackAgentLaunchError(error);
+		return rollbackCreatedLocation(client, cleanup, error);
 	}
 }
 

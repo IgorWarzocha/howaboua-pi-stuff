@@ -4,18 +4,15 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { CoreConnection } from "../core/backend.js";
 import { CoreClient } from "../core/client.js";
-import { type CoreMachine, coreMachines } from "../core/remote-exec.js";
-import { HerdrClient, type HerdrConnection } from "../herdr-client.js";
-import { LOCAL_MACHINE, readMachineCatalog } from "../machine-catalog.js";
+import { type CoreMachine, coreMachines } from "../core/machines.js";
 import { AgentMonitor } from "../monitor.js";
-import { RemoteHerdrClient } from "../remote/client.js";
 import type {
 	MachineStatus,
 	MonitoredAgent,
 	ScopedMonitoredAgent,
 } from "../types.js";
 import { renderAgentWidget } from "../widget.js";
-import { reloadCoreCatalog, reloadSshCatalog } from "./catalog.js";
+import { reloadCoreCatalog } from "./catalog.js";
 import { connectMachine } from "./connection.js";
 import {
 	connectedMachine,
@@ -26,6 +23,7 @@ import {
 import {
 	type ConnectedMachine,
 	errorMessage,
+	LOCAL_MACHINE,
 	type MachineRuntime,
 	type MachineSnapshot,
 } from "./machine.js";
@@ -95,30 +93,25 @@ export class AgentFleet {
 		this.deactivate();
 		const generation = this.generation;
 		this.context = ctx;
-		const catalog = process.env["HC_TERMINAL_SOCKET"]
-			? {}
-			: await readMachineCatalog();
-		if (!this.isCurrent(generation, ctx)) return;
-		const machines = Object.entries(catalog).filter(
-			([, machine]) => machine.enabled,
-		);
-		if (process.env["HC_TERMINAL_SOCKET"]) {
-			const identityClient = new CoreConnection();
-			let coreId: string;
-			try {
-				coreId = (await identityClient.machineIdentity()).session;
-			} finally {
-				identityClient.close();
-			}
-			if (!this.isCurrent(generation, ctx)) return;
-			this.localCoreId = coreId;
+		const identityClient = new CoreConnection();
+		let coreId: string;
+		try {
+			coreId = (await identityClient.machineIdentity()).session;
+		} catch (error) {
+			throw new Error(
+				`Shepherdr could not connect to Core: ${errorMessage(error)}. Start or reconnect Core, then retry from a Core terminal.`,
+				{ cause: error },
+			);
+		} finally {
+			identityClient.close();
 		}
+		if (!this.isCurrent(generation, ctx)) return;
+		this.localCoreId = coreId;
 		const grouped = groupSaved(savedAgents(ctx, this.localCoreId));
 		const coreCatalog = await this.coreCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
 		const known = new Set([
 			LOCAL_MACHINE,
-			...machines.map(([id]) => id),
 			...coreCatalog.map((machine) => machine.id),
 		]);
 		const orphaned = [...grouped.entries()]
@@ -132,33 +125,24 @@ export class AgentFleet {
 		}
 
 		const localRuntime: MachineRuntime = {
+			coreId,
 			local: true,
 			pending: grouped.get(LOCAL_MACHINE) ?? [],
 			status: "connecting",
 		};
 		this.runtimes.set(LOCAL_MACHINE, localRuntime);
-		for (const [name, config] of machines) {
-			this.runtimes.set(name, {
-				config,
-				local: false,
-				pending: grouped.get(name) ?? [],
-				status: "connecting",
-			});
-		}
 		for (const machine of coreCatalog)
 			this.runtimes.set(machine.id, {
+				coreId: machine.id,
 				coreMachine: machine,
 				local: false,
 				pending: grouped.get(machine.id) ?? [],
 				status: "connecting",
 			});
 
-		const localClient = process.env["HC_TERMINAL_SOCKET"]
-			? new CoreConnection()
-			: new HerdrClient();
-		await localClient.request("ping");
+		const localClient = new CoreConnection();
 		if (!this.isCurrent(generation, ctx)) {
-			if (localClient instanceof CoreConnection) localClient.close();
+			localClient.close();
 			return;
 		}
 		const localMonitor = this.createMonitor(
@@ -182,9 +166,6 @@ export class AgentFleet {
 		localRuntime.status = "connected";
 		this.changed();
 
-		for (const [name] of machines) {
-			void this.connectMachine(name, generation, true);
-		}
 		for (const machine of coreCatalog)
 			void this.connectMachine(machine.id, generation, true);
 	}
@@ -195,11 +176,7 @@ export class AgentFleet {
 		this.lastPersistedState = undefined;
 		for (const runtime of this.runtimes.values()) {
 			runtime.monitor?.deactivate();
-			if (
-				runtime.client instanceof RemoteHerdrClient ||
-				runtime.client instanceof CoreConnection
-			)
-				runtime.client.close();
+			runtime.client?.close();
 		}
 		this.runtimes.clear();
 		renderAgentWidget(this.context, [], []);
@@ -215,24 +192,12 @@ export class AgentFleet {
 		const ctx = this.context;
 		if (!ctx) return;
 		const generation = this.generation;
-		if (process.env["HC_TERMINAL_SOCKET"]) {
-			const catalog = await this.coreCatalog();
-			if (!this.isCurrent(generation, ctx)) return;
-			reloadCoreCatalog(this.runtimes, catalog, (id) => {
-				void this.connectMachine(id, generation, true);
-			});
-			this.changed();
-			return;
-		}
-		const catalog = process.env["HC_TERMINAL_SOCKET"]
-			? {}
-			: await readMachineCatalog();
+		const catalog = await this.coreCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
-		const reconnect = reloadSshCatalog(this.runtimes, catalog);
+		reloadCoreCatalog(this.runtimes, catalog, (id) => {
+			void this.connectMachine(id, generation, true);
+		});
 		this.changed();
-		for (const name of reconnect) {
-			void this.connectMachine(name, generation, true);
-		}
 	}
 
 	statuses(): MachineStatus[] {
@@ -260,13 +225,6 @@ export class AgentFleet {
 						"Session changed; retry sharing from the current session",
 					);
 				if (runtime.local) return;
-				if (
-					!(
-						client instanceof RemoteHerdrClient ||
-						client instanceof CoreConnection
-					)
-				)
-					throw new Error("Context sharing is unavailable on this machine");
 				await this.prepareContextRelay(name, runtime, client, ctx);
 				if (
 					this.context !== ctx ||
@@ -299,7 +257,7 @@ export class AgentFleet {
 	private createMonitor(
 		machine: string,
 		runtime: MachineRuntime,
-		client: HerdrConnection,
+		client: CoreConnection,
 	): AgentMonitor {
 		return createMachineMonitor(machine, runtime, client, this.pi, {
 			isAttached: () => this.runtimes.get(machine) === runtime,
@@ -312,7 +270,7 @@ export class AgentFleet {
 	private async prepareContextRelay(
 		name: string,
 		runtime: MachineRuntime,
-		client: RemoteHerdrClient | CoreConnection,
+		client: CoreConnection,
 		ctx: ExtensionContext,
 	): Promise<void> {
 		return this.setup.prepareContextRelay(
@@ -367,11 +325,7 @@ export class AgentFleet {
 		// Keep the stopped owner until reconnect so in-flight dispatch cleanup
 		// updates the state we persist, rather than a detached snapshot.
 		runtime.monitor?.deactivate();
-		if (
-			runtime.client instanceof RemoteHerdrClient ||
-			runtime.client instanceof CoreConnection
-		)
-			runtime.client.close();
+		runtime.client?.close();
 		delete runtime.client;
 		delete runtime.contextRelayError;
 		delete runtime.monitoringIssue;
@@ -402,10 +356,13 @@ export class AgentFleet {
 	}
 	private async coreCatalog(): Promise<CoreMachine[]> {
 		const socket = process.env["HC_TERMINAL_SOCKET"];
-		if (!socket) return [];
+		if (!socket)
+			throw new Error("Run Pi inside a Core terminal to connect Shepherdr");
 		const client = new CoreClient(socket);
 		try {
-			return await coreMachines(client);
+			return (await coreMachines(client)).filter(
+				(machine) => machine.id !== this.localCoreId,
+			);
 		} finally {
 			client.close();
 		}

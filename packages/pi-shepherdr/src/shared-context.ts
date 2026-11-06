@@ -27,8 +27,8 @@ import {
 	countContextTargets,
 	sendContextRoute,
 } from "./context-routing.js";
+import { sessionPath } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
 import {
 	requestContext,
 	sessionContextPath,

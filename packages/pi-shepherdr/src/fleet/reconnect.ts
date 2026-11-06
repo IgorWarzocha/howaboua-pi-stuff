@@ -1,4 +1,4 @@
-import type { MachineRuntime } from "./machine.js";
+import { type MachineRuntime, resolveMachine } from "./machine.js";
 
 /** Explicit reconnect selection and user receipts; never schedules autonomous reconnects. */
 export function connectMachines(
@@ -7,11 +7,13 @@ export function connectMachines(
 	retrySetup: (name: string, runtime: MachineRuntime) => Promise<void>,
 	connectMachine: (name: string) => Promise<void>,
 ): string {
-	const target = machine?.trim();
+	const target = machine?.trim()
+		? resolveMachine(runtimes, machine)
+		: undefined;
 	if (target) {
 		const runtime = runtimes.get(target);
 		if (!runtime)
-			throw new Error(`unknown Herdr machine ${JSON.stringify(target)}`);
+			throw new Error(`Unknown Core machine ${JSON.stringify(target)}`);
 		if (
 			runtime.status === "connected" &&
 			(runtime.monitoringIssue || runtime.contextRelayError)

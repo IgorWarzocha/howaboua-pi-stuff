@@ -38,7 +38,6 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 		"label",
 		"placement",
 		"workspace",
-		"pane",
 		"cwd",
 		"message",
 		"base",
@@ -62,9 +61,7 @@ const AgentsRequest = Type.Object(
 		machine: Type.Optional(Type.String()),
 		voice: Type.Optional(Type.Boolean()),
 		handoff: Type.Optional(Type.String()),
-		target: Type.Optional(
-			Type.String({ description: "Agent name or pane ID" }),
-		),
+		target: Type.Optional(Type.String()),
 		agent_type: Type.Optional(Type.String()),
 		name: Type.Optional(
 			Type.String({
@@ -74,7 +71,6 @@ const AgentsRequest = Type.Object(
 		label: Type.Optional(Type.String()),
 		placement: Type.Optional(StringEnum(START_PLACEMENTS)),
 		workspace: Type.Optional(Type.String()),
-		pane: Type.Optional(Type.String()),
 		cwd: Type.Optional(Type.String()),
 		message: Type.Optional(
 			Type.String({ description: "Task, follow-up or extension reply" }),

@@ -1,5 +1,4 @@
 import { hostname } from "node:os";
-import type { HerdrConnection } from "../herdr-client.js";
 import { openPeerChannel } from "../remote/shepherdr-channel.mjs";
 import { requestContext } from "../remote/shepherdr-context.mjs";
 import {
@@ -12,24 +11,24 @@ import {
 import type {
 	ExtensionReply,
 	FocusRequest,
-	HerdrEvent,
 	PaneInfo,
 	PeerChannel,
 	PeerMessage,
 } from "../types.js";
 import { CoreClient } from "./client.js";
 import { openCoreFocusChannel } from "./focus-channel.js";
+import type { CoreMachine } from "./machines.js";
 import { object } from "./protocol.js";
 import { RemoteCoreEndpoint } from "./remote-endpoint.js";
-import { type CoreMachine, remoteExec } from "./remote-exec.js";
 import { CoreRemoteReader } from "./remote-reader.js";
-import { CoreContextRelay } from "./remote-relay.js";
-import { dispatchCoreRequest } from "./request.js";
+import { terminalPeer } from "./terminal-peer.mjs";
 
-export class CoreConnection implements HerdrConnection {
+export class CoreConnection {
+	private readonly peer = terminalPeer((method, params) =>
+		this.core.request(method, params),
+	);
 	private readonly lifetime = new AbortController();
 	private readonly focusChannels = new Set<PeerChannel>();
-	private relay: CoreContextRelay | undefined;
 	private readonly socketPath: string;
 	readonly core: CoreClient | RemoteCoreEndpoint;
 	readonly remote: CoreMachine | undefined;
@@ -54,11 +53,25 @@ export class CoreConnection implements HerdrConnection {
 		this.lifetime.abort();
 		for (const channel of this.focusChannels) channel.close();
 		this.focusChannels.clear();
-		void this.relay?.close();
 		this.core.close();
 	}
 	async machineIdentity() {
 		const hello = object(await this.core.request("hello"));
+		const version =
+			typeof hello["version"] === "string"
+				? /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(hello["version"])
+				: null;
+		if (
+			!version ||
+			!(
+				Number(version[1]) > 0 ||
+				Number(version[2]) > 1 ||
+				(Number(version[2]) === 1 && Number(version[3]) >= 18)
+			)
+		)
+			throw new Error(
+				"Shepherdr requires Herdr Core 0.1.18 or newer; update Core on this machine and reconnect",
+			);
 		const core = object(hello["core"]);
 		if (typeof core["id"] !== "string" || !core["id"])
 			throw new Error("Core returned no stable identity");
@@ -72,11 +85,9 @@ export class CoreConnection implements HerdrConnection {
 	}
 	requestContext(path: string, request: unknown, signal?: AbortSignal) {
 		if (this.core instanceof RemoteCoreEndpoint)
-			return remoteExec(
-				this.core.host,
-				this.core.machine,
+			return this.core.call(
 				{ op: "context", path, request },
-				signal ? { signal } : {},
+				{ timeoutMs: 36_000, ...(signal ? { signal } : {}) },
 			);
 		return requestContext(path, request, signal);
 	}
@@ -86,26 +97,17 @@ export class CoreConnection implements HerdrConnection {
 		handler: (request: unknown, signal: AbortSignal) => Promise<unknown>,
 		onFailure: (error: Error) => void = () => {},
 	): Promise<void> {
-		if (!this.remote)
+		if (!(this.core instanceof RemoteCoreEndpoint))
 			throw new Error("Local context routes use the controller session");
 		this.lifetime.signal.throwIfAborted();
-		await this.relay?.close();
-		this.lifetime.signal.throwIfAborted();
-		const relay = new CoreContextRelay(this.socketPath, this.remote);
-		this.relay = relay;
-		try {
-			await relay.start(threadId, handler, onFailure);
-		} catch (error) {
-			await relay.close();
-			throw error;
-		}
+		await this.core.bridge.startContextRelay(threadId, handler, onFailure);
 	}
 	contextRelayPath(): string {
-		if (!this.relay)
+		if (!(this.core instanceof RemoteCoreEndpoint))
 			throw new Error(
 				"Shared context relay is unavailable; open /herdr → Status to retry sharing",
 			);
-		return this.relay.path();
+		return this.core.bridge.contextRelayPath();
 	}
 	async directory(
 		value: string | undefined,
@@ -113,7 +115,7 @@ export class CoreConnection implements HerdrConnection {
 	): Promise<string> {
 		if (!(this.core instanceof RemoteCoreEndpoint))
 			throw new Error("Use local directory resolution on the local Core");
-		const result = await remoteExec(this.core.host, this.core.machine, {
+		const result = await this.core.call({
 			op: "directory",
 			value,
 			fallback,
@@ -125,11 +127,14 @@ export class CoreConnection implements HerdrConnection {
 	async sendMessage(agent: PaneInfo, message: PeerMessage) {
 		if (this.core instanceof RemoteCoreEndpoint) {
 			const result = object(
-				await remoteExec(this.core.host, this.core.machine, {
-					op: "message",
-					agent,
-					message,
-				}),
+				await this.core.call(
+					{
+						op: "message",
+						agent,
+						message,
+					},
+					{ timeoutMs: message.text.trim() === "/quit" ? 0 : 36_000 },
+				),
 			);
 			if (
 				typeof result["command"] !== "boolean" ||
@@ -148,56 +153,47 @@ export class CoreConnection implements HerdrConnection {
 					: {}),
 			};
 		}
-		return sendPeerMessage(
-			(method, params) => this.request(method, params),
-			agent,
-			message,
-		);
+		return sendPeerMessage(this.peer, agent, message);
 	}
 	async commands(agent: PaneInfo) {
 		if (this.core instanceof RemoteCoreEndpoint)
 			return readPeerCommands(
-				await remoteExec(this.core.host, this.core.machine, {
+				await this.core.call({
 					op: "commands",
 					agent,
 				}),
 			);
-		return sendPeerCommands(
-			(method, params) => this.request(method, params),
-			agent,
-		);
+		return sendPeerCommands(this.peer, agent);
 	}
 	async replyExtension(agent: PaneInfo, reply: ExtensionReply) {
 		if (this.core instanceof RemoteCoreEndpoint) {
-			const result = await remoteExec(this.core.host, this.core.machine, {
-				op: "reply",
-				agent,
-				reply,
-			});
+			const result = await this.core.call(
+				{
+					op: "reply",
+					agent,
+					reply,
+				},
+				{ timeoutMs: 60_000 },
+			);
 			if (typeof result !== "string")
 				throw new Error(
 					"Remote extension reply was not acknowledged; inspect the target before retrying",
 				);
 			return result;
 		}
-		return sendPeerExtensionReply(
-			(method, params) => this.request(method, params),
-			agent,
-			reply,
-		);
+		return sendPeerExtensionReply(this.peer, agent, reply);
 	}
 	focus(agent: PaneInfo, request: FocusRequest): Promise<unknown> {
 		if (this.core instanceof RemoteCoreEndpoint)
-			return remoteExec(this.core.host, this.core.machine, {
-				op: "focus",
-				agent,
-				focus: request,
-			});
-		return sendPeerFocus(
-			(method, params) => this.request(method, params),
-			agent,
-			request,
-		);
+			return this.core.call(
+				{
+					op: "focus",
+					agent,
+					focus: request,
+				},
+				{ timeoutMs: 60_000 },
+			);
+		return sendPeerFocus(this.peer, agent, request);
 	}
 	async openFocusChannel(
 		agent: PaneInfo,
@@ -214,11 +210,7 @@ export class CoreConnection implements HerdrConnection {
 						request,
 						{ signal: this.lifetime.signal },
 					)
-				: await openPeerChannel(
-						(method, params) => this.request(method, params),
-						agent,
-						request,
-					);
+				: await openPeerChannel(this.peer, agent, request);
 		if (this.lifetime.signal.aborted) {
 			channel.close();
 			this.lifetime.signal.throwIfAborted();
@@ -227,31 +219,25 @@ export class CoreConnection implements HerdrConnection {
 		channel.onClose(() => this.focusChannels.delete(channel));
 		return channel;
 	}
-	async request<T>(
-		method: string,
-		params: object = {},
-		timeoutMs = 30_000,
-	): Promise<T> {
-		return (await dispatchCoreRequest(
-			this.core,
-			method,
-			object(params),
-			timeoutMs,
-		)) as T;
-	}
-
 	async subscribe(
-		_subscriptions: object[],
-		onEvent: (event: HerdrEvent) => void,
+		targets: string[],
+		onChange: () => void,
 		onDisconnect: (error?: Error) => void,
 		signal?: AbortSignal,
 	): Promise<() => void> {
 		let closed = false;
+		const watched = new Set(targets);
 		const subscription = await this.core.subscribe(
 			{},
 			(notification) => {
-				if (notification.method !== "heartbeat")
-					onEvent({ event: "core.reconcile", data: {} });
+				if (
+					notification.method === "snapshot" ||
+					notification.method === "missed" ||
+					(notification.method === "event" &&
+						notification.event.terminal &&
+						watched.has(notification.event.terminal))
+				)
+					onChange();
 			},
 			{ ...(signal ? { signal } : {}) },
 		);

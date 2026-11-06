@@ -7,7 +7,7 @@ import {
 	activityExpectedUser,
 	activityTask,
 } from "../activity.js";
-import type { HerdrConnection } from "../herdr-client.js";
+import type { CoreConnection } from "../core/backend.js";
 import type { MonitorState, WorkAttempt } from "../monitor-state.js";
 import type { AssistantReader } from "../session-reader.js";
 import type {
@@ -69,7 +69,7 @@ export class SettlementReporter {
 
 	constructor(
 		pi: ExtensionAPI,
-		client: HerdrConnection,
+		client: CoreConnection,
 		state: MonitorState,
 		persist: () => void,
 		reader: AssistantReader | undefined,

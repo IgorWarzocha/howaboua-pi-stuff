@@ -1,6 +1,6 @@
 import { isSettledStatus } from "../activity.js";
-import { getAgent, getSnapshot, sessionPath } from "../herdr.js";
-import type { HerdrConnection } from "../herdr-client.js";
+import { getAgent, getSnapshot, sessionPath } from "../core/agents.js";
+import type { CoreConnection } from "../core/backend.js";
 import { type AssistantReader, SessionReader } from "../session-reader.js";
 import type {
 	ExtensionMessage,
@@ -49,11 +49,11 @@ export function blockedSettlement(
 }
 
 export class SettlementCollector {
-	private readonly client: HerdrConnection;
+	private readonly client: CoreConnection;
 	private readonly reader: AssistantReader;
 
 	constructor(
-		client: HerdrConnection,
+		client: CoreConnection,
 		reader: AssistantReader = new SessionReader(),
 	) {
 		this.client = client;

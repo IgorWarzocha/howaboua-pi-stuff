@@ -22,7 +22,6 @@ export function terminalPane(value: unknown): PaneInfo {
 	const session = labels[CORE_SESSION_LABEL];
 	const live = terminal["state"] === "live";
 	return {
-		backend: "core",
 		// The shared legacy key is an address, not a fabricated app pane ID.
 		pane_id: address,
 		terminal_id: address,
