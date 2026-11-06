@@ -148,8 +148,8 @@ export async function acceptFocus(
 		const runtime = fleet.connected(status.id);
 		try {
 			const identity = await runtime.client.machineIdentity();
-			if (identity.host !== source.host || identity.session !== source.session)
-				continue;
+			// Host labels may differ from OS hostnames; the Core ID owns routing.
+			if (identity.session !== source.session) continue;
 			const agent = await getAgent(runtime.client, source.terminal);
 			if (
 				agent.agent === "pi" &&
