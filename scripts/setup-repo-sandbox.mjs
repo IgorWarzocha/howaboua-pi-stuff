@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const usage = `Usage: bun run sandbox:setup --name NAME [--config YAML] [--live-model openai-codex/MODEL]
 Snapshot this checkout's tracked working files into an existing sandbox, or create
 one from YAML. Replaces this script's previous disposable candidate.
+Trusts that candidate's project resources in its isolated Pi agent directory.
 Requires host Node 24+, installed repo dependencies, and guest bun, node, tar, python3, make, g++, node-gyp, hc 0.1.18+, fd.
 Without --live-model, never copies credentials. Live mode explicitly syncs only the
 selected provider's short-lived host access token, clears its guest model override,
@@ -203,6 +204,14 @@ p.write_text(json.dumps(s,indent=2)+"\\n")`)} `,
 ln -s ${quote(stage)} ${quote(`${home}/next`)}
 mv -Tf ${quote(`${home}/next`)} ${quote(`${home}/current`)}
 find ${quote(home)} -maxdepth 1 -type d -name 'candidate-*' ! -path ${quote(stage)} -exec rm -rf {} +
+cd ${quote(`${home}/current`)}
+node --input-type=module <<'JS'
+import { ProjectTrustStore } from './node_modules/@earendil-works/pi-coding-agent/dist/index.js';
+// Print-mode readiness skips untrusted project resources, but TUI startup asks.
+// Trust this copied candidate only, never its parent or other guest projects.
+new ProjectTrustStore(${JSON.stringify(`${home}/agent`)}).set(process.cwd(), true);
+console.log('Trusted the disposable candidate project for interactive Pi startup.');
+JS
 `);
 	if (liveModel) {
 		const transfer = `${home}/agent/.access-token-${randomUUID()}`;
