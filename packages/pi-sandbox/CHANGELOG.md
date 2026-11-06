@@ -1,5 +1,12 @@
 # @howaboua/pi-sandbox
 
+## 0.1.5
+
+- Requires Pi 1.5 or newer.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+
+  Sandbox list and inspect now show configured base-image asset paths for reuse in new environment YAML, including stopped instances and prepared templates.
+
 ## 0.1.4
 
 - Fixed TypeScript calls rejecting action objects while equivalent JSON strings worked.
