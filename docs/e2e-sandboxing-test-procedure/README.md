@@ -70,6 +70,8 @@ Replace `MODEL` with an available live model. Setup reuses the host Pi login thr
 
 The command checks for guest `hc` 0.1.18 or newer and prints an `hc run --bg` launch command. Run it inside the guest, then attach to the returned Core terminal with `hc attach` or a Herdr app connected to that guest Core. It uses an isolated Pi agent directory and the candidate's PCC, Shepherdr, Notes and Board packages. Shepherdr supplies Core status and session discovery without installing a global Pi integration. Legacy Herdr TUI sessions and plain SSH-shell Pi launches do not satisfy this setup. The reviewer adds other affected extensions, such as GitHub Watch, to that guest configuration. It then checks the running application, rather than assuming a successful build means the intended extensions loaded.
 
+Use the generated `pi-stuff-review/pi` launcher for guest agents. It preserves the isolated agent directory and Gondolin's TLS certificate trust when SSH or Core starts do not inherit the sandbox command environment.
+
 The guest is not a live mirror. After a host fix, the reviewer stops its test agents, runs setup again and starts fresh processes against the replacement candidate. The VM's separate agent directory and test evidence survive candidate replacement.
 
 Image provisioning and prerequisites belong in [Pi Sandbox's repository-review guide](../../packages/pi-sandbox/README.md#review-this-repository). We do not bundle an image. Release acceptance must use the candidate's bundled native helpers without overrides. Check guest compatibility first and replace incompatible disposable guests rather than rebuilding helpers around them. Setup's authenticated response is a readiness check, not interactive acceptance.

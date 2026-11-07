@@ -213,6 +213,19 @@ import { ProjectTrustStore } from './node_modules/@earendil-works/pi-coding-agen
 new ProjectTrustStore(${JSON.stringify(`${home}/agent`)}).set(process.cwd(), true);
 console.log('Trusted the disposable candidate project for interactive Pi startup.');
 JS
+python3 - ${quote(home)} <<'PY'
+import os, shlex, sys
+home = sys.argv[1]
+lines = ["#!/bin/sh", "export PI_CODING_AGENT_DIR=" + shlex.quote(home + "/agent")]
+# SSH/Core starts do not inherit Gondolin's certificate environment.
+certificate = os.environ.get("NODE_EXTRA_CA_CERTS")
+if certificate:
+    lines.append("export NODE_EXTRA_CA_CERTS=" + shlex.quote(certificate))
+lines.append("exec " + shlex.quote(home + "/current/node_modules/.bin/pi") + ' "$@"')
+with open(home + "/pi", "w") as launcher:
+    launcher.write("\\n".join(lines) + "\\n")
+os.chmod(home + "/pi", 0o755)
+PY
 `);
 	if (liveModel) {
 		const transfer = `${home}/agent/.access-token-${randomUUID()}`;
@@ -247,7 +260,7 @@ JS`);
 		console.log(`Guest Codex access token expires ${accessExpires}. Rerun --live-model to resync; the guest cannot refresh it.`);
 		await execute(`cd ${quote(`${home}/current`)} && PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} node --input-type=module <<'JS'
 import { spawnSync } from 'node:child_process';
-const result = spawnSync('./node_modules/.bin/pi', ['--mode','json','--print','--no-session','--no-tools','--no-skills','--no-prompt-templates','--no-mcp','--model',${JSON.stringify(liveModel)},'--thinking','low','Reply only LIVE_SANDBOX_READY. Do not use tools.'], {encoding:'utf8',timeout:90000,maxBuffer:8*1024*1024});
+const result = spawnSync(${JSON.stringify(`${home}/pi`)}, ['--mode','json','--print','--no-session','--no-tools','--no-skills','--no-prompt-templates','--no-mcp','--model',${JSON.stringify(liveModel)},'--thinking','low','Reply only LIVE_SANDBOX_READY. Do not use tools.'], {encoding:'utf8',timeout:90000,maxBuffer:8*1024*1024});
 const events = (result.stdout ?? '').split('\\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
 const message = events.findLast(event => event.type === 'message_end' && event.message?.role === 'assistant')?.message;
 const text = message?.content?.filter(block => block.type === 'text').map(block => block.text).join('');
@@ -262,7 +275,7 @@ console.log(JSON.stringify({liveReady:true,provider:message.provider,model:messa
 JS`);
 	}
 	console.log(
-		`Snapshot ${source} (${digest}) selected. Not a live mirror.\nRun inside the guest to create a Core terminal:\nhc run --bg --cwd ${quote(`${home}/current`)} -- env PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} ./node_modules/.bin/pi\nThen run hc attach <returned-terminal>, or open that terminal in a Herdr app connected to the guest Core.\nRestart existing review Pi processes to load the new candidate. Existing sandbox services were not changed.`,
+		`Snapshot ${source} (${digest}) selected. Not a live mirror.\nRun inside the guest to create a Core terminal:\nhc run --bg --cwd ${quote(`${home}/current`)} -- ${quote(`${home}/pi`)}\nThen run hc attach <returned-terminal>, or open that terminal in a Herdr app connected to the guest Core.\nThe launcher preserves the candidate agent directory and guest TLS certificate trust for SSH/Core starts.\nRestart existing review Pi processes to load the new candidate. Existing sandbox services were not changed.`,
 	);
 } finally {
 	await rm(temporary, { recursive: true, force: true });
