@@ -41,7 +41,6 @@ function assistantFromMessage(id, message) {
 		typeof message["stopReason"] === "string"
 			? message["stopReason"]
 			: undefined;
-	if (!joined && stopReason !== "error") return undefined;
 	return {
 		id,
 		text: joined,
@@ -180,19 +179,31 @@ async function sessionView(path, size) {
 		}
 		const message = record(entry["message"]);
 		if (message && typeof message === "object") {
-			// Never fall back to an older reply behind a tool call or empty final.
+			// Empty notice-only turns must not hide this task's useful final reply.
+			// Never cross a tool call or the latest task input to find one.
 			if (!assistantSeen && message["role"] === "assistant") {
-				assistantSeen = true;
-				assistantPending = message["stopReason"] === "toolUse";
-				if (!assistantPending)
-					assistant = assistantFromMessage(entry["id"], message);
-				if (assistant) assistantDepth = currentDepth;
+				if (message["stopReason"] === "toolUse") {
+					assistantSeen = true;
+					assistantPending = !assistant;
+				} else {
+					const candidate = assistantFromMessage(entry["id"], message);
+					if (
+						!assistant ||
+						candidate?.text ||
+						candidate?.stopReason !== "stop"
+					) {
+						assistant = candidate;
+						if (assistant) assistantDepth = currentDepth;
+					}
+					assistantSeen = !!candidate?.text || candidate?.stopReason !== "stop";
+				}
 			}
 			if (!input) {
 				input = inputFromMessage(entry["id"], message);
 				if (input) inputDepth = currentDepth;
 			}
 		}
+		if (input) assistantSeen = true;
 		if (typeof entry["parentId"] !== "string") return true;
 		targetId = entry["parentId"];
 		return false;

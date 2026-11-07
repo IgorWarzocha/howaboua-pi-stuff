@@ -10,3 +10,5 @@
 - Closed agents no longer trigger collection warnings or settlement retries during shutdown.
 - Concurrent Pi sessions now share machine-local limits for agent launches and saved-session reads. Tool calls still return their normal results after the operation completes.
 - The widget now shows watched peers without repeating supervised workers. Monitoring warnings remain visible, and worker reports and controls are unchanged.
+- Fixed completed worker replies being hidden by later empty notice turns.
+- Worker persistence failures now produce one warning per attempt.

@@ -62,6 +62,7 @@ export class SettlementReporter {
 	private readonly collector: SettlementCollector;
 	private readonly persist: () => void;
 	private readonly reporting = new Map<string, SettledAgentStatus>();
+	private readonly failedAttempts = new Map<string, string | undefined>();
 	private readonly pendingBlocked = new Map<string, PendingBlockedSettlement>();
 	private readonly delivery: SettlementDelivery;
 	private readonly retries = new Map<
@@ -97,6 +98,7 @@ export class SettlementReporter {
 
 	stop(): void {
 		this.reporting.clear();
+		this.failedAttempts.clear();
 		this.pendingBlocked.clear();
 		this.delivery.stop();
 		for (const { timer } of this.retries.values()) clearTimeout(timer);
@@ -114,6 +116,7 @@ export class SettlementReporter {
 		this.delivery.releaseClaim(attempt, error);
 	}
 	releaseAgentClaim(record: MonitoredAgent, error: unknown) {
+		this.failedAttempts.delete(record.terminalId);
 		for (const [key, retry] of this.retries) {
 			if (retry.terminalId !== record.terminalId) continue;
 			clearTimeout(retry.timer);
@@ -267,6 +270,7 @@ export class SettlementReporter {
 				)
 			) {
 				this.clearRetry(current.terminalId, retryState.attemptId);
+				this.failedAttempts.delete(current.terminalId);
 				this.persist();
 				this.delivery.deliverSettlement(
 					lifecycle,
@@ -402,6 +406,12 @@ export class SettlementReporter {
 			SETTLEMENT_RETRY_WINDOW_SECONDS +
 			" seconds";
 		if (attemptId) this.delivery.releaseAttempt(attemptId, new Error(message));
+		if (
+			this.failedAttempts.has(record.terminalId) &&
+			this.failedAttempts.get(record.terminalId) === attemptId
+		)
+			return;
+		this.failedAttempts.set(record.terminalId, attemptId);
 		lifecycle.context.ui.notify(message, "warning");
 	}
 }
