@@ -1,4 +1,5 @@
 import type { Component } from "@earendil-works/pi-tui";
+import type { RenderedImage } from "./render-content.js";
 import type { RuntimeToolTrace } from "./types.js";
 
 const MAX_NESTED_RENDER_STATES = 512;
@@ -9,6 +10,7 @@ export interface NestedRenderState {
 	state: Record<string, unknown>;
 	callComponent?: Component | undefined;
 	resultComponent?: Component | undefined;
+	images?: RenderedImage[];
 	input?: unknown;
 	result?: RuntimeToolTrace["result"];
 }
@@ -98,6 +100,11 @@ function retainedPayloadBytes(
 	let bytes = retainedValueBytes(state.input, budget);
 	bytes += retainedValueBytes(state.result, budget);
 	bytes += retainedValueBytes(state.state, budget);
+	for (const image of state.images ?? []) {
+		bytes += retainedValueBytes(image.data, budget);
+		bytes += retainedValueBytes(image.mimeType, budget);
+		if (budget.remaining <= 0) break;
+	}
 	return Math.min(limit, bytes);
 }
 
