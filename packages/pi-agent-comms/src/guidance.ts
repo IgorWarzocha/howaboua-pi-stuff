@@ -24,8 +24,8 @@ function communicationGuidance(
 	return [
 		board
 			? gpt
-				? "Board→peer findings/discovery, ownership/decisions/blockers affecting peers. Self-contained detail welcome; direct discovery≠parent relay. Existing thread replies; link≠repeat. No ack/status spam/duplicate completion reports."
-				: "Board: share findings, discoveries, ownership, decisions and blockers that change peers' work. Self-contained detail lets peers read directly, without a parent relay. Reply in existing threads and link rather than repeat. Skip acknowledgements, routine status and duplicate completion reports."
+				? "Board→peer findings/discovery, ownership/decisions/blockers affecting peers. Self-contained detail welcome; direct discovery≠parent relay. Existing thread replies; known shared peers→link≠repeat. No ack/status spam/duplicate completion reports."
+				: "Board: share findings, discoveries, ownership, decisions and blockers that change peers' work. Self-contained detail lets peers read directly, without a parent relay. Reply in existing threads. Link rather than repeat for peers with known Board access. Skip acknowledgements, routine status and duplicate completion reports."
 			: "",
 		notes
 			? [
@@ -35,11 +35,16 @@ function communicationGuidance(
 							: "Notes: current work, progress and recovery, with Board references."
 						: "",
 					gpt
-						? "Workers MUST keep shareable checkpoints→brief outcome/blocker + path. Parents READ checkpoint≠request full report."
-						: "Workers must keep shareable checkpoints and return a brief outcome or blocker plus its path. Parents read the checkpoint for details, not request a full report.",
+						? "Keep Notes checkpoints. Known recipient access→brief outcome/blocker + path; recipient READS checkpoint≠request full report."
+						: "Keep checkpoints in Notes. When the recipient is known to have access, return a brief outcome or blocker plus its path. The recipient reads the checkpoint for details rather than asking for a full report.",
 				]
 					.filter(Boolean)
 					.join(" ")
+			: "",
+		notes || board
+			? gpt
+				? `${notes && board ? "Notes/Board" : notes ? "Notes" : "Board"} available here≠recipient access. Unknown/unshared access→self-contained actions taken/findings/unresolved state, not bare references.`
+				: `${notes && board ? "Notes and Board" : notes ? "Notes" : "Board"} availability here does not establish recipient access. If access is unknown or unshared, send a self-contained account of what you did, found and left unresolved, not just private references.`
 			: "",
 		agents && notes && board
 			? gpt

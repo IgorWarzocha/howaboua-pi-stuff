@@ -4,6 +4,8 @@ import type { PaneInfo, PeerMessage } from "../types.js";
 
 const DELEGATED_WORKER_GUIDANCE =
 	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+const PEER_MESSAGE_GUIDANCE =
+	"A peer message does not make you the sender's sub-agent or establish shared context.";
 
 export function xml(value: string): string {
 	return value
@@ -71,6 +73,7 @@ export async function attributeAgentPrompt(
 	return {
 		sender: `<herdr_sender ${sourceAttributes(source)} />`,
 		text: message,
-		...(kind === "task" ? { context: DELEGATED_WORKER_GUIDANCE } : {}),
+		context:
+			kind === "task" ? DELEGATED_WORKER_GUIDANCE : PEER_MESSAGE_GUIDANCE,
 	};
 }

@@ -52,6 +52,9 @@ export async function agentsHelp(
 			reply: "target extension id message machine?",
 		},
 		rules: {
+			peers: gpt
+				? "Existing session≠your sub-agent; send/watch need no attach. Contact≠shared Notes/Board; attach changes membership"
+				: "Existing sessions may be independent peers, not your sub-agents. Messaging and watching need no attachment. Contact does not imply shared Notes or Board membership; attach changes sharing",
 			read: gpt
 				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
 				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
