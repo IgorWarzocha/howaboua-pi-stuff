@@ -81,7 +81,7 @@ export async function registerNotesSharing(
 			const { externalNotesResponses, ...details } = result.details;
 			if (!remote.projectResult || remote.canProject?.(ctx) === false) {
 				const warning =
-					"Shared encrypted contents are unavailable on this model. Local results remain available. Use a compatible Codex model with PCC for remote contents.";
+					"Some notes cannot be read with this model. Available notes are shown; select a compatible Codex model to read the rest.";
 				const data = result.structuredContent;
 				if (!data || typeof data !== "object" || Array.isArray(data))
 					throw new Error(

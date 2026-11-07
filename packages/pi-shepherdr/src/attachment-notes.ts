@@ -6,7 +6,7 @@ import type {
 	SharedContextResult,
 } from "@howaboua/pi-agent-comms/context-sharing";
 
-/** Read-only continuity when a live owner disappears. Parsing remains Conversion-owned. */
+/** Read-only continuity when a live owner disappears. Agent Comms owns parsing. */
 export class AttachmentNotes {
 	private readonly getService: () => ContextSharingService | undefined;
 	constructor(getService: () => ContextSharingService | undefined) {
@@ -177,10 +177,10 @@ export class AttachmentNotes {
 			warning,
 		});
 		if (
-			!result.structuredContent ||
-			typeof result.structuredContent !== "object" ||
-			!("warning" in result.structuredContent) ||
-			result.structuredContent["warning"] !== warning
+			!result.details.codexHistoryNotes ||
+			typeof result.details.codexHistoryNotes !== "object" ||
+			!("warning" in result.details.codexHistoryNotes) ||
+			result.details.codexHistoryNotes["warning"] !== warning
 		)
 			throw new Error("Update Notes to read retained attached checkpoints");
 		return {

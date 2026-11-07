@@ -19,9 +19,6 @@ const NOTES_RESULT_SCHEMA = Type.Object(
 				Type.Object({
 					path: Type.String(),
 					content: OPTIONAL_STRING,
-					start_line: Type.Optional(Type.Integer()),
-					stop_line: Type.Optional(Type.Integer()),
-					total_lines: Type.Optional(Type.Integer()),
 					append_only: OPTIONAL_BOOLEAN,
 				}),
 				Type.Null(),
@@ -62,9 +59,30 @@ export function noteResult(payload: unknown): AgentToolResult<unknown> {
 		throw new Error(
 			"Notes returned invalid data. Read the note before retrying a write.",
 		);
+	// Sharing annotations and storage bookkeeping are not note contents.
+	const {
+		read_only: _readOnly,
+		warning: _warning,
+		saved_at: _savedAt,
+		captured_at: _capturedAt,
+		...visible
+	} = payload;
+	if (visible.file)
+		visible.file = {
+			path: visible.file.path,
+			...(visible.file.content === undefined
+				? {}
+				: { content: visible.file.content }),
+		};
+	if (visible.files)
+		visible.files = visible.files.map(({ path, matches, truncated }) => ({
+			path,
+			...(matches === undefined ? {} : { matches }),
+			...(truncated === undefined ? {} : { truncated }),
+		}));
 	return {
-		content: [{ type: "text", text: JSON.stringify(payload) }],
-		structuredContent: payload,
+		content: [{ type: "text", text: JSON.stringify(visible) }],
+		structuredContent: visible,
 		details: {},
 	};
 }

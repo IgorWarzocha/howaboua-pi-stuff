@@ -150,7 +150,7 @@ export function createAttachmentSharing(
 			const details = readAttachmentSnapshot(snapshot, params);
 			return {
 				...noteResult({ ...details, ...annotation }),
-				details: { codexHistoryNotes: details },
+				details: { codexHistoryNotes: { ...details, ...annotation } },
 			};
 		},
 	} satisfies Pick<

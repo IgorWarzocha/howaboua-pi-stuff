@@ -278,7 +278,7 @@ export async function executeRemoteAttachment(
 		reference,
 	);
 	return {
-		...noteResult({ usage: "Saved remote read completed" }),
+		...noteResult({}),
 		details: {
 			codexHistoryNotes: {},
 			externalNotesResponses: responses.map(({ bytes, ...response }) => ({

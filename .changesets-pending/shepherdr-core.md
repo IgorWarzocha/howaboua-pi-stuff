@@ -12,3 +12,7 @@
 - The widget now shows watched peers without repeating supervised workers. Monitoring warnings remain visible, and worker reports and controls are unchanged.
 - Fixed completed worker replies being hidden by later empty notice turns.
 - Worker persistence failures now produce one warning per attempt.
+- Agent read help now distinguishes replies from terminal screens and scrollback.
+- Rollover guidance now directs parents to shared Notes checkpoints for worker findings.
+- Assigned Board thread references now remind workers to subscribe for ongoing peer findings.
+- Board guidance follows assigned scope without reserving setup for the parent.

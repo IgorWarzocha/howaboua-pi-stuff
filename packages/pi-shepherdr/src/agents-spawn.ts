@@ -109,7 +109,7 @@ export async function spawnAgent(
 		if (boardThreadId !== undefined)
 			attributedMessage.context = [
 				attributedMessage.context,
-				`Read shared board thread with board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}) for task context`,
+				`Read shared board thread with board({action:"read_thread",thread_id:${JSON.stringify(boardThreadId)}}) for task context. To follow ongoing peer findings, subscribe to that thread for replies.`,
 			]
 				.filter(Boolean)
 				.join("\n\n");

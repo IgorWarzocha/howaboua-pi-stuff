@@ -69,13 +69,6 @@ export function createSharedSessionReader(
 						normalizeNoteParams(query, native),
 						outputAgent,
 					)),
-			...(namespace === "notes"
-				? {
-						read_only: true,
-						warning:
-							"Only saved notes are included; other notes may be missing",
-					}
-				: {}),
 			...(session.savedAt === undefined
 				? {}
 				: { saved_at: new Date(session.savedAt).toISOString() }),
@@ -138,6 +131,7 @@ export function createSharedSessionReader(
 				query,
 				destination,
 			)),
+			read_only: true,
 			captured_at: new Date(retained.timestamp).toISOString(),
 			warning: detached
 				? "Read-only notes captured when sharing ended; later changes are not included"

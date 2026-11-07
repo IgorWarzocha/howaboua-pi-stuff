@@ -66,9 +66,6 @@ export function readNotes(
 			file: {
 				path: `${root}${note.path}`,
 				content: start <= stop ? lines.slice(start, stop + 1).join("\n") : "",
-				start_line: start + 1,
-				stop_line: Math.max(start, stop) + 1,
-				total_lines: lines.length,
 				...(note.mode === "append" ? { append_only: true } : {}),
 			},
 		};

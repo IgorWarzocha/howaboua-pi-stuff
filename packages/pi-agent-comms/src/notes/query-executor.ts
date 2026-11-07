@@ -75,7 +75,12 @@ export function createQueryExecutor(
 					ctx,
 					signal,
 				);
-				if (routed) return routed;
+				if (routed)
+					return {
+						...routed,
+						...noteResult(routed.structuredContent),
+						details: routed.details,
+					};
 			} catch (error) {
 				signal?.throwIfAborted();
 				if (!unavailable || !sharedNotesUnavailable(error)) throw error;

@@ -15,14 +15,10 @@ export function boardBriefing(
 					: "Shared board status unavailable. Check board help and retry reading when available.";
 	return [
 		state,
-		member
-			? gpt
-				? "Root owns setup; follow assigned task."
-				: "The root agent owns setup; follow your assigned task."
-			: "",
+		member ? "Follow your assigned scope." : "",
 		gpt
-			? "Posts=work-changing ownership/decisions/findings/blockers only. Existing thread replies; link≠repeat. Personal checkpoints→notes. No ack/status spam/duplicate completion reports."
-			: "Post only new information that changes another agent's work: ownership, decisions, findings or blockers. Reply in existing threads; link rather than repeat. Keep personal checkpoints in notes. Skip acknowledgements, routine status and duplicated completion reports.",
+			? "Posts=peer findings/discovery, ownership/decisions/blockers that change others' work; self-contained detail welcome. Existing thread replies; link≠repeat. Personal recovery state stays outside Board. No ack/status spam/duplicate completion reports."
+			: "Share peer findings and discoveries, ownership, decisions or blockers that change others' work. Include enough detail to be useful without a relay. Reply in existing threads; link rather than repeat. Keep personal recovery state outside Board. Skip acknowledgements, routine status and duplicated completion reports.",
 		gpt
 			? "Channels=workstreams; threads=topics. Reuse relevant channels≠catchalls. New channel requires distinct coordination purpose; never task/result announcement only."
 			: "Channels group shared workstreams; threads group topics. Reuse a relevant channel, not a catch-all. Create a channel only for a distinct coordination need, never just to announce a task or result.",

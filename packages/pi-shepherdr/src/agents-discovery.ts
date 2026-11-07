@@ -52,6 +52,9 @@ export async function agentsHelp(
 			reply: "target extension id message machine?",
 		},
 		rules: {
+			read: gpt
+				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
+				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
 			reply: gpt
 				? "Extension report/read template required; send≠resolve; blocking waits resumed work; others return after semantic delivery"
 				: "Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",

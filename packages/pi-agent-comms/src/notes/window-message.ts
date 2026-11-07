@@ -19,13 +19,13 @@ Notes are recovery state, not diary. They use virtual storage, not disk filesyst
 
 MUST maintain one authoritative checkpoint per task/topic with request, constraints, decision, status, next steps and relevant history IDs.
 
-Use the notes tool write action to create or replace the checkpoint at milestones, task switches and completion. Use action append to add to it.
+Near the end of a substantive turn, before replying, consolidate changed recovery state. Use notes write to create or replace the checkpoint, append to add. Do not interleave saves with ordinary tool calls. Skip routine turns and unchanged state. Explicit reminders and earlier handoff needs still apply.
 
-Subagents MUST maintain their own notes and return paths. For subagent handoffs, include the checkpoint path.
+Subagents MUST maintain shareable notes. Return a brief conclusion or blocker and the checkpoint path. Parents read that checkpoint for details instead of requesting a repeated report. Notes may link peer findings on Board when available.
 
 Link existing notes instead of duplicating content. Recording does not authorise implementation.
 
-Before new_context or a handoff, MUST save the checkpoint with notes. For rollover, call new_context.
+Immediately before new_context, MUST save the checkpoint with notes. Save before a handoff too. For rollover, call new_context after saving.
 
 After rollover, use notes read action to recover the checkpoint, then read only necessary links. SHOULD NOT reread unchanged notes. Use the history tool for missing details.
 
@@ -35,9 +35,9 @@ Skill reads do not survive rollover. MUST reread required skills.
 const GPT_GUIDANCE = `<context_window_guidance>
 Notes=recovery stateNOTdiary. Virtual Notes storageNOTfilesystem. Create notes with relative paths. One authoritative checkpoint per task/topic→request/constraints/decision/status/next steps/history IDs. Existing notes→linkNOTduplicate. RecordingNOTimplementation permission.
 
-MUST maintain task checkpoint→update@ milestones, task switches + completion. Notes tool: write→create/replace stale checkpoint; append→add content. Not every reply/step. Subagents MUST maintain own notes→return paths.
+Near substantive turn end, before reply→consolidate CHANGED recovery state. Notes write→create/replace; append→add. No saves interleaved with ordinary tool calls; skip routine/unchanged state. Explicit reminders/earlier handoff needs still apply. Subagents MUST maintain shareable notes→brief conclusion/blocker + checkpoint path; parents READ checkpoint for details≠request repeated report. Notes may link peer findings on Board if available.
 
-Before new_context/handoff: MUST save checkpoint via notes. Rollover→call new_context after save; subagent handoff→include checkpoint path. Post-rollover: notes read→checkpoint→necessary links only. SHOULD NOT reread unchanged notes. Missing details→history tool.
+Immediately before new_context: MUST save checkpoint via notes; save before handoff too. Rollover→call new_context after save. Post-rollover: notes read→checkpoint→necessary links only. SHOULD NOT reread unchanged notes. Missing details→history tool.
 
 Prior skill reads≠current context. MUST reread required skills after rollover.
 </context_window_guidance>`;
