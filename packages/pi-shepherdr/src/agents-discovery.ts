@@ -52,6 +52,9 @@ export async function agentsHelp(
 			reply: "target extension id message machine?",
 		},
 		rules: {
+			existing: gpt
+				? "Message request→send only, not assign/sharing changes/session commands. Preserve existing work; idle≠available for unrelated work. Other changes require user task scope"
+				: "A request to message an existing agent authorises send, not assigning work, changing sharing or running session commands. Preserve its existing work; idle does not mean available for unrelated work. Other changes must be within the user's requested scope",
 			read: gpt
 				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
 				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
@@ -75,8 +78,8 @@ export async function agentsHelp(
 					}
 				: {}),
 			send: gpt
-				? "/quit next→NO preceding message; sends wake idle agents; NO wait/watch"
-				: "When closing an agent, send /quit without another message first. Messages wake idle agents. No waiting or watching.",
+				? "/quit next→NO preceding message; sends wake idle agents or steer working agents; NO wait/watch"
+				: "When closing an agent, send /quit without another message first. Messages wake idle agents or steer working agents. No waiting or watching.",
 			assign: gpt
 				? "Delegate/update work; active→share pending result, NEVER replace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
