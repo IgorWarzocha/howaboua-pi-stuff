@@ -3,17 +3,17 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-	binding,
-	children,
-	isBoardEnvelope,
-} from "@howaboua/pi-agent-board/integration";
-import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import type {
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-notes-compaction/context-sharing";
+} from "@howaboua/pi-agent-comms/context-sharing";
+import {
+	binding,
+	children,
+	isBoardEnvelope,
+} from "@howaboua/pi-agent-comms/integration";
+import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
 import {

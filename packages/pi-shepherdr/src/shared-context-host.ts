@@ -2,10 +2,11 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type {
-	SharedContextRequest,
-	SharedContextResult,
-} from "@howaboua/pi-notes-compaction/context-sharing";
+import {
+	connectNotesContextSharing,
+	type SharedContextRequest,
+	type SharedContextResult,
+} from "@howaboua/pi-agent-comms/context-sharing";
 import { attachmentOwner, attachmentRoutes } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet/index.js";
@@ -21,33 +22,10 @@ export async function registerSharedAgentContext(
 	fleet: AgentFleet,
 	board: AgentBoard,
 ): Promise<SharedAgentContext> {
-	let api:
-		| typeof import("@howaboua/pi-notes-compaction/context-sharing")
-		| undefined;
-	try {
-		api = await import("@howaboua/pi-notes-compaction/context-sharing");
-	} catch (error) {
-		const failure = error as { code?: string; message?: string };
-		const missing = failure.message?.match(
-			/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
-		)?.[1];
-		const module = "@howaboua/pi-notes-compaction/context-sharing";
-		const unavailable =
-			((failure.code === "ERR_MODULE_NOT_FOUND" ||
-				failure.code === "MODULE_NOT_FOUND") &&
-				(missing === "@howaboua/pi-notes-compaction" ||
-					missing === module ||
-					missing?.endsWith(`/${module}`))) ||
-			(failure.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" &&
-				failure.message?.includes("@howaboua/pi-notes-compaction") &&
-				failure.message.includes("./context-sharing"));
-		if (!unavailable)
-			throw new Error(
-				"Update pi-notes-compaction to use shared agent context",
-				{ cause: error },
-			);
-	}
-	const connection = api?.connectNotesContextSharing(pi);
+	let started = false;
+	const connection = connectNotesContextSharing(pi, () => {
+		if (started) connectRoutes();
+	});
 	let relationships:
 		| ReturnType<
 				typeof import("@howaboua/pi-codex-conversion/agent-relationship")["connectCodexAgentRelationships"]
@@ -106,16 +84,9 @@ export async function registerSharedAgentContext(
 			);
 		}
 	};
-	pi.on("session_start", async (_event, ctx) => {
-		await close?.();
-		close = undefined;
+	const connectRoutes = () => {
 		unregister?.();
 		unregisterSaved?.();
-		if (connection?.service && !notes())
-			ctx.ui.notify(
-				"Shared Notes require Notes 0.0.15 or newer. Update Notes and restart participating sessions. Agent delegation remains available.",
-				"warning",
-			);
 		unregisterSaved = notes()?.registerSavedSessionLoader?.(
 			savedContextLoader(fleet),
 		);
@@ -144,12 +115,19 @@ export async function registerSharedAgentContext(
 				},
 			),
 		);
+	};
+	pi.on("session_start", async () => {
+		await close?.();
+		close = undefined;
+		started = true;
+		connectRoutes();
 	});
 	pi.on("resources_discover", async (_event, ctx) => {
 		await publish(ctx);
 		await fleet.restoreSharing(ctx);
 	});
 	pi.on("session_shutdown", async () => {
+		started = false;
 		unregister?.();
 		unregisterSaved?.();
 		await close?.();

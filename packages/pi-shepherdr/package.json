@@ -42,7 +42,6 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@howaboua/pi-notes-compaction": ">=0.0.15",
 		"@howaboua/pi-codex-conversion": ">=4.0.9",
 		"@earendil-works/pi-ai": ">=1.1.0",
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
@@ -50,18 +49,14 @@
 		"typebox": "*"
 	},
 	"peerDependenciesMeta": {
-		"@howaboua/pi-notes-compaction": {
-			"optional": true
-		},
 		"@howaboua/pi-codex-conversion": {
 			"optional": true
 		}
 	},
 	"dependencies": {
-		"@howaboua/pi-agent-board": "0.0.5"
+		"@howaboua/pi-agent-comms": "0.0.0"
 	},
 	"devDependencies": {
-		"@howaboua/pi-notes-compaction": "0.0.15",
 		"@howaboua/pi-codex-conversion": "4.0.9",
 		"@biomejs/biome": "^2.6.3",
 		"@earendil-works/pi-ai": "1.5.0",

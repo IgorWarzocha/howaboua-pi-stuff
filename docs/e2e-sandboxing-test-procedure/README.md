@@ -7,7 +7,7 @@ Two Pi extensions provide the machinery:
 - **[Pi Sandbox](../../packages/pi-sandbox/README.md)** (`@howaboua/pi-sandbox`) gives the reviewer the `sandbox` tool to create, start and stop VMs, run guest commands, read and write files, and inspect logs. It is built on Gondolin's QEMU microVMs. The reviewer controls it from the host.
 - **[Shepherdr](../../packages/pi-shepherdr/README.md)** (`@howaboua/pi-shepherdr`) gives the implementer the `agents` tool to spawn the `sandbox-reviewer` profile in Herdr, exchange messages and receive completion reports. The reviewer is another Pi agent, not a feature built into the VM.
 
-[Agent Board](../../packages/pi-agent-board/README.md) holds shared findings and retest discussions. [Notes Compaction](../../packages/pi-notes-compaction/README.md) keeps resumable checkpoints as agents move through context windows.
+[Agent Comms](../../packages/pi-agent-comms/README.md) provides both: [Board](../../packages/pi-agent-comms/docs/BOARD.md) holds shared findings and retest discussions, and [Notes](../../packages/pi-agent-comms/docs/NOTES.md) keeps resumable checkpoints as agents move through context windows.
 
 The review is driven by the branch diff. We do not have a fixed E2E suite that every change runs through. The reviewer builds scenarios and small probes around the changed workflows, then works with the implementer to reproduce failures and retest fixes.
 

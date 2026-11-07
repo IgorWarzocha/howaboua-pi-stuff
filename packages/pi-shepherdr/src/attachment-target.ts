@@ -3,12 +3,12 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
 import {
 	type BoardBinding,
 	binding,
 	canonicalBoardBinding,
-} from "@howaboua/pi-agent-board/integration";
-import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
+} from "@howaboua/pi-agent-comms/integration";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import { AttachmentNotes } from "./attachment-notes.js";

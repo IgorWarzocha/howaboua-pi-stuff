@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { BoardEnvelope } from "@howaboua/pi-agent-board/integration";
+import type { BoardEnvelope } from "@howaboua/pi-agent-comms/integration";
 import {
 	type BoardBinding,
 	binding,
@@ -14,7 +14,7 @@ import {
 	saveBinding,
 	saveChild,
 	saveMember,
-} from "@howaboua/pi-agent-board/integration";
+} from "@howaboua/pi-agent-comms/integration";
 import type { ConnectedMachine } from "../fleet/index.js";
 
 function sameMembership(left: BoardBinding, right: BoardBinding) {

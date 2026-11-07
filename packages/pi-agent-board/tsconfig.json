@@ -1,5 +1,0 @@
-{
-	"extends": "../../tsconfig.base.json",
-	"compilerOptions": { "allowImportingTsExtensions": true },
-	"include": ["index.ts", "src/**/*.ts"]
-}

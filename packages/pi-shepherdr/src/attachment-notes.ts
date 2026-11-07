@@ -4,7 +4,7 @@ import type {
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-notes-compaction/context-sharing";
+} from "@howaboua/pi-agent-comms/context-sharing";
 
 /** Read-only continuity when a live owner disappears. Parsing remains Conversion-owned. */
 export class AttachmentNotes {

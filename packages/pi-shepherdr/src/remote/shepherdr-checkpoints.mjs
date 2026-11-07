@@ -30,7 +30,7 @@ function canonicalIdentity(identity) {
 /** @param {string} path @param {{protocol: 1, threadId: string, sessionId: string, agentName: string, storageAgentName?: string, storage: "session"}} identity */
 export async function readPersistedNoteEntries(path, identity) {
 	const { readSavedNotesSession } = await import(
-		"@howaboua/pi-notes-compaction/saved-session"
+		"@howaboua/pi-agent-comms/saved-session"
 	);
 	const saved = await readSavedNotesSession(path);
 	if (saved.threadId !== identity.threadId)

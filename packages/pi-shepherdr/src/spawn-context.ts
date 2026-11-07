@@ -3,8 +3,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
 import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
-import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
 import { nativeAgentName } from "./agent-identity.js";
 import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";

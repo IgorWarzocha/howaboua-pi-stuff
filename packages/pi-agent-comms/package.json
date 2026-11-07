@@ -1,0 +1,76 @@
+{
+	"name": "@howaboua/pi-agent-comms",
+	"version": "0.0.0",
+	"description": "Session notes, context continuity and agent message boards for Pi",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-agent-comms"
+	},
+	"files": [
+		"index.ts",
+		"src",
+		"dist",
+		"docs",
+		"README.md",
+		"INTEGRATION.md",
+		"PCC-INTEGRATION.md",
+		"LICENSE",
+		"tsconfig.json",
+		"CHANGELOG.md"
+	],
+	"main": "index.ts",
+	"exports": {
+		".": "./index.ts",
+		"./context-sharing": "./src/notes/context-sharing.ts",
+		"./saved-session": "./src/notes/saved-session.mjs",
+		"./saved-session-index": "./src/notes/saved-session-index.mjs",
+		"./runtime": "./src/board/runtime/index.ts",
+		"./integration": "./src/board/integration.ts"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"build": "node scripts/build-viewer.mjs",
+		"check": "bun run lint && bun run typecheck",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "tsgo --noEmit",
+		"prepack": "bun run check && bun run build",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"dependencies": {
+		"better-sqlite3": "13.0.3",
+		"dompurify": "3.4.17",
+		"marked": "18.1.2",
+		"unicode-case-folding": "1.1.2"
+	},
+	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "4.0.9",
+		"@types/better-sqlite3": "9.6.0"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
+		"@earendil-works/pi-agent-core": ">=1.0.4",
+		"@earendil-works/pi-ai": ">=1.1.0",
+		"@earendil-works/pi-tui": ">=1.1.0",
+		"@howaboua/pi-codex-conversion": ">=4.0.9",
+		"typebox": "*"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

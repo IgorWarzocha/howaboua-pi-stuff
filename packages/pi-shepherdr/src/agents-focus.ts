@@ -6,7 +6,7 @@ import type {
 import {
 	recordContextBriefing,
 	registerContextBriefing,
-} from "@howaboua/pi-agent-board/integration";
+} from "@howaboua/pi-agent-comms/integration";
 import {
 	getAgent,
 	getCurrentPane,

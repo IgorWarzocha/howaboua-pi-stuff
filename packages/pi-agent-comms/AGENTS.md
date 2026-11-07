@@ -1,0 +1,3 @@
+- Notes and Board retain their model-facing contracts, storage paths and persisted protocol names. Package consolidation is not a format or prompt migration.
+- Each feature owns its activation and state. Settings tabs share navigation, not engines; the viewer remains an explicit user action. Inactive features must not resurrect retired context or lose saved membership.
+- Public integration imports must stay lightweight. A host discovers the loaded owner and handles late activation; it never creates a fallback owner.

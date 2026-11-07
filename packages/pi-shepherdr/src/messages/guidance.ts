@@ -44,7 +44,7 @@ export function activeAgentsBriefing(
 	].join("\n");
 }
 export function boardMigrationWarning() {
-	return "Boards moved to Pi Agent Board. Install @howaboua/pi-agent-board for the same features as a separate extension. Your saved boards are preserved.";
+	return "Boards are provided by Agent Comms. Install @howaboua/pi-agent-comms and reload Pi. Your saved boards are preserved.";
 }
 
 export function boardBriefing(

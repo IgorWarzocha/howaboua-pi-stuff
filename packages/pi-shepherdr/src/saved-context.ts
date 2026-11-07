@@ -1,7 +1,7 @@
 import type {
 	SavedSessionLoader,
 	SavedSessionLocator,
-} from "@howaboua/pi-notes-compaction/context-sharing";
+} from "@howaboua/pi-agent-comms/context-sharing";
 import type { AgentFleet } from "./fleet/index.js";
 
 /** Discovery supplies locations, never family membership or permission to read them. */

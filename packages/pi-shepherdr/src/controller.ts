@@ -7,7 +7,7 @@ import {
 	hasContextRollover,
 	recordContextBriefing,
 	registerContextBriefing,
-} from "@howaboua/pi-agent-board/integration";
+} from "@howaboua/pi-agent-comms/integration";
 import { closeIdleChildren } from "./close-idle.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel/index.js";
 import { sendPolicyMessage } from "./delivery.js";

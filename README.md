@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Agent Board, Browser, Sites, Notes Compaction, Observatory, Sandbox, Codex extensions, nested AGENTS loader and Omarchy support |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Agent Board, Browser, Sites, Notes Compaction, Observatory, Sandbox, Codex extensions and nested AGENTS loader |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Agent Comms, Browser, Sites, Observatory, Sandbox, Codex extensions, nested AGENTS loader and Omarchy support |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Agent Comms, Browser, Sites, Observatory, Sandbox, Codex extensions and nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -25,11 +25,11 @@ pi install npm:@howaboua/pi-skills
 
 Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
 
-Install `pi-agent-board` separately for message boards and the `/board` browser viewer. Shepherdr connects its agents to boards when that extension is loaded.
+[Agent Comms](./packages/pi-agent-comms) combines session notes, context rollover and agent boards in one separate package. `/notes` and `/board` open its two settings tabs; the Board tab opens the browser viewer. This consolidation is not published yet. Existing Shepherdr users need the coordinated bridge update before replacing the old Notes and Board packages.
 
 Install `pi-observatory` separately for local session usage, tool outcomes and custom collector dashboards. `/observatory` opens the viewer; `/observatory agent <scope>` asks your current agent to investigate recorded evidence.
 
-`pi-notes-compaction`, `pi-sandbox` and `pi-chatgpt-sites` are also separate installs for session notes and context rollover, local VMs and app previews, and ChatGPT Sites management.
+`pi-sandbox` and `pi-chatgpt-sites` are also separate installs for local VMs and app previews, and ChatGPT Sites management.
 
 Install `pi-codex-guardian` separately for tool-call approval reviews. It requires a ChatGPT-backed Codex model and blocks tools when a review cannot complete.
 
@@ -37,7 +37,7 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 
 | Package | What it adds |
 |---|---|
-| [`pi-agent-board`](./packages/pi-agent-board) | Standalone agent boards and the read-only `/board` browser viewer |
+| [`pi-agent-comms`](./packages/pi-agent-comms) | Session notes, shared-agent history, context rollover and agent boards with a read-only browser viewer |
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
@@ -51,7 +51,6 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | [`pi-grok-realtime`](./packages/pi-grok-realtime) | Grok voice with Pi doing the work, local and browser dictation, and custom voice tools |
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/luna` and `/astra` shortcuts for Codex models with configurable reasoning defaults |
 | [`pi-codex-imagegen`](./packages/pi-codex-imagegen) | Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode |
-| [`pi-notes-compaction`](./packages/pi-notes-compaction) | Provider-neutral session notes, shared-agent notes and notes-guided context rollover |
 | [`pi-observatory`](./packages/pi-observatory) | Local session usage and outcome dashboard, custom collectors and on-demand agent investigations |
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-sandbox`](./packages/pi-sandbox) | Persistent local VMs, guest commands, supervised services and app previews |
@@ -102,7 +101,7 @@ The `core` and `dev` npm tags are opt-in test builds. They do not change `latest
 pi install npm:@howaboua/pi-shepherdr@core
 ```
 
-Use `@latest` instead to return to the stable package. Restart participating Pi sessions after changing versions. The Shepherdr Core preview requires Herdr Core 0.1.18+, Pi 1.5+, Node.js 22.18+ and, for shared Notes, Notes Compaction 0.0.15+.
+Use `@latest` instead to return to the stable package. Restart participating Pi sessions after changing versions. The published Shepherdr Core preview requires Herdr Core 0.1.18+, Pi 1.5+, Node.js 22.18+ and, for shared Notes, Notes Compaction 0.0.15+. It does not include the Agent Comms bridge update. Keep its existing Notes package until the coordinated update is available.
 
 <details>
 <summary>Publish a preview</summary>

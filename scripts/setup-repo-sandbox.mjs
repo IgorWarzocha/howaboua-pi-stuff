@@ -168,6 +168,7 @@ rm archive.b64 archive.tgz ${quote(`${home}/chunk`)}
 mkdir .install-tmp
 TMPDIR="$PWD/.install-tmp" npm run install:ci
 bun run --cwd packages/pi-codex-conversion build
+bun run --cwd packages/pi-agent-comms build
 bun run --cwd packages/pi-sandbox build
 rm -rf .install-tmp
 `);
@@ -188,7 +189,7 @@ rm -rf .install-tmp
 	// Shepherdr reports Core status itself. No global Pi integration is installed.
 	await execute(`mkdir -p ${quote(`${home}/agent`)}`);
 	const settings = `${home}/agent/settings.json`;
-	const packages = ["pi-codex-conversion", "pi-shepherdr", "pi-notes-compaction", "pi-agent-board"].map(
+	const packages = ["pi-codex-conversion", "pi-shepherdr", "pi-agent-comms"].map(
 		(p) => `${home}/current/packages/${p}`,
 	);
 	await execute(

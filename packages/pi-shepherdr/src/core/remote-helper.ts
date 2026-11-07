@@ -17,7 +17,7 @@ async function notesModule(
 	let path: string;
 	try {
 		path = createRequire(import.meta.url).resolve(
-			`@howaboua/pi-notes-compaction/${exportName}`,
+			`@howaboua/pi-agent-comms/${exportName}`,
 		);
 	} catch (error) {
 		if (
@@ -86,7 +86,7 @@ async function sources() {
 	const checkpointsUrl = moduleUrl(
 		savedSession
 			? checkpoints.replace(
-					'"@howaboua/pi-notes-compaction/saved-session"',
+					'"@howaboua/pi-agent-comms/saved-session"',
 					JSON.stringify(savedSession),
 				)
 			: checkpoints,

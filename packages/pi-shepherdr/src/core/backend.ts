@@ -109,7 +109,7 @@ export class CoreConnection {
 			"bulk",
 			async () => {
 				const { readSavedNotesSession } = await import(
-					"@howaboua/pi-notes-compaction/saved-session"
+					"@howaboua/pi-agent-comms/saved-session"
 				);
 				return readSavedNotesSession(path, signal, history);
 			},
@@ -130,7 +130,7 @@ export class CoreConnection {
 			"bulk",
 			async () => {
 				const { findSavedNotesSessions } = await import(
-					"@howaboua/pi-notes-compaction/saved-session-index"
+					"@howaboua/pi-agent-comms/saved-session-index"
 				);
 				return findSavedNotesSessions(threadId, undefined, signal);
 			},

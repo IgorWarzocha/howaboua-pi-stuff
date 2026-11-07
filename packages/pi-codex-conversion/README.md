@@ -118,7 +118,7 @@ V2 can preserve 16k, 32k or 64k of recent user messages verbatim. The default is
 
 V2 and Both require Codex or a configured compatible passthrough. **Choose Both before creating a checkpoint you need across providers, or convert to Pi summary before switching.** Other routes use Pi summary without erasing your saved method.
 
-For notes, history, context-window rollover and shared agent context, install [Notes Compaction](../pi-notes-compaction/README.md) and configure it under `/notes`. These are not built into PCC. Existing Notes-enabled PCC configurations require Notes to be loaded or that old continuity setting to be explicitly disabled.
+For notes, history, context-window rollover and shared agent context, install [Agent Comms](../pi-agent-comms/docs/NOTES.md) and configure it under `/notes`. These are not built into PCC. Existing Notes-enabled PCC configurations require Notes to be loaded or that old continuity setting to be explicitly disabled.
 
 </details>
 

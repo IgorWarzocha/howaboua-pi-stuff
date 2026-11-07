@@ -9,11 +9,11 @@ import {
 	rootBoardSetting,
 	saveBinding,
 	saveChild,
-} from "@howaboua/pi-agent-board/integration";
+} from "@howaboua/pi-agent-comms/integration";
 import {
 	type BoardRuntime,
 	discoverBoard,
-} from "@howaboua/pi-agent-board/runtime";
+} from "@howaboua/pi-agent-comms/runtime";
 import { sessionPath } from "../core/agents.js";
 import type { AgentFleet, ConnectedMachine } from "../fleet/index.js";
 import { boardBriefing, boardMigrationWarning } from "../messages/guidance.js";
