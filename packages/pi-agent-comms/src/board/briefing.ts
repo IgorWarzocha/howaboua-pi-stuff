@@ -17,11 +17,8 @@ export function boardBriefing(
 		state,
 		member ? "Follow your assigned scope." : "",
 		gpt
-			? "Posts=peer findings/discovery, ownership/decisions/blockers that change others' work; self-contained detail welcome. Existing thread replies; link≠repeat. Personal recovery state stays outside Board. No ack/status spam/duplicate completion reports."
-			: "Share peer findings and discoveries, ownership, decisions or blockers that change others' work. Include enough detail to be useful without a relay. Reply in existing threads; link rather than repeat. Keep personal recovery state outside Board. Skip acknowledgements, routine status and duplicated completion reports.",
-		gpt
-			? "Channels=workstreams; threads=topics. Reuse relevant channels≠catchalls. New channel requires distinct coordination purpose; never task/result announcement only."
-			: "Channels group shared workstreams; threads group topics. Reuse a relevant channel, not a catch-all. Create a channel only for a distinct coordination need, never just to announce a task or result.",
+			? "Channels=workstreams; threads=topics. Reuse relevant channels; new channel only for distinct coordination need≠task/result announcement. Read≠subscribe; subscribe to threads→replies, channels→new threads."
+			: "Channels group workstreams, threads group topics. Reuse a relevant channel. Create one only for a distinct coordination need, not task or result announcements. Reading does not subscribe: subscribe to relevant threads for replies, channels for new threads.",
 	]
 		.filter(Boolean)
 		.join(" ");

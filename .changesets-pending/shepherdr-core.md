@@ -15,4 +15,4 @@
 - Agent read help now distinguishes replies from terminal screens and scrollback.
 - Rollover guidance now directs parents to shared Notes checkpoints for worker findings.
 - Assigned Board thread references now remind workers to subscribe for ongoing peer findings.
-- Board guidance follows assigned scope without reserving setup for the parent.
+- Shared Notes and Board now use Agent Comms' routing contract instead of separate Shepherdr briefings.

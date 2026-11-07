@@ -4,7 +4,8 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { FeatureSettings, OpenSettings } from "../settings-navigation.js";
+import type { CommsFeature } from "../guidance.js";
+import type { OpenSettings } from "../settings-navigation.js";
 import type { NotesRuntime } from "./index.js";
 import {
 	legacyNotesConfigured,
@@ -45,7 +46,7 @@ function hasSavedContinuity(ctx: ExtensionContext): boolean {
 export function createNotesFeature(
 	pi: ExtensionAPI,
 	openSettings: OpenSettings,
-): FeatureSettings {
+): CommsFeature {
 	let settings: NotesSettings | undefined;
 	let runtime: NotesRuntime | undefined;
 	let loading: Promise<NotesRuntime> | undefined;
@@ -152,6 +153,8 @@ export function createNotesFeature(
 		},
 	});
 	return {
+		enabled: () => runtime?.lifecycle.active ?? false,
+		gptPromptMode: () => runtime?.lifecycle.gptPromptMode() ?? false,
 		async openSettings(ctx) {
 			return open(ctx);
 		},

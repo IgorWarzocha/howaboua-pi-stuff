@@ -4,10 +4,6 @@ import type { BoardEnvelope } from "./protocol.js";
 
 /** Optional membership transport. The runtime owns storage, settings and delivery. */
 export interface BoardAdapter {
-	briefing?(
-		member: boolean,
-		population: "empty" | "populated" | "unavailable",
-	): string;
 	request(
 		route: string,
 		request: BoardEnvelope,

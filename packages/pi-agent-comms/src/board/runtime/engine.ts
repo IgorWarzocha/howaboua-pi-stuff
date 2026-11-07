@@ -16,7 +16,6 @@ export async function createBoardEngine(
 		pi,
 		(ctx) => runtime.population(ctx),
 		availability,
-		() => runtime.adapter?.briefing,
 		() => runtime.gptPromptMode,
 	);
 	const catchup = new BoardCatchup(

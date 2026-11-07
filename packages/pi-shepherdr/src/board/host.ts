@@ -16,7 +16,7 @@ import {
 } from "@howaboua/pi-agent-comms/runtime";
 import { sessionPath } from "../core/agents.js";
 import type { AgentFleet, ConnectedMachine } from "../fleet/index.js";
-import { boardBriefing, boardMigrationWarning } from "../messages/guidance.js";
+import { boardMigrationWarning } from "../messages/guidance.js";
 import {
 	requestContext,
 	sessionContextPath,
@@ -56,8 +56,6 @@ export class AgentBoard {
 		discoverBoard(pi, (runtime) => {
 			this.runtime = runtime;
 			runtime.attach({
-				briefing: (member, population) =>
-					boardBriefing(member, population, runtime.gptPromptMode),
 				request: requestContext,
 				commitDirectory: (own, directory, caller, request) =>
 					this.membership.commitDirectory(own, directory, caller, request),

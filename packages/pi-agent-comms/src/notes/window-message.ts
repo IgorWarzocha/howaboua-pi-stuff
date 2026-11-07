@@ -15,31 +15,29 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not diary. They use virtual storage, not disk filesystem. Use relative paths when creating.
+Notes are recovery state, not diary. Storage is virtual, not disk. Create relative paths.
 
-MUST maintain one authoritative checkpoint per task/topic with request, constraints, decision, status, next steps and relevant history IDs.
+MUST maintain one authoritative checkpoint per task/topic: request, constraints, decision, status, next steps and relevant history IDs.
 
-Near the end of a substantive turn, before replying, consolidate changed recovery state. Use notes write to create or replace the checkpoint, append to add. Do not interleave saves with ordinary tool calls. Skip routine turns and unchanged state. Explicit reminders and earlier handoff needs still apply.
+Near a substantive turn's end, before replying, consolidate changed recovery state. notes write creates or replaces; append adds. Do not interleave saves with ordinary tool calls. Skip routine turns and unchanged state. Explicit reminders and earlier handoffs still apply.
 
-Subagents MUST maintain shareable notes. Return a brief conclusion or blocker and the checkpoint path. Parents read that checkpoint for details instead of requesting a repeated report. Notes may link peer findings on Board when available.
+Link existing notes rather than duplicate. Recording does not authorise implementation.
 
-Link existing notes instead of duplicating content. Recording does not authorise implementation.
+Immediately before new_context, MUST save the checkpoint via notes. Save before handoff too. For rollover, call new_context after saving.
 
-Immediately before new_context, MUST save the checkpoint with notes. Save before a handoff too. For rollover, call new_context after saving.
+After rollover, notes read recovers the checkpoint, then read only necessary links. Do not reread unchanged notes. Use history for missing details.
 
-After rollover, use notes read action to recover the checkpoint, then read only necessary links. SHOULD NOT reread unchanged notes. Use the history tool for missing details.
-
-Skill reads do not survive rollover. MUST reread required skills.
+MUST reread required skills after rollover.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=recovery stateNOTdiary. Virtual Notes storageNOTfilesystem. Create notes with relative paths. One authoritative checkpoint per task/topic→request/constraints/decision/status/next steps/history IDs. Existing notes→linkNOTduplicate. RecordingNOTimplementation permission.
+Notes=virtual recovery state, NOT disk/diary. Create relative paths. MUST maintain one authoritative checkpoint/task→request/constraints/decision/status/next steps/history IDs. Link existing notes≠duplicate; recording≠implementation permission.
 
-Near substantive turn end, before reply→consolidate CHANGED recovery state. Notes write→create/replace; append→add. No saves interleaved with ordinary tool calls; skip routine/unchanged state. Explicit reminders/earlier handoff needs still apply. Subagents MUST maintain shareable notes→brief conclusion/blocker + checkpoint path; parents READ checkpoint for details≠request repeated report. Notes may link peer findings on Board if available.
+Near substantive turn end, before reply→consolidate CHANGED recovery. notes write→create/replace; append→add. No saves amid ordinary tool calls; skip routine/unchanged state. Explicit reminders/earlier handoffs still apply.
 
-Immediately before new_context: MUST save checkpoint via notes; save before handoff too. Rollover→call new_context after save. Post-rollover: notes read→checkpoint→necessary links only. SHOULD NOT reread unchanged notes. Missing details→history tool.
+Immediately before new_context MUST save checkpoint via notes; before handoff too. Rollover→new_context after save. After rollover: notes read→checkpoint→necessary links only; don't reread unchanged notes. Missing details→history.
 
-Prior skill reads≠current context. MUST reread required skills after rollover.
+After rollover MUST reread required skills.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

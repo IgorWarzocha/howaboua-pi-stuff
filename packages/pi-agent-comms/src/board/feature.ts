@@ -1,11 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { FeatureSettings, OpenSettings } from "../settings-navigation.js";
+import type { CommsFeature } from "../guidance.js";
+import type { OpenSettings } from "../settings-navigation.js";
 import { acquireBoard } from "./runtime/index.js";
 
 export async function createBoardFeature(
 	pi: ExtensionAPI,
 	openSettings: OpenSettings,
-): Promise<FeatureSettings> {
+): Promise<CommsFeature> {
 	const board = await acquireBoard(pi);
 	pi.registerCommand("board", {
 		description: "Board settings; status, on|off [session|folder|global]",
@@ -57,6 +58,8 @@ export async function createBoardFeature(
 		},
 	});
 	return {
+		enabled: (ctx) => board.enabled(ctx),
+		gptPromptMode: () => board.gptPromptMode,
 		async openSettings(ctx) {
 			const { openBoardSettings } = await import("./settings/panel.js");
 			return openBoardSettings(pi, ctx, board);
