@@ -9,6 +9,7 @@ import {
 	GPT_NEW_CONTEXT_DESCRIPTION,
 	HISTORY_USAGE,
 	NEW_CONTEXT_DESCRIPTION,
+	NOTES_SCHEMA,
 	NOTES_USAGE,
 } from "./tool-contracts.js";
 import type { createTools } from "./tools.js";
@@ -61,8 +62,8 @@ export async function registerNotesToolIntegrations(
 			() =>
 				tools
 					.filter((tool) => tool.name === "notes" || tool.name === "history")
-					.map((tool) =>
-						adaptToolForCodeMode(tool, {
+					.map((tool) => ({
+						...adaptToolForCodeMode(tool, {
 							discovery: "help",
 							usage: tool.name === "notes" ? NOTES_USAGE : HISTORY_USAGE,
 							deferLoading: tool.name !== "notes",
@@ -71,7 +72,19 @@ export async function registerNotesToolIntegrations(
 								? { resultValue: historyResultValue }
 								: {}),
 						}),
-					),
+						// Code checks inputs before Pi can normalise this body alias.
+						...(tool.name === "notes"
+							? {
+									inputSchema: {
+										...NOTES_SCHEMA,
+										properties: {
+											...NOTES_SCHEMA.properties,
+											content: NOTES_SCHEMA.properties.text,
+										},
+									},
+								}
+							: {}),
+					})),
 			{ isActive: () => lifecycle.active },
 		);
 		refreshNested = registration.refresh;
