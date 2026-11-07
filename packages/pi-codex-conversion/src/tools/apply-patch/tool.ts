@@ -248,14 +248,9 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}): Apply
 				});
 				throw error;
 			}
-			const summary = [
-				"Applied patch successfully",
-				`Changed files: ${result.changedFiles.length}`,
-				`Created files: ${result.createdFiles.length}`,
-				`Deleted files: ${result.deletedFiles.length}`,
-				`Moved files: ${result.movedFiles.length}`,
-				`Fuzz: ${result.fuzz}`,
-			].join("\n");
+			const summary = result.fuzz > 0
+				? "Applied patch. Change details may be incomplete. Inspect the affected paths"
+				: "Applied patch";
 
 			const details = { status: "success", result } satisfies ApplyPatchSuccessDetails;
 			recordApplyPatchDisplayOutcome(toolCallId, {

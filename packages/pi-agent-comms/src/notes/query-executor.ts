@@ -223,7 +223,7 @@ export function createQueryExecutor(
 			)
 		)
 			throw new Error(
-				"That agent's Pi session history is unavailable on this machine. Restore access to its saved JSONL session, or omit agent_name to search this session.",
+				"That agent's history is unavailable here. Omit agent_name to search this session, or request an accessible handoff from its owner.",
 			);
 		signal?.throwIfAborted();
 		return result(

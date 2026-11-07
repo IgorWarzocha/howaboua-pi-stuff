@@ -16,3 +16,4 @@
 - Rollover guidance now directs parents to shared Notes checkpoints for worker findings.
 - Assigned Board thread references now remind workers to subscribe for ongoing peer findings.
 - Shared Notes and Board now use Agent Comms' routing contract instead of separate Shepherdr briefings.
+- Agent attachment and detachment now accept either context or Board sharing without requiring an explicit false for the other.

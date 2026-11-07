@@ -312,7 +312,7 @@ async function readSharedSession(
 					contextStorageAgentName(child) !== member.agentName)
 			)
 				throw new Error(
-					"Saved shared notes belong to a different agent family",
+					"This session cannot access the requested saved context. Request an accessible handoff or note path from its owner.",
 				);
 			const candidate = await resolve(saved, destination, query);
 			if (candidate) {
@@ -401,7 +401,7 @@ async function readSharedSession(
 		)
 			throw Object.assign(
 				new Error(
-					`Saved shared ${namespace} are unavailable on this machine. Restore access to the saved Pi JSONL session, then retry.`,
+					`Saved ${namespace} could not be read on this machine. Request a handoff from the owner, or ask the user to restore access before retrying.`,
 					{ cause: error },
 				),
 				{ code: "SAVED_SESSION_UNAVAILABLE" },

@@ -74,7 +74,7 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 async function executeRustViewImageContent(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined, customRustBinariesDir?: string | undefined): Promise<ViewImageContent> {
 	const binary = getBundledToolBinaryPath("view_image", {}, customRustBinariesDir);
 	if (!binary) {
-		throw new Error(`view_image binary is not bundled for ${process.platform}-${process.arch}`);
+		throw new Error(`view_image is unavailable: this installation has no image helper for ${process.platform}-${process.arch}. Ask the user to update or repair the extension installation. Other tools remain available`);
 	}
 	const child = await runBundledTool({
 		binary,

@@ -160,15 +160,15 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		throw new Error(
 			"machine requires target for command discovery; omit both for this session",
 		);
-	if (
-		(action === "attach" || action === "detach") &&
-		(typeof request["context"] !== "boolean" ||
-			typeof request["board"] !== "boolean" ||
-			(!request["context"] && !request["board"]))
-	)
-		throw new Error(
-			`${action} requires context and board booleans; enable at least one`,
-		);
+	if (action === "attach" || action === "detach") {
+		for (const field of ["context", "board"]) {
+			if (field in request && typeof request[field] !== "boolean")
+				throw new Error(`${field} must be a boolean`);
+		}
+		if (request["context"] !== true && request["board"] !== true)
+			throw new Error(`${action} requires context:true or board:true`);
+		request = { context: false, board: false, ...request };
+	}
 	if (action === "reply") {
 		for (const field of ["extension", "id", "target"]) {
 			if (typeof request[field] !== "string" || !request[field].trim())

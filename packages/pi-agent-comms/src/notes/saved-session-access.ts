@@ -57,7 +57,7 @@ export function createSavedSessionAccess(
 					: (() => {
 							throw Object.assign(
 								new Error(
-									"Saved shared sessions on that machine are unavailable. Resume the shared agent and reconnect its machine, or make its saved Pi JSONL session available locally.",
+									"Saved context on that machine is unavailable. Request a handoff from its owner, or ask the user to reconnect the machine before retrying.",
 								),
 								{ code: "SAVED_SESSION_UNAVAILABLE" },
 							);
@@ -86,7 +86,7 @@ export function createSavedSessionAccess(
 					member.agentName !== target
 				)
 					throw new Error(
-						"Saved shared notes belong to a different agent family",
+						"This session cannot access the requested saved context. Request an accessible handoff or note path from its owner.",
 					);
 				return saved;
 			}

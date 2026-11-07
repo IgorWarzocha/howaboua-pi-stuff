@@ -46,8 +46,8 @@ export async function agentsHelp(
 			unwatch: "target machine?",
 			send: "target message machine?",
 			assign: "target message machine? blocking?",
-			attach: "target context board machine?",
-			detach: "target context board machine?",
+			attach: "target context? board? machine?",
+			detach: "target context? board? machine?",
 			read: "target machine? source=latest|visible|recent? lines?",
 			reply: "target extension id message machine?",
 		},
@@ -85,14 +85,14 @@ export async function agentsHelp(
 				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach: boardAvailable
 				? gpt
-					? "Idle target; context/board=independent sharing/membership; NO task/watch"
-					: "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
+					? "Idle target; context/board=independent sharing/membership; omitted=false, at least one true; NO task/watch"
+					: "Idle target; context/board choose shared access and board membership independently; omitted=false, at least one true; no task/watch"
 				: gpt
-					? "Idle target; context=shared notes/history; boards unavailable→board:false; NO task/watch"
-					: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
+					? "Idle target; context:true=shared notes/history; boards unavailable; NO task/watch"
+					: "Idle target; context:true shares notes/history; shared boards unavailable; no task/watch",
 			detach: gpt
-				? "Idle target; stop selected membership; counterpart checkpoints remain readonly"
-				: "Stop selected membership; retain counterpart checkpoints read-only; idle target",
+				? "Idle target; stop context/board independently; omitted=false, at least one true; counterpart checkpoints remain readonly"
+				: "Stop context/board independently; omitted=false, at least one true; retain counterpart checkpoints read-only; idle target",
 			blocking: gpt
 				? "spawn/assign default false→dispatch then return; true→wait for result; profile overrides spawn. Parallel blocking calls: await Promise.allSettled. Background reports automatic→do other work/end turn, NO poll or await timers/extra Promises"
 				: "spawn/assign return after dispatch by default. Set blocking:true to wait for the result; profile blocking overrides spawn. Use await Promise.allSettled for parallel blocking calls, including failures. Background reports arrive automatically: do other work or end this turn, never poll or await timers or extra Promises for reports",
