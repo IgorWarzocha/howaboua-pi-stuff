@@ -28,12 +28,17 @@ import {
 	sendContextRoute,
 } from "./context-routing.js";
 import { sessionPath } from "./core/agents.js";
-import type { AgentFleet } from "./fleet/index.js";
+import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
+import {
+	describePeerSharing,
+	peerReplyContext,
+} from "./messages/peer-sharing.js";
 import {
 	requestContext,
 	sessionContextPath,
 } from "./remote/shepherdr-context.mjs";
 import { MEMBER_ENTRY, type Member, SpawnContext } from "./spawn-context.js";
+import type { PaneInfo } from "./types.js";
 
 interface Routing {
 	transport: "shepherdr";
@@ -112,6 +117,21 @@ export class SharedAgentContext {
 		});
 	}
 
+	peerReplyContext(
+		ctx: ExtensionContext,
+		runtime: ConnectedMachine,
+		panel: PaneInfo,
+		signal?: AbortSignal,
+	): Promise<string> {
+		return peerReplyContext(
+			ctx,
+			() => describePeerSharing(ctx, this.getService(), this.board),
+			runtime,
+			panel,
+			signal,
+		);
+	}
+
 	async handle(
 		ctx: ExtensionContext,
 		value: unknown,
@@ -124,6 +144,13 @@ export class SharedAgentContext {
 			value.operation === "agent-identity"
 		)
 			return { sessionId: ctx.sessionManager.getSessionId() };
+		if (
+			value &&
+			typeof value === "object" &&
+			"operation" in value &&
+			value.operation === "peer-sharing"
+		)
+			return describePeerSharing(ctx, this.getService(), this.board);
 		if (
 			value &&
 			typeof value === "object" &&

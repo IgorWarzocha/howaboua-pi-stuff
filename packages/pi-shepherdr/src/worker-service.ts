@@ -255,6 +255,7 @@ export function registerWorkerService(
 						input.prompt,
 						"task",
 					);
+					attributed.context += `\n${await shared.peerReplyContext(ctx, runtime, panel)}`;
 					assertBranch();
 					const dispatch = await dispatchAgentWork(
 						runtime,

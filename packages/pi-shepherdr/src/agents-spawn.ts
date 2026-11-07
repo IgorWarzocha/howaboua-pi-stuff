@@ -152,6 +152,7 @@ export async function spawnAgent(
 				?.warning;
 			boardAgent = await boardBinding?.accept(started.agent);
 			shared = await sharing?.accept(started.agent);
+			attributedMessage.context += `\n${await sharedContext.peerReplyContext(ctx, runtime, started.agent, signal)}`;
 			dispatch = await dispatchAgentWork(
 				runtime,
 				started.agent,

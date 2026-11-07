@@ -18,3 +18,4 @@
 - Shared Notes and Board now use Agent Comms' routing contract instead of separate Shepherdr briefings.
 - Agent attachment and detachment now accept either context or Board sharing without requiring an explicit false for the other.
 - Agent help and peer messages distinguish independent sessions from sub-agents and separate communication from shared Notes or Board membership.
+- Incoming tasks and messages state whether the sender can read the recipient's current Notes and Board, with retained-only or unknown access identified explicitly.
