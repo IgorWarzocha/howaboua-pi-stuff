@@ -173,7 +173,7 @@ await tools.agents({
 });
 ```
 
-Supply both booleans and enable at least one. `context` shares notes and history through aliases without changing either session's original context identity or moving its notes. The returned `agent` is the target's Pi session reference. Use it as `history`'s `agent_name` or as `<agent>/notes/<path>` for notes. Each agent's relative note paths remain its own. The target receives its controller reference without starting a turn.
+Enable one or both choices. Omitted choices are false. `context` shares notes and history through aliases without changing either session's original context identity or moving its notes. The returned `agent` is the target's Pi session reference. Use it as `history`'s `agent_name` or as `<agent>/notes/<path>` for notes. Each agent's relative note paths remain its own. The target receives its controller reference without starting a turn.
 
 Context attachment requires active Agent Comms Notes in both sessions. Each owner keeps its original identity and local notes. Optional encrypted historical reads require compatible PCC transport and the original account and backend. The explicit `context: true` choice does not depend on the controller's spawn-sharing setting. If attachment changes context access during an exec cell, start a new cell before using notes or history.
 
@@ -183,7 +183,7 @@ The target must be idle and both Pi sessions must be saved. Existing shared-cont
 
 Attachments survive resume, not forks. Saved checkpoints remain readable without the owning Pi process when its saved session and machine are accessible. Writes and live history access need the owner. After an interrupted attachment, resume the original sessions and retry the same target and choices. Retries reuse the original aliases and membership.
 
-To detach, call `agents` with `action: "detach"`, the same target, and both booleans. Enable each membership you want to leave. Context detach retains counterpart notes under the existing aliases read-only. Local notes use captured checkpoints. Historical Remote references retain their original authenticated address, not a plaintext snapshot. Counterpart history and writes stop at detach. Native identities remain unchanged. Board detach restores the target's previous board without deleting either archive. Board members with children cannot detach. Reattachment is unsupported.
+To detach, call `agents` with `action: "detach"`, the same target, and each membership you want to leave set to true. Omitted memberships are unchanged. Context detach retains counterpart notes under the existing aliases read-only. Local notes use captured checkpoints. Historical Remote references retain their original authenticated address, not a plaintext snapshot. Counterpart history and writes stop at detach. Native identities remain unchanged. Board detach restores the target's previous board without deleting either archive. Board members with children cannot detach. Reattachment is unsupported.
 
 If an attached owner closes, local note reads use its latest saved checkpoints when the source machine and session file remain reachable. Otherwise they return the timestamped attachment snapshot, marked stale with the access failure. This never writes to the owner's session. Historical encrypted reads require their original account and backend. Backend failures remain visible. An incomplete detach fails with a retry instruction rather than claiming success.
 
