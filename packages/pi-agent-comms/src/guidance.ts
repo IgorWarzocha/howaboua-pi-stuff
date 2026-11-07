@@ -15,7 +15,7 @@ export interface CommsFeature extends FeatureSettings {
 }
 
 /** Routing belongs here; feature carriers retain identity, recovery and navigation. */
-export function communicationGuidance(
+function communicationGuidance(
 	notes: boolean,
 	board: boolean,
 	agents: boolean,
