@@ -317,7 +317,6 @@ export class AttachmentTarget {
 				)
 			)
 				throw new Error("Target context changed before detach");
-			this.notes.validate(requested.context, plan.context.controller);
 			await this.notes.verify(
 				ctx,
 				requested.context,
