@@ -130,6 +130,10 @@ export async function spawnAgent(
 				? undefined
 				: await sharedContext.spawns.prepare(ctx, runtime, agentArgs);
 		const boardBinding = await board.prepare(ctx, runtime, name, agentArgs);
+		if (boardThreadId !== undefined && !boardBinding)
+			throw new Error(
+				"Board thread context requires shared Board to be enabled before spawning",
+			);
 		const started = await startAgent(
 			runtime.client,
 			startParams,
@@ -141,7 +145,7 @@ export async function spawnAgent(
 		let promptAccepted = false;
 		let dispatch;
 		let shared: { agentName?: string; warning?: string } | undefined;
-		let boardAgent: string | undefined;
+		let boardShared: { agentName?: string; warning?: string } | undefined;
 		let agentName: string | undefined;
 		let relationshipWarning: string | undefined;
 		const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
@@ -150,7 +154,11 @@ export async function spawnAgent(
 			await recordSpawn(started.agent, agentArgs);
 			relationshipWarning = (await relationship?.accept(started.agent))
 				?.warning;
-			boardAgent = await boardBinding?.accept(started.agent);
+			boardShared = await boardBinding?.accept(started.agent);
+			if (boardThreadId !== undefined && !boardShared?.agentName)
+				throw new Error(
+					"Worker cannot read the requested Board thread: the target needs Agent Board or Agent Comms. Load it and reload Pi before retrying",
+				);
 			shared = await sharing?.accept(started.agent);
 			attributedMessage.context += `\n${await sharedContext.peerReplyContext(ctx, runtime, started.agent, signal)}`;
 			dispatch = await dispatchAgentWork(
@@ -204,16 +212,21 @@ export async function spawnAgent(
 								next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
 							}),
 				agent: agentName,
-				...(boardAgent || shared?.agentName
+				...(boardBinding || sharing
 					? {
 							sharing: {
-								board: !!boardAgent,
+								board: !!boardShared?.agentName,
 								context: !!shared?.agentName,
 							},
 						}
 					: {}),
 			},
-			[dispatch.warning, shared?.warning, relationshipWarning]
+			[
+				dispatch.warning,
+				boardShared?.warning,
+				shared?.warning,
+				relationshipWarning,
+			]
 				.filter(Boolean)
 				.join("\n") || undefined,
 		);

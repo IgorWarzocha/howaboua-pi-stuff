@@ -137,6 +137,16 @@ export class AgentBoard {
 		return this.owner().execute(ctx, input, requestId);
 	}
 	handle(ctx: ExtensionContext, value: unknown, signal?: AbortSignal) {
+		// Only a missing owner can decline a fresh bind without mutating state.
+		if (
+			!this.runtime &&
+			!this.failure &&
+			value &&
+			typeof value === "object" &&
+			"operation" in value &&
+			value.operation === "board-bind"
+		)
+			return null;
 		return this.owner().handle(ctx, value, signal);
 	}
 	promptCatchup(ctx: ExtensionContext) {
@@ -184,6 +194,11 @@ export class AgentBoard {
 					sessionContextPath(sessionFile),
 					{ operation: "board-bind", binding: prepared },
 				);
+				if (result === null)
+					return {
+						warning:
+							"Spawned without shared Board: the target needs Agent Board or Agent Comms",
+					};
 				const adopted = parseBinding(result);
 				if (
 					adopted.boardId !== own.boardId ||
@@ -208,7 +223,7 @@ export class AgentBoard {
 					machine: runtime.machine,
 					sessionFile,
 				});
-				return adopted.agentName;
+				return { agentName: adopted.agentName };
 			},
 		};
 	}

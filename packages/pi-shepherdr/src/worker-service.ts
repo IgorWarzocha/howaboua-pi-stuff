@@ -212,10 +212,11 @@ export function registerWorkerService(
 								const relationshipResult = await relationship?.accept(
 									started.agent,
 								);
-								await boardBinding?.accept(started.agent);
+								const boardResult = await boardBinding?.accept(started.agent);
 								const sharingResult = await sharing?.accept(started.agent);
 								for (const warning of [
 									relationshipResult?.warning,
+									boardResult?.warning,
 									sharingResult?.warning,
 								])
 									if (warning) ctx.ui.notify(warning, "warning");

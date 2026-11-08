@@ -151,7 +151,7 @@ export class SpawnContext {
 					sessionContextPath(sessionFile),
 					{ operation: "bind", binding },
 				);
-				if (!value)
+				if (value === null)
 					return {
 						warning: "Spawned without shared context: the target needs Notes",
 					};
