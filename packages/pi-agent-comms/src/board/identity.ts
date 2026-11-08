@@ -35,7 +35,7 @@ const ChildSchema = Type.Object({
 	machine: Type.String(),
 	sessionFile: Type.String({ minLength: 1 }),
 });
-export type BoardChild = Static<typeof ChildSchema>;
+type BoardChild = Static<typeof ChildSchema>;
 const BINDING = "shepherdr-board-binding";
 const MEMBER = "shepherdr-board-member";
 const CHILD = "shepherdr-board-child";
