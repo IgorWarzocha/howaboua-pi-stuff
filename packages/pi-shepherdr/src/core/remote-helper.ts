@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
+import {
+	NOTES_READER_UNAVAILABLE,
+	notesModule,
+} from "../remote/notes-reader.mjs";
 import { CoreClient } from "./client.js";
 import { attachCoreTerminal } from "./focus-channel-stream.js";
 import { focusWire } from "./focus-channel-wire.mjs";
@@ -11,27 +13,6 @@ import { type CoreObject, object } from "./protocol.js";
 const moduleUrl = (source: string) =>
 	`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 let bundle: ReturnType<typeof sources> | undefined;
-async function notesModule(
-	exportName: "saved-session" | "saved-session-index",
-): Promise<URL | undefined> {
-	let path: string;
-	try {
-		path = createRequire(import.meta.url).resolve(
-			`@howaboua/pi-agent-comms/${exportName}`,
-		);
-	} catch (error) {
-		if (
-			error instanceof Error &&
-			"code" in error &&
-			["MODULE_NOT_FOUND", "ERR_PACKAGE_PATH_NOT_EXPORTED"].includes(
-				String(error.code),
-			)
-		)
-			return undefined;
-		throw error;
-	}
-	return pathToFileURL(path);
-}
 async function savedSessionSource(): Promise<string | undefined> {
 	const url = await notesModule("saved-session");
 	if (!url) return undefined;
@@ -49,6 +30,24 @@ async function savedSessionSource(): Promise<string | undefined> {
 async function savedSessionIndexSource(): Promise<string | undefined> {
 	const url = await notesModule("saved-session-index");
 	return url ? moduleUrl(await readFile(url, "utf8")) : undefined;
+}
+
+/** A broken optional package must fail its reads, never the base Core connection. */
+async function optionalNotesSource(
+	load: () => Promise<string | undefined>,
+	operation: "readSavedNotesSession" | "findSavedNotesSessions",
+): Promise<string | undefined> {
+	try {
+		return await load();
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		const message = reason.startsWith("Saved Notes")
+			? reason
+			: "Saved Notes could not be loaded on the controller. Update their extension and reload Pi. Other agent operations remain available.";
+		return moduleUrl(
+			`export function ${operation}() { throw new Error(${JSON.stringify(message)}, { cause: new Error(${JSON.stringify(reason)}) }); }`,
+		);
+	}
 }
 async function sources() {
 	const read = (path: string) =>
@@ -81,15 +80,24 @@ async function sources() {
 		read("./terminal-peer.mjs"),
 	]);
 	const peerUrl = moduleUrl(peer);
-	const savedSession = await savedSessionSource();
-	const savedSessionIndex = await savedSessionIndexSource();
+	const savedSession = await optionalNotesSource(
+		savedSessionSource,
+		"readSavedNotesSession",
+	);
+	const savedSessionIndex = await optionalNotesSource(
+		savedSessionIndexSource,
+		"findSavedNotesSessions",
+	);
 	const checkpointsUrl = moduleUrl(
-		savedSession
-			? checkpoints.replace(
-					'"@howaboua/pi-agent-comms/saved-session"',
-					JSON.stringify(savedSession),
-				)
-			: checkpoints,
+		checkpoints.replace(
+			'"./notes-reader.mjs"',
+			JSON.stringify(
+				savedSession ??
+					moduleUrl(
+						`export function readSavedNotesSession() { throw new Error(${JSON.stringify(NOTES_READER_UNAVAILABLE)}); }`,
+					),
+			),
+		),
 	);
 	return {
 		bootstrap,

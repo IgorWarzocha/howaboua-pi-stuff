@@ -2,6 +2,9 @@ import { stat } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { resolve } from "node:path";
 
+const NOTES_UNAVAILABLE =
+	"Saved Notes reads are unavailable. Install Notes Compaction or Agent Comms alongside Shepherdr on the controller, then reload Pi. Other agent operations remain available.";
+
 /** Operations that need the selected Core's filesystem or authenticated Pi peers. */
 export async function serve(input, send, fail) {
 	const [
@@ -111,10 +114,7 @@ export async function serve(input, send, fail) {
 				);
 			case "saved_session":
 				return relay.request(message.id, async (signal) => {
-					if (!input.modules.savedSession)
-						throw new Error(
-							"Saved session reads are unavailable; update Notes and restart the controller",
-						);
+					if (!input.modules.savedSession) throw new Error(NOTES_UNAVAILABLE);
 					if (
 						typeof message.path !== "string" ||
 						typeof message.history !== "boolean"
@@ -137,9 +137,7 @@ export async function serve(input, send, fail) {
 			case "find_saved_sessions":
 				return relay.request(message.id, async (signal) => {
 					if (!input.modules.savedSessionIndex)
-						throw new Error(
-							"Saved session lookup is unavailable; update Notes and restart the controller",
-						);
+						throw new Error(NOTES_UNAVAILABLE);
 					if (typeof message.threadId !== "string")
 						throw new Error("Invalid saved session identity");
 					const index = await (savedSessionIndex ??= import(

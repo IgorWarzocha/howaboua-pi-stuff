@@ -29,9 +29,7 @@ function canonicalIdentity(identity) {
 
 /** @param {string} path @param {{protocol: 1, threadId: string, sessionId: string, agentName: string, storageAgentName?: string, storage: "session"}} identity */
 export async function readPersistedNoteEntries(path, identity) {
-	const { readSavedNotesSession } = await import(
-		"@howaboua/pi-agent-comms/saved-session"
-	);
+	const { readSavedNotesSession } = await import("./notes-reader.mjs");
 	const saved = await readSavedNotesSession(path);
 	if (saved.threadId !== identity.threadId)
 		throw new Error("Saved checkpoint owner identity changed");

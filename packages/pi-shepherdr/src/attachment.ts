@@ -4,7 +4,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import { binding } from "@howaboua/pi-agent-comms/integration";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import type { AgentsParams } from "./agents-contract.js";
@@ -70,7 +69,7 @@ export class AgentAttachment {
 		const controllerContext = context
 			? await this.target.context(ctx, false)
 			: undefined;
-		const controllerBoard = useBoard ? binding(ctx) : undefined;
+		const controllerBoard = useBoard ? this.board.binding(ctx) : undefined;
 		const check = async () => {
 			const currentContext = controllerContext
 				? await this.target.context(ctx, false)
@@ -80,7 +79,8 @@ export class AgentAttachment {
 				ctx.sessionManager.getSessionId() !== controllerSessionId ||
 				(controllerContext &&
 					!isDeepStrictEqual(currentContext, controllerContext)) ||
-				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
+				(controllerBoard &&
+					!isDeepStrictEqual(this.board.binding(ctx), controllerBoard))
 			)
 				throw new Error(
 					"Controller changed during attachment; resume the original session and retry",
@@ -153,7 +153,7 @@ export class AgentAttachment {
 									upstream,
 									current.sessionId,
 								),
-								controller: binding(ctx),
+								controller: this.board.binding(ctx),
 							},
 						}
 					: {}),
@@ -223,7 +223,7 @@ export class AgentAttachment {
 		const { plan } = route;
 		if ((params.context && !plan.context) || (params.board && !plan.board))
 			throw new Error("Cannot detach a choice that was not attached");
-		const controllerBoard = params.board ? binding(ctx) : undefined;
+		const controllerBoard = params.board ? this.board.binding(ctx) : undefined;
 		const check = async (checkRoute = true) => {
 			const currentContext =
 				params.context && plan.context
@@ -247,7 +247,8 @@ export class AgentAttachment {
 						currentContext,
 						canonicalContextIdentity(plan.context.controller),
 					)) ||
-				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
+				(controllerBoard &&
+					!isDeepStrictEqual(this.board.binding(ctx), controllerBoard))
 			)
 				throw new Error(
 					"Controller changed during detach; resume it and retry",

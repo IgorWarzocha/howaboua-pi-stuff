@@ -1,4 +1,8 @@
 import { hostname } from "node:os";
+import {
+	findSavedNotesSessions,
+	readSavedNotesSession,
+} from "../remote/notes-reader.mjs";
 import { openPeerChannel } from "../remote/shepherdr-channel.mjs";
 import { requestContext } from "../remote/shepherdr-context.mjs";
 import {
@@ -107,12 +111,7 @@ export class CoreConnection {
 			);
 		return this.admission.run(
 			"bulk",
-			async () => {
-				const { readSavedNotesSession } = await import(
-					"@howaboua/pi-agent-comms/saved-session"
-				);
-				return readSavedNotesSession(path, signal, history);
-			},
+			() => readSavedNotesSession(path, signal, history),
 			signal,
 		);
 	}
@@ -128,12 +127,7 @@ export class CoreConnection {
 			);
 		return this.admission.run(
 			"bulk",
-			async () => {
-				const { findSavedNotesSessions } = await import(
-					"@howaboua/pi-agent-comms/saved-session-index"
-				);
-				return findSavedNotesSessions(threadId, undefined, signal);
-			},
+			() => findSavedNotesSessions(threadId, signal),
 			signal,
 		);
 	}

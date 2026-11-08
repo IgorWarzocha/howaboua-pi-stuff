@@ -5,8 +5,9 @@ import type {
 	SharedContextRequest,
 	SharedContextResult,
 } from "@howaboua/pi-agent-comms/context-sharing";
+import { NOTES_UNAVAILABLE } from "./notes-discovery.js";
 
-/** Read-only continuity when a live owner disappears. Agent Comms owns parsing. */
+/** Read-only continuity when a live owner disappears. Notes owns parsing. */
 export class AttachmentNotes {
 	private readonly getService: () => ContextSharingService | undefined;
 	constructor(getService: () => ContextSharingService | undefined) {
@@ -19,7 +20,7 @@ export class AttachmentNotes {
 			!service.parseAttachmentNotes ||
 			!service.readAttachmentNotes
 		)
-			throw new Error("Update Codex Conversion to retain attached checkpoints");
+			throw new Error(NOTES_UNAVAILABLE);
 		return {
 			export: service.exportAttachmentNotes,
 			parse: service.parseAttachmentNotes,

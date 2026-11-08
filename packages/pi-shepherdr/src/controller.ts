@@ -2,13 +2,13 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { closeIdleChildren } from "./close-idle.js";
 import {
 	contextBriefingWindow,
 	hasContextRollover,
 	recordContextBriefing,
 	registerContextBriefing,
-} from "@howaboua/pi-agent-comms/integration";
-import { closeIdleChildren } from "./close-idle.js";
+} from "./context-briefing.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel/index.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet/index.js";
@@ -70,64 +70,54 @@ export function registerAgentController(
 		signal.throwIfAborted();
 		return fleet.connect(machine);
 	};
-	registerContextBriefing(
-		pi,
-		"orchestration",
-		(ctx) => restoreOrchestrationState(ctx).enabled,
-		async (ctx, windowId, messages) => {
-			const sessionId = ctx.sessionManager.getSessionId();
-			const state = restoreOrchestrationState(ctx);
-			const window = contextBriefingWindow(ctx, windowId);
-			// Initialization and compaction may keep earlier messages. Only actual
-			// selected context proves a toggle still supplies this window's guidance.
-			if (
-				state.visible &&
-				messages?.some(
-					(message) =>
-						message.role === "custom" &&
-						message.customType === ORCHESTRATION_STATE_TYPE &&
-						message.timestamp === state.timestamp,
-				)
+	registerContextBriefing(pi, async (ctx, windowId, messages) => {
+		const sessionId = ctx.sessionManager.getSessionId();
+		const state = restoreOrchestrationState(ctx);
+		const window = contextBriefingWindow(ctx, windowId);
+		// Initialization and compaction may keep earlier messages. Only actual
+		// selected context proves a toggle still supplies this window's guidance.
+		if (
+			state.visible &&
+			messages?.some(
+				(message) =>
+					message.role === "custom" &&
+					message.customType === ORCHESTRATION_STATE_TYPE &&
+					message.timestamp === state.timestamp,
 			)
-				return;
-			const key = JSON.stringify([sessionId, window, state.id]);
-			await recordContextBriefing(
-				pi,
-				ctx,
-				"shepherdr-orchestration",
-				key,
-				async () => {
-					const content = await orchestrationMessage(state.enabled);
-					if (
-						ctx.sessionManager.getSessionId() !== sessionId ||
-						restoreOrchestrationState(ctx).id !== state.id
-					)
-						throw new Error("Orchestration changed during its briefing");
-					ctx.signal?.throwIfAborted();
-					return content;
-				},
-			);
-		},
-	);
-	registerContextBriefing(
-		pi,
-		"active agents",
-		() => fleet.list().length > 0,
-		async (ctx, windowId) => {
-			if (!hasContextRollover(ctx)) return;
-			const key = JSON.stringify([
-				ctx.sessionManager.getSessionId(),
-				contextBriefingWindow(ctx, windowId),
-			]);
-			await recordContextBriefing(
-				pi,
-				ctx,
-				"shepherdr-active-agents",
-				key,
-				async () => activeAgentsBriefing(fleet.list(), fleet.statuses()),
-			);
-		},
-	);
+		)
+			return;
+		const key = JSON.stringify([sessionId, window, state.id]);
+		await recordContextBriefing(
+			pi,
+			ctx,
+			"shepherdr-orchestration",
+			key,
+			async () => {
+				const content = await orchestrationMessage(state.enabled);
+				if (
+					ctx.sessionManager.getSessionId() !== sessionId ||
+					restoreOrchestrationState(ctx).id !== state.id
+				)
+					throw new Error("Orchestration changed during its briefing");
+				ctx.signal?.throwIfAborted();
+				return content;
+			},
+		);
+	});
+	registerContextBriefing(pi, async (ctx, windowId) => {
+		if (!hasContextRollover(ctx)) return;
+		const key = JSON.stringify([
+			ctx.sessionManager.getSessionId(),
+			contextBriefingWindow(ctx, windowId),
+		]);
+		await recordContextBriefing(
+			pi,
+			ctx,
+			"shepherdr-active-agents",
+			key,
+			async () => activeAgentsBriefing(fleet.list(), fleet.statuses()),
+		);
+	});
 	pi.registerCommand("herdr", {
 		description: "Shepherdr settings, status, SSH setup and close-idle",
 		handler: async (args, ctx) => {

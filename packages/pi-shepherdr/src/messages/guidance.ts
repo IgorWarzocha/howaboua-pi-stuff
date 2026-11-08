@@ -44,5 +44,5 @@ export function activeAgentsBriefing(
 	].join("\n");
 }
 export function boardMigrationWarning() {
-	return "Boards are provided by Agent Comms. Install @howaboua/pi-agent-comms and reload Pi. Your saved boards are preserved.";
+	return "Shared boards are unavailable. Load Agent Board or Agent Comms and reload Pi. Your saved boards are preserved; other agent operations remain available.";
 }

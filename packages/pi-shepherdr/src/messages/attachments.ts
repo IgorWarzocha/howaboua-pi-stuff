@@ -1,4 +1,4 @@
-import type { BoardBinding } from "@howaboua/pi-agent-comms/integration";
+import type { BoardBinding } from "../board/records.js";
 
 export function attachmentMessage(
 	controllerContextAgent?: string,

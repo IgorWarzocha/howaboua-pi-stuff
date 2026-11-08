@@ -4,11 +4,6 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import {
-	type BoardBinding,
-	binding,
-	canonicalBoardBinding,
-} from "@howaboua/pi-agent-comms/integration";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import { AttachmentNotes } from "./attachment-notes.js";
@@ -25,11 +20,13 @@ import {
 	Plan,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
+import { type BoardBinding, canonicalBoardBinding } from "./board/records.js";
 import { sendPolicyMessage } from "./delivery.js";
 import {
 	attachmentMessage,
 	detachmentMessage,
 } from "./messages/attachments.js";
+import { NOTES_UNAVAILABLE } from "./notes-discovery.js";
 
 function sameBoard(left: BoardBinding, right: BoardBinding) {
 	const { legacyAgentName: _left, ...a } = canonicalBoardBinding(left);
@@ -57,7 +54,7 @@ export class AttachmentTarget {
 	async context(ctx: ExtensionContext, target: boolean) {
 		const service = this.getService();
 		if (!service?.inspectAttachment || !service.retainAttachmentIdentity)
-			throw new Error("Update Codex Conversion to attach existing context");
+			throw new Error(NOTES_UNAVAILABLE);
 		const identity = await service.inspectAttachment(ctx, target);
 		if (!identity || !Check(Identity, identity))
 			throw new Error(
@@ -67,10 +64,7 @@ export class AttachmentTarget {
 	}
 	retainIdentity(ctx: ExtensionContext) {
 		const service = this.getService();
-		if (!service?.retainAttachmentIdentity)
-			throw new Error(
-				"Context attachment support became unavailable; reload and retry",
-			);
+		if (!service?.retainAttachmentIdentity) throw new Error(NOTES_UNAVAILABLE);
 		return service.retainAttachmentIdentity(ctx);
 	}
 	private async inspect(ctx: ExtensionContext) {
@@ -106,7 +100,7 @@ export class AttachmentTarget {
 		}
 		return {
 			sessionId: ctx.sessionManager.getSessionId(),
-			board: binding(ctx),
+			board: this.board.binding(ctx),
 			...(context ? { context, notes: await this.notes.export(ctx) } : {}),
 			...(contextError ? { contextError } : {}),
 			...(boardError ? { boardError } : {}),
@@ -229,7 +223,8 @@ export class AttachmentTarget {
 						identity,
 						canonicalContextIdentity(plan.context.target),
 					) ||
-					(plan.board && !sameBoard(binding(ctx), plan.board.previous))
+					(plan.board &&
+						!sameBoard(this.board.binding(ctx), plan.board.previous))
 				)
 					throw new Error(
 						"Target changed during attachment authentication; retry after it settles",
@@ -267,12 +262,10 @@ export class AttachmentTarget {
 					canonicalContextIdentity(plan.context.target),
 				)
 			)
-				throw new Error(
-					"Shared notes are unavailable. Use messages to exchange the context you need.",
-				);
+				throw new Error(NOTES_UNAVAILABLE);
 			if (
 				plan.board &&
-				!sameBoard(binding(ctx), {
+				!sameBoard(this.board.binding(ctx), {
 					...plan.board.desired,
 					sessionId: plan.targetSessionId,
 					parentSessionId: plan.controllerSessionId,

@@ -8,11 +8,6 @@ import type {
 	SharedContextRequest,
 	SharedContextResult,
 } from "@howaboua/pi-agent-comms/context-sharing";
-import {
-	binding,
-	children,
-	isBoardEnvelope,
-} from "@howaboua/pi-agent-comms/integration";
 import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
@@ -22,6 +17,7 @@ import {
 	Identity,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
+import { children, isBoardEnvelope } from "./board/records.js";
 import {
 	contextRouteMatches,
 	countContextTargets,
@@ -33,6 +29,7 @@ import {
 	describePeerSharing,
 	peerReplyContext,
 } from "./messages/peer-sharing.js";
+import { NOTES_UNAVAILABLE } from "./notes-discovery.js";
 import {
 	requestContext,
 	sessionContextPath,
@@ -157,7 +154,7 @@ export class SharedAgentContext {
 			"operation" in value &&
 			value.operation === "agent-root"
 		) {
-			const own = binding(ctx);
+			const own = this.board.binding(ctx);
 			const identity = this.getService()?.describe(ctx);
 			if (
 				!("scope" in value) ||
@@ -246,8 +243,7 @@ export class SharedAgentContext {
 				) ?? null
 			);
 		}
-		if (!identity || !service)
-			throw new Error("Context sharing is unavailable in this session");
+		if (!identity || !service) throw new Error(NOTES_UNAVAILABLE);
 		if ("operation" in value && value.operation === "context-resolve")
 			return countContextTargets(
 				ctx,
@@ -405,7 +401,7 @@ export class SharedAgentContext {
 		machine?: string,
 		signal?: AbortSignal,
 	) {
-		const own = binding(ctx);
+		const own = this.board.binding(ctx);
 		const identity = this.getService()?.describe(ctx);
 		const scope = own.upstream || !identity ? "board" : "context";
 		const family = scope === "board" ? own.rootSessionId : identity?.sessionId;

@@ -2,14 +2,14 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-	connectNotesContextSharing,
-	type SharedContextRequest,
-	type SharedContextResult,
+import type {
+	SharedContextRequest,
+	SharedContextResult,
 } from "@howaboua/pi-agent-comms/context-sharing";
 import { attachmentOwner, attachmentRoutes } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import type { AgentFleet } from "./fleet/index.js";
+import { connectNotesContextSharing } from "./notes-discovery.js";
 import {
 	listenContext,
 	sessionContextPath,

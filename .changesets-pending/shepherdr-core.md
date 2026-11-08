@@ -3,7 +3,7 @@
 ---
 
 - Removed the older Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi 1.5+ and Node.js 22.18+. Update and restart controllers and workers together. Start fresh Core terminals for older Herdr sessions and explicitly reselect watches when changing Core namespaces. Replace pane placement with terminal, new-tab or new-workspace placement.
-- Shared Notes and Board now use Agent Comms. Replace the separate Notes Compaction and Agent Board extensions in participating sessions; saved notes and boards are preserved.
+- Shepherdr installs and runs without other extensions. Shared Notes and Board remain optional, supporting Agent Comms or the separate Notes Compaction and Agent Board extensions without changing saved notes or boards.
 - Agent calls now accept exact current Core machine names or stable IDs. Saved routes and watches survive machine renames. Connections now adds machines through `hc machine add`.
 - Remote supervision and shared Notes now use a persistent Core attachment instead of SSH helpers and execution polling. Monitoring no longer depends on aggregate terminal lists that can omit slow machines.
 - Shared local checkpoints remain readable after workers and intermediate controllers close, including older sessions across connected machines.
@@ -15,7 +15,6 @@
 - Agent read help now distinguishes replies from terminal screens and scrollback.
 - Rollover guidance now directs parents to shared Notes checkpoints for worker findings.
 - Assigned Board thread references now remind workers to subscribe for ongoing peer findings.
-- Shared Notes and Board now use Agent Comms' routing contract instead of separate Shepherdr briefings.
 - Agent attachment and detachment now accept either context or Board sharing without requiring an explicit false for the other.
 - Agent help and peer messages distinguish independent sessions from sub-agents and separate communication from shared Notes or Board membership.
 - Incoming tasks and messages state whether the sender can read the recipient's current Notes and Board, with retained-only or unknown access identified explicitly.

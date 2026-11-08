@@ -6,7 +6,7 @@ import type {
 import {
 	recordContextBriefing,
 	registerContextBriefing,
-} from "@howaboua/pi-agent-comms/integration";
+} from "./context-briefing.js";
 import {
 	getAgent,
 	getCurrentPane,
@@ -232,18 +232,5 @@ export async function acceptFocus(
 }
 
 export function registerFocusArrivals(pi: ExtensionAPI): void {
-	registerContextBriefing(
-		pi,
-		"session arrivals",
-		(ctx) =>
-			ctx.sessionManager
-				.getBranch()
-				.some(
-					(entry) =>
-						entry.type === "custom" &&
-						(entry.customType === ARRIVAL ||
-							entry.customType === "herdr-voice-focus-report"),
-				),
-		async () => undefined,
-	);
+	registerContextBriefing(pi, async () => undefined);
 }

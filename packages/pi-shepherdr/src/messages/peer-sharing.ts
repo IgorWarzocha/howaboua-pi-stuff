@@ -1,7 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import { binding } from "@howaboua/pi-agent-comms/integration";
 import { type Static, Type } from "typebox";
 import { Check } from "typebox/value";
 import {
@@ -38,7 +37,7 @@ export function describePeerSharing(
 	return {
 		sessionId: ctx.sessionManager.getSessionId(),
 		notes: notes ?? null,
-		boardId: board.enabled(ctx) ? binding(ctx).boardId : null,
+		boardId: board.enabled(ctx) ? board.binding(ctx).boardId : null,
 	};
 }
 
