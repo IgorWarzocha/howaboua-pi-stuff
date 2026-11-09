@@ -65,8 +65,11 @@ export async function agentsHelp(
 				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
 				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",
 			target: gpt
-				? "target=agent (same Notes/Board ID) or terminal target; /root=this family live root"
-				: "Use agent for the same identity as Notes/Board, or the terminal target; /root selects this family's live root",
+				? "target=Pi session reference or terminal; /root=live spawn root"
+				: "Use the Pi session reference or terminal target; /root selects the live root of saved spawn ancestry",
+			resume: gpt
+				? "send/assign to owned closed worker→resume saved session; /quit never resumes"
+				: "Sending or assigning to a closed worker recorded by this parent resumes its saved session; /quit never resumes",
 			label: "Short Pi session name; app tabs use default names",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",

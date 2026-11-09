@@ -12,6 +12,7 @@ export interface StartAgentParams {
 	name?: string;
 	placement?: (typeof START_PLACEMENTS)[number];
 	workspace?: string;
+	outliveParent?: true;
 }
 
 export interface CreatedLocationCleanup {

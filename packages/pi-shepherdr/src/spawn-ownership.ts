@@ -2,11 +2,23 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { type Static, Type } from "typebox";
+import { Check } from "typebox/value";
 import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";
+import type { StartAgentParams } from "./launch-contract.js";
 import type { PaneInfo } from "./types.js";
 
 const ENTRY = "herdr-spawn-ownership-v1";
+const SavedLaunch = Type.Object({
+	args: Type.Array(Type.String()),
+	params: Type.Object({
+		name: Type.String(),
+		cwd: Type.String(),
+		label: Type.Optional(Type.String()),
+		placement: Type.Literal("terminal"),
+	}),
+});
 
 export interface SpawnOwnership {
 	parent: string;
@@ -16,6 +28,9 @@ export interface SpawnOwnership {
 	pane: string;
 	terminal: string;
 	sessionFile: string;
+	agent?: string;
+	launch?: Static<typeof SavedLaunch>;
+	aliases?: string[];
 }
 
 export function spawnedChildren(ctx: ExtensionContext): SpawnOwnership[] {
@@ -43,8 +58,23 @@ export function spawnedChildren(ctx: ExtensionContext): SpawnOwnership[] {
 			pane: value.pane,
 			terminal: value.terminal,
 			sessionFile: value.sessionFile,
+			...("agent" in value && typeof value.agent === "string"
+				? { agent: value.agent }
+				: {}),
+			...("aliases" in value &&
+			Array.isArray(value.aliases) &&
+			value.aliases.every((alias) => typeof alias === "string")
+				? { aliases: value.aliases }
+				: {}),
 		};
-		children.set(JSON.stringify([child.machine, child.pane]), child);
+		if ("launch" in value) {
+			if (!Check(SavedLaunch, value.launch))
+				throw new Error(
+					"Saved worker launch settings are invalid; open its saved session manually",
+				);
+			child.launch = value.launch;
+		}
+		children.set(JSON.stringify([child.session, child.sessionFile]), child);
 	}
 	return [...children.values()];
 }
@@ -54,10 +84,15 @@ export function prepareSpawnOwnership(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	runtime: ConnectedMachine,
-): (panel: PaneInfo, args: readonly string[]) => Promise<void> {
+): (
+	panel: PaneInfo,
+	args: readonly string[],
+	agent?: string,
+	params?: StartAgentParams,
+) => Promise<void> {
 	const parent = ctx.sessionManager.getSessionFile();
 	const anchor = ctx.sessionManager.getLeafId();
-	return async (panel, args) => {
+	return async (panel, args, agent, params) => {
 		// Launching a resumed identity does not make that session our child.
 		if (
 			args.some((arg) =>
@@ -81,11 +116,48 @@ export function prepareSpawnOwnership(
 			);
 		pi.appendEntry(ENTRY, {
 			parent,
-			machine: runtime.machine,
+			machine: identity.session,
 			...identity,
 			pane: panel.pane_id,
 			terminal: panel.terminal_id,
 			sessionFile: file,
+			...(agent ? { agent } : {}),
+			...(params?.name && panel.cwd
+				? {
+						launch: {
+							args: [...args],
+							params: {
+								name: params.name,
+								...(params.label ? { label: params.label } : {}),
+								cwd: panel.cwd,
+								placement: "terminal",
+							},
+						},
+					}
+				: {}),
 		} satisfies SpawnOwnership);
 	};
+}
+
+export function recordResumedChild(
+	pi: ExtensionAPI,
+	child: SpawnOwnership,
+	panel: PaneInfo,
+	agent: string,
+): void {
+	pi.appendEntry(ENTRY, {
+		...child,
+		machine: child.session,
+		agent,
+		pane: panel.pane_id,
+		terminal: panel.terminal_id,
+		aliases: [
+			...new Set([
+				...(child.aliases ?? []),
+				child.pane,
+				child.terminal,
+				...(panel.name ? [panel.name] : []),
+			]),
+		],
+	} satisfies SpawnOwnership);
 }

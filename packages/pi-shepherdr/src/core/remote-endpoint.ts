@@ -42,9 +42,12 @@ export class RemoteCoreEndpoint {
 	}
 	call(input: CoreObject, options: CoreRequestOptions = {}): Promise<unknown> {
 		if (
-			["saved_session", "find_saved_sessions", "view"].includes(
-				String(input["op"]),
-			)
+			[
+				"saved_session",
+				"find_saved_sessions",
+				"view",
+				"session_header",
+			].includes(String(input["op"]))
 		)
 			return this.admission.run(
 				"bulk",

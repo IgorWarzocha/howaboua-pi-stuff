@@ -32,6 +32,7 @@ import type { AgentFleet } from "./fleet/index.js";
 import { attributeAgentPrompt } from "./messages/attribution.js";
 import type { createPeerCommands } from "./peer-commands.js";
 import type { SharedAgentContext } from "./shared-context.js";
+import { WorkerResumer } from "./worker-resume.js";
 
 export function createAgentsTool(
 	fleet: AgentFleet,
@@ -41,6 +42,7 @@ export function createAgentsTool(
 	commands: ReturnType<typeof createPeerCommands>,
 	gpt: () => boolean = () => false,
 ) {
+	const resumer = new WorkerResumer(pi, fleet);
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
@@ -84,6 +86,23 @@ export function createAgentsTool(
 			}
 
 			let target = required(params.target, "target");
+			if (params.action === "send" || params.action === "assign")
+				required(params.message, "message");
+			const owned =
+				(params.action === "send" || params.action === "assign") &&
+				target !== "/root"
+					? await resumer.resolve(
+							ctx,
+							target,
+							params.machine,
+							executionSignal,
+							!/^\/quit(?:\s|$)/.test(params.message?.trim() ?? ""),
+						)
+					: undefined;
+			if (owned) {
+				runtime = owned.runtime;
+				target = owned.panel.pane_id;
+			}
 			if (target === "/root") {
 				const root = await sharedContext.resolveRoot(
 					ctx,
@@ -135,11 +154,13 @@ export function createAgentsTool(
 				});
 			}
 
-			const panel = await resolvePiAgent(
-				runtime.client,
-				target,
-				runtime.local ? process.env["HC_TERMINAL_ID"] : "",
-			);
+			const panel =
+				owned?.panel ??
+				(await resolvePiAgent(
+					runtime.client,
+					target,
+					runtime.local ? process.env["HC_TERMINAL_ID"] : "",
+				));
 			if (params.commands) {
 				return toolResult({
 					machine: runtime.machine,
@@ -205,6 +226,7 @@ export function createAgentsTool(
 						runtime.monitor.noteMessage(panel.pane_id, message);
 					return toolResult({
 						sent: true,
+						...(owned?.resumed ? { resumed: true } : {}),
 						...(receipt.command ? { commandSubmitted: true } : {}),
 						machine: runtime.machine,
 						target: panel.pane_id,
@@ -221,24 +243,27 @@ export function createAgentsTool(
 					{ expectUserMessage: true },
 				);
 				return toolResult(
-					dispatch.command
-						? {
-								commandSubmitted: true,
-								machine: runtime.machine,
-								target: panel.pane_id,
-							}
-						: dispatch.settlement
+					{
+						...(owned?.resumed ? { resumed: true } : {}),
+						...(dispatch.command
 							? {
-									assigned: true,
-									...settlementResult(runtime.machine, dispatch.settlement),
-								}
-							: {
-									assigned: true,
+									commandSubmitted: true,
 									machine: runtime.machine,
 									target: panel.pane_id,
-									status: "working",
-									next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
-								},
+								}
+							: dispatch.settlement
+								? {
+										assigned: true,
+										...settlementResult(runtime.machine, dispatch.settlement),
+									}
+								: {
+										assigned: true,
+										machine: runtime.machine,
+										target: panel.pane_id,
+										status: "working",
+										next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
+									}),
+					},
 					dispatch.warning,
 				);
 			}

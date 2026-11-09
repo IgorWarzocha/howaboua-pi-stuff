@@ -53,7 +53,7 @@ export async function reserveAgentName(
 		startingNames.set(runtime.client, reserved);
 	}
 	const names = new Set([
-		...snapshot.agents.flatMap((agent) => (agent.name ? [agent.name] : [])),
+		...snapshot.panes.flatMap((panel) => (panel.name ? [panel.name] : [])),
 		...reserved,
 	]);
 	const name = requested?.trim() || availableAgentName(names, label);

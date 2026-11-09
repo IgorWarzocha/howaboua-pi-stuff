@@ -1,6 +1,31 @@
 /** @typedef {Pick<import('../types.js').PaneInfo, 'pane_id' | 'terminal_id' | 'agent' | 'agent_session'>} PeerTerminal */
 /** @typedef {{terminal:(address:string)=>Promise<PeerTerminal>,closeTerminal:(address:string)=>Promise<void>}} TerminalPeer */
 
+/** Labels survive a kept terminal's program. Only the current Pi status owns them.
+ * @param {unknown} record
+ * @returns {string | undefined}
+ */
+export function livePiSession(record) {
+	if (
+		!record ||
+		typeof record !== "object" ||
+		!("state" in record) ||
+		record.state !== "live" ||
+		!("status" in record) ||
+		!record.status ||
+		typeof record.status !== "object" ||
+		!("app" in record.status) ||
+		record.status.app !== "pi" ||
+		!("labels" in record) ||
+		!record.labels ||
+		typeof record.labels !== "object" ||
+		!("pi.session_file" in record.labels)
+	)
+		return undefined;
+	const path = record.labels["pi.session_file"];
+	return typeof path === "string" && path ? path : undefined;
+}
+
 /** Native terminal identity and lifecycle shared by local and bundled peer delivery.
  * @param {(method:string,params:Record<string,unknown>)=>Promise<unknown>} request
  * @returns {TerminalPeer}
@@ -24,11 +49,7 @@ export function terminalPeer(request) {
 	return {
 		async terminal(address) {
 			const record = await get(address);
-			const labels = "labels" in record ? record.labels : undefined;
-			const path =
-				labels && typeof labels === "object" && "pi.session_file" in labels
-					? labels["pi.session_file"]
-					: undefined;
+			const path = livePiSession(record);
 			return {
 				pane_id: address,
 				terminal_id: address,

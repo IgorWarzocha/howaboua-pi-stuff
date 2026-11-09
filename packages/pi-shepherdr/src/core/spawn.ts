@@ -59,7 +59,7 @@ export async function startCoreAgent(
 			name: params.name,
 			cwd,
 			caller: process.env["HC_TERMINAL_ID"],
-			outlive_parent: true,
+			...(params.outliveParent ? { outlive_parent: true } : {}),
 			no_notify: true,
 			// Labels request adoption only by a window connected to this Core.
 			labels,

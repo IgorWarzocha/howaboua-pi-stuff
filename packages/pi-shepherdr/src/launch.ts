@@ -1,6 +1,11 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "@earendil-works/pi-coding-agent";
+import {
+	ANCESTRY_FLAG,
+	parseSpawnAncestry,
+	type SpawnAncestry,
+} from "./ancestry-record.js";
 import type { CoreConnection } from "./core/backend.js";
 import { startCoreAgent } from "./core/spawn.js";
 import {
@@ -48,9 +53,10 @@ export async function resolvePreparationDirectory(
 	return resolveDirectory(params.cwd, fallbackCwd);
 }
 
-interface StartAgentOptions {
+export interface StartAgentOptions {
 	agentArgs?: string[];
 	signal?: AbortSignal;
+	ancestry?: SpawnAncestry;
 }
 
 export async function startAgent(
@@ -67,11 +73,19 @@ export async function startAgent(
 		);
 	}
 	const label = params.label?.trim() || name;
+	const resuming = options.agentArgs?.some((arg) =>
+		/^--session(?:=|$)/.test(arg),
+	);
 	const args = [
 		`--${WORKER_FLAG}`,
-		"--name",
-		label,
+		...(resuming && !params.label?.trim() ? [] : ["--name", label]),
 		...(options.agentArgs ?? []),
+		...(options.ancestry
+			? [
+					`--${ANCESTRY_FLAG}`,
+					JSON.stringify(parseSpawnAncestry(options.ancestry)),
+				]
+			: []),
 	];
 	const parsed = parseArgs(args);
 	if (parsed.unknownFlags.get(WORKER_FLAG) !== true) {

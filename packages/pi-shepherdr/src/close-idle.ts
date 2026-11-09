@@ -14,14 +14,14 @@ export async function closeIdleChildren(
 	for (const child of spawnedChildren(ctx)) {
 		if (!current()) break;
 		try {
+			const runtime = fleet.connected(child.machine);
 			const status = fleet
 				.statuses()
-				.find((value) => value.id === child.machine);
+				.find((value) => value.id === runtime.machine);
 			if (!status || status.status !== "connected" || status.monitoringIssue) {
 				skipped += 1;
 				continue;
 			}
-			const runtime = fleet.connected(child.machine);
 			const identity = await runtime.client.machineIdentity();
 			const snapshot = await getSnapshot(runtime.client);
 			const panel = snapshot.agents.find(

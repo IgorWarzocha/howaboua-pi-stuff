@@ -17,6 +17,7 @@ import {
 import { attributeAgentPrompt } from "./messages/attribution.js";
 import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
+import { prepareLaunchAncestry } from "./spawn-ancestry.js";
 import { ENTRY, panelFor, records } from "./worker-ownership.js";
 import { PULSE_WORKER_FLAG, type registerWorkerRole } from "./worker-role.js";
 
@@ -203,10 +204,14 @@ export function registerWorkerService(
 									label: input.title,
 									cwd: input.cwd,
 									placement: "terminal",
+									outliveParent: true,
 								},
 								runtime.fallbackCwd,
 								runtime.resolveDirectory,
-								{ agentArgs: args },
+								{
+									agentArgs: args,
+									ancestry: await prepareLaunchAncestry(ctx, fleet),
+								},
 							);
 							try {
 								const relationshipResult = await relationship?.accept(

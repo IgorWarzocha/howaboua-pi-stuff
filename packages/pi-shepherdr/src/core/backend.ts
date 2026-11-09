@@ -12,6 +12,7 @@ import {
 	sendPeerFocus,
 	sendPeerMessage,
 } from "../remote/shepherdr-peer.mjs";
+import { readSessionHeader } from "../remote/shepherdr-session.mjs";
 import type {
 	ExtensionReply,
 	FocusRequest,
@@ -114,6 +115,25 @@ export class CoreConnection {
 			() => readSavedNotesSession(path, signal, history),
 			signal,
 		);
+	}
+	async sessionHeader(
+		path: string,
+		signal?: AbortSignal,
+	): Promise<{ id: string; cwd: string }> {
+		signal?.throwIfAborted();
+		if (!(this.core instanceof RemoteCoreEndpoint))
+			return readSessionHeader(path);
+		const header = object(
+			await this.core.call(
+				{ op: "session_header", path },
+				{ ...(signal ? { signal } : {}) },
+			),
+		);
+		if (typeof header["id"] !== "string" || typeof header["cwd"] !== "string")
+			throw new Error(
+				"Saved worker session identity is unavailable; open its saved session manually",
+			);
+		return { id: header["id"], cwd: header["cwd"] };
 	}
 	async findSavedSessions(
 		threadId: string,

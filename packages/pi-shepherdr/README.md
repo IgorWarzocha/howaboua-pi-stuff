@@ -22,6 +22,8 @@ Shepherdr installs and runs on its own. Pi Codex, shared Notes and boards are op
 
 Workers start as background Core terminals by default. Use `placement: "new_workspace"` for a new app workspace, or `placement: "new_tab"` with a `workspace` ID advertised by a live terminal on the target Core. A connected Herdr app adopts these terminals. Pane placement is no longer supported. Focus requires a Herdr app window running on the target Core's machine and connected to that Core.
 
+Ordinary workers end when their parent's program exits. Detached Pulse workers keep running independently. Restoring a Pi session preserves its saved worker identity. `/root` follows saved spawn ancestry, not shared Notes or Board membership. Older workers without saved ancestry must use exact session references for messages.
+
 For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Delegation, supervision, shared context and boards work across those machines.
 
 ### Migrating from the older Herdr TUI
@@ -80,6 +82,8 @@ Nonblocking extension messages notify the controller once; blocking messages arr
 `reply` returns the extension's receipt after semantic delivery. Blocking messages also wait for resumed work unless another call already owns that wait. Nonblocking replies do not wait for the worker's task to finish. Shepherdr forwards strings unchanged. The producing extension owns their meaning, validation and retries.
 
 Use `send` for messages and work updates without adding supervision. Use `assign` to delegate work and receive its monitored result, automatically or through an explicit blocking call. It also accepts updates to running work, sharing that work's pending result rather than replacing it. If another call is already waiting, the update returns after submission and leaves that waiter intact. Close finished workers silently instead of waking them with completion acknowledgements or shutdown notices.
+
+When a parent sends or assigns work to one of its closed workers, Shepherdr reopens that worker's saved Pi session before delivering the message. Use its session reference, previous terminal target or saved routing name. The result reports `resumed: true` and the current target. This applies only to children recorded in the parent's selected session branch, not arbitrary peers or attachments. The saved session and its original machine must remain accessible. `/quit` never reopens a closed worker.
 
 Delegation and explicit `watch` keep reporting subsequent work until `unwatch` or the agent's terminal closes. Finishing or failing a task clears that task, not its watch. Follow-up messages through `send` retain completion reporting without replacing the task.
 

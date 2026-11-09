@@ -256,3 +256,46 @@ export async function readSessionView(path) {
 	});
 	return result;
 }
+
+/** Native session identity only; never create or load an entire transcript.
+ * @param {string} path
+ * @returns {Promise<{id:string,cwd:string}>}
+ */
+export async function readSessionHeader(path) {
+	const file = await open(expandHome(path), "r").catch((cause) => {
+		throw new Error(
+			"Saved worker session could not be opened; check that its file is available on the original machine",
+			{ cause },
+		);
+	});
+	try {
+		const bytes = Buffer.alloc(64 * 1024);
+		let size = 0;
+		while (size < bytes.length) {
+			const read = await file.read(bytes, size, bytes.length - size, size);
+			size += read.bytesRead;
+			const end = bytes.subarray(0, size).indexOf(10);
+			if (end >= 0 || read.bytesRead === 0) {
+				const header = record(
+					JSON.parse(bytes.subarray(0, end < 0 ? size : end).toString("utf8")),
+				);
+				if (
+					header?.["type"] !== "session" ||
+					typeof header["id"] !== "string" ||
+					!header["id"] ||
+					typeof header["cwd"] !== "string" ||
+					!header["cwd"]
+				)
+					throw new Error(
+						"Saved worker has no valid Pi session header; open its saved session manually",
+					);
+				return { id: header["id"], cwd: header["cwd"] };
+			}
+		}
+		throw new Error(
+			"Saved worker session header is too large; open its saved session manually",
+		);
+	} finally {
+		await file.close();
+	}
+}

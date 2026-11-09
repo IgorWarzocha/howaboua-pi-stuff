@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { registerSpawnAncestry } from "./ancestry-record.js";
 
 export const WORKER_FLAG = "shepherdr-worker";
 export const PULSE_WORKER_FLAG = "shepherdr-pulse-worker";
@@ -17,7 +18,10 @@ interface WorkerRoleRequest {
 	reply: (worker: boolean) => void;
 }
 
-function markedWorker(manager: SessionManager, pulseOnly = false): boolean {
+export function markedWorker(
+	manager: SessionManager,
+	pulseOnly = false,
+): boolean {
 	const sessionId = manager.getSessionId();
 	return manager.getEntries().some((entry) => {
 		if (
@@ -39,6 +43,7 @@ function markedWorker(manager: SessionManager, pulseOnly = false): boolean {
 }
 
 export function registerWorkerRole(pi: ExtensionAPI) {
+	registerSpawnAncestry(pi);
 	pi.registerFlag(WORKER_FLAG, {
 		type: "boolean",
 		default: false,

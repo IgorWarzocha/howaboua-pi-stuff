@@ -31,6 +31,7 @@ import {
 } from "./profiles.js";
 import { isDispatchRejected } from "./remote/shepherdr-peer.mjs";
 import type { SharedAgentContext } from "./shared-context.js";
+import { prepareLaunchAncestry } from "./spawn-ancestry.js";
 import { prepareSpawnOwnership } from "./spawn-ownership.js";
 
 export async function spawnAgent(
@@ -139,7 +140,11 @@ export async function spawnAgent(
 			startParams,
 			runtime.fallbackCwd,
 			runtime.resolveDirectory,
-			{ agentArgs, signal },
+			{
+				agentArgs,
+				signal,
+				ancestry: await prepareLaunchAncestry(ctx, fleet, signal),
+			},
 		);
 		let promptSubmissionStarted = false;
 		let promptAccepted = false;
@@ -148,10 +153,10 @@ export async function spawnAgent(
 		let boardShared: { agentName?: string; warning?: string } | undefined;
 		let agentName: string | undefined;
 		let relationshipWarning: string | undefined;
+		let ownershipWarning: string | undefined;
 		const blocking = shouldBlockAgentSpawn(profile.blocking, params.blocking);
 		try {
 			agentName = await nativeAgentName(runtime.client, started.agent, signal);
-			await recordSpawn(started.agent, agentArgs);
 			relationshipWarning = (await relationship?.accept(started.agent))
 				?.warning;
 			boardShared = await boardBinding?.accept(started.agent);
@@ -175,6 +180,12 @@ export async function spawnAgent(
 						attributedMessage,
 					);
 					promptAccepted = true;
+					try {
+						await recordSpawn(started.agent, agentArgs, agentName, startParams);
+					} catch {
+						ownershipWarning =
+							"Submitted, but saved worker ownership could not be recorded. Automatic resume is unavailable; use its current target and do not resend the task";
+					}
 					return receipt;
 				},
 				{ expectUserMessage: true },
@@ -185,6 +196,16 @@ export async function spawnAgent(
 				(!promptSubmissionStarted || isDispatchRejected(error))
 			) {
 				return await rollbackStartedAgent(runtime.client, started, error);
+			}
+			if (!promptAccepted) {
+				try {
+					await recordSpawn(started.agent, agentArgs, agentName, startParams);
+				} catch (ownershipError) {
+					throw new AggregateError(
+						[error, ownershipError],
+						"Worker delivery is unconfirmed and its ownership could not be saved. Inspect the target before sending the task again",
+					);
+				}
 			}
 			throw error;
 		}
@@ -226,6 +247,7 @@ export async function spawnAgent(
 				boardShared?.warning,
 				shared?.warning,
 				relationshipWarning,
+				ownershipWarning,
 			]
 				.filter(Boolean)
 				.join("\n") || undefined,

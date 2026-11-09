@@ -158,6 +158,8 @@ export async function serve(input, send, fail) {
 				return relay.start(message.threadId, message.routeId);
 			case "view":
 				return session.readSessionView(message.path);
+			case "session_header":
+				return session.readSessionHeader(message.path);
 			case "directory": {
 				const expand = (value) =>
 					value === "~"
