@@ -8,3 +8,4 @@
 - Patch success results omit routine counters. Errors retain partial-change details and recovery instructions.
 - Unavailable image viewing and reasoning adjustment now report recovery options.
 - Voice task acknowledgements now omit unused task IDs.
+- Fixed excessive memory use when comparing large Codex conversation inputs for WebSocket continuation.
