@@ -148,6 +148,7 @@ export async function showSettings(
 					`On/Off: ${config.enabled ? "On" : "Off"}`,
 					`Model: ${config.model ? `${config.model.provider}/${config.model.id}` : "Not chosen"}`,
 					`Reasoning: ${config.model?.reasoning ?? "Choose a model first"}`,
+					`Use chat model as fallback: ${config.useChatModelAsFallback ? "On" : "Off"}`,
 					"Instructions",
 					"Done",
 				],
@@ -174,8 +175,10 @@ export async function showSettings(
 								(entry) =>
 									entry.provider === chosen.provider && entry.id === chosen.id,
 							);
-					if (!available) model = await chooseModel();
+					if (!available && !(chosen && config.useChatModelAsFallback))
+						model = await chooseModel();
 					else if (
+						available &&
 						model &&
 						!getSupportedThinkingLevels(available).includes(model.reasoning)
 					) {
@@ -183,8 +186,16 @@ export async function showSettings(
 						model =
 							reasoning === undefined ? undefined : { ...model, reasoning };
 					}
-					if (model) next = { enabled: true, model };
+					if (model) next = { ...config, enabled: true, model };
 				}
+			} else if (selection.startsWith("Use chat model as fallback:")) {
+				const state = await ui.select(
+					"Use chat model as fallback\nIf the suggestion model is unavailable or its request fails, the current chat model may cost more and take longer. Its separate suggestion history also uses tokens, even with caching.",
+					["Off", "On"],
+					options,
+				);
+				if (state === "On" || state === "Off")
+					next = { ...config, useChatModelAsFallback: state === "On" };
 			} else if (selection === "Instructions") {
 				const instructions = await ui.editor(
 					"Suggestion instructions (Markdown)",

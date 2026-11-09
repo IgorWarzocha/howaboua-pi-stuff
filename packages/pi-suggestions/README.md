@@ -8,7 +8,7 @@ Suggested next steps in Pi's terminal editor, phrased as requests you can send. 
 pi install npm:@howaboua/pi-suggestions
 ```
 
-Requires Pi 1.3 or later. Included in `pi-extensions` and `pi-stuff`.
+Requires Pi 1.5 or later. Included in `pi-extensions` and `pi-stuff`.
 
 ## Set up
 
@@ -16,7 +16,9 @@ Open `/suggestions`, choose a model and switch suggestions on. They start off, w
 
 Suggestions use the selected model's quota and may incur API charges. They send that provider bounded excerpts of user messages and completed assistant responses, including a compaction summary when available. Tool results, images and the main chat's hidden reasoning are excluded.
 
-Predictions keep a separate, in-memory conversation without tools. Later requests append new conversation turns and reuse its cache where the provider supports it. Cache hits are not guaranteed. This private history never enters your chat and is discarded on a new Notes context window, Pi compaction, session navigation, model changes, switching suggestions off or shutdown.
+**Use chat model as fallback** is off by default. Switch it on in `/suggestions` to use the current chat model when the chosen suggestion model is unavailable or its request fails. This can cost more and take longer. A warning identifies the fallback model when it starts being used. No other model is chosen if the current chat model is missing or unavailable, and cancelled requests are not retried. The selected reasoning level is reused when supported, otherwise fallback uses the lowest supported level, including off where available.
+
+Predictions keep a separate, in-memory conversation without tools. Later requests append new conversation turns and reuse its cache where the provider supports it. Cache hits are not guaranteed and cached tokens can still be billed. This private history never enters your chat and is discarded on a new Notes context window, Pi compaction, session navigation, model changes, switching suggestions off or shutdown. A successful switch between the chosen suggestion model and the fallback starts a fresh private conversation. Failed attempts at the chosen model do not discard a continuing fallback conversation.
 
 Suggestions run only in interactive terminal sessions. Shepherdr-launched workers and Pi's RPC and print modes do not request them. Update Shepherdr alongside Suggestions to identify workers reliably.
 

@@ -12,6 +12,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export interface SuggestionConfig {
 	enabled: boolean;
+	useChatModelAsFallback?: boolean;
 	model?: { provider: string; id: string; reasoning: ModelThinkingLevel };
 }
 
@@ -32,13 +33,25 @@ function validateConfig(value: unknown): SuggestionConfig {
 	if (!("enabled" in value) || typeof value.enabled !== "boolean") {
 		throw new Error('"enabled" must be true or false.');
 	}
-	if (Object.keys(value).some((key) => key !== "enabled" && key !== "model")) {
+	if (
+		"useChatModelAsFallback" in value &&
+		typeof value.useChatModelAsFallback !== "boolean"
+	) {
+		throw new Error('"useChatModelAsFallback" must be true or false.');
+	}
+	const useChatModelAsFallback =
+		"useChatModelAsFallback" in value && value.useChatModelAsFallback === true;
+	if (
+		Object.keys(value).some(
+			(key) => !["enabled", "model", "useChatModelAsFallback"].includes(key),
+		)
+	) {
 		throw new Error("Unknown settings field.");
 	}
 	if (!("model" in value)) {
 		if (value.enabled)
 			throw new Error("Enabled suggestions require a chosen model.");
-		return { enabled: false };
+		return { enabled: false, useChatModelAsFallback };
 	}
 	const model = value.model;
 	if (typeof model !== "object" || model === null || Array.isArray(model)) {
@@ -69,6 +82,7 @@ function validateConfig(value: unknown): SuggestionConfig {
 		throw new Error("Model reasoning must be a supported thinking-level name.");
 	return {
 		enabled: value.enabled,
+		useChatModelAsFallback,
 		model: { provider: model.provider, id: model.id, reasoning },
 	};
 }
