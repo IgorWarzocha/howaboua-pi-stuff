@@ -90,7 +90,7 @@
 			"ignoreDependencies": ["@howaboua/pi-codex-conversion", "@howaboua/pi-shepherdr"]
 		},
 		"packages/pi-shepherdr": {
-			"entry": ["profiles/**/*.mjs", "src/core/helper-bootstrap.mjs", "src/core/helper-context.mjs", "src/core/helper-core.mjs", "src/core/remote-service.mjs", "src/core/focus-channel-helper.mjs", "src/remote/shepherdr-context.mjs"]
+			"entry": ["profiles/**/*.mjs", "src/core/helper-bootstrap.mjs", "src/core/helper-context.mjs", "src/core/helper-core.mjs", "src/core/helper-lifetime.mjs", "src/core/remote-service.mjs", "src/core/focus-channel-helper.mjs", "src/remote/shepherdr-context.mjs"]
 		},
 		"packages/pi-subagent-review": {
 			"project": ["src/**/*.ts"]

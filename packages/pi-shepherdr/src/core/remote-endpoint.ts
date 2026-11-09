@@ -17,14 +17,17 @@ export class RemoteCoreEndpoint {
 	private readonly socketPath: string;
 	readonly machine: CoreMachine;
 	private readonly admission: CoreAdmission;
+	private readonly onNotice: (message: string) => void;
 	constructor(
 		socketPath: string,
 		machine: CoreMachine,
 		admission = new CoreAdmission(socketPath, machine.id),
+		onNotice: (message: string) => void = () => {},
 	) {
 		this.socketPath = socketPath;
 		this.machine = machine;
 		this.admission = admission;
+		this.onNotice = onNotice;
 		this.host = new CoreClient(socketPath);
 	}
 	get bridge(): CoreRemoteTransport {
@@ -32,6 +35,7 @@ export class RemoteCoreEndpoint {
 		return (this.transport ??= new CoreRemoteTransport(
 			this.socketPath,
 			this.machine,
+			this.onNotice,
 		));
 	}
 	close(): void {

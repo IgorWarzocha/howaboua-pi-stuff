@@ -4,7 +4,7 @@ import { createConnection } from "node:net";
 export function localCore(socketPath) {
 	const connections = new Set();
 	let closed = false;
-	function open(method, params, receive, fail) {
+	function open(method, params, receive, fail, timeoutMs = 45_000) {
 		if (closed) throw new Error("Core connection closed");
 		const socket = createConnection(socketPath);
 		connections.add(socket);
@@ -24,7 +24,7 @@ export function localCore(socketPath) {
 		};
 		const timer = setTimeout(
 			() => failed(new Error("Core connection timed out")),
-			45_000,
+			timeoutMs,
 		);
 		socket.setEncoding("utf8");
 		socket.on("connect", () =>
@@ -63,7 +63,7 @@ export function localCore(socketPath) {
 		return finish;
 	}
 	return {
-		request(method, params = {}) {
+		request(method, params = {}, timeoutMs) {
 			return new Promise((resolve, reject) =>
 				open(
 					method,
@@ -75,6 +75,7 @@ export function localCore(socketPath) {
 						resolve(value.result);
 					},
 					reject,
+					timeoutMs,
 				),
 			);
 		},

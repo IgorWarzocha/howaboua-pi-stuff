@@ -22,7 +22,7 @@ Shepherdr installs and runs on its own. Pi Codex, shared Notes and boards are op
 
 Workers start as background Core terminals by default. Use `placement: "new_workspace"` for a new app workspace, or `placement: "new_tab"` with a `workspace` ID advertised by a live terminal on the target Core. A connected Herdr app adopts these terminals. Pane placement is no longer supported. Focus requires a Herdr app window running on the target Core's machine and connected to that Core.
 
-Ordinary workers end when their parent's program exits. Extensions can explicitly request detached workers through the worker API. Restoring a Pi session preserves its saved worker identity. `/root` follows saved spawn ancestry, not shared Notes or Board membership. Older workers without saved ancestry must use exact session references for messages.
+Ordinary workers end when their parent's program exits. Active remote connections also verify Core's parent links and close ordinary children when Core misses cross-machine cleanup. Detached workers remain independent. Restoring a Pi session preserves its saved worker identity. `/root` follows saved spawn ancestry, not shared Notes or Board membership. Older workers without saved ancestry must use exact session references for messages.
 
 For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Delegation, supervision, shared context and boards work across those machines.
 
@@ -53,6 +53,8 @@ Under **Connections**, enter an SSH target or alias, a machine name and an optio
 Machines belong to the host running Pi, not the machine displaying its terminal. Omit `machine` for local agent calls. `list` and `find` search all machines unless filtered. The reserved selector `local` always means the host running Pi. Remote calls accept an exact current machine name or a stable Core ID returned by `list`. Duplicate names require an ID. Hostnames and old aliases are not inferred. Refresh **Status** after renaming a machine. Watches and saved routes retain its stable ID across name changes.
 
 Remote file watches, Notes, shared-context calls and peer messages use a private Core-owned helper, started lazily and kept alive over a flow-controlled terminal attachment. Shepherdr does not install SSH bridge files or poll through `machine.exec`. Voice focus uses a separate private helper so large Notes transfers do not block its channel. Monitoring uses each Core's own snapshot rather than treating a missing machine in an aggregate terminal list as closed agents.
+
+The same connection supervises native remote-parent lifetimes while active. A brief closing grace makes a best-effort check for Pi exiting. No separate background service is installed. A disconnected or unreachable parent is not treated as dead. Failed checks leave existing agents available and produce a warning while the connection is active. Reconnect the parent Core or close its children explicitly. Closing checks have no persistent warning report. This does not guarantee cleanup after an OS failure or a prolonged Pi shutdown.
 
 ## Agent calls
 

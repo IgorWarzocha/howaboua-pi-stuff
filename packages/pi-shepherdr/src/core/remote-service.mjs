@@ -16,6 +16,7 @@ export async function serve(input, send, fail) {
 		{ helperContext },
 		pi,
 		{ terminalPeer },
+		{ superviseParents },
 	] = await Promise.all([
 		import(input.modules.core),
 		import(input.modules.peer),
@@ -25,6 +26,7 @@ export async function serve(input, send, fail) {
 		import(input.modules.contextHost),
 		import(input.modules.pi),
 		import(input.modules.terminal),
+		import(input.modules.lifetime),
 	]);
 	const core = localCore(process.env.HC_TERMINAL_SOCKET);
 	const terminals = terminalPeer((method, params) =>
@@ -35,9 +37,11 @@ export async function serve(input, send, fail) {
 	let savedSession;
 	let savedSessionIndex;
 	let closed = false;
+	let lifetime;
 	const close = async () => {
 		if (closed) return;
 		closed = true;
+		await lifetime?.close();
 		for (const subscription of subscriptions.values()) subscription();
 		subscriptions.clear();
 		core.close();
@@ -52,6 +56,9 @@ export async function serve(input, send, fail) {
 			throw new Error(
 				"Remote Core identity changed; refresh machines before retrying",
 			);
+		lifetime = await superviseParents(core, (message) => {
+			if (!closed) send({ notice: message });
+		});
 	} catch (error) {
 		await close();
 		throw error;

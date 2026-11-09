@@ -43,6 +43,7 @@ export class CoreConnection {
 	constructor(
 		socketPath = process.env["HC_TERMINAL_SOCKET"],
 		remote?: CoreMachine,
+		onNotice?: (message: string) => void,
 	) {
 		if (!socketPath)
 			throw new Error("Run Pi inside a Core terminal to connect Shepherdr");
@@ -50,7 +51,7 @@ export class CoreConnection {
 		this.socketPath = socketPath;
 		this.admission = new CoreAdmission(socketPath, remote?.id);
 		this.core = remote
-			? new RemoteCoreEndpoint(socketPath, remote, this.admission)
+			? new RemoteCoreEndpoint(socketPath, remote, this.admission, onNotice)
 			: new CoreClient(socketPath);
 		this.reader =
 			this.core instanceof RemoteCoreEndpoint

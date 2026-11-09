@@ -13,7 +13,7 @@ async function stop(error) {
 		} catch {}
 	}
 	// Cleanup must finish before a replacement publishes the same context path.
-	const deadline = setTimeout(() => process.exit(1), 2000);
+	const deadline = setTimeout(() => process.exit(1), 8000);
 	deadline.unref();
 	try {
 		await runtime?.close();

@@ -65,6 +65,7 @@ async function sources() {
 		checkpoints,
 		pi,
 		terminal,
+		lifetime,
 	] = await Promise.all([
 		read("./helper-bootstrap.mjs"),
 		read("./focus-channel-wire.mjs"),
@@ -78,6 +79,7 @@ async function sources() {
 		read("../remote/shepherdr-checkpoints.mjs"),
 		read("./pi-executable.mjs"),
 		read("./terminal-peer.mjs"),
+		read("./helper-lifetime.mjs"),
 	]);
 	const peerUrl = moduleUrl(peer);
 	const savedSession = await optionalNotesSource(
@@ -113,6 +115,7 @@ async function sources() {
 			watch: moduleUrl(watch),
 			pi: moduleUrl(pi),
 			terminal: moduleUrl(terminal),
+			lifetime: moduleUrl(lifetime),
 			context: moduleUrl(
 				context
 					.replace('"./shepherdr-peer.mjs"', JSON.stringify(peerUrl))

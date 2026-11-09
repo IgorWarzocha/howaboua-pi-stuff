@@ -41,9 +41,15 @@ export class CoreRemoteTransport {
 	private relayFailure: ((error: Error) => void) | undefined;
 	private readonly socketPath: string;
 	private readonly machine: CoreMachine;
-	constructor(socketPath: string, machine: CoreMachine) {
+	private readonly onNotice: (message: string) => void;
+	constructor(
+		socketPath: string,
+		machine: CoreMachine,
+		onNotice: (message: string) => void = () => {},
+	) {
 		this.socketPath = socketPath;
 		this.machine = machine;
+		this.onNotice = onNotice;
 		this.relay = new ContextRelay(
 			(message) => this.send(message),
 			() => !!this.ended,
@@ -137,6 +143,10 @@ export class CoreRemoteTransport {
 	}
 	private receive(message: CoreObject): void {
 		if (this.ended) return;
+		if (typeof message["notice"] === "string") {
+			this.onNotice(message["notice"]);
+			return;
+		}
 		if (typeof message["subscription"] === "string") {
 			this.subscriptions.get(message["subscription"])?.receive(message);
 			return;
