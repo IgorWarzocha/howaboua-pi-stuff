@@ -6,7 +6,7 @@ import { nativeAgentName } from "./agent-identity.js";
 import { reserveAgentName } from "./agents-work.js";
 import { getSnapshot, resolvePiAgent, sessionPath } from "./core/agents.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
-import { rollbackStartedAgent, startAgent } from "./launch.js";
+import { resumeAgentArgs, rollbackStartedAgent, startAgent } from "./launch.js";
 import type { StartedAgent } from "./launch-contract.js";
 import { prepareLaunchAncestry } from "./spawn-ancestry.js";
 import {
@@ -20,28 +20,6 @@ interface OwnedTarget {
 	runtime: ConnectedMachine;
 	panel: PaneInfo;
 	resumed: boolean;
-}
-
-// Pi restores these from the session. Initial profile defaults must not reset them.
-function resumeArgs(args: readonly string[]): string[] {
-	const restored = new Set([
-		"--model",
-		"--provider",
-		"--thinking",
-		"--name",
-		"-n",
-	]);
-	const result: string[] = [];
-	for (let index = 0; index < args.length; index += 1) {
-		const arg = args[index]!;
-		if (restored.has(arg)) {
-			index += 1;
-			continue;
-		}
-		if ([...restored].some((flag) => arg.startsWith(`${flag}=`))) continue;
-		result.push(arg);
-	}
-	return result;
 }
 
 /** Parent-owned saved sessions, not a general session launcher or delivery retry. */
@@ -218,7 +196,7 @@ export class WorkerResumer {
 				runtime.resolveDirectory,
 				{
 					agentArgs: [
-						...resumeArgs(child.launch?.args ?? []),
+						...resumeAgentArgs(child.launch?.args ?? []),
 						"--session",
 						child.sessionFile,
 					],

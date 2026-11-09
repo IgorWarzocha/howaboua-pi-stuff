@@ -1,4 +1,4 @@
 - In Git, discover only from the original common root; elsewhere use the explicit session cwd. Never recurse through copied definitions or worktrees.
-- The runner owns workers, restoration and waking result delivery. Check its controller eligibility before scheduling or binding ownership; workers must never schedule themselves.
+- Pulses owns scheduling and controller eligibility, not the generic worker provider. Request detached lifetime explicitly; workers must never schedule themselves.
 - Keep the authoring skill on demand, outside the standing skill catalogue. Only definition instructions plus the approved result-routing paragraph belong in worker tasks.
 - Never steal another main session's ownership or replay an unconfirmed run. Preserve saved sessions, run history and user files.

@@ -25,6 +25,7 @@
 	],
 	"files": [
 		"index.ts",
+		"worker-api.ts",
 		"src",
 		"profiles",
 		"README.md",
@@ -73,7 +74,10 @@
 		"node": ">=22.18.0"
 	},
 	"main": "index.ts",
-	"exports": "./index.ts",
+	"exports": {
+		".": "./index.ts",
+		"./worker-api": "./worker-api.ts"
+	},
 	"publishConfig": {
 		"access": "public"
 	}

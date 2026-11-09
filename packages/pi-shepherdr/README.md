@@ -22,7 +22,7 @@ Shepherdr installs and runs on its own. Pi Codex, shared Notes and boards are op
 
 Workers start as background Core terminals by default. Use `placement: "new_workspace"` for a new app workspace, or `placement: "new_tab"` with a `workspace` ID advertised by a live terminal on the target Core. A connected Herdr app adopts these terminals. Pane placement is no longer supported. Focus requires a Herdr app window running on the target Core's machine and connected to that Core.
 
-Ordinary workers end when their parent's program exits. Detached Pulse workers keep running independently. Restoring a Pi session preserves its saved worker identity. `/root` follows saved spawn ancestry, not shared Notes or Board membership. Older workers without saved ancestry must use exact session references for messages.
+Ordinary workers end when their parent's program exits. Extensions can explicitly request detached workers through the worker API. Restoring a Pi session preserves its saved worker identity. `/root` follows saved spawn ancestry, not shared Notes or Board membership. Older workers without saved ancestry must use exact session references for messages.
 
 For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Delegation, supervision, shared context and boards work across those machines.
 
@@ -283,13 +283,30 @@ pi.events.emit("shepherdr:worker-role:v1", {
 
 No reply means Shepherdr is unavailable. The query adds no model instructions or tools. Worker launch flags describe the process, so new sessions opened inside that process remain workers.
 
-## Pulse runner
+## Worker API
 
-Shepherdr implements Pulses' optional detached-runner contract through Pi events. Pulses owns scheduling. Each worker runs in a separate Pi process, so the main agent remains available. Its final response returns through the same monitored waking delivery as asynchronous `agents` calls, including ordinary kickoff preparation and rollover admission. There is no passive-result or blocking execution mode.
+Extensions can discover the worker service through Pi events. The public types are exported from `@howaboua/pi-shepherdr/worker-api`. A type-only import keeps Shepherdr optional:
 
-The adapter reuses owned saved sessions, refuses overlapping work and verifies parent session, branch and terminal identity. Worker receipts are opaque to Pulses. Use ordinary Shepherdr controls to manage worker terminals. Detached pulse workers cannot become schedulers themselves.
+```ts
+import type { WorkerService } from "@howaboua/pi-shepherdr/worker-api";
 
-Fresh and restored workers use the `general` profile's model, thinking level and explicit Pi arguments without its implementation-role prompt. Ordinary agent spawns still use the complete profile. Fresh workers inherit the existing family board independently of their working directory, alongside optional shared Notes and cache affinity. The adapter does not choose an output destination or keep the controlling Pi alive.
+const protocol: WorkerService["protocol"] = "@howaboua/pi-shepherdr/workers/v1";
+let workers: WorkerService | undefined;
+pi.events.emit(`${protocol}/request`, {
+	protocol,
+	accept: (service: WorkerService) => {
+		workers = service;
+	},
+});
+```
+
+No reply means the service is unavailable. Discover again after extension reload. Start work after session startup and resource discovery in a TUI session. Callers own scheduling, eligibility and whether to use `isWorker(ctx)` to exclude workers from their workflow.
+
+`start(ctx, { scope, key, requestId, title, prompt, cwd, workerId?, lifetime? })` submits one task and returns `{ workerId, state }`. Use a stable extension-specific `scope`, a reusable worker `key` and a fresh `requestId` per task. Repeating the latest acknowledged request ID returns its existing status without resending. Persist the receipt before attempting another request. A failed call may have submitted work unless its error has `dispatched: false`. Never retry an uncertain rejection, even with the same ID. Request IDs do not make failed calls replay-safe. Inspection helps establish the outcome but does not clear the uncertain admission.
+
+The default lifetime is `parent`. Set `lifetime: "detached"` explicitly to keep the worker running after its parent exits. Lifetime and working directory cannot change for an existing key. `inspect(ctx, scope, workerId)` reports `working`, `idle` or `closed`; `subscribe(listener)` provides change notifications and returns an unsubscribe function. Ownership is restricted to the caller's selected native session branch and scope, not an access-control boundary between trusted extensions.
+
+Workers run in separate Pi processes. Their final responses use the same monitored delivery as asynchronous `agents` calls, including normal kickoff preparation and rollover admission. The service reuses owned saved sessions and refuses overlapping work. Fresh workers use the `general` profile without its role prompt; resumed sessions retain their saved model, thinking level and name. Fresh workers inherit the family Board and optional shared Notes and cache affinity. Use ordinary Shepherdr controls to manage worker terminals. No automation extension is required.
 
 ## License
 

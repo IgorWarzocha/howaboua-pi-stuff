@@ -8,7 +8,7 @@ This is a private, source-only extension. It is not published to npm or included
 
 ## Run from a checkout
 
-Requires Pi 1.3 or newer and a compatible worker runner. Shepherdr is the first implementation and requires Herdr. Install both packages from this checkout and restart Pi:
+Requires Pi 1.3 or newer. Execution needs a compatible worker service. Shepherdr provides one and requires Herdr. Install both packages from this checkout and restart Pi:
 
 ```sh
 pi install /path/to/howaboua-pi-stuff/packages/pi-shepherdr
@@ -17,7 +17,9 @@ pi install /path/to/howaboua-pi-stuff/packages/pi-pulses
 
 Shepherdr launches workers in separate Pi processes and panes, reuses their conversations and restores saved workers when their panes have closed. It injects completion reports back into the main agent through its normal waking delivery. Pulses does not duplicate those worker controls.
 
-Other extensions can implement the [runner contract](integration.ts). The intended fit is a detached worker whose launcher owns delivery back to the main agent. Blocking the main session until a routine finishes defeats the purpose. Pulses has no fallback that executes the task inside the main agent.
+Pulses discovers the generic [Shepherdr worker API](../pi-shepherdr/worker-api.ts) at runtime. Shepherdr is optional: without a compatible service, definition discovery and authoring remain available, but execution is unavailable. Pulses never falls back to running a routine inside the main agent.
+
+Pulses owns its scheduling policy. Only TUI sessions that the service identifies as non-workers can schedule routines. Pulses requests detached workers explicitly, so admitted work can outlive its scheduler. It maps each routine and run to the API's key and request ID under the `@howaboua/pi-pulses` scope. Shepherdr provides worker execution, inspection and result delivery without knowing about routines or schedules.
 
 ## Define a routine
 
@@ -56,6 +58,8 @@ Scheduling requires the main Pi session to remain open. Closing it stops the sch
 In Git, definitions come from the original repository even when Pi starts in a linked worktree. Runtime records live in the common Git directory. Outside Git, definitions belong to the session's working directory and records live in `.pi/pulses/.runtime/`. Exclude that runtime directory from any file synchronisation or versioning intended only for definitions.
 
 Worker history and user files are preserved. If a launch cannot be confirmed, further runs remain blocked rather than risk duplicate work. Use your runner's existing agent tools to inspect workers. Pulses does not provide a second worker-management interface.
+
+Saved receipts from the earlier private runner are not reused by the generic worker service. Old running records remain blocked for manual recovery. Saved sessions and run history are left intact.
 
 If no launch receipt was saved, inspection alone cannot clear the block. Check the worker and task destination to establish what happened and ensure the work is no longer active. Then close the owning main session and remove only the `running` field from that routine's `state.json`. In Git this is `<common-git-directory>/pi-pulses/<name>/state.json`; elsewhere it is `.pi/pulses/.runtime/<name>/state.json`. Preserve the other fields and history, then resume the same main session. Do not clear an uncertain run merely to retry it.
 

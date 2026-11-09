@@ -16,7 +16,7 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 | Shared notes | Agent Comms in the participants with Notes active | Notes context-sharing discovery, child binding and an authenticated family router |
 | A Pi tool usable from Code or Notebook | A normal Pi tool, with PCC present | Usually no extra registration. Use the Code Mode API for custom behavior |
 | Compact extension guidance in PCC GPT prompt mode | PCC and your extension | Alternate wording through `registerGptPromptMode` |
-| A detached worker runner for Pulses | Source-only [Pulses](../packages/pi-pulses/README.md) and your runner | Worker admission, inspection, restoration and waking result delivery |
+| Separate Pi workers with saved-session reuse | [Shepherdr](../packages/pi-shepherdr/README.md#worker-api) | A caller scope, worker keys, task request IDs and lifetime policy |
 | A local tool callable by Grok voice | [Grok Realtime](../packages/pi-grok-realtime/README.md) | A `GrokToolDefinition` |
 | A miniapp in GipPity's browser UI | The standalone [GipPity Control](../packages/pi-gippity-control/README.md) extension | A static app and a state/event provider |
 
@@ -540,24 +540,26 @@ A custom message supplies `customType`, nonempty `content`, `display` and option
 
 A `CodexContextBriefing` is `{ protocol: 1, id, owner, key, content }`, persisted with `pi.appendEntry(CODEX_CONTEXT_BRIEFING_TYPE, briefing)`. IDs and content are immutable. The handler receives `(ctx, windowId, messages?)` at inference admission. Use selected context to decide what is already present; do not edit earlier messages or the static system prompt to refresh guidance.
 
-## Pulses worker runners
+## Shepherdr workers
 
-[Pulses](../packages/pi-pulses/README.md) is private and source-only. Its [`integration.ts`](../packages/pi-pulses/integration.ts) defines an extension interoperability contract, not a published runner SDK. Pulses owns scheduling and admissions. A runner owns detached workers, saved-session restoration and final-result delivery that wakes the controlling main session. Shepherdr is the first implementation.
+The public [`WorkerService`](../packages/pi-shepherdr/worker-api.ts) contract is exported from `@howaboua/pi-shepherdr/worker-api`. Discover it synchronously through `@howaboua/pi-shepherdr/workers/v1/request`, emitting `{ protocol: "@howaboua/pi-shepherdr/workers/v1", accept(service) }`. No answer means unavailable. Use a type-only import when Shepherdr is optional, and discover again after reload.
 
-`connectPulseRunner(pi)` returns a connection with a live `service` getter and `dispose()`. Each service lookup emits `@howaboua/pi-pulses/runner/v1/request` with `{ protocol: "@howaboua/pi-pulses/runner/v1", accept }`. A runner answers synchronously with `accept(runner)`. No answer returns `undefined`; multiple distinct runners raise an ownership conflict. Dispose the connection and unsubscribe listeners on shutdown.
-
-`PulseRunner` requires `protocol: "@howaboua/pi-pulses/runner/v1"`, a nonempty `id` and these methods:
+The service exposes `protocol`, a provider `id` and these methods:
 
 | Method | Contract |
 |---|---|
-| `isController(ctx)` | Whether this session may own and schedule pulses; false for detached workers, including resumed workers |
-| `start(ctx, input)` | `Promise<PulseWorker>` confirming admission, never task completion |
-| `inspect(ctx, workerId)` | `Promise<PulseWorker>` reporting the worker's current state |
+| `isWorker(ctx)` | Generic worker role, including saved worker sessions |
+| `start(ctx, input)` | `Promise<WorkerStatus>` confirming admission, never task completion |
+| `inspect(ctx, scope, workerId)` | `Promise<WorkerStatus>` reporting the owned worker's current state |
 | `subscribe(listener)` | Subscribe to worker-state changes and return an unsubscribe function |
 
-`PulseRun` contains string fields `taskId`, `title`, `prompt`, `cwd`, `runId` and optional `workerId`. Preserve the run identity across any check of the same admission. `PulseWorker` contains an opaque `workerId` and `state: "working" | "idle" | "closed"`.
+`WorkerStart` requires nonempty `scope`, `key`, `requestId`, `title`, `prompt` and absolute `cwd`. It accepts an optional receipt `workerId` and `lifetime: "parent" | "detached"`, defaulting to `parent`. Each caller chooses a stable scope and worker key. Existing workers retain their lifetime and working directory. Repeating the latest acknowledged request ID inspects that request without resending it. `WorkerStatus` contains an opaque `workerId` and `state: "working" | "idle" | "closed"`.
 
-Controller checks and subscriptions may precede operational readiness. Check `isController(ctx)` before claiming or scheduling work. A rejected `start` remains uncertain unless an `Error` carries `dispatched: false`, recognised by `isPulseRunNotStarted(error)`. Only that positive receipt permits clearing the admission. A missing receipt or malformed history does not prove the task never started. Do not replay unconfirmed work or substitute execution inside the main agent.
+Start and inspect require the caller's active TUI session after resource discovery. Ownership follows its selected native branch and scope. Callers own scheduling and controller eligibility. A rejected start remains uncertain unless its error carries `dispatched: false`. Never retry an uncertain rejection, even with the same request ID. Inspection does not clear an uncertain admission. Workers use normal Shepherdr final-result delivery, waking the controller through ordinary kickoff preparation.
+
+### Pulses consumer
+
+[Pulses](../packages/pi-pulses/README.md) is private and source-only. Its [`connectPulseRunner(pi)`](../packages/pi-pulses/integration.ts) adapts this generic service. Pulses maps task and run IDs to worker keys and request IDs, chooses detached lifetime, and schedules only in non-worker TUI sessions. These policies belong to Pulses, not Shepherdr. Without a compatible service, Pulses retains definition authoring but cannot execute work. Old runner receipts require explicit manual recovery rather than automatic replay.
 
 ## Voice and browser integrations
 

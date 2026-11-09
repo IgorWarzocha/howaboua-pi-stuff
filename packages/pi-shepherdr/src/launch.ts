@@ -59,6 +59,28 @@ export interface StartAgentOptions {
 	ancestry?: SpawnAncestry;
 }
 
+// Pi restores these from the session. Initial profile defaults must not reset them.
+export function resumeAgentArgs(args: readonly string[]): string[] {
+	const restored = new Set([
+		"--model",
+		"--provider",
+		"--thinking",
+		"--name",
+		"-n",
+	]);
+	const result: string[] = [];
+	for (let index = 0; index < args.length; index += 1) {
+		const arg = args[index]!;
+		if (restored.has(arg)) {
+			index += 1;
+			continue;
+		}
+		if ([...restored].some((flag) => arg.startsWith(`${flag}=`))) continue;
+		result.push(arg);
+	}
+	return result;
+}
+
 export async function startAgent(
 	client: CoreConnection,
 	params: StartAgentParams,

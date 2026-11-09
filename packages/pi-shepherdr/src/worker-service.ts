@@ -3,6 +3,12 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import {
+	WORKER_PROTOCOL,
+	type WorkerService,
+	type WorkerStart,
+	type WorkerStatus,
+} from "../worker-api.js";
 import { activityTask } from "./activity.js";
 import { dispatchAgentWork, reserveAgentName } from "./agents-work.js";
 import type { AgentBoard } from "./board/host.js";
@@ -10,6 +16,7 @@ import { sessionPath } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
 import {
 	RolledBackAgentLaunchError,
+	resumeAgentArgs,
 	rollbackStartedAgent,
 	startAgent,
 	UnstartedAgentLaunchError,
@@ -19,22 +26,7 @@ import { loadAgentProfiles, profileAgentArgs } from "./profiles.js";
 import type { SharedAgentContext } from "./shared-context.js";
 import { prepareLaunchAncestry } from "./spawn-ancestry.js";
 import { ENTRY, panelFor, records } from "./worker-ownership.js";
-import { PULSE_WORKER_FLAG, type registerWorkerRole } from "./worker-role.js";
-
-const RUNNER_PROTOCOL = "@howaboua/pi-pulses/runner/v1";
-// Structural implementation of Pulses' optional runner ABI, without a private-package dependency.
-interface PulseRun {
-	taskId: string;
-	title: string;
-	prompt: string;
-	cwd: string;
-	runId: string;
-	workerId?: string;
-}
-interface PulseWorker {
-	workerId: string;
-	state: "working" | "idle" | "closed";
-}
+import type { registerWorkerRole } from "./worker-role.js";
 
 export function registerWorkerService(
 	pi: ExtensionAPI,
@@ -44,13 +36,10 @@ export function registerWorkerService(
 	workerRole: ReturnType<typeof registerWorkerRole>,
 ): void {
 	let active: ExtensionContext | undefined;
-	let busy = false;
-	const isController = (ctx: ExtensionContext) =>
-		ctx.mode === "tui" && !workerRole.isPulseWorker(ctx.sessionManager);
+	let busy: Pick<WorkerStart, "scope" | "key" | "requestId"> | undefined;
 	function assertContext(ctx: ExtensionContext) {
-		if (!isController(ctx))
-			throw new Error("Detached workers cannot claim or schedule pulses");
 		if (
+			ctx.mode !== "tui" ||
 			!active ||
 			!ctx.sessionManager.getSessionFile() ||
 			ctx.sessionManager.getSessionFile() !==
@@ -60,9 +49,11 @@ export function registerWorkerService(
 				"Worker service is unavailable for this session; retry after session startup",
 			);
 	}
-	async function owned(ctx: ExtensionContext, workerId: string) {
+	async function owned(ctx: ExtensionContext, scope: string, workerId: string) {
 		assertContext(ctx);
-		const worker = records(ctx).find((value) => value.workerId === workerId);
+		const worker = records(ctx).find(
+			(value) => value.scope === scope && value.workerId === workerId,
+		);
 		if (!worker) throw new Error("Worker is not owned by this session branch");
 		const identity = await fleet.connected().client.machineIdentity();
 		if (identity.host !== worker.host || identity.session !== worker.session)
@@ -72,9 +63,10 @@ export function registerWorkerService(
 
 	async function inspect(
 		ctx: ExtensionContext,
+		scope: string,
 		workerId: string,
-	): Promise<PulseWorker> {
-		const worker = await owned(ctx, workerId);
+	): Promise<WorkerStatus> {
+		const worker = await owned(ctx, scope, workerId);
 		const panel = await panelFor(fleet, worker);
 		const record = fleet
 			.connected()
@@ -94,18 +86,22 @@ export function registerWorkerService(
 					: "idle",
 		};
 	}
-	const service = {
-		protocol: RUNNER_PROTOCOL,
-		id: "shepherdr",
-		isController,
+	const service: WorkerService = {
+		protocol: WORKER_PROTOCOL,
+		id: "shepherdr-workers-v1",
+		isWorker: (ctx) => workerRole.isWorker(ctx.sessionManager),
 		inspect,
 		subscribe: (listener: () => void) => fleet.subscribe(listener),
-		async start(ctx: ExtensionContext, input: PulseRun) {
-			let stage: "preflight" | "launch" | "dispatch" = "dispatch";
+		async start(ctx: ExtensionContext, input: WorkerStart) {
+			let stage: "preflight" | "launch" | "dispatch" = "preflight";
 			try {
+				if (!input || typeof input !== "object")
+					throw new Error("Worker request is required");
 				stage = records(ctx).some(
 					(worker) =>
-						worker.pulseId === input.taskId && worker.runId === input.runId,
+						worker.scope === input.scope &&
+						worker.key === input.key &&
+						worker.requestId === input.requestId,
 				)
 					? "dispatch"
 					: "preflight";
@@ -125,36 +121,69 @@ export function registerWorkerService(
 							"Parent branch changed during worker startup; inspect before retrying",
 						);
 				};
-				if (busy) throw new Error("A worker operation is already in progress");
+				if (busy) {
+					if (
+						busy.scope === input.scope &&
+						busy.key === input.key &&
+						busy.requestId === input.requestId
+					)
+						stage = "dispatch";
+					throw new Error("A worker operation is already in progress");
+				}
 				for (const field of [
-					"taskId",
+					"scope",
+					"key",
 					"title",
 					"prompt",
 					"cwd",
-					"runId",
+					"requestId",
 				] as const)
-					if (!input[field]?.trim()) throw new Error(`${field} is required`);
+					if (typeof input[field] !== "string" || !input[field].trim())
+						throw new Error(`${field} is required`);
+				if (
+					input.workerId !== undefined &&
+					(typeof input.workerId !== "string" || !input.workerId.trim())
+				)
+					throw new Error("workerId must be a non-empty string");
+				if (
+					input.lifetime !== undefined &&
+					input.lifetime !== "parent" &&
+					input.lifetime !== "detached"
+				)
+					throw new Error("Worker lifetime must be parent or detached");
+				const lifetime = input.lifetime ?? "parent";
 				if (!isAbsolute(input.cwd))
 					throw new Error("Worker cwd must be absolute");
 				if (input.prompt.trimStart().startsWith("/"))
-					throw new Error("Scheduled work must be a task, not a slash command");
-				busy = true;
+					throw new Error("Worker work must be a task, not a slash command");
+				busy = {
+					scope: input.scope,
+					key: input.key,
+					requestId: input.requestId,
+				};
 				try {
 					const runtime = fleet.connected();
 					let worker = records(ctx).find(
-						(value) => value.pulseId === input.taskId,
+						(value) => value.scope === input.scope && value.key === input.key,
 					);
 					if (input.workerId && input.workerId !== worker?.workerId)
-						throw new Error("Worker is not owned by this pulse in this branch");
-					if (worker) await owned(ctx, worker.workerId);
+						throw new Error(
+							"Worker is not owned by this caller in this branch",
+						);
+					if (worker) await owned(ctx, input.scope, worker.workerId);
+					if (worker && worker.lifetime !== lifetime)
+						throw new Error(
+							"Worker lifetime differs; use its original lifetime or another key",
+						);
 					let panel = worker ? await panelFor(fleet, worker) : undefined;
-					if (worker?.runId === input.runId) {
+					if (worker?.requestId === input.requestId) {
 						stage = "dispatch";
-						return await inspect(ctx, worker.workerId);
+						return await inspect(ctx, input.scope, worker.workerId);
 					}
 					if (
 						worker &&
-						(await inspect(ctx, worker.workerId)).state === "working"
+						(await inspect(ctx, input.scope, worker.workerId)).state ===
+							"working"
 					)
 						throw new Error("Worker already has active responsibility");
 					if (worker && worker.cwd !== input.cwd)
@@ -179,8 +208,7 @@ export function registerWorkerService(
 								"Worker profile cannot select an existing session",
 							);
 						const args = [
-							...profileArgs,
-							`--${PULSE_WORKER_FLAG}`,
+							...(worker ? resumeAgentArgs(profileArgs) : profileArgs),
 							...(worker ? ["--session", worker.sessionPath] : []),
 						];
 						const reservation = await reserveAgentName(runtime, input.title);
@@ -201,10 +229,12 @@ export function registerWorkerService(
 								runtime.client,
 								{
 									name,
-									label: input.title,
+									...(worker ? {} : { label: input.title }),
 									cwd: input.cwd,
 									placement: "terminal",
-									outliveParent: true,
+									...(lifetime === "detached"
+										? { outliveParent: true as const }
+										: {}),
 								},
 								runtime.fallbackCwd,
 								runtime.resolveDirectory,
@@ -233,8 +263,10 @@ export function registerWorkerService(
 								const identity = await runtime.client.machineIdentity();
 								worker = {
 									workerId: worker?.workerId ?? crypto.randomUUID(),
-									pulseId: input.taskId,
-									runId: "",
+									scope: input.scope,
+									lifetime,
+									key: input.key,
+									requestId: worker?.requestId ?? "",
 									parent: ctx.sessionManager.getSessionFile()!,
 									...identity,
 									target: panel.pane_id,
@@ -277,13 +309,13 @@ export function registerWorkerService(
 						},
 						{ expectUserMessage: true },
 					);
-					worker = { ...worker, runId: input.runId };
+					worker = { ...worker, requestId: input.requestId };
 					assertBranch();
 					pi.appendEntry(ENTRY, worker);
 					if (dispatch.warning) ctx.ui.notify(dispatch.warning, "warning");
-					return inspect(ctx, worker.workerId);
+					return inspect(ctx, input.scope, worker.workerId);
 				} finally {
-					busy = false;
+					busy = undefined;
 				}
 			} catch (error) {
 				if (
@@ -302,13 +334,13 @@ export function registerWorkerService(
 			}
 		},
 	};
-	pi.events.on(`${RUNNER_PROTOCOL}/request`, (request: unknown) => {
+	pi.events.on(`${WORKER_PROTOCOL}/request`, (request: unknown) => {
 		const value = request as {
 			protocol?: unknown;
 			accept?: (value: typeof service) => void;
 		};
 		if (
-			value?.protocol === RUNNER_PROTOCOL &&
+			value?.protocol === WORKER_PROTOCOL &&
 			typeof value.accept === "function"
 		)
 			value.accept(service);

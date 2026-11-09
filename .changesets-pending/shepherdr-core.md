@@ -18,7 +18,8 @@
 - Agent attachment and detachment now accept either context or Board sharing without requiring an explicit false for the other.
 - Agent help and peer messages distinguish independent sessions from sub-agents and separate communication from shared Notes or Board membership.
 - Incoming tasks and messages state whether the sender can read the recipient's current Notes and Board, with retained-only or unknown access identified explicitly.
-- Ordinary workers now end with their parent. Detached Pulse workers remain independent.
+- Ordinary workers now end with their parent.
+- Added a public worker API with saved-session reuse and caller-selected detached lifetime.
 - `/root` now follows saved spawn ancestry independently of shared Notes and Board membership. Older workers without saved ancestry must use exact session references.
 - Sending or assigning work to a closed, owned worker now resumes its saved Pi session before delivery.
 - Shells retaining old Pi labels no longer appear as live agents.
