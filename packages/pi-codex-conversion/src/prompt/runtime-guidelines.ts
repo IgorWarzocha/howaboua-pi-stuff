@@ -20,12 +20,14 @@ const NORMAL_CODEX_GUIDELINES = [
 	["Run independent tool calls in parallel when practical", "Independent calls→parallel when practical"],
 ] as const;
 
+type RuntimeGuideline = readonly [normal: string, gpt: string, tool?: string];
+
 const CODE_MODE_GUIDELINES = [
-	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter"],
+	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter", "exec_command"],
 	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks"],
-	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec"],
-	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true"],
-	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites"],
+	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec", "exec_command"],
+	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true", "exec_command"],
+	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites", "apply_patch"],
 	["Compose known tool calls in one exec; await dependencies in order and run independent calls concurrently. Bound output at the source", "Known calls→one exec; dependencies→ordered awaits; independent calls→concurrent; bound output at source"],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
@@ -35,7 +37,7 @@ const STATEFUL_MODE_GUIDELINES = [
 	["Keep one-offs block-local. Retain only what you plan to reuse, and clean up when the task ends.", "One-offs→block-local; retain ONLY planned reuse; task done→cleanup"],
 	...CODE_MODE_GUIDELINES,
 	["Notebook state management: notebook({})", "Manage state: notebook({})"],
-	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonical artifacts→files; shell state across tools.exec_command→files/args"],
+	["Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments", "Canonical artifacts→files; shell state across tools.exec_command→files/args", "exec_command"],
 ] as const;
 
 const NOTEBOOK_MODE_GUIDELINES = [
@@ -74,7 +76,7 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...TS_MODE_GUIDELINES,
 	...JS_MODE_GUIDELINES,
 ];
-const GPT_GUIDELINES = new Map<string, string>(ALL_STATIC_CODEX_GUIDELINES);
+const GPT_GUIDELINES = new Map<string, string>(ALL_STATIC_CODEX_GUIDELINES.map(([normal, gpt]) => [normal, gpt]));
 
 function withoutCosmeticTerminalPeriod(value: string): string {
 	return value.endsWith(".") && !value.endsWith("..") ? value.slice(0, -1) : value;
@@ -92,6 +94,7 @@ function buildCodexGuidelines(
 	mode: CodexPromptMode,
 	selectedTools: readonly string[],
 	piPackageRoot?: string,
+	nestedTools: readonly string[] = [],
 ): string[] {
 	const active = new Set(selectedTools);
 	let guidelines: string[];
@@ -105,7 +108,9 @@ function buildCodexGuidelines(
 	} else {
 		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || active.has("notebook"));
 		guidelines = adapterSurfaceActive
-			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : mode === "js" ? JS_MODE_GUIDELINES : CODE_MODE_GUIDELINES).map(([guideline]) => guideline)
+			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : mode === "js" ? JS_MODE_GUIDELINES : CODE_MODE_GUIDELINES)
+				.filter(([, , tool]: RuntimeGuideline) => !tool || nestedTools.includes(tool))
+				.map(([guideline]) => guideline)
 			: [];
 	}
 	guidelines.unshift(RUNTIME_IDENTITY_GUIDELINE[0], ...GENERAL_GUIDELINES.map(([guideline]) => guideline));
@@ -123,7 +128,7 @@ function canonicalGuideline(value: string): string {
 export function mergeCodexGuidelines(
 	base: readonly string[],
 	mode: CodexPromptMode,
-	options: { removePiDefaults?: boolean; piPackageRoot?: string; selectedTools?: readonly string[] } = {},
+	options: { removePiDefaults?: boolean; piPackageRoot?: string; selectedTools?: readonly string[]; nestedTools?: readonly string[] } = {},
 ): string[] {
 	const merged: string[] = [];
 	const seen = new Set<string>();
@@ -138,7 +143,7 @@ export function mergeCodexGuidelines(
 		merged.push(canonical);
 	};
 	for (const guideline of base) add(guideline);
-	for (const guideline of buildCodexGuidelines(mode, options.selectedTools ?? [], options.piPackageRoot)) add(guideline);
+	for (const guideline of buildCodexGuidelines(mode, options.selectedTools ?? [], options.piPackageRoot, options.nestedTools)) add(guideline);
 	return merged;
 }
 

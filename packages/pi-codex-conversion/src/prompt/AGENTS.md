@@ -2,6 +2,7 @@
 - Call path: `extension/events.ts` `before_agent_start` → `extension/turn-lifecycle.ts` → `prepareCodexSystemPrompt()`. Mutate Pi's structured options; return no full prompt unless preserving an earlier opaque `forceSystemPrompt` chain.
 - Code Mode owns its dynamic tool and active-runtime section under `tools/code-mode/`; it runs before this builder.
 - Section getters observe later `before_agent_start` edits only. Live deferred-tool availability belongs in appended toolkit updates, not reconstructed prompts or provider patches.
+- Tool-specific runtime guidance uses Code's captured nested catalogue, not outer `exec`/`wait` availability or a live inventory read.
 - Provider code may serialize or capture final instructions but must not author prompt text. Later Pi extensions may still mutate the prompt; inspect the final provider payload when exact sent instructions matter.
 - Keep construction deterministic and cache-stable.
 - GPT mode inherits Heavy's scaffold removal. Compact only paired owned guidance; preserve foreign contributions and opaque overrides. Off/on text must stay unchanged.
