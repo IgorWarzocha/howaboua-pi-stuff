@@ -160,12 +160,16 @@ export async function dispatchAgentWork(
 		settlement = blocking
 			? runtime.monitor.claimWork(attempt, signal, options.replyingTo)
 			: undefined;
+		if (!blocking && options.replyingTo) {
+			runtime.monitor.observeReply(attempt, options.replyingTo);
+		}
 		void settlement?.catch(() => undefined);
 		signal.throwIfAborted();
 		sendStarted = true;
 		receipt = await send();
 	} catch (error) {
-		if (settlement) runtime.monitor.releaseWorkClaim(attempt, error);
+		if (settlement || options.replyingTo)
+			runtime.monitor.releaseWorkClaim(attempt, error);
 		if (sendStarted) await runtime.monitor.handleWorkFailure(attempt, error);
 		else runtime.monitor.rejectWork(attempt);
 		if (addedWatch && (!sendStarted || isDispatchRejected(error))) {
@@ -187,7 +191,7 @@ export async function dispatchAgentWork(
 	}
 	try {
 		if (receipt?.command) {
-			if (settlement)
+			if (settlement || options.replyingTo)
 				runtime.monitor.releaseWorkClaim(
 					attempt,
 					new Error("Command submitted without task waiting"),
@@ -206,7 +210,8 @@ export async function dispatchAgentWork(
 		}
 		await runtime.monitor.reconcileNow();
 	} catch (error) {
-		if (settlement) runtime.monitor.releaseWorkClaim(attempt, error);
+		if (settlement || options.replyingTo)
+			runtime.monitor.releaseWorkClaim(attempt, error);
 		return {
 			...(receipt?.command ? { command: true } : {}),
 			warning: `Submitted, but monitoring refresh failed: ${error instanceof Error ? error.message : String(error)}. Inspect the target before resubmitting`,

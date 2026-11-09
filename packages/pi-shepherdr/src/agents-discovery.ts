@@ -59,8 +59,8 @@ export async function agentsHelp(
 				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
 				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
 			reply: gpt
-				? "Extension report/read template required; send≠resolve; blocking waits resumed work; others return after semantic delivery"
-				: "Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",
+				? "Extension report/read template required; send≠resolve; returns after acceptance, never waits resumed work"
+				: "Use the extension-authored template from its report/read; send does not resolve it. Replies return after acceptance, without waiting for resumed work",
 			machine: gpt
 				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
 				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",

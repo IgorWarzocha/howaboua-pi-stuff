@@ -23,3 +23,4 @@
 - `/root` now follows saved spawn ancestry independently of shared Notes and Board membership. Older workers without saved ancestry must use exact session references.
 - Sending or assigning work to a closed, owned worker now resumes its saved Pi session before delivery.
 - Shells retaining old Pi labels no longer appear as live agents.
+- Agent replies now return when the extension accepts the answer, rather than waiting for resumed work and blocking later questions.

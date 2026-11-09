@@ -112,6 +112,9 @@ export class SettlementReporter {
 	) {
 		return this.delivery.claim(attempt, signal, replyingTo);
 	}
+	observeReply(attempt: WorkAttempt, reply: ExtensionReply): void {
+		this.delivery.observeReply(attempt, reply);
+	}
 	releaseClaim(attempt: WorkAttempt | undefined, error: unknown) {
 		this.delivery.releaseClaim(attempt, error);
 	}

@@ -206,6 +206,9 @@ export class AgentMonitor {
 	): Promise<ClaimedSettlement> | undefined {
 		return this.settlements.claim(attempt, signal, replyingTo);
 	}
+	observeReply(attempt: WorkAttempt, reply: ExtensionReply): void {
+		this.settlements.observeReply(attempt, reply);
+	}
 
 	noteMessage(paneId: string, message: string): void {
 		if (this.state.noteMessage(paneId, message)) this.persist();

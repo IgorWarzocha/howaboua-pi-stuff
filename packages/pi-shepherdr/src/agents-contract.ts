@@ -208,10 +208,7 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 				),
 				value.blocking,
 			);
-		return (
-			value.action === "reply" ||
-			(value.action === "assign" && value.blocking === true)
-		);
+		return value.action === "assign" && value.blocking === true;
 	} catch {
 		return false;
 	}
