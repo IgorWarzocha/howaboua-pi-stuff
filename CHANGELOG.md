@@ -105,11 +105,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.104
+### @howaboua/pi-extensions — 0.0.105
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: - New remote workers retain their Core parent link for sidebar nesting. - Agent guidance now requires the agents tool for supported local and remote operations, including after failures, instead of bypassing it with shell commands.
+  - @howaboua/pi-suggestions: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - Fixed ghost suggestions in empty editors with decorated prompt prefixes, including `pi-powerline-footer`. - Added an off-by-default chat model fallback for unavailable or failed suggestion models.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -240,11 +240,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.112
+### @howaboua/pi-stuff — 0.0.113
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: - New remote workers retain their Core parent link for sidebar nesting. - Agent guidance now requires the agents tool for supported local and remote operations, including after failures, instead of bypassing it with shell commands.
+  - @howaboua/pi-suggestions: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - Fixed ghost suggestions in empty editors with decorated prompt prefixes, including `pi-powerline-footer`. - Added an off-by-default chat model fallback for unavailable or failed suggestion models.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
@@ -260,9 +260,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 
-### @howaboua/pi-suggestions — 0.0.2
+### @howaboua/pi-suggestions — 0.0.3
 
-- Added editable Markdown instructions in /suggestions, with defaults favouring productive next actions and avoiding repeated requests or completed work.
+- Requires Pi 1.5 or newer.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Fixed ghost suggestions in empty editors with decorated prompt prefixes, including `pi-powerline-footer`.
+  - Added an off-by-default chat model fallback for unavailable or failed suggestion models.
 
 [Full changelog](./packages/pi-suggestions/CHANGELOG.md)
 
