@@ -117,12 +117,13 @@ export class Predictions {
 				"The current chat model is unavailable for suggestion fallback. Check provider access or change /suggestions.",
 			);
 		const levels = getSupportedThinkingLevels(fallback);
+		// Reasoning-required chat models need their lowest supported level, not off.
 		const reasoning = levels.includes(selection.reasoning)
 			? selection.reasoning
-			: "off";
-		if (!levels.includes(reasoning))
+			: levels[0];
+		if (reasoning === undefined)
 			throw new Error(
-				"The current chat model cannot use the selected reasoning or run without reasoning. Change /suggestions.",
+				"The current chat model has no supported reasoning level. Choose another chat model or change /suggestions.",
 			);
 		onFallback(fallback);
 		return this.request(
