@@ -320,7 +320,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.104",
+      "version": "0.0.105",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.18",
         "@howaboua/pi-auto-trees": "0.1.19",
@@ -334,7 +334,7 @@
         "@howaboua/pi-shepherdr": "0.2.27",
         "@howaboua/pi-smart-btw": "0.2.8",
         "@howaboua/pi-subagent-review": "0.2.25",
-        "@howaboua/pi-suggestions": "0.0.2",
+        "@howaboua/pi-suggestions": "0.0.3",
         "@howaboua/pi-unicode-charts": "0.1.4",
       },
       "devDependencies": {
@@ -616,7 +616,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.112",
+      "version": "0.0.113",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.18",
         "@howaboua/pi-auto-trees": "0.1.19",
@@ -634,7 +634,7 @@
         "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.7",
         "@howaboua/pi-smart-btw": "0.2.8",
         "@howaboua/pi-subagent-review": "0.2.25",
-        "@howaboua/pi-suggestions": "0.0.2",
+        "@howaboua/pi-suggestions": "0.0.3",
         "@howaboua/pi-unicode-charts": "0.1.4",
       },
       "devDependencies": {
@@ -686,7 +686,7 @@
     },
     "packages/pi-suggestions": {
       "name": "@howaboua/pi-suggestions",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "peerDependencies": {
         "@earendil-works/pi-ai": ">=1.3.0",
         "@earendil-works/pi-coding-agent": ">=1.5.0",

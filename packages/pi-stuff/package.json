@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.112",
+	"version": "0.0.113",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -29,7 +29,7 @@
 		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.7",
 		"@howaboua/pi-smart-btw": "0.2.8",
 		"@howaboua/pi-subagent-review": "0.2.25",
-		"@howaboua/pi-suggestions": "0.0.2",
+		"@howaboua/pi-suggestions": "0.0.3",
 		"@howaboua/pi-unicode-charts": "0.1.4"
 	},
 	"files": [
