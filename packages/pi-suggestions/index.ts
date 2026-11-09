@@ -19,6 +19,7 @@ export default function suggestions(pi: ExtensionAPI): void {
 	let generation = 0;
 	let prompts = 0;
 	let reportedFailure = false;
+	let fallbackModel: string | undefined;
 	const predictions = new Predictions();
 
 	function cancel(): void {
@@ -33,6 +34,7 @@ export default function suggestions(pi: ExtensionAPI): void {
 	function reset(): void {
 		cancel();
 		predictions.reset();
+		fallbackModel = undefined;
 	}
 
 	function load(ctx: ExtensionContext): void {
@@ -164,6 +166,16 @@ export default function suggestions(pi: ExtensionAPI): void {
 					selection,
 					context,
 					signal,
+					config.useChatModelAsFallback,
+					(model) => {
+						const name = model ? `${model.provider}/${model.id}` : undefined;
+						if (name && name !== fallbackModel && eligible() && !signal.aborted)
+							ctx.ui.notify(
+								`Suggestions are using the current chat model (${name}) as fallback. This may cost more and take longer; its private suggestion history also uses tokens. Change this in /suggestions.`,
+								"warning",
+							);
+						fallbackModel = name;
+					},
 				);
 				if (!eligible() || controller.signal.aborted) return;
 				if (signal.aborted) throw new Error("Suggestion request timed out.");
@@ -182,11 +194,11 @@ export default function suggestions(pi: ExtensionAPI): void {
 					result.commit();
 					editor?.show(result.text);
 				}
-			} catch {
+			} catch (error) {
 				if (!eligible() || controller.signal.aborted || reportedFailure) return;
 				reportedFailure = true;
 				ctx.ui.notify(
-					"Suggestions are unavailable. Chat still works; check Instructions, the model and provider access in /suggestions, or switch suggestions off.",
+					`Suggestions are unavailable. ${error instanceof Error ? error.message : "The request failed."} Chat still works; check Instructions, the model and provider access in /suggestions, or switch suggestions off.`,
 					"warning",
 				);
 			} finally {
