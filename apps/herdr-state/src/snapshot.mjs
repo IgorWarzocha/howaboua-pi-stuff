@@ -30,6 +30,7 @@ export function validateLayout(layout) {
 }
 
 export function sessionOf(terminal) {
+  if (Object.hasOwn(terminal, 'nativeSession')) return terminal.nativeSession;
   const labels = terminal.labels || {};
   if (labels['herdr.state.ephemeral'] === '1') return null;
   if (labels['herdr.state.agent'] && labels['herdr.state.ref']) {
@@ -50,30 +51,45 @@ export function sessionOf(terminal) {
 }
 
 export function sessionKey(session) {
-  return JSON.stringify([session.agent, session.ref.kind, session.ref.value]);
+  return JSON.stringify([session.agent, session.nativeId ? 'id' : session.ref.kind, session.nativeId || session.ref.value]);
 }
 
-export function makeSnapshot(layout, terminals, coreId) {
+export function makeSnapshot(layout, terminals, coreId, machines = []) {
   validateLayout(layout);
   const byAddress = new Map(terminals.map(t => [t.address, t]));
   const saved = [];
   const warnings = [];
   const addresses = new Set(layout.spaces.flatMap(s => s.tabs.flatMap(t => terminalLeaves(t.root))));
+  for (const terminal of terminals) if (!terminal.address.includes('/') && (sessionOf(terminal) || terminal.inspection === 'native')) addresses.add(terminal.address);
+  // Local ancestors without panes still own a saved child's native lifetime.
   for (const address of addresses) {
+    const parent = byAddress.get(address)?.parent;
+    if (parent && !parent.includes('/')) addresses.add(parent);
+  }
+  for (const address of addresses) {
+    if (address.includes('/')) { warnings.push(`${address}: remote pane belongs to its own Core snapshot`); continue; }
     const terminal = byAddress.get(address);
     if (!terminal || terminal.state !== 'live') { warnings.push(`${address}: no live terminal`); continue; }
     const session = sessionOf(terminal);
-    const app = terminal.status?.app || terminal.foreground?.name;
+    const app = terminal.detectedAgent || terminal.status?.app || terminal.foreground?.name;
     if (!session && app && !SHELL_NAMES.has(app)) warnings.push(`${address}: ${app} has not reported an exact session; shell only`);
+    let parent = null;
+    if (terminal.parent) {
+      const parts = terminal.parent.split('/');
+      const machine = parts.length === 1 ? coreId : machines.find(m => m.id === parts[0] || m.name === parts[0])?.id;
+      if (machine) parent = { coreId: machine, address: parts.at(-1) };
+      else warnings.push(`${address}: parent machine identity unavailable; child cannot be reattached safely`);
+    }
     saved.push({ address, cwd: terminal.foreground?.cwd || terminal.cwd, name: terminal.name, session,
+      parent, parentUnavailable: Boolean(terminal.parent && !parent), outliveParent: !terminal.die_with_parent,
       env: terminal.stateEnvironment || {} });
   }
-  return { snapshot: { schema: 1, id: randomUUID(), savedAt: new Date().toISOString(), coreId,
+  return { snapshot: { schema: 2, id: randomUUID(), savedAt: new Date().toISOString(), coreId,
     layout: structuredClone(layout), terminals: saved, warnings: [...warnings] }, warnings };
 }
 
 export function validateSnapshot(value, coreId) {
-  if (value?.schema !== 1 || typeof value.id !== 'string' || value.coreId !== coreId || !Array.isArray(value.terminals)) {
+  if (![1, 2].includes(value?.schema) || typeof value.id !== 'string' || value.coreId !== coreId || !Array.isArray(value.terminals)) {
     throw new Error('No compatible snapshot on this Core');
   }
   validateLayout(value.layout);
@@ -83,6 +99,9 @@ export function validateSnapshot(value, coreId) {
     if (typeof terminal.address !== 'string' || typeof terminal.cwd !== 'string' || seen.has(terminal.address)) throw new Error('Invalid saved terminal');
     seen.add(terminal.address);
     if (terminal.session !== null && !resumeArgv(terminal.session?.agent, terminal.session?.ref)) throw new Error('Invalid saved session');
+    if (terminal.session?.nativeId !== undefined && (typeof terminal.session.nativeId !== 'string' || !terminal.session.nativeId)) throw new Error('Invalid saved native identity');
+    if (terminal.parent && (typeof terminal.parent.coreId !== 'string' || !/^t[0-9a-z]+$/.test(terminal.parent.address))) throw new Error('Invalid saved parent');
+    if (value.schema === 2 && (typeof terminal.outliveParent !== 'boolean' || typeof terminal.parentUnavailable !== 'boolean')) throw new Error('Invalid saved lifetime');
     if (!terminal.env || typeof terminal.env !== 'object' || Array.isArray(terminal.env)
       || Object.entries(terminal.env).some(([key, value]) => !ENV_KEYS.includes(key) || typeof value !== 'string' || value.includes('\0'))) {
       throw new Error('Invalid saved environment');

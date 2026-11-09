@@ -1,14 +1,15 @@
 import { access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { idleShell, quote } from './process.mjs';
-import { sessionOf, sessionKey, mergeLayout, terminalLeaves } from './snapshot.mjs';
+import { sessionKey, mergeLayout, terminalLeaves } from './snapshot.mjs';
+import { inspectTerminal, nativeIdentity } from './inventory.mjs';
 
 const launcher = fileURLToPath(new URL('./launch.mjs', import.meta.url));
 
-export async function restore(core, snapshot, lease) {
+export async function restore(core, snapshot, lease, options = {}) {
   const listing = await core.call('terminal.list', { all: false });
   // A core list also includes connected machines: only reconcile this machine here.
-  const terminals = listing.terminals.filter(t => !t.address.includes('/'));
+  const terminals = await Promise.all(listing.terminals.filter(t => !t.address.includes('/')).map(inspectTerminal));
   const byAddress = new Map(terminals.map(t => [t.address, t]));
   const addresses = new Map();
   const replaceable = new Set();
@@ -18,26 +19,28 @@ export async function restore(core, snapshot, lease) {
   const displayed = new Set((initial.value?.spaces || []).flatMap(s => s.tabs.flatMap(t => terminalLeaves(t.root))));
   const occupied = new Map();
   for (const terminal of terminals) {
-    const session = sessionOf(terminal);
-    if (session && !(await idleShell(terminal))) occupied.set(sessionKey(session), terminal);
+    const session = terminal.reservedSession;
+    if (session) occupied.set(sessionKey(session), terminal);
   }
   const claimed = new Set();
-  for (const saved of snapshot.terminals) {
+  let binding;
+  const launch = options.launch || ((params) => core.call('terminal.run', params));
+  for (const saved of snapshot.terminals.filter(t => !options.only || t.address === options.only)) {
     await lease.check();
     try {
-      await access(saved.cwd);
-      if (saved.session?.ref.kind === 'path') await access(saved.session.ref.value);
+      saved.session = await nativeIdentity(saved.session);
       const key = `${snapshot.id}:${saved.address}`;
       const receipt = terminals.find(t => t.labels?.['herdr.state.restored'] === key || t.labels?.['herdr.state.pending'] === key);
       const original = receipt || byAddress.get(saved.address);
       const identity = saved.session && sessionKey(saved.session);
       if (identity && claimed.has(identity)) { warnings.push(`${saved.address}: duplicate saved conversation skipped`); continue; }
       if (identity) claimed.add(identity);
-      const existing = identity && occupied.get(identity);
+      const existing = identity && (occupied.get(identity) || options.existing);
       if (existing) {
         // A session already displayed elsewhere stays there. Never replace newer work
         // in its old pane, or create a second view of the same conversation.
-        if (!displayed.has(existing.address)) addresses.set(saved.address, existing.address);
+        binding = { coreId: existing.coreId || options.coreId || snapshot.coreId, address: existing.address };
+        if (binding.coreId === snapshot.coreId && !displayed.has(existing.address)) addresses.set(saved.address, existing.address);
         skipped++;
         continue;
       }
@@ -46,28 +49,43 @@ export async function restore(core, snapshot, lease) {
         if (!displayed.has(original.address)) addresses.set(saved.address, original.address);
         continue;
       }
+      await access(saved.cwd);
+      if (saved.session?.ref.kind === 'path') await access(saved.session.ref.value);
       if (!saved.session) {
         if (original) {
           if (!displayed.has(original.address)) addresses.set(saved.address, original.address);
           skipped++;
+          binding = { coreId: snapshot.coreId, address: original.address };
         }
         else {
-          const made = await core.call('terminal.run', { cwd: saved.cwd, env: saved.env, keep: true, no_parent: true, no_notify: true });
+          const made = await launch({ cwd: saved.cwd, env: saved.env, keep: true, no_parent: true, no_notify: true,
+            outlive_parent: saved.outliveParent ?? true, labels: { 'herdr.state.restored': key } }, options.parent);
           addresses.set(saved.address, made.address); shells++;
+          binding = { coreId: snapshot.coreId, address: made.address };
           replaceable.add(saved.address);
         }
+        continue;
+      }
+      if (original && !original.idle && !original.nativeSession) {
+        warnings.push(`${saved.address}: existing busy or uninspectable terminal left untouched; native launch deferred`);
         continue;
       }
       const encoded = Buffer.from(JSON.stringify({ ...saved.session, key })).toString('base64url');
       const command = [process.execPath, launcher, encoded].map(quote).join(' ');
       // Never type into an existing shell: even a shell without child processes
       // can have a half-written command at its prompt.
-      const made = await core.call('terminal.run', {
+      const made = await launch({
         argv: ['sh', '-c', `${command}; exec "\${SHELL:-/bin/sh}" -i`],
         cwd: saved.cwd, env: saved.env, keep: true, no_parent: true, no_notify: true,
+        outlive_parent: saved.outliveParent ?? true,
         labels: { 'herdr.state.pending': key },
-      });
+      }, options.parent);
       addresses.set(saved.address, made.address); launched++;
+      binding = { coreId: snapshot.coreId, address: made.address };
+      if (options.parent?.coreId !== undefined && options.parent.coreId !== snapshot.coreId
+        && !saved.outliveParent && options.coreVersion === '0.1.18') {
+        warnings.push(`${saved.address}: native parent restored; Core 0.1.18 did not stop cross-machine children after parent exit in validation. Close this child explicitly if its parent ends`);
+      }
       if (!original) replaceable.add(saved.address);
       if (original && await idleShell(await core.call('terminal.get', { terminal: original.address }))) {
         // Park, do not kill: an unfinished input line remains recoverable with hc.
@@ -103,5 +121,5 @@ export async function restore(core, snapshot, lease) {
     };
     await labelTree(tab.root);
   }
-  return { action: 'restore', launched, shells, skipped, parked, warnings, savedAt: snapshot.savedAt };
+  return { action: 'restore', launched, shells, skipped, parked, warnings, savedAt: snapshot.savedAt, binding };
 }

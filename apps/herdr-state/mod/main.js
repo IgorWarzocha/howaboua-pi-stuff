@@ -11,20 +11,23 @@ export default class State extends View {
     this.busy = action;
     cx.notify();
     cx.spawn(async cx => {
-      const reports = await Promise.all(targets.map(async machine => {
-        const name = machine.name || 'This computer';
-        try {
-          const response = await exec('herdr-state', [action], { on: machine.name });
-          let report;
-          try { report = JSON.parse(response.stdout); }
-          catch { throw new Error(response.stderr || 'State helper returned no result'); }
-          if (response.code !== 0 || report.error) throw new Error(report.error || response.stderr || 'State helper failed');
-          const summary = action === 'save'
+      let reports;
+      try {
+        // A single coordinator inventories the fleet before allocating sessions.
+        // Per-machine parallel restores cannot exclude duplicates or order parents.
+        const response = await exec('herdr-state', [action, JSON.stringify(targets.map(m => m.name))]);
+        let result;
+        try { result = JSON.parse(response.stdout); }
+        catch { throw new Error(response.stderr || 'State helper returned no result'); }
+        if (!Array.isArray(result.reports)) throw new Error(result.error || 'Update State on this computer to use fleet recovery');
+        reports = result.reports.map(report => {
+          const summary = report.error || (action === 'save'
             ? `${report.sessions} sessions, ${report.terminals} terminals saved`
-            : `${report.launched} launches requested, ${report.shells} shells restored, ${report.skipped} already present${report.parked ? `, ${report.parked} previous shells parked` : ''}`;
-          return { text: `${name}: ${summary}${report.warnings?.length ? '\n' + report.warnings.join('\n') : ''}`, warning: Boolean(report.warnings?.length) };
-        } catch (error) { return { text: `${name}: ${error.message}`, warning: true }; }
-      }));
+            : `${report.launched} launches requested, ${report.shells} shells restored, ${report.skipped} already present${report.parked ? `, ${report.parked} previous shells parked` : ''}`);
+          return { text: `${report.core}${report.terminal ? '/' + report.terminal : ''}: ${summary}${report.warnings?.length ? '\n' + report.warnings.join('\n') : ''}`,
+            warning: Boolean(report.error || report.warnings?.length) };
+        });
+      } catch (error) { reports = [{ text: error.message, warning: true }]; }
       notify({ title: action === 'save' ? 'State save' : 'State restore',
         body: reports.map(r => typeof r === 'string' ? r : r.text).join('\n\n'),
         level: reports.some(r => typeof r === 'string' || r.warning) ? 'warning' : 'info', timeout: 15000 });
