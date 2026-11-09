@@ -164,8 +164,8 @@ class SuggestionEditor implements EditorComponent, Focusable {
 		const lines = this.inner.render(width);
 		const prediction = this.state.prediction;
 		if (!prediction || !this.canShow()) return lines;
-		// Unknown layouts and menus are left untouched. A marker alone is not
-		// enough: require the standard empty row between two editor borders.
+		// Unknown layouts and menus are left untouched. Require a single empty
+		// content row, but preserve any decoration before its cursor.
 		if (lines.length !== 3) return lines;
 		const row = lines[1];
 		if (row === undefined) return lines;
@@ -177,7 +177,6 @@ class SuggestionEditor implements EditorComponent, Focusable {
 		const cursor = renderFakeCursor(" ");
 		if (
 			!after.startsWith(cursor) ||
-			!/^[ ]*$/.test(stripTerminalSequences(before)) ||
 			!/^[ ]*$/.test(stripTerminalSequences(after)) ||
 			visibleWidth(row) !== width
 		)
