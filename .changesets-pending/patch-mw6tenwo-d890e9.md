@@ -4,3 +4,4 @@
 
 - Voice task acknowledgements now omit unused task IDs.
 - Voice context timestamps now use minute precision.
+- Bundled audio helpers now use refreshed Rust dependencies.

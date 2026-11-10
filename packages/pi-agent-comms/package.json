@@ -50,7 +50,7 @@
 	"dependencies": {
 		"better-sqlite3": "13.0.3",
 		"dompurify": "3.4.17",
-		"marked": "18.1.2",
+		"marked": "18.2.0",
 		"unicode-case-folding": "1.1.2"
 	},
 	"devDependencies": {

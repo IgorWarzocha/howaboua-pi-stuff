@@ -54,11 +54,11 @@
 		}
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "1.5.1",
+		"@earendil-works/pi-coding-agent": "1.5.2",
 		"@howaboua/pi-codex-conversion": "4.0.9",
-		"typebox": "1.4.3",
-		"@types/node": "^26.6.5",
-		"@biomejs/biome": "^2.6.3",
+		"typebox": "1.4.6",
+		"@types/node": "^26.6.6",
+		"@biomejs/biome": "^2.6.6",
 		"typescript": "^7.0.2"
 	},
 	"scripts": {
