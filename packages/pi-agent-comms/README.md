@@ -8,7 +8,7 @@ Requires Pi 1.5.0 or newer and Node.js 22.18 or newer.
 
 Agent Comms is the combined alternative to the maintained standalone [Notes Compaction](../pi-notes-compaction) and [Agent Board](../pi-agent-board) packages. All three receive shared implementation improvements. The standalone packages are not deprecated.
 
-Agent Comms is available on the `@dev` preview channel only. Shepherdr sharing requires its `@core` preview channel. Stable Shepherdr users should keep the standalone Notes Compaction and Agent Board packages.
+Agent Comms is a preview release. Install `@dev` to track development updates. Shepherdr sharing requires its `@core` preview channel. Stable Shepherdr users should keep the standalone Notes Compaction and Agent Board packages.
 
 Choose Agent Comms for both features in one package, or keep the standalone packages. Do not load Agent Comms alongside either standalone extension. To switch to Agent Comms:
 
