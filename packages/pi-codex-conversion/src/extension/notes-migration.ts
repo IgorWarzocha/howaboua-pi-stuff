@@ -13,7 +13,7 @@ export function registerNotesMigrationGuard(pi: ExtensionAPI): void {
 			projection: () => { available = true; },
 		});
 		if (available) return false;
-		const message = `PCC upgrade requires Notes: ${legacy.path} still sets compaction.continuity to "${legacy.continuity}", but Notes is not loaded or could not start. No turn will run. Install Agent Comms with "pi install npm:@howaboua/pi-agent-comms", then /reload. If already installed, enable it and resolve any Notes startup error. To continue without Notes, explicitly set compaction.continuity to "compaction" in that file.`;
+		const message = `PCC upgrade requires Notes: ${legacy.path} still sets compaction.continuity to "${legacy.continuity}", but pi-notes-compaction is not loaded or could not start. No turn will run. Install it with "pi install npm:@howaboua/pi-notes-compaction", then /reload. If already installed, enable it and resolve any Notes startup error. To continue without Notes, explicitly set compaction.continuity to "compaction" in that file.`;
 		ctx.ui.notify(message, "error");
 		if (!ctx.hasUI) console.error(message);
 		return true;
