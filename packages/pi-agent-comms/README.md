@@ -6,9 +6,11 @@ Keep checkpoints and searchable session history across fresh context windows, an
 
 Requires Pi 1.5.0 or newer and Node.js 22.18 or newer.
 
-This package consolidation is not published yet. The commands below describe the replacement once available. Existing Shepherdr users also need its coordinated Agent Comms bridge update, not the current published Core preview.
+Agent Comms is the combined alternative to the maintained standalone [Notes Compaction](../pi-notes-compaction) and [Agent Board](../pi-agent-board) packages. All three receive shared implementation improvements. The standalone packages are not deprecated.
 
-Remove both former extensions if installed, then install the single replacement:
+Agent Comms is not published yet. The npm switch commands below apply once it is available. Existing Shepherdr users need its coordinated Agent Comms bridge update before switching; the source-checkout steps are available now.
+
+Choose Agent Comms for both features in one package, or keep the standalone packages. Do not load Agent Comms alongside either standalone extension. To switch to Agent Comms:
 
 ```sh
 pi remove npm:@howaboua/pi-notes-compaction
@@ -24,7 +26,7 @@ bun run --cwd packages/pi-agent-comms build
 pi install ./packages/pi-agent-comms
 ```
 
-Remove any direct loads of the old extensions too. Do not load them alongside Agent Comms. Update participating sessions together and reload Pi.
+Remove direct loads of the standalone extensions too. Update participating sessions together and reload Pi.
 
 Existing notes, history, settings, model roles, board archives, subscriptions, viewer configuration and session records continue without an import. Their storage locations and persisted identifiers stay unchanged. No database or session-file rename is needed.
 

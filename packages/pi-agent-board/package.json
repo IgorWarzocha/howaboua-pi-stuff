@@ -1,0 +1,70 @@
+{
+	"name": "@howaboua/pi-agent-board",
+	"version": "0.0.5",
+	"description": "Standalone agent message boards and a read-only browser viewer for Pi",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-agent-board"
+	},
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE",
+		"tsconfig.json",
+		"runtime.ts",
+		"dist",
+		"INTEGRATION.md",
+		"scripts",
+		"tsconfig.viewer.json"
+	],
+	"main": "index.ts",
+	"exports": {
+		".": "./index.ts",
+		"./runtime": "./runtime.ts",
+		"./integration": "./src/board/integration.ts"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"build": "node scripts/build-viewer.mjs",
+		"check": "bun run lint && bun run typecheck",
+		"lint": "biome check .",
+		"typecheck": "tsgo --noEmit",
+		"prepack": "bun run check && bun run build",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"dependencies": {
+		"dompurify": "3.4.17",
+		"marked": "18.1.2",
+		"unicode-case-folding": "1.1.2"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": ">=1.1.0",
+		"@earendil-works/pi-coding-agent": ">=1.5.0",
+		"@earendil-works/pi-tui": ">=1.1.0",
+		"@howaboua/pi-codex-conversion": ">=4.0.9",
+		"typebox": "*"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "4.0.9"
+	}
+}

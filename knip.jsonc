@@ -13,6 +13,22 @@
 			"project": ["src/**/*.ts", "src/**/*.mjs", "src/board/viewer/web/*.js", "scripts/*.mjs"],
 			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"]
 		},
+		"packages/pi-notes-compaction": {
+			"entry": ["src/notes/history-search-worker.mjs"],
+			"project": ["src/**/*.ts", "src/**/*.mjs"],
+			// Byte-identical shared helpers retain exports used by the Board distribution.
+			"ignoreIssues": {
+				"src/board/context-briefing.ts": ["exports"],
+				"src/board/delivery.ts": ["exports"]
+			}
+		},
+		"packages/pi-agent-board": {
+			"entry": ["src/board/viewer/server.ts", "src/board/viewer/web/app.js", "scripts/*.mjs"],
+			"project": ["src/**/*.ts", "src/board/viewer/web/*.js", "scripts/*.mjs"],
+			"ignoreUnresolved": ["^/vendor/(marked|purify)\\.js$"],
+			// The shared navigation snapshot also exports the type imported by Notes.
+			"ignoreIssues": { "src/settings-navigation.ts": ["types"] }
+		},
 		"packages/pi-chatgpt-sites": {
 			"entry": ["index.ts", "src/git-askpass.ts", "scripts/*.mjs"],
 			"project": ["src/**/*.ts", "scripts/*.mjs"]

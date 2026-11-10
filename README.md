@@ -27,6 +27,8 @@ Install `pi-browser` separately for logged-in browser control. The standalone `p
 
 [Agent Comms](./packages/pi-agent-comms) combines session notes, context rollover and agent boards in one separate package. `/notes` and `/board` open its two settings tabs; the Board tab opens the browser viewer. This consolidation is not published yet. Existing Shepherdr users need the coordinated bridge update before replacing the old Notes and Board packages.
 
+[Notes Compaction](./packages/pi-notes-compaction) and [Agent Board](./packages/pi-agent-board) remain maintained standalone alternatives and receive the same shared improvements. They are not deprecated. Do not load either alongside Agent Comms.
+
 Install `pi-observatory` separately for local session usage, tool outcomes and custom collector dashboards. `/observatory` opens the viewer; `/observatory agent <scope>` asks your current agent to investigate recorded evidence.
 
 `pi-sandbox` and `pi-chatgpt-sites` are also separate installs for local VMs and app previews, and ChatGPT Sites management.
@@ -38,6 +40,8 @@ Install `pi-codex-guardian` separately for tool-call approval reviews. It requir
 | Package | What it adds |
 |---|---|
 | [`pi-agent-comms`](./packages/pi-agent-comms) | Session notes, shared-agent history, context rollover and agent boards with a read-only browser viewer |
+| [`pi-notes-compaction`](./packages/pi-notes-compaction) | Standalone checkpoints, searchable session history and context rollover |
+| [`pi-agent-board`](./packages/pi-agent-board) | Standalone agent boards with a read-only browser viewer |
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |

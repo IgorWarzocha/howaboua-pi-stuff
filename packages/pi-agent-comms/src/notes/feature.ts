@@ -45,7 +45,7 @@ function hasSavedContinuity(ctx: ExtensionContext): boolean {
 
 export function createNotesFeature(
 	pi: ExtensionAPI,
-	openSettings: OpenSettings,
+	openSettings?: OpenSettings,
 ): CommsFeature {
 	let settings: NotesSettings | undefined;
 	let runtime: NotesRuntime | undefined;
@@ -101,8 +101,14 @@ export function createNotesFeature(
 			owner,
 			await ensureStore(),
 			notesSettingsPath(),
+			Boolean(openSettings),
 		)(ctx, initial);
 	};
+	const routeSettings: OpenSettings =
+		openSettings ??
+		(async (ctx) => {
+			await open(ctx);
+		});
 	pi.on("session_start", async (_event, ctx) => {
 		try {
 			settings = loadNotesSettings(ctx);
@@ -135,7 +141,7 @@ export function createNotesFeature(
 				ctx.ui.notify("Use /notes to open settings.", "info");
 				return;
 			}
-			await openSettings(ctx, "notes");
+			await routeSettings(ctx, "notes");
 		},
 	});
 	pi.registerCommand("roles", {
@@ -149,7 +155,7 @@ export function createNotesFeature(
 				return;
 			}
 			const next = await open(ctx, "roles");
-			if (next) await openSettings(ctx, next);
+			if (next) await routeSettings(ctx, next);
 		},
 	});
 	return {

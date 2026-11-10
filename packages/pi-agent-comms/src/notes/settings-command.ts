@@ -20,6 +20,7 @@ export function createNotesSettings(
 	owner: NotesSettingsOwner,
 	store: NotesStore,
 	settingsPath: string,
+	boardTab = true,
 ) {
 	const open = async (
 		ctx: ExtensionCommandContext,
@@ -54,6 +55,7 @@ export function createNotesSettings(
 			};
 			try {
 				const next = await openNotesSettings(ctx, {
+					boardTab,
 					settings: () => owner.settings,
 					save,
 					settingsPath,

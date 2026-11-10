@@ -21,6 +21,8 @@ const aggregateNames = new Set([
 ]);
 const aggregateExcludedNames = new Set([
 	"@howaboua/pi-agent-comms",
+	"@howaboua/pi-agent-board",
+	"@howaboua/pi-notes-compaction",
 	"@howaboua/pi-observatory",
 	"@howaboua/pi-browser",
 	"@howaboua/pi-chatgpt-sites",

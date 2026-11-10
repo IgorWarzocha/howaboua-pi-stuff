@@ -20,6 +20,7 @@ type ScreenAction = NotesSettingsAction | "board";
 export async function openNotesSettings(
 	ctx: ExtensionContext,
 	options: {
+		boardTab?: boolean;
 		settings: () => NotesSettings;
 		settingsPath: string;
 		save: (settings: NotesSettings) => Promise<void>;
@@ -45,7 +46,7 @@ export async function openNotesSettings(
 						const rule = theme.fg("accent", "─".repeat(Math.max(0, width)));
 						return [
 							rule,
-							`  ${theme.bold("Notes & Compaction")}  /  ${theme.fg("dim", "Board")}`,
+							`  ${theme.bold("Notes & Compaction")}  /  ${theme.fg("dim", options.boardTab === false ? "Roles" : "Board")}`,
 							"",
 							...options
 								.status()
@@ -74,7 +75,7 @@ export async function openNotesSettings(
 							matchesKey(data, Key.tab) ||
 							matchesKey(data, Key.shift(Key.tab))
 						) {
-							done("board");
+							done(options.boardTab === false ? "roles" : "board");
 							return;
 						}
 						list.handleInput(data);

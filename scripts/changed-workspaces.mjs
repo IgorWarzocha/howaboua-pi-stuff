@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { listActivePackageDirs } from "./active-packages.mjs";
+import { includeCommsStandalones } from "./sync-agent-comms-standalones.mjs";
 
 const root = process.cwd();
 const base = process.env.CHANGED_BASE || process.argv[2] || "origin/main";
@@ -30,4 +31,4 @@ for (const file of files) {
   const match = file.match(/^packages\/([^/]+)\//);
   if (match && existsSync(join(root, "packages", match[1], "package.json"))) changed.add(match[1]);
 }
-console.log(JSON.stringify([...changed].sort()));
+console.log(JSON.stringify(includeCommsStandalones(changed, files)));

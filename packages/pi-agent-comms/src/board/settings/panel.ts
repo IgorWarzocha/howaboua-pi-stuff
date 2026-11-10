@@ -26,6 +26,7 @@ export async function openBoardSettings(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	board: BoardRuntime,
+	tabs = true,
 ): Promise<"notes" | undefined> {
 	if (!ctx.hasUI) {
 		ctx.ui.notify("Use /board settings in an interactive session", "warning");
@@ -96,14 +97,14 @@ export async function openBoardSettings(
 						const rule = theme.fg("accent", "─".repeat(Math.max(0, width)));
 						return [
 							rule,
-							`  ${theme.fg("dim", "Notes")}  /  ${theme.bold("Board")}`,
+							`  ${tabs ? `${theme.fg("dim", "Notes")}  /  ` : ""}${theme.bold("Board")}`,
 							"",
 							...wrap(board.status(ctx, false)),
 							"",
 							...list.render(width).slice(0, -2),
 							"",
 							...wrap(
-								"Tab switch tab · ↑/↓ select · Enter/Space change · Esc close",
+								`${tabs ? "Tab switch tab · " : ""}↑/↓ select · Enter/Space change · Esc close`,
 							).map((line) => theme.fg("dim", line)),
 							rule,
 						].map((line) => truncateToWidth(line, width, ""));
@@ -111,8 +112,9 @@ export async function openBoardSettings(
 					invalidate: () => list.invalidate(),
 					handleInput(data) {
 						if (
-							matchesKey(data, Key.tab) ||
-							matchesKey(data, Key.shift(Key.tab))
+							tabs &&
+							(matchesKey(data, Key.tab) ||
+								matchesKey(data, Key.shift(Key.tab)))
 						)
 							return done("notes");
 						list.handleInput(data);

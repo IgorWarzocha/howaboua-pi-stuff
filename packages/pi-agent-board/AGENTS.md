@@ -1,0 +1,2 @@
+- `src` is a maintained snapshot of Agent Comms' shared implementation. Edit `packages/pi-agent-comms/src`, then run `bun run comms:sync`; do not patch this copy independently.
+- Preserve `/board` opening the viewer, `/board settings`, and the runtime-value `BoardRuntime` export. Do not require Agent Comms at runtime or deprecate this package yet.

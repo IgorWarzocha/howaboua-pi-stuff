@@ -58,22 +58,27 @@ function communicationGuidance(
 
 export function registerCommunicationGuidance(
 	pi: ExtensionAPI,
-	notes: CommsFeature,
-	board: CommsFeature,
+	notes?: CommsFeature,
+	board?: CommsFeature,
 ): void {
-	const owner = "agent-comms-routing";
+	const owner =
+		notes && board
+			? "agent-comms-routing"
+			: notes
+				? "notes-routing"
+				: "board-routing";
 	registerContextBriefing(
 		pi,
 		"communication",
-		(ctx) => notes.enabled(ctx) || board.enabled(ctx),
+		(ctx) => Boolean(notes?.enabled(ctx) || board?.enabled(ctx)),
 		async (ctx, windowId, messages) => {
 			// Feature owners supply enablement independently of provider declarations.
 			// Shepherdr keeps agents active, including as a nested Code/Notebook tool.
 			const capabilities = [
-				notes.enabled(ctx),
-				board.enabled(ctx),
+				notes?.enabled(ctx) ?? false,
+				board?.enabled(ctx) ?? false,
 				pi.getActiveTools().includes("agents"),
-				notes.gptPromptMode() || board.gptPromptMode(),
+				Boolean(notes?.gptPromptMode() || board?.gptPromptMode()),
 			] as const;
 			const routing = communicationGuidance(...capabilities);
 			const previous = messages
@@ -97,7 +102,7 @@ export function registerCommunicationGuidance(
 			if (!routing && !previous) return;
 			const content =
 				routing ||
-				"Notes and Board are currently off. Earlier communication routing no longer applies.";
+				`${notes && board ? "Notes and Board are" : notes ? "Notes is" : "Board is"} currently inactive. Earlier communication routing no longer applies.`;
 			if (previous?.content === content) return;
 			await recordContextBriefing(
 				pi,

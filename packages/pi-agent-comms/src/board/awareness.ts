@@ -9,6 +9,7 @@ import {
 	recordContextBriefing,
 } from "./context-briefing.js";
 import { binding } from "./identity.js";
+import type { BoardAdapter } from "./integration.js";
 
 const OWNER = "shepherdr-board";
 const STATE = "shepherdr-board-awareness";
@@ -27,16 +28,19 @@ export class BoardAwareness {
 		error?: unknown,
 	) => void;
 	private readonly gpt: () => boolean;
+	private readonly privateBriefing: () => BoardAdapter["briefing"];
 	constructor(
 		pi: ExtensionAPI,
 		read: (ctx: ExtensionContext) => Promise<unknown>,
 		availability: (ctx: ExtensionContext, error?: unknown) => void,
+		privateBriefing: () => BoardAdapter["briefing"],
 		gpt: () => boolean = () => false,
 	) {
 		this.pi = pi;
 		this.read = read;
 		this.availability = availability;
 		this.gpt = gpt;
+		this.privateBriefing = privateBriefing;
 	}
 
 	refresh(ctx: ExtensionContext): AwarenessState {
@@ -151,7 +155,10 @@ export class BoardAwareness {
 				this.refresh(ctx).epoch !== state.epoch
 			)
 				throw new Error("Board membership changed during its briefing");
-			return boardBriefing(Boolean(own.upstream), population, this.gpt());
+			const privateBriefing = this.privateBriefing();
+			return privateBriefing
+				? privateBriefing(Boolean(own.upstream), population)
+				: boardBriefing(Boolean(own.upstream), population, this.gpt());
 		});
 	}
 }

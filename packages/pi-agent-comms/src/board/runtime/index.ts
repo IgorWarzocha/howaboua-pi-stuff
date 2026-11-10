@@ -31,7 +31,7 @@ export function discoverBoard(
 	pi.on("session_shutdown", stop);
 }
 
-/** Only Agent Comms claims the settings/binding owner; its engine stays lazy. */
+/** Only an explicitly loaded Board extension claims the owner; its engine stays lazy. */
 export async function acquireBoard(pi: ExtensionAPI): Promise<BoardRuntime> {
 	let claim: OwnerClaim | undefined;
 	pi.events.emit(CLAIM, {
