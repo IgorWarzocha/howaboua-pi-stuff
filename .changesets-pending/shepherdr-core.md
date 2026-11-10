@@ -17,3 +17,4 @@ Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi
 - Agent replies now return when the extension accepts the answer instead of blocking later questions until resumed work finishes.
 - Attachment and detachment now accept context or Board sharing independently. Incoming messages identify sender access, distinguishing machine IDs from Pi agent references.
 - Monitoring notices now describe delayed or unavailable agent updates and automatic retry without duplicate internal errors during Core restarts.
+- Agent help now asks callers to trust worker judgement instead of over-prescribing restrictions or narrowing the task unnecessarily.

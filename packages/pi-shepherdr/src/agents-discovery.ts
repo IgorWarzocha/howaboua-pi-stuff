@@ -109,8 +109,8 @@ export async function agentsHelp(
 				? "Delegation/watch→report subsequent work UNTIL unwatch/close"
 				: "Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt: gpt
-				? "Distinct scope/outcome/project context/issue refs; define success, NOT forbidden investigations"
-				: "Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
+				? "Task + necessary context; trust agent to choose approach. Avoid unnecessary restrictions and overly narrow scope"
+				: "Give the task and necessary context. Trust the agent to choose its approach. Avoid unnecessary restrictions and overly narrow scope",
 			slash: gpt
 				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
 				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
