@@ -81,8 +81,8 @@ export async function agentsHelp(
 					}
 				: {}),
 			send: gpt
-				? "/quit next→NO preceding message; sends wake idle agents; NO wait/watch"
-				: "When closing an agent, send /quit without another message first. Messages wake idle agents. No waiting or watching.",
+				? "Messages wake idle agents; send ONLY to change recipient next action, NO acknowledgements/status-only/standby. Close→/quit directly, NO preceding message or wait/watch"
+				: "Messages wake idle agents. Send only when it changes the recipient's next action; skip acknowledgements, status-only updates and standby reminders. Close with /quit directly, without another message first. No waiting or watching.",
 			assign: gpt
 				? "Delegate/update work; active→share pending result, NEVER replace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",

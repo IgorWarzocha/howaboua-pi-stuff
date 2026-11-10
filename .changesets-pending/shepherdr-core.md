@@ -20,3 +20,4 @@ Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi
 - Agent help now asks callers to trust worker judgement instead of over-prescribing restrictions or narrowing the task unnecessarily.
 - Worker profiles now brief only the initial assignment instead of pinning restrictions in the standing prompt. Later assignments and model-role changes can reuse the same agent and its notes.
 - Agent help now keeps each agent available until its task is verified complete, with corrections returned to the same agent before closing it.
+- Agent help now directs callers to skip acknowledgements, status-only updates and standby reminders that needlessly wake idle agents.
