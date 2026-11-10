@@ -49,6 +49,7 @@ Set either value to `false`, then run `/reload`, to hide that template. The same
 ## TUI controls
 
 The panel uses Pi's active keybindings. The defaults are:
+
 - `Up` / `Down` — move through choices, free text, and comments
 - `Enter` — choose or edit the focused item, or save an edit
 - `Left` / `Right` — move between prompts and the review tab

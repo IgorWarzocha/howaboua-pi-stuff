@@ -32,6 +32,7 @@ Do not install this alongside `@howaboua/pi-codex-conversion`; that package alre
 | LAN control server       | `Ctrl+Alt+G`     |
 
 Commands:
+
 - `/gippity` — settings
 - `/gippity realtime`
 - `/gippity mute`

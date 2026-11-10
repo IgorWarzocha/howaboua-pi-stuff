@@ -11,6 +11,7 @@ $ARGUMENTS
 If no material follows the command, use the most recent lengthy report or structured list in the conversation.
 
 Call `ask` once with one prompt per independently decidable item:
+
 - Keep the title short.
 - Preserve concrete evidence, consequences, and recommendations in the body.
 - Use the source's natural choices. For review findings, default to Fix, Defer, and Reject.

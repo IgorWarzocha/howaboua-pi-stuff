@@ -228,6 +228,7 @@ Shepherdr works without Notes or PCC. A target without active Notes sharing stil
 ## Profiles
 
 On first load, Shepherdr installs three editable profiles:
+
 - `general` uses `openai-codex/gpt-6-sol` with `high` thinking for implementation
 - `explorer` uses `openai-codex/gpt-6-luna` with `high` thinking for read-only discovery
 - `reviewer` uses `openai-codex/gpt-6-luna` with `xhigh` thinking for generic read-only review
@@ -256,6 +257,7 @@ That directory is authoritative after initialization. Edit a profile to change i
 `prompt` is read as system-prompt text. An optional `prepare` module may export `prepare({ cwd, message, base, local })` and return the worker message. Preparation runs on the controlling machine before dispatch; `local` says whether that machine also hosts the worker.
 
 Optional profile settings:
+
 - `blocking`: `true` forces blocking spawns, `false` forces asynchronous spawns. Omission respects the call's `blocking` value, which defaults to `false`. This does not affect `assign` to existing agents.
 - `share_context`: `false` opts new spawns out of shared notes and history. Omission or `true` follows the controller setting.
 

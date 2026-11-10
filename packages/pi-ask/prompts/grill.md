@@ -11,6 +11,7 @@ $ARGUMENTS
 Use the working directory, web search, available skills, and any relevant tools to understand the thing before asking. Prefer finding answers yourself over asking me.
 
 Loop until ask is dismissed. There is no round limit:
+
 1. Investigate the relevant context.
 2. Use ask for the next set of decisions.
 3. After the first answer round, create docs/<short-name>.md.
@@ -18,6 +19,7 @@ Loop until ask is dismissed. There is no round limit:
 5. Keep updating the markdown file after each round.
 
 The markdown file is the current plan, not a transcript. Keep it ready to use if I stop at any point. Include:
+
 - goal
 - agreed decisions
 - important tradeoffs
@@ -28,6 +30,7 @@ The markdown file is the current plan, not a transcript. Keep it ready to use if
 Do not log every question and answer.
 
 When ask is dismissed, the grilling session is done. Then:
+
 - give a short summary of what was agreed
 - open the markdown file with $EDITOR if available
 - print the file path

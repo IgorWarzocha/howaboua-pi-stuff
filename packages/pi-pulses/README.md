@@ -41,6 +41,7 @@ Do not comment on or change issues, or edit repository files.
 Use a self-explanatory filename and short procedure. The task defines its permitted actions and where results belong. Workers start in the normal workspace. Pulses does not create worktrees, require journals or implement destination-specific routing.
 
 Run `/pulses` to see definition paths, or `/pulses check-new-issues` to run one immediately. Agents have the same small surface:
+
 - `pulses({})` shows paths and run syntax.
 - `pulses({run: "check-new-issues"})` runs a known routine.
 - `pulses({skill: true})` loads the authoring instructions.
