@@ -11,3 +11,4 @@
 - Reduced temporary memory use when checking Codex conversation continuity and preparing WebSocket requests.
 - JS Notebook now uses the Pi codemode 1.5.1 runtime.
 - Responses Lite proxies now honour `compat.promptCacheKeyMode: "disabled"`.
+- Notebook, compaction metadata and usage reset dates now use minute precision.

@@ -118,7 +118,7 @@ export class TabCollector {
 
 	private async collect(): Promise<void> {
 		this.status.running = true;
-		this.status.lastStartedAt = new Date().toISOString();
+		this.status.lastStartedAt = `${new Date().toISOString().slice(0, 16)}Z`;
 		try {
 			this.active = runCollector(
 				this.bundle,

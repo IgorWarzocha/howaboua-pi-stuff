@@ -32,10 +32,10 @@ export function queryBoard(
 			message_count: number;
 		}>(
 			`SELECT b.board_id,b.owner_folder,b.created_at,
-		COALESCE((SELECT MAX(created_at) FROM posts p WHERE p.board_id=b.board_id),(SELECT MAX(created_at) FROM channels c WHERE c.board_id=b.board_id),b.created_at) AS last_activity_at,
+		COALESCE((SELECT created_at FROM posts p WHERE p.board_id=b.board_id ORDER BY seq DESC LIMIT 1),(SELECT created_at FROM channels c WHERE c.board_id=b.board_id ORDER BY substr(created_at,1,16) DESC,name DESC LIMIT 1),b.created_at) AS last_activity_at,
 		(SELECT COUNT(*) FROM channels c WHERE c.board_id=b.board_id) AS channel_count,
 		(SELECT COUNT(*) FROM posts p WHERE p.board_id=b.board_id) AS message_count
-		FROM boards b ORDER BY last_activity_at DESC,board_id DESC LIMIT ? OFFSET ?`,
+		FROM boards b ORDER BY substr(last_activity_at,1,16) DESC,(SELECT MAX(seq) FROM posts p WHERE p.board_id=b.board_id) DESC,board_id DESC LIMIT ? OFFSET ?`,
 			limit + 1,
 			offset,
 		);
@@ -47,7 +47,8 @@ export function queryBoard(
 	if (params.action === "get_channels") {
 		const rows = store.all<{ name: string }>(
 			`SELECT name FROM channels c WHERE board_id=? AND instr(name_search,?)>0 ORDER BY
-		COALESCE((SELECT MAX(created_at) FROM posts p WHERE p.board_id=c.board_id AND p.channel=c.name),c.created_at) ${order},name ${order} LIMIT ? OFFSET ?`,
+		COALESCE((SELECT substr(created_at,1,16) FROM posts p WHERE p.board_id=c.board_id AND p.channel=c.name ORDER BY seq DESC LIMIT 1),substr(c.created_at,1,16)) ${order},
+		(SELECT MAX(seq) FROM posts p WHERE p.board_id=c.board_id AND p.channel=c.name) ${order},name ${order} LIMIT ? OFFSET ?`,
 			board,
 			caseFold(params.query ?? ""),
 			limit + 1,
@@ -97,7 +98,7 @@ export function queryBoard(
 			};
 		}
 		const replies = store.all<PostRecord>(
-			`SELECT ${POST_COLUMNS} FROM posts WHERE board_id=? AND root=? AND id<>root ORDER BY created_at DESC,seq DESC LIMIT ? OFFSET ?`,
+			`SELECT ${POST_COLUMNS} FROM posts WHERE board_id=? AND root=? AND id<>root ORDER BY seq DESC LIMIT ? OFFSET ?`,
 			board,
 			root.message_id,
 			limit + 1,
@@ -121,8 +122,8 @@ export function queryBoard(
 		);
 		const sort =
 			params.sort === "activity"
-				? "(SELECT MAX(created_at) FROM posts r WHERE r.board_id=p.board_id AND r.root=p.id)"
-				: "p.created_at";
+				? "(SELECT MAX(seq) FROM posts r WHERE r.board_id=p.board_id AND r.root=p.id)"
+				: "p.seq";
 		const roots = store.all<PostRecord>(
 			`SELECT ${POST_COLUMNS} FROM posts p WHERE board_id=? AND channel=? AND id=root ORDER BY ${sort} ${order},seq ${order} LIMIT ? OFFSET ?`,
 			board,
@@ -135,7 +136,7 @@ export function queryBoard(
 			roots.map((root) => {
 				const summary = store.summaries.get(board, root.thread_id);
 				const reply = store.one<PostRecord>(
-					`SELECT ${POST_COLUMNS} FROM posts WHERE board_id=? AND root=? AND id<>root ORDER BY created_at DESC,seq DESC LIMIT 1`,
+					`SELECT ${POST_COLUMNS} FROM posts WHERE board_id=? AND root=? AND id<>root ORDER BY seq DESC LIMIT 1`,
 					board,
 					root.message_id,
 				);
@@ -152,10 +153,7 @@ export function queryBoard(
 						? { summary: summaryPreview(summary, chars) }
 						: { root_post: preview(root, chars) }),
 					reply_count: count,
-					last_activity_at:
-						reply && reply.created_at > root.created_at
-							? reply.created_at
-							: root.created_at,
+					last_activity_at: reply?.created_at ?? root.created_at,
 					...(summary
 						? {}
 						: { latest_reply: reply ? preview(reply, chars) : null }),

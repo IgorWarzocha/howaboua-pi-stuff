@@ -1,3 +1,4 @@
+import { minuteTimestamp } from "../timestamps.js";
 import type { NoteRevision } from "./store.js";
 
 export function canonicalPath(
@@ -85,9 +86,9 @@ export function readNotes(
 			)
 			.map((note) => ({
 				path: `${root}${note.path}`,
-				updated_at: new Date(note.updatedAt).toISOString(),
+				updated_at: minuteTimestamp(note.updatedAt),
 				...(by === "created_at"
-					? { created_at: new Date(note.createdAt).toISOString() }
+					? { created_at: minuteTimestamp(note.createdAt) }
 					: {}),
 			}));
 		const limit = integer(params["max_results"], 20, 100);

@@ -1,5 +1,6 @@
 import { type Api, type AssistantMessage, type Model, type SimpleStreamOptions, type TranscriptContext, type Transport } from "@earendil-works/pi-ai";
 import type { ExtensionContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { formatUtcMinute } from "../../time-format.ts";
 import type { NativeCompactionRuntime } from "./compaction-runtime.ts";
 import type { NativeCompactionRequestOptions, ResponsesInputItem } from "./serializer.ts";
 import { resolveNativeCompactionRequestBudget, shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
@@ -205,7 +206,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 	if (compactions.length !== 1) {
 		return { ok: false, reason: "invalid-output", errorMessage: `Responses compaction v2 expected exactly one compaction output item, got ${compactions.length} from ${outputItems.length} output items` };
 	}
-	return { ok: true, compaction: compactions[0]!, responseId: completed.responseId, createdAt: new Date().toISOString(), usage: compactionUsage(completed, compactionDiagnostic) };
+	return { ok: true, compaction: compactions[0]!, responseId: completed.responseId, createdAt: formatUtcMinute(), usage: compactionUsage(completed, compactionDiagnostic) };
 }
 
 export async function executeRemoteCompactionV2(options: ExecuteRemoteCompactionV2Options): Promise<RemoteCompactionV2Result> {

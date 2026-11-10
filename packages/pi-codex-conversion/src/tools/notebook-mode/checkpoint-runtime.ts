@@ -80,7 +80,7 @@ ${BINDING_METADATA_READER_SOURCE}
     deno: Deno.version.deno,
     v8: Deno.version.v8,
     payload: ${JSON.stringify(options.payload)},
-    createdAt: new Date().toISOString(),
+    createdAt: new Date().toISOString().replace(/:\\d{2}\\.\\d{3}Z$/, "Z"),
     entries: __entries,
     skipped: __skipped,
   };

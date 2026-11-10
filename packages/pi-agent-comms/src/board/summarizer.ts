@@ -4,6 +4,7 @@ import {
 	type ExtensionContext,
 	estimateTokens,
 } from "@earendil-works/pi-coding-agent";
+import { minuteTimestamp } from "../timestamps.js";
 import { readBoardSummaryConfig, resolveBoardSummaryModel } from "./config.js";
 import type { BoardBinding } from "./identity.js";
 
@@ -60,7 +61,7 @@ async function snapshot(
 				status: state.status,
 				posts: posts.map((post) => ({
 					author: post.author,
-					timestamp: post.created_at,
+					timestamp: minuteTimestamp(post.created_at),
 					text: post.text,
 					...(post.id === state.status_message_id
 						? { closing_comment: true }
@@ -181,7 +182,7 @@ export class BoardSummarizer {
 				thread_id: thread,
 				status_message_id: input.status_message_id,
 				through_message_id: input.through_message_id,
-				created_at: new Date().toISOString(),
+				created_at: minuteTimestamp(),
 				provider: response.provider,
 				model: response.model,
 				reasoning: response.thinkingLevel ?? selected.reasoning,

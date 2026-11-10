@@ -5,6 +5,7 @@ import {
 	type SQLOutputValue,
 } from "node:sqlite";
 import { caseFold } from "unicode-case-folding";
+import { minuteTimestamp } from "../../timestamps.js";
 import type {
 	BoardDetail,
 	BoardIndex,
@@ -30,15 +31,18 @@ function count(row: Row, key: string): number {
 		throw new Error(`Invalid board archive count: ${key}`);
 	return value;
 }
-function nullableText(row: Row, key: string): string | null {
-	return row[key] === null ? null : text(row, key);
+function timestamp(row: Row, key: string): string {
+	return minuteTimestamp(text(row, key));
+}
+function nullableTimestamp(row: Row, key: string): string | null {
+	return row[key] === null ? null : timestamp(row, key);
 }
 function post(row: Row): Post {
 	return {
 		id: text(row, "id"),
 		channel: text(row, "channel"),
 		author: text(row, "author"),
-		createdAt: text(row, "created_at"),
+		createdAt: timestamp(row, "created_at"),
 		text: text(row, "text"),
 	};
 }
@@ -102,7 +106,7 @@ export class Archive {
 		return row
 			? {
 					text: text(row, "text"),
-					createdAt: text(row, "created_at"),
+					createdAt: timestamp(row, "created_at"),
 					throughMessageId: text(row, "through_message_id"),
 					hasNewerPosts: count(row, "has_newer_posts") === 1,
 					provider: text(row, "provider"),
@@ -116,17 +120,17 @@ export class Archive {
 		const { databasePath: _path, ...context } = this.source;
 		const boards: BoardSummary[] = this.all(
 			`SELECT b.board_id,b.root_session_id,b.created_at,
-			(SELECT MAX(created_at) FROM posts WHERE board_id=b.board_id) AS last_activity,
+			(SELECT created_at FROM posts WHERE board_id=b.board_id ORDER BY seq DESC LIMIT 1) AS last_activity,
 			(SELECT COUNT(*) FROM channels WHERE board_id=b.board_id) AS channels,
 			(SELECT COUNT(*) FROM posts WHERE board_id=b.board_id) AS posts,
 			(SELECT COUNT(DISTINCT author) FROM posts WHERE board_id=b.board_id) AS agents
-			FROM boards b WHERE owner_folder=? ORDER BY COALESCE(last_activity,b.created_at) DESC`,
+			FROM boards b WHERE owner_folder=? ORDER BY substr(COALESCE(last_activity,b.created_at),1,16) DESC,(SELECT MAX(seq) FROM posts WHERE board_id=b.board_id) DESC,b.board_id DESC`,
 			this.source.folder,
 		).map((row) => ({
 			id: text(row, "board_id"),
 			rootSessionId: text(row, "root_session_id"),
-			createdAt: text(row, "created_at"),
-			lastActivity: nullableText(row, "last_activity"),
+			createdAt: timestamp(row, "created_at"),
+			lastActivity: nullableTimestamp(row, "last_activity"),
 			channels: count(row, "channels"),
 			posts: count(row, "posts"),
 			agents: count(row, "agents"),
@@ -154,25 +158,28 @@ export class Archive {
 		const board = this.board(id);
 		const channels = this.all(
 			`SELECT c.name,c.author,c.created_at,COUNT(p.id) AS posts,
-			COUNT(CASE WHEN p.id=p.root THEN 1 END) AS threads,MAX(p.created_at) AS last_activity
+			COUNT(CASE WHEN p.id=p.root THEN 1 END) AS threads,
+			(SELECT created_at FROM posts latest WHERE latest.board_id=c.board_id AND latest.channel=c.name ORDER BY seq DESC LIMIT 1) AS last_activity
 			FROM channels c LEFT JOIN posts p ON p.board_id=c.board_id AND p.channel=c.name
-			WHERE c.board_id=? GROUP BY c.name ORDER BY COALESCE(last_activity,c.created_at) DESC,c.name`,
+			WHERE c.board_id=? GROUP BY c.name ORDER BY substr(COALESCE(last_activity,c.created_at),1,16) DESC,MAX(p.seq) DESC,c.name`,
 			id,
 		).map((row) => ({
 			name: text(row, "name"),
 			author: text(row, "author"),
-			createdAt: text(row, "created_at"),
+			createdAt: timestamp(row, "created_at"),
 			posts: count(row, "posts"),
 			threads: count(row, "threads"),
-			lastActivity: nullableText(row, "last_activity"),
+			lastActivity: nullableTimestamp(row, "last_activity"),
 		}));
 		const agents = this.all(
-			"SELECT author,COUNT(*) AS posts,MAX(created_at) AS last_activity FROM posts WHERE board_id=? GROUP BY author ORDER BY posts DESC,author",
+			`SELECT author,COUNT(*) AS posts,
+			(SELECT created_at FROM posts latest WHERE latest.board_id=p.board_id AND latest.author=p.author ORDER BY seq DESC LIMIT 1) AS last_activity
+			FROM posts p WHERE board_id=? GROUP BY author ORDER BY posts DESC,author`,
 			id,
 		).map((row) => ({
 			name: text(row, "author"),
 			posts: count(row, "posts"),
-			lastActivity: text(row, "last_activity"),
+			lastActivity: timestamp(row, "last_activity"),
 		}));
 		const subscriptions = this.all(
 			"SELECT target,agent,enabled FROM subscriptions WHERE board_id=? ORDER BY target,agent",
@@ -230,7 +237,8 @@ export class Archive {
 		const cursor = this.cursor(params);
 		const rows = this.all(
 			`SELECT r.id,r.channel,r.author,r.text,r.created_at,
-			MAX(p.created_at) AS last_activity,MAX(p.seq) AS last_seq,COUNT(*)-1 AS replies
+			(SELECT created_at FROM posts latest WHERE latest.board_id=r.board_id AND latest.root=r.id ORDER BY seq DESC LIMIT 1) AS last_activity,
+			MAX(p.seq) AS last_seq,COUNT(*)-1 AS replies
 			FROM posts r JOIN posts p ON p.board_id=r.board_id AND p.root=r.id
 			WHERE ${where.join(" AND ")} GROUP BY r.id HAVING MAX(p.seq)<? ORDER BY last_seq DESC LIMIT 41`,
 			...args,
@@ -252,8 +260,8 @@ export class Archive {
 						? text(row, "text")
 						: (summary?.text ?? text(row, "text"))
 					).slice(0, 600),
-					createdAt: text(row, "created_at"),
-					lastActivity: text(row, "last_activity"),
+					createdAt: timestamp(row, "created_at"),
+					lastActivity: timestamp(row, "last_activity"),
 					replies: count(row, "replies"),
 				};
 			}),

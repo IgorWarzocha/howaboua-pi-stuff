@@ -139,7 +139,7 @@ export default async function (pi: ExtensionAPI) {
 				const current = [...watches.values()];
 				const lines = current.map(
 					(w) =>
-						`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString()}` : "; watch again to resume"}`,
+						`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString().slice(0, 16)}Z` : "; watch again to resume"}`,
 				);
 				if (current.some((w) => w.state === "watching"))
 					lines.push(AUTOMATIC_UPDATES);
@@ -212,7 +212,7 @@ export default async function (pi: ExtensionAPI) {
 			watches.set(thread.url, watch);
 			schedule(watch, ctx, thread.kind === "pr" ? 7 * MINUTE : MINUTE);
 			return result(
-				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString()}. ${AUTOMATIC_UPDATES}`,
+				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString().slice(0, 16)}Z. ${AUTOMATIC_UPDATES}`,
 			);
 		},
 	});

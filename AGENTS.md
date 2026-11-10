@@ -12,6 +12,7 @@ Resolve package names against immediate packages subdirectories. Search the uniq
 Keep pi-codex-web-run and pi-codex-imagegen src/codex-runtime trees identical. Do not publish a shared runtime package.
 
 Agent-facing text is behaviour. Keep contracts, skills, prompt metadata and subagent prompts compact. Default to general-purpose assistance. Scope coding assumptions to coding tasks.
+Use minute precision for informational timestamps. Keep finer clocks where behaviour or external contracts need them; never rewrite stored timestamps just for presentation.
 Hide extension internals from agent-facing text, including errors. State what happened, what remains available and an actionable next step. Users own account and configuration decisions. Success may expose a new action, not invented workflow advice.
 Keep the static prefix small and stable. Defer nonessential tools through Code/Notebook while preserving discovery. Deliver tool guidance on demand through supported mid-session messages or results, not prefix edits.
 Tool activation changes the live catalogue and chronological notices, not the standing system prompt. Rebuild tool-derived standing instructions from current state only at session/window rollover.

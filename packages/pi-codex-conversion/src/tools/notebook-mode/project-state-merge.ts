@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import type { NotebookHook } from "../code-mode/types.ts";
 import {
 	hashStateBytes,
@@ -52,7 +53,7 @@ export function mergeProjectState(options: {
 	const appliedNames: string[] = [];
 	let offset = 0;
 	let conflictOffset = 0;
-	const capturedAt = new Date().toISOString();
+	const capturedAt = formatUtcMinute();
 	for (const name of names) {
 		const baseEntry = base.get(name);
 		const currentEntry = current.get(name);

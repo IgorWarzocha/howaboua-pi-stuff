@@ -179,7 +179,7 @@ rm -rf .install-tmp
 			{
 				source,
 				archiveSha256: digest,
-				capturedAt: new Date().toISOString(),
+				capturedAt: `${new Date().toISOString().slice(0, 16)}Z`,
 				kind: "tracked working files",
 			},
 			null,

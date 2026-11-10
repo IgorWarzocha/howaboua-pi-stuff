@@ -1,10 +1,16 @@
+import { minuteTimestamp } from "../timestamps.js";
 import type { BoardParams } from "./contract.js";
 
 // Includes UTF-8 text, JSON escaping and metadata, in every tool mode.
 const MAX_RESPONSE_BYTES = 8000;
 
 export function serializeBoardResult(value: unknown): string {
-	const text = JSON.stringify(value);
+	const text = JSON.stringify(value, (key, entry) =>
+		(key === "created_at" || key === "last_activity_at") &&
+		typeof entry === "string"
+			? minuteTimestamp(entry)
+			: entry,
+	);
 	if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES)
 		throw new Error(
 			"Result exceeds the output budget. Reduce limit or max_chars_per_post; use read_post with a smaller limit_chars for long posts.",

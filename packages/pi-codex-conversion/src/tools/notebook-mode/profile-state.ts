@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import { randomUUID } from "node:crypto";
 import {
 	mkdirSync,
@@ -77,7 +78,7 @@ export async function saveNotebookProfile(options: {
 			deno: candidate.deno,
 			v8: candidate.v8,
 			payload: payloadName,
-			createdAt: new Date().toISOString(),
+			createdAt: formatUtcMinute(),
 			sourceProject: resolve(options.project),
 			entries: candidate.entries.map((entry) => ({
 				...entry,

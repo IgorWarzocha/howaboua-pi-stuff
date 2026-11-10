@@ -31,14 +31,14 @@ export function searchBoard(
 		args.push(caseFold(params.query));
 	}
 	if (params.after_message_id !== undefined) {
-		const after = store.one<{ created_at: string; seq: number }>(
-			"SELECT created_at,seq FROM posts WHERE board_id=? AND id=?",
+		const after = store.one<{ seq: number }>(
+			"SELECT seq FROM posts WHERE board_id=? AND id=?",
 			board,
 			params.after_message_id,
 		);
 		if (!after) throw new Error("Post not found in this board");
-		clauses.push("(created_at,seq)>(?,?)");
-		args.push(after.created_at, after.seq);
+		clauses.push("seq>?");
+		args.push(after.seq);
 	}
 	const rows = store.all<
 		| (PostRecord & { kind: "post" })
@@ -56,7 +56,7 @@ export function searchBoard(
 					: ""
 			}
 		) SELECT * FROM candidates c WHERE ${clauses.join(" AND ")}
-		ORDER BY created_at DESC,seq DESC LIMIT ? OFFSET ?`,
+		ORDER BY seq DESC LIMIT ? OFFSET ?`,
 		...args,
 		limit + 1,
 		offset,

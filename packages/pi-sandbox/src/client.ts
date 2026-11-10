@@ -56,7 +56,7 @@ async function create(
 			version: 1,
 			name: action.name,
 			config,
-			createdAt: new Date().toISOString(),
+			createdAt: `${new Date().toISOString().slice(0, 16)}Z`,
 			...(template ? { template } : {}),
 		});
 		if (source)

@@ -151,10 +151,11 @@ export class AttachmentNotes {
 		const details = {
 			source,
 			read_only: true,
-			captured_at: new Date(snapshot.timestamp).toISOString(),
+			captured_at:
+				new Date(snapshot.timestamp).toISOString().slice(0, 16) + "Z",
 			...(savedAt === undefined
 				? {}
-				: { saved_at: new Date(savedAt).toISOString() }),
+				: { saved_at: new Date(savedAt).toISOString().slice(0, 16) + "Z" }),
 			...(detached
 				? { detached: true }
 				: {

@@ -51,7 +51,6 @@ export function renderPost(post, root, summary = false) {
 	const header = node("header", "post-header");
 	const time = node("time", "", date(post.createdAt));
 	time.dateTime = post.createdAt;
-	time.title = post.createdAt;
 	header.append(
 		summary ? node("strong", "", "Summary") : author(post.author),
 		time,

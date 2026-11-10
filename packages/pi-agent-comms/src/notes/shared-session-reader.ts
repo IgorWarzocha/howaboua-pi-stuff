@@ -1,5 +1,6 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Check } from "typebox/value";
+import { minuteTimestamp } from "../timestamps.js";
 import { contextStorageAgentName } from "./agent-identity.js";
 import type { SavedSessionLocator } from "./context-sharing.js";
 import { useHistory } from "./history.js";
@@ -71,7 +72,7 @@ export function createSharedSessionReader(
 					)),
 			...(session.savedAt === undefined
 				? {}
-				: { saved_at: new Date(session.savedAt).toISOString() }),
+				: { saved_at: minuteTimestamp(session.savedAt) }),
 		};
 	}
 	async function reference(
@@ -132,7 +133,7 @@ export function createSharedSessionReader(
 				destination,
 			)),
 			read_only: true,
-			captured_at: new Date(retained.timestamp).toISOString(),
+			captured_at: minuteTimestamp(retained.timestamp),
 			warning: detached
 				? "Read-only notes captured when sharing ended; later changes are not included"
 				: "The latest notes are unavailable; this read-only copy may be outdated",

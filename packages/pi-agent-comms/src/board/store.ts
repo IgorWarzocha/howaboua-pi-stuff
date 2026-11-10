@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { caseFold } from "unicode-case-folding";
+import { minuteTimestamp } from "../timestamps.js";
 import {
 	agentPath,
 	type BoardParams,
@@ -141,7 +142,7 @@ export class BoardStore {
 		}>(
 			`SELECT name AS channel_name,created_at,author AS created_by,
 		(SELECT COUNT(*) FROM posts p WHERE p.board_id=c.board_id AND p.channel=c.name) AS message_count,
-		(SELECT id FROM posts p WHERE p.board_id=c.board_id AND p.channel=c.name ORDER BY created_at DESC,seq DESC LIMIT 1) AS last_message_id
+		(SELECT id FROM posts p WHERE p.board_id=c.board_id AND p.channel=c.name ORDER BY seq DESC LIMIT 1) AS last_message_id
 		FROM channels c WHERE board_id=? AND name=?`,
 			board,
 			name,
@@ -232,7 +233,7 @@ export class BoardStore {
 			return this.publish(scope, params, requestId);
 		if (params.action === "create_channel") {
 			const name = required(params.channel_name, "channel_name");
-			const now = new Date().toISOString();
+			const now = minuteTimestamp();
 			this.ensureBoard(scope, now);
 			this.insertChannel(scope, name, now);
 			if (params.subscribe !== false)
@@ -257,7 +258,7 @@ export class BoardStore {
 			: `channel:${channel.channel_name}`;
 		const last = root
 			? (this.one<{ id: string }>(
-					"SELECT id FROM posts WHERE board_id=? AND root=? ORDER BY created_at DESC,seq DESC LIMIT 1",
+					"SELECT id FROM posts WHERE board_id=? AND root=? ORDER BY seq DESC LIMIT 1",
 					board,
 					root.thread_id,
 				)?.id ?? null)
@@ -307,7 +308,7 @@ export class BoardStore {
 		const recipients = new Set(
 			(params.agents_to_notify ?? []).map((name) => this.resolve(scope, name)),
 		);
-		const now = new Date().toISOString();
+		const now = minuteTimestamp();
 		const id = randomUUID();
 		let channel: string;
 		let root: string = id;

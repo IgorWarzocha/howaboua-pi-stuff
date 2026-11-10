@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import { writeProjectConflict, listProjectConflicts, removeResolvedProjectConflicts } from "./project-conflicts.ts";
 import { randomUUID } from "node:crypto";
 import {
@@ -284,7 +285,7 @@ function writeMergedProjectState(
 		deno: candidate.deno,
 		v8: candidate.v8,
 		payload,
-		createdAt: new Date().toISOString(),
+		createdAt: formatUtcMinute(),
 		sourceSession: identity.session,
 		entries: merged.entries,
 		skipped: candidate.skipped,

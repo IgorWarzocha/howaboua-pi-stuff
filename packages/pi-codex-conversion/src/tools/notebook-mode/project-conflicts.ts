@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -20,7 +21,7 @@ export function writeProjectConflict(
 			schema: PROJECT_STATE_SCHEMA,
 			project: resolve(identity.project),
 			session: identity.session,
-			createdAt: new Date().toISOString(),
+			createdAt: formatUtcMinute(),
 			payload,
 			entries: [{ ...entry, offset: 0 }],
 			deletions: [],
@@ -32,7 +33,7 @@ export function writeProjectConflict(
 			schema: PROJECT_STATE_SCHEMA,
 			project: resolve(identity.project),
 			session: identity.session,
-			createdAt: new Date().toISOString(),
+			createdAt: formatUtcMinute(),
 			entries: [],
 			deletions: [name],
 		}, null, 2)}\n`, { mode: 0o600 });

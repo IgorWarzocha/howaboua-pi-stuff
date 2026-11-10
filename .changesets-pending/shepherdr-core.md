@@ -25,3 +25,4 @@
 - Shells retaining old Pi labels no longer appear as live agents.
 - Agent replies now return when the extension accepts the answer, rather than waiting for resumed work and blocking later questions.
 - Sender headers and focus handoffs now distinguish machine IDs from Pi agent references. Machine listings no longer repeat the machine ID as a session ID.
+- Retained checkpoint dates now display to the minute.

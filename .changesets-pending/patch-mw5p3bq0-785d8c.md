@@ -13,3 +13,4 @@
 - Replies use checkpoint and Board references only when recipient access is known; otherwise they include self-contained results.
 - Notes and Board guidance adapts to the enabled features, with one shared routing contract when both are on.
 - Board notifications use compact previews with author and post/thread references.
+- Notes and Board dates now use minute precision, preserving existing archives and post ordering.
