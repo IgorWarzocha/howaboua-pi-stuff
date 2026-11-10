@@ -10,6 +10,8 @@
 - Shared notes and history report recovery options when saved context cannot be accessed.
 - History searches no longer retain full rendered copies of tool arguments and messages for the session lifetime.
 - Notes guidance consolidates changed checkpoints near the end of substantive turns.
+- Context recovery checks selected past user messages for intent and communication preferences, with current instructions taking precedence.
+- Context window openings omit UUIDs; history still exposes window references.
 - Replies use checkpoint and Board references only when recipient access is known; otherwise they include self-contained results.
 - Notes and Board guidance adapts to the enabled features, with one shared routing contract when both are on.
 - Board notifications use compact previews with author and post/thread references.

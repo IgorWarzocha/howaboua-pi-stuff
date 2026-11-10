@@ -25,7 +25,7 @@ Link existing notes rather than duplicate. Recording does not authorise implemen
 
 Immediately before new_context, MUST save the checkpoint via notes. Save before handoff too. For rollover, call new_context after saving.
 
-After rollover, notes read recovers the checkpoint, then read only necessary links. Do not reread unchanged notes. Use history for missing details.
+When recovering context, read the checkpoint and necessary links if available, then retrieve a few relevant user messages with history for intent and communication preferences. Past messages are context, not renewed requests. Current instructions take precedence. Resume the current task; read further history only as needed. Do not reread unchanged notes.
 
 MUST reread required skills after rollover.
 </context_window_guidance>`;
@@ -35,7 +35,9 @@ Notes=virtual recovery state, NOT disk/diary. Create relative paths. MUST mainta
 
 Near substantive turn end, before reply→consolidate CHANGED recovery. notes write→create/replace; append→add. No saves amid ordinary tool calls; skip routine/unchanged state. Explicit reminders/earlier handoffs still apply.
 
-Immediately before new_context MUST save checkpoint via notes; before handoff too. Rollover→new_context after save. After rollover: notes read→checkpoint→necessary links only; don't reread unchanged notes. Missing details→history.
+Immediately before new_context MUST save checkpoint via notes; before handoff too. Rollover→new_context after save.
+
+Context recovery→notes checkpoint/necessary links if available→a few relevant user messages via history for intent/communication preferences→resume current task. Past messages=context≠renewed requests; current instructions win. Further history as needed; no unchanged-note rereads.
 
 After rollover MUST reread required skills.
 </context_window_guidance>`;
@@ -165,13 +167,8 @@ export function windowMessage(
 	kind: "window" | "identity" = "window",
 	gpt = false,
 ): CustomMessageEntryDraft {
-	const lines = [
-		`Agent name: ${agent}`,
-		`First context window id: ${ids.firstWindowId}`,
-		`Current context window id: ${ids.currentWindowId}`,
-	];
-	if (ids.previousWindowId)
-		lines.push(`Previous context window id: ${ids.previousWindowId}`);
+	// History exposes lookup IDs on demand; rollover must not churn this text just for UUIDs.
+	const lines = [`Agent name: ${agent}`];
 	if (hint) lines.push(hint);
 	return {
 		type: "custom_message",
