@@ -16,7 +16,7 @@
 - Rollover guidance now directs parents to shared Notes checkpoints for worker findings.
 - Assigned Board thread references now remind workers to subscribe for ongoing peer findings.
 - Agent attachment and detachment now accept either context or Board sharing without requiring an explicit false for the other.
-- Agent help and peer messages distinguish independent sessions from sub-agents and separate communication from shared Notes or Board membership.
+- Agent help distinguishes independent sessions from sub-agents and separates communication from shared Notes or Board membership.
 - Incoming tasks and messages state whether the sender can read the recipient's current Notes and Board, with retained-only or unknown access identified explicitly.
 - Ordinary workers now end with their parent's program. Active remote connections also enforce cross-machine cleanup. Detached workers remain independent.
 - Added a public worker API with saved-session reuse and caller-selected detached lifetime.

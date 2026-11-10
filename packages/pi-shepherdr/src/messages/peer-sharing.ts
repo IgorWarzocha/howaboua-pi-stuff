@@ -129,5 +129,5 @@ export async function peerReplyContext(
 		// visible rather than turning a failed lookup into an access claim.
 		signal?.throwIfAborted();
 	}
-	return `Sender access at send time — your current Notes: ${notes}; your current Board: ${board}.`;
+	return `Sender access: your Notes ${notes}; your Board ${board}`;
 }

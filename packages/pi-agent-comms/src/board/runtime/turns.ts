@@ -72,12 +72,20 @@ export class BoardTurns {
 				own.agentName !== request.target
 			)
 				return false;
+			const {
+				message_id,
+				channel_name,
+				author,
+				thread_id,
+				text_preview,
+				truncated,
+			} = request.notice;
 			// No await between running-turn check and steering. Never use the idle kickoff.
 			sendPolicyMessage(
 				pi,
 				{
 					customType: "shepherdr-board-post",
-					content: `Board post ${JSON.stringify(request.notice)}`,
+					content: `Board post ${JSON.stringify({ message_id, channel_name, author, thread_id, text_preview, truncated })}`,
 					display: true,
 				},
 				{ deliverAs: "steer" },

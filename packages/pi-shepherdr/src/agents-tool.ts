@@ -216,7 +216,17 @@ export function createAgentsTool(
 					message,
 					params.action === "send" ? "message" : "task",
 				);
-				attributedMessage.context += `\n${await sharedContext.peerReplyContext(ctx, runtime, panel, executionSignal)}`;
+				attributedMessage.context = [
+					attributedMessage.context,
+					await sharedContext.peerReplyContext(
+						ctx,
+						runtime,
+						panel,
+						executionSignal,
+					),
+				]
+					.filter(Boolean)
+					.join("\n");
 				if (params.action === "send") {
 					executionSignal.throwIfAborted();
 					const receipt = await runtime.client.sendMessage(
