@@ -315,12 +315,9 @@ export class AgentMonitor {
 					await this.reconcile(generation, context);
 				}
 			})
-			.catch((error) => {
+			.catch(() => {
 				if (generation === this.activationGeneration) {
-					this.context?.ui.notify(
-						`Core monitoring reconciliation failed: ${String(error)}`,
-						"warning",
-					);
+					// The subscription owner reports unavailable coverage and recovery.
 					void this.events.retry().catch(() => undefined);
 				}
 			})

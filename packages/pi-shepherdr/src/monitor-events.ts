@@ -114,7 +114,7 @@ export class MonitorEvents {
 					() => {
 						if (this.isLive(candidate)) this.options.onChange();
 					},
-					(error) => this.disconnected(candidate, error),
+					() => this.disconnected(candidate),
 					candidate.controller.signal,
 				);
 				if (!this.isLive(candidate) || key !== this.targetKey()) {
@@ -141,7 +141,7 @@ export class MonitorEvents {
 			)
 				return;
 			const failure = error instanceof Error ? error : new Error(String(error));
-			this.warn(failure.message);
+			this.warn();
 			if (this.options.reconnect === false) throw failure;
 			this.scheduleReconnect();
 		} finally {
@@ -170,25 +170,25 @@ export class MonitorEvents {
 		subscription?.unsubscribe();
 	}
 
-	private disconnected(attempt: SubscriptionAttempt, error?: Error): void {
+	private disconnected(attempt: SubscriptionAttempt): void {
 		if (!this.isLive(attempt)) return;
 		if (this.subscription?.attempt === attempt) this.closeSubscription();
 		if (this.pending === attempt) this.cancelPending();
-		this.warn(error?.message ?? "event stream closed");
+		this.warn();
 		this.scheduleReconnect();
 	}
 
-	private warn(detail: string): void {
+	private warn(): void {
 		const state = this.subscription ? "degraded" : "unavailable";
 		if (this.warning === state) return;
 		this.warning = state;
 		const message =
 			state === "degraded"
-				? "Core monitor update failed. Existing stream retained, coverage may be incomplete"
-				: "Core monitoring unavailable";
+				? "Some agent status updates may be delayed. Existing monitoring is still active."
+				: "Agent status updates are unavailable.";
 		this.options.onWarning({
 			state,
-			message: `${message}: ${detail}${this.options.reconnect === false ? "" : ". Retrying"}`,
+			message: `${message}${this.options.reconnect === false ? "" : " Retrying automatically."}`,
 		});
 	}
 
@@ -209,9 +209,9 @@ export class MonitorEvents {
 		const epoch = this.epoch;
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = undefined;
-			void this.retry().catch((error) => {
+			void this.retry().catch(() => {
 				if (!this.active || epoch !== this.epoch) return;
-				this.warn(error instanceof Error ? error.message : String(error));
+				this.warn();
 				this.scheduleReconnect();
 			});
 		}, 1_000);
