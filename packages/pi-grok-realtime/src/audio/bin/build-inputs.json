@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "inputs": "4909169e1b7c13e62b1faa4a88814cca464bede509d3bdbb69090a7d6c4e0b42",
+  "inputs": "56be6894d5e565d7d32a6f9fc4ce5f035f608665e16f00081040aa0f240ec7a5",
   "binaries": {
-    "linux-x64/grok-audio": "0af182ac24cde92c9dcb72b12ad8e8539d8406621bc128c313a871e15fe18962",
-    "linux-x64/LICENSES.txt": "382511c6f91093e33bb0a92e46402848771f2c1e7e72ce4e54ef6cd2b3cd271c",
-    "linux-arm64/grok-audio": "c8b0604caa9a4a9a3f2578a48760877250479a21a5718f942fd58bf444230263",
-    "linux-arm64/LICENSES.txt": "d1857e8c07c9bc800ea2ebc31767d5e3519b7e17bce95fc0422e71b05af6508b",
-    "darwin-x64/grok-audio": "43a4528522aeac5fb624191be9f3c14a5aea94079b5df8f101975578483496d5",
-    "darwin-x64/LICENSES.txt": "3f0f53a1a446ad40f9e2e5047e175eaafb82120bbc729f06d5dc6809b143487d",
-    "darwin-arm64/grok-audio": "339954a3d9ba05797506019ef96e6a690365772a94dd91e21d830d3d09ebcf65",
-    "darwin-arm64/LICENSES.txt": "7047de999e4a484bb9f4cc4ce77644256fb15ea3342f4cf6bab14682b283ac7c",
-    "win32-x64/grok-audio.exe": "41a0d3b59ea97069faac4cba97cdb74059a31d4da207506793ae5ac096ff989a",
-    "win32-x64/LICENSES.txt": "705cc952ade12771b60f7d777ae2372f4cc9b8fb70d69a8f88e00fcec3262941",
-    "win32-arm64/grok-audio.exe": "65574ce5e2cf3a6c0244ebe6a17e27ddd3669394e0fe0574d677350e38d996b4",
-    "win32-arm64/LICENSES.txt": "a610255648f1aed78c20c12da8642571876abac9dd57e84d842b2c9061017968"
+    "linux-x64/grok-audio": "f673aed8d202e6e416e7444970bc29fb5e28f3dea115198958d4c73ebe59ac1e",
+    "linux-x64/LICENSES.txt": "ff25635e747be000ed953b400181ed429505aeff880ef75c9739749f8d0ee07f",
+    "linux-arm64/grok-audio": "ffb80c3d51c9917972cb8e900888a300227c077312c9c7b054840bf734a14216",
+    "linux-arm64/LICENSES.txt": "611c0f925141d473789a3081065c74ac88d5b423b5598eb9eceed5db25f8a7cb",
+    "darwin-x64/grok-audio": "71d2ea270e08e1f09f6395c927299609b5418d9e85e5532211f47f12f7ee9626",
+    "darwin-x64/LICENSES.txt": "35d625833986a29ecaf9d92cafb56853b37dd624d873fcc0d2d4b1d193416ed6",
+    "darwin-arm64/grok-audio": "dfc65979b28f2398a6d540aa3afd215c8910ad4ede67f0a06a846aae1d22507d",
+    "darwin-arm64/LICENSES.txt": "6f335ff7af62148978d9435b881c6d0667530c33aedc2a14000b96dfd3d8d82b",
+    "win32-x64/grok-audio.exe": "2c6d27fdd9f1deb1a0668925687e9841c8fd23072c01b9e9b94f649cdfc46671",
+    "win32-x64/LICENSES.txt": "316e10f958519e5ba670d6a1e73d7189128e299d0b33f6259f1a81d46847c6ca",
+    "win32-arm64/grok-audio.exe": "82d2fdd8f2b347c945f8c023d899fcc3b6e998312f6744b174aa084b89bbca9f",
+    "win32-arm64/LICENSES.txt": "c0c534bf841d9ea37c3795491475efd27cd96f9f558bd36a611821526aedd5a9"
   }
 }

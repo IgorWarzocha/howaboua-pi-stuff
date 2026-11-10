@@ -47,7 +47,7 @@
 	"dependencies": {
 		"@howaboua/pi-browser": "^0.0.13",
 		"selfsigned": "^5.5.0",
-		"ws": "^8.22.0"
+		"ws": "^8.22.2"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
@@ -56,13 +56,13 @@
 		"typebox": "*"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-coding-agent": "1.5.0",
-		"@earendil-works/pi-ai": "1.5.0",
-		"@earendil-works/pi-tui": "1.5.0",
-		"@types/node": "^26.6.5",
+		"@biomejs/biome": "^2.6.6",
+		"@earendil-works/pi-coding-agent": "1.5.2",
+		"@earendil-works/pi-ai": "1.5.2",
+		"@earendil-works/pi-tui": "1.5.2",
+		"@types/node": "^26.6.6",
 		"@types/ws": "^8.18.2",
 		"typescript": "^7.0.2",
-		"typebox": "1.4.3"
+		"typebox": "1.4.6"
 	}
 }

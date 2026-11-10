@@ -53,9 +53,9 @@
 		"access": "public"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-coding-agent": "1.5.0",
-		"@types/node": "^26.6.5",
+		"@biomejs/biome": "^2.6.6",
+		"@earendil-works/pi-coding-agent": "1.5.2",
+		"@types/node": "^26.6.6",
 		"typescript": "^7.0.2",
 		"@howaboua/pi-codex-conversion": "4.0.9"
 	},

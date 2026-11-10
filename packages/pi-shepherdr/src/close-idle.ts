@@ -1,7 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "./core/backend.js";
+import { getSnapshot, sessionPath } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getSnapshot, sessionPath } from "./herdr.js";
 import { spawnedChildren } from "./spawn-ownership.js";
 
 export async function closeIdleChildren(
@@ -15,14 +14,14 @@ export async function closeIdleChildren(
 	for (const child of spawnedChildren(ctx)) {
 		if (!current()) break;
 		try {
+			const runtime = fleet.connected(child.machine);
 			const status = fleet
 				.statuses()
-				.find((value) => value.id === child.machine);
+				.find((value) => value.id === runtime.machine);
 			if (!status || status.status !== "connected" || status.monitoringIssue) {
 				skipped += 1;
 				continue;
 			}
-			const runtime = fleet.connected(child.machine);
 			const identity = await runtime.client.machineIdentity();
 			const snapshot = await getSnapshot(runtime.client);
 			const panel = snapshot.agents.find(
@@ -46,13 +45,7 @@ export async function closeIdleChildren(
 				panel.agent !== "pi" ||
 				panel.terminal_id !== child.terminal ||
 				sessionPath(panel) !== child.sessionFile ||
-				(runtime.local &&
-					panel.pane_id ===
-						process.env[
-							runtime.client instanceof CoreConnection
-								? "HC_TERMINAL_ID"
-								: "HERDR_PANE_ID"
-						]) ||
+				(runtime.local && panel.pane_id === process.env["HC_TERMINAL_ID"]) ||
 				snapshot.agents.some(
 					(value) =>
 						value.pane_id !== child.pane &&

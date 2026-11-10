@@ -38,7 +38,6 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 		"label",
 		"placement",
 		"workspace",
-		"pane",
 		"cwd",
 		"message",
 		"base",
@@ -62,9 +61,7 @@ const AgentsRequest = Type.Object(
 		machine: Type.Optional(Type.String()),
 		voice: Type.Optional(Type.Boolean()),
 		handoff: Type.Optional(Type.String()),
-		target: Type.Optional(
-			Type.String({ description: "Agent name or pane ID" }),
-		),
+		target: Type.Optional(Type.String()),
 		agent_type: Type.Optional(Type.String()),
 		name: Type.Optional(
 			Type.String({
@@ -74,7 +71,6 @@ const AgentsRequest = Type.Object(
 		label: Type.Optional(Type.String()),
 		placement: Type.Optional(StringEnum(START_PLACEMENTS)),
 		workspace: Type.Optional(Type.String()),
-		pane: Type.Optional(Type.String()),
 		cwd: Type.Optional(Type.String()),
 		message: Type.Optional(
 			Type.String({ description: "Task, follow-up or extension reply" }),
@@ -164,15 +160,15 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		throw new Error(
 			"machine requires target for command discovery; omit both for this session",
 		);
-	if (
-		(action === "attach" || action === "detach") &&
-		(typeof request["context"] !== "boolean" ||
-			typeof request["board"] !== "boolean" ||
-			(!request["context"] && !request["board"]))
-	)
-		throw new Error(
-			`${action} requires context and board booleans; enable at least one`,
-		);
+	if (action === "attach" || action === "detach") {
+		for (const field of ["context", "board"]) {
+			if (field in request && typeof request[field] !== "boolean")
+				throw new Error(`${field} must be a boolean`);
+		}
+		if (request["context"] !== true && request["board"] !== true)
+			throw new Error(`${action} requires context:true or board:true`);
+		request = { context: false, board: false, ...request };
+	}
 	if (action === "reply") {
 		for (const field of ["extension", "id", "target"]) {
 			if (typeof request[field] !== "string" || !request[field].trim())
@@ -212,10 +208,7 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 				),
 				value.blocking,
 			);
-		return (
-			value.action === "reply" ||
-			(value.action === "assign" && value.blocking === true)
-		);
+		return value.action === "assign" && value.blocking === true;
 	} catch {
 		return false;
 	}

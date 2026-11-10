@@ -1,5 +1,6 @@
 import { nativeAgentName } from "./agent-identity.js";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
+import { readTerminal } from "./core/agents.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { type AgentProfile, loadAgentProfiles } from "./profiles.js";
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
@@ -27,7 +28,6 @@ function describeProfiles(profiles: Map<string, AgentProfile>) {
 export async function agentsHelp(
 	boardAvailable = false,
 	gpt = false,
-	core = false,
 ): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
@@ -40,35 +40,39 @@ export async function agentsHelp(
 			find: "query? status? machine?",
 			focus: "target machine? voice? handoff?",
 			spawn:
-				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?" +
+				"agent_type label message name? machine? placement? workspace? cwd? base? blocking?" +
 				(boardAvailable ? " board_thread_id?" : ""),
 			watch: "target machine?",
 			unwatch: "target machine?",
 			send: "target message machine?",
 			assign: "target message machine? blocking?",
-			attach: "target context board machine?",
-			detach: "target context board machine?",
+			attach: "target context? board? machine?",
+			detach: "target context? board? machine?",
 			read: "target machine? source=latest|visible|recent? lines?",
 			reply: "target extension id message machine?",
 		},
 		rules: {
+			peers: gpt
+				? "Existing session≠your sub-agent; send/watch need no attach. Contact≠shared Notes/Board; attach changes membership"
+				: "Existing sessions may be independent peers, not your sub-agents. Messaging and watching need no attachment. Contact does not imply shared Notes or Board membership; attach changes sharing",
+			read: gpt
+				? "latest(default)=last reply+pending extension messages; visible=current TUI screen; recent=TUI scrollback, lines default 40. Findings→returned Notes path if shared Notes available"
+				: "latest (default) returns the last reply and pending extension messages; visible reads the current TUI screen; recent reads TUI scrollback, lines default 40. For findings, read the returned Notes path when shared Notes is available",
 			reply: gpt
-				? "Extension report/read template required; send≠resolve; blocking waits resumed work; others return after semantic delivery"
-				: "Use the extension-authored template from its report/read; send does not resolve it. Blocking messages wait for resumed work; other replies return after semantic delivery",
+				? "Extension report/read template required; send≠resolve; returns after acceptance, never waits resumed work"
+				: "Use the extension-authored template from its report/read; send does not resolve it. Replies return after acceptance, without waiting for resumed work",
 			machine: gpt
-				? "machine omitted=local Pi host; list/find omitted=all machines; remote=list profile ID, NOT label/hostname"
-				: "Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
+				? "machine omitted=local Pi host; list/find omitted=all machines; select current machine name or ID from list"
+				: "Omit for local (host running Pi); list/find omit for all machines. Select a current machine name or ID from list",
 			target: gpt
-				? "target=agent (same Notes/Board ID) or terminal target; /root=this family live root"
-				: "Use agent for the same identity as Notes/Board, or the terminal target; /root selects this family's live root",
-			label: core
-				? "Short Pi session name; app tabs use default names"
-				: gpt
-					? "Short tab/session name; two words IF useful"
-					: "Short tab/session name; prefer two words when useful",
-			placement: core
-				? "terminal (default), new_tab, new_workspace; new_tab needs space ID"
-				: "new_tab, new_workspace, pane",
+				? "target=Pi session reference or terminal; /root=live spawn root"
+				: "Use the Pi session reference or terminal target; /root selects the live root of saved spawn ancestry",
+			resume: gpt
+				? "send/assign to owned closed worker→resume saved session; /quit never resumes"
+				: "Sending or assigning to a closed worker recorded by this parent resumes its saved session; /quit never resumes",
+			label: "Short Pi session name; app tabs use default names",
+			placement:
+				"terminal (default), new_tab, new_workspace; new_tab needs space ID",
 			...(boardAvailable
 				? {
 						board_thread_id: gpt
@@ -87,14 +91,14 @@ export async function agentsHelp(
 				: "Select a running session; passive arrival with return call, no task/watch. voice defaults false; true carries the active microphone asynchronously. handoff adds context. Remote focus selects the target's Herdr session, not the client's machine",
 			attach: boardAvailable
 				? gpt
-					? "Idle target; context/board=independent sharing/membership; NO task/watch"
-					: "Idle target; context/board booleans choose shared access and board membership independently; no task/watch"
+					? "Idle target; context/board=independent sharing/membership; omitted=false, at least one true; NO task/watch"
+					: "Idle target; context/board choose shared access and board membership independently; omitted=false, at least one true; no task/watch"
 				: gpt
-					? "Idle target; context=shared notes/history; boards unavailable→board:false; NO task/watch"
-					: "Idle target; context shares notes/history; use board:false while shared boards are unavailable; no task/watch",
+					? "Idle target; context:true=shared notes/history; boards unavailable; NO task/watch"
+					: "Idle target; context:true shares notes/history; shared boards unavailable; no task/watch",
 			detach: gpt
-				? "Idle target; stop selected membership; counterpart checkpoints remain readonly"
-				: "Stop selected membership; retain counterpart checkpoints read-only; idle target",
+				? "Idle target; stop context/board independently; omitted=false, at least one true; counterpart checkpoints remain readonly"
+				: "Stop context/board independently; omitted=false, at least one true; retain counterpart checkpoints read-only; idle target",
 			blocking: gpt
 				? "spawn/assign default false→dispatch then return; true→wait for result; profile overrides spawn. Parallel blocking calls: await Promise.allSettled. Background reports automatic→do other work/end turn, NO poll or await timers/extra Promises"
 				: "spawn/assign return after dispatch by default. Set blocking:true to wait for the result; profile blocking overrides spawn. Use await Promise.allSettled for parallel blocking calls, including failures. Background reports arrive automatically: do other work or end this turn, never poll or await timers or extra Promises for reports",
@@ -108,8 +112,8 @@ export async function agentsHelp(
 				? "Distinct scope/outcome/project context/issue refs; define success, NOT forbidden investigations"
 				: "Give each worker a distinct scope, desired outcome, relevant project context and issue references. Describe success rather than lists of forbidden investigations",
 			slash: gpt
-				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes pane"
-				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its pane",
+				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
+				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
 			reuse: gpt
 				? "Reuse ONLY same investigation; reviews independent; new scope=new agent"
 				: "Reuse only same investigation; reviews independent; new scope = new agent",
@@ -120,9 +124,7 @@ export async function agentsHelp(
 				: {}),
 		},
 		profiles: describeProfiles(profiles),
-		advanced: core
-			? "hc --skill: terminal processes and machines"
-			: "herdr --skill: workspace/tab/pane/process/focus/layout/terminal",
+		advanced: "hc --skill: terminal processes and machines",
 	};
 }
 
@@ -209,10 +211,7 @@ export async function listFleetAgents(
 								(agent) =>
 									agent.agent === "pi" &&
 									(!machine.local ||
-										agent.pane_id !==
-											(agent.backend === "core"
-												? process.env["HC_TERMINAL_ID"]
-												: process.env["HERDR_PANE_ID"])),
+										agent.terminal_id !== process.env["HC_TERMINAL_ID"]),
 							)
 							.map(async (agent) => {
 								const result = compactAgent(
@@ -250,6 +249,7 @@ export async function listFleetAgents(
 			({
 				snapshot: _snapshot,
 				monitoredPaneIds: _monitoredPaneIds,
+				session: _session,
 				...machine
 			}) => machine,
 		),
@@ -283,35 +283,19 @@ export async function readAgentTerminal(
 	source: Exclude<(typeof READ_SOURCES)[number], "latest">,
 	lines: number,
 ): Promise<Record<string, unknown>> {
-	const value = await runtime.client.request<unknown>("agent.read", {
-		target: panel.pane_id,
-		source,
-		format: "text",
-		lines,
-		strip_ansi: true,
-	});
-	if (
-		typeof value !== "object" ||
-		value === null ||
-		!("read" in value) ||
-		typeof value.read !== "object" ||
-		value.read === null ||
-		!("text" in value.read) ||
-		typeof value.read.text !== "string"
-	) {
-		throw new Error("Herdr agent.read returned no text");
-	}
-	const truncated = value.read.text.length > MAX_TERMINAL_READ_CHARS;
+	const value = await readTerminal(
+		runtime.client,
+		panel.terminal_id,
+		source === "visible" ? 0 : lines,
+	);
+	const truncated = value.text.length > MAX_TERMINAL_READ_CHARS;
 	return {
 		machine: runtime.machine,
 		target: panel.pane_id,
 		status: panel.agent_status,
 		text: truncated
-			? `${value.read.text.slice(0, MAX_TERMINAL_READ_CHARS)}\n…`
-			: value.read.text,
-		...(truncated ||
-		("truncated" in value.read && value.read.truncated === true)
-			? { truncated: true }
-			: {}),
+			? `${value.text.slice(0, MAX_TERMINAL_READ_CHARS)}\n…`
+			: value.text,
+		...(truncated || value.truncated ? { truncated: true } : {}),
 	};
 }

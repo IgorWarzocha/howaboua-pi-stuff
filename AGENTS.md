@@ -2,7 +2,10 @@ Merges to main feed Changesets versioning and npm publishing.
 
 Every package must work against released upstream Pi. Never make monorepo functionality depend on modifying, patching or forking upstream Pi; use supported extension APIs and report unavailable capabilities honestly.
 
+Every extension must install and run standalone. Discover optional integrations at runtime; never require another extension for core functionality.
+
 We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Validate and report changes. Source edits do not update running packages.
+Delegate warranted sandbox/E2E reviews to the dedicated `sandbox-reviewer` profile. Never run them in the parent. Require a concrete runtime acceptance gap that focused checks cannot cover; wording edits and source synchronisation alone do not warrant a sandbox review.
 Sandbox validation means interacting with Pi's TUI through Herdr: normal consecutive turns that execute tools and use the guest environment. Programmatic probes do not require a sandbox and do not substitute for this interaction.
 For live TUI review, use `bun run sandbox:setup --name NAME --live-model openai-codex/MODEL` after candidate changes. Reuse the host login through this setup's scoped access-token sync; a functioning authenticated guest is the baseline. Stop active review agents before replacing the guest snapshot; host edits alone never update it. Fix guest readiness instead of moving TUI acceptance onto the host.
 Release acceptance must run the candidate's bundled native helpers without overrides. Verify guest compatibility first and replace incompatible disposable guests rather than rebuilding helpers around them.
@@ -10,6 +13,7 @@ Resolve package names against immediate packages subdirectories. Search the uniq
 Keep pi-codex-web-run and pi-codex-imagegen src/codex-runtime trees identical. Do not publish a shared runtime package.
 
 Agent-facing text is behaviour. Keep contracts, skills, prompt metadata and subagent prompts compact. Default to general-purpose assistance. Scope coding assumptions to coding tasks.
+Use minute precision for informational timestamps. Keep finer clocks where behaviour or external contracts need them; never rewrite stored timestamps just for presentation.
 Hide extension internals from agent-facing text, including errors. State what happened, what remains available and an actionable next step. Users own account and configuration decisions. Success may expose a new action, not invented workflow advice.
 Keep the static prefix small and stable. Defer nonessential tools through Code/Notebook while preserving discovery. Deliver tool guidance on demand through supported mid-session messages or results, not prefix edits.
 Tool activation changes the live catalogue and chronological notices, not the standing system prompt. Rebuild tool-derived standing instructions from current state only at session/window rollover.

@@ -12,18 +12,21 @@
 	"files": [
 		"index.ts",
 		"src",
-		"dist",
 		"README.md",
-		"INTEGRATION.md",
+		"CHANGELOG.md",
 		"LICENSE",
 		"tsconfig.json",
-		"CHANGELOG.md"
+		"runtime.ts",
+		"dist",
+		"INTEGRATION.md",
+		"scripts",
+		"tsconfig.viewer.json"
 	],
 	"main": "index.ts",
 	"exports": {
 		".": "./index.ts",
-		"./runtime": "./src/runtime/index.ts",
-		"./integration": "./src/integration.ts"
+		"./runtime": "./runtime.ts",
+		"./integration": "./src/board/integration.ts"
 	},
 	"pi": {
 		"extensions": [
@@ -43,7 +46,7 @@
 	},
 	"dependencies": {
 		"dompurify": "3.4.17",
-		"marked": "18.1.2",
+		"marked": "18.2.0",
 		"unicode-case-folding": "1.1.2"
 	},
 	"peerDependencies": {

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { formatUtcMinute } from "../time-format.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { isCodexDeveloperMessageDetails, type CodexDeveloperMessageDetails } from "../developer-messages.ts";
@@ -20,7 +21,7 @@ function readReminder(value: unknown): CurrentTimeReminder {
 export function projectCurrentTimeReminder(entry: SessionEntry): SessionEntry {
 	if (entry.type !== "custom" || entry.customType !== CODEX_CURRENT_TIME_REMINDER_TYPE) return entry;
 	const reminder = readReminder(entry.data);
-	const utc = new Date(reminder.time).toISOString().slice(0, 16) + "Z";
+	const utc = formatUtcMinute(new Date(reminder.time));
 	return { ...entry, type: "custom_message", display: false, details: reminder,
 		content: `<current_time_reminder>\n${utc}\n</current_time_reminder>` };
 }

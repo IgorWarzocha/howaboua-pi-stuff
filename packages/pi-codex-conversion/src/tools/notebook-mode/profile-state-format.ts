@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { formatStoredUtcMinute } from "../../time-format.ts";
 import { existsSync, lstatSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import {
@@ -126,7 +127,7 @@ export function profileSummary(manifest: ProfileStateManifest): ProfileStateSumm
 	const values = manifest.entries.filter(({ kind }) => kind === "value").length;
 	return {
 		name: manifest.name,
-		createdAt: manifest.createdAt,
+		createdAt: formatStoredUtcMinute(manifest.createdAt),
 		sourceProject: manifest.sourceProject,
 		values,
 		definitions: manifest.entries.length - values,

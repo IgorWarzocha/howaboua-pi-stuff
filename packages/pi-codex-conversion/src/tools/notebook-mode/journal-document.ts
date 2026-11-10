@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import { randomUUID } from "node:crypto";
 import { lstatSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 
@@ -30,7 +31,7 @@ export function emptyNotebookDocument(project: string, session: string): Noteboo
 		metadata: {
 			kernelspec: { display_name: "Deno", language: "typescript", name: "deno" },
 			language_info: { name: "typescript" },
-			pi: { project, session, createdAt: new Date().toISOString() },
+			pi: { project, session, createdAt: formatUtcMinute() },
 		},
 		nbformat: NOTEBOOK_FORMAT,
 		nbformat_minor: NOTEBOOK_MINOR,

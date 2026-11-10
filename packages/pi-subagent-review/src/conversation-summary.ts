@@ -27,30 +27,34 @@ function serializeEntry({
 	sourceEntry: entry,
 	messages,
 }: ProjectedSessionEntry): string | undefined {
+	const time = new Date(entry.timestamp);
+	const timestamp = Number.isFinite(time.getTime())
+		? `${time.toISOString().slice(0, 16)}Z`
+		: entry.timestamp;
 	switch (entry.type) {
 		case "message": {
 			const message = messages[0];
 			if (!message || !("content" in message)) return undefined;
 			const text = textFromContent(message.content).trim();
 			if (!text) return undefined;
-			return `## ${message.role} (${entry.timestamp})\n${text}`;
+			return `## ${message.role} (${timestamp})\n${text}`;
 		}
 		case "branch_summary":
-			return `## branch summary (${entry.timestamp})\n${entry.summary}`;
+			return `## branch summary (${timestamp})\n${entry.summary}`;
 		case "compaction":
 			if (messages.length === 0) return undefined;
-			return `## compaction summary (${entry.timestamp})\n${entry.summary}`;
+			return `## compaction summary (${timestamp})\n${entry.summary}`;
 		case "custom_message": {
 			const message = messages[0];
 			if (message?.role !== "custom") return undefined;
 			const text = textFromContent(message.content).trim();
 			if (!text) return undefined;
-			return `## custom message: ${entry.customType} (${entry.timestamp})\n${text}`;
+			return `## custom message: ${entry.customType} (${timestamp})\n${text}`;
 		}
 		case "model_change":
-			return `## model change (${entry.timestamp})\n${entry.provider}/${entry.modelId}`;
+			return `## model change (${timestamp})\n${entry.provider}/${entry.modelId}`;
 		case "thinking_level_change":
-			return `## thinking level change (${entry.timestamp})\n${entry.thinkingLevel}`;
+			return `## thinking level change (${timestamp})\n${entry.thinkingLevel}`;
 		default:
 			return undefined;
 	}

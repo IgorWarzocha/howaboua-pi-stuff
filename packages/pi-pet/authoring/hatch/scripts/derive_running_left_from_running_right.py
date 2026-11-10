@@ -118,7 +118,7 @@ def main() -> None:
         mirrored = mirror_strip_preserving_frame_order(image)
         mirrored.save(output)
 
-    derived_at = datetime.now(timezone.utc).isoformat()
+    derived_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     left_job["status"] = "staged"
     left_job["source_path"] = manifest_relative(output, run_dir)
     left_job["derived_from"] = "running-right"

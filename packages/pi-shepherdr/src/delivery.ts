@@ -4,6 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type {
+	CodexContextBriefingHandler,
 	CodexDeveloperCustomMessage,
 	CodexDeveloperMessageOptions,
 	CodexDeveloperMessageRequest,
@@ -11,6 +12,44 @@ import type {
 
 const contexts = new WeakMap<ExtensionAPI, ExtensionContext>();
 const PENDING_MESSAGE = "herdr-pending-message";
+
+/** PCC's public broker also works when its package cannot resolve from this extension. */
+export function registerInferenceBriefing(
+	pi: ExtensionAPI,
+	handler: CodexContextBriefingHandler,
+) {
+	const channel = "@howaboua/pi-codex-conversion/context-briefings/v1";
+	const unregister = pi.events.on(channel, (value) => {
+		if (
+			!value ||
+			typeof value !== "object" ||
+			!("protocol" in value) ||
+			value.protocol !== 1 ||
+			!("action" in value) ||
+			value.action !== "record"
+		)
+			return;
+		const request = value as {
+			protocol: 1;
+			action: "record";
+			ctx: ExtensionContext;
+			windowId: string | undefined;
+			messages?: Parameters<CodexContextBriefingHandler>[2];
+			pending: Promise<void>[];
+		};
+		request.pending.push(
+			handler(request.ctx, request.windowId, request.messages),
+		);
+	});
+	pi.on("session_shutdown", unregister);
+	return {
+		hosted() {
+			const request = { protocol: 1, action: "available", available: false };
+			pi.events.emit(channel, request);
+			return request.available === true;
+		},
+	};
+}
 interface PendingMessage {
 	sessionId: string;
 	message: CodexDeveloperCustomMessage & {

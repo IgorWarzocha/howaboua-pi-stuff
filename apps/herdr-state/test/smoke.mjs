@@ -14,7 +14,7 @@ for (const key of Object.keys(env)) if (key.startsWith('HC_')) delete env[key];
 Object.assign(env, { HC_SESSION: 's', HC_SOCKET: `${root}/c.sock`, XDG_CONFIG_HOME: `${root}/config`,
   XDG_STATE_HOME: `${root}/state`, XDG_RUNTIME_DIR: root, SHELL: '/bin/sh' });
 const cli = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
-const run = action => exec(process.execPath, [cli, action], { env, timeout: 25000 }).then(r => JSON.parse(r.stdout));
+const run = action => exec(process.execPath, [cli, action], { env, timeout: 25000 }).then(r => JSON.parse(r.stdout).reports[0]);
 async function until(read, predicate) {
   for (let i = 0; i < 80; i++) {
     const value = await read();
@@ -33,7 +33,7 @@ try {
   await writeFile(session, '{}\n');
   await exec('hc', ['server', 'start'], { env });
   core = new Core(env);
-  const made = await core.call('terminal.run', { argv: ['sleep', '600'], cwd: root, keep: true,
+  const made = await core.call('terminal.run', { argv: [`${root}/bin/pi`], cwd: root, keep: true,
     no_parent: true, env: { PATH: `${root}/bin:${process.env.PATH}` }, labels: {
       'herdr.space': 's1', 'herdr.tab': 'tab1', 'herdr.state.agent': 'pi',
       'herdr.state.ref': JSON.stringify({ kind: 'path', value: session }),
@@ -42,6 +42,7 @@ try {
   await core.call('doc.set', { name: 'herdr-app', version: 0, value: { spaces: [{ id: 's1', folder: root,
     tabs: [{ id: 'tab1', root: { id: 'p1', type: 'block', content: { terminal: address } } }] }] } });
   assert.equal((await run('save')).sessions, 1);
+  await rm(`${root}/launches`, { force: true });
   core.close();
   await exec('hc', ['server', 'stop'], { env });
   await exec('hc', ['server', 'start'], { env });

@@ -3,6 +3,7 @@ import { CoreClient } from "./client.js";
 import { object } from "./protocol.js";
 
 export const CORE_SESSION_LABEL = "pi.session_file";
+export const CORE_WORKER_LABEL = "pi.shepherdr.worker_session";
 
 export interface CoreIdentity {
 	terminalId: string;
@@ -21,13 +22,17 @@ export function coreIdentity(ctx: ExtensionContext): CoreIdentity | undefined {
 export async function publishCoreSession(
 	identity: CoreIdentity,
 	sessionFile: string,
+	worker: boolean,
 ): Promise<() => Promise<void>> {
 	const client = new CoreClient(identity.socketPath);
 	const terminal = identity.terminalId;
 	try {
 		await client.request("terminal.label", {
 			terminal,
-			labels: { [CORE_SESSION_LABEL]: sessionFile },
+			labels: {
+				[CORE_SESSION_LABEL]: sessionFile,
+				[CORE_WORKER_LABEL]: worker ? sessionFile : "",
+			},
 		});
 	} catch (error) {
 		client.close();
@@ -42,7 +47,7 @@ export async function publishCoreSession(
 			if (labels[CORE_SESSION_LABEL] === sessionFile)
 				await client.request("terminal.label", {
 					terminal,
-					labels: { [CORE_SESSION_LABEL]: "" },
+					labels: { [CORE_SESSION_LABEL]: "", [CORE_WORKER_LABEL]: "" },
 				});
 		} finally {
 			client.close();

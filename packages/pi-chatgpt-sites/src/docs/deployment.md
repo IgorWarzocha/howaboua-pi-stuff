@@ -5,6 +5,7 @@ Every Sites deployment URL is production. Deploy only a saved `version_id` withi
 ## `deployment.deploy`
 
 Required facade parameters: `project_id` (or local manifest), `version_id`, and `visibility`.
+
 - `visibility: "private"` uses the owner-only deployment path. The backend refuses it unless the caller is the sole explicitly allowed viewer and no groups are allowed.
 - `visibility: "shared"` is an open-world production deployment for shared, workspace, public, or unverifiable access.
 

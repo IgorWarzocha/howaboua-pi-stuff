@@ -434,7 +434,7 @@ export function createIndexer(
 				}
 			}
 			await ownership.replay(() => !stopped && keepGoing());
-			lastScan = new Date().toISOString();
+			lastScan = `${new Date().toISOString().slice(0, 16)}Z`;
 			progress("idle");
 		} catch (error) {
 			progress("error", error instanceof Error ? error.message : String(error));

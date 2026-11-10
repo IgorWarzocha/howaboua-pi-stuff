@@ -1,9 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { BindingSchema } from "@howaboua/pi-agent-board/integration";
-import type { SharedContextResult } from "@howaboua/pi-notes-compaction/context-sharing";
+import type { SharedContextResult } from "@howaboua/pi-agent-comms/context-sharing";
 import { type Static, type TSchema, Type } from "typebox";
 import { Check } from "typebox/value";
+import { BindingSchema } from "./board/records.js";
 
 const AgentPath = Type.String({
 	pattern: "^/(?:[a-zA-Z0-9_.-]+|root(?:/[a-zA-Z0-9_-]+)*)$",
@@ -38,6 +38,7 @@ const ContextLink = Type.Object({
 	alias: AgentPath,
 	controllerAlias: AgentPath,
 	controllerFile: Type.Optional(Type.String()),
+	controllerMachine: Type.Optional(Type.String({ minLength: 1 })),
 	controllerNotes: Type.Unknown(),
 	targetNotes: Type.Unknown(),
 });

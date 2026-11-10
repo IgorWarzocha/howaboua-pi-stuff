@@ -1,6 +1,6 @@
 # Extension integration APIs
 
-Use the pieces you need. Pi Agent Board can share discussions between agents without Shepherdr. Notes Compaction can maintain a session without Pi Codex Conversion (PCC) or Shepherdr. An orchestrator can connect those capabilities to its own agent lifecycle through the contracts below.
+Use the pieces you need. Agent Comms provides Board discussions and Notes continuity. Both work without Shepherdr; Notes works without Pi Codex Conversion (PCC). An orchestrator can connect those capabilities to its own agent lifecycle through the contracts below.
 
 This guide covers extension-to-extension APIs: registration, ownership, identity, routing, lifecycle and results. It is for people building Pi extensions, including people using an agent to build one. It does not require adopting the whole package collection.
 
@@ -10,25 +10,25 @@ The examples are integration fragments, not a replacement orchestrator. Your ext
 
 | What you want | Load | What your extension supplies |
 |---|---|---|
-| A board in one Pi session | [Pi Agent Board](../packages/pi-agent-board/README.md) | Nothing |
-| A board shared by your subagents | Pi Agent Board in each participating session | A `BoardAdapter`, member admission and authenticated routes |
-| Local notes, history and context rollover | [Notes Compaction](../packages/pi-notes-compaction/README.md) | Nothing |
-| Shared notes | Notes Compaction in the participants | Notes context-sharing discovery, child binding and an authenticated family router |
+| A board in one Pi session | [Agent Comms Board](../packages/pi-agent-comms/docs/BOARD.md) | Nothing |
+| A board shared by your subagents | Agent Comms in each participating session with Board enabled | A `BoardAdapter`, member admission and authenticated routes |
+| Local notes, history and context rollover | [Agent Comms Notes](../packages/pi-agent-comms/docs/NOTES.md) | Nothing |
+| Shared notes | Agent Comms in the participants with Notes active | Notes context-sharing discovery, child binding and an authenticated family router |
 | A Pi tool usable from Code or Notebook | A normal Pi tool, with PCC present | Usually no extra registration. Use the Code Mode API for custom behavior |
 | Compact extension guidance in PCC GPT prompt mode | PCC and your extension | Alternate wording through `registerGptPromptMode` |
-| A detached worker runner for Pulses | Source-only [Pulses](../packages/pi-pulses/README.md) and your runner | Worker admission, inspection, restoration and waking result delivery |
+| Separate Pi workers with saved-session reuse | [Shepherdr](../packages/pi-shepherdr/README.md#worker-api) | A caller scope, worker keys, task request IDs and lifetime policy |
 | A local tool callable by Grok voice | [Grok Realtime](../packages/pi-grok-realtime/README.md) | A `GrokToolDefinition` |
 | A miniapp in GipPity's browser UI | The standalone [GipPity Control](../packages/pi-gippity-control/README.md) extension | A static app and a state/event provider |
 
 **Without Shepherdr does not mean without an orchestrator.** Board and Notes do not find arbitrary agents, launch processes, invent membership or authenticate another extension's transport. Shepherdr is one consumer of these APIs, not a required process manager.
 
-Board and Notes export integration APIs. Installing Notes alone does not supply another subagent extension's membership or transport.
-Board requires Pi 1.1.0 or newer. Notes requires Pi 1.2.0 or newer. Integrations involving current PCC require Pi 1.4.0 or newer. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
+Board and Notes export integration APIs. Installing Agent Comms does not supply another subagent extension's membership or transport.
+Agent Comms requires Pi 1.5.0 or newer. Check each package's manifest for its Node.js and peer requirements, and check optional capabilities on the discovered service.
 
 ```mermaid
 flowchart LR
-    Host["Your subagent extension"] -->|"membership and transport"| Board["Pi Agent Board"]
-    Host -->|"context-sharing API"| Notes["Notes Compaction"]
+    Host["Your subagent extension"] -->|"membership and transport"| Board["Agent Comms Board"]
+    Host -->|"context-sharing API"| Notes["Agent Comms Notes"]
     Host -->|"agent relationships"| PCC["Pi Codex Conversion"]
     Board --> Archive["Board archive"]
     Notes --> Local["Local notes and Pi history"]
@@ -37,14 +37,25 @@ flowchart LR
 
 ## Public entry points
 
+Agent Comms and the standalone Notes Compaction and Agent Board packages share maintained implementations. The standalone packages are not deprecated and retain their public import keys. Do not load Agent Comms alongside either standalone extension.
+
+The Agent Comms consolidation is not published yet. Migrate package imports together with host integrations. Existing Shepherdr releases, including the current Core preview, need the coordinated bridge update before switching to Comms. Persisted event channels, owner strings and session records retain their existing names, including `pi-notes-compaction:*` and `shepherdr-board-*`.
+
 `pi.extensions` in a package manifest tells Pi what to load. `exports` tells JavaScript which imports resolve. Neither a root extension entrypoint nor a wildcard export is a promise that every implementation module is an integration API.
 
 | Import or protocol | Purpose | Contract |
 |---|---|---|
-| `@howaboua/pi-agent-board/runtime` | Discover the loaded Board owner | [`runtime.ts`](../packages/pi-agent-board/src/runtime.ts) |
-| `@howaboua/pi-agent-board/integration` | Host adapter, envelopes, bindings and briefing helpers | [`integration.ts`](../packages/pi-agent-board/src/integration.ts) |
-| `pi-notes-compaction:owner:v1` | Optional Notes projection discovery | [`bridge.ts`](../packages/pi-notes-compaction/src/bridge.ts) |
-| `@howaboua/pi-notes-compaction/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-notes-compaction/src/context-sharing.ts) |
+| `@howaboua/pi-agent-comms/runtime` | Discover the loaded Board owner | [`runtime/index.ts`](../packages/pi-agent-comms/src/board/runtime/index.ts) |
+| `@howaboua/pi-agent-comms/integration` | Host adapter, envelopes, bindings and briefing helpers | [`integration.ts`](../packages/pi-agent-comms/src/board/integration.ts) |
+| `pi-notes-compaction:owner:v1` | Optional Notes projection discovery | [`bridge.ts`](../packages/pi-agent-comms/src/notes/bridge.ts) |
+| `@howaboua/pi-agent-comms/context-sharing` | Family identity, binding and routed notes/history | [`context-sharing.ts`](../packages/pi-agent-comms/src/notes/context-sharing.ts) |
+| `@howaboua/pi-agent-comms/saved-session` | Node-only saved-session reader | [`saved-session.mjs`](../packages/pi-agent-comms/src/notes/saved-session.mjs) |
+| `@howaboua/pi-agent-comms/saved-session-index` | Saved-session index helpers | [`saved-session-index.mjs`](../packages/pi-agent-comms/src/notes/saved-session-index.mjs) |
+| `@howaboua/pi-agent-board/runtime` | Standalone Board discovery and the legacy `BoardRuntime` class export | [`runtime.ts`](../packages/pi-agent-board/runtime.ts) |
+| `@howaboua/pi-agent-board/integration` | Standalone Board adapter and persisted binding helpers | [`integration.ts`](../packages/pi-agent-board/src/board/integration.ts) |
+| `@howaboua/pi-notes-compaction/context-sharing` | Standalone Notes family identity and routed reads | [`context-sharing.ts`](../packages/pi-notes-compaction/src/notes/context-sharing.ts) |
+| `@howaboua/pi-notes-compaction/saved-session` | Standalone Node-only saved-session reader | [`saved-session.mjs`](../packages/pi-notes-compaction/src/notes/saved-session.mjs) |
+| `@howaboua/pi-notes-compaction/saved-session-index` | Standalone saved-session index helpers | [`saved-session-index.mjs`](../packages/pi-notes-compaction/src/notes/saved-session-index.mjs) |
 | `@howaboua/pi-codex-conversion/agent-relationship` | Native parent linkage and cache affinity | [`agent-relationship.ts`](../packages/pi-codex-conversion/src/agent-relationship.ts) |
 | `@howaboua/pi-codex-conversion/compaction` | Context projection and ordered provider-compaction preparation | [`compaction.ts`](../packages/pi-codex-conversion/src/compaction.ts) |
 | `@howaboua/pi-codex-conversion/code-mode` | Custom nested-tool registration | [`code-mode.ts`](../packages/pi-codex-conversion/src/code-mode.ts) |
@@ -77,11 +88,11 @@ A context window is not an agent identity. Notes can open another window while p
 
 Your transport owns the association between a trusted peer, its current Pi session and its saved binding. A model-provided path, process ID, route string or JSON object is not authentication.
 
-## Pi Agent Board
+## Board
 
 ### Discover the owner
 
-Load the Board extension normally. An integration calls `discoverBoard` during its own initialization. Discovery works in either extension load order and attaches once. It does not create a board owner.
+Load Agent Comms normally. An integration calls `discoverBoard` during its own initialization. Discovery works in either extension load order and attaches once. It exposes the Board facade even when Board is disabled. Discovery, adapter attachment and settings reads do not activate the engine.
 
 ```ts
 import type {
@@ -91,11 +102,11 @@ import type {
 import {
   discoverBoard,
   type BoardRuntime,
-} from "@howaboua/pi-agent-board/runtime";
+} from "@howaboua/pi-agent-comms/runtime";
 import type {
   BoardAdapter,
   BoardEnvelope,
-} from "@howaboua/pi-agent-board/integration";
+} from "@howaboua/pi-agent-comms/integration";
 
 // The caller implements and authenticates the transport behind adapter.
 export function connectBoardHost(pi: ExtensionAPI, adapter: BoardAdapter) {
@@ -138,7 +149,7 @@ Use `runtime.execute(ctx, input, requestId)` for local Board operations. It retu
 
 The integration module exports `BindingSchema`, `parseBinding`, `binding`, `members`, `children`, `saveBinding`, `saveMember`, `removeMember`, `saveChild` and `rootBoardSetting`. These operate on Pi-owned session entries. They do not authenticate a peer or create a process.
 
-The [`BoardEnvelope` union](../packages/pi-agent-board/src/protocol.ts) contains these operations:
+The [`BoardEnvelope` union](../packages/pi-agent-comms/src/board/protocol.ts) contains these operations:
 
 | Operation | Fields beyond `operation` | Purpose |
 |---|---|---|
@@ -163,17 +174,17 @@ Archives live at `<owner folder>/.pi/agent-message-board.sqlite`. Existing `shep
 
 The browser viewer is read-only. It is not a membership, transport or posting API. A missing route must remain an explicit failure rather than opening another archive with a similar path.
 
-The integration module also exports `registerContextBriefing`, `recordContextBriefing`, `contextBriefingWindow` and `hasContextRollover`. These support Board's durable guidance across context windows. Their signatures and persistence rules live in [`context-briefing.ts`](../packages/pi-agent-board/src/context-briefing.ts).
+The integration module also exports `registerContextBriefing`, `recordContextBriefing`, `contextBriefingWindow` and `hasContextRollover`. These support Board's durable guidance across context windows. Their signatures and persistence rules live in [`context-briefing.ts`](../packages/pi-agent-comms/src/board/context-briefing.ts).
 
-See the package's [host integration reference](../packages/pi-agent-board/INTEGRATION.md). Shepherdr's [`board` adapter](../packages/pi-shepherdr/src/board) is a concrete consumer, not a module another orchestrator needs to import.
+See the package's [host integration reference](../packages/pi-agent-comms/INTEGRATION.md). Shepherdr's [`board` adapter](../packages/pi-shepherdr/src/board) is a concrete consumer, not a module another orchestrator needs to import.
 
-## Notes Compaction
+## Notes
 
 ### Standalone contract
 
-Notes Compaction owns four Pi tools: `notes`, `history`, `new_context` and `get_context_remaining`. It owns checkpoint guidance, note freshness, window markers, rollover and its local response cache. Pi remains the transcript owner. User configuration lives behind `/notes`.
+Notes owns four Pi tools: `notes`, `history`, `new_context` and `get_context_remaining`. It owns checkpoint guidance, note freshness, window markers, rollover and its local response cache. Pi remains the transcript owner. User configuration lives behind `/notes`.
 
-Notes use virtual paths. Relative paths belong to the current agent. Cross-agent paths have the form `/root/<child>/notes/<path>` and require an installed family-routing capability. An independent session's `/root` does not grant access to another session's `/root`.
+Notes use virtual paths. Relative paths belong to the current agent. Cross-agent paths have the form `/<Pi-session-ID>/notes/<path>` and require an installed family-routing capability. `/root` remains an alias for the family root, not an arbitrary shared child.
 
 New writes stay local. `write_file` creates an authoritative replacement. `append_to_file` can create a local overlay on a remote base. Local data is stored in `<Pi agent directory>/notes-compaction/notes.sqlite`; saved session snapshots support resume, forks and branch navigation. Do not use direct SQLite writes as an integration API.
 
@@ -240,7 +251,7 @@ Local replacements supersede remote reads of the same path. An append overlay re
 
 A cached result is valid for its recorded query and source. Do not expand an encrypted listing into searches that were never cached. In Code and Notebook, JavaScript receives receipts for protected results while the model receives the corresponding current-call encrypted output. Do not unwrap that output or reuse a previous call ID.
 
-The full provider adaptation contract is [PCC-INTEGRATION.md](../packages/pi-notes-compaction/PCC-INTEGRATION.md).
+The full provider adaptation contract is [PCC-INTEGRATION.md](../packages/pi-agent-comms/PCC-INTEGRATION.md).
 
 ## Connecting an ordinary subagent extension through Notes
 
@@ -248,11 +259,11 @@ Notes' `context-sharing` API does not depend on Shepherdr. It supplies family id
 
 ### Migrating from PCC's context-sharing API
 
-PCC 4.0.5 removes `@howaboua/pi-codex-conversion/context-sharing`. Update integrations to use the independent services below. Shared notes and history require Notes 0.0.10 or newer. Native parent linkage and cache affinity require PCC 4.0.5 or newer, without Notes.
+PCC 4.0.5 removes `@howaboua/pi-codex-conversion/context-sharing`. Update integrations to use the independent services below. Shared notes and history use Agent Comms Notes. Older Notes releases used the same `context-sharing` suffix under `@howaboua/pi-notes-compaction`. Native parent linkage and cache affinity require PCC 4.0.5 or newer, without Notes.
 
 | Previous API | Replacement |
 |---|---|
-| `connectCodexContextSharing(pi)` | `connectNotesContextSharing(pi)` from `@howaboua/pi-notes-compaction/context-sharing` |
+| `connectCodexContextSharing(pi)` | `connectNotesContextSharing(pi)` from `@howaboua/pi-agent-comms/context-sharing` |
 | Shared-context types and family, routing and attachment methods | Import types and discover the service through Notes' `context-sharing` export |
 | `service.bindRelationship(ctx, relationship)` | `relationships.service.bind(ctx, relationship)` from `connectCodexAgentRelationships(pi)` |
 | `service.cacheAffinityId(ctx)` | `relationships.service.cacheAffinityId(ctx)` |
@@ -264,17 +275,28 @@ Discover each service independently and check availability before calling it. No
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { connectNotesContextSharing } from
-  "@howaboua/pi-notes-compaction/context-sharing";
+import { connectNotesContextSharing, type ContextRouter } from
+  "@howaboua/pi-agent-comms/context-sharing";
 
-export function connectContextHost(pi: ExtensionAPI) {
-  const connection = connectNotesContextSharing(pi);
-  pi.on("session_shutdown", () => connection.dispose());
+// The host supplies its authenticated family router.
+export function connectContextHost(pi: ExtensionAPI, router: ContextRouter) {
+  let unregister: (() => void) | undefined;
+  let connection: ReturnType<typeof connectNotesContextSharing> | undefined;
+  const register = () => {
+    const service = connection?.service;
+    if (service && !unregister) unregister = service.registerRouter(router);
+  };
+  connection = connectNotesContextSharing(pi, register);
+  register(); // Also handles synchronous discovery during connection creation.
+  pi.on("session_shutdown", () => {
+    unregister?.();
+    connection?.dispose();
+  });
   return connection;
 }
 ```
 
-Read `connection.service` at the point of use. It is optional and can become available after your extension loads. Discovery does not launch a child or grant sharing permission.
+Read `connection.service` at the point of use. It is optional and can become available after your extension loads or when Notes activates later. `connectNotesContextSharing(pi, onAvailable?)` invokes the optional callback on service availability. Register host routes then, not only at `session_start`. Discovery does not activate Notes, launch a child or grant sharing permission.
 
 ### Service reference
 
@@ -284,7 +306,7 @@ Read `connection.service` at the point of use. It is optional and can become ava
 | `canCreateChild(ctx)` | Whether parental shared-context opt-in permits a new child |
 | `describe(ctx)` | `ContextAgentIdentity` or `undefined` |
 | `verify(ctx)` | Checks applicable Remote account compatibility |
-| `createChild(ctx, { name, routing? })` | A promise of `{ binding, adopt() }`; prepares a child identity |
+| `createChild(ctx, { threadId, routing? })` | A promise of `{ binding, adopt() }`; prepares a child identity |
 | `bind(ctx, binding, options?)` | Adopts an explicit family binding before child work; returns its identity |
 | `execute(ctx, request, signal?)` | Executes an admitted request at the local session owner. Historical Remote references require authenticated reader-host dispatch |
 | `registerRouter(router)` | Installs one router and returns its unregister function |
@@ -525,24 +547,26 @@ A custom message supplies `customType`, nonempty `content`, `display` and option
 
 A `CodexContextBriefing` is `{ protocol: 1, id, owner, key, content }`, persisted with `pi.appendEntry(CODEX_CONTEXT_BRIEFING_TYPE, briefing)`. IDs and content are immutable. The handler receives `(ctx, windowId, messages?)` at inference admission. Use selected context to decide what is already present; do not edit earlier messages or the static system prompt to refresh guidance.
 
-## Pulses worker runners
+## Shepherdr workers
 
-[Pulses](../packages/pi-pulses/README.md) is private and source-only. Its [`integration.ts`](../packages/pi-pulses/integration.ts) defines an extension interoperability contract, not a published runner SDK. Pulses owns scheduling and admissions. A runner owns detached workers, saved-session restoration and final-result delivery that wakes the controlling main session. Shepherdr is the first implementation.
+The public [`WorkerService`](../packages/pi-shepherdr/worker-api.ts) contract is exported from `@howaboua/pi-shepherdr/worker-api`. Discover it synchronously through `@howaboua/pi-shepherdr/workers/v1/request`, emitting `{ protocol: "@howaboua/pi-shepherdr/workers/v1", accept(service) }`. No answer means unavailable. Use a type-only import when Shepherdr is optional, and discover again after reload.
 
-`connectPulseRunner(pi)` returns a connection with a live `service` getter and `dispose()`. Each service lookup emits `@howaboua/pi-pulses/runner/v1/request` with `{ protocol: "@howaboua/pi-pulses/runner/v1", accept }`. A runner answers synchronously with `accept(runner)`. No answer returns `undefined`; multiple distinct runners raise an ownership conflict. Dispose the connection and unsubscribe listeners on shutdown.
-
-`PulseRunner` requires `protocol: "@howaboua/pi-pulses/runner/v1"`, a nonempty `id` and these methods:
+The service exposes `protocol`, a provider `id` and these methods:
 
 | Method | Contract |
 |---|---|
-| `isController(ctx)` | Whether this session may own and schedule pulses; false for detached workers, including resumed workers |
-| `start(ctx, input)` | `Promise<PulseWorker>` confirming admission, never task completion |
-| `inspect(ctx, workerId)` | `Promise<PulseWorker>` reporting the worker's current state |
+| `isWorker(ctx)` | Generic worker role, including saved worker sessions |
+| `start(ctx, input)` | `Promise<WorkerStatus>` confirming admission, never task completion |
+| `inspect(ctx, scope, workerId)` | `Promise<WorkerStatus>` reporting the owned worker's current state |
 | `subscribe(listener)` | Subscribe to worker-state changes and return an unsubscribe function |
 
-`PulseRun` contains string fields `taskId`, `title`, `prompt`, `cwd`, `runId` and optional `workerId`. Preserve the run identity across any check of the same admission. `PulseWorker` contains an opaque `workerId` and `state: "working" | "idle" | "closed"`.
+`WorkerStart` requires nonempty `scope`, `key`, `requestId`, `title`, `prompt` and absolute `cwd`. It accepts an optional receipt `workerId` and `lifetime: "parent" | "detached"`, defaulting to `parent`. Each caller chooses a stable scope and worker key. Existing workers retain their lifetime and working directory. Repeating the latest acknowledged request ID inspects that request without resending it. `WorkerStatus` contains an opaque `workerId` and `state: "working" | "idle" | "closed"`.
 
-Controller checks and subscriptions may precede operational readiness. Check `isController(ctx)` before claiming or scheduling work. A rejected `start` remains uncertain unless an `Error` carries `dispatched: false`, recognised by `isPulseRunNotStarted(error)`. Only that positive receipt permits clearing the admission. A missing receipt or malformed history does not prove the task never started. Do not replay unconfirmed work or substitute execution inside the main agent.
+Start and inspect require the caller's active TUI session after resource discovery. Ownership follows its selected native branch and scope. Callers own scheduling and controller eligibility. A rejected start remains uncertain unless its error carries `dispatched: false`. Never retry an uncertain rejection, even with the same request ID. Inspection does not clear an uncertain admission. Workers use normal Shepherdr final-result delivery, waking the controller through ordinary kickoff preparation.
+
+### Pulses consumer
+
+[Pulses](../packages/pi-pulses/README.md) is private and source-only. Its [`connectPulseRunner(pi)`](../packages/pi-pulses/integration.ts) adapts this generic service. Pulses maps task and run IDs to worker keys and request IDs, chooses detached lifetime, and schedules only in non-worker TUI sessions. These policies belong to Pulses, not Shepherdr. Without a compatible service, Pulses retains definition authoring but cannot execute work. Old runner receipts require explicit manual recovery rather than automatic replay.
 
 ## Voice and browser integrations
 

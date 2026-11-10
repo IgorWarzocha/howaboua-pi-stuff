@@ -2,16 +2,9 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "../core/backend.js";
-import type { HerdrConnection } from "../herdr-client.js";
-import { LOCAL_MACHINE } from "../machine-catalog.js";
+import type { CoreConnection } from "../core/backend.js";
 import { AgentMonitor } from "../monitor.js";
-import { RemoteHerdrClient } from "../remote/client.js";
-import {
-	errorMessage,
-	type MachineRuntime,
-	operatorPrefix,
-} from "./machine.js";
+import { errorMessage, LOCAL_MACHINE, type MachineRuntime } from "./machine.js";
 
 interface FleetMonitorEvents {
 	isAttached(): boolean;
@@ -25,29 +18,18 @@ interface FleetMonitorEvents {
 export function createMachineMonitor(
 	machine: string,
 	runtime: MachineRuntime,
-	client: HerdrConnection,
+	client: CoreConnection,
 	pi: ExtensionAPI,
 	events: FleetMonitorEvents,
 ): AgentMonitor {
-	const selfPaneId = runtime.local
-		? process.env[
-				client instanceof CoreConnection ? "HC_TERMINAL_ID" : "HERDR_PANE_ID"
-			]
-		: undefined;
+	const selfPaneId = runtime.local ? process.env["HC_TERMINAL_ID"] : undefined;
 	return new AgentMonitor(pi, {
 		client,
 		machine,
-		machineLabel: () =>
-			runtime.coreMachine?.name ?? runtime.config?.label ?? LOCAL_MACHINE,
+		machineLabel: () => runtime.coreMachine?.name ?? LOCAL_MACHINE,
 		onChange: () => events.changed(),
 		onRefresh: () => events.refresh(),
-		operatorPrefix: runtime.coreMachine
-			? "hc"
-			: runtime.local
-				? client instanceof CoreConnection
-					? "hc"
-					: "herdr"
-				: operatorPrefix(runtime.config!),
+		operatorPrefix: "hc",
 		onWarning: (issue) => {
 			if (!events.isAttached()) return;
 			if (!runtime.local && issue.state === "unavailable") {
@@ -73,13 +55,10 @@ export function createMachineMonitor(
 			if (runtime.monitor?.list().length)
 				events
 					.context()
-					?.ui.notify(`Herdr monitoring restored: ${machine}`, "info");
+					?.ui.notify(`Core monitoring restored: ${machine}`, "info");
 		},
 		reconnect: runtime.local,
-		...(client instanceof RemoteHerdrClient ? { reader: client } : {}),
-		...(client instanceof CoreConnection && client.reader
-			? { reader: client.reader }
-			: {}),
+		...(client.reader ? { reader: client.reader } : {}),
 		...(selfPaneId ? { selfPaneId } : {}),
 	});
 }

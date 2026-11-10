@@ -4,14 +4,24 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 ## Reference baseline
 
-- Pi SDK baseline: published `1.5.0`
-- Stock provider comparison: published Pi `1.5.0` (2026-11-05)
+- Pi SDK baseline: published `1.5.1`
+- Stock provider comparison: published Pi `1.5.1` (2026-11-10)
 - Codex checkout reviewed through: `1b1835f751ebdc0cfc50b3fe55d4571dbb294563` (2026-09-28)
 - WebSocket/session review: `ecc78e4cf5607ecf5f080d682eae0ecb650868ae` (2026-10-01)
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
+
+## Pi 1.5.1 compatibility
+
+Compared the released `v1.5.0` to `v1.5.1` delta. The stock Codex provider's only transport change removes abort listeners after SSE retry delays. PCC already removes those listeners. Its `session-id` headers also already use the spelling corrected in Pi's OpenAI Responses provider.
+
+Pi's native cache warmer remains disabled for Codex and Responses Lite because those routes cannot honour its one-token output cap. Other providers inherit Pi's idle warming and Anthropic message threads. PCC's opt-in isolated Codex keepalive remains separate.
+
+Responses Lite proxies now honour `compat.promptCacheKeyMode: "disabled"` by omitting `prompt_cache_key` before the payload hook. Native Codex request shaping is unchanged.
+
+JS Notebook now pins Pi codemode `1.5.1`. It reuses that exact version when resolvable beside the extension, otherwise it installs on demand. A separate global Pi installation does not guarantee reuse. Pi `1.5.0` hosts remain supported but may need to download the newer runtime. PCC consumes its WASM loader, which is unchanged. The separately pinned QuickJS engine and local bridge are unchanged, so existing snapshots retain their fingerprint. Pi's declaration and one-shot prelude fixes do not alter PCC's independent tool contracts or persistent prelude.
 
 ## Pi 1.5 adoption
 

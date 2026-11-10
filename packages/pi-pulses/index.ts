@@ -90,9 +90,9 @@ export default async function pulses(pi: ExtensionAPI) {
 		const state = await current.read(definition.id);
 		if (state.running)
 			throw new Error(
-				state.running.workerId
+				state.running.workerId && state.worker?.runner === runner.id
 					? "This pulse already has active work. Use the existing agents tools to inspect or control it."
-					: "A previous run remains unconfirmed, so further runs are blocked. Inspection alone cannot clear it. Follow manual recovery in the Pulses README after checking active work and its outcome.",
+					: "A previous run cannot be confirmed by the current worker service, so further runs are blocked. Inspection alone cannot clear it. Follow manual recovery in the Pulses README after checking active work and its outcome.",
 			);
 		if (stopped || context?.sessionManager.getSessionId() !== current.owner)
 			throw new Error("The main session changed; no run was requested.");

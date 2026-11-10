@@ -14,6 +14,13 @@ const tokenFormat = new Intl.NumberFormat("en-US", {
 	notation: "compact",
 	maximumFractionDigits: 2,
 });
+const timestampFormat = new Intl.DateTimeFormat(undefined, {
+	year: "numeric",
+	month: "numeric",
+	day: "numeric",
+	hour: "numeric",
+	minute: "2-digit",
+});
 /** @param {number | null} n */
 const tokens = (n) => (n === null ? "—" : tokenFormat.format(n));
 /** @param {number} part @param {number} total */
@@ -81,8 +88,11 @@ export function renderRows(requests, offset, total) {
 			row.append(td);
 			return td;
 		};
+		const time = new Date(request.time);
 		cell(
-			new Date(request.time).toLocaleString(),
+			Number.isFinite(time.getTime())
+				? timestampFormat.format(time)
+				: request.time,
 			request.sessionName || request.sessionId || "Unknown session",
 		).title = request.project || "Unknown project";
 		cell(

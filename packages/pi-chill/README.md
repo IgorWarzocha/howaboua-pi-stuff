@@ -10,7 +10,7 @@ bun install --frozen-lockfile
 pi install ./packages/pi-chill
 ```
 
-Requires Pi 1.1.0 or later. The extension takes effect in the interactive terminal.
+Requires Pi 1.5.0 or later. The extension takes effect in the interactive terminal.
 
 Chill starts on. `/chill` toggles the current session immediately, including while working. It does not reload or change saved preferences. Turning it back on folds existing activity again.
 

@@ -2,10 +2,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { syncCommsStandalones } from "./sync-agent-comms-standalones.mjs";
 
 const base = process.env.CHANGED_BASE || process.argv[2] || "origin/main";
 const changedJson = spawnSync("bun", ["run", "scripts/changed-workspaces.mjs", base], { encoding: "utf8" });
 const packages = JSON.parse(changedJson.stdout || "[]");
+if (packages.some((dir) => ["pi-agent-comms", "pi-notes-compaction", "pi-agent-board"].includes(dir)) && syncCommsStandalones().length) {
+  console.error("Agent Comms standalone sources differ. Run bun run comms:sync.");
+  process.exit(1);
+}
 if (packages.length === 0) {
   console.log("No changed workspace packages.");
   process.exit(0);

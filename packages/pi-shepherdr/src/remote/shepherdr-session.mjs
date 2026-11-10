@@ -41,7 +41,6 @@ function assistantFromMessage(id, message) {
 		typeof message["stopReason"] === "string"
 			? message["stopReason"]
 			: undefined;
-	if (!joined && stopReason !== "error") return undefined;
 	return {
 		id,
 		text: joined,
@@ -180,19 +179,31 @@ async function sessionView(path, size) {
 		}
 		const message = record(entry["message"]);
 		if (message && typeof message === "object") {
-			// Never fall back to an older reply behind a tool call or empty final.
+			// Empty notice-only turns must not hide this task's useful final reply.
+			// Never cross a tool call or the latest task input to find one.
 			if (!assistantSeen && message["role"] === "assistant") {
-				assistantSeen = true;
-				assistantPending = message["stopReason"] === "toolUse";
-				if (!assistantPending)
-					assistant = assistantFromMessage(entry["id"], message);
-				if (assistant) assistantDepth = currentDepth;
+				if (message["stopReason"] === "toolUse") {
+					assistantSeen = true;
+					assistantPending = !assistant;
+				} else {
+					const candidate = assistantFromMessage(entry["id"], message);
+					if (
+						!assistant ||
+						candidate?.text ||
+						candidate?.stopReason !== "stop"
+					) {
+						assistant = candidate;
+						if (assistant) assistantDepth = currentDepth;
+					}
+					assistantSeen = !!candidate?.text || candidate?.stopReason !== "stop";
+				}
 			}
 			if (!input) {
 				input = inputFromMessage(entry["id"], message);
 				if (input) inputDepth = currentDepth;
 			}
 		}
+		if (input) assistantSeen = true;
 		if (typeof entry["parentId"] !== "string") return true;
 		targetId = entry["parentId"];
 		return false;
@@ -244,4 +255,47 @@ export async function readSessionView(path) {
 		result,
 	});
 	return result;
+}
+
+/** Native session identity only; never create or load an entire transcript.
+ * @param {string} path
+ * @returns {Promise<{id:string,cwd:string}>}
+ */
+export async function readSessionHeader(path) {
+	const file = await open(expandHome(path), "r").catch((cause) => {
+		throw new Error(
+			"Saved worker session could not be opened; check that its file is available on the original machine",
+			{ cause },
+		);
+	});
+	try {
+		const bytes = Buffer.alloc(64 * 1024);
+		let size = 0;
+		while (size < bytes.length) {
+			const read = await file.read(bytes, size, bytes.length - size, size);
+			size += read.bytesRead;
+			const end = bytes.subarray(0, size).indexOf(10);
+			if (end >= 0 || read.bytesRead === 0) {
+				const header = record(
+					JSON.parse(bytes.subarray(0, end < 0 ? size : end).toString("utf8")),
+				);
+				if (
+					header?.["type"] !== "session" ||
+					typeof header["id"] !== "string" ||
+					!header["id"] ||
+					typeof header["cwd"] !== "string" ||
+					!header["cwd"]
+				)
+					throw new Error(
+						"Saved worker has no valid Pi session header; open its saved session manually",
+					);
+				return { id: header["id"], cwd: header["cwd"] };
+			}
+		}
+		throw new Error(
+			"Saved worker session header is too large; open its saved session manually",
+		);
+	} finally {
+		await file.close();
+	}
 }

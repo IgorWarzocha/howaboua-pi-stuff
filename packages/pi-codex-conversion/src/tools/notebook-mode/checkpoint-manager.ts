@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import { writeNotebookCheckpoint, type NotebookCheckpointIdentity } from "./checkpoint.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { type ProjectStateBaseline, writeProjectState } from "./project-state.ts";
@@ -165,6 +166,6 @@ export class NotebookCheckpointManager {
 			throw new Error(notice, { cause: error });
 		}
 		if (projectFailure) throw projectFailure;
-		this.lastCheckpointAt = new Date().toISOString();
+		this.lastCheckpointAt = formatUtcMinute();
 	}
 }

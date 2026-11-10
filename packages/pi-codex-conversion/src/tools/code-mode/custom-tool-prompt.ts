@@ -54,6 +54,11 @@ export interface CodeModeSystemPromptOptions {
 }
 
 const customizationGuidance = new WeakMap<CodeModeSystemPromptOptions, () => string>();
+const promptToolNames = new WeakMap<CodeModeSystemPromptOptions, readonly string[]>();
+
+export function codeModePromptToolNames(options: CodeModeSystemPromptOptions): readonly string[] {
+	return promptToolNames.get(options) ?? [];
+}
 
 export function codeModeCustomizationGuidance(options: CodeModeSystemPromptOptions): string {
 	return customizationGuidance.get(options)?.() ?? "";
@@ -219,6 +224,8 @@ export function prepareCodeModeToolsPrompt(
 	gpt = false,
 ): string {
 	const sections = options.sections ??= {};
+	// Share this turn's canonical snapshot, not the changing live catalogue.
+	promptToolNames.set(options, tools.map((tool) => tool.name));
 	customizationGuidance.set(options, () => documentationPath && isEnabled()
 		? gpt
 			? `exec custom tools→read ${documentationPath}, NOT Pi docs`

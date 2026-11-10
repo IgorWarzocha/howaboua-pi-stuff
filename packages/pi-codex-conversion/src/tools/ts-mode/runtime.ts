@@ -11,8 +11,8 @@ export interface TsRuntime {
 }
 
 export async function loadTsRuntime(agentDir: string, signal?: AbortSignal): Promise<TsRuntime> {
-	const compiler = await runtimePackage("tsrs", "0.21.0-ts7.1.0-beta", agentDir, "TS", signal);
-	const node = await runtimePackage("@types/node", "26.6.5", agentDir, "TS", signal);
+	const compiler = await runtimePackage("tsrs", "0.23.0-ts7.1.0-beta", agentDir, "TS", signal);
+	const node = await runtimePackage("@types/node", "26.6.6", agentDir, "TS", signal);
 	const [api, ast, fs]: [TsRuntime["api"], TsRuntime["ast"], TsRuntime["fs"]] = await Promise.all([
 		import(pathToFileURL(compiler.resolve("tsrs/async")).href),
 		import(pathToFileURL(compiler.resolve("tsrs/ast")).href),

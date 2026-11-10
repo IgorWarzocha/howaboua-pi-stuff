@@ -10,10 +10,13 @@
 		"directory": "packages/pi-notes-compaction"
 	},
 	"files": [
+		"index.ts",
 		"src",
 		"README.md",
-		"PCC-INTEGRATION.md",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"LICENSE",
+		"tsconfig.json",
+		"PCC-INTEGRATION.md"
 	],
 	"engines": {
 		"node": ">=22.18.0"
@@ -23,10 +26,10 @@
 	"license": "MIT",
 	"pi": {
 		"extensions": [
-			"./src/index.ts"
+			"./index.ts"
 		]
 	},
-	"main": "src/index.ts",
+	"main": "index.ts",
 	"scripts": {
 		"check": "bun run lint && bun run typecheck",
 		"lint": "biome check .",
@@ -54,9 +57,9 @@
 		}
 	},
 	"exports": {
-		".": "./src/index.ts",
-		"./context-sharing": "./src/context-sharing.ts",
-		"./saved-session": "./src/saved-session.mjs",
-		"./saved-session-index": "./src/saved-session-index.mjs"
+		".": "./index.ts",
+		"./context-sharing": "./src/notes/context-sharing.ts",
+		"./saved-session": "./src/notes/saved-session.mjs",
+		"./saved-session-index": "./src/notes/saved-session-index.mjs"
 	}
 }

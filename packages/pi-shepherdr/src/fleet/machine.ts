@@ -1,6 +1,7 @@
-import type { CoreMachine } from "../core/remote-exec.js";
-import type { HerdrConnection } from "../herdr-client.js";
-import type { SshMachine } from "../machine-catalog.js";
+import type { CoreConnection } from "../core/backend.js";
+import type { CoreMachine } from "../core/machines.js";
+export const LOCAL_MACHINE = "local";
+
 import type { AgentMonitor } from "../monitor.js";
 import type {
 	MachineStatus,
@@ -10,8 +11,8 @@ import type {
 
 export interface MachineRuntime {
 	attempting?: boolean;
-	client?: HerdrConnection;
-	config?: SshMachine;
+	client?: CoreConnection;
+	coreId: string;
 	coreMachine?: CoreMachine;
 	contextRelayError?: string;
 	local: boolean;
@@ -24,7 +25,7 @@ export interface MachineRuntime {
 
 export interface ConnectedMachine {
 	prepareSharing: () => Promise<void>;
-	client: HerdrConnection;
+	client: CoreConnection;
 	fallbackCwd: string;
 	local: boolean;
 	machine: string;
@@ -46,10 +47,25 @@ export function errorMessage(error: unknown): string {
 	return message.length <= 500 ? message : `${message.slice(0, 499)}…`;
 }
 
-function shellQuote(value: string): string {
-	return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
-export function operatorPrefix(config: SshMachine): string {
-	return `ssh -T -o BatchMode=yes -- ${shellQuote(config.target)} herdr --session ${shellQuote(config.session)}`;
+/** Local alias and stable IDs win over mutable catalog names; never infer hosts. */
+export function resolveMachine(
+	runtimes: ReadonlyMap<string, MachineRuntime>,
+	selector: string,
+): string {
+	const target = selector.trim();
+	if (runtimes.has(target)) return target;
+	const byId = [...runtimes].find(([, runtime]) => runtime.coreId === target);
+	if (byId) return byId[0];
+	const matches = [...runtimes].filter(
+		([, runtime]) => runtime.coreMachine?.name === target,
+	);
+	const match = matches[0];
+	if (matches.length === 1 && match) return match[0];
+	if (matches.length > 1)
+		throw new Error(
+			`Ambiguous Core machine ${JSON.stringify(target)}; use a stable machine ID: ${matches.map(([id]) => id).join(", ")}`,
+		);
+	throw new Error(
+		`Unknown Core machine ${JSON.stringify(target)}; use list to see current machines or ${LOCAL_MACHINE}`,
+	);
 }

@@ -7,7 +7,7 @@ import {
 	activityExpectedUser,
 	activityTask,
 } from "../activity.js";
-import type { HerdrConnection } from "../herdr-client.js";
+import type { CoreConnection } from "../core/backend.js";
 import type { MonitorState, WorkAttempt } from "../monitor-state.js";
 import type { AssistantReader } from "../session-reader.js";
 import type {
@@ -62,23 +62,30 @@ export class SettlementReporter {
 	private readonly collector: SettlementCollector;
 	private readonly persist: () => void;
 	private readonly reporting = new Map<string, SettledAgentStatus>();
+	private readonly failedAttempts = new Map<string, string | undefined>();
 	private readonly pendingBlocked = new Map<string, PendingBlockedSettlement>();
 	private readonly delivery: SettlementDelivery;
-	private readonly retries = new Map<string, NodeJS.Timeout>();
+	private readonly retries = new Map<
+		string,
+		{ terminalId: string; timer: NodeJS.Timeout }
+	>();
 	private readonly state: MonitorState;
+	private readonly onClosed: (record: MonitoredAgent) => Promise<void>;
 
 	constructor(
 		pi: ExtensionAPI,
-		client: HerdrConnection,
+		client: CoreConnection,
 		state: MonitorState,
 		persist: () => void,
 		reader: AssistantReader | undefined,
 		origin: { machine: string; label: () => string; operatorPrefix: string },
+		onClosed: (record: MonitoredAgent) => Promise<void>,
 	) {
 		this.delivery = new SettlementDelivery(pi, origin);
 		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
+		this.onClosed = onClosed;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -91,9 +98,10 @@ export class SettlementReporter {
 
 	stop(): void {
 		this.reporting.clear();
+		this.failedAttempts.clear();
 		this.pendingBlocked.clear();
 		this.delivery.stop();
-		for (const timer of this.retries.values()) clearTimeout(timer);
+		for (const { timer } of this.retries.values()) clearTimeout(timer);
 		this.retries.clear();
 	}
 
@@ -104,10 +112,23 @@ export class SettlementReporter {
 	) {
 		return this.delivery.claim(attempt, signal, replyingTo);
 	}
+	observeReply(attempt: WorkAttempt, reply: ExtensionReply): void {
+		this.delivery.observeReply(attempt, reply);
+	}
 	releaseClaim(attempt: WorkAttempt | undefined, error: unknown) {
 		this.delivery.releaseClaim(attempt, error);
 	}
 	releaseAgentClaim(record: MonitoredAgent, error: unknown) {
+		this.failedAttempts.delete(record.terminalId);
+		for (const [key, retry] of this.retries) {
+			if (retry.terminalId !== record.terminalId) continue;
+			clearTimeout(retry.timer);
+			this.retries.delete(key);
+		}
+		for (const [key, pending] of this.pendingBlocked) {
+			if (pending.request.record.terminalId === record.terminalId)
+				this.pendingBlocked.delete(key);
+		}
 		this.delivery.releaseAgentClaim(record, error);
 	}
 	async report(
@@ -145,6 +166,10 @@ export class SettlementReporter {
 				request.status === "blocked" && !replyingTo ? "blocked" : undefined,
 			);
 			if (!settlement || !lifecycle.isCurrent()) return;
+			if (settlement === "closed") {
+				await this.onClosed(request.record);
+				return;
+			}
 			if (this.pendingBlocked.has(key)) return;
 			const current = this.state.byPane(settlement.agent.pane_id);
 			if (!current || current.terminalId !== request.record.terminalId) return;
@@ -248,6 +273,7 @@ export class SettlementReporter {
 				)
 			) {
 				this.clearRetry(current.terminalId, retryState.attemptId);
+				this.failedAttempts.delete(current.terminalId);
 				this.persist();
 				this.delivery.deliverSettlement(
 					lifecycle,
@@ -320,7 +346,7 @@ export class SettlementReporter {
 	private clearRetry(terminalId: string, attemptId: string | undefined): void {
 		const key = attemptKey(terminalId, attemptId);
 		const retry = this.retries.get(key);
-		if (retry) clearTimeout(retry);
+		if (retry) clearTimeout(retry.timer);
 		this.retries.delete(key);
 	}
 
@@ -363,7 +389,7 @@ export class SettlementReporter {
 				{ ...retry, count: retry.count + 1 },
 			);
 		}, delay);
-		this.retries.set(key, timer);
+		this.retries.set(key, { terminalId: request.record.terminalId, timer });
 		timer.unref();
 		return true;
 	}
@@ -383,6 +409,12 @@ export class SettlementReporter {
 			SETTLEMENT_RETRY_WINDOW_SECONDS +
 			" seconds";
 		if (attemptId) this.delivery.releaseAttempt(attemptId, new Error(message));
+		if (
+			this.failedAttempts.has(record.terminalId) &&
+			this.failedAttempts.get(record.terminalId) === attemptId
+		)
+			return;
+		this.failedAttempts.set(record.terminalId, attemptId);
 		lifecycle.context.ui.notify(message, "warning");
 	}
 }

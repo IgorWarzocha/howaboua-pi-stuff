@@ -1,0 +1,11 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"noEmitOnError": true,
+		"rewriteRelativeImportExtensions": true,
+		"rootDir": "src/board/viewer",
+		"outDir": "dist/viewer"
+	},
+	"include": ["src/board/viewer/server.ts"]
+}

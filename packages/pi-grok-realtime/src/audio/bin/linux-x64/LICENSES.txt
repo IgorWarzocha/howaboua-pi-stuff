@@ -1608,7 +1608,7 @@ SOFTWARE.
 
 ---
 
-itoa 1.0.18
+itoa 1.0.19
 MIT OR Apache-2.0
 https://github.com/dtolnay/itoa
 David Tolnay <dtolnay@gmail.com>
@@ -4512,7 +4512,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-syn 3.0.9
+syn 3.0.10
 MIT OR Apache-2.0
 https://github.com/dtolnay/syn
 David Tolnay <dtolnay@gmail.com>

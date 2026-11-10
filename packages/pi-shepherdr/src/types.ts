@@ -18,13 +18,14 @@ export interface PeerCommand {
 	description: string;
 }
 
-export interface MachineIdentity {
+interface MachineIdentity {
 	host: string;
 	session: string;
 }
 
 export interface FocusRequest {
 	source: MachineIdentity & {
+		agent?: string;
 		backend?: "core";
 		pane?: string;
 		terminal: string;
@@ -71,8 +72,8 @@ interface AgentSessionInfo {
 }
 
 export interface PaneInfo {
-	backend?: "core";
 	agent?: string | null;
+	worker?: true;
 	agent_session?: AgentSessionInfo | null;
 	agent_status: AgentStatus;
 	cwd?: string | null;
@@ -94,7 +95,7 @@ interface TabInfo {
 	workspace_id: string;
 }
 
-export interface WorkspaceInfo {
+interface WorkspaceInfo {
 	label: string;
 	workspace_id: string;
 }
@@ -107,6 +108,7 @@ export interface SessionSnapshot {
 }
 
 export interface MonitoredAgent {
+	readonly worker?: true;
 	readonly instructions?: string;
 	readonly latestInstruction?: string;
 	readonly scope: "task" | "persistent";
@@ -174,9 +176,4 @@ export interface SessionView {
 	assistantPending?: boolean;
 	assistantAfterInput?: boolean;
 	input?: LatestInput;
-}
-
-export interface HerdrEvent {
-	data: Record<string, unknown>;
-	event: string;
 }

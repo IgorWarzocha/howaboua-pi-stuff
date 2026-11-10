@@ -3,8 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { binding } from "@howaboua/pi-agent-board/integration";
-import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
+import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
 import type { AgentsParams } from "./agents-contract.js";
@@ -20,8 +19,8 @@ import {
 import { AttachmentRouting } from "./attachment-routing.js";
 import { AttachmentTarget } from "./attachment-target.js";
 import type { AgentBoard } from "./board/host.js";
+import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
 import { sessionContextPath } from "./remote/shepherdr-context.mjs";
 import type { PaneInfo } from "./types.js";
 
@@ -30,16 +29,19 @@ export class AgentAttachment {
 	private readonly pi: ExtensionAPI;
 	private readonly board: AgentBoard;
 	private readonly notes: AttachmentNotes;
+	private readonly localMachine: () => string;
 	readonly target: AttachmentTarget;
 	readonly routing: AttachmentRouting;
 	constructor(
 		pi: ExtensionAPI,
 		board: AgentBoard,
 		getService: () => ContextSharingService | undefined,
+		localMachine: () => string,
 	) {
 		this.pi = pi;
 		this.board = board;
 		this.notes = new AttachmentNotes(getService);
+		this.localMachine = localMachine;
 		this.target = new AttachmentTarget(pi, board, getService, this.notes);
 		this.routing = new AttachmentRouting(getService, this.notes);
 	}
@@ -67,7 +69,7 @@ export class AgentAttachment {
 		const controllerContext = context
 			? await this.target.context(ctx, false)
 			: undefined;
-		const controllerBoard = useBoard ? binding(ctx) : undefined;
+		const controllerBoard = useBoard ? this.board.binding(ctx) : undefined;
 		const check = async () => {
 			const currentContext = controllerContext
 				? await this.target.context(ctx, false)
@@ -77,7 +79,8 @@ export class AgentAttachment {
 				ctx.sessionManager.getSessionId() !== controllerSessionId ||
 				(controllerContext &&
 					!isDeepStrictEqual(currentContext, controllerContext)) ||
-				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
+				(controllerBoard &&
+					!isDeepStrictEqual(this.board.binding(ctx), controllerBoard))
 			)
 				throw new Error(
 					"Controller changed during attachment; resume the original session and retry",
@@ -134,7 +137,8 @@ export class AgentAttachment {
 								target: current.context,
 								alias: `/${current.sessionId}`,
 								controllerAlias: `/${controllerSessionId}`,
-								...(runtime.local ? { controllerFile } : {}),
+								controllerFile,
+								controllerMachine: this.localMachine(),
 								controllerNotes: await this.notes.export(ctx),
 								targetNotes: current.notes,
 							},
@@ -149,7 +153,7 @@ export class AgentAttachment {
 									upstream,
 									current.sessionId,
 								),
-								controller: binding(ctx),
+								controller: this.board.binding(ctx),
 							},
 						}
 					: {}),
@@ -219,7 +223,7 @@ export class AgentAttachment {
 		const { plan } = route;
 		if ((params.context && !plan.context) || (params.board && !plan.board))
 			throw new Error("Cannot detach a choice that was not attached");
-		const controllerBoard = params.board ? binding(ctx) : undefined;
+		const controllerBoard = params.board ? this.board.binding(ctx) : undefined;
 		const check = async (checkRoute = true) => {
 			const currentContext =
 				params.context && plan.context
@@ -243,7 +247,8 @@ export class AgentAttachment {
 						currentContext,
 						canonicalContextIdentity(plan.context.controller),
 					)) ||
-				(controllerBoard && !isDeepStrictEqual(binding(ctx), controllerBoard))
+				(controllerBoard &&
+					!isDeepStrictEqual(this.board.binding(ctx), controllerBoard))
 			)
 				throw new Error(
 					"Controller changed during detach; resume it and retry",
