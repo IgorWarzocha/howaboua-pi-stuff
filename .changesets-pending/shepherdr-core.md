@@ -18,3 +18,4 @@ Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi
 - Attachment and detachment now accept context or Board sharing independently. Incoming messages identify sender access, distinguishing machine IDs from Pi agent references.
 - Monitoring notices now describe delayed or unavailable agent updates and automatic retry without duplicate internal errors during Core restarts.
 - Agent help now asks callers to trust worker judgement instead of over-prescribing restrictions or narrowing the task unnecessarily.
+- Worker profiles now brief only the initial assignment instead of pinning restrictions in the standing prompt. Later assignments and model-role changes can reuse the same agent and its notes.

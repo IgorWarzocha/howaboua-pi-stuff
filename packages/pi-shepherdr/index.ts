@@ -10,7 +10,6 @@ import { AgentFleet } from "./src/fleet/index.js";
 import { registerAgentEventRenderer } from "./src/messages/render.js";
 import { createPeerCommands } from "./src/peer-commands.js";
 import { registerPeerInbox } from "./src/peer-inbox.js";
-import { registerProfilePrompt } from "./src/profile-prompt.js";
 import { installAgentProfiles } from "./src/profiles.js";
 import { registerSharedAgentContext } from "./src/shared-context-host.js";
 import { registerVoiceFocusReceiver } from "./src/voice-handoff.js";
@@ -27,7 +26,11 @@ export default async function shepherdrExtension(
 	const workerRole = registerWorkerRole(pi);
 
 	await installAgentProfiles();
-	registerProfilePrompt(pi);
+	// Older saved launch commands may still carry this flag. It no longer pins a role.
+	pi.registerFlag("shepherdr-profile-prompt", {
+		type: "string",
+		description: "Legacy worker profile option (ignored)",
+	});
 	registerDeveloperDelivery(pi);
 	const peerCommands = createPeerCommands(pi);
 	const fleet = new AgentFleet(pi);

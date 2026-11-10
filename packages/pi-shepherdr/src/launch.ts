@@ -67,6 +67,7 @@ export function resumeAgentArgs(args: readonly string[]): string[] {
 		"--thinking",
 		"--name",
 		"-n",
+		"--shepherdr-profile-prompt",
 	]);
 	const result: string[] = [];
 	for (let index = 0; index < args.length; index += 1) {

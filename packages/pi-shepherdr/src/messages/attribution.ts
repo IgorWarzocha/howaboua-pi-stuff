@@ -52,6 +52,7 @@ export async function attributeAgentPrompt(
 	sessionId: string,
 	message: string,
 	kind: "message" | "task",
+	initialProfile?: string,
 ): Promise<PeerMessage> {
 	const [pane, snapshot] = await Promise.all([
 		getCurrentPane(client),
@@ -75,6 +76,13 @@ export async function attributeAgentPrompt(
 	return {
 		sender: `<herdr_sender ${sourceAttributes(source)} />`,
 		text: message,
-		context: kind === "task" ? DELEGATED_WORKER_GUIDANCE : "",
+		context: [
+			...(initialProfile
+				? [
+						`<initial_worker_profile>\n${initialProfile}\n</initial_worker_profile>`,
+					]
+				: []),
+			...(kind === "task" ? [DELEGATED_WORKER_GUIDANCE] : []),
+		].join("\n\n"),
 	};
 }

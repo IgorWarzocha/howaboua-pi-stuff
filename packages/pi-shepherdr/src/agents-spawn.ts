@@ -103,6 +103,7 @@ export async function spawnAgent(
 			ctx.sessionManager.getSessionId(),
 			input.startsWith("/") ? input : message,
 			"task",
+			profile.prompt,
 		);
 		if (input.startsWith("/") && message !== input)
 			attributedMessage.context = [attributedMessage.context, message]

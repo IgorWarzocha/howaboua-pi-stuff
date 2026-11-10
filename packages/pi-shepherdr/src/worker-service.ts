@@ -194,9 +194,7 @@ export function registerWorkerService(
 						const profile = (await loadAgentProfiles()).get("general");
 						if (!profile)
 							throw new Error("General worker profile is unavailable");
-						const profileArgs = profileAgentArgs(profile, {
-							includePrompt: false,
-						});
+						const profileArgs = profileAgentArgs(profile);
 						if (
 							profileArgs.some((arg) =>
 								/^(?:--(?:session(?:-id)?|continue|resume|no-session|fork)(?:=|$)|-[cr]$)/.test(

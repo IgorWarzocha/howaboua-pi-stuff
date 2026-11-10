@@ -233,6 +233,8 @@ On first load, Shepherdr installs three editable profiles:
 - `explorer` uses `openai-codex/gpt-6-luna` with `high` thinking for read-only discovery
 - `reviewer` uses `openai-codex/gpt-6-luna` with `xhigh` thinking for generic read-only review
 
+Profiles set starting defaults, not a permanent role. Their instructions accompany the initial assignment, so the same agent can take on different work later. Notes model roles can change its model and reasoning at context rollover without replacing the agent or discarding its saved notes.
+
 Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create and prepare a dedicated worktree, then pass it as `cwd`.
 
 Profiles live under:
