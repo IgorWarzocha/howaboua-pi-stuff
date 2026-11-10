@@ -9,3 +9,5 @@
 - Unavailable image viewing and reasoning adjustment now report recovery options.
 - Voice task acknowledgements now omit unused task IDs.
 - Fixed excessive memory use when comparing large Codex conversation inputs for WebSocket continuation.
+- JS Notebook now uses the Pi codemode 1.5.1 runtime.
+- Responses Lite proxies now honour `compat.promptCacheKeyMode: "disabled"`.

@@ -97,6 +97,8 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			const effectiveOptions = { ...options, grammarToolInputProperties };
 			let headers = mergeHeaders(model.headers, options?.headers);
 			let body: ResponsesBody = buildRequestBody(model, resolvedContext, effectiveOptions);
+			const compat = (model as Model<"openai-responses">).compat;
+			if (compat?.promptCacheKeyMode === "disabled") delete body.prompt_cache_key;
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
 			body = isResponsesLiteRequest(body)
