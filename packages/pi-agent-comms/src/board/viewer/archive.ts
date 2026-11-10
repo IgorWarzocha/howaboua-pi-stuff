@@ -5,7 +5,6 @@ import {
 	type SQLOutputValue,
 } from "node:sqlite";
 import { caseFold } from "unicode-case-folding";
-import { minuteTimestamp } from "../../timestamps.js";
 import type {
 	BoardDetail,
 	BoardIndex,
@@ -32,7 +31,7 @@ function count(row: Row, key: string): number {
 	return value;
 }
 function timestamp(row: Row, key: string): string {
-	return minuteTimestamp(text(row, key));
+	return new Date(text(row, key)).toISOString().slice(0, 16) + "Z";
 }
 function nullableTimestamp(row: Row, key: string): string | null {
 	return row[key] === null ? null : timestamp(row, key);
