@@ -37,6 +37,13 @@ jobs:
           PREVIEW_TAG: ${{ steps.preview.outputs.tag }}
         # Preserve the package's prepublishOnly/prepack checks and build hooks.
         run: npm publish --tag "$PREVIEW_TAG" --provenance --access public
+      - name: Verify preview channel
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGE_NAME: ${{ steps.preview.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.preview.outputs.version }}
+          PREVIEW_TAG: ${{ steps.preview.outputs.tag }}
+        run: node scripts/verify-preview-release.mjs "$PACKAGE_NAME" "$PACKAGE_VERSION" "$PREVIEW_TAG"
       - name: Report preview
         env:
           PACKAGE_NAME: ${{ steps.preview.outputs.name }}
