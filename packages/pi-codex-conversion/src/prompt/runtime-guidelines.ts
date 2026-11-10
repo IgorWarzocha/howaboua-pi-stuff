@@ -11,6 +11,7 @@ export const GENERAL_GUIDELINES = [
 	["Finish the requested work; ask only when missing information changes what you should do", "Finish work; ask ONLY if missing info changes action"],
 	["Act on clear requests; don't just talk about doing them", "Clear request→act; don't just discuss doing it"],
 	["Defer work only when the user explicitly asks to defer it", "Defer work ONLY if user explicitly asks"],
+	["State supported conclusions directly. Include caveats only when they change the answer or next action", "Supported conclusions→state directly; caveats ONLY if they change answer/next action"],
 ] as const;
 
 const NORMAL_CODEX_GUIDELINES = [

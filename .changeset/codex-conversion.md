@@ -4,6 +4,7 @@
 
 - Code and Notebook now keep unchanged nested-tool images stable across progress updates.
 - Code and Notebook guidance now follows the available nested tools instead of recommending absent shell or patch bindings.
+- General guidance now asks for direct, supported conclusions, with caveats only when they change the answer or next action.
 - Patch success results omit routine counters. Errors retain partial-change details and recovery instructions.
 - Unavailable image viewing and reasoning adjustment now report recovery options.
 - Voice task acknowledgements now omit unused task IDs.
