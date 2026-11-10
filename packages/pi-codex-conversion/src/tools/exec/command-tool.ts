@@ -172,9 +172,11 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("exec_command aborted");
 			const parsedInput = parseExecCommandParams(params);
-			const input: ExecCommandInput = parsedInput.shell === undefined
-				? { ...parsedInput, defaultShell: getPiConfiguredShellPath(ctx) }
-				: parsedInput;
+			const input: ExecCommandInput = {
+				...parsedInput,
+				ownerSessionId: ctx.sessionManager.getSessionId(),
+				...(parsedInput.shell === undefined ? { defaultShell: getPiConfiguredShellPath(ctx) } : {}),
+			};
 			const toToolResult = (partial: UnifiedExecResult) => ({
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial) }],
 				details: partial,

@@ -55,6 +55,8 @@ Execution mode is separate from provider scope. Apply the adapter to **Codex and
 
 The Codex toolset reads files through the shell and edits with `apply_patch`, rather than Pi's separate text read, edit and write tools.
 
+Background shells survive context compaction and Notes rollover. The agent receives a fresh shell inventory without changing the standing prompt. If a command finishes with an uncollected result, PCC wakes the agent only when idle. Normal monitoring remains primary; these notices are a safety net.
+
 </details>
 
 <a name="settings"></a>
