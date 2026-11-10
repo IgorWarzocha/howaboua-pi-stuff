@@ -115,8 +115,8 @@ export async function agentsHelp(
 				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
 				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
 			reuse: gpt
-				? "Reuse ONLY same investigation; reviews independent; new scope=new agent"
-				: "Reuse only same investigation; reviews independent; new scope = new agent",
+				? "Keep each agent until task verified complete; corrections→same agent; then close. Unrelated task→new agent; reviews independent"
+				: "Keep each agent available until its task is verified complete; return corrections to it before closing. Use separate agents for unrelated work and independent reviews.",
 			...(profiles.has("general")
 				? {
 						general: "Only when requested/orchestrating",
