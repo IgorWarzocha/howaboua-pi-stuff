@@ -12,23 +12,13 @@ interface HistoryItem {
 	content: string;
 }
 
-// Pi entries are immutable once persisted. Rendering is lazy so indexing never
-// serializes the ongoing context, and repeated lookups reuse unchanged text.
-const rendered = new WeakMap<SessionEntry, string>();
+// Cache lazy metadata, not rendered content: Pi retains persisted entries, so
+// caching serialized tool arguments would duplicate them for the session lifetime.
 const cachedItems = new WeakMap<SessionEntry, HistoryItem>();
 const indexItems = new WeakMap<
 	HistoryItem,
 	Pick<HistoryItem, "item_id" | "content">
 >();
-function content(entry: SessionEntry, render: () => string): string {
-	let value = rendered.get(entry);
-	if (value === undefined) {
-		value = render();
-		rendered.set(entry, value);
-	}
-	return value;
-}
-
 function customHistoryRole(
 	entry: Extract<SessionEntry, { type: "custom_message" }>,
 ): string {
@@ -180,7 +170,7 @@ export async function historyWindows(
 						}
 					: {}),
 				get content() {
-					return content(entry, render);
+					return render();
 				},
 			};
 			if (message.role === "user" || message.role === "assistant") {
@@ -212,15 +202,13 @@ export async function historyWindows(
 				item_id: entry.id,
 				role: customHistoryRole(entry),
 				get content() {
-					return content(entry, () =>
-						typeof entry.content === "string"
-							? entry.content
-							: entry.content
-									.map((block) =>
-										block.type === "text" ? block.text : "[image]",
-									)
-									.join("\n"),
-					);
+					return typeof entry.content === "string"
+						? entry.content
+						: entry.content
+								.map((block) =>
+									block.type === "text" ? block.text : "[image]",
+								)
+								.join("\n");
 				},
 			};
 		}

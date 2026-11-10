@@ -8,9 +8,8 @@ import { buildSSEHeaders, buildWebSocketHeaders, createCodexRequestId, extractAc
 import { codexDiagnosticsFailure } from "../diagnostic-failure.ts";
 import { supportsResponsesLiteModel } from "../responses-lite-model.ts";
 import { resolveCodexTranscript } from "../request-body.ts";
-import { serializeCodexRequest } from "../request-serialization.ts";
 import { applyResponsesLiteWebSocketMetadata } from "../responses-lite.ts";
-import { compressRequestBodyZstd, normalizeTimeoutMs } from "../sse.ts";
+import { normalizeTimeoutMs } from "../sse.ts";
 import { CodexProtocolError } from "../stream-events.ts";
 import type { CodexTurnState } from "../turn-state.ts";
 import type { BeforeCodexRequestSend, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, CodexUsageRecorder, OpenAICodexStreamOptions, ResponsesBody } from "../types.ts";
@@ -159,14 +158,10 @@ export class CodexTransportRequest<TApi extends Api> {
 		deps.onPreparedPayload?.(body);
 		const baseSseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator, body);
 		const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId, originator, body);
-		const bodyJson = serializeCodexRequest(body);
 		const websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
-		const compressedBody = compressRequestBodyZstd(bodyJson);
-		if (compressedBody) baseSseHeaders.set("content-encoding", "zstd");
-		const sseBody = compressedBody ?? bodyJson;
 		// Final-body preparation may prewarm the main lane and discover a sticky
 		// WebSocket incompatibility. Re-read session routing before the real send.
 		const transport = getEffectiveCodexTransport(options?.transport, options?.sessionId);
-		return { accountId, canonicalSessionToken, reconstructedBody, body, canonicalHistory, baseSseHeaders, websocketHeaders, bodyJson, websocketBody, sseBody, transport };
+		return { accountId, canonicalSessionToken, reconstructedBody, body, canonicalHistory, baseSseHeaders, websocketHeaders, websocketBody, transport };
 	}
 }

@@ -70,15 +70,16 @@ export async function useHistory(
 				: undefined);
 		const item = items?.find((item) => item.item_id === itemId);
 		if (!item) return { item: null };
-		const offset = integer(params["offset_chars"], 0, item.content.length);
+		const { content: fullContent, ...metadata } = item;
+		const offset = integer(params["offset_chars"], 0, fullContent.length);
 		const limit = integer(params["limit_chars"], 8000, 8000);
-		const content = item.content.slice(offset, offset + limit);
+		const content = fullContent.slice(offset, offset + limit);
 		return {
 			item: {
-				...item,
+				...metadata,
 				content,
-				total_chars: item.content.length,
-				...(offset + content.length < item.content.length
+				total_chars: fullContent.length,
+				...(offset + content.length < fullContent.length
 					? { next_offset_chars: offset + content.length }
 					: {}),
 			},
