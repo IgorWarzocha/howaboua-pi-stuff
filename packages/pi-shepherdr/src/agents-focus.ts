@@ -54,6 +54,7 @@ export async function focusAgent(
 	const request: FocusRequest = {
 		source: {
 			...(await local.client.machineIdentity()),
+			agent: `/${ctx.sessionManager.getSessionId()}`,
 			backend: "core",
 			terminal: source.terminal_id,
 			sessionFile,
@@ -116,6 +117,12 @@ export function readFocus(value: unknown): FocusRequest {
 		)
 			throw new Error("Invalid focus source");
 	}
+	if (
+		"agent" in source &&
+		(typeof source["agent"] !== "string" ||
+			!/^\/[^/\\\u0000]+$/.test(source["agent"]))
+	)
+		throw new Error("Invalid focus agent");
 	if (source["backend"] !== "core")
 		throw new Error(
 			"Focus return requires a Core session; focus again from the source session",

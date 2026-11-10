@@ -289,7 +289,8 @@ export function registerWorkerService(
 					}
 					if (!worker) throw new Error("Worker ownership is unavailable");
 					const attributed = await attributeAgentPrompt(
-						runtime.client,
+						fleet.connected().client,
+						ctx.sessionManager.getSessionId(),
 						input.prompt,
 						"task",
 					);

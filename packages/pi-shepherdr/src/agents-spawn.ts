@@ -100,6 +100,7 @@ export async function spawnAgent(
 		);
 		const attributedMessage = await attributeAgentPrompt(
 			fleet.connected().client,
+			ctx.sessionManager.getSessionId(),
 			input.startsWith("/") ? input : message,
 			"task",
 		);

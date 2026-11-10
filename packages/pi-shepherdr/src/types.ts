@@ -25,6 +25,7 @@ interface MachineIdentity {
 
 export interface FocusRequest {
 	source: MachineIdentity & {
+		agent?: string;
 		backend?: "core";
 		pane?: string;
 		terminal: string;

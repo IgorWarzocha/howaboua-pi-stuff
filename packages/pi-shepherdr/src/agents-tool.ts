@@ -212,6 +212,7 @@ export function createAgentsTool(
 				const message = required(params.message, "message");
 				const attributedMessage = await attributeAgentPrompt(
 					fleet.connected().client,
+					ctx.sessionManager.getSessionId(),
 					message,
 					params.action === "send" ? "message" : "task",
 				);

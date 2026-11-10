@@ -51,6 +51,7 @@ export function sourceAttributes(
 
 export async function attributeAgentPrompt(
 	client: CoreConnection,
+	sessionId: string,
 	message: string,
 	kind: "message" | "task",
 ): Promise<PeerMessage> {
@@ -62,9 +63,12 @@ export async function attributeAgentPrompt(
 		(workspace) => workspace.workspace_id === pane.workspace_id,
 	)?.label;
 	const tab = snapshot.tabs.find((tab) => tab.tab_id === pane.tab_id)?.label;
+	const identity = await client.machineIdentity();
 	const source = {
 		kind,
-		...(await client.machineIdentity()),
+		host: identity.host,
+		machine: identity.session,
+		agent: `/${sessionId}`,
 		...agentSource(pane, {
 			...(workspace ? { workspace } : {}),
 			...(tab ? { tab } : {}),
