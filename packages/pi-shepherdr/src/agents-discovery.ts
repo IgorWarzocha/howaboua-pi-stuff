@@ -249,6 +249,7 @@ export async function listFleetAgents(
 			({
 				snapshot: _snapshot,
 				monitoredPaneIds: _monitoredPaneIds,
+				session: _session,
 				...machine
 			}) => machine,
 		),
