@@ -9,12 +9,11 @@ import type {
 	SharedContextResult,
 } from "@howaboua/pi-agent-comms/context-sharing";
 import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
-import { Check } from "typebox/value";
 import { AgentAttachment } from "./attachment.js";
 import {
 	attachmentRoutes,
 	canonicalContextIdentity,
-	Identity,
+	checkIdentity,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { children, isBoardEnvelope } from "./board/records.js";
@@ -169,7 +168,7 @@ export class SharedAgentContext {
 			if (
 				!file ||
 				!("identity" in value) ||
-				!Check(Identity, value.identity) ||
+				!checkIdentity(value.identity) ||
 				!isDeepStrictEqual(
 					identity,
 					canonicalContextIdentity(value.identity),

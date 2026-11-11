@@ -19,8 +19,8 @@ const skipDirs = new Set(["node_modules", "dist", ".git", ".pi", ".changeset", "
 const codeExts = new Set([".ts", ".tsx", ".js", ".mjs"]);
 const legacyPatterns = [
 	{
-		pattern: /@sinclair\/typebox(?:\/compiler)?/,
-		message: "Replace @sinclair/typebox with typebox 1.x and update the schema imports.",
+		pattern: /(?:from\s*|import\(\s*)["'](?:@sinclair\/)?typebox(?:\/[^"']+)?["']/,
+		message: "Use @earendil-works/pi-schema builders and validators instead of TypeBox.",
 	},
 	{
 		pattern: /@mariozechner\/pi-[A-Za-z0-9-]+/,

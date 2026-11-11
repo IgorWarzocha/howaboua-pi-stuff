@@ -1,12 +1,19 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	compile,
+	nul,
+	obj,
+	type Static,
+	str,
+	union,
+} from "@earendil-works/pi-schema";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
 import {
 	attachmentOwner,
 	attachmentRoutes,
 	canonicalContextIdentity,
+	checkIdentity,
 	detachment,
 	Identity,
 } from "../attachment-protocol.js";
@@ -17,11 +24,15 @@ import { sessionContextPath } from "../remote/shepherdr-context.mjs";
 import { MEMBER_ENTRY } from "../spawn-context.js";
 import type { PaneInfo } from "../types.js";
 
-const Sharing = Type.Object({
-	sessionId: Type.String({ minLength: 1 }),
-	notes: Type.Union([Identity, Type.Null()]),
-	boardId: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
-});
+const Sharing = obj(
+	{
+		sessionId: str({ minLength: 1 }),
+		notes: union([Identity, nul()]),
+		boardId: union([str({ minLength: 1 }), nul()]),
+	},
+	{ open: true },
+);
+const checkSharing = compile(Sharing).check;
 type Sharing = Static<typeof Sharing>;
 type Access = "shared" | "not shared" | "retained checkpoints only" | "unknown";
 
@@ -32,7 +43,7 @@ export function describePeerSharing(
 	board: AgentBoard,
 ): Sharing {
 	const notes = service?.describe(ctx);
-	if (notes && !Check(Identity, notes))
+	if (notes && !checkIdentity(notes))
 		throw new Error("Sharing status unavailable");
 	return {
 		sessionId: ctx.sessionManager.getSessionId(),
@@ -82,15 +93,18 @@ function notesAccess(
 		!from.routing &&
 		!owner?.context &&
 		!routes.some((route) => route.plan.context) &&
-		!ctx.sessionManager
-			.getEntries()
-			.some(
-				(entry) =>
-					entry.type === "custom" &&
-					entry.customType === MEMBER_ENTRY &&
-					(entry.data as { threadId?: unknown } | undefined)?.threadId ===
-						from.threadId,
-			)
+		!ctx.sessionManager.getEntries().some(
+			(entry) =>
+				entry.type === "custom" &&
+				entry.customType === MEMBER_ENTRY &&
+				(
+					entry.data as
+						| {
+								threadId?: unknown;
+						  }
+						| undefined
+				)?.threadId === from.threadId,
+		)
 	)
 		return "not shared";
 	return "unknown";
@@ -109,14 +123,14 @@ export async function peerReplyContext(
 	try {
 		const file = sessionPath(panel);
 		if (!file) throw new Error("Target has no saved session");
-		const deadline = AbortSignal.timeout(2_000);
+		const deadline = AbortSignal.timeout(2000);
 		const result = await runtime.client.requestContext(
 			sessionContextPath(file),
 			{ operation: "peer-sharing" },
 			signal ? AbortSignal.any([signal, deadline]) : deadline,
 		);
 		if (
-			!Check(Sharing, result) ||
+			!checkSharing(result) ||
 			(result.notes && result.notes.threadId !== result.sessionId)
 		)
 			throw new Error("Sharing status unavailable");

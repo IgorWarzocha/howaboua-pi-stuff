@@ -1,4 +1,4 @@
-import { type Static, Type } from "typebox";
+import { obj, type Static } from "@earendil-works/pi-schema";
 import { StringEnum } from "../tools/string-enum.ts";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./activation/state.ts";
@@ -8,7 +8,7 @@ import { auxiliaryToolRenderers, displayRecord } from "../ui/tool-rendering/auxi
 
 type Level = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 const levels: readonly Level[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const PARAMETERS = Type.Object({ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) });
+const PARAMETERS = obj({ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) }, { open: true });
 
 interface AutoReasoning {
 	begin(ctx: ExtensionContext): void;

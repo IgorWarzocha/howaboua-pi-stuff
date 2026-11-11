@@ -4,6 +4,8 @@ Every package must work against released upstream Pi. Never make monorepo functi
 
 Every extension must install and run standalone. Discover optional integrations at runtime; never require another extension for core functionality.
 
+Use released `@earendil-works/pi-schema` builders and validators, not TypeBox. Released Pi tool typings may still need explicit native `Static` callback annotations.
+
 We use this toolkit. If tools fail or cause friction, propose concrete fixes. Apply tiny, low-risk fixes without derailing the task. Edit owning source, never installed tooling. Validate and report changes. Source edits do not update running packages.
 Delegate warranted sandbox/E2E reviews to the dedicated `sandbox-reviewer` profile. Never run them in the parent. Require a concrete runtime acceptance gap that focused checks cannot cover; wording edits and source synchronisation alone do not warrant a sandbox review.
 Sandbox validation means interacting with Pi's TUI through Herdr: normal consecutive turns that execute tools and use the guest environment. Programmatic probes do not require a sandbox and do not substitute for this interaction.

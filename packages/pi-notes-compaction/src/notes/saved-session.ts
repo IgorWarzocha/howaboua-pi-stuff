@@ -1,6 +1,14 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	compile,
+	nul,
+	num,
+	obj,
+	opt,
+	str,
+	union,
+} from "@earendil-works/pi-schema";
 
 export { readSavedNotesSession } from "./saved-session.mjs";
 export interface SavedNotesSession {
@@ -10,22 +18,30 @@ export interface SavedNotesSession {
 	savedAt?: number;
 }
 
-const SavedEntry = Type.Object({
-	type: Type.String(),
-	id: Type.String(),
-	parentId: Type.Union([Type.String(), Type.Null()]),
-	timestamp: Type.String(),
-});
-const SavedSession = Type.Object({
-	threadId: Type.String({ minLength: 1 }),
-	entries: Type.Array(SavedEntry),
-	branch: Type.Array(SavedEntry),
-	savedAt: Type.Optional(Type.Number()),
-});
+const SavedEntry = obj(
+	{
+		type: str(),
+		id: str(),
+		parentId: union([str(), nul()]),
+		timestamp: str(),
+	},
+	{ open: true },
+);
+const SavedSession = obj(
+	{
+		threadId: str({ minLength: 1 }),
+		entries: arr(SavedEntry),
+		branch: arr(SavedEntry),
+		savedAt: opt(num()),
+	},
+	{ open: true },
+);
+
+const savedSessionValidator = compile(SavedSession);
 
 /** Remote loaders carry data, not authority. Native identity is checked by the graph reader. */
 export function validateSavedNotesSession(value: unknown): SavedNotesSession {
-	if (!Check(SavedSession, value))
+	if (!savedSessionValidator.check(value))
 		throw new Error(
 			"Saved session response is invalid. Update Notes on the other machine and retry.",
 		);

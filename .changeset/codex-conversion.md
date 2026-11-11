@@ -14,6 +14,7 @@
 - Reduced temporary memory use when checking Codex conversation continuity and preparing WebSocket requests.
 - Codex now stops retrying recognised content-policy, inference-hook, access-program and workspace rejections while preserving transient-error retries.
 - JS Notebook now uses the Pi codemode 1.5.2 runtime.
+- Tool schemas and input validation now use Pi's native schema package without a TypeBox dependency.
 - TS notebooks now use tsrs 0.23, including upstream fixes for memory growth during repeated compiler rebuilds.
 - Code now uses the official 0.167 host runtime.
 - Bundled native tools and voice helpers now use refreshed Rust dependencies.

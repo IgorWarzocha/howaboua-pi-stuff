@@ -1,42 +1,86 @@
-import { type Static, type TSchema, Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	bool,
+	compile,
+	int,
+	nul,
+	obj,
+	type Static,
+	str,
+	union,
+	type Validator,
+} from "@earendil-works/pi-schema";
 import type { Thread } from "./github.js";
 
-const pageInfo = Type.Object({
-	hasNextPage: Type.Boolean(),
-	endCursor: Type.Union([Type.String(), Type.Null()]),
-});
-const comment = Type.Object({
-	id: Type.String(),
-	updatedAt: Type.String(),
-	viewerDidAuthor: Type.Boolean(),
-});
-const reviewComment = Type.Object({
-	...comment.properties,
-	url: Type.String(),
-	state: Type.String(),
-});
-const reviewThread = Type.Object({
-	id: Type.String(),
-	isResolved: Type.Boolean(),
-	comments: Type.Object({
-		nodes: Type.Array(reviewComment),
-		pageInfo,
-	}),
-});
-const review = Type.Object({
-	...comment.properties,
-	state: Type.String(),
-	body: Type.String(),
-	comments: Type.Object({ totalCount: Type.Integer({ minimum: 0 }) }),
-});
+const pageInfo = obj(
+	{
+		hasNextPage: bool(),
+		endCursor: union([str(), nul()]),
+	},
+	{ open: true },
+);
+const commentProperties = {
+	id: str(),
+	updatedAt: str(),
+	viewerDidAuthor: bool(),
+};
+const comment = obj(commentProperties, { open: true });
+const reviewComment = obj(
+	{
+		...commentProperties,
+		url: str(),
+		state: str(),
+	},
+	{ open: true },
+);
+const reviewThread = obj(
+	{
+		id: str(),
+		isResolved: bool(),
+		comments: obj(
+			{
+				nodes: arr(reviewComment),
+				pageInfo,
+			},
+			{ open: true },
+		),
+	},
+	{ open: true },
+);
+const review = obj(
+	{
+		...commentProperties,
+		state: str(),
+		body: str(),
+		comments: obj({ totalCount: int({ minimum: 0 }) }, { open: true }),
+	},
+	{ open: true },
+);
+const commentPage = compile(
+	obj({ nodes: arr(comment), pageInfo }, { open: true }),
+);
+const reviewPage = compile(
+	obj({ nodes: arr(review), pageInfo }, { open: true }),
+);
+const reviewThreadPage = compile(
+	obj({ nodes: arr(reviewThread), pageInfo }, { open: true }),
+);
+const reviewCommentPage = compile(
+	obj({ nodes: arr(reviewComment), pageInfo }, { open: true }),
+);
 const paging = "pageInfo { hasNextPage endCursor }";
 const commentFields = "id updatedAt viewerDidAuthor";
 const reviewCommentFields = `${commentFields} url state`;
 
 export interface ThreadSnapshot {
 	conversation: Map<string, string>;
-	unresolved: Map<string, { version: string; url: string }>;
+	unresolved: Map<
+		string,
+		{
+			version: string;
+			url: string;
+		}
+	>;
 }
 
 export async function threadSnapshot(
@@ -52,14 +96,13 @@ export async function threadSnapshot(
 		"-F",
 		`number=${thread.number}`,
 	];
-	async function* pages<T extends TSchema>(
+	async function* pages<T>(
 		query: string,
 		select: string,
 		args: string[],
-		node: T,
+		validator: Validator<{ nodes: T[]; pageInfo: Static<typeof pageInfo> }>,
 		cursor: string | null = null,
 	) {
-		const schema = Type.Object({ nodes: Type.Array(node), pageInfo });
 		do {
 			const value: unknown = JSON.parse(
 				await gh([
@@ -73,7 +116,7 @@ export async function threadSnapshot(
 					select,
 				]),
 			);
-			if (!Check(schema, value))
+			if (!validator.check(value))
 				throw new Error(
 					"GitHub returned invalid feedback metadata. Retry the watch.",
 				);
@@ -105,7 +148,7 @@ export async function threadSnapshot(
 		),
 		`${path}.comments`,
 		variables,
-		comment,
+		commentPage,
 	)) {
 		for (const item of nodes)
 			if (!item.viewerDidAuthor)
@@ -118,7 +161,7 @@ export async function threadSnapshot(
 		),
 		`${path}.reviews`,
 		variables,
-		review,
+		reviewPage,
 	)) {
 		for (const item of nodes) {
 			// Inline review receipts duplicate the threads below; keep standalone feedback and verdicts.
@@ -137,7 +180,7 @@ export async function threadSnapshot(
 		),
 		`${path}.reviewThreads`,
 		variables,
-		reviewThread,
+		reviewThreadPage,
 	)) {
 		for (const item of nodes) {
 			if (item.isResolved) continue;
@@ -151,7 +194,7 @@ export async function threadSnapshot(
 					`query($id:ID!,$cursor:String) { node(id:$id) { ... on PullRequestReviewThread { comments(first:100,after:$cursor) { nodes { ${reviewCommentFields} } ${paging} } } } }`,
 					".data.node.comments",
 					["-f", `id=${item.id}`],
-					reviewComment,
+					reviewCommentPage,
 					item.comments.pageInfo.endCursor,
 				))
 					comments.push(...more);

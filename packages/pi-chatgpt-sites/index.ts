@@ -1,5 +1,12 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import {
+	map,
+	obj,
+	opt,
+	type Static,
+	str,
+	unknown,
+} from "@earendil-works/pi-schema";
 import { getSitesAuth } from "./src/auth.js";
 import { SitesClient } from "./src/client.js";
 import { call, documentation } from "./src/facade.js";
@@ -48,20 +55,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+const SitesParameters = obj(
+	{
+		resource: opt(str()),
+		action: opt(str()),
+		params: opt(map(unknown())),
+	},
+	{ open: false },
+);
+const GuideParameters = obj({ topic: opt(str()) }, { open: false });
+
 export default async function sitesExtension(pi: ExtensionAPI) {
 	const sites = defineTool({
 		name: "sites",
 		label: "Sites",
 		description: "Manage ChatGPT Sites",
-		parameters: Type.Object(
-			{
-				resource: Type.Optional(Type.String()),
-				action: Type.Optional(Type.String()),
-				params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-			},
-			{ additionalProperties: false },
-		),
-		async execute(_id, args, signal, _onUpdate, ctx) {
+		parameters: SitesParameters,
+		async execute(
+			_id,
+			args: Static<typeof SitesParameters>,
+			signal,
+			_onUpdate,
+			ctx,
+		) {
 			const client = new SitesClient({
 				authProvider: () => getSitesAuth(ctx),
 				signal,
@@ -77,11 +93,14 @@ export default async function sitesExtension(pi: ExtensionAPI) {
 		name: "sites_documentation",
 		label: "Sites documentation",
 		description: "Sites guide or current resource.action parameter schema",
-		parameters: Type.Object(
-			{ topic: Type.Optional(Type.String()) },
-			{ additionalProperties: false },
-		),
-		async execute(_id, args, signal, _onUpdate, ctx) {
+		parameters: GuideParameters,
+		async execute(
+			_id,
+			args: Static<typeof GuideParameters>,
+			signal,
+			_onUpdate,
+			ctx,
+		) {
 			return result(() =>
 				documentation(
 					args.topic === "help" ? "index" : args.topic,

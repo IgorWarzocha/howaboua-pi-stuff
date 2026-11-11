@@ -1,5 +1,4 @@
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import { arr, compile, obj, str } from "@earendil-works/pi-schema";
 import type {
 	SavedSessionLoader,
 	SavedSessionLocator,
@@ -12,12 +11,17 @@ import {
 import { savedFamilyIdentity } from "./saved-sharing-records.js";
 import type { NotesStore } from "./store.js";
 
-const Locations = Type.Array(
-	Type.Object({
-		machine: Type.String({ minLength: 1 }),
-		sessionFile: Type.String({ minLength: 1 }),
-	}),
+const Locations = arr(
+	obj(
+		{
+			machine: str({ minLength: 1 }),
+			sessionFile: str({ minLength: 1 }),
+		},
+		{ open: true },
+	),
 );
+
+const locationsValidator = compile(Locations);
 
 /** Local is relative to the session carrying the edge, not the machine running this reader. */
 export function createSavedSessionAccess(
@@ -100,7 +104,7 @@ export function createSavedSessionAccess(
 		signal?.throwIfAborted();
 		const value = await loader.find(threadId, signal);
 		signal?.throwIfAborted();
-		if (!Check(Locations, value))
+		if (!locationsValidator.check(value))
 			throw new Error(
 				"Saved session discovery response is invalid. Update Notes on the other machine and retry.",
 			);

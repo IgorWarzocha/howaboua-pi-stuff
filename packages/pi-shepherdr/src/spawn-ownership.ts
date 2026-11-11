@@ -2,24 +2,40 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	compile,
+	lit,
+	obj,
+	opt,
+	type Static,
+	str,
+} from "@earendil-works/pi-schema";
 import { sessionPath } from "./core/agents.js";
 import type { ConnectedMachine } from "./fleet/index.js";
 import type { StartAgentParams } from "./launch-contract.js";
 import type { PaneInfo } from "./types.js";
 
 const ENTRY = "herdr-spawn-ownership-v1";
-const SavedLaunch = Type.Object({
-	args: Type.Array(Type.String()),
-	params: Type.Object({
-		name: Type.String(),
-		cwd: Type.String(),
-		label: Type.Optional(Type.String()),
-		placement: Type.Literal("terminal"),
-	}),
-});
-
+const SavedLaunch = obj(
+	{
+		args: arr(str()),
+		params: obj(
+			{
+				name: str(),
+				cwd: str(),
+				label: opt(str()),
+				placement: {
+					...lit("terminal"),
+					type: "string",
+				},
+			},
+			{ open: true },
+		),
+	},
+	{ open: true },
+);
+const checkSavedLaunch = compile(SavedLaunch).check;
 export interface SpawnOwnership {
 	parent: string;
 	machine: string;
@@ -68,7 +84,7 @@ export function spawnedChildren(ctx: ExtensionContext): SpawnOwnership[] {
 				: {}),
 		};
 		if ("launch" in value) {
-			if (!Check(SavedLaunch, value.launch))
+			if (!checkSavedLaunch(value.launch))
 				throw new Error(
 					"Saved worker launch settings are invalid; open its saved session manually",
 				);

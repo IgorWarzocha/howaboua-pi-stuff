@@ -1,35 +1,48 @@
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	compile,
+	lit,
+	num,
+	obj,
+	opt,
+	str,
+	union,
+} from "@earendil-works/pi-schema";
 import { contextTargetAgent, isContextAgentName } from "./agent-identity.js";
 import type { RemoteNoteReference } from "./context-sharing.js";
 import { normalizeNoteParams, readNotes } from "./notes.js";
 import type { NoteRevision } from "./store.js";
 
-const Snapshot = Type.Object({
-	protocol: Type.Literal(1),
-	timestamp: Type.Number({ minimum: 0 }),
-	files: Type.Array(
-		Type.Object({
-			path: Type.String(),
-			text: Type.String(),
-			createdAt: Type.Number(),
-			updatedAt: Type.Number(),
-			operation: Type.Optional(
-				Type.Union([
-					Type.Literal("local_append_overlay"),
-					Type.Literal("local_replacement"),
-				]),
+const Snapshot = obj(
+	{
+		protocol: lit(1),
+		timestamp: num({ minimum: 0 }),
+		files: arr(
+			obj(
+				{
+					path: str(),
+					text: str(),
+					createdAt: num(),
+					updatedAt: num(),
+					operation: opt(
+						union([lit("local_append_overlay"), lit("local_replacement")]),
+					),
+				},
+				{ open: true },
 			),
-		}),
-	),
-});
+		),
+	},
+	{ open: true },
+);
+
+const snapshotValidator = compile(Snapshot);
 
 /** Retained checkpoints remain readable without a running owner or database. */
 export function readAttachmentSnapshot(
 	snapshot: unknown,
 	params: Record<string, unknown>,
 ): Record<string, unknown> {
-	if (!Check(Snapshot, snapshot))
+	if (!snapshotValidator.check(snapshot))
 		throw new Error("Invalid retained note snapshot");
 	if (
 		!["list_files_by_prefix", "read_file", "search_contents"].includes(

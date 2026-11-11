@@ -3,9 +3,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { Static } from "@earendil-works/pi-schema";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import type { Static } from "typebox";
-import { Check } from "typebox/value";
 import type { AgentsParams } from "./agents-contract.js";
 import { AttachmentNotes } from "./attachment-notes.js";
 import {
@@ -13,6 +12,7 @@ import {
 	attachmentOwner,
 	attachmentRoutes,
 	canonicalContextIdentity,
+	checkSnapshot,
 	ROUTE,
 	Snapshot,
 } from "./attachment-protocol.js";
@@ -109,7 +109,7 @@ export class AgentAttachment {
 				signal,
 			);
 			await check();
-			if (!Check(Snapshot, snapshot))
+			if (!checkSnapshot(snapshot))
 				throw new Error(
 					"Target does not support attachment; update and reload Shepherdr",
 				);

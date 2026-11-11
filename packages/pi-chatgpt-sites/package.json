@@ -41,7 +41,6 @@
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"typebox": "*",
 		"@earendil-works/pi-tui": ">=1.0.0",
 		"@howaboua/pi-codex-conversion": ">=4.0.9"
 	},
@@ -55,5 +54,8 @@
 	},
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "4.0.9"
+	},
+	"dependencies": {
+		"@earendil-works/pi-schema": "1.5.2"
 	}
 }

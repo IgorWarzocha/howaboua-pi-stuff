@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { Static } from "@earendil-works/pi-schema";
 import { Text } from "@earendil-works/pi-tui";
 import {
 	IMAGE_CONTEXT_GUIDANCE,
@@ -34,7 +35,13 @@ export function createImageGenerationTool(
 			? {}
 			: { promptSnippet: "Generate/edit" }),
 		parameters: imageGenerationParameters(readImagegenSettings().access),
-		async execute(toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(
+			toolCallId,
+			params: Static<ReturnType<typeof imageGenerationParameters>>,
+			signal,
+			_onUpdate,
+			ctx,
+		) {
 			if (
 				!supportsExecutableImageGeneration(ctx.model, options) &&
 				readImagegenSettings().access !== "openai"
@@ -68,7 +75,12 @@ export function createImageGenerationTool(
 								: context.isError
 									? "Image generation failed"
 									: "Generated image",
-							typeof args.prompt === "string" ? args.prompt : undefined,
+							args &&
+								typeof args === "object" &&
+								"prompt" in args &&
+								typeof args.prompt === "string"
+								? args.prompt
+								: undefined,
 							theme,
 						);
 					},

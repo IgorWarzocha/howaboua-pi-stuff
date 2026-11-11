@@ -1,26 +1,43 @@
-import { StringEnum } from "@earendil-works/pi-ai";
-import { type Static, Type } from "typebox";
+import {
+	arr,
+	bool,
+	lit,
+	obj,
+	oneOf,
+	opt,
+	type Static,
+	str,
+} from "@earendil-works/pi-schema";
 
 const ASK_DELIVERIES = ["wait", "steer"] as const;
 
-const ChoiceSchema = Type.Object({
-	label: Type.String(),
-	description: Type.Optional(Type.String()),
-});
+const ChoiceSchema = obj(
+	{
+		label: str(),
+		description: opt(str()),
+	},
+	{ open: true },
+);
 
-const PromptSchema = Type.Object({
-	title: Type.String(),
-	body: Type.Optional(Type.String()),
-	multiple: Type.Optional(Type.Boolean()),
-	choices: Type.Optional(Type.Array(ChoiceSchema)),
-});
+const PromptSchema = obj(
+	{
+		title: str(),
+		body: opt(str()),
+		multiple: opt(bool()),
+		choices: opt(arr(ChoiceSchema)),
+	},
+	{ open: true },
+);
 
-export const AskParameters = Type.Object({
-	help: Type.Optional(Type.Literal(true)),
-	handoff: Type.Optional(Type.Boolean()),
-	prompts: Type.Optional(Type.Array(PromptSchema)),
-	delivery: Type.Optional(StringEnum(ASK_DELIVERIES)),
-});
+export const AskParameters = obj(
+	{
+		help: opt({ ...lit(true), type: "boolean" }),
+		handoff: opt(bool()),
+		prompts: opt(arr(PromptSchema)),
+		delivery: opt({ ...oneOf(ASK_DELIVERIES), type: "string" }),
+	},
+	{ open: true },
+);
 
 export type PromptChoice = Static<typeof ChoiceSchema>;
 

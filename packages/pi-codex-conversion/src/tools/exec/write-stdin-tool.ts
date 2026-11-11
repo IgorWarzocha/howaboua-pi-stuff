@@ -1,17 +1,17 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { num, obj, opt, str } from "@earendil-works/pi-schema";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { renderWriteStdinCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import { renderTerminalOutput } from "./output.ts";
 
-const WRITE_STDIN_PARAMETERS = Type.Object({
-	session_id: Type.Number(),
-	chars: Type.Optional(Type.String({ description: "Input requires original exec_command tty=true; omit or empty to poll" })),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
-});
+const WRITE_STDIN_PARAMETERS = obj({
+	session_id: num(),
+	chars: opt(str({ description: "Input requires original exec_command tty=true; omit or empty to poll" })),
+	yield_time_ms: opt(num({ description: "Wait ms" })),
+	max_output_tokens: opt(num({ description: "Truncate" })),
+}, { open: true });
 
 interface WriteStdinParams {
 	session_id: number;

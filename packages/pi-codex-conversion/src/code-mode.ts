@@ -5,7 +5,6 @@ import type {
 import { protectedOutputScope } from "./tools/code-mode/protected-output.ts";
 export { canDeliverProtectedOutput, resolveActiveCodexProvider, resolveProtectedOutputScope, protectedAccountScope, bindProtectedOutputScope, protectedOutputScope } from "./tools/code-mode/protected-output.ts";
 
-import type { TSchema } from "typebox";
 import { toNestedTool } from "./adapter/code-mode/nested-tool-adapter.ts";
 import { codeModeGlobalName, codeModeNameForToolIdentity } from "./tools/code-mode/tool-identity.ts";
 
@@ -19,7 +18,7 @@ export {
 import type { CodeModeToolIdentity, ProgrammaticCodeModeToolDefinition } from "./tools/code-mode/types.ts";
 
 export function adaptToolForCodeMode<
-	TParams extends TSchema,
+	TParams extends ToolDefinition["parameters"],
 	TDetails,
 	TState,
 >(

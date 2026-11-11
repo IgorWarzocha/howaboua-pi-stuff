@@ -1,61 +1,84 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	bool,
+	compile,
+	int,
+	nul,
+	obj,
+	opt,
+	str,
+	union,
+	unsafe,
+} from "@earendil-works/pi-schema";
 
-const OPTIONAL_STRING = Type.Optional(Type.String());
-const OPTIONAL_BOOLEAN = Type.Optional(Type.Boolean());
-const MATCH = Type.Object({ line_number: Type.Integer(), line: Type.String() });
+const OPTIONAL_STRING = opt(str());
+const OPTIONAL_BOOLEAN = opt(bool());
+const MATCH = obj({ line_number: int(), line: str() }, { open: true });
 
 // Pi codemode needs this declaration to return structuredContent rather than text.
-export const NOTES_OUTPUT_SCHEMA = Type.Object(
-	{},
-	{ additionalProperties: true },
-);
+export const NOTES_OUTPUT_SCHEMA = {
+	...obj({}, { open: true }),
+	additionalProperties: true,
+};
 
-const NOTES_RESULT_SCHEMA = Type.Object(
+const NOTES_RESULT_SCHEMA = obj(
 	{
-		file: Type.Optional(
-			Type.Union([
-				Type.Object({
-					path: Type.String(),
-					content: OPTIONAL_STRING,
-					append_only: OPTIONAL_BOOLEAN,
-				}),
-				Type.Null(),
+		file: opt(
+			union([
+				obj(
+					{
+						path: str(),
+						content: OPTIONAL_STRING,
+						append_only: OPTIONAL_BOOLEAN,
+					},
+					{ open: true },
+				),
+				nul(),
 			]),
 		),
-		files: Type.Optional(
-			Type.Array(
-				Type.Object({
-					path: Type.String(),
-					updated_at: OPTIONAL_STRING,
-					created_at: OPTIONAL_STRING,
-					matches: Type.Optional(Type.Array(MATCH)),
-					truncated: OPTIONAL_BOOLEAN,
-					append_only: OPTIONAL_BOOLEAN,
-				}),
+		files: opt(
+			arr(
+				obj(
+					{
+						path: str(),
+						updated_at: OPTIONAL_STRING,
+						created_at: OPTIONAL_STRING,
+						matches: opt(arr(MATCH)),
+						truncated: OPTIONAL_BOOLEAN,
+						append_only: OPTIONAL_BOOLEAN,
+					},
+					{ open: true },
+				),
 			),
 		),
 		usage: OPTIONAL_STRING,
-		warnings: Type.Optional(Type.Array(Type.String())),
+		warnings: opt(arr(str())),
 		warning: OPTIONAL_STRING,
 		truncated: OPTIONAL_BOOLEAN,
 		read_only: OPTIONAL_BOOLEAN,
 		saved_at: OPTIONAL_STRING,
 		captured_at: OPTIONAL_STRING,
 		results: OPTIONAL_STRING,
-		actions: Type.Optional(Type.Record(Type.String(), Type.String())),
+		actions: opt(
+			unsafe<Record<string, string>>({
+				type: "object",
+				patternProperties: { "^.*$": str() },
+			}),
+		),
 		writes: OPTIONAL_STRING,
 		paths: OPTIONAL_STRING,
 		ranges: OPTIONAL_STRING,
 		defaults: OPTIONAL_STRING,
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
+
+const notesResultSchemaValidator = compile(NOTES_RESULT_SCHEMA);
 
 /** One canonical payload for native text and every programmatic caller. */
 export function noteResult(payload: unknown): AgentToolResult<unknown> {
-	if (!Check(NOTES_RESULT_SCHEMA, payload))
+	if (!notesResultSchemaValidator.check(payload))
 		throw new Error(
 			"Notes returned invalid data. Read the note before retrying a write.",
 		);

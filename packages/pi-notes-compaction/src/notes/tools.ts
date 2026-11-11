@@ -4,7 +4,7 @@ import type {
 	ExtensionContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { obj } from "@earendil-works/pi-schema";
 import type { LookupQuery, SharedNotesDetails } from "./bridge.js";
 import type { HistorySearch } from "./history-search.js";
 import type { NotesLifecycle } from "./lifecycle.js";
@@ -123,7 +123,7 @@ export function createTools(
 			name: "get_context_remaining",
 			label: "get_context_remaining",
 			description: "Remaining context tokens",
-			parameters: Type.Object({}, { additionalProperties: false }),
+			parameters: obj({}, { open: false }),
 			async execute(_id, _input, _signal, _update, ctx) {
 				assertActive();
 				const remaining = lifecycle.windows.remaining(ctx);

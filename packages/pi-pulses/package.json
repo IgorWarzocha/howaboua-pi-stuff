@@ -20,8 +20,7 @@
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.3.0",
 		"@howaboua/pi-codex-conversion": ">=4.0.9",
-		"@howaboua/pi-shepherdr": "*",
-		"typebox": "*"
+		"@howaboua/pi-shepherdr": "*"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {
@@ -30,5 +29,8 @@
 		"@howaboua/pi-shepherdr": {
 			"optional": true
 		}
+	},
+	"dependencies": {
+		"@earendil-works/pi-schema": "1.5.2"
 	}
 }

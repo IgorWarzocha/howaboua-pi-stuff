@@ -19,7 +19,7 @@
 		"PCC-INTEGRATION.md"
 	],
 	"engines": {
-		"node": ">=22.18.0"
+		"node": ">=22.19.0"
 	},
 	"type": "module",
 	"description": "Provider-neutral session notes and notes-guided context windows for Pi",
@@ -37,6 +37,7 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
+		"@earendil-works/pi-schema": "1.5.2",
 		"better-sqlite3": "13.0.3"
 	},
 	"devDependencies": {
@@ -48,8 +49,7 @@
 		"@earendil-works/pi-agent-core": ">=1.0.4",
 		"@earendil-works/pi-ai": ">=1.0.4",
 		"@earendil-works/pi-tui": ">=1.0.4",
-		"@howaboua/pi-codex-conversion": ">=4.0.9",
-		"typebox": "*"
+		"@howaboua/pi-codex-conversion": ">=4.0.9"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {

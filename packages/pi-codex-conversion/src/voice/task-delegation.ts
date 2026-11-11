@@ -4,7 +4,7 @@ import {
 	validateToolArguments,
 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { obj, str } from "@earendil-works/pi-schema";
 import {
 	END_CALL_TOOL,
 	type PreparedVoiceTask,
@@ -14,13 +14,12 @@ import type { RealtimeVoiceTurn } from "./turns.ts";
 const END_CALL_TASK_TOOL = {
 	name: END_CALL_TOOL.name,
 	description: "End the voice call; preserve any remaining requested work",
-	parameters: Type.Object(
+	parameters: obj(
 		{
-			request: Type.String({
+			request: str({
 				description: "Remaining task for Pi, or empty if none",
 			}),
 		},
-		{ additionalProperties: false },
 	),
 };
 

@@ -2,7 +2,7 @@
 "@howaboua/pi-shepherdr": minor
 ---
 
-Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi 1.5+ and Node.js 22.18+. Update and restart controllers and workers together. Start fresh Core terminals for older Herdr sessions and reselect watches when changing Core namespaces. Replace pane placement with terminal, new-tab or new-workspace placement.
+Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi 1.5+ and Node.js 22.19+. Update and restart controllers and workers together. Start fresh Core terminals for older Herdr sessions and reselect watches when changing Core namespaces. Replace pane placement with terminal, new-tab or new-workspace placement.
 
 - Shepherdr now runs without other extensions. Optional sharing supports Agent Comms or standalone Notes Compaction and Agent Board, preserving saved notes and boards.
 - Agent calls now accept current Core machine names or stable IDs. Saved routes and watches survive renames. Connections adds machines through `hc machine add`.
@@ -21,3 +21,4 @@ Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi
 - Worker profiles now brief only the initial assignment instead of pinning restrictions in the standing prompt. Later assignments and model-role changes can reuse the same agent and its notes.
 - Agent help now keeps each agent available until its task is verified complete, with corrections returned to the same agent before closing it.
 - Agent help now directs callers to skip acknowledgements, status-only updates and standby reminders that needlessly wake idle agents.
+- Removed the TypeBox installation requirement.

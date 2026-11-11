@@ -1,7 +1,6 @@
-import { StringEnum as PiStringEnum } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import { oneOf } from "@earendil-works/pi-schema";
 
-// Pi 1.5 enums carry pi-schema types; retain inference inside TypeBox-built schemas.
+// Keep the explicit string type for providers that require typed enums.
 export function StringEnum<T extends readonly string[]>(values: T) {
-	return Type.Unsafe<T[number]>(PiStringEnum(values));
+	return { ...oneOf(values), type: "string" };
 }

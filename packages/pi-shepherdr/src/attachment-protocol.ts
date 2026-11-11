@@ -1,24 +1,48 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	compile,
+	lit,
+	obj,
+	opt,
+	type Static,
+	str,
+	union,
+	unknown,
+} from "@earendil-works/pi-schema";
 import type { SharedContextResult } from "@howaboua/pi-agent-comms/context-sharing";
-import { type Static, type TSchema, Type } from "typebox";
-import { Check } from "typebox/value";
 import { BindingSchema } from "./board/records.js";
 
-const AgentPath = Type.String({
+const AgentPath = str({
 	pattern: "^/(?:[a-zA-Z0-9_.-]+|root(?:/[a-zA-Z0-9_-]+)*)$",
 });
-export const Identity = Type.Object({
-	protocol: Type.Literal(1),
-	sessionId: Type.String({ minLength: 1 }),
-	threadId: Type.String({ minLength: 1 }),
-	agentName: AgentPath,
-	storageAgentName: Type.Optional(AgentPath),
-	storage: Type.Union([Type.Literal("session"), Type.Literal("remote")]),
-	accountScope: Type.Optional(Type.String({ pattern: "^[a-f0-9]{64}$" })),
-	backendUrl: Type.Optional(Type.String({ minLength: 1 })),
-	routing: Type.Optional(Type.Unknown()),
-});
+export const Identity = obj(
+	{
+		protocol: {
+			...lit(1),
+			type: "number",
+		},
+		sessionId: str({ minLength: 1 }),
+		threadId: str({ minLength: 1 }),
+		agentName: AgentPath,
+		storageAgentName: opt(AgentPath),
+		storage: union([
+			{
+				...lit("session"),
+				type: "string",
+			},
+			{
+				...lit("remote"),
+				type: "string",
+			},
+		]),
+		accountScope: opt(str({ pattern: "^[a-f0-9]{64}$" })),
+		backendUrl: opt(str({ minLength: 1 })),
+		routing: opt(unknown()),
+	},
+	{ open: true },
+);
+export const checkIdentity = compile(Identity).check;
 // Persisted attachment records predate native agent references. Keep their storage address.
 export function canonicalContextIdentity(
 	identity: Static<typeof Identity>,
@@ -32,73 +56,105 @@ export function canonicalContextIdentity(
 				storageAgentName: identity.storageAgentName ?? identity.agentName,
 			};
 }
-const ContextLink = Type.Object({
-	controller: Identity,
-	target: Identity,
-	alias: AgentPath,
-	controllerAlias: AgentPath,
-	controllerFile: Type.Optional(Type.String()),
-	controllerMachine: Type.Optional(Type.String({ minLength: 1 })),
-	controllerNotes: Type.Unknown(),
-	targetNotes: Type.Unknown(),
-});
-export const Plan = Type.Object(
+const ContextLink = obj(
 	{
-		controllerSessionId: Type.String({ minLength: 1 }),
-		targetSessionId: Type.String({ minLength: 1 }),
-		upstream: Type.String({ minLength: 1 }),
-		context: Type.Optional(ContextLink),
-		board: Type.Optional(
-			Type.Object({
+		controller: Identity,
+		target: Identity,
+		alias: AgentPath,
+		controllerAlias: AgentPath,
+		controllerFile: opt(str()),
+		controllerMachine: opt(str({ minLength: 1 })),
+		controllerNotes: unknown(),
+		targetNotes: unknown(),
+	},
+	{ open: true },
+);
+export const Plan = obj({
+	controllerSessionId: str({ minLength: 1 }),
+	targetSessionId: str({ minLength: 1 }),
+	upstream: str({ minLength: 1 }),
+	context: opt(ContextLink),
+	board: opt(
+		obj(
+			{
 				previous: BindingSchema,
 				desired: BindingSchema,
 				controller: BindingSchema,
-			}),
+			},
+			{ open: true },
 		),
-	},
-	{ additionalProperties: false },
-);
-const Route = Type.Object({
-	plan: Plan,
-	machine: Type.String(),
-	sessionFile: Type.String({ minLength: 1 }),
-	phase: Type.Union([Type.Literal("pending"), Type.Literal("ready")]),
-	detached: Type.Optional(
-		Type.Object({
-			context: Type.Optional(Type.Unknown()),
-			board: Type.Optional(Type.Literal(true)),
-		}),
 	),
 });
-export const Snapshot = Type.Object({
-	sessionId: Type.String({ minLength: 1 }),
-	board: BindingSchema,
-	context: Type.Optional(Identity),
-	notes: Type.Optional(Type.Unknown()),
-	contextError: Type.Optional(Type.String()),
-	boardError: Type.Optional(Type.String()),
-});
+export const checkPlan = compile(Plan).check;
+const Route = obj(
+	{
+		plan: Plan,
+		machine: str(),
+		sessionFile: str({ minLength: 1 }),
+		phase: union([
+			{
+				...lit("pending"),
+				type: "string",
+			},
+			{
+				...lit("ready"),
+				type: "string",
+			},
+		]),
+		detached: opt(
+			obj(
+				{
+					context: opt(unknown()),
+					board: opt({
+						...lit(true),
+						type: "boolean",
+					}),
+				},
+				{ open: true },
+			),
+		),
+	},
+	{ open: true },
+);
+const checkRoute = compile(Route).check;
+export const Snapshot = obj(
+	{
+		sessionId: str({ minLength: 1 }),
+		board: BindingSchema,
+		context: opt(Identity),
+		notes: opt(unknown()),
+		contextError: opt(str()),
+		boardError: opt(str()),
+	},
+	{ open: true },
+);
+export const checkSnapshot = compile(Snapshot).check;
 export type AttachmentPlan = Static<typeof Plan>;
 export type AttachmentRoute = Static<typeof Route>;
 export const OWNER = "shepherdr-attachment-owner";
 export const ROUTE = "shepherdr-attachment-route";
 export const DETACHED = "shepherdr-attachment-detached";
-export const Detachment = Type.Object({
-	plan: Plan,
-	context: Type.Optional(Type.Unknown()),
-	board: Type.Optional(Type.Literal(true)),
-});
-
-function saved<T extends TSchema>(
+export const Detachment = obj(
+	{
+		plan: Plan,
+		context: opt(unknown()),
+		board: opt({
+			...lit(true),
+			type: "boolean",
+		}),
+	},
+	{ open: true },
+);
+export const checkDetachment = compile(Detachment).check;
+function saved<T>(
 	ctx: ExtensionContext,
 	key: string,
-	schema: T,
-): Static<T>[] {
+	check: (value: unknown) => value is T,
+): T[] {
 	return ctx.sessionManager.getEntries().flatMap((entry) => {
 		if (entry.type !== "custom" || entry.customType !== key) return [];
-		if (!Check(schema, entry.data))
-			throw new Error("Invalid saved agent attachment");
-		return [entry.data as Static<T>];
+		if (!check(entry.data)) throw new Error("Invalid saved agent attachment");
+		return [entry.data];
 	});
 }
 export function inside(path: string, root: string) {
@@ -179,18 +235,18 @@ export function remapResult(
 }
 
 export function detachment(ctx: ExtensionContext, plan: AttachmentPlan) {
-	return saved(ctx, DETACHED, Detachment).findLast((entry) =>
+	return saved(ctx, DETACHED, checkDetachment).findLast((entry) =>
 		isDeepStrictEqual(entry.plan, plan),
 	);
 }
 export function attachmentOwner(ctx: ExtensionContext) {
-	return saved(ctx, OWNER, Plan).findLast(
+	return saved(ctx, OWNER, checkPlan).findLast(
 		(plan) => plan.targetSessionId === ctx.sessionManager.getSessionId(),
 	);
 }
 export function attachmentRoutes(ctx: ExtensionContext) {
 	const found = new Map<string, AttachmentRoute>();
-	for (const route of saved(ctx, ROUTE, Route))
+	for (const route of saved(ctx, ROUTE, checkRoute))
 		if (route.plan.controllerSessionId === ctx.sessionManager.getSessionId())
 			found.set(route.sessionFile + "\0" + route.machine, route);
 	return [...found.values()];

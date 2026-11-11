@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { Schema } from "@earendil-works/pi-schema";
 import type { NotesActivation } from "./activation.js";
 import type { NotesLifecycle } from "./lifecycle.js";
 import {
@@ -54,6 +55,7 @@ export async function registerNotesToolIntegrations(
 			throw error;
 	}
 	let refreshNested = () => {};
+	const noteProperties = NOTES_SCHEMA["properties"] as Record<string, Schema>;
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
@@ -78,9 +80,9 @@ export async function registerNotesToolIntegrations(
 									inputSchema: {
 										...NOTES_SCHEMA,
 										properties: {
-											...NOTES_SCHEMA.properties,
-											content: NOTES_SCHEMA.properties.text,
-											end_line: NOTES_SCHEMA.properties.stop_line,
+											...noteProperties,
+											content: noteProperties["text"],
+											end_line: noteProperties["stop_line"],
 										},
 									},
 								}

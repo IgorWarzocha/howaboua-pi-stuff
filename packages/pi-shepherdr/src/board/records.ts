@@ -3,55 +3,69 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	bool,
+	compile,
+	lit,
+	nul,
+	obj,
+	opt,
+	type Static,
+	str,
+	union,
+} from "@earendil-works/pi-schema";
 
 // These are persisted transport records, not a Board engine or activation owner.
-
-const nativeId = Type.String({ pattern: "^[a-zA-Z0-9_.-]+$" });
-export const BindingSchema = Type.Object(
-	{
-		protocol: Type.Literal(1),
-		boardId: nativeId,
-		rootSessionId: nativeId,
-		sessionId: nativeId,
-		agentName: Type.String({
-			pattern: "^/[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_-]+)*$",
-		}),
-		legacyAgentName: Type.Optional(
-			Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" }),
-		),
-		parentSessionId: Type.Optional(nativeId),
-		ownerFolder: Type.String({ minLength: 1 }),
-		databasePath: Type.String({ minLength: 1 }),
-		enabled: Type.Boolean(),
-		upstream: Type.Optional(Type.String({ minLength: 1 })),
+const nativeId = str({ pattern: "^[a-zA-Z0-9_.-]+$" });
+export const BindingSchema = obj({
+	protocol: {
+		...lit(1),
+		type: "number",
 	},
-	{ additionalProperties: false },
-);
-export type BoardBinding = Static<typeof BindingSchema>;
-const ChildSchema = Type.Object({
-	parentSessionId: nativeId,
-	binding: BindingSchema,
-	machine: Type.String(),
-	sessionFile: Type.String({ minLength: 1 }),
+	boardId: nativeId,
+	rootSessionId: nativeId,
+	sessionId: nativeId,
+	agentName: str({
+		pattern: "^/[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_-]+)*$",
+	}),
+	legacyAgentName: opt(str({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" })),
+	parentSessionId: opt(nativeId),
+	ownerFolder: str({ minLength: 1 }),
+	databasePath: str({ minLength: 1 }),
+	enabled: bool(),
+	upstream: opt(str({ minLength: 1 })),
 });
+const checkBindingSchema = compile(BindingSchema).check;
+export type BoardBinding = Static<typeof BindingSchema>;
+const ChildSchema = obj(
+	{
+		parentSessionId: nativeId,
+		binding: BindingSchema,
+		machine: str(),
+		sessionFile: str({ minLength: 1 }),
+	},
+	{ open: true },
+);
+const checkChildSchema = compile(ChildSchema).check;
 export type BoardChild = Static<typeof ChildSchema>;
 const BINDING = "shepherdr-board-binding";
 const MEMBER = "shepherdr-board-member";
 const CHILD = "shepherdr-board-child";
 const SETTING = "shepherdr-board-setting";
 const REMOVED = "shepherdr-board-removed";
-const SettingSchema = Type.Object({
-	sessionId: nativeId,
-	enabled: Type.Union([Type.Boolean(), Type.Null()]),
-});
-
+const SettingSchema = obj(
+	{
+		sessionId: nativeId,
+		enabled: union([bool(), nul()]),
+	},
+	{ open: true },
+);
+const checkSettingSchema = compile(SettingSchema).check;
 function sessionBoardSetting(ctx: ExtensionContext): boolean | undefined {
 	let enabled: boolean | undefined;
 	for (const entry of ctx.sessionManager.getEntries()) {
 		if (entry.type !== "custom" || entry.customType !== SETTING) continue;
-		if (!Check(SettingSchema, entry.data))
+		if (!checkSettingSchema(entry.data))
 			throw new Error("Invalid saved board setting");
 		const value = entry.data as Static<typeof SettingSchema>;
 		if (value.sessionId === ctx.sessionManager.getSessionId())
@@ -61,7 +75,7 @@ function sessionBoardSetting(ctx: ExtensionContext): boolean | undefined {
 }
 
 export function parseBinding(value: unknown): BoardBinding {
-	if (!Check(BindingSchema, value))
+	if (!checkBindingSchema(value))
 		throw new Error("Invalid Shepherdr board binding");
 	const saved = value as BoardBinding;
 	assertSessionIdentity(saved.sessionId, saved.rootSessionId);
@@ -151,7 +165,7 @@ export function children(ctx: ExtensionContext): BoardChild[] {
 			continue;
 		}
 		if (entry.type !== "custom" || entry.customType !== CHILD) continue;
-		if (!Check(ChildSchema, entry.data))
+		if (!checkChildSchema(entry.data))
 			throw new Error("Invalid saved board child route");
 		const value = entry.data as BoardChild;
 		if (

@@ -1,8 +1,7 @@
 import { notebookHelpForMode } from "./notebook-help.ts";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "../string-enum.ts";
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import { arr, compile, lit, obj, opt, str, union, type Static } from "@earendil-works/pi-schema";
 import { registerGptPromptMode, type GptPromptModeRegistration } from "../../prompt-mode.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import { canExecuteNotebookControlInsideExec } from "../notebook-mode/control-contract.ts";
@@ -15,47 +14,48 @@ import type {
 	ToolExecutionContext,
 } from "./types.ts";
 
-const PIN_PARAMETERS = Type.Object({
-	action: Type.Literal("pin"),
-	names: Type.Array(Type.String(), { minItems: 1 }),
-	hook: Type.Optional(Type.Union([StringEnum(["startup", "tool_result"]), Type.Literal(false)], {
+const PIN_FIELDS = {
+	action: { ...lit("pin"), type: "string" },
+	names: arr(str(), { minItems: 1 }),
+	hook: opt(union([StringEnum(["startup", "tool_result"]), { ...lit(false), type: "boolean" }], {
 		description: "Await self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
 	})),
-}, { additionalProperties: false });
+};
+const PIN_PARAMETERS = obj(PIN_FIELDS);
 
 function notebookActionParameters(allowCheckpoint = false) {
-	return Type.Union([
-		Type.Object({
+	return union([
+		obj({
 			action: StringEnum(["status", "list"]),
-			query: Type.Optional(Type.String()),
-		}, { additionalProperties: false }),
-		Type.Object({
+			query: opt(str()),
+		}),
+		obj({
 			action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]),
-		}, { additionalProperties: false }),
-		Type.Object({
+		}),
+		obj({
 			action: StringEnum(["save", "load"]),
-			name: Type.String(),
-		}, { additionalProperties: false }),
-		allowCheckpoint ? Type.Object({ ...PIN_PARAMETERS.properties, checkpoint: Type.Optional(Type.Object({ snapshot: Type.String(), restore: Type.String() }, { additionalProperties: false })) }, { additionalProperties: false }) : PIN_PARAMETERS,
-		Type.Object({
+			name: str(),
+		}),
+		allowCheckpoint ? obj({ ...PIN_FIELDS, checkpoint: opt(obj({ snapshot: str(), restore: str() })) }) : PIN_PARAMETERS,
+		obj({
 			action: StringEnum(["unpin", "release"]),
-			names: Type.Array(Type.String(), { minItems: 1 }),
-		}, { additionalProperties: false }),
-		Type.Object({
-			action: Type.Literal("prune"),
-			query: Type.String(),
-		}, { additionalProperties: false }),
+			names: arr(str(), { minItems: 1 }),
+		}),
+		obj({
+			action: { ...lit("prune"), type: "string" },
+			query: str(),
+		}),
 	]);
 }
 
-const JS_ACTION_PARAMETERS = Type.Union([
-	Type.Object({ action: Type.Literal("hook"), name: Type.String(), event: Type.Union([StringEnum(["startup", "tool_result"]), Type.Literal(false)]) }, { additionalProperties: false }),
-	Type.Object({ action: StringEnum(["status", "list"]), query: Type.Optional(Type.String()) }, { additionalProperties: false }),
-	Type.Object({ action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]) }, { additionalProperties: false }),
-	Type.Object({ action: Type.Literal("save"), name: Type.String(), names: Type.Optional(Type.Array(Type.String(), { minItems: 1 })) }, { additionalProperties: false }),
-	Type.Object({ action: Type.Literal("load"), name: Type.String() }, { additionalProperties: false }),
-	Type.Object({ action: StringEnum(["pin", "unpin", "release"]), names: Type.Array(Type.String(), { minItems: 1 }) }, { additionalProperties: false }),
-	Type.Object({ action: Type.Literal("prune"), query: Type.String() }, { additionalProperties: false }),
+const JS_ACTION_PARAMETERS = union([
+	obj({ action: { ...lit("hook"), type: "string" }, name: str(), event: union([StringEnum(["startup", "tool_result"]), { ...lit(false), type: "boolean" }]) }),
+	obj({ action: StringEnum(["status", "list"]), query: opt(str()) }),
+	obj({ action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]) }),
+	obj({ action: { ...lit("save"), type: "string" }, name: str(), names: opt(arr(str(), { minItems: 1 })) }),
+	obj({ action: { ...lit("load"), type: "string" }, name: str() }),
+	obj({ action: StringEnum(["pin", "unpin", "release"]), names: arr(str(), { minItems: 1 }) }),
+	obj({ action: { ...lit("prune"), type: "string" }, query: str() }),
 ]);
 
 function actionParameters(kind: string) {
@@ -64,14 +64,23 @@ function actionParameters(kind: string) {
 
 const NOTEBOOK_ACTION_PARAMETERS = notebookActionParameters();
 const TS_ACTION_PARAMETERS = notebookActionParameters(true);
+const notebookActions = compile(NOTEBOOK_ACTION_PARAMETERS);
+const tsActions = compile(TS_ACTION_PARAMETERS);
+const jsActions = compile(JS_ACTION_PARAMETERS);
 
-export const NOTEBOOK_PARAMETERS = Type.Object({
-	input: Type.Optional(Type.String({ description: 'help or JSON, e.g. {"action":"status"}; not a bare action name' })),
-}, { additionalProperties: false });
+function actionValidator(kind: string) {
+	return kind === "js" ? jsActions : kind === "ts" ? tsActions : notebookActions;
+}
 
-const NOTEBOOK_DISCOVERY_PARAMETERS = Type.Object({
-	action: Type.Optional(Type.Literal("help")),
-}, { additionalProperties: false });
+export const NOTEBOOK_PARAMETERS = obj({
+	input: opt(str({ description: 'help or JSON, e.g. {"action":"status"}; not a bare action name' })),
+});
+const notebookArguments = compile(NOTEBOOK_PARAMETERS);
+
+const NOTEBOOK_DISCOVERY_PARAMETERS = obj({
+	action: opt({ ...lit("help"), type: "string" }),
+});
+const notebookDiscovery = compile(NOTEBOOK_DISCOVERY_PARAMETERS);
 
 const NOTEBOOK_DESCRIPTION = "Manage persistent notebook state";
 
@@ -110,12 +119,12 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 				else if ("input" in prepared && prepared.input !== null && typeof prepared.input === "object")
 					prepared = { ...prepared, input: JSON.stringify(prepared.input) };
 			}
-			if (!Check(NOTEBOOK_PARAMETERS, prepared)) throw new Error('Invalid notebook arguments; call notebook({})');
+			if (!notebookArguments.check(prepared)) throw new Error('Invalid notebook arguments; call notebook({})');
 			return prepared;
 		},
 		...notebookRenderers,
 		...(constrainedSampling ? { constrainedSampling } : {}),
-		async execute(_id, params, signal, _onUpdate, ctx) {
+		async execute(_id, params: Static<typeof NOTEBOOK_PARAMETERS>, signal, _onUpdate, ctx) {
 			if (params.input === undefined || params.input === "help") return {
 				content: [{ type: "text", text: notebookHelp(runtime, ctx) }],
 				details: { action: "help" },
@@ -126,11 +135,11 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 			} catch (error) {
 				throw new Error('notebook input must be help or a JSON action object; call notebook({})', { cause: error });
 			}
-			if (Check(NOTEBOOK_DISCOVERY_PARAMETERS, action)) return {
+			if (notebookDiscovery.check(action)) return {
 				content: [{ type: "text", text: notebookHelp(runtime, ctx) }],
 				details: { action: "help" },
 			};
-			if (!Check(actionParameters(runtime.executionKind(ctx)), action)) {
+			if (!actionValidator(runtime.executionKind(ctx)).check(action)) {
 				throw new Error('Invalid notebook action arguments; call notebook({})');
 			}
 			const result = await executeNotebookControl(runtime, action, {
@@ -156,9 +165,9 @@ export function createNotebookControlProxy(
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,
 		kind: "function",
-		inputSchema: Type.Union([NOTEBOOK_DISCOVERY_PARAMETERS, actionParameters(kind)]),
+		inputSchema: union([NOTEBOOK_DISCOVERY_PARAMETERS, actionParameters(kind)]),
 		invoke: (input, context, signal) => {
-			if (input === undefined || Check(NOTEBOOK_DISCOVERY_PARAMETERS, input))
+			if (input === undefined || notebookDiscovery.check(input))
 				return Promise.resolve({ message: notebookHelp(runtime, context.extensionContext), details: { action: "help" } });
 			return executeNotebookExecControl(runtime, input as NotebookToolParameters, context, signal);
 		},
@@ -192,7 +201,7 @@ export async function executeNotebookExecControl(
 }
 
 function validateModeRequest(runtime: SharedCodeModeRuntime, params: NotebookToolParameters, context: ToolExecutionContext): void {
-	if (runtime.executionKind(context.extensionContext) === "js" && !Check(JS_ACTION_PARAMETERS, params))
+	if (runtime.executionKind(context.extensionContext) === "js" && !jsActions.check(params))
 		throw new Error("Invalid JS Notebook action; call notebook({}) for supported controls");
 }
 

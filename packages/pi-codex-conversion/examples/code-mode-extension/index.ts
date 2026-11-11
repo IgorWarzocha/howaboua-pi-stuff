@@ -3,17 +3,16 @@ import {
 	adaptToolForCodeMode,
 	registerCodeModeExtensionTools,
 } from "@howaboua/pi-codex-conversion/code-mode";
-import { Type } from "typebox";
+import { obj, str, type Static } from "@earendil-works/pi-schema";
+
+const PARAMETERS = obj({ text: str() });
 
 const echo = defineTool({
 	name: "echo",
 	label: "Echo",
 	description: "Return supplied text unchanged.",
-	parameters: Type.Object(
-		{ text: Type.String() },
-		{ additionalProperties: false },
-	),
-	async execute(_toolCallId, { text }) {
+	parameters: PARAMETERS,
+	async execute(_toolCallId, { text }: Static<typeof PARAMETERS>) {
 		return {
 			content: [{ type: "text", text }],
 			details: {},

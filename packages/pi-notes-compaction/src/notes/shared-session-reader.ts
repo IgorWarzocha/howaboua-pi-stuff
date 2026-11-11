@@ -1,5 +1,5 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { Check } from "typebox/value";
+import { compile } from "@earendil-works/pi-schema";
 import { minuteTimestamp } from "../timestamps.js";
 import { contextStorageAgentName } from "./agent-identity.js";
 import type { SavedSessionLocator } from "./context-sharing.js";
@@ -15,6 +15,8 @@ import {
 	savedNotesIdentity,
 } from "./saved-sharing-records.js";
 import type { NotesStore } from "./store.js";
+
+const snapshotValidator = compile(Snapshot);
 
 export function createSharedSessionReader(
 	store: Pick<NotesStore, "read">,
@@ -108,7 +110,7 @@ export function createSharedSessionReader(
 			namespace === "history" ||
 			(destination !== identity.agentName &&
 				destination !== contextStorageAgentName(identity)) ||
-			!Check(Snapshot, retained)
+			!snapshotValidator.check(retained)
 		)
 			return;
 		const entry: SessionEntry = {

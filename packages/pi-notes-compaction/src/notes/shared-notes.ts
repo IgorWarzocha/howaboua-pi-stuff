@@ -1,7 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { Static } from "typebox";
-import { Check } from "typebox/value";
+import { compile, type Static } from "@earendil-works/pi-schema";
 import {
 	canonicalAgentName,
 	contextAgentNames,
@@ -27,6 +26,12 @@ import { createSharedSessionReader } from "./shared-session-reader.js";
 import type { NotesStore } from "./store.js";
 
 export { savedNotesIdentity } from "./saved-sharing-records.js";
+
+const detachmentValidator = compile(Detachment);
+const memberValidator = compile(Member);
+const parentValidator = compile(Parent);
+const planValidator = compile(Plan);
+const routeValidator = compile(Route);
 
 function records(session: SavedNotesSession, kind: string): unknown[] {
 	return session.entries.flatMap((entry) =>
@@ -193,7 +198,7 @@ async function readSharedSession(
 		const routes = new Map<string, Static<typeof Route>>();
 		for (const value of records(session, "shepherdr-attachment-route"))
 			if (
-				Check(Route, value) &&
+				routeValidator.check(value) &&
 				value.plan.controllerSessionId === identity.threadId
 			)
 				routes.set(`${value.machine}\0${value.sessionFile}`, value);
@@ -232,10 +237,11 @@ async function readSharedSession(
 		}
 		const owner = records(session, "shepherdr-attachment-owner").findLast(
 			(value) =>
-				Check(Plan, value) && value.targetSessionId === identity.threadId,
+				planValidator.check(value) &&
+				value.targetSessionId === identity.threadId,
 		);
 		if (
-			Check(Plan, owner) &&
+			planValidator.check(owner) &&
 			owner.context &&
 			(inside(destination, owner.context.controllerAlias) ||
 				destination === canonicalAgentName(owner.context.controller.threadId))
@@ -253,9 +259,10 @@ async function readSharedSession(
 				"shepherdr-attachment-detached",
 			).findLast(
 				(value) =>
-					Check(Detachment, value) && isDeepStrictEqual(value.plan, owner),
+					detachmentValidator.check(value) &&
+					isDeepStrictEqual(value.plan, owner),
 			);
-			const snapshot = Check(Detachment, detached)
+			const snapshot = detachmentValidator.check(detached)
 				? detached.context
 				: undefined;
 			return reference(
@@ -289,15 +296,16 @@ async function readSharedSession(
 		let result: Record<string, unknown> | undefined;
 		const members = records(session, "herdr-context-child").filter(
 			(value) =>
-				Check(Member, value) &&
+				memberValidator.check(value) &&
 				value.threadId === identity.threadId &&
 				value.sessionId === identity.sessionId,
 		);
 		const direct = members.filter(
-			(member) => Check(Member, member) && member.agentName === destination,
+			(member) =>
+				memberValidator.check(member) && member.agentName === destination,
 		);
 		for (const member of direct.length ? direct : members) {
-			if (!Check(Member, member)) continue;
+			if (!memberValidator.check(member)) continue;
 			const location = locator(session, member.machine, member.sessionFile);
 			// Only exploratory edges may be skipped. A recorded target must report its failure.
 			const saved = await (direct.length
@@ -326,7 +334,7 @@ async function readSharedSession(
 		if (direct.length) return result;
 		const routing = identity.routing;
 		const suffix = ".jsonl.shepherdr-context.json";
-		if (Check(Parent, routing)) {
+		if (parentValidator.check(routing)) {
 			const parentLocator = routing.savedParent
 				? locator(
 						session,

@@ -69,14 +69,13 @@
     "pack:dry": "npm pack --dry-run"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "packageManager": "bun@1.4.2",
   "peerDependencies": {
     "@howaboua/pi-gippity-control": ">=0.0.31",
     "@earendil-works/pi-coding-agent": ">=1.5.0",
     "@earendil-works/pi-tui": ">=1.0.0",
-    "typebox": "*",
     "@howaboua/pi-codex-conversion": ">=4.0.9"
   },
   "peerDependenciesMeta": {
@@ -94,12 +93,14 @@
     "@types/node": "^26.6.6",
     "electron": "44.10.2",
     "knip": "^6.45.0",
-    "typebox": "1.4.6",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "typescript": "^7.0.2",
     "@howaboua/pi-codex-conversion": "4.0.9"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "@earendil-works/pi-schema": "1.5.2"
   }
 }

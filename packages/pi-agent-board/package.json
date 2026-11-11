@@ -34,7 +34,7 @@
 		]
 	},
 	"engines": {
-		"node": ">=22.18.0"
+		"node": ">=22.19.0"
 	},
 	"scripts": {
 		"build": "node scripts/build-viewer.mjs",
@@ -45,6 +45,7 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"dependencies": {
+		"@earendil-works/pi-schema": "1.5.2",
 		"dompurify": "3.4.17",
 		"marked": "18.2.0",
 		"unicode-case-folding": "1.1.2"
@@ -53,8 +54,7 @@
 		"@earendil-works/pi-ai": ">=1.1.0",
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.1.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.9",
-		"typebox": "*"
+		"@howaboua/pi-codex-conversion": ">=4.0.9"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {

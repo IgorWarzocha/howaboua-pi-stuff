@@ -1,7 +1,17 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	bool,
+	compile,
+	int,
+	nul,
+	obj,
+	oneOf,
+	opt,
+	type Schema,
+	str,
+	union,
+	type Validator,
+} from "@earendil-works/pi-schema";
 import type { LookupQuery } from "./bridge.js";
 import { noteResult } from "./note-result.js";
 import { internalQueryArguments, normalizeQueryInput } from "./query-input.js";
@@ -29,14 +39,14 @@ export const NOTES_ROUTING_GUIDELINE =
 export const NEW_CONTEXT_DESCRIPTION =
 	"Start fresh context window. MUST save notes before calling";
 export const GPT_NEW_CONTEXT_DESCRIPTION = "Save notes→fresh context";
-const STRING = Type.Optional(Type.String());
-const INTEGER = Type.Optional(Type.Integer({ minimum: 1 }));
-const LINE = Type.Optional(Type.Union([Type.Integer(), Type.Null()]));
-export const NOTES_SCHEMA = Type.Object(
+const STRING = opt(str());
+const INTEGER = opt(int({ minimum: 1 }));
+const LINE = opt(union([int(), nul()]));
+export const NOTES_SCHEMA = obj(
 	{
-		action: Type.Optional(StringEnum(NOTES_ACTIONS)),
-		path: Type.Optional(
-			Type.Union([Type.String(), Type.Null()], {
+		action: opt({ ...oneOf(NOTES_ACTIONS), type: "string" }),
+		path: opt(
+			union([str(), nul()], {
 				description:
 					"File for read/write/append; prefix for list/search; virtual filesystem, not files in the project",
 			}),
@@ -47,49 +57,52 @@ export const NOTES_SCHEMA = Type.Object(
 		stop_line: LINE,
 		limit: INTEGER,
 		max_matches_per_file: INTEGER,
-		file_order: Type.Optional(StringEnum(["ascending", "descending"])),
-		file_order_by: Type.Optional(
-			StringEnum(["name", "created_at", "updated_at"]),
-		),
-		recent_file_first: Type.Optional(Type.Boolean()),
+		file_order: opt({ ...oneOf(["ascending", "descending"]), type: "string" }),
+		file_order_by: opt({
+			...oneOf(["name", "created_at", "updated_at"]),
+			type: "string",
+		}),
+		recent_file_first: opt(bool()),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
-const NEW_CONTEXT_SCHEMA = Type.Object(
+const NEW_CONTEXT_SCHEMA = obj(
 	{
-		role: Type.Optional(
-			Type.String({
+		role: opt(
+			str({
 				minLength: 1,
 				description:
 					"Configured model-role ID, not an agent name or handoff text",
 			}),
 		),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
 
+const newContextSchemaValidator = compile(NEW_CONTEXT_SCHEMA);
+
 export function newContextSchema(roleIds: string[]) {
-	return Type.Object(
-		roleIds.length ? { role: Type.Optional(StringEnum(roleIds)) } : {},
-		{ additionalProperties: false },
+	return obj(
+		roleIds.length ? { role: opt({ ...oneOf(roleIds), type: "string" }) } : {},
+		{ open: false },
 	);
 }
 
 export function prepareNewContextArguments(input: unknown) {
 	const args = input ?? {};
-	if (!Check(NEW_CONTEXT_SCHEMA, args))
+	if (!newContextSchemaValidator.check(args))
 		throw new Error(
 			'Use {} to keep the current model, or {role: "name"} for a configured role.',
 		);
 	return args;
 }
-export const HISTORY_SCHEMA = Type.Object(
+export const HISTORY_SCHEMA = obj(
 	{
-		action: Type.Optional(StringEnum(HISTORY_ACTIONS)),
-		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-		item_id: Type.Optional(Type.String()),
-		window_id: Type.Optional(
-			Type.Union([Type.String(), Type.Null()], {
+		action: opt({ ...oneOf(HISTORY_ACTIONS), type: "string" }),
+		agent_name: opt(union([str(), nul()])),
+		item_id: opt(str()),
+		window_id: opt(
+			union([str(), nul()], {
 				description: "Required with item_id for read",
 			}),
 		),
@@ -97,18 +110,21 @@ export const HISTORY_SCHEMA = Type.Object(
 		limit: INTEGER,
 		limit_chars: INTEGER,
 		max_chars_per_item: INTEGER,
-		offset_chars: Type.Optional(Type.Integer({ minimum: 0 })),
-		recent_first: Type.Optional(Type.Boolean()),
-		role: Type.Optional(
-			Type.Union([
-				StringEnum(["user", "assistant", "tool", "system", "developer"]),
-				Type.Null(),
+		offset_chars: opt(int({ minimum: 0 })),
+		recent_first: opt(bool()),
+		role: opt(
+			union([
+				{
+					...oneOf(["user", "assistant", "tool", "system", "developer"]),
+					type: "string",
+				},
+				nul(),
 			]),
 		),
-		tool_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-		tool_namespace: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+		tool_name: opt(union([str(), nul()])),
+		tool_namespace: opt(union([str(), nul()])),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
 
 const FIELDS: Record<string, readonly string[]> = {
@@ -272,25 +288,36 @@ export function queryHelp(
 
 export function prepareNotesArguments(args: unknown) {
 	const params = normalizeQueryInput("notes", args);
-	validateArguments("notes", params, NOTES_SCHEMA);
+	validateArguments("notes", params, NOTES_FIELD_VALIDATORS);
 	return params;
 }
 
 export function prepareHistoryArguments(args: unknown) {
 	const params = normalizeQueryInput("history", args);
-	validateArguments("history", params, HISTORY_SCHEMA);
+	validateArguments("history", params, HISTORY_FIELD_VALIDATORS);
 	return params;
+}
+
+const NOTES_FIELD_VALIDATORS = fieldValidators(NOTES_SCHEMA);
+const HISTORY_FIELD_VALIDATORS = fieldValidators(HISTORY_SCHEMA);
+
+function fieldValidators(schema: Schema): Record<string, Validator> {
+	return Object.fromEntries(
+		Object.entries(schema["properties"] as Record<string, Schema>).map(
+			([field, property]) => [field, compile(property)],
+		),
+	);
 }
 
 function validateArguments(
 	namespace: LookupQuery["namespace"],
 	params: Record<string, unknown>,
-	schema: import("typebox").TObject,
+	validators: Record<string, Validator>,
 ) {
 	if (!queryHelp(namespace, params)) queryArguments(namespace, params);
 	for (const [field, value] of Object.entries(params)) {
-		const property = schema.properties[field];
-		if (!property || !Check(property, value))
+		const validator = validators[field];
+		if (!validator || !validator.check(value))
 			throw new Error(
 				`Invalid ${namespace} ${field}; use {} for exact arguments`,
 			);

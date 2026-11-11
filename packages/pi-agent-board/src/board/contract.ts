@@ -1,9 +1,14 @@
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
-
-function StringEnum<T extends readonly string[]>(values: T) {
-	return Type.Unsafe<T[number]>({ type: "string", enum: values });
-}
+import {
+	arr,
+	bool,
+	compile,
+	int,
+	obj,
+	oneOf,
+	opt,
+	type Static,
+	str,
+} from "@earendil-works/pi-schema";
 
 const BOARD_ACTIONS = [
 	"help",
@@ -21,22 +26,23 @@ const BOARD_ACTIONS = [
 ] as const;
 const THREAD_STATUSES = ["open", "completed", "abandoned"] as const;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
-export const BoardParameters = Type.Object({
-	action: Type.Optional(StringEnum(BOARD_ACTIONS)),
-});
-const positive = Type.Optional(
-	Type.Integer({ minimum: 1, maximum: 0xffffffff }),
-);
-const string = Type.Optional(Type.String());
-const Request = Type.Object(
+export const BoardParameters = obj(
 	{
-		action: StringEnum(BOARD_ACTIONS),
+		action: opt({ ...oneOf(BOARD_ACTIONS), type: "string" }),
+	},
+	{ open: true },
+);
+const positive = opt(int({ minimum: 1, maximum: 0xffffffff }));
+const string = opt(str());
+const Request = obj(
+	{
+		action: { ...oneOf(BOARD_ACTIONS), type: "string" },
 		channel_name: string,
 		new_channel_name: string,
 		thread_id: string,
 		message_id: string,
 		text: string,
-		status: Type.Optional(StringEnum(THREAD_STATUSES)),
+		status: opt({ ...oneOf(THREAD_STATUSES), type: "string" }),
 		comment: string,
 		query: string,
 		author: string,
@@ -44,21 +50,17 @@ const Request = Type.Object(
 		after_message_id: string,
 		board_id: string,
 		cursor: string,
-		full: Type.Optional(Type.Boolean()),
-		subscribe: Type.Optional(Type.Boolean()),
-		recent_first: Type.Optional(Type.Boolean()),
-		sort: Type.Optional(StringEnum(["created", "activity"])),
+		full: opt(bool()),
+		subscribe: opt(bool()),
+		recent_first: opt(bool()),
+		sort: opt({ ...oneOf(["created", "activity"]), type: "string" }),
 		limit: positive,
 		max_chars_per_post: positive,
 		limit_chars: positive,
-		offset_chars: Type.Optional(
-			Type.Integer({ minimum: 0, maximum: 0xffffffff }),
-		),
-		agents_to_notify: Type.Optional(
-			Type.Array(Type.String(), { maxItems: 256 }),
-		),
+		offset_chars: opt(int({ minimum: 0, maximum: 0xffffffff })),
+		agents_to_notify: opt(arr(str(), { maxItems: 256 })),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
 export type BoardParams = Static<typeof Request>;
 export type BoardAction = BoardParams["action"];
@@ -115,6 +117,8 @@ const requiredFields: Partial<Record<BoardAction, string[]>> = {
 	read_thread: ["thread_id"],
 	read_post: ["message_id"],
 };
+const requestValidator = compile(Request);
+
 export function parseBoardRequest(value: unknown): BoardParams {
 	if (
 		value === undefined ||
@@ -124,7 +128,7 @@ export function parseBoardRequest(value: unknown): BoardParams {
 			Object.keys(value).length === 0)
 	)
 		return { action: "help" };
-	if (!Check(Request, value))
+	if (!requestValidator.check(value))
 		throw new Error("Invalid board request; call board help");
 	const request = { ...(value as BoardParams) };
 	const allowed = new Set(["action", ...fields[request.action]]);

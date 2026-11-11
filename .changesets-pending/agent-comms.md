@@ -2,6 +2,8 @@
 "@howaboua/pi-agent-comms": patch
 ---
 
+Requires Node.js 22.19 or newer.
+
 - Initial release combining session notes, searchable history, context rollover and agent boards. Agent Comms is an alternative to the maintained standalone Notes Compaction and Agent Board packages, preserving existing data and settings. Do not load both alternatives together.
 - Notes and Board work independently and initialise on demand. Each has an Off setting.
 - Notes reads accept `end_line` as an alias for `stop_line`.

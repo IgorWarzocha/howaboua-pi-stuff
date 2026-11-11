@@ -4,44 +4,59 @@ import {
 	buildSessionProjection,
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	compile,
+	lit,
+	num,
+	obj,
+	opt,
+	str,
+	union,
+	unknown,
+	unsafe,
+} from "@earendil-works/pi-schema";
 
 const READ_KEY = "codexContextNoteRead";
-const READ_SCHEMA = Type.Object(
+const READ_SCHEMA = obj(
 	{
-		protocol: Type.Literal(1),
-		origin: Type.Literal("host"),
-		id: Type.String({ pattern: "^[a-f0-9-]{36}$" }),
-		path: Type.String({ minLength: 1 }),
-		namespace: Type.Optional(Type.Literal("notes")),
-		api: Type.String({ minLength: 1 }),
-		provider: Type.String({ minLength: 1 }),
-		model: Type.String({ minLength: 1 }),
-		timestamp: Type.Number({ minimum: 0 }),
-		content: Type.Array(
-			Type.Union([
-				Type.Object({ type: Type.Literal("text"), text: Type.String() }),
-				Type.Object({
-					type: Type.Literal("image"),
-					data: Type.String(),
-					mimeType: Type.String(),
-					detail: Type.Optional(
-						Type.Union([
-							Type.Literal("auto"),
-							Type.Literal("high"),
-							Type.Literal("original"),
-						]),
-					),
-				}),
+		protocol: lit(1),
+		origin: lit("host"),
+		id: str({ pattern: "^[a-f0-9-]{36}$" }),
+		path: str({ minLength: 1 }),
+		namespace: opt(lit("notes")),
+		api: str({ minLength: 1 }),
+		provider: str({ minLength: 1 }),
+		model: str({ minLength: 1 }),
+		timestamp: num({ minimum: 0 }),
+		content: arr(
+			union([
+				obj({ type: lit("text"), text: str() }, { open: true }),
+				obj(
+					{
+						type: lit("image"),
+						data: str(),
+						mimeType: str(),
+						detail: opt(union([lit("auto"), lit("high"), lit("original")])),
+					},
+					{ open: true },
+				),
 			]),
 		),
-		details: Type.Object({
-			codexHistoryNotes: Type.Record(Type.String(), Type.Unknown()),
-		}),
+		details: obj(
+			{
+				codexHistoryNotes: unsafe<Record<string, unknown>>({
+					type: "object",
+					patternProperties: { "^.*$": unknown() },
+				}),
+			},
+			{ open: true },
+		),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
+
+const readSchemaValidator = compile(READ_SCHEMA);
 
 function callId(id: string): string {
 	const name = "tree_handoff_" + id.replaceAll("-", "");
@@ -95,7 +110,7 @@ export function projectTreeHandoffReads(
 		if (!details || typeof details !== "object" || !(READ_KEY in details))
 			return [message];
 		const read = details[READ_KEY];
-		if (!Check(READ_SCHEMA, read))
+		if (!readSchemaValidator.check(read))
 			throw new Error("Invalid persisted tree handoff read");
 		const resultDetails = read.details;
 		if (!isJson(resultDetails))

@@ -2,7 +2,7 @@
 
 Pi extensions can expose functions directly to Grok during a voice call. They run locally in the current Pi session, without delegating to the Pi agent.
 
-Import `registerGrokTool` from `@howaboua/pi-grok-realtime/tools`. Pass the Pi extension API and a definition with `name`, `description`, a TypeBox `parameters` schema, and `execute(args, { signal, ctx, callId })`. Import `Type` from `typebox`. Argument types are inferred from the schema and validated using Pi's argument validator before execution.
+Import `registerGrokTool` from `@howaboua/pi-grok-realtime/tools`. Pass the Pi extension API and a definition with `name`, `description`, a `parameters` schema built with `@earendil-works/pi-schema`, and `execute(args, { signal, ctx, callId })`. Argument types are inferred from the schema and validated using Pi's argument validator before execution.
 
 Return a JSON-compatible value or a promise of one. Undefined, non-finite numbers, class instances and circular values fail visibly. Execution errors are reported as tool failures. Use `ctx` for the current session. Preserve normal approval requirements when exposing actions.
 
@@ -25,7 +25,7 @@ xAI also reports native searches as function-call events. These are displayed as
 ## Development checks
 
 - Give the tool one clear purpose and describe when to use it. Do not put secrets in descriptions, parameters or results.
-- Use `additionalProperties: false` for closed argument objects. Return useful facts or action receipts, not invented success.
+- `obj()` creates closed argument objects by default. Use `{ open: true }` only when extra fields are supported. Return useful facts or action receipts, not invented success.
 - Pass `signal` to cancellable APIs such as `fetch`. Registering a tool does not supply approval UI or authorization.
 - Results and failures enter voice context and session diagnostics. Return only information appropriate for the caller.
 - Start a fresh call after reloading. Diagnose missing tools from the saved `session.update` tools list and inspect `function_call_output` for validation or execution errors.

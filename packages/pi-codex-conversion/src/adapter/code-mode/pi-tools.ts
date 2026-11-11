@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ToolLoadout, ToolLoadoutChanges } from "@earendil-works/pi-coding-agent";
-import { Check } from "typebox/value";
+import { compile } from "@earendil-works/pi-schema";
 import { missingMcpToolMessage } from "../../tools/code-mode/mcp-tool-recovery.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "../../tools/code-mode/types.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES } from "../activation/runtime-plan.ts";
@@ -19,6 +19,7 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 				&& registered.get(tool.name)?.sourceInfo?.path !== "builtin:tool-search").map((tool) => {
 				const metadata = registered.get(tool.name);
 				const mcp = metadata?.sourceInfo?.path === "builtin:mcp";
+				const argumentsSchema = compile(tool.parameters, { unresolvedRefs: "reject" });
 				return {
 					name: tool.name,
 					usage: `await tools.${tool.name}(args)`,
@@ -37,8 +38,8 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 					async invoke(input, context, signal) {
 						if (!context.executeTool) throw new Error("Pi nested tool executor is unavailable");
 						// The Code host serializes omitted arguments as null; preserve schema-valid nulls.
-						const empty = input === undefined || (input === null && !Check(tool.parameters, null));
-						const args = empty && Check(tool.parameters, {}) ? {} : input;
+						const empty = input === undefined || (input === null && !argumentsSchema.check(null));
+						const args = empty && argumentsSchema.check({}) ? {} : input;
 						const outcome = await context.executeTool(tool.name, args, { signal, ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}) });
 						const { result } = outcome;
 						const text = result.content.filter((block) => block.type === "text").map((block) => block.text).join("\n");

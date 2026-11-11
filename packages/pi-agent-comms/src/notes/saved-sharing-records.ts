@@ -1,5 +1,15 @@
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	arr,
+	compile,
+	lit,
+	num,
+	obj,
+	opt,
+	type Static,
+	str,
+	union,
+	unknown,
+} from "@earendil-works/pi-schema";
 import {
 	CONTEXT_AGENT_PATTERN,
 	canonicalAgentName,
@@ -9,78 +19,103 @@ import {
 } from "./agent-identity.js";
 import type { SavedNotesSession } from "./saved-session.js";
 
-const Agent = Type.String({ pattern: CONTEXT_AGENT_PATTERN });
-export const Identity = Type.Object({
-	protocol: Type.Literal(1),
-	sessionId: Type.String(),
-	threadId: Type.String(),
-	agentName: Agent,
-	storageAgentName: Type.Optional(Agent),
-	storage: Type.Optional(
-		Type.Union([Type.Literal("session"), Type.Literal("remote")]),
-	),
-	routing: Type.Optional(Type.Unknown()),
-});
-export const Member = Type.Object({
-	threadId: Type.String(),
-	sessionId: Type.String(),
-	agentName: Agent,
-	machine: Type.String(),
-	sessionFile: Type.String(),
-});
-export const Plan = Type.Object({
-	controllerSessionId: Type.String(),
-	targetSessionId: Type.String(),
-	context: Type.Optional(
-		Type.Object({
-			controller: Identity,
-			target: Identity,
-			alias: Agent,
-			controllerAlias: Agent,
-			controllerFile: Type.Optional(Type.String()),
-			controllerMachine: Type.Optional(Type.String()),
-			controllerNotes: Type.Unknown(),
-			targetNotes: Type.Unknown(),
-		}),
-	),
-});
-export const Route = Type.Object({
-	plan: Plan,
-	machine: Type.String(),
-	sessionFile: Type.String(),
-	phase: Type.Union([Type.Literal("pending"), Type.Literal("ready")]),
-	detached: Type.Optional(
-		Type.Object({ context: Type.Optional(Type.Unknown()) }),
-	),
-});
-export const Detachment = Type.Object({
-	plan: Plan,
-	context: Type.Optional(Type.Unknown()),
-});
-export const Snapshot = Type.Object({
-	protocol: Type.Literal(1),
-	timestamp: Type.Number(),
-	files: Type.Array(
-		Type.Object({
-			path: Type.String(),
-			text: Type.String(),
-			createdAt: Type.Number(),
-			updatedAt: Type.Number(),
-			operation: Type.Union([
-				Type.Literal("local_append_overlay"),
-				Type.Literal("local_replacement"),
-			]),
-		}),
-	),
-});
-export const Parent = Type.Object({
-	transport: Type.Literal("shepherdr"),
-	parent: Type.String(),
-	savedParent: Type.Optional(
-		Type.Object({ machine: Type.String(), sessionFile: Type.String() }),
-	),
-});
+const Agent = str({ pattern: CONTEXT_AGENT_PATTERN });
+export const Identity = obj(
+	{
+		protocol: lit(1),
+		sessionId: str(),
+		threadId: str(),
+		agentName: Agent,
+		storageAgentName: opt(Agent),
+		storage: opt(union([lit("session"), lit("remote")])),
+		routing: opt(unknown()),
+	},
+	{ open: true },
+);
+export const Member = obj(
+	{
+		threadId: str(),
+		sessionId: str(),
+		agentName: Agent,
+		machine: str(),
+		sessionFile: str(),
+	},
+	{ open: true },
+);
+export const Plan = obj(
+	{
+		controllerSessionId: str(),
+		targetSessionId: str(),
+		context: opt(
+			obj(
+				{
+					controller: Identity,
+					target: Identity,
+					alias: Agent,
+					controllerAlias: Agent,
+					controllerFile: opt(str()),
+					controllerMachine: opt(str()),
+					controllerNotes: unknown(),
+					targetNotes: unknown(),
+				},
+				{ open: true },
+			),
+		),
+	},
+	{ open: true },
+);
+export const Route = obj(
+	{
+		plan: Plan,
+		machine: str(),
+		sessionFile: str(),
+		phase: union([lit("pending"), lit("ready")]),
+		detached: opt(obj({ context: opt(unknown()) }, { open: true })),
+	},
+	{ open: true },
+);
+export const Detachment = obj(
+	{
+		plan: Plan,
+		context: opt(unknown()),
+	},
+	{ open: true },
+);
+export const Snapshot = obj(
+	{
+		protocol: lit(1),
+		timestamp: num(),
+		files: arr(
+			obj(
+				{
+					path: str(),
+					text: str(),
+					createdAt: num(),
+					updatedAt: num(),
+					operation: union([
+						lit("local_append_overlay"),
+						lit("local_replacement"),
+					]),
+				},
+				{ open: true },
+			),
+		),
+	},
+	{ open: true },
+);
+export const Parent = obj(
+	{
+		transport: lit("shepherdr"),
+		parent: str(),
+		savedParent: opt(
+			obj({ machine: str(), sessionFile: str() }, { open: true }),
+		),
+	},
+	{ open: true },
+);
 export type Identity = Static<typeof Identity>;
+
+const identityValidator = compile(Identity);
 
 /** Ordinary family membership is immutable, explicit and native-session owned. */
 export function savedFamilyIdentity(
@@ -93,7 +128,7 @@ export function savedFamilyIdentity(
 			(entry) =>
 				entry.type === "custom" &&
 				entry.customType === "codex-context-agent" &&
-				Check(Identity, entry.data) &&
+				identityValidator.check(entry.data) &&
 				entry.data.threadId === session.threadId,
 		)
 	)
@@ -109,7 +144,7 @@ export function savedNotesIdentity(
 	for (const entry of session.entries) {
 		if (entry.type !== "custom" || entry.customType !== "codex-context-agent")
 			continue;
-		if (!Check(Identity, entry.data))
+		if (!identityValidator.check(entry.data))
 			throw new Error("Invalid saved notes identity");
 		if (entry.data.threadId !== session.threadId) continue;
 		if (found) throw new Error("Conflicting saved notes identities");

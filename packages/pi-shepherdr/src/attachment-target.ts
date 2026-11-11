@@ -3,21 +3,22 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { Static } from "@earendil-works/pi-schema";
 import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
-import type { Static } from "typebox";
-import { Check } from "typebox/value";
 import { AttachmentNotes } from "./attachment-notes.js";
 import {
 	type AttachmentPlan,
 	attachmentOwner,
 	attachmentRoutes,
 	canonicalContextIdentity,
+	checkDetachment,
+	checkIdentity,
+	checkPlan,
 	DETACHED,
 	Detachment,
 	detachment,
 	Identity,
 	OWNER,
-	Plan,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
 import { type BoardBinding, canonicalBoardBinding } from "./board/records.js";
@@ -56,7 +57,7 @@ export class AttachmentTarget {
 		if (!service?.inspectAttachment || !service.retainAttachmentIdentity)
 			throw new Error(NOTES_UNAVAILABLE);
 		const identity = await service.inspectAttachment(ctx, target);
-		if (!identity || !Check(Identity, identity))
+		if (!identity || !checkIdentity(identity))
 			throw new Error(
 				"Context attachment requires notes-based continuity on both agents",
 			);
@@ -118,7 +119,7 @@ export class AttachmentTarget {
 		if (input.operation === "attachment-export-notes") {
 			if (
 				!("plan" in input) ||
-				!Check(Plan, input.plan) ||
+				!checkPlan(input.plan) ||
 				!isDeepStrictEqual(attachmentOwner(ctx), input.plan)
 			)
 				throw new Error("Invalid checkpoint owner");
@@ -129,7 +130,7 @@ export class AttachmentTarget {
 		if (
 			input.operation !== "attach-commit" ||
 			!("plan" in input) ||
-			!Check(Plan, input.plan)
+			!checkPlan(input.plan)
 		)
 			throw new Error("Invalid attachment request");
 		const plan = input.plan as AttachmentPlan;
@@ -285,7 +286,7 @@ export class AttachmentTarget {
 		input: unknown,
 		signal?: AbortSignal,
 	) {
-		if (!Check(Detachment, input)) throw new Error("Invalid detach request");
+		if (!checkDetachment(input)) throw new Error("Invalid detach request");
 		const requested = input as Static<typeof Detachment>;
 		if (requested.board) this.board.requireAvailable();
 		const { plan } = requested;

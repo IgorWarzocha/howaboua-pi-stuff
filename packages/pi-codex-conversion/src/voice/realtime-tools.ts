@@ -3,7 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { Static, TSchema } from "typebox";
+import type { Static } from "@earendil-works/pi-schema";
 
 export type GippityToolResult =
 	| null
@@ -19,7 +19,7 @@ export interface GippityToolContext {
 	callId: string;
 }
 
-export interface GippityToolDefinition<T extends TSchema = TSchema> {
+export interface GippityToolDefinition<T extends object = object> {
 	name: string;
 	description: string;
 	parameters: T;
@@ -33,7 +33,7 @@ interface GippityToolWireDefinition extends Record<string, unknown> {
 	type: "function";
 	name: string;
 	description: string;
-	parameters: TSchema;
+	parameters: object;
 }
 
 export interface GippityToolRegistry {
@@ -57,7 +57,7 @@ const COLLECT_TOOLS = "gippity-realtime:collect-tools";
 const RESERVED = new Set(["send_task", "end_call", "web_search"]);
 
 /** Register during extension loading. Pi removes this subscription on reload. */
-export function registerGippityVoiceTool<T extends TSchema>(
+export function registerGippityVoiceTool<T extends object>(
 	pi: ExtensionAPI,
 	tool: GippityToolDefinition<T>,
 ): () => void {

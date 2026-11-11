@@ -3,58 +3,75 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	bool,
+	compile,
+	lit,
+	nul,
+	obj,
+	opt,
+	type Static,
+	str,
+	union,
+} from "@earendil-works/pi-schema";
 import { readBoardConfig } from "./config.js";
 
-const nativeId = Type.String({ pattern: "^[a-zA-Z0-9_.-]+$" });
-export const BindingSchema = Type.Object(
+const nativeId = str({ pattern: "^[a-zA-Z0-9_.-]+$" });
+export const BindingSchema = obj(
 	{
-		protocol: Type.Literal(1),
+		protocol: lit(1),
 		boardId: nativeId,
 		rootSessionId: nativeId,
 		sessionId: nativeId,
-		agentName: Type.String({
+		agentName: str({
 			pattern: "^/[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_-]+)*$",
 		}),
-		legacyAgentName: Type.Optional(
-			Type.String({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" }),
-		),
-		parentSessionId: Type.Optional(nativeId),
-		ownerFolder: Type.String({ minLength: 1 }),
-		databasePath: Type.String({ minLength: 1 }),
-		enabled: Type.Boolean(),
-		upstream: Type.Optional(Type.String({ minLength: 1 })),
+		legacyAgentName: opt(str({ pattern: "^/root(?:/[a-zA-Z0-9_-]+)*$" })),
+		parentSessionId: opt(nativeId),
+		ownerFolder: str({ minLength: 1 }),
+		databasePath: str({ minLength: 1 }),
+		enabled: bool(),
+		upstream: opt(str({ minLength: 1 })),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
 export type BoardBinding = Static<typeof BindingSchema>;
-const ChildSchema = Type.Object({
-	parentSessionId: nativeId,
-	binding: BindingSchema,
-	machine: Type.String(),
-	sessionFile: Type.String({ minLength: 1 }),
-});
+const ChildSchema = obj(
+	{
+		parentSessionId: nativeId,
+		binding: BindingSchema,
+		machine: str(),
+		sessionFile: str({ minLength: 1 }),
+	},
+	{ open: true },
+);
 type BoardChild = Static<typeof ChildSchema>;
 const BINDING = "shepherdr-board-binding";
 const MEMBER = "shepherdr-board-member";
 const CHILD = "shepherdr-board-child";
 const SETTING = "shepherdr-board-setting";
 const defaults = new WeakMap<ExtensionContext["sessionManager"], boolean>();
+const bindingSchemaValidator = compile(BindingSchema);
+const childSchemaValidator = compile(ChildSchema);
+
 export function setBoardDefault(ctx: ExtensionContext, enabled: boolean) {
 	defaults.set(ctx.sessionManager, enabled);
 }
 const REMOVED = "shepherdr-board-removed";
-const SettingSchema = Type.Object({
-	sessionId: nativeId,
-	enabled: Type.Union([Type.Boolean(), Type.Null()]),
-});
+const SettingSchema = obj(
+	{
+		sessionId: nativeId,
+		enabled: union([bool(), nul()]),
+	},
+	{ open: true },
+);
+const settingSchemaValidator = compile(SettingSchema);
 
 function sessionBoardSetting(ctx: ExtensionContext): boolean | undefined {
 	let enabled: boolean | undefined;
 	for (const entry of ctx.sessionManager.getEntries()) {
 		if (entry.type !== "custom" || entry.customType !== SETTING) continue;
-		if (!Check(SettingSchema, entry.data))
+		if (!settingSchemaValidator.check(entry.data))
 			throw new Error("Invalid saved board setting");
 		const value = entry.data as Static<typeof SettingSchema>;
 		if (value.sessionId === ctx.sessionManager.getSessionId())
@@ -100,7 +117,7 @@ export function rootBoardSetting(ctx: ExtensionContext) {
 }
 
 export function parseBinding(value: unknown): BoardBinding {
-	if (!Check(BindingSchema, value))
+	if (!bindingSchemaValidator.check(value))
 		throw new Error("Invalid Shepherdr board binding");
 	const saved = value as BoardBinding;
 	assertSessionIdentity(saved.sessionId, saved.rootSessionId);
@@ -189,7 +206,7 @@ export function children(ctx: ExtensionContext): BoardChild[] {
 			continue;
 		}
 		if (entry.type !== "custom" || entry.customType !== CHILD) continue;
-		if (!Check(ChildSchema, entry.data))
+		if (!childSchemaValidator.check(entry.data))
 			throw new Error("Invalid saved board child route");
 		const value = entry.data as BoardChild;
 		if (
@@ -224,7 +241,10 @@ export function boardAliases(
 		let member: BoardBinding;
 		if ([BINDING, MEMBER, REMOVED].includes(entry.customType))
 			member = parseBinding(entry.data);
-		else if (entry.customType === CHILD && Check(ChildSchema, entry.data))
+		else if (
+			entry.customType === CHILD &&
+			childSchemaValidator.check(entry.data)
+		)
 			member = parseBinding((entry.data as BoardChild).binding);
 		else continue;
 		if (member.boardId === boardId && member.legacyAgentName) {
