@@ -72,7 +72,7 @@ export async function registerNotesToolIntegrations(
 								? { resultValue: historyResultValue }
 								: {}),
 						}),
-						// Code checks inputs before Pi can normalise this body alias.
+						// Code checks inputs before Pi can normalise these aliases.
 						...(tool.name === "notes"
 							? {
 									inputSchema: {
@@ -80,6 +80,7 @@ export async function registerNotesToolIntegrations(
 										properties: {
 											...NOTES_SCHEMA.properties,
 											content: NOTES_SCHEMA.properties.text,
+											end_line: NOTES_SCHEMA.properties.stop_line,
 										},
 									},
 								}

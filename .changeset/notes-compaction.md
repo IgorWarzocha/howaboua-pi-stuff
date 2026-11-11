@@ -4,6 +4,7 @@
 
 - Notes now offers Off and defers inactive initialisation without deleting saved data or retired context boundaries.
 - Notes now accepts `content` as a body alias for `text` in typed tool calls.
+- Notes reads now accept `end_line` as an alias for `stop_line`.
 - Notes results now omit routine bookkeeping while retaining paths, content, search matches and truncation.
 - Context recovery now checks selected past user messages for intent and communication preferences, with current instructions taking precedence.
 - Context window openings now omit UUIDs; history still exposes window references.
