@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { bool, int, obj, opt, str, type Static } from "@earendil-works/pi-schema";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
@@ -42,26 +42,26 @@ const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
 const MAX_ADAPTIVE_WAIT_MS = 1_800_000;
 type RenderTracker = ReturnType<typeof createCodeModeRenderTracker>;
-const EXEC_PARAMETERS = Type.Object({
-	code: Type.String(),
-});
-const WAIT_PARAMETERS = Type.Object({
-	cell_id: Type.String(),
-	yield_time_ms: Type.Optional(
-		Type.Integer({
+const EXEC_PARAMETERS = obj({
+	code: str(),
+}, { open: true });
+const WAIT_PARAMETERS = obj({
+	cell_id: str(),
+	yield_time_ms: opt(
+		int({
 			minimum: 0,
 			default: DEFAULT_WAIT_MS,
 		}),
 	),
-	max_tokens: Type.Optional(
-		Type.Integer({
+	max_tokens: opt(
+		int({
 			minimum: 1,
 			maximum: MAX_CODE_MODE_OUTPUT_TOKENS,
 			default: DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 		}),
 	),
-	terminate: Type.Optional(Type.Boolean()),
-});
+	terminate: opt(bool()),
+}, { open: true });
 
 export function registerPublicCodeModeTools(
 	pi: ExtensionAPI,
@@ -121,7 +121,7 @@ function createExecTool(
 			if (typeof code !== "string") return [];
 			return /\bALL_TOOLS\b/.test(code) ? "all" : (code.match(/\w+/g) ?? []);
 		},
-		async execute(id, params, signal, onUpdate, ctx) {
+		async execute(id, params: Static<typeof EXEC_PARAMETERS>, signal, onUpdate, ctx) {
 			tracker.start(id);
 			const piToolScope = new PiToolCallScope(ctx, signal);
 			try {
@@ -187,7 +187,7 @@ function createWaitTool(
 		promptSnippet: "Resume or terminate an exec cell",
 		parameters: WAIT_PARAMETERS,
 		...(constrainedSampling ? { constrainedSampling } : {}),
-		async execute(id, params, signal, onUpdate, ctx) {
+		async execute(id, params: Static<typeof WAIT_PARAMETERS>, signal, onUpdate, ctx) {
 			tracker.start(id);
 			const piToolScope = new PiToolCallScope(ctx, signal);
 			try {

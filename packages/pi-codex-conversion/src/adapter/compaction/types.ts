@@ -1,4 +1,5 @@
 import type { CompactionEntry, CompactionResult } from "@earendil-works/pi-coding-agent";
+import { formatUtcMinute } from "../../time-format.ts";
 import { isCodexCompactionDiagnostic, type CodexCompactionDiagnostic } from "./diagnostics.ts";
 
 const LEGACY_NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
@@ -209,7 +210,7 @@ export function createNativeCompactionDetails(input: CreateNativeCompactionDetai
 		baseUrl: normalizeString(input.baseUrl),
 		compactedWindow: input.compactedWindow.map((item) => cloneStructuredValue(item)),
 		compactResponseId: isNonEmptyString(input.compactResponseId) ? normalizeString(input.compactResponseId) : undefined,
-		createdAt: isNonEmptyString(input.createdAt) ? normalizeString(input.createdAt) : new Date().toISOString(),
+		createdAt: isNonEmptyString(input.createdAt) ? normalizeString(input.createdAt) : formatUtcMinute(),
 		requestMeta: input.requestMeta
 			? {
 				...(input.requestMeta.tokensBefore !== undefined ? { tokensBefore: input.requestMeta.tokensBefore } : {}),

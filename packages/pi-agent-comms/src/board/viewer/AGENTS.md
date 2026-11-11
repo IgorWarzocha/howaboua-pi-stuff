@@ -1,0 +1,1 @@
+- The viewer compiles independently under `tsconfig.viewer.json`. Keep runtime imports inside this subtree or packaged dependencies, not extension modules outside its build root.

@@ -53,6 +53,7 @@ The base atlas is PNG or WebP, exactly `1536x2288`: 8 columns by 11 rows, with `
 ```
 
 Rules:
+
 - `schemaVersion` is exactly `1`.
 - Unknown fields fail validation.
 - Action names are 1–64 lowercase characters: letters, numbers, `.`, `_`, `-`.

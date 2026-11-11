@@ -4,8 +4,16 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { compile, lit, obj, opt, str } from "@earendil-works/pi-schema";
 
+const PulseParameters = obj({
+	run: opt(str({ minLength: 1 })),
+	skill: opt({
+		...lit(true),
+		type: "boolean",
+	}),
+});
+const checkParameters = compile(PulseParameters).check;
 export async function registerPulseControls(
 	pi: ExtensionAPI,
 	operations: {
@@ -17,14 +25,12 @@ export async function registerPulseControls(
 		name: "pulses",
 		label: "Pulses",
 		description: "Run a saved routine",
-		parameters: Type.Object(
-			{
-				run: Type.Optional(Type.String({ minLength: 1 })),
-				skill: Type.Optional(Type.Literal(true)),
-			},
-			{ additionalProperties: false },
-		),
+		parameters: PulseParameters,
 		async execute(_id, args, _signal, _update, ctx) {
+			if (!checkParameters(args))
+				throw new Error(
+					"Invalid arguments; call pulses with no arguments for help",
+				);
 			if (args.run !== undefined && args.skill !== undefined)
 				throw new Error("Supply run or skill, not both.");
 			const text = args.skill

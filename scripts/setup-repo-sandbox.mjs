@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 const usage = `Usage: bun run sandbox:setup --name NAME [--config YAML] [--live-model openai-codex/MODEL]
 Snapshot this checkout's tracked working files into an existing sandbox, or create
 one from YAML. Replaces this script's previous disposable candidate.
-Requires host Node 24+, installed repo dependencies, and guest bun, node, tar, python3, make, g++, node-gyp, herdr, fd.
+Trusts that candidate's project resources in its isolated Pi agent directory.
+Requires host Node 24+, installed repo dependencies, and guest bun, node, tar, python3, make, g++, node-gyp, hc 0.1.18+, fd.
 Without --live-model, never copies credentials. Live mode explicitly syncs only the
 selected provider's short-lived host access token, clears its guest model override,
 and verifies a real candidate response. Refresh credentials stay on the host.
@@ -35,10 +36,11 @@ if (args.includes("--live-model") && !/^openai-codex\/[a-zA-Z0-9._-]+$/.test(liv
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 const host = (command, argv) => execFileSync(command, argv, { cwd: root });
-// JJ workspaces have no .git. Both paths export tracked working files, not HEAD.
+// Prefer this checkout's Git index; a colocated .jj may be stale after Git work.
+// JJ-only workspaces use their working revision. Both export working files, not HEAD.
 let files;
 let source;
-if (existsSync(join(root, ".jj"))) {
+if (!existsSync(join(root, ".git")) && existsSync(join(root, ".jj"))) {
 	files = host("jj", ["file", "list"]).toString().trimEnd().split("\n");
 	source = host("jj", [
 		"log",
@@ -129,10 +131,18 @@ try {
 		}
 	}
 	await execute(`set -eu
-for tool in bun node tar python3 make g++ node-gyp herdr fd; do
+for tool in bun node tar python3 make g++ node-gyp hc fd; do
   command -v "$tool" || { echo "Missing guest prerequisite: $tool"; exit 1; }
 done
 node -e 'if (Number(process.versions.node.split(".")[0]) < 24) process.exit(1)'
+python3 - <<'PY'
+import re, subprocess
+version = subprocess.check_output(["hc", "--version"], text=True).strip()
+match = re.fullmatch(r"(?:hc|herdr-core) (\\d+)\\.(\\d+)\\.(\\d+)", version)
+if not match or tuple(map(int, match.groups())) < (0, 1, 18):
+    raise SystemExit("Guest requires released Herdr Core 0.1.18 or newer. Provision a compatible hc before retrying.")
+print("Guest Core prerequisite:", version)
+PY
 if [ -e ${quote(home)} ]; then
   test -f ${quote(`${home}/.owned-by-setup-repo-sandbox`)} || { echo 'Refusing unrelated review directory'; exit 1; }
 fi
@@ -158,6 +168,7 @@ rm archive.b64 archive.tgz ${quote(`${home}/chunk`)}
 mkdir .install-tmp
 TMPDIR="$PWD/.install-tmp" npm run install:ci
 bun run --cwd packages/pi-codex-conversion build
+bun run --cwd packages/pi-agent-comms build
 bun run --cwd packages/pi-sandbox build
 rm -rf .install-tmp
 `);
@@ -168,19 +179,17 @@ rm -rf .install-tmp
 			{
 				source,
 				archiveSha256: digest,
-				capturedAt: new Date().toISOString(),
+				capturedAt: `${new Date().toISOString().slice(0, 16)}Z`,
 				kind: "tracked working files",
 			},
 			null,
 			2,
 		),
 	});
-	// Isolated agent settings contain only local package paths. Auth remains guest-owned.
-	await execute(
-		`mkdir -p ${quote(`${home}/agent`)} "$HOME/.pi/agent/extensions"; herdr integration install pi`,
-	);
+	// Shepherdr reports Core status itself. No global Pi integration is installed.
+	await execute(`mkdir -p ${quote(`${home}/agent`)}`);
 	const settings = `${home}/agent/settings.json`;
-	const packages = ["pi-codex-conversion", "pi-shepherdr", "pi-notes-compaction", "pi-agent-board"].map(
+	const packages = ["pi-codex-conversion", "pi-shepherdr", "pi-agent-comms"].map(
 		(p) => `${home}/current/packages/${p}`,
 	);
 	await execute(
@@ -188,16 +197,35 @@ rm -rf .install-tmp
 p=pathlib.Path(${JSON.stringify(settings)})
 s=json.loads(p.read_text()) if p.exists() else {}
 s["packages"]=${JSON.stringify(packages)}
-integration=pathlib.Path.home()/".pi/agent/extensions/herdr-agent-state.ts"
-if not integration.is_file(): raise SystemExit("Herdr Pi integration not found after installation")
-s["extensions"]=s.get("extensions",[])
-if str(integration) not in s["extensions"]: s["extensions"].append(str(integration))
+legacy=str(pathlib.Path.home()/".pi/agent/extensions/herdr-agent-state.ts")
+s["extensions"]=[e for e in s.get("extensions",[]) if e != legacy]
 p.write_text(json.dumps(s,indent=2)+"\\n")`)} `,
 	);
 	await execute(`set -eu
 ln -s ${quote(stage)} ${quote(`${home}/next`)}
 mv -Tf ${quote(`${home}/next`)} ${quote(`${home}/current`)}
 find ${quote(home)} -maxdepth 1 -type d -name 'candidate-*' ! -path ${quote(stage)} -exec rm -rf {} +
+cd ${quote(`${home}/current`)}
+node --input-type=module <<'JS'
+import { ProjectTrustStore } from './node_modules/@earendil-works/pi-coding-agent/dist/index.js';
+// Print-mode readiness skips untrusted project resources, but TUI startup asks.
+// Trust this copied candidate only, never its parent or other guest projects.
+new ProjectTrustStore(${JSON.stringify(`${home}/agent`)}).set(process.cwd(), true);
+console.log('Trusted the disposable candidate project for interactive Pi startup.');
+JS
+python3 - ${quote(home)} <<'PY'
+import os, shlex, sys
+home = sys.argv[1]
+lines = ["#!/bin/sh", "export PI_CODING_AGENT_DIR=" + shlex.quote(home + "/agent")]
+# SSH/Core starts do not inherit Gondolin's certificate environment.
+certificate = os.environ.get("NODE_EXTRA_CA_CERTS")
+if certificate:
+    lines.append("export NODE_EXTRA_CA_CERTS=" + shlex.quote(certificate))
+lines.append("exec " + shlex.quote(home + "/current/node_modules/.bin/pi") + ' "$@"')
+with open(home + "/pi", "w") as launcher:
+    launcher.write("\\n".join(lines) + "\\n")
+os.chmod(home + "/pi", 0o755)
+PY
 `);
 	if (liveModel) {
 		const transfer = `${home}/agent/.access-token-${randomUUID()}`;
@@ -232,7 +260,7 @@ JS`);
 		console.log(`Guest Codex access token expires ${accessExpires}. Rerun --live-model to resync; the guest cannot refresh it.`);
 		await execute(`cd ${quote(`${home}/current`)} && PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} node --input-type=module <<'JS'
 import { spawnSync } from 'node:child_process';
-const result = spawnSync('./node_modules/.bin/pi', ['--mode','json','--print','--no-session','--no-tools','--no-skills','--no-prompt-templates','--no-mcp','--model',${JSON.stringify(liveModel)},'--thinking','low','Reply only LIVE_SANDBOX_READY. Do not use tools.'], {encoding:'utf8',timeout:90000,maxBuffer:8*1024*1024});
+const result = spawnSync(${JSON.stringify(`${home}/pi`)}, ['--mode','json','--print','--no-session','--no-tools','--no-skills','--no-prompt-templates','--no-mcp','--model',${JSON.stringify(liveModel)},'--thinking','low','Reply only LIVE_SANDBOX_READY. Do not use tools.'], {encoding:'utf8',timeout:90000,maxBuffer:8*1024*1024});
 const events = (result.stdout ?? '').split('\\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
 const message = events.findLast(event => event.type === 'message_end' && event.message?.role === 'assistant')?.message;
 const text = message?.content?.filter(block => block.type === 'text').map(block => block.text).join('');
@@ -247,7 +275,7 @@ console.log(JSON.stringify({liveReady:true,provider:message.provider,model:messa
 JS`);
 	}
 	console.log(
-		`Snapshot ${source} (${digest}) selected. Not a live mirror.\nLaunch in a guest Herdr pane: cd ${quote(`${home}/current`)} && PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} ./node_modules/.bin/pi\nRestart existing review Pi processes to load the new candidate. Existing sandbox services were not changed.`,
+		`Snapshot ${source} (${digest}) selected. Not a live mirror.\nRun inside the guest to create a Core terminal:\nhc run --bg --cwd ${quote(`${home}/current`)} -- ${quote(`${home}/pi`)}\nThen run hc attach <returned-terminal>, or open that terminal in a Herdr app connected to the guest Core.\nThe launcher preserves the candidate agent directory and guest TLS certificate trust for SSH/Core starts.\nRestart existing review Pi processes to load the new candidate. Existing sandbox services were not changed.`,
 	);
 } finally {
 	await rm(temporary, { recursive: true, force: true });

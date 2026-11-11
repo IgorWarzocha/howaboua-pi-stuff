@@ -1,3 +1,4 @@
+import { formatStoredUtcMinute, formatUtcMinute } from "../../time-format.ts";
 import type { NotebookControlResult } from "../code-mode/types.ts";
 import type { NotebookLifecycleHost } from "./lifecycle.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
@@ -18,7 +19,10 @@ export async function readNotebookStatus(host: NotebookStatusHost, userBindingNa
 	const allNames = activeCell ? [] : await userBindingNames(kernel, statusSignal);
 	const matches = query === undefined ? [] : allNames.filter(globMatcher(query));
 	const selected = withinNameBudget(matches);
-	const retained = host.retainedBindings();
+	const retained = host.retainedBindings().map((binding) => ({
+		...binding,
+		updatedAt: formatStoredUtcMinute(binding.updatedAt),
+	}));
 	const retainedByName = new Map(retained.map((binding) => [binding.name, binding]));
 	let runtime: NotebookKernelStatus | undefined;
 	if (!activeCell) {
@@ -53,7 +57,7 @@ export async function readNotebookStatus(host: NotebookStatusHost, userBindingNa
 		...(activeCell ? { activeCell } : {}),
 		userBindings: activeCell ? undefined : allNames.length,
 		userCells: metadata.userCells,
-		...(metadata.startedAt ? { startedAt: new Date(metadata.startedAt).toISOString() } : {}),
+		...(metadata.startedAt ? { startedAt: formatUtcMinute(new Date(metadata.startedAt)) } : {}),
 		memory: runtime?.memory ?? metadata.memory,
 		checkpoint: metadata.checkpoint,
 		retainedBindings: retained.length,

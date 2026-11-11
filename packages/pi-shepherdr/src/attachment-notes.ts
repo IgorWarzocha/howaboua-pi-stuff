@@ -4,9 +4,10 @@ import type {
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-notes-compaction/context-sharing";
+} from "@howaboua/pi-agent-comms/context-sharing";
+import { NOTES_UNAVAILABLE } from "./notes-discovery.js";
 
-/** Read-only continuity when a live owner disappears. Parsing remains Conversion-owned. */
+/** Read-only continuity when a live owner disappears. Notes owns parsing. */
 export class AttachmentNotes {
 	private readonly getService: () => ContextSharingService | undefined;
 	constructor(getService: () => ContextSharingService | undefined) {
@@ -19,7 +20,7 @@ export class AttachmentNotes {
 			!service.parseAttachmentNotes ||
 			!service.readAttachmentNotes
 		)
-			throw new Error("Update Codex Conversion to retain attached checkpoints");
+			throw new Error(NOTES_UNAVAILABLE);
 		return {
 			export: service.exportAttachmentNotes,
 			parse: service.parseAttachmentNotes,
@@ -150,10 +151,11 @@ export class AttachmentNotes {
 		const details = {
 			source,
 			read_only: true,
-			captured_at: new Date(snapshot.timestamp).toISOString(),
+			captured_at:
+				new Date(snapshot.timestamp).toISOString().slice(0, 16) + "Z",
 			...(savedAt === undefined
 				? {}
-				: { saved_at: new Date(savedAt).toISOString() }),
+				: { saved_at: new Date(savedAt).toISOString().slice(0, 16) + "Z" }),
 			...(detached
 				? { detached: true }
 				: {
@@ -177,10 +179,10 @@ export class AttachmentNotes {
 			warning,
 		});
 		if (
-			!result.structuredContent ||
-			typeof result.structuredContent !== "object" ||
-			!("warning" in result.structuredContent) ||
-			result.structuredContent["warning"] !== warning
+			!result.details.codexHistoryNotes ||
+			typeof result.details.codexHistoryNotes !== "object" ||
+			!("warning" in result.details.codexHistoryNotes) ||
+			result.details.codexHistoryNotes["warning"] !== warning
 		)
 			throw new Error("Update Notes to read retained attached checkpoints");
 		return {

@@ -23,12 +23,14 @@ export interface ExecSessionSnapshot {
 	updatedAt: number;
 	outputTail: string;
 	terminating: boolean;
+	completionNotified?: boolean | undefined;
 }
 
 export type ExecSessionChangeReason = "start" | "output" | "exit" | "terminate";
 
 export interface ExecCommandInput {
 	cmd: string;
+	ownerSessionId?: string | undefined;
 	workdir?: string | undefined;
 	shell?: string | undefined;
 	defaultShell?: string | undefined;
@@ -47,7 +49,13 @@ export interface WriteStdinInput {
 	max_output_tokens?: number | undefined;
 }
 
-type ExecSession = BridgeExecSession;
+type ExecSession = BridgeExecSession & { ownerSessionId?: string | undefined; completionNotified?: boolean | undefined };
+
+export interface ExecSessionCompletion {
+	id: number;
+	command: string;
+	result: UnifiedExecResult;
+}
 
 export type ExecSessionUpdateCallback = (result: UnifiedExecResult) => void;
 
@@ -58,6 +66,8 @@ export interface ExecSessionManager {
 	hasSession(sessionId: number): boolean;
 	getSessionCommand(sessionId: number): string | undefined;
 	listSessions(maxOutputChars?: number): ExecSessionSnapshot[];
+	backgroundSessions(ownerSessionId: string): ExecSessionSnapshot[];
+	collectCompletions(ownerSessionId: string): ExecSessionCompletion[];
 	terminateSession(sessionId: number): boolean;
 	onSessionChange(listener: (reason: ExecSessionChangeReason) => void): () => void;
 	onSessionExit(listener: (sessionId: number, command: string) => void): () => void;
@@ -204,7 +214,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const shell = resolveShell(requestedShell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
 			const execution = resolveExecution(requestedShell, input.cmd, input.env, baseEnv);
-			const session = bridgeSessions.create({
+			const session: ExecSession = bridgeSessions.create({
 				id: nextSessionId++,
 				input: {
 					command: input.cmd,
@@ -218,10 +228,12 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				...(signal ? { signal } : {}),
 				hooks: bridgeHooks,
 			});
+			session.ownerSessionId = input.ownerSessionId;
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
 			const abortCleanup = registerAbortHandler(signal, () => {
 				if (session.exitCode === undefined || session.exitCode === null) {
+					session.terminating = true;
 					void bridgeSessions.terminate(session).catch(() => {});
 				}
 			});
@@ -319,6 +331,19 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			}
 			return Array.from(snapshotsById.values()).sort((a, b) => a.id - b.id);
 		},
+		backgroundSessions: (ownerSessionId) => [...sessions.values()]
+			.filter(session => session.exposed && !session.terminating && session.ownerSessionId === ownerSessionId)
+			.map(session => snapshotSession(session, 0)),
+		collectCompletions: (ownerSessionId) => [...sessions.values()]
+			.filter(session => session.exposed && !session.terminating && session.ownerSessionId === ownerSessionId
+				&& !session.completionNotified && session.exitCode !== undefined && session.exitCode !== null)
+			.slice(0, 4)
+			.map(session => {
+				const snapshot = makeSnapshotResult(session, 0, 2_000, true);
+				// A bounded notification must not drain output the agent has not chosen to collect.
+				if (snapshot.truncated) session.completionNotified = true;
+				return { id: session.id, command: session.command, result: snapshot.truncated ? snapshot : finishResult(session, 0, 2_000) };
+			}),
 		terminateSession: (sessionId) => {
 			const session = sessions.get(sessionId);
 			if (!session || session.exitCode !== undefined || session.terminating) return false;

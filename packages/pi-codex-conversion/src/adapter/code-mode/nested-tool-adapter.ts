@@ -4,8 +4,7 @@ import type {
 	ExtensionToolContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import type { TSchema } from "typebox";
-import { Check } from "typebox/value";
+import { compile } from "@earendil-works/pi-schema";
 import { type JsonObject, validateToolArguments } from "@earendil-works/pi-ai";
 import { runCodeModeToolWithHooks } from "../../tools/code-mode/nested-tool-completion.ts";
 import { opaqueToolOutputsFromDetails } from "../../providers/openai-responses/native-items.ts";
@@ -41,18 +40,19 @@ interface NestedToolContract {
 	resultValue?(result: AgentToolResult<unknown>): unknown;
 }
 
-export function toNestedTool<TParams extends TSchema, TDetails, TState>(
+export function toNestedTool<TParams extends ToolDefinition["parameters"], TDetails, TState>(
 	tool: ToolDefinition<TParams, TDetails, TState>,
 	usage: string,
 	lifecycle: NestedToolLifecycle = {},
 	contract: NestedToolContract = {},
 ): ProgrammaticCodeModeToolDefinition {
 	const kind = contract.kind ?? "function";
+	const argumentsSchema = compile(tool.parameters, { unresolvedRefs: "reject" });
 	const prepareInput = (input: unknown) => {
 		// The Code host serializes omitted arguments as null; preserve schema-valid nulls.
-		const supplied = input === null && !Check(tool.parameters, null) && Check(tool.parameters, {}) ? undefined : input;
+		const supplied = input === null && !argumentsSchema.check(null) && argumentsSchema.check({}) ? undefined : input;
 		const prepared = contract.prepareInput ? contract.prepareInput(supplied) : supplied;
-		return prepared === undefined && Check(tool.parameters, {}) ? {} : prepared;
+		return prepared === undefined && argumentsSchema.check({}) ? {} : prepared;
 	};
 	const invoke = async (
 		input: unknown,

@@ -1,4 +1,5 @@
 import { withCommandOutput } from "./command-output.js";
+import { withContentOutput } from "./content-output.js";
 import { withMissingMcpToolRecovery } from "./mcp-tool-recovery.js";
 import { CodeModeHostCellOperations } from "./host-cell-operations.js";
 import { CodeModeHostDelegation } from "./host-delegation.js";
@@ -91,7 +92,7 @@ export class CodeModeHostClient {
 				request: {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
-					source: scopeAllToolsToDiscoverable(withMissingMcpToolRecovery(withCommandOutput(code, tools), tools), tools),
+					source: scopeAllToolsToDiscoverable(withContentOutput(withMissingMcpToolRecovery(withCommandOutput(code, tools), tools)), tools),
 					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},

@@ -11,7 +11,7 @@ import { loadTsRuntime, type TsRuntime } from "./runtime.ts";
 import { resolveTsImports, resolveTsRuntimeImport, type TsImportOptions } from "./imports.ts";
 import type { BindingRecipe, PortableState } from "./portable-state.ts";
 import { buildTsToolDeclarations } from "./tool-declarations.ts";
-import { TS_GLOBAL_DECLARATIONS, type TsWorkerInput } from "./worker-protocol.ts";
+import { tsGlobalDeclarations, type TsWorkerInput } from "./worker-protocol.ts";
 
 /** Session compiler and import authority; resetting the heap does not close the compiler. */
 export class TsSessionCompilation {
@@ -51,12 +51,12 @@ export class TsSessionCompilation {
 		const baselineDeclarations = Object.values(start.bindings).map(binding => binding.declaration).join("\n");
 		const imports = await resolveTsImports(await this.scanImports(compiler, `${baselineDeclarations}\n${source}`), importsOptions);
 		signal.throwIfAborted();
-		const compiled = await compiler.compile({ source, mode: isolated ? "isolated" : "live", baselineDeclarations, globalsDeclaration: `${TS_GLOBAL_DECLARATIONS}\n${buildTsToolDeclarations(tools)}`, ...imports }).catch(error => { throw this.compilerFailure(error); });
+		const compiled = await compiler.compile({ source, mode: isolated ? "isolated" : "live", baselineDeclarations, globalsDeclaration: `${tsGlobalDeclarations(Object.hasOwn(start.bindings, "content"))}\n${buildTsToolDeclarations(tools)}`, ...imports }).catch(error => { throw this.compilerFailure(error); });
 		if (!compiled.ok) throw new Error(compiled.diagnostics.map(diagnostic => `TS${diagnostic.code}${diagnostic.line ? `:${diagnostic.line}:${diagnostic.column}` : ""} ${diagnostic.message}`).join("\n"));
 		signal.throwIfAborted();
 		const bindings: Record<string, BindingRecipe> = { ...start.bindings };
 		for (const binding of compiled.bindings) {
-			if (binding.name.startsWith("__") || ["tools", "text", "image", "generatedImage", "notify", "store", "load", "ALL_TOOLS", "exit", "yield_control"].includes(binding.name)) throw new Error(`TS binding ${binding.name} is reserved; choose another name`);
+			if (binding.name.startsWith("__") || ["tools", "text", "image", "content", "generatedImage", "notify", "store", "load", "ALL_TOOLS", "exit", "yield_control"].includes(binding.name)) throw new Error(`TS binding ${binding.name} is reserved; choose another name`);
 			if (Object.hasOwn(start.bindings, binding.name)) throw new Error(`TS binding ${binding.name} already exists; assign to a let binding, or release it before declaring it again`);
 			if (isolated && (binding.kind === "class" || binding.kind === "namespace")) throw new Error(`${binding.name}: ${binding.kind} bindings cannot transfer from isolated execution; use a normal live cell`);
 			bindings[binding.name] = { name: binding.name, kind: binding.kind, declaration: binding.declaration, references: binding.freeReferences, ...(binding.source ? { source: binding.source } : {}) };
@@ -97,7 +97,7 @@ export class TsSessionCompilation {
 		const compiler = await this.requireCompiler();
 		const baselineDeclarations = Object.values(state.bindings).map(binding => binding.declaration).join("\n");
 		const imports = await resolveTsImports(await this.scanImports(compiler, baselineDeclarations), { ...this.importOptions, compiler });
-		const result = await compiler.compile({ source: `const __checkpointData = await ${checkpoint.snapshot}(${name}); const __checkpointValue: typeof ${name} = await ${checkpoint.restore}(__checkpointData);`, baselineDeclarations, globalsDeclaration: TS_GLOBAL_DECLARATIONS + "\ndeclare const tools: Record<string, unknown>;", ...imports });
+		const result = await compiler.compile({ source: `const __checkpointData = await ${checkpoint.snapshot}(${name}); const __checkpointValue: typeof ${name} = await ${checkpoint.restore}(__checkpointData);`, baselineDeclarations, globalsDeclaration: tsGlobalDeclarations(Object.hasOwn(state.bindings, "content")) + "\ndeclare const tools: Record<string, unknown>;", ...imports });
 		if (!result.ok) throw new Error(`TS checkpoint helpers are incompatible: ${result.diagnostics.map(diagnostic => `TS${diagnostic.code} ${diagnostic.message}`).join("; ")}`);
 	}
 	async validateDeclarations(state: PortableState): Promise<void> {
@@ -105,7 +105,7 @@ export class TsSessionCompilation {
 		if (!baselineDeclarations) return;
 		const compiler = await this.requireCompiler();
 		const imports = await resolveTsImports(await this.scanImports(compiler, baselineDeclarations), { ...this.importOptions, compiler });
-		const result = await compiler.compile({ source: "", baselineDeclarations, globalsDeclaration: TS_GLOBAL_DECLARATIONS + "\ndeclare const tools: Record<string, unknown>;", ...imports });
+		const result = await compiler.compile({ source: "", baselineDeclarations, globalsDeclaration: tsGlobalDeclarations(Object.hasOwn(state.bindings, "content")) + "\ndeclare const tools: Record<string, unknown>;", ...imports });
 		if (!result.ok) throw new Error(`TS declarations would become invalid; retain their type dependencies or release dependent bindings together: ${result.diagnostics.map(diagnostic => `TS${diagnostic.code} ${diagnostic.message}`).join("; ")}`);
 	}
 }

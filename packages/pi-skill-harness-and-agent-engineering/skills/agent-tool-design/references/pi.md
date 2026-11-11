@@ -2,8 +2,8 @@
 
 - Read the installed Pi package documentation and relevant neighbouring tools before implementation. Do not tune a legacy surface as if it were current.
 - Extensions register tools with `pi.registerTool({...})`. Standalone definitions may use `defineTool({...})` where the active SDK supports it.
-- Use `typebox` 1.x. Treat `@sinclair/typebox`, obsolete Pi package scopes, and removed custom-tool types as migration work.
-- Use `StringEnum` from `@earendil-works/pi-ai` for string enums that must work with Google providers.
+- Prefer `@earendil-works/pi-schema` builders and validators. Declare it as a direct runtime dependency.
+- Keep `type: "string"` on string enums for provider compatibility.
 - Keep obsolete public aliases out of the schema. A safe `prepareArguments()` normalisation may remain when current model calls justify it.
 
 If legacy markers are present, migrate them before wording or token optimisation. When migration is outside the authorised scope, report the exact blocker rather than certifying the old contract.

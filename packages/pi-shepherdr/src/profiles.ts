@@ -13,7 +13,6 @@ import {
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { PROFILE_PROMPT_FLAG } from "./profile-prompt.js";
 
 const PROFILE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 const AGENT_DIRECTORY =
@@ -260,18 +259,12 @@ export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
 	return profiles;
 }
 
-export function profileAgentArgs(
-	profile: AgentProfile,
-	options: { includePrompt?: boolean } = {},
-): string[] {
-	const prompt = options.includePrompt === false ? undefined : profile.prompt;
+export function profileAgentArgs(profile: AgentProfile): string[] {
 	return [
 		"--model",
 		profile.model,
 		"--thinking",
 		profile.thinking,
-		// JSON keeps newlines/control characters out of argv without altering role text.
-		...(prompt ? [`--${PROFILE_PROMPT_FLAG}`, JSON.stringify(prompt)] : []),
 		...profile.piArgs,
 	];
 }

@@ -40,8 +40,7 @@
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=4.0.9",
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0",
-		"typebox": "*"
+		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {
@@ -50,11 +49,10 @@
 	},
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "4.0.9",
-		"@biomejs/biome": "^2.6.3",
-		"@earendil-works/pi-coding-agent": "1.5.0",
-		"@earendil-works/pi-tui": "1.5.0",
-		"@types/node": "^26.6.5",
-		"typebox": "1.4.3",
+		"@biomejs/biome": "^2.6.6",
+		"@earendil-works/pi-coding-agent": "1.5.2",
+		"@earendil-works/pi-tui": "1.5.2",
+		"@types/node": "^26.6.6",
 		"typescript": "^7.0.2"
 	},
 	"pi": {
@@ -69,5 +67,8 @@
 	"exports": "./index.ts",
 	"publishConfig": {
 		"access": "public"
+	},
+	"dependencies": {
+		"@earendil-works/pi-schema": "1.5.2"
 	}
 }

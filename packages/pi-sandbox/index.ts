@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { obj, opt, str } from "@earendil-works/pi-schema";
 import { ZodError } from "zod";
 import { run } from "./src/client.ts";
 import {
@@ -14,14 +14,9 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 		name: "sandbox",
 		label: "Sandbox",
 		description: "Persistent local sandboxes and app previews",
-		parameters: Type.Object(
-			{
-				input: Type.Optional(
-					Type.String({ description: "help or JSON action" }),
-				),
-			},
-			{ additionalProperties: false },
-		),
+		parameters: obj({
+			input: opt(str({ description: "help or JSON action" })),
+		}),
 		prepareArguments: prepareSandboxInput,
 		async execute(
 			_id: string,
@@ -101,7 +96,10 @@ export default async function sandbox(pi: ExtensionAPI): Promise<void> {
 			adaptToolForCodeMode(
 				{
 					...tool,
-					parameters: Type.Object({}, { additionalProperties: true }),
+					parameters: {
+						...obj({}, { open: true }),
+						additionalProperties: true,
+					},
 				},
 				{
 					discovery: "help",

@@ -3,37 +3,38 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-	binding,
-	children,
-	isBoardEnvelope,
-} from "@howaboua/pi-agent-board/integration";
-import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import type {
 	ContextSharingService,
 	SharedContextRequest,
 	SharedContextResult,
-} from "@howaboua/pi-notes-compaction/context-sharing";
-import { Check } from "typebox/value";
+} from "@howaboua/pi-agent-comms/context-sharing";
+import type { CodexAgentRelationshipService } from "@howaboua/pi-codex-conversion/agent-relationship";
 import { AgentAttachment } from "./attachment.js";
 import {
 	attachmentRoutes,
 	canonicalContextIdentity,
-	Identity,
+	checkIdentity,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
+import { children, isBoardEnvelope } from "./board/records.js";
 import {
 	contextRouteMatches,
 	countContextTargets,
 	sendContextRoute,
 } from "./context-routing.js";
-import type { AgentFleet } from "./fleet/index.js";
-import { sessionPath } from "./herdr.js";
+import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
+import {
+	describePeerSharing,
+	peerReplyContext,
+} from "./messages/peer-sharing.js";
+import { NOTES_UNAVAILABLE } from "./notes-discovery.js";
 import {
 	requestContext,
 	sessionContextPath,
 } from "./remote/shepherdr-context.mjs";
+import { resolveAncestryRoot } from "./spawn-ancestry.js";
 import { MEMBER_ENTRY, type Member, SpawnContext } from "./spawn-context.js";
+import type { PaneInfo } from "./types.js";
 
 interface Routing {
 	transport: "shepherdr";
@@ -68,8 +69,14 @@ export class SharedAgentContext {
 		this.getService = getService;
 		this.board = board;
 		this.getRelationships = getRelationships;
-		this.attachment = new AgentAttachment(pi, board, getService);
-		this.spawns = new SpawnContext(pi, getService, getRelationships);
+		const localMachine = () => fleet.localMachine();
+		this.attachment = new AgentAttachment(pi, board, getService, localMachine);
+		this.spawns = new SpawnContext(
+			pi,
+			getService,
+			getRelationships,
+			localMachine,
+		);
 		pi.on("before_agent_start", () => {
 			this.running = true;
 		});
@@ -106,6 +113,21 @@ export class SharedAgentContext {
 		});
 	}
 
+	peerReplyContext(
+		ctx: ExtensionContext,
+		runtime: ConnectedMachine,
+		panel: PaneInfo,
+		signal?: AbortSignal,
+	): Promise<string> {
+		return peerReplyContext(
+			ctx,
+			() => describePeerSharing(ctx, this.getService(), this.board),
+			runtime,
+			panel,
+			signal,
+		);
+	}
+
 	async handle(
 		ctx: ExtensionContext,
 		value: unknown,
@@ -122,54 +144,9 @@ export class SharedAgentContext {
 			value &&
 			typeof value === "object" &&
 			"operation" in value &&
-			value.operation === "agent-root"
-		) {
-			const own = binding(ctx);
-			const identity = this.getService()?.describe(ctx);
-			if (
-				!("scope" in value) ||
-				(value.scope !== "board" && value.scope !== "context")
-			)
-				throw new Error("Invalid /root family");
-			const family =
-				value.scope === "board" ? own.rootSessionId : identity?.sessionId;
-			if (
-				!("family" in value) ||
-				value.family !== family ||
-				!("visited" in value) ||
-				!Array.isArray(value.visited) ||
-				value.visited.some((item) => typeof item !== "string") ||
-				value.visited.length >= 64 ||
-				value.visited.includes(ctx.sessionManager.getSessionId())
-			)
-				throw new Error("No live /root in this agent family");
-			const routing = identity?.routing as Partial<Routing> | undefined;
-			const upstream =
-				value.scope === "board"
-					? own.upstream
-					: identity?.threadId !== identity?.sessionId &&
-							routing?.transport === "shepherdr"
-						? routing.parent
-						: undefined;
-			if (upstream)
-				return requestContext(
-					upstream,
-					{
-						...value,
-						visited: [...value.visited, ctx.sessionManager.getSessionId()],
-					},
-					signal,
-				);
-			if (
-				(value.scope === "board" ? own.sessionId : identity?.threadId) !==
-				family
-			)
-				throw new Error("No live /root in this agent family");
-			return {
-				...(await this.fleet.connected().client.machineIdentity()),
-				sessionFile: ctx.sessionManager.getSessionFile(),
-			};
-		}
+			value.operation === "peer-sharing"
+		)
+			return describePeerSharing(ctx, this.getService(), this.board);
 		if (isBoardEnvelope(value)) return this.board.handle(ctx, value, signal);
 		if (!value || typeof value !== "object")
 			throw new Error("Invalid shared context request");
@@ -191,7 +168,7 @@ export class SharedAgentContext {
 			if (
 				!file ||
 				!("identity" in value) ||
-				!Check(Identity, value.identity) ||
+				!checkIdentity(value.identity) ||
 				!isDeepStrictEqual(
 					identity,
 					canonicalContextIdentity(value.identity),
@@ -213,8 +190,7 @@ export class SharedAgentContext {
 				) ?? null
 			);
 		}
-		if (!identity || !service)
-			throw new Error("Context sharing is unavailable in this session");
+		if (!identity || !service) throw new Error(NOTES_UNAVAILABLE);
 		if ("operation" in value && value.operation === "context-resolve")
 			return countContextTargets(
 				ctx,
@@ -372,49 +348,6 @@ export class SharedAgentContext {
 		machine?: string,
 		signal?: AbortSignal,
 	) {
-		const own = binding(ctx);
-		const identity = this.getService()?.describe(ctx);
-		const scope = own.upstream || !identity ? "board" : "context";
-		const family = scope === "board" ? own.rootSessionId : identity?.sessionId;
-		let result: unknown;
-		try {
-			result = await this.handle(
-				ctx,
-				{ operation: "agent-root", scope, family, visited: [] },
-				signal,
-			);
-		} catch (error) {
-			signal?.throwIfAborted();
-			throw new Error(
-				"No live /root in this agent family; use find for an exact target",
-				{ cause: error },
-			);
-		}
-		if (
-			!result ||
-			typeof result !== "object" ||
-			!("host" in result) ||
-			!("session" in result) ||
-			!("sessionFile" in result) ||
-			typeof result.sessionFile !== "string"
-		)
-			throw new Error("No live /root in this agent family");
-		const matches = [];
-		for (const entry of await this.fleet.snapshots(machine)) {
-			if (!entry.snapshot) continue;
-			const runtime = this.fleet.connected(entry.id);
-			const identity = await runtime.client.machineIdentity();
-			if (identity.host !== result.host || identity.session !== result.session)
-				continue;
-			for (const agent of entry.snapshot.agents) {
-				if (agent.agent === "pi" && sessionPath(agent) === result.sessionFile)
-					matches.push({ runtime, target: agent.pane_id });
-			}
-		}
-		if (matches.length !== 1)
-			throw new Error(
-				"No unique live /root in this agent family; use find for an exact target",
-			);
-		return matches[0]!;
+		return resolveAncestryRoot(ctx, this.fleet, machine, signal);
 	}
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { Static } from "@earendil-works/pi-schema";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { codexLoginDiagnostic } from "./codex-runtime/auth-diagnostics.js";
 import {
@@ -19,18 +20,28 @@ function firstString(value: unknown, key: string): string | undefined {
 	return typeof field === "string" && field.trim() ? field.trim() : undefined;
 }
 
-function webSearchCallDetail(
-	params: Record<string, unknown>,
-): string | undefined {
-	const search = Array.isArray(params["search_query"])
-		? params["search_query"][0]
-		: undefined;
-	const image = Array.isArray(params["image_query"])
-		? params["image_query"][0]
-		: undefined;
-	const open = Array.isArray(params["open"]) ? params["open"][0] : undefined;
-	const click = Array.isArray(params["click"]) ? params["click"][0] : undefined;
-	const find = Array.isArray(params["find"]) ? params["find"][0] : undefined;
+function webSearchCallDetail(params: unknown): string | undefined {
+	if (!params || typeof params !== "object") return undefined;
+	const search =
+		"search_query" in params && Array.isArray(params["search_query"])
+			? params["search_query"][0]
+			: undefined;
+	const image =
+		"image_query" in params && Array.isArray(params["image_query"])
+			? params["image_query"][0]
+			: undefined;
+	const open =
+		"open" in params && Array.isArray(params["open"])
+			? params["open"][0]
+			: undefined;
+	const click =
+		"click" in params && Array.isArray(params["click"])
+			? params["click"][0]
+			: undefined;
+	const find =
+		"find" in params && Array.isArray(params["find"])
+			? params["find"][0]
+			: undefined;
 	const query = firstString(search, "q") ?? firstString(image, "q");
 	if (query) return query;
 	const opened =
@@ -60,7 +71,13 @@ export function createWebSearchTool(
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) =>
 			args && typeof args === "object" ? (args as Record<string, unknown>) : {},
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(
+			_toolCallId,
+			params: Static<typeof WEB_SEARCH_PARAMETERS>,
+			signal,
+			_onUpdate,
+			ctx,
+		) {
 			if (!supportsExecutableWebSearch(ctx.model, toolOptions))
 				throw new Error(codexLoginDiagnostic());
 			const output = await executeCodexWebSearch(
@@ -80,7 +97,7 @@ export function createWebSearchTool(
 					renderCall(args, theme) {
 						return renderToolCell(
 							"Searched the web",
-							webSearchCallDetail(args as Record<string, unknown>),
+							webSearchCallDetail(args),
 							theme,
 						);
 					},

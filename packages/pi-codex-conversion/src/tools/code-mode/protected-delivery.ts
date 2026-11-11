@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type, type Static } from "typebox";
-import { Check } from "typebox/value";
+import { arr, bool, compile, lit, obj, opt, str, union, type Static } from "@earendil-works/pi-schema";
 import { boundedCodeModeContent } from "./tool-result.ts";
 import { normalizeResponsesId } from "../../providers/openai-responses/shared.ts";
 import type { RuntimeResponse } from "./types.ts";
@@ -8,26 +7,26 @@ import { validateRemoteScope } from "./protected-output.ts";
 import { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER } from "./protected-delivery-protocol.ts";
 export { REMOTE_DELIVERY_MESSAGE, REMOTE_DELIVERY_RECEIVER } from "./protected-delivery-protocol.ts";
 
-const LEGACY_SCHEMA = Type.Object({
-	protocol: Type.Literal(1), origin: Type.Literal("host"),
-	id: Type.String({ pattern: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" }),
-	sourceCallId: Type.String({ minLength: 1 }), cellId: Type.String({ minLength: 1 }),
-	scope: Type.String({ minLength: 1 }), status: Type.Union([Type.Literal("yielded"), Type.Literal("result"), Type.Literal("terminated")]),
-	errorText: Type.Optional(Type.String()), contextNotesSaved: Type.Optional(Type.Boolean()),
-	outputs: Type.Array(Type.Object({ resultId: Type.String({ minLength: 1 }), name: Type.String({ minLength: 1 }),
-		encryptedOutput: Type.String({ minLength: 1 }) }, { additionalProperties: false }), { maxItems: 32 }),
-	imageNotice: Type.Optional(Type.String()),
-	images: Type.Array(Type.Object({ type: Type.Literal("image"), mimeType: Type.String(), data: Type.String(),
-		detail: Type.Optional(Type.Union([Type.Literal("auto"), Type.Literal("high"), Type.Literal("original")])) },
-		{ additionalProperties: false }), { maxItems: 4 }),
-}, { additionalProperties: false });
-const SCHEMA = Type.Union([LEGACY_SCHEMA, Type.Object({ ...LEGACY_SCHEMA.properties,
-	protocol: Type.Literal(2), originalExecCallId: Type.String({ minLength: 1 }),
-}, { additionalProperties: false })]);
+const DELIVERY_FIELDS = {
+	protocol: lit(1), origin: lit("host"),
+	id: str({ pattern: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" }),
+	sourceCallId: str({ minLength: 1 }), cellId: str({ minLength: 1 }),
+	scope: str({ minLength: 1 }), status: union([lit("yielded"), lit("result"), lit("terminated")]),
+	errorText: opt(str()), contextNotesSaved: opt(bool()),
+	outputs: arr(obj({ resultId: str({ minLength: 1 }), name: str({ minLength: 1 }),
+		encryptedOutput: str({ minLength: 1 }) }), { maxItems: 32 }),
+	imageNotice: opt(str()),
+	images: arr(obj({ type: lit("image"), mimeType: str(), data: str(),
+		detail: opt(union([lit("auto"), lit("high"), lit("original")])) }), { maxItems: 4 }),
+};
+const SCHEMA = union([obj(DELIVERY_FIELDS), obj({ ...DELIVERY_FIELDS,
+	protocol: lit(2), originalExecCallId: str({ minLength: 1 }),
+})]);
+const deliverySchema = compile(SCHEMA);
 export type RemoteDelivery = Static<typeof SCHEMA>;
 
 export function readRemoteDelivery(input: unknown): RemoteDelivery {
-	if (!Check(SCHEMA, input) || Buffer.byteLength(JSON.stringify(input), "utf8") > 32 * 1024 * 1024 ||
+	if (!deliverySchema.check(input) || Buffer.byteLength(JSON.stringify(input), "utf8") > 32 * 1024 * 1024 ||
 		(!input.outputs.length && input.contextNotesSaved === undefined) ||
 		new Set(input.outputs.map(output => output.resultId)).size !== input.outputs.length ||
 		input.images.reduce((sum, image) => sum + image.data.length, 0) > 16 * 1024 * 1024 ||

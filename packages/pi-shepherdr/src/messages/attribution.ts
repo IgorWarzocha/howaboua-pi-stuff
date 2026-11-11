@@ -1,6 +1,5 @@
-import { hostname } from "node:os";
-import { getCurrentPane, getSnapshot } from "../herdr.js";
-import type { HerdrConnection } from "../herdr-client.js";
+import { getCurrentPane, getSnapshot } from "../core/agents.js";
+import type { CoreConnection } from "../core/backend.js";
 import type { PaneInfo, PeerMessage } from "../types.js";
 
 const DELEGATED_WORKER_GUIDANCE =
@@ -26,9 +25,7 @@ export function agentSource(
 ): Record<string, string | undefined> {
 	const paneName = agent.label || agent.title;
 	return {
-		...(agent.backend === "core"
-			? { terminal: agent.terminal_id }
-			: { pane: agent.pane_id }),
+		terminal: agent.terminal_id,
 		...(agent.workspace_id ? { workspace: agent.workspace_id } : {}),
 		...(agent.tab_id ? { tab: agent.tab_id } : {}),
 		...(agent.name ? { name: agent.name } : {}),
@@ -51,9 +48,11 @@ export function sourceAttributes(
 }
 
 export async function attributeAgentPrompt(
-	client: HerdrConnection,
+	client: CoreConnection,
+	sessionId: string,
 	message: string,
 	kind: "message" | "task",
+	initialProfile?: string,
 ): Promise<PeerMessage> {
 	const [pane, snapshot] = await Promise.all([
 		getCurrentPane(client),
@@ -63,14 +62,12 @@ export async function attributeAgentPrompt(
 		(workspace) => workspace.workspace_id === pane.workspace_id,
 	)?.label;
 	const tab = snapshot.tabs.find((tab) => tab.tab_id === pane.tab_id)?.label;
+	const identity = await client.machineIdentity();
 	const source = {
 		kind,
-		...(pane.backend === "core"
-			? await client.machineIdentity()
-			: {
-					host: hostname(),
-					session: process.env["HERDR_SESSION"] || "default",
-				}),
+		host: identity.host,
+		machine: identity.session,
+		agent: `/${sessionId}`,
 		...agentSource(pane, {
 			...(workspace ? { workspace } : {}),
 			...(tab ? { tab } : {}),
@@ -79,6 +76,13 @@ export async function attributeAgentPrompt(
 	return {
 		sender: `<herdr_sender ${sourceAttributes(source)} />`,
 		text: message,
-		...(kind === "task" ? { context: DELEGATED_WORKER_GUIDANCE } : {}),
+		context: [
+			...(initialProfile
+				? [
+						`<initial_worker_profile>\n${initialProfile}\n</initial_worker_profile>`,
+					]
+				: []),
+			...(kind === "task" ? [DELEGATED_WORKER_GUIDANCE] : []),
+		].join("\n\n"),
 	};
 }

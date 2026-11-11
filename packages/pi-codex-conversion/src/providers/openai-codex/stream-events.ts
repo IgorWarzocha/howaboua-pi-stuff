@@ -79,7 +79,7 @@ export function createCodexHttpError(message: string, code: string | undefined, 
 		...(code ? { code } : {}),
 		status,
 		retryAfter,
-		retryable: !(code && FATAL_CODEX_ERROR_CODES.has(code)) && isRetryableStreamStatus(status),
+		retryable: !isTerminalCodexRejection(code, status) && !(code && FATAL_CODEX_ERROR_CODES.has(code)) && isRetryableStreamStatus(status),
 	});
 }
 
@@ -139,7 +139,20 @@ function eventStatus(event: StreamEventShape): number | undefined {
 	return recordStatus(event) ?? recordStatus(eventError) ?? recordStatus(responseError) ?? recordStatus(response);
 }
 
+function isTerminalCodexRejection(code: string | undefined, status: number | undefined): boolean {
+	// Recognised rejections are terminal only at their documented status. A 503
+	// carrying the same code is still a transient provider failure.
+	if (status === undefined) {
+		if (code === "content_policy_violation" || code === "inference_hook_denied"
+			|| code === "invalid_access_program" || code === "unsupported_access_program"
+			|| code === "access_program_not_enabled") return true;
+	}
+	return status === 403 && (code === "inference_hook_denied" || code === "access_program_not_enabled"
+		|| code === "invalid_workspace_selected" || code === "codex_workspace_access_denied");
+}
+
 function isRetryableCodexApiFailure(code: string | undefined, message: string | undefined, status: number | undefined, defaultRetryable: boolean): boolean {
+	if (isTerminalCodexRejection(code, status)) return false;
 	if (code === "rate_limit_exceeded" && isTerminalRateLimitError(`${code} ${message ?? ""}`)) return false;
 	if (code && RETRYABLE_CODEX_ERROR_CODES.has(code)) return true;
 	if (code && FATAL_CODEX_ERROR_CODES.has(code)) return false;

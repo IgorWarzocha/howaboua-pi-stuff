@@ -47,9 +47,8 @@ function blockedOperatorHint(
 	machine: string,
 	operatorPrefix: string,
 	paneId: string,
-	core: boolean,
 ): string {
-	return `Inspect first with ${operatorCommand(operatorPrefix, core ? `read ${paneId}` : `agent read ${paneId} --source visible`)}; respond through ${agentToolName} with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, core ? `keys ${paneId} <keys>` : `agent send-keys ${paneId} <keys>`)} for interactive controls.`;
+	return `Inspect first with ${operatorCommand(operatorPrefix, `read ${paneId}`)}; respond through ${agentToolName} with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, `keys ${paneId} <keys>`)} for interactive controls.`;
 }
 
 function failedOperatorHint(
@@ -57,9 +56,8 @@ function failedOperatorHint(
 	machine: string,
 	operatorPrefix: string,
 	paneId: string,
-	core: boolean,
 ): string {
-	return `Inspect with ${operatorCommand(operatorPrefix, core ? `read ${paneId} --lines 80` : `agent read ${paneId} --source recent-unwrapped --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through ${agentToolName} with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
+	return `Inspect with ${operatorCommand(operatorPrefix, `read ${paneId} --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through ${agentToolName} with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
 }
 
 function agentEvent(options: AgentEventOptions): {
@@ -85,9 +83,7 @@ function agentEvent(options: AgentEventOptions): {
 	const notification = status === "extension-message";
 	const failed = !blocked && reply?.stopReason === "error";
 	const operatorTarget =
-		agent.backend === "core" && machine !== "local"
-			? `${machineLabel}/${agent.pane_id}`
-			: agent.pane_id;
+		machine !== "local" ? `${machine}/${agent.pane_id}` : agent.pane_id;
 	const cwd = agent.foreground_cwd ?? agent.cwd ?? record.cwd;
 	const tag = notification
 		? "herdr_agent_extension_message"
@@ -127,12 +123,12 @@ function agentEvent(options: AgentEventOptions): {
 	}
 	if (blocked) {
 		lines.push(
-			`<operator_hint>${xml(blockedOperatorHint(agentToolName, machine, operatorPrefix, operatorTarget, agent.backend === "core"))}</operator_hint>`,
+			`<operator_hint>${xml(blockedOperatorHint(agentToolName, machine, operatorPrefix, operatorTarget))}</operator_hint>`,
 		);
 	}
 	if (failed) {
 		lines.push(
-			`<operator_hint>${xml(failedOperatorHint(agentToolName, machine, operatorPrefix, operatorTarget, agent.backend === "core"))}</operator_hint>`,
+			`<operator_hint>${xml(failedOperatorHint(agentToolName, machine, operatorPrefix, operatorTarget))}</operator_hint>`,
 		);
 	}
 	if (reply) lines.push(`<response>${xml(reply.text)}</response>`);

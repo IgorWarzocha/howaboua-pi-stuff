@@ -99,7 +99,7 @@ def main() -> None:
         image.verify()
 
     gate["status"] = "complete"
-    gate["completed_at"] = datetime.now(timezone.utc).isoformat()
+    gate["completed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     gate["reviewed_by"] = reviewed_by
     gate["qa_note"] = qa_note
     atomic_write(manifest_path, manifest)

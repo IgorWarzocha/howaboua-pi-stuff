@@ -34,9 +34,6 @@ const allowedLoaderModules = new Set([
 	"@earendil-works/pi-ai/providers/all",
 	"@earendil-works/pi-coding-agent",
 	"@earendil-works/pi-tui",
-	"typebox",
-	"typebox/compile",
-	"typebox/value",
 ]);
 
 function run(command, commandArgs, options = {}) {
@@ -74,10 +71,10 @@ function verifyLoaderImports(packageRoot) {
 	}
 	const failures = [];
 	const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
-	// pi-codemode is an ordinary runtime package, not a Pi loader singleton.
-	// Require a direct dependency so packed extensions do not borrow Pi's copy.
-	const runtimeModules = new Set(Object.hasOwn(manifest.dependencies ?? {}, "@earendil-works/pi-codemode")
-		? ["@earendil-works/pi-codemode"] : []);
+	// Runtime packages are not Pi loader singletons. Packed extensions own their dependencies.
+	const runtimeModules = new Set(["@earendil-works/pi-codemode", "@earendil-works/pi-schema"]
+		.filter(name => Object.hasOwn(manifest.dependencies ?? {}, name)));
+	if (runtimeModules.has("@earendil-works/pi-schema")) runtimeModules.add("@earendil-works/pi-schema/formats");
 	const sources = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
 	const peerSpecifierPattern = /["'](@earendil-works\/pi-[^"']+|typebox(?:\/[^"']+)?)["']/g;
 	const staticSpecifierPattern = /^\s*(?:import|export)\s+(?:[^"'\n]*?\sfrom\s*)?["']([^"']+)["']/gm;

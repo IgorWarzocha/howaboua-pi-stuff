@@ -1,7 +1,7 @@
 import { GENERAL_GUIDELINES, formatGuidelines, mergeCodexGuidelines, selectedToolGuidelines, withoutCodexGuidelines } from "./runtime-guidelines.ts";
 import { getPackageDir, type NormalizedBuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
 import type { HeavySystemPromptOverwrite } from "../adapter/activation/config-contract.js";
-import { codeModeCustomizationGuidance } from "../tools/code-mode/custom-tool-prompt.js";
+import { codeModeCustomizationGuidance, codeModePromptToolNames } from "../tools/code-mode/custom-tool-prompt.js";
 
 export interface PromptSkill {
 	name: string;
@@ -157,7 +157,7 @@ export function prepareCodexSystemPrompt(
 	delete sections["codex_runtime"];
 
 	if (options.forceSystemPrompt !== undefined) {
-		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options), gpt);
+		const guidelines = formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools, nestedTools: codeModePromptToolNames(options) }), shell, codeModeCustomizationGuidance(options), gpt);
 		let forced = upsertOpaqueSection(options.forceSystemPrompt, "runtime_guidelines", guidelines);
 		forced = upsertOpaqueSection(forced, "codex_skills", "");
 		forced = upsertOpaqueSection(forced, "skill_catalog", buildSkillsContent(skills, gpt));
@@ -181,6 +181,7 @@ export function prepareCodexSystemPrompt(
 			const guidelines = mergeCodexGuidelines(contributed, mode, {
 				removePiDefaults: true,
 				selectedTools: options.selectedTools,
+				nestedTools: codeModePromptToolNames(options),
 				...(!customPrompt ? { piPackageRoot: getPackageDir() } : {}),
 			});
 			const sectionGuidelines = customPrompt
@@ -191,7 +192,7 @@ export function prepareCodexSystemPrompt(
 	} else {
 		options.promptGuidelines = withoutCodexGuidelines(options.promptGuidelines);
 		defineOwnedSection(sections, "runtime_guidelines", () =>
-			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools }), shell, codeModeCustomizationGuidance(options)));
+			formatGuidelines(mergeCodexGuidelines([], mode, { selectedTools: options.selectedTools, nestedTools: codeModePromptToolNames(options) }), shell, codeModeCustomizationGuidance(options)));
 	}
 
 	prepareStructuredSkills(options, skills, mode, Boolean(config.heavySystemPromptOverwrite), gpt);

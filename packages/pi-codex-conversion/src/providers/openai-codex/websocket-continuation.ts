@@ -19,22 +19,40 @@ export function responseInputsEqual(a: readonly unknown[] | undefined, b: readon
 	return left.length === right.length && left.every((item, index) => responsesValuesEqual(item, right[index]));
 }
 
-function canonicalResponseValue(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(canonicalResponseValue);
-	if (!value || typeof value !== "object") return value;
-	const record = value as Record<string, unknown>;
-	const canonical: Record<string, unknown> = {};
-	for (const key of Object.keys(record).sort()) {
-		if (key === "internal_chat_message_metadata_passthrough") continue;
-		if (key === "logprobs" && record["type"] === "output_text" && Array.isArray(record[key]) && record[key].length === 0) continue;
-		if (key === "status" && record[key] === "completed" && (record["type"] === "function_call" || record["type"] === "custom_tool_call")) continue;
-		canonical[key] = canonicalResponseValue(record[key]);
-	}
-	return canonical;
+function comparableResponseField(record: Record<string, unknown>, key: string): boolean {
+	if (key === "internal_chat_message_metadata_passthrough") return false;
+	if (key === "logprobs" && record["type"] === "output_text" && Array.isArray(record[key]) && record[key].length === 0) return false;
+	if (key === "status" && record[key] === "completed" && (record["type"] === "function_call" || record["type"] === "custom_tool_call")) return false;
+	const value = record[key];
+	// JSON omits these object fields, but represents them as null in arrays.
+	return value !== undefined && typeof value !== "function" && typeof value !== "symbol";
 }
 
-function responsesValuesEqual(a: unknown, b: unknown): boolean {
-	return JSON.stringify(canonicalResponseValue(a)) === JSON.stringify(canonicalResponseValue(b));
+function responsesValuesEqual(a: unknown, b: unknown, arrayItem = false): boolean {
+	if (typeof a === "function" || typeof a === "symbol") a = undefined;
+	if (typeof b === "function" || typeof b === "symbol") b = undefined;
+	if (typeof a === "number" && !Number.isFinite(a)) a = null;
+	if (typeof b === "number" && !Number.isFinite(b)) b = null;
+	if (arrayItem) {
+		a ??= null;
+		b ??= null;
+	}
+	if (a === b) return true;
+	if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+		for (let index = 0; index < a.length; index++) {
+			if (!responsesValuesEqual(a[index], b[index], true)) return false;
+		}
+		return true;
+	}
+	const left = a as Record<string, unknown>;
+	const right = b as Record<string, unknown>;
+	const keys = Object.keys(left).filter(key => comparableResponseField(left, key));
+	if (keys.length !== Object.keys(right).filter(key => comparableResponseField(right, key)).length) return false;
+	// Compare in place: canonical copies and JSON strings amplify large tool/image inputs.
+	return keys.every(key => Object.hasOwn(right, key) && comparableResponseField(right, key)
+		&& responsesValuesEqual(left[key], right[key]));
 }
 
 function requestBodyMismatch(previous: ResponsesBody, current: ResponsesBody): WebSocketContinuationDecision | undefined {

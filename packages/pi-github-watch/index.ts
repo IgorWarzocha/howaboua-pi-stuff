@@ -1,10 +1,9 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	defineTool,
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { compile, obj, oneOf, opt, str } from "@earendil-works/pi-schema";
 import { deliver, feedbackMessage } from "./src/delivery.js";
 import type { ThreadSnapshot } from "./src/feedback.js";
 import {
@@ -14,6 +13,14 @@ import {
 	type WorkflowRun,
 } from "./src/github.js";
 
+const WatchParameters = obj({
+	action: opt({
+		...oneOf(["help", "watch", "status", "cancel"]),
+		type: "string",
+	}),
+	thread: opt(str()),
+});
+const checkParameters = compile(WatchParameters).check;
 interface Watch {
 	thread: WatchTarget;
 	seen: ThreadSnapshot;
@@ -22,7 +29,7 @@ interface Watch {
 	state: "watching" | "paused";
 	nextCheck: number;
 }
-const MINUTE = 60_000;
+const MINUTE = 60000;
 const AUTOMATIC_UPDATES =
 	"Updates arrive automatically; no polling or gh run watch needed";
 const HELP =
@@ -33,13 +40,22 @@ const GPT_HELP =
 
 function runResult(
 	run: WorkflowRun,
-	snapshot: Extract<RunSnapshot, { completed: true }>,
+	snapshot: Extract<
+		RunSnapshot,
+		{
+			completed: true;
+		}
+	>,
 ): string {
 	return `GitHub Actions: ${snapshot.conclusion} (attempt ${snapshot.attempt}) at ${run.url}. Read details with gh run view ${run.number} --repo ${run.repo}.`;
 }
 
 export default async function (pi: ExtensionAPI) {
-	let promptMode: { readonly active: boolean } | undefined;
+	let promptMode:
+		| {
+				readonly active: boolean;
+		  }
+		| undefined;
 	const watches = new Map<string, Watch>();
 	let generation = 0;
 	const clear = () => {
@@ -117,16 +133,12 @@ export default async function (pi: ExtensionAPI) {
 		label: "GitHub watch",
 		description:
 			"Watch selected GitHub threads for comments or Actions runs for completion in this session",
-		parameters: Type.Object(
-			{
-				action: Type.Optional(
-					StringEnum(["help", "watch", "status", "cancel"]),
-				),
-				thread: Type.Optional(Type.String()),
-			},
-			{ additionalProperties: false },
-		),
+		parameters: WatchParameters,
 		async execute(_id, args, signal, _update, ctx) {
+			if (!checkParameters(args))
+				throw new Error(
+					"Invalid arguments; call github_watch with no arguments for help",
+				);
 			const result = (text: string) => ({
 				content: [{ type: "text" as const, text }],
 				details: {},
@@ -139,7 +151,7 @@ export default async function (pi: ExtensionAPI) {
 				const current = [...watches.values()];
 				const lines = current.map(
 					(w) =>
-						`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString()}` : "; watch again to resume"}`,
+						`${w.thread.url} ${w.state}${w.state === "watching" ? `; next check ${new Date(w.nextCheck).toISOString().slice(0, 16)}Z` : "; watch again to resume"}`,
 				);
 				if (current.some((w) => w.state === "watching"))
 					lines.push(AUTOMATIC_UPDATES);
@@ -212,7 +224,7 @@ export default async function (pi: ExtensionAPI) {
 			watches.set(thread.url, watch);
 			schedule(watch, ctx, thread.kind === "pr" ? 7 * MINUTE : MINUTE);
 			return result(
-				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString()}. ${AUTOMATIC_UPDATES}`,
+				`${thread.url}: watching; first check ${new Date(watch.nextCheck).toISOString().slice(0, 16)}Z. ${AUTOMATIC_UPDATES}`,
 			);
 		},
 	});

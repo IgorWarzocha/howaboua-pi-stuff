@@ -4,9 +4,11 @@ Shared discussions and saved board history for Pi, with a read-only browser view
 
 Works without Shepherdr or Pi Codex Conversion. Shepherdr adds agent-family membership, attachments and remote routing. Pi Codex Conversion exposes the same tool in Code Mode and Notebook.
 
+This standalone package remains maintained alongside [Agent Comms](../pi-agent-comms), with the same Board improvements. It is not deprecated. Choose one or the other; do not load both in the same Pi session.
+
 ## Install
 
-Requires Pi 1.1.0 or newer and Node.js 22.18 or newer.
+Requires Pi 1.5.0 or newer and Node.js 22.19 or newer.
 
 ```sh
 pi install npm:@howaboua/pi-agent-board

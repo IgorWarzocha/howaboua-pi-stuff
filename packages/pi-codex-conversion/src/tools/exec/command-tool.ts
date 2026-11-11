@@ -1,7 +1,7 @@
 import type { ExtensionAPI, KeybindingHints } from "@earendil-works/pi-coding-agent";
 import { truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { getPiConfiguredShellPath } from "../../adapter/prompt/runtime-shell.ts";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
@@ -11,15 +11,15 @@ import { renderTerminalOutput } from "./output.ts";
 import type { ExecCommandInput, ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 
-const EXEC_COMMAND_PARAMETERS = Type.Object({
-	cmd: Type.String({ description: "Shell command; do not quote the entire command" }),
-	workdir: Type.Optional(Type.String({ description: "Cwd" })),
-	shell: Type.Optional(Type.String()),
-	tty: Type.Optional(Type.Boolean({ description: "Keep stdin open for input or interruption" })),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
-	login: Type.Optional(Type.Boolean()),
-});
+const EXEC_COMMAND_PARAMETERS = obj({
+	cmd: str({ description: "Shell command; do not quote the entire command" }),
+	workdir: opt(str({ description: "Cwd" })),
+	shell: opt(str()),
+	tty: opt(bool({ description: "Keep stdin open for input or interruption" })),
+	yield_time_ms: opt(num({ description: "Wait ms" })),
+	max_output_tokens: opt(num({ description: "Truncate" })),
+	login: opt(bool()),
+}, { open: true });
 
 interface ExecCommandParams {
 	cmd: string;
@@ -172,9 +172,11 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("exec_command aborted");
 			const parsedInput = parseExecCommandParams(params);
-			const input: ExecCommandInput = parsedInput.shell === undefined
-				? { ...parsedInput, defaultShell: getPiConfiguredShellPath(ctx) }
-				: parsedInput;
+			const input: ExecCommandInput = {
+				...parsedInput,
+				ownerSessionId: ctx.sessionManager.getSessionId(),
+				...(parsedInput.shell === undefined ? { defaultShell: getPiConfiguredShellPath(ctx) } : {}),
+			};
 			const toToolResult = (partial: UnifiedExecResult) => ({
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial) }],
 				details: partial,

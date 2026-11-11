@@ -2,14 +2,15 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { closeIdleChildren } from "./close-idle.js";
 import {
 	contextBriefingWindow,
 	hasContextRollover,
 	recordContextBriefing,
 	registerContextBriefing,
-} from "@howaboua/pi-agent-board/integration";
-import { closeIdleChildren } from "./close-idle.js";
+} from "./context-briefing.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel/index.js";
+import { CORE_REQUIRED } from "./core/backend.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet/index.js";
 import {
@@ -63,71 +64,60 @@ export function registerAgentController(
 		if (!fleet.isActive()) {
 			await activateController(fleet, ctx);
 			signal.throwIfAborted();
-			if (!fleet.isActive())
-				throw new Error("Fleet inactive. Pi must run inside Herdr.");
+			if (!fleet.isActive()) throw fleet.inactiveError();
 		}
 		await fleet.reload();
 		signal.throwIfAborted();
 		return fleet.connect(machine);
 	};
-	registerContextBriefing(
-		pi,
-		"orchestration",
-		(ctx) => restoreOrchestrationState(ctx).enabled,
-		async (ctx, windowId, messages) => {
-			const sessionId = ctx.sessionManager.getSessionId();
-			const state = restoreOrchestrationState(ctx);
-			const window = contextBriefingWindow(ctx, windowId);
-			// Initialization and compaction may keep earlier messages. Only actual
-			// selected context proves a toggle still supplies this window's guidance.
-			if (
-				state.visible &&
-				messages?.some(
-					(message) =>
-						message.role === "custom" &&
-						message.customType === ORCHESTRATION_STATE_TYPE &&
-						message.timestamp === state.timestamp,
-				)
+	registerContextBriefing(pi, async (ctx, windowId, messages) => {
+		const sessionId = ctx.sessionManager.getSessionId();
+		const state = restoreOrchestrationState(ctx);
+		const window = contextBriefingWindow(ctx, windowId);
+		// Initialization and compaction may keep earlier messages. Only actual
+		// selected context proves a toggle still supplies this window's guidance.
+		if (
+			state.visible &&
+			messages?.some(
+				(message) =>
+					message.role === "custom" &&
+					message.customType === ORCHESTRATION_STATE_TYPE &&
+					message.timestamp === state.timestamp,
 			)
-				return;
-			const key = JSON.stringify([sessionId, window, state.id]);
-			await recordContextBriefing(
-				pi,
-				ctx,
-				"shepherdr-orchestration",
-				key,
-				async () => {
-					const content = await orchestrationMessage(state.enabled);
-					if (
-						ctx.sessionManager.getSessionId() !== sessionId ||
-						restoreOrchestrationState(ctx).id !== state.id
-					)
-						throw new Error("Orchestration changed during its briefing");
-					ctx.signal?.throwIfAborted();
-					return content;
-				},
-			);
-		},
-	);
-	registerContextBriefing(
-		pi,
-		"active agents",
-		() => fleet.list().length > 0,
-		async (ctx, windowId) => {
-			if (!hasContextRollover(ctx)) return;
-			const key = JSON.stringify([
-				ctx.sessionManager.getSessionId(),
-				contextBriefingWindow(ctx, windowId),
-			]);
-			await recordContextBriefing(
-				pi,
-				ctx,
-				"shepherdr-active-agents",
-				key,
-				async () => activeAgentsBriefing(fleet.list(), fleet.statuses()),
-			);
-		},
-	);
+		)
+			return;
+		const key = JSON.stringify([sessionId, window, state.id]);
+		await recordContextBriefing(
+			pi,
+			ctx,
+			"shepherdr-orchestration",
+			key,
+			async () => {
+				const content = await orchestrationMessage(state.enabled);
+				if (
+					ctx.sessionManager.getSessionId() !== sessionId ||
+					restoreOrchestrationState(ctx).id !== state.id
+				)
+					throw new Error("Orchestration changed during its briefing");
+				ctx.signal?.throwIfAborted();
+				return content;
+			},
+		);
+	});
+	registerContextBriefing(pi, async (ctx, windowId) => {
+		if (!hasContextRollover(ctx)) return;
+		const key = JSON.stringify([
+			ctx.sessionManager.getSessionId(),
+			contextBriefingWindow(ctx, windowId),
+		]);
+		await recordContextBriefing(
+			pi,
+			ctx,
+			"shepherdr-active-agents",
+			key,
+			async () => activeAgentsBriefing(fleet.list(), fleet.statuses()),
+		);
+	});
 	pi.registerCommand("herdr", {
 		description: "Shepherdr settings, status, SSH setup and close-idle",
 		handler: async (args, ctx) => {
@@ -224,18 +214,16 @@ async function activateController(
 	fleet: AgentFleet,
 	ctx: ExtensionContext,
 ): Promise<boolean> {
-	if (
-		!(process.env["HC_TERMINAL_ID"] && process.env["HC_TERMINAL_SOCKET"]) &&
-		(process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
-	) {
-		ctx.ui.notify("Shepherdr requires Pi to run inside Herdr", "error");
+	if (!process.env["HC_TERMINAL_ID"] || !process.env["HC_TERMINAL_SOCKET"]) {
+		fleet.deactivate();
+		ctx.ui.notify(CORE_REQUIRED, "error");
 		return false;
 	}
 	try {
 		await fleet.activate(ctx);
 		return true;
 	} catch (error) {
-		fleet.deactivate();
+		fleet.deactivate(error instanceof Error ? error : new Error(String(error)));
 		ctx.ui.notify(
 			`Shepherdr could not start: ${error instanceof Error ? error.message : String(error)}`,
 			"error",

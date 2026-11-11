@@ -1,4 +1,4 @@
-import { type Static, Type } from "typebox";
+import { obj, type Static } from "@earendil-works/pi-schema";
 import { StringEnum } from "../tools/string-enum.ts";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./activation/state.ts";
@@ -8,7 +8,7 @@ import { auxiliaryToolRenderers, displayRecord } from "../ui/tool-rendering/auxi
 
 type Level = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 const levels: readonly Level[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const PARAMETERS = Type.Object({ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) });
+const PARAMETERS = obj({ level: StringEnum(["low", "medium", "high", "xhigh", "max"] as const) }, { open: true });
 
 interface AutoReasoning {
 	begin(ctx: ExtensionContext): void;
@@ -52,9 +52,9 @@ export function createAutoReasoning(pi: ExtensionAPI, state: AdapterState): Auto
 				};
 			}),
 			async execute(_id: string, params: Static<typeof PARAMETERS>, _signal: AbortSignal | undefined, _update: unknown, ctx: ExtensionContext) {
-				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning) throw new Error("change_reasoning requires Auto reasoning enabled on GPT-6 Codex transport");
+				if (!resolveCodexRuntimePlanForState(ctx, state).autoReasoning) throw new Error("Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available");
 				begin(ctx);
-				if (!baseline) throw new Error("No GPT-6 reasoning baseline");
+				if (!baseline) throw new Error("Reasoning adjustment is unavailable in this session. Continue with the current reasoning level. Other tools remain available");
 				const previous = pi.getThinkingLevel();
 				// A user selector change supersedes the tool's last selection.
 				if (previous !== (applied ?? baseline.level)) baseline.level = previous;

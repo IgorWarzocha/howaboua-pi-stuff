@@ -1,5 +1,3 @@
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
-
 /** Owns relay handlers and incoming cancellation; transport shutdown aborts the whole relay. */
 export class ContextRelay {
 	private contextHandler:
@@ -7,17 +5,20 @@ export class ContextRelay {
 		| undefined;
 	private readonly incomingContext = new Map<string, AbortController>();
 	private relayPath: string | undefined;
-	private readonly child: ChildProcessWithoutNullStreams;
+	private readonly send: (message: Record<string, unknown>) => void;
 	private readonly closed: () => boolean;
 	private readonly maxFrameBytes: number;
+	private readonly onFailure: (error: Error) => void;
 	constructor(
-		child: ChildProcessWithoutNullStreams,
+		send: (message: Record<string, unknown>) => void,
 		closed: () => boolean,
 		maxFrameBytes: number,
+		onFailure: (error: Error) => void,
 	) {
-		this.child = child;
+		this.send = send;
 		this.closed = closed;
 		this.maxFrameBytes = maxFrameBytes;
+		this.onFailure = onFailure;
 	}
 	async start(
 		threadId: string,
@@ -50,10 +51,19 @@ export class ContextRelay {
 			this.incomingContext.set(id, controller);
 			const reply = (data: object) => {
 				if (this.closed() || controller.signal.aborted) return;
-				let frame = `${JSON.stringify({ op: "context_reply", id, ...data })}\n`;
-				if (Buffer.byteLength(frame) > this.maxFrameBytes)
-					frame = `${JSON.stringify({ op: "context_reply", id, ok: false, error: "Shared context response is too large" })}\n`;
-				this.child.stdin.write(frame);
+				let frame: Record<string, unknown> = {
+					op: "context_reply",
+					id,
+					...data,
+				};
+				if (Buffer.byteLength(JSON.stringify(frame)) > this.maxFrameBytes)
+					frame = {
+						op: "context_reply",
+						id,
+						ok: false,
+						error: "Shared context response is too large",
+					};
+				this.send(frame);
 			};
 			void Promise.resolve()
 				.then(() => {
@@ -72,7 +82,12 @@ export class ContextRelay {
 				)
 				.finally(() => {
 					this.incomingContext.delete(id);
-				});
+				})
+				.catch((error: unknown) =>
+					this.onFailure(
+						error instanceof Error ? error : new Error(String(error)),
+					),
+				);
 			return true;
 		}
 		return false;

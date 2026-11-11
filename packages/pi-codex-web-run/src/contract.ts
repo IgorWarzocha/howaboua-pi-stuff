@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { arr, lit, num, obj, opt, str, union } from "@earendil-works/pi-schema";
 import type { CodexToolProvider } from "./codex-runtime/types.js";
 
 export const WEB_SEARCH_TOOL_NAME = "web_run";
@@ -7,70 +7,56 @@ export const DEFAULT_WEB_SEARCH_MODEL = "gpt-6-luna";
 export const WEB_SEARCH_MAX_OUTPUT_TOKENS = 2_500;
 export const WEB_SEARCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-const SearchQueryParameters = Type.Object(
+const SearchQueryParameters = obj(
 	{
-		q: Type.String(),
-		recency: Type.Optional(Type.Number({ description: "Days" })),
-		domains: Type.Optional(Type.Array(Type.String())),
+		q: str(),
+		recency: opt(num({ description: "Days" })),
+		domains: opt(arr(str())),
 	},
-	{ additionalProperties: true },
+	{ open: true },
 );
 
-export const WEB_SEARCH_PARAMETERS = Type.Object(
+export const WEB_SEARCH_PARAMETERS = obj(
 	{
-		search_query: Type.Optional(Type.Array(SearchQueryParameters)),
-		image_query: Type.Optional(Type.Array(SearchQueryParameters)),
-		open: Type.Optional(
-			Type.Array(
-				Type.Object(
+		search_query: opt(arr(SearchQueryParameters)),
+		image_query: opt(arr(SearchQueryParameters)),
+		open: opt(
+			arr(
+				obj(
 					{
-						ref_id: Type.String(),
-						lineno: Type.Optional(Type.Number()),
+						ref_id: str(),
+						lineno: opt(num()),
 					},
-					{ additionalProperties: true },
+					{ open: true },
 				),
 				{ description: "ref_id or URL" },
 			),
 		),
-		click: Type.Optional(
-			Type.Array(
-				Type.Object(
-					{ ref_id: Type.String(), id: Type.Number() },
-					{ additionalProperties: true },
-				),
-			),
-		),
-		find: Type.Optional(
-			Type.Array(
-				Type.Object(
-					{ ref_id: Type.String(), pattern: Type.String() },
-					{ additionalProperties: true },
-				),
-			),
-		),
-		response_length: Type.Optional(
-			Type.Union([
-				Type.Literal("short"),
-				Type.Literal("medium"),
-				Type.Literal("long"),
+		click: opt(arr(obj({ ref_id: str(), id: num() }, { open: true }))),
+		find: opt(arr(obj({ ref_id: str(), pattern: str() }, { open: true }))),
+		response_length: opt(
+			union([
+				{ ...lit("short"), type: "string" },
+				{ ...lit("medium"), type: "string" },
+				{ ...lit("long"), type: "string" },
 			]),
 		),
-		settings: Type.Optional(
-			Type.Object(
+		settings: opt(
+			obj(
 				{
-					search_context_size: Type.Optional(
-						Type.Union([
-							Type.Literal("low"),
-							Type.Literal("medium"),
-							Type.Literal("high"),
+					search_context_size: opt(
+						union([
+							{ ...lit("low"), type: "string" },
+							{ ...lit("medium"), type: "string" },
+							{ ...lit("high"), type: "string" },
 						]),
 					),
 				},
-				{ additionalProperties: true },
+				{ open: true },
 			),
 		),
 	},
-	{ additionalProperties: true },
+	{ open: true },
 );
 
 export type WebRunOutput = Record<string, unknown> & {

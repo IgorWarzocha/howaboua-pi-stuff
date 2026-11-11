@@ -43,23 +43,34 @@ function compactionRequestPrefixLength(state: CanonicalSessionState, reconstruct
 	return toolsPrefix + (hasInstructions ? 1 : 0);
 }
 
+function validateCanonicalInput(
+	state: CanonicalSessionState,
+	preparedInput: readonly unknown[],
+	requestPrefixLength = 0,
+): CanonicalHistoryDecision {
+	const reconstructedRequestInput = state.reconstructedRequestInput.slice(requestPrefixLength);
+	const minimumInputLength = reconstructedRequestInput.length + state.responseItems.length;
+	if (preparedInput.length < minimumInputLength) {
+		return "input_shorter_than_baseline";
+	}
+	if (!responseInputsEqual(preparedInput.slice(0, reconstructedRequestInput.length), reconstructedRequestInput)) {
+		return "request_prefix_mismatch";
+	}
+	const reconstructedResponseEnd = reconstructedRequestInput.length + state.responseItems.length;
+	if (!responseInputsEqual(preparedInput.slice(reconstructedRequestInput.length, reconstructedResponseEnd), state.responseItems)) {
+		return "response_prefix_mismatch";
+	}
+	return "validated";
+}
+
 function replayCanonicalInput(
 	state: CanonicalSessionState,
 	preparedInput: readonly unknown[],
 	requestPrefixLength = 0,
 ): { input?: unknown[] | undefined; decision: CanonicalHistoryDecision } {
-	const reconstructedRequestInput = state.reconstructedRequestInput.slice(requestPrefixLength);
-	const minimumInputLength = reconstructedRequestInput.length + state.responseItems.length;
-	if (preparedInput.length < minimumInputLength) {
-		return { decision: "input_shorter_than_baseline" };
-	}
-	if (!responseInputsEqual(preparedInput.slice(0, reconstructedRequestInput.length), reconstructedRequestInput)) {
-		return { decision: "request_prefix_mismatch" };
-	}
-	const reconstructedResponseEnd = reconstructedRequestInput.length + state.responseItems.length;
-	if (!responseInputsEqual(preparedInput.slice(reconstructedRequestInput.length, reconstructedResponseEnd), state.responseItems)) {
-		return { decision: "response_prefix_mismatch" };
-	}
+	const decision = validateCanonicalInput(state, preparedInput, requestPrefixLength);
+	if (decision !== "validated") return { decision };
+	const reconstructedResponseEnd = state.reconstructedRequestInput.length - requestPrefixLength + state.responseItems.length;
 	return {
 		input: [
 			...structuredClone(materializedInput(state)),
@@ -83,9 +94,11 @@ export function recordCanonicalSessionResponse(args: {
 	canonicalSessions.set(args.sessionId, {
 		accountId: args.accountId,
 		url: args.url,
-		requestBody: structuredClone(args.requestBody),
-		reconstructedRequestInput: structuredClone((args.reconstructedRequestBody ?? args.requestBody).input),
-		responseItems: structuredClone(args.responseItems),
+		...structuredClone({
+			requestBody: args.requestBody,
+			reconstructedRequestInput: (args.reconstructedRequestBody ?? args.requestBody).input,
+			responseItems: args.responseItems,
+		}),
 	});
 }
 
@@ -122,8 +135,7 @@ export function validateCanonicalSessionRequest(
 		return "identity_mismatch";
 	}
 
-	const replay = replayCanonicalInput(state, preparedBody.input);
-	return replay.decision;
+	return validateCanonicalInput(state, preparedBody.input);
 }
 
 export function canonicalCompactionPromptInput(

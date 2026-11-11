@@ -5,11 +5,10 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { getAgent, sessionPath } from "./core/agents.js";
 import { coreIdentity, publishCoreSession } from "./core/registration.js";
 import { dispatchExtensionReply } from "./extension-reply.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getAgent, getCurrentPane, sessionPath } from "./herdr.js";
-import { HerdrClient } from "./herdr-client.js";
 import type { createPeerCommands } from "./peer-commands.js";
 import { PeerInboxDelivery } from "./peer-inbox-delivery.js";
 import { receivePeerFocus } from "./peer-inbox-focus.js";
@@ -26,21 +25,16 @@ export function registerPeerInbox(
 	catchup: (
 		ctx: ExtensionContext,
 	) => Promise<{ content: string; accepted: () => void }>,
+	isWorker: (ctx: ExtensionContext) => boolean,
 ): void {
 	let close: (() => Promise<void>) | undefined;
 	let running = false;
 	let generation = 0;
 	const publish = async (ctx: ExtensionContext) => {
 		const core = coreIdentity(ctx);
-		if (
-			!core &&
-			(process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"])
-		)
-			return;
-		if (core) {
-			await close?.();
-			close = undefined;
-		}
+		if (!core) return;
+		await close?.();
+		close = undefined;
 		close = await openInbox(
 			pi,
 			ctx,
@@ -49,6 +43,7 @@ export function registerPeerInbox(
 			commands,
 			fleet,
 			catchup,
+			isWorker(ctx),
 		);
 	};
 	pi.on("before_agent_start", () => {
@@ -81,25 +76,24 @@ async function openInbox(
 	catchup: (
 		ctx: ExtensionContext,
 	) => Promise<{ content: string; accepted: () => void }>,
+	worker: boolean,
 ): Promise<() => Promise<void>> {
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionFile)
 		throw new Error("Shepherdr peer delivery requires a saved Pi session");
 	const core = coreIdentity(ctx);
-	const pane = core
-		? {
-				backend: "core" as const,
-				pane_id: core.terminalId,
-				terminal_id: core.terminalId,
-				agent_status: "unknown" as const,
-				agent_session: {
-					agent: "pi",
-					kind: "path" as const,
-					source: "pi.session_file",
-					value: sessionFile,
-				},
-			}
-		: await getCurrentPane(new HerdrClient());
+	if (!core) throw new Error("Peer delivery requires a Core terminal");
+	const pane = {
+		pane_id: core.terminalId,
+		terminal_id: core.terminalId,
+		agent_status: "unknown" as const,
+		agent_session: {
+			agent: "pi",
+			kind: "path" as const,
+			source: "pi.session_file",
+			value: sessionFile,
+		},
+	};
 	const terminalId = pane.terminal_id;
 	if (!terminalId)
 		throw new Error("Shepherdr peer receiver has no terminal identity");
@@ -257,7 +251,7 @@ async function openInbox(
 				}
 				try {
 					const livePane = await getAgent(
-						core ? fleet.connected().client : new HerdrClient(),
+						fleet.connected().client,
 						pane.pane_id,
 					);
 					if (
@@ -365,7 +359,7 @@ async function openInbox(
 			{ mode: 0o600, flag: "wx" },
 		);
 		await rename(temporary, path);
-		if (core) clearCoreSession = await publishCoreSession(core, sessionFile);
+		clearCoreSession = await publishCoreSession(core, sessionFile, worker);
 	} catch (error) {
 		try {
 			await unlink(temporary).catch((failure: NodeJS.ErrnoException) => {

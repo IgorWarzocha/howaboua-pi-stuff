@@ -4,3 +4,4 @@
 - Keep wait policy host-side and model wording generic: non-TTY output extends the inactivity wait, silence yields a session, and empty polls use bounded waits with backoff.
 - Finalized sessions outlive the native helper's exited-process retention. Serve retained output without polling or writing expired native handles.
 - Completed replay retention is separate from immediate delivery; never apply its bound to the exit-observing call.
+- Bounded completion notices must not drain truncated unread output. Ctrl-C input is not proof that an interactive shell exited.

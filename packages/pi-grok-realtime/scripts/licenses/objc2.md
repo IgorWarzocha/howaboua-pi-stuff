@@ -3,6 +3,7 @@ Source: https://github.com/madsmtm/objc2/blob/b4167b582b2f75f9a1be75495c41b76534
 # License
 
 The licensing of these crates is a bit complicated:
+
 - The crates `objc2`, `block2`, `objc2-foundation` and `objc2-encode` are
   [currently][#23] licensed under [the MIT license][MIT].
 - All other crates are trio-licensed under the [Zlib], [Apache-2.0] or [MIT]
@@ -15,7 +16,6 @@ and that may have implications for licensing, see below for details.
 [MIT]: https://opensource.org/license/MIT
 [Zlib]: https://zlib.net/zlib_license.html
 [Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
-
 
 ## Apple SDKs
 

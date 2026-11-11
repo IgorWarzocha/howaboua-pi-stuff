@@ -1,6 +1,7 @@
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "../types.js";
 import { object } from "./protocol.js";
-import { CORE_SESSION_LABEL } from "./registration.js";
+import { CORE_SESSION_LABEL, CORE_WORKER_LABEL } from "./registration.js";
+import { livePiSession } from "./terminal-peer.mjs";
 
 export function terminalPane(value: unknown): PaneInfo {
 	const terminal = object(value);
@@ -19,15 +20,17 @@ export function terminalPane(value: unknown): PaneInfo {
 					state === "done"
 				? state
 				: "unknown";
-	const session = labels[CORE_SESSION_LABEL];
+	const session = livePiSession(terminal);
 	const live = terminal["state"] === "live";
 	return {
-		backend: "core",
 		// The shared legacy key is an address, not a fabricated app pane ID.
 		pane_id: address,
 		terminal_id: address,
 		agent: typeof session === "string" && session ? "pi" : null,
 		agent_status: agentStatus,
+		...(session && labels[CORE_WORKER_LABEL] === session
+			? { worker: true as const }
+			: {}),
 		interactive_ready: live && typeof session === "string" && !!session,
 		launch_pending: live && !session,
 		...(typeof terminal["cwd"] === "string" ? { cwd: terminal["cwd"] } : {}),

@@ -109,6 +109,9 @@ export class GuestProcesses {
 		const deadline = Date.now() + 5000;
 		while (!(await guestExists(this.vm, `${path}/pid`))) {
 			if (await guestExists(this.vm, `${path}/done`)) {
+				// A short command can finish between the two probes. The worker
+				// publishes pid before done whenever process creation succeeds.
+				if (await guestExists(this.vm, `${path}/pid`)) break;
 				const output = await this.vm.fs.readFile(`${path}/output`, {
 					encoding: "utf8",
 				});

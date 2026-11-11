@@ -1,4 +1,5 @@
 import { commandOutputFormatterSource } from "../code-mode/command-output.js";
+import { contentOutputFactorySource } from "../code-mode/content-output.js";
 
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
@@ -286,6 +287,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	__emit([{ type: "input_text", text: command ? __formatCommandOutput(value, outputHint === "plain-command") : __stringify(value) }]);
   };
   globalThis.image = __image;
+  globalThis.content = (${contentOutputFactorySource})(globalThis.text, __image);
   globalThis.generatedImage = (value) => {
     if (!value || typeof value.image_url !== "string") throw new TypeError("generatedImage expects an image result");
 	if (value.output_hint !== undefined && typeof value.output_hint !== "string") throw new TypeError("generatedImage output_hint must be a string when provided");

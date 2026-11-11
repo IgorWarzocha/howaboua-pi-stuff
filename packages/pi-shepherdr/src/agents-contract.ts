@@ -1,11 +1,16 @@
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
+import {
+	bool,
+	compile,
+	int,
+	lit,
+	obj,
+	oneOf,
+	opt,
+	type Static,
+	str,
+} from "@earendil-works/pi-schema";
 import { START_PLACEMENTS } from "./launch.js";
 import { loadAgentProfileBlocking } from "./profiles.js";
-
-function StringEnum<T extends readonly string[]>(values: T) {
-	return Type.Unsafe<T[number]>({ type: "string", enum: values });
-}
 
 const ACTIONS = [
 	"help",
@@ -38,7 +43,6 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 		"label",
 		"placement",
 		"workspace",
-		"pane",
 		"cwd",
 		"message",
 		"base",
@@ -54,61 +58,75 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	read: new Set(["action", "machine", "target", "source", "lines"]),
 	reply: new Set(["action", "machine", "target", "extension", "id", "message"]),
 };
-
-const AgentsRequest = Type.Object(
-	{
-		action: StringEnum(ACTIONS),
-		commands: Type.Optional(Type.Literal(true)),
-		machine: Type.Optional(Type.String()),
-		voice: Type.Optional(Type.Boolean()),
-		handoff: Type.Optional(Type.String()),
-		target: Type.Optional(
-			Type.String({ description: "Agent name or pane ID" }),
-		),
-		agent_type: Type.Optional(Type.String()),
-		name: Type.Optional(
-			Type.String({
-				description: "Agent name; derived from label when omitted",
-			}),
-		),
-		label: Type.Optional(Type.String()),
-		placement: Type.Optional(StringEnum(START_PLACEMENTS)),
-		workspace: Type.Optional(Type.String()),
-		pane: Type.Optional(Type.String()),
-		cwd: Type.Optional(Type.String()),
-		message: Type.Optional(
-			Type.String({ description: "Task, follow-up or extension reply" }),
-		),
-		base: Type.Optional(Type.String({ description: "Review base branch" })),
-		blocking: Type.Optional(
-			Type.Boolean({
-				description:
-					"Wait for delegated result; profile policy overrides spawn; default false",
-			}),
-		),
-		context: Type.Optional(Type.Boolean()),
-		board: Type.Optional(Type.Boolean()),
-		board_thread_id: Type.Optional(Type.String({ minLength: 1 })),
-		query: Type.Optional(Type.String()),
-		status: Type.Optional(StringEnum(STATUSES)),
-		source: Type.Optional(StringEnum(READ_SOURCES)),
-		lines: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
-		extension: Type.Optional(Type.String()),
-		id: Type.Optional(Type.String()),
+const AgentsRequest = obj({
+	action: {
+		...oneOf(ACTIONS),
+		type: "string",
 	},
-	{ additionalProperties: false },
-);
-
-export const AgentsParameters = Type.Object(
-	{
-		action: Type.Optional(StringEnum(ACTIONS)),
-		commands: Type.Optional(Type.Literal(true)),
-		target: Type.Optional(Type.String()),
-		machine: Type.Optional(Type.String()),
-	},
-	{ additionalProperties: true },
-);
-
+	commands: opt({
+		...lit(true),
+		type: "boolean",
+	}),
+	machine: opt(str()),
+	voice: opt(bool()),
+	handoff: opt(str()),
+	target: opt(str()),
+	agent_type: opt(str()),
+	name: opt(
+		str({
+			description: "Agent name; derived from label when omitted",
+		}),
+	),
+	label: opt(str()),
+	placement: opt({
+		...oneOf(START_PLACEMENTS),
+		type: "string",
+	}),
+	workspace: opt(str()),
+	cwd: opt(str()),
+	message: opt(str({ description: "Task, follow-up or extension reply" })),
+	base: opt(str({ description: "Review base branch" })),
+	blocking: opt(
+		bool({
+			description:
+				"Wait for delegated result; profile policy overrides spawn; default false",
+		}),
+	),
+	context: opt(bool()),
+	board: opt(bool()),
+	board_thread_id: opt(str({ minLength: 1 })),
+	query: opt(str()),
+	status: opt({
+		...oneOf(STATUSES),
+		type: "string",
+	}),
+	source: opt({
+		...oneOf(READ_SOURCES),
+		type: "string",
+	}),
+	lines: opt(int({ minimum: 1, maximum: 200 })),
+	extension: opt(str()),
+	id: opt(str()),
+});
+const checkAgentsRequest = compile(AgentsRequest).check;
+export const AgentsParameters = {
+	...obj(
+		{
+			action: opt({
+				...oneOf(ACTIONS),
+				type: "string",
+			}),
+			commands: opt({
+				...lit(true),
+				type: "boolean",
+			}),
+			target: opt(str()),
+			machine: opt(str()),
+		},
+		{ open: true },
+	),
+	additionalProperties: true,
+};
 export type AgentsParams = Static<typeof AgentsRequest>;
 export type AgentsToolParams = Static<typeof AgentsParameters>;
 
@@ -164,15 +182,15 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 		throw new Error(
 			"machine requires target for command discovery; omit both for this session",
 		);
-	if (
-		(action === "attach" || action === "detach") &&
-		(typeof request["context"] !== "boolean" ||
-			typeof request["board"] !== "boolean" ||
-			(!request["context"] && !request["board"]))
-	)
-		throw new Error(
-			`${action} requires context and board booleans; enable at least one`,
-		);
+	if (action === "attach" || action === "detach") {
+		for (const field of ["context", "board"]) {
+			if (field in request && typeof request[field] !== "boolean")
+				throw new Error(`${field} must be a boolean`);
+		}
+		if (request["context"] !== true && request["board"] !== true)
+			throw new Error(`${action} requires context:true or board:true`);
+		request = { context: false, board: false, ...request };
+	}
 	if (action === "reply") {
 		for (const field of ["extension", "id", "target"]) {
 			if (typeof request[field] !== "string" || !request[field].trim())
@@ -194,7 +212,7 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 	) {
 		throw new Error(`read source must be one of: ${READ_SOURCES.join(", ")}`);
 	}
-	if (!Check(AgentsRequest, request)) {
+	if (!checkAgentsRequest(request)) {
 		throw new Error(
 			`invalid ${action} request; call agents help for its contract`,
 		);
@@ -212,10 +230,7 @@ export function isBlockingAgentsCall(input: unknown): boolean {
 				),
 				value.blocking,
 			);
-		return (
-			value.action === "reply" ||
-			(value.action === "assign" && value.blocking === true)
-		);
+		return value.action === "assign" && value.blocking === true;
 	} catch {
 		return false;
 	}

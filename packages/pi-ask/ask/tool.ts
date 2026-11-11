@@ -1,6 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
+import { compile, type Static } from "@earendil-works/pi-schema";
 import { Text } from "@earendil-works/pi-tui";
-import { Check } from "typebox/value";
 import { AskParameters, type AskPrompt } from "./contracts.js";
 import {
 	type AskCoordinatorOptions,
@@ -15,6 +15,8 @@ import {
 	summarizeResponses,
 	textContent,
 } from "./normalize.js";
+
+const askValidator = compile(AskParameters);
 
 interface BlockedState {
 	id: string;
@@ -57,13 +59,19 @@ export function createAskRuntime({
 			const params = input === undefined ? {} : input;
 			const problem = askInputProblem(params);
 			if (problem) throw new Error(problem);
-			if (!Check(AskParameters, params))
+			if (!askValidator.check(params))
 				throw new Error(
 					"Ask couldn't read these arguments. Call ask({}) for the supported format.",
 				);
 			return params;
 		},
-		async execute(toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(
+			toolCallId,
+			params: Static<typeof AskParameters>,
+			signal,
+			_onUpdate,
+			ctx,
+		) {
 			if (isAskHelpInput(params)) {
 				return {
 					content: [
@@ -158,8 +166,15 @@ export function createAskRuntime({
 		renderCall(args, theme, context) {
 			if (isAskHelpInput(args))
 				return new Text(theme.fg("toolTitle", theme.bold("ask help")), 0, 0);
-			const count = Array.isArray(args.prompts) ? args.prompts.length : 0;
+			const prompts =
+				args && typeof args === "object" && "prompts" in args
+					? args.prompts
+					: undefined;
+			const count = Array.isArray(prompts) ? prompts.length : 0;
 			const label =
+				args &&
+				typeof args === "object" &&
+				"handoff" in args &&
 				args.handoff === true
 					? "ask handoff "
 					: isSteeringAskInput(args)

@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { LOCAL_MACHINE } from "../machine-catalog.js";
+import { LOCAL_MACHINE } from "./machine.js";
 export const MONITOR_STATE_TYPE = "herdr-agents-monitor-state";
 
 export function savedAgents(
@@ -41,7 +41,7 @@ export function savedAgents(
 	);
 	if (retained.length !== latest.length)
 		ctx.ui.notify(
-			"Ignored saved local agent watches from another Herdr session; watch them again in this session.",
+			"Ignored saved local agent watches from another Core; watch them again in this session.",
 			"warning",
 		);
 	return retained;

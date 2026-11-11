@@ -2,11 +2,15 @@
 
 Save the coding-agent conversations open in Herdr, then restore them after a reboot. The sidebar has two buttons: **Save** and **Restore**. Nothing watches for shutdowns or polls for changes.
 
-Save records spaces, tabs, splits, folders and exact native session references. Each machine stores its own snapshot in its Core state, so closing the viewing desktop does not lose the save. Restore keeps newer work, skips conversations already running and never types into an existing terminal. Repeated Restore clicks do not start duplicate conversations.
+Save records spaces, tabs, splits, folders and exact native session references, including background agents without a visible pane. Each machine stores its own snapshot in its Core state, so closing the viewing desktop does not lose the save. Restore inventories the fleet before starting anything. Conversations already running on any reachable machine stay where they are. Newer work and unfinished input are preserved, and repeated Restore clicks do not start duplicate conversations.
+
+Saved native parent links are restored parent-first, with their saved lifetime choices passed to Core. Cross-machine children launch through their parent's Core, never through a terminal with the same number on another computer. Both Cores need routes to each other. A missing parent or route is reported and leaves the child untouched. Older snapshots remain readable but cannot recover ancestry they never recorded.
+
+Core 0.1.18 did not stop a cross-machine child when its restored parent ended during validation, despite the correct native parent link and lifetime flag. State reports this limitation when launching such a child. Close the child explicitly if its parent ends. State does not add a watcher or silently detach it.
 
 Restored agents get fresh terminal processes in their saved panes. The previous unused shells are parked without being killed, preserving any unfinished input. They remain accessible through `hc ls` until closed or the next reboot. Occupied panes stay in place, with restored conversations opened alongside them.
 
-Snapshots contain references, not conversation backups. The agents' own session files must remain available. Restore opens the saved conversations without submitting a new task. A failed or unsupported session is reported rather than replaced with the latest conversation.
+Snapshots contain references, not computer or conversation backups. The agents' own session files must remain available on their saved machine. Restore opens the saved conversations without submitting a new task. A failed or unsupported session is reported rather than replaced with the latest conversation. Pi conversations are compared by their native session IDs when their file headers are readable, so different paths to the same conversation do not cause another launch.
 
 ## Install
 
@@ -53,7 +57,7 @@ cp -R mod/. "$app_home/mods/state/"
 herdr-app check "$app_home/mods/state"
 ```
 
-The default app home is `~/.config/herdr-app`. For a custom location, set `HERDR_APP_HOME` to that path for both the running app and these commands. The desktop mod is a separate installed copy. Copy it again when updating State.
+The default app home is `~/.config/herdr-app`. For a custom location, set `HERDR_APP_HOME` to that path for both the running app and these commands. The desktop mod is a separate installed copy. Copy it again on every viewing computer when updating State. Source edits alone do not update those copies.
 
 Do not edit a shipped layout. Herdr replaces shipped layouts on startup. With the app running, create a personal copy of `main`:
 
@@ -95,7 +99,11 @@ Rerunning the installer alone does not repair a move. It preserves existing syml
 
 Restore supports native resume commands for 18 coding agents. Capturing their exact session identities requires the appropriate integration. Pi has native session-file capture. Command-hook agents and plugin adapters are described in [the integration guide](integrations/README.md), including installation and compatibility boundaries. OpenCode full-TUI capture is not supported without its missing selection event. Agents that cannot report an exact identity restore as shells, with a warning.
 
-Save and Restore attempt every machine listed in the current app, even when its layout has not loaded in the viewing window. Each machine reads its own layout and snapshot from its Core. Results are reported per machine; an unreachable machine or failed helper is reported without stopping work on the others. Busy or uninspectable terminals are not disturbed. The helper also accepts `herdr-state save`, `herdr-state restore` and `herdr-state status`.
+Save and Restore use the initiating Core's machine catalogue, including machines whose layout has not loaded in the viewing window. Configure those routes with `hc machine add` and install the same State version on each computer. An app-listed machine missing from that catalogue is reported, not silently omitted. Each machine reads its own layout and snapshot from its Core. Remote panes in another machine's layout are not relaunched locally.
+
+Results identify each machine and restored terminal. Save continues on reachable machines if another is unavailable, preserving the unavailable machine's previous snapshot. Restore still recognises existing conversations, but defers new native launches while any fleet inventory is inaccessible. It cannot safely rule out a duplicate on an unseen machine. Restore also defers a conversation whose previous terminal is busy or uninspectable without a verified native identity. Resolve the reported problem and click Restore again. No terminal input is sent.
+
+The helper accepts `herdr-state save` and `herdr-state restore` for the configured fleet. `herdr-state status` reports the local snapshot. Machine-operation errors produce a nonzero exit status. Per-terminal recovery problems are included in the JSON warnings and sidebar notification, so inspect those results even when the exit status is zero.
 
 ## Validation
 

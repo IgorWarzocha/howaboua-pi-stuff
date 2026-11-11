@@ -1,3 +1,4 @@
+import { formatUtcMinute } from "../../time-format.ts";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -69,7 +70,7 @@ export function initializeNotebookJournal(
 export function beginNotebookJournalCell(journal: NotebookJournal, cell: { id: string; source: string }): void {
 	if (!prepareJournalWrite(journal)) return;
 	if (!journal.writable) throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
-	appendEvent(journal, { type: "begin", id: cell.id, source: cell.source, createdAt: new Date().toISOString() });
+	appendEvent(journal, { type: "begin", id: cell.id, source: cell.source, createdAt: formatUtcMinute() });
 	journal.cells += 1;
 	journalRecordingEnabled(journal);
 }
@@ -111,7 +112,7 @@ export function finishNotebookJournalCell(
 		id: cell.id,
 		source: cell.source,
 		status: cell.result.status,
-		completedAt: new Date().toISOString(),
+		completedAt: formatUtcMinute(),
 		outputs: journalOutputs(
 			cell.items,
 			cell.result,

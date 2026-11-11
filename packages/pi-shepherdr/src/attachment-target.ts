@@ -3,33 +3,31 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-	type BoardBinding,
-	binding,
-	canonicalBoardBinding,
-} from "@howaboua/pi-agent-board/integration";
-import type { ContextSharingService } from "@howaboua/pi-notes-compaction/context-sharing";
-import type { Static } from "typebox";
-import { Check } from "typebox/value";
+import type { Static } from "@earendil-works/pi-schema";
+import type { ContextSharingService } from "@howaboua/pi-agent-comms/context-sharing";
 import { AttachmentNotes } from "./attachment-notes.js";
 import {
 	type AttachmentPlan,
 	attachmentOwner,
 	attachmentRoutes,
 	canonicalContextIdentity,
+	checkDetachment,
+	checkIdentity,
+	checkPlan,
 	DETACHED,
 	Detachment,
 	detachment,
 	Identity,
 	OWNER,
-	Plan,
 } from "./attachment-protocol.js";
 import type { AgentBoard } from "./board/host.js";
+import { type BoardBinding, canonicalBoardBinding } from "./board/records.js";
 import { sendPolicyMessage } from "./delivery.js";
 import {
 	attachmentMessage,
 	detachmentMessage,
 } from "./messages/attachments.js";
+import { NOTES_UNAVAILABLE } from "./notes-discovery.js";
 
 function sameBoard(left: BoardBinding, right: BoardBinding) {
 	const { legacyAgentName: _left, ...a } = canonicalBoardBinding(left);
@@ -57,9 +55,9 @@ export class AttachmentTarget {
 	async context(ctx: ExtensionContext, target: boolean) {
 		const service = this.getService();
 		if (!service?.inspectAttachment || !service.retainAttachmentIdentity)
-			throw new Error("Update Codex Conversion to attach existing context");
+			throw new Error(NOTES_UNAVAILABLE);
 		const identity = await service.inspectAttachment(ctx, target);
-		if (!identity || !Check(Identity, identity))
+		if (!identity || !checkIdentity(identity))
 			throw new Error(
 				"Context attachment requires notes-based continuity on both agents",
 			);
@@ -67,10 +65,7 @@ export class AttachmentTarget {
 	}
 	retainIdentity(ctx: ExtensionContext) {
 		const service = this.getService();
-		if (!service?.retainAttachmentIdentity)
-			throw new Error(
-				"Context attachment support became unavailable; reload and retry",
-			);
+		if (!service?.retainAttachmentIdentity) throw new Error(NOTES_UNAVAILABLE);
 		return service.retainAttachmentIdentity(ctx);
 	}
 	private async inspect(ctx: ExtensionContext) {
@@ -106,7 +101,7 @@ export class AttachmentTarget {
 		}
 		return {
 			sessionId: ctx.sessionManager.getSessionId(),
-			board: binding(ctx),
+			board: this.board.binding(ctx),
 			...(context ? { context, notes: await this.notes.export(ctx) } : {}),
 			...(contextError ? { contextError } : {}),
 			...(boardError ? { boardError } : {}),
@@ -124,7 +119,7 @@ export class AttachmentTarget {
 		if (input.operation === "attachment-export-notes") {
 			if (
 				!("plan" in input) ||
-				!Check(Plan, input.plan) ||
+				!checkPlan(input.plan) ||
 				!isDeepStrictEqual(attachmentOwner(ctx), input.plan)
 			)
 				throw new Error("Invalid checkpoint owner");
@@ -135,7 +130,7 @@ export class AttachmentTarget {
 		if (
 			input.operation !== "attach-commit" ||
 			!("plan" in input) ||
-			!Check(Plan, input.plan)
+			!checkPlan(input.plan)
 		)
 			throw new Error("Invalid attachment request");
 		const plan = input.plan as AttachmentPlan;
@@ -229,7 +224,8 @@ export class AttachmentTarget {
 						identity,
 						canonicalContextIdentity(plan.context.target),
 					) ||
-					(plan.board && !sameBoard(binding(ctx), plan.board.previous))
+					(plan.board &&
+						!sameBoard(this.board.binding(ctx), plan.board.previous))
 				)
 					throw new Error(
 						"Target changed during attachment authentication; retry after it settles",
@@ -267,12 +263,10 @@ export class AttachmentTarget {
 					canonicalContextIdentity(plan.context.target),
 				)
 			)
-				throw new Error(
-					"Shared notes are unavailable. Use messages to exchange the context you need.",
-				);
+				throw new Error(NOTES_UNAVAILABLE);
 			if (
 				plan.board &&
-				!sameBoard(binding(ctx), {
+				!sameBoard(this.board.binding(ctx), {
 					...plan.board.desired,
 					sessionId: plan.targetSessionId,
 					parentSessionId: plan.controllerSessionId,
@@ -292,7 +286,7 @@ export class AttachmentTarget {
 		input: unknown,
 		signal?: AbortSignal,
 	) {
-		if (!Check(Detachment, input)) throw new Error("Invalid detach request");
+		if (!checkDetachment(input)) throw new Error("Invalid detach request");
 		const requested = input as Static<typeof Detachment>;
 		if (requested.board) this.board.requireAvailable();
 		const { plan } = requested;
@@ -317,7 +311,6 @@ export class AttachmentTarget {
 				)
 			)
 				throw new Error("Target context changed before detach");
-			this.notes.validate(requested.context, plan.context.controller);
 			await this.notes.verify(
 				ctx,
 				requested.context,

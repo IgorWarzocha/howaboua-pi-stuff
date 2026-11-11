@@ -80,7 +80,7 @@ export class GrokSessionTools {
 				if (!request || Object.keys(args).some((key) => key !== "request"))
 					throw new Error("Task must contain a nonempty request");
 				this.callbacks.task(callId, request);
-				output = { accepted: true, task_id: callId };
+				output = { accepted: true };
 			} else {
 				const name = textField(event, "name");
 				if (!name || !this.callbacks.executeTool)

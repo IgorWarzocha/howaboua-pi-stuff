@@ -5,7 +5,8 @@ import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, MAX_WEBSOCKET_RECOVERY_RETRIES } from "
 import { createErrorMessage, NonRetryableProviderError } from "./errors.ts";
 import { resolveCodexWebSocketUrl } from "./headers.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
-import { normalizeTimeoutMs, parseSSE } from "./sse.ts";
+import { compressRequestBodyZstd, normalizeTimeoutMs, parseSSE } from "./sse.ts";
+import { serializeCodexRequest } from "./request-serialization.ts";
 import { assertSuccessfulCodexOutput, CodexProtocolError, isCodexApiError, isRetryableCodexStreamError, processCodexResponsesStream } from "./stream-events.ts";
 import { withCodexTurnState } from "./turn-state.ts";
 import type { CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions } from "./types.ts";
@@ -60,7 +61,7 @@ export function createCodexTransportStream<TApi extends Api>(
 			diagnostics({ type: "failure", lane: request.lane, transport, failure: codexDiagnosticsFailure(error) });
 		};
 		try {
-			const { accountId, canonicalSessionToken, reconstructedBody, body, canonicalHistory, baseSseHeaders, websocketHeaders, bodyJson, websocketBody, sseBody, transport } = await request.prepare(diagnostics);
+			const { accountId, canonicalSessionToken, reconstructedBody, body, canonicalHistory, baseSseHeaders, websocketHeaders, websocketBody, transport } = await request.prepare(diagnostics);
 			const lane = request.lane;
 			const streamMaxRetries = codexStreamMaxRetries(effectiveOptions);
 			const callerSignal = effectiveOptions.signal;
@@ -143,7 +144,7 @@ export function createCodexTransportStream<TApi extends Api>(
 								...(fallbackArmed ? { fallbackTransport: "sse" } : {}),
 								eventsEmitted: websocketStarted,
 								phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
-								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
+								requestBytes: Buffer.byteLength(serializeCodexRequest(body), "utf8"),
 							}),
 						);
 						if (!immediateFallback && !websocketRecoveryExhausted
@@ -201,6 +202,11 @@ export function createCodexTransportStream<TApi extends Api>(
 				}
 			}
 
+			// Successful WebSocket requests never need a full HTTP payload.
+			const bodyJson = serializeCodexRequest(body);
+			const compressedBody = compressRequestBodyZstd(bodyJson);
+			if (compressedBody) baseSseHeaders.set("content-encoding", "zstd");
+			const sseBody = compressedBody ?? bodyJson;
 			const sseIdleTimeoutMs = normalizeTimeoutMs(effectiveOptions?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
 			for (let attempt = 0; attempt <= streamMaxRetries; attempt++) {
 				if (attempt > 0) output = createInitialAssistantMessage(model);
@@ -307,7 +313,7 @@ export function createCodexTransportStream<TApi extends Api>(
 							configuredTransport: preferredTransport,
 							eventsEmitted: output.content.length > 0,
 							phase: output.content.length > 0 ? "after_message_stream_start" : "before_message_stream_start",
-							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
+							requestBytes: Buffer.byteLength(bodyJson, "utf8"),
 						}),
 					);
 					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted && !adviceBudgetExhausted) {

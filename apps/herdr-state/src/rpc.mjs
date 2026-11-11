@@ -34,7 +34,7 @@ export class Core {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`${method} timed out; inspect Core before retrying`));
-      }, 20000);
+      }, method === 'machine.exec' ? 130000 : 20000);
       this.pending.set(id, { resolve, reject, timer });
       this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
     });

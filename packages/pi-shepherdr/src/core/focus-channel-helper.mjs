@@ -78,36 +78,12 @@ function object(value) {
 		throw new Error("Invalid remote Core response");
 	return /** @type {Record<string,unknown>} */ (value);
 }
-/** @param {string} method @param {object} params */
-async function nativeRequest(method, params) {
-	const target = object(params)["target"];
-	if (
-		method !== "agent.get" ||
-		typeof target !== "string" ||
-		!/^t[0-9a-z]+$/.test(target)
-	)
-		throw new Error("Use an exact remote terminal identity");
-	const record = object(await rpc("terminal.get", { terminal: target }));
-	if (record["address"] !== target || record["state"] !== "live")
-		throw new Error("Remote target changed or exited");
-	const path = object(record["labels"])["pi.session_file"];
-	if (typeof path !== "string" || !path)
-		throw new Error("Remote target has no saved Pi session");
-	return {
-		agent: {
-			pane_id: target,
-			terminal_id: target,
-			agent: path ? "pi" : null,
-			agent_session: { kind: "path", value: path },
-		},
-	};
-}
-/** @param {{coreId:string, session:string, modules:{channel:string}, expected:import('../types.js').PaneInfo, focus:import('../types.js').FocusRequest}} input */
+/** @param {{coreId:string, session:string, modules:{channel:string,terminal:string}, expected:import('../types.js').PaneInfo, focus:import('../types.js').FocusRequest}} input */
 async function admit(input) {
 	const hello = object(await rpc("hello"));
 	if (
 		object(hello["core"])["id"] !== input.coreId ||
-		process.env["HC_SESSION"] !== input.session
+		(process.env["HC_SESSION"] ?? "default") !== input.session
 	)
 		throw new Error(
 			"Remote Core identity/session changed; refresh machines before retrying",
@@ -116,8 +92,11 @@ async function admit(input) {
 		/** @type {typeof import('../remote/shepherdr-channel.mjs')} */ (
 			await import(input.modules.channel)
 		);
+	const { terminalPeer } = /** @type {typeof import('./terminal-peer.mjs')} */ (
+		await import(input.modules.terminal)
+	);
 	const channel = await openPeerChannel(
-		nativeRequest,
+		terminalPeer(rpc),
 		input.expected,
 		input.focus,
 	);

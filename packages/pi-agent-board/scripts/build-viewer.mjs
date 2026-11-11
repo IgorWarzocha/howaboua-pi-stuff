@@ -6,4 +6,4 @@ const result = spawnSync("tsc", ["-p", "tsconfig.viewer.json"], {
 	stdio: "inherit",
 });
 if (result.status !== 0) process.exit(result.status ?? 1);
-cpSync("src/viewer/web", "dist/viewer/web", { recursive: true });
+cpSync("src/board/viewer/web", "dist/viewer/web", { recursive: true });

@@ -15,6 +15,6 @@ This installs:
 
 `pi-browser`, `pi-codex-conversion`, `pi-codex-web-run`, `pi-codex-imagegen`, `pi-subdir-agents`, and `omarchy-help` are intentionally separate installs. These packages cover logged-in browser access, Codex integration, nested agent guidance, and workstation-specific support.
 
-`pi-agent-board`, `pi-chatgpt-sites`, `pi-codex-guardian`, `pi-notes-compaction` and `pi-sandbox` are also separate installs. They provide boards, Sites management, tool approval reviews, session notes and context rollover, and local VMs with app previews.
+`pi-agent-comms`, `pi-chatgpt-sites`, `pi-codex-guardian` and `pi-sandbox` are also separate installs. They provide notes and boards, Sites management, tool approval reviews, and local VMs with app previews.
 
 Install `@howaboua/pi-extensions`, `@howaboua/pi-skills`, or an individual package when you want a smaller setup.

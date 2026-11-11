@@ -1,23 +1,30 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
-import { Check } from "typebox/value";
+import { compile, obj, oneOf, type Static } from "@earendil-works/pi-schema";
 
-const settingsSchema = Type.Object(
+const settingsSchema = obj(
 	{
-		access: Type.Enum(["codex", "openai"]),
-		api: Type.Object(
+		access: { ...oneOf(["codex", "openai"]), type: "string" },
+		api: obj(
 			{
-				model: Type.Enum(["gpt-image-2.6-flare", "gpt-image-2.6-sunburst"]),
-				quality: Type.Enum(["auto", "low", "medium", "high", "xhigh", "max"]),
-				complexity: Type.Enum(["low", "medium", "high"]),
+				model: {
+					...oneOf(["gpt-image-2.6-flare", "gpt-image-2.6-sunburst"]),
+					type: "string",
+				},
+				quality: {
+					...oneOf(["auto", "low", "medium", "high", "xhigh", "max"]),
+					type: "string",
+				},
+				complexity: { ...oneOf(["low", "medium", "high"]), type: "string" },
 			},
-			{ additionalProperties: false },
+			{ open: false },
 		),
 	},
-	{ additionalProperties: false },
+	{ open: false },
 );
+const settingsValidator = compile(settingsSchema);
+
 export type ImagegenSettings = Static<typeof settingsSchema>;
 
 function defaultImagegenSettings(): ImagegenSettings {
@@ -30,7 +37,7 @@ function defaultImagegenSettings(): ImagegenSettings {
 function validateImagegenSettings(
 	value: unknown,
 ): asserts value is ImagegenSettings {
-	if (!Check(settingsSchema, value))
+	if (!settingsValidator.check(value))
 		throw new Error(
 			"Invalid imagegen.json. Correct or remove it in Pi's agent directory, then reopen /imagegen.",
 		);

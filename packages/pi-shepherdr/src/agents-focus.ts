@@ -6,16 +6,18 @@ import type {
 import {
 	recordContextBriefing,
 	registerContextBriefing,
-} from "@howaboua/pi-agent-board/integration";
-import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
+} from "./context-briefing.js";
 import {
 	getAgent,
 	getCurrentPane,
 	resolvePiAgent,
 	sessionPath,
-} from "./herdr.js";
-import { isDispatchRejected } from "./herdr-client.js";
+} from "./core/agents.js";
+import { focusCoreWindow } from "./core/focus-window.js";
+import { RemoteCoreEndpoint } from "./core/remote-endpoint.js";
+import type { AgentFleet, ConnectedMachine } from "./fleet/index.js";
 import { focusArrivalContent } from "./messages/focus.js";
+import { isDispatchRejected } from "./remote/shepherdr-peer.mjs";
 import type { FocusRequest, PaneInfo } from "./types.js";
 import { activeVoiceService, observeVoiceTransfer } from "./voice-handoff.js";
 
@@ -52,9 +54,8 @@ export async function focusAgent(
 	const request: FocusRequest = {
 		source: {
 			...(await local.client.machineIdentity()),
-			...(source.backend === "core"
-				? { backend: "core" as const }
-				: { pane: source.pane_id }),
+			agent: `/${ctx.sessionManager.getSessionId()}`,
+			backend: "core",
 			terminal: source.terminal_id,
 			sessionFile,
 		},
@@ -116,13 +117,16 @@ export function readFocus(value: unknown): FocusRequest {
 		)
 			throw new Error("Invalid focus source");
 	}
-	if (source["backend"] !== undefined && source["backend"] !== "core")
-		throw new Error("Invalid focus backend");
 	if (
-		source["backend"] !== "core" &&
-		(typeof source["pane"] !== "string" || !source["pane"].trim())
+		"agent" in source &&
+		(typeof source["agent"] !== "string" ||
+			!/^\/[^/\\\u0000]+$/.test(source["agent"]))
 	)
-		throw new Error("Invalid focus pane");
+		throw new Error("Invalid focus agent");
+	if (source["backend"] !== "core")
+		throw new Error(
+			"Focus return requires a Core session; focus again from the source session",
+		);
 	if ("handoff" in value && typeof value.handoff !== "string")
 		throw new Error("Invalid focus handoff");
 	if ("voice" in value && typeof value.voice !== "boolean")
@@ -151,12 +155,9 @@ export async function acceptFocus(
 		const runtime = fleet.connected(status.id);
 		try {
 			const identity = await runtime.client.machineIdentity();
-			if (identity.host !== source.host || identity.session !== source.session)
-				continue;
-			const agent = await getAgent(
-				runtime.client,
-				source.backend === "core" ? source.terminal : source.pane!,
-			);
+			// Host labels may differ from OS hostnames; the Core ID owns routing.
+			if (identity.session !== source.session) continue;
+			const agent = await getAgent(runtime.client, source.terminal);
 			if (
 				agent.agent === "pi" &&
 				agent.terminal_id === source.terminal &&
@@ -192,8 +193,15 @@ export async function acceptFocus(
 		sessionPath(current) !== sessionPath(pane)
 	)
 		throw new Error("Destination session changed; resolve it again");
+	if (local.client.core instanceof RemoteCoreEndpoint)
+		throw Object.assign(
+			new Error("Focus requires the destination's local Core"),
+			{
+				code: "SHEPHERDR_DELIVERY_REJECTED",
+			},
+		);
 	try {
-		await local.client.request("agent.focus", { target: pane.pane_id });
+		await focusCoreWindow(local.client.core, pane.terminal_id);
 	} catch (error) {
 		if (isDispatchRejected(error)) throw error;
 		throw Object.assign(
@@ -231,18 +239,5 @@ export async function acceptFocus(
 }
 
 export function registerFocusArrivals(pi: ExtensionAPI): void {
-	registerContextBriefing(
-		pi,
-		"session arrivals",
-		(ctx) =>
-			ctx.sessionManager
-				.getBranch()
-				.some(
-					(entry) =>
-						entry.type === "custom" &&
-						(entry.customType === ARRIVAL ||
-							entry.customType === "herdr-voice-focus-report"),
-				),
-		async () => undefined,
-	);
+	registerContextBriefing(pi, async () => undefined);
 }

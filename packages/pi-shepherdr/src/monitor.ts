@@ -3,13 +3,13 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { isSettledStatus } from "./activity.js";
-import { getSnapshot } from "./herdr.js";
-import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
+import { getSnapshot } from "./core/agents.js";
+import type { CoreConnection } from "./core/backend.js";
 import { injectAgentEvent } from "./messages/events.js";
-import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
 import { MonitorExtensionMessages } from "./monitor-extension-messages.js";
 import { MonitorState, type WorkAttempt } from "./monitor-state.js";
+import { isDispatchRejected } from "./remote/shepherdr-peer.mjs";
 import { type AssistantReader, SessionReader } from "./session-reader.js";
 import {
 	type ClaimedSettlement,
@@ -18,7 +18,6 @@ import {
 } from "./settlement/index.js";
 import type {
 	ExtensionReply,
-	HerdrEvent,
 	MonitoredAgent,
 	MonitoringIssue,
 	PaneInfo,
@@ -26,7 +25,7 @@ import type {
 } from "./types.js";
 
 interface AgentMonitorOptions {
-	client: HerdrConnection;
+	client: CoreConnection;
 	machine: string;
 	machineLabel: () => string;
 	onChange: () => void;
@@ -40,7 +39,7 @@ interface AgentMonitorOptions {
 }
 
 export class AgentMonitor {
-	readonly client: HerdrConnection;
+	readonly client: CoreConnection;
 	readonly machine: string;
 	private readonly onChange: () => void;
 	private readonly onRefresh: () => void;
@@ -96,15 +95,19 @@ export class AgentMonitor {
 				label: options.machineLabel,
 				operatorPrefix: options.operatorPrefix,
 			},
+			async (record) => {
+				if (this.state.byPane(record.paneId)?.terminalId === record.terminalId)
+					await this.unwatch(record.paneId);
+			},
 		);
 		this.events = new MonitorEvents({
 			client: this.client,
 			reconnect: options.reconnect,
-			onEvent: (event) => this.handleEvent(event),
+			onChange: () => this.invalidate(),
 			reconcile: () => this.reconcileNow(),
 			onWarning: options.onWarning,
 			onRecovered: options.onRecovered,
-			targets: () => this.list().map((record) => record.paneId),
+			targets: () => this.list().map((record) => record.terminalId),
 		});
 	}
 
@@ -203,6 +206,9 @@ export class AgentMonitor {
 	): Promise<ClaimedSettlement> | undefined {
 		return this.settlements.claim(attempt, signal, replyingTo);
 	}
+	observeReply(attempt: WorkAttempt, reply: ExtensionReply): void {
+		this.settlements.observeReply(attempt, reply);
+	}
 
 	noteMessage(paneId: string, message: string): void {
 		if (this.state.noteMessage(paneId, message)) this.persist();
@@ -238,7 +244,7 @@ export class AgentMonitor {
 			await this.reconcileNow();
 		} catch (reconcileError) {
 			this.context?.ui.notify(
-				`Herdr prompt outcome remains uncertain: ${reconcileError instanceof Error ? reconcileError.message : String(reconcileError)}`,
+				`Core prompt outcome remains uncertain: ${reconcileError instanceof Error ? reconcileError.message : String(reconcileError)}`,
 				"warning",
 			);
 		}
@@ -290,69 +296,35 @@ export class AgentMonitor {
 		if (changed || persistRestoration) this.persist();
 		else this.onRefresh();
 		await this.extensionMessages.refresh(snapshot.agents);
+		// Snapshot removals must also retire their subscription coverage.
+		if (removed.length) void this.events.refresh().catch(() => undefined);
 		for (const completion of completions) {
 			void this.report(completion);
 		}
 	}
 
-	private handleEvent(event: HerdrEvent): void {
-		if (event.event === "core.reconcile") {
-			const generation = this.activationGeneration;
-			const context = this.context;
-			this.coreDirty = true;
-			if (this.coreReconcile) return;
-			this.coreReconcile = Promise.resolve()
-				.then(async () => {
-					while (this.coreDirty && generation === this.activationGeneration) {
-						this.coreDirty = false;
-						await this.reconcile(generation, context);
-					}
-				})
-				.catch((error) => {
-					if (generation === this.activationGeneration) {
-						this.context?.ui.notify(
-							`Core monitoring reconciliation failed: ${String(error)}`,
-							"warning",
-						);
-						void this.events.retry().catch(() => undefined);
-					}
-				})
-				.finally(() => {
-					if (generation === this.activationGeneration)
-						this.coreReconcile = undefined;
-				});
-			return;
-		}
-		const parsed = parseMonitorEvent(event);
-		if (!parsed) return;
-		if (parsed.type === "closed") {
-			const record = this.state.removePane(parsed.paneId);
-			if (record) {
-				this.settlements.releaseAgentClaim(
-					record,
-					new Error(`${parsed.paneId} closed before its work settled`),
-				);
-				this.persist();
-				this.refreshAfterEvent();
-			}
-			return;
-		}
-		if (parsed.type === "moved") {
-			if (!this.state.movePane(parsed.previousPaneId, parsed.pane)) return;
-			this.persist();
-			this.refreshAfterEvent();
-			return;
-		}
-		const result = this.state.applyStatus(parsed.paneId, parsed.status);
-		if (result.changed) this.persist();
-		if (result.completion) {
-			void this.report({
-				...result.completion,
-				...(parsed.blockedMessage
-					? { blockedMessage: parsed.blockedMessage }
-					: {}),
+	private invalidate(): void {
+		const generation = this.activationGeneration;
+		const context = this.context;
+		this.coreDirty = true;
+		if (this.coreReconcile) return;
+		this.coreReconcile = Promise.resolve()
+			.then(async () => {
+				while (this.coreDirty && generation === this.activationGeneration) {
+					this.coreDirty = false;
+					await this.reconcile(generation, context);
+				}
+			})
+			.catch(() => {
+				if (generation === this.activationGeneration) {
+					// The subscription owner reports unavailable coverage and recovery.
+					void this.events.retry().catch(() => undefined);
+				}
+			})
+			.finally(() => {
+				if (generation === this.activationGeneration)
+					this.coreReconcile = undefined;
 			});
-		}
 	}
 
 	private refreshAfterEvent(): void {

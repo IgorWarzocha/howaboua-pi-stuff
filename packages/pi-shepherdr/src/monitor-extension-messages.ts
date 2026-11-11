@@ -1,14 +1,14 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { sameAgentIdentity } from "./agent-identity.js";
-import { getAgent, sessionPath } from "./herdr.js";
-import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
+import { getAgent, sessionPath } from "./core/agents.js";
+import type { CoreConnection } from "./core/backend.js";
 import type { MonitorState } from "./monitor-state.js";
 import { extensionMessageKey } from "./remote/shepherdr-session.mjs";
 import type { AssistantReader } from "./session-reader.js";
 import type { ExtensionMessage, MonitoredAgent, PaneInfo } from "./types.js";
 
 interface MonitorExtensionMessagesOptions {
-	client: HerdrConnection;
+	client: CoreConnection;
 	machine: string;
 	machineLabel: () => string;
 	reader: AssistantReader;
@@ -24,8 +24,7 @@ interface MonitorExtensionMessagesOptions {
 
 function isMissingAgent(error: unknown): boolean {
 	return (
-		isHerdrErrorCode(error, "agent_not_found") ||
-		(error instanceof Error && "kind" in error && error.kind === "not_found")
+		error instanceof Error && "kind" in error && error.kind === "not_found"
 	);
 }
 
@@ -104,6 +103,7 @@ export class MonitorExtensionMessages {
 						return;
 					}
 					this.unsubscribe = close;
+					this.warned = false;
 				}
 				this.key = key;
 			}
@@ -136,7 +136,7 @@ export class MonitorExtensionMessages {
 						this.options.client,
 						panel.pane_id,
 					).catch((error: unknown) => {
-						// Pane closure can precede its lifecycle event or finish an in-flight read.
+						// Terminal closure can precede reconciliation or finish an in-flight read.
 						if (isMissingAgent(error)) return undefined;
 						throw error;
 					});

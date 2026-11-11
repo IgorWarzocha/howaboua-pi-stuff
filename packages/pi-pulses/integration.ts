@@ -2,8 +2,14 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type {
+	WorkerService,
+	WorkerStatus,
+} from "@howaboua/pi-shepherdr/worker-api";
 
-export const PULSE_RUNNER_PROTOCOL = "@howaboua/pi-pulses/runner/v1";
+const WORKER_PROTOCOL: WorkerService["protocol"] =
+	"@howaboua/pi-shepherdr/workers/v1";
+const PULSE_SCOPE = "@howaboua/pi-pulses";
 export interface PulseRun {
 	taskId: string;
 	title: string;
@@ -11,10 +17,6 @@ export interface PulseRun {
 	cwd: string;
 	runId: string;
 	workerId?: string;
-}
-export interface PulseWorker {
-	workerId: string;
-	state: "working" | "idle" | "closed";
 }
 /** Only this positive receipt permits clearing an admission after start rejects. */
 export function isPulseRunNotStarted(
@@ -28,13 +30,12 @@ export function isPulseRunNotStarted(
 }
 /** Detached workers only. The runner delivers final assistant results through its waking launcher path. */
 export interface PulseRunner {
-	protocol: typeof PULSE_RUNNER_PROTOCOL;
 	id: string;
-	/** False in detached workers, including resumed workers; callable before readiness. */
+	/** Pulses schedules only in TUI sessions that are not workers. */
 	isController(ctx: ExtensionContext): boolean;
 	/** Admission only, never completion. Rejections are uncertain unless dispatched:false proves this run never started. */
-	start(ctx: ExtensionContext, input: PulseRun): Promise<PulseWorker>;
-	inspect(ctx: ExtensionContext, workerId: string): Promise<PulseWorker>;
+	start(ctx: ExtensionContext, input: PulseRun): Promise<WorkerStatus>;
+	inspect(ctx: ExtensionContext, workerId: string): Promise<WorkerStatus>;
 	subscribe(listener: () => void): () => void;
 }
 
@@ -44,29 +45,44 @@ export function connectPulseRunner(pi: ExtensionAPI) {
 	return {
 		get service(): PulseRunner | undefined {
 			if (disposed) return undefined;
-			const runners = new Set<PulseRunner>();
-			pi.events.emit(`${PULSE_RUNNER_PROTOCOL}/request`, {
-				protocol: PULSE_RUNNER_PROTOCOL,
-				accept(value: PulseRunner) {
+			const runners = new Set<WorkerService>();
+			pi.events.emit(`${WORKER_PROTOCOL}/request`, {
+				protocol: WORKER_PROTOCOL,
+				accept(value: WorkerService) {
 					if (
-						value?.protocol === PULSE_RUNNER_PROTOCOL &&
+						value?.protocol === WORKER_PROTOCOL &&
 						typeof value.id === "string" &&
 						value.id &&
-						[
-							value.isController,
-							value.start,
-							value.inspect,
-							value.subscribe,
-						].every((fn) => typeof fn === "function")
+						[value.isWorker, value.start, value.inspect, value.subscribe].every(
+							(fn) => typeof fn === "function",
+						)
 					)
 						runners.add(value);
 				},
 			});
 			if (runners.size > 1)
 				throw new Error(
-					"Multiple pulse runners are available. Enable one runner before scheduling.",
+					"Multiple worker services are available. Enable one before scheduling pulses.",
 				);
-			return runners.values().next().value;
+			const service = runners.values().next().value;
+			if (!service) return undefined;
+			return {
+				id: service.id,
+				isController: (ctx) => ctx.mode === "tui" && !service.isWorker(ctx),
+				start: (ctx, input) =>
+					service.start(ctx, {
+						scope: PULSE_SCOPE,
+						key: input.taskId,
+						requestId: input.runId,
+						title: input.title,
+						prompt: input.prompt,
+						cwd: input.cwd,
+						...(input.workerId ? { workerId: input.workerId } : {}),
+						lifetime: "detached",
+					}),
+				inspect: (ctx, workerId) => service.inspect(ctx, PULSE_SCOPE, workerId),
+				subscribe: (listener) => service.subscribe(listener),
+			};
 		},
 		dispose() {
 			disposed = true;

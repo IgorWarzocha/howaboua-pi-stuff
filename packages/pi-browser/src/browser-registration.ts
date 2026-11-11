@@ -1,5 +1,5 @@
 import type { defineTool, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { Type } from "typebox";
+import type { obj, opt, str } from "@earendil-works/pi-schema";
 import { BrowserRoutes, loadBrowserRoutes } from "./browser/routes.js";
 import { BrowserRuntime } from "./browser/runtime.js";
 import { registerBrowserCommand } from "./browser/settings.js";
@@ -13,7 +13,12 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 
 export default async function browserExtension(
 	pi: ExtensionAPI,
-	sdk: { defineTool: typeof defineTool; Type: typeof Type },
+	sdk: {
+		defineTool: typeof defineTool;
+		obj: typeof obj;
+		opt: typeof opt;
+		str: typeof str;
+	},
 ): Promise<void> {
 	let configError: string | undefined;
 	let routes: BrowserRoutes;
@@ -65,7 +70,7 @@ export default async function browserExtension(
 async function registerBrowserInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createBrowserTool>,
-	sdk: { Type: typeof Type },
+	sdk: { obj: typeof obj },
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
@@ -74,7 +79,7 @@ async function registerBrowserInCodeMode(
 			adaptToolForCodeMode(
 				{
 					...tool,
-					parameters: sdk.Type.Object({}, { additionalProperties: true }),
+					parameters: sdk.obj({}, { open: true }),
 				},
 				{
 					prepareInput: prepareBrowserInput,

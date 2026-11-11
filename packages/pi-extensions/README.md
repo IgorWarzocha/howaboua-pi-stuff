@@ -26,6 +26,6 @@ pi install npm:@howaboua/pi-extensions
 
 `pi-browser`, `pi-codex-conversion`, `pi-codex-web-run`, `pi-codex-imagegen`, and `pi-subdir-agents` are not included. Install them separately for logged-in browser access, Codex integration, or nested agent guidance.
 
-`pi-agent-board`, `pi-chatgpt-sites`, `pi-codex-guardian`, `pi-notes-compaction` and `pi-sandbox` are also separate installs. They provide boards, Sites management, tool approval reviews, session notes and context rollover, and local VMs with app previews.
+`pi-agent-comms`, `pi-chatgpt-sites`, `pi-codex-guardian` and `pi-sandbox` are also separate installs. They provide notes and boards, Sites management, tool approval reviews, and local VMs with app previews.
 
 Installing this bundle loads every extension above. Install individual packages instead if you only want part of the set.

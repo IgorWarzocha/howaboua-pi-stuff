@@ -1,6 +1,5 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import type { Static } from "typebox";
-import { Type } from "typebox";
+import { compile, obj, opt, type Static, str } from "@earendil-works/pi-schema";
 import {
 	defaultSessionSkillsDir,
 	defaultSkillsDir,
@@ -8,13 +7,10 @@ import {
 	runSkills,
 } from "./catalog.js";
 
-const SkillsParameters = Type.Object(
-	{
-		command: Type.Optional(Type.String({ description: "help, list or read" })),
-	},
-	{ additionalProperties: false },
-);
-
+const SkillsParameters = obj({
+	command: opt(str({ description: "help, list or read" })),
+});
+const checkParameters = compile(SkillsParameters).check;
 type SkillsParameters = Static<typeof SkillsParameters>;
 
 export interface SkillsToolOptions {
@@ -42,6 +38,10 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 		],
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			if (!checkParameters(params))
+				throw new Error(
+					"Invalid arguments; call skills with no arguments for help",
+				);
 			const { output, skillReads } = runSkills(
 				params.command ?? "",
 				options.globalRoot ?? defaultSkillsDir(),

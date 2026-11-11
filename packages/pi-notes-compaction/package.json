@@ -10,23 +10,26 @@
 		"directory": "packages/pi-notes-compaction"
 	},
 	"files": [
+		"index.ts",
 		"src",
 		"README.md",
-		"PCC-INTEGRATION.md",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"LICENSE",
+		"tsconfig.json",
+		"PCC-INTEGRATION.md"
 	],
 	"engines": {
-		"node": ">=22.18.0"
+		"node": ">=22.19.0"
 	},
 	"type": "module",
 	"description": "Provider-neutral session notes and notes-guided context windows for Pi",
 	"license": "MIT",
 	"pi": {
 		"extensions": [
-			"./src/index.ts"
+			"./index.ts"
 		]
 	},
-	"main": "src/index.ts",
+	"main": "index.ts",
 	"scripts": {
 		"check": "bun run lint && bun run typecheck",
 		"lint": "biome check .",
@@ -34,6 +37,7 @@
 		"typecheck": "tsgo --noEmit"
 	},
 	"dependencies": {
+		"@earendil-works/pi-schema": "1.5.2",
 		"better-sqlite3": "13.0.3"
 	},
 	"devDependencies": {
@@ -45,8 +49,7 @@
 		"@earendil-works/pi-agent-core": ">=1.0.4",
 		"@earendil-works/pi-ai": ">=1.0.4",
 		"@earendil-works/pi-tui": ">=1.0.4",
-		"@howaboua/pi-codex-conversion": ">=4.0.9",
-		"typebox": "*"
+		"@howaboua/pi-codex-conversion": ">=4.0.9"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {
@@ -54,9 +57,9 @@
 		}
 	},
 	"exports": {
-		".": "./src/index.ts",
-		"./context-sharing": "./src/context-sharing.ts",
-		"./saved-session": "./src/saved-session.mjs",
-		"./saved-session-index": "./src/saved-session-index.mjs"
+		".": "./index.ts",
+		"./context-sharing": "./src/notes/context-sharing.ts",
+		"./saved-session": "./src/notes/saved-session.mjs",
+		"./saved-session-index": "./src/notes/saved-session-index.mjs"
 	}
 }

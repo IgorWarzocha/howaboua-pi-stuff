@@ -15,12 +15,10 @@ export function controlPanelStatus(options: PanelOptions): string {
 			),
 		...(!options.fleet.isActive()
 			? [
-					"Fleet inactive. Run Pi inside Herdr; open /herdr → Status to reconnect.",
+					"Fleet inactive. Run Pi inside a Core terminal; open /herdr → Status to reconnect.",
 				]
 			: []),
-		process.env["HC_TERMINAL_SOCKET"]
-			? "Open /herdr in TUI for Settings and Status. Manage machines in Herdr or with hc machine add."
-			: "Open /herdr in TUI for Settings, Status and SSH Connections.",
+		"Open /herdr in TUI for Settings, Status and Connections.",
 	].join("\n");
 }
 

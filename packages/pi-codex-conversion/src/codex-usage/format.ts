@@ -19,7 +19,10 @@ function formatReset(timestampSeconds: number | undefined): string {
 	if (!timestampSeconds) return "reset unknown";
 	const ms = timestampSeconds * 1000;
 	const minutes = Math.max(0, Math.round((ms - Date.now()) / 60000));
-	return minutes < 90 ? `resets in ${minutes}m` : `resets ${new Date(ms).toLocaleString()}`;
+	if (minutes < 90) return `resets in ${minutes}m`;
+	return `resets ${new Date(ms).toLocaleString(undefined, {
+		year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
+	})}`;
 }
 
 function formatWindow(label: string, window: CodexUsageWindow | undefined): string | undefined {

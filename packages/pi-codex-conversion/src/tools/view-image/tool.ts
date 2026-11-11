@@ -4,7 +4,7 @@ import {
 	type ExtensionContext,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { Type, type TSchema } from "typebox";
+import { obj, str } from "@earendil-works/pi-schema";
 import { Text } from "@earendil-works/pi-tui";
 import { parseSSE } from "../../providers/openai-codex/sse.ts";
 import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages } from "../../providers/openai-codex/responses-lite.ts";
@@ -34,8 +34,7 @@ interface CreateViewImageToolOptions {
 type ViewImageParameters = ReturnType<typeof createViewImageParameters>;
 
 function createViewImageParameters() {
-	const properties: Record<string, TSchema> = { path: Type.String() };
-	return Type.Object(properties);
+	return obj({ path: str() }, { open: true });
 }
 
 export function parseViewImageParams(params: unknown): ViewImageParams {
@@ -74,7 +73,7 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 async function executeRustViewImageContent(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined, customRustBinariesDir?: string | undefined): Promise<ViewImageContent> {
 	const binary = getBundledToolBinaryPath("view_image", {}, customRustBinariesDir);
 	if (!binary) {
-		throw new Error(`view_image binary is not bundled for ${process.platform}-${process.arch}`);
+		throw new Error(`view_image is unavailable: this installation has no image helper for ${process.platform}-${process.arch}. Ask the user to update or repair the extension installation. Other tools remain available`);
 	}
 	const child = await runBundledTool({
 		binary,
@@ -180,7 +179,8 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		},
 		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) {
-			return renderCodexToolCell("Viewed Image", typeof args["path"]! === "string" ? args["path"]! : undefined, theme);
+			const path = args && typeof args === "object" && "path" in args && typeof args.path === "string" ? args.path : undefined;
+			return renderCodexToolCell("Viewed Image", path, theme);
 		},
 		renderResult(result, { isPartial }, theme) {
 			if (isPartial) {

@@ -47,7 +47,7 @@ function hasCode(error, code) {
 	return error instanceof Error && "code" in error && error.code === code;
 }
 
-/** Local authenticated RPC; SSH helpers relay over their existing connection.
+/** Local authenticated RPC; remote helpers relay over their Core attachment.
  * @param {string} path @param {unknown} request @param {AbortSignal} [signal]
  * @returns {Promise<unknown>} */
 export async function requestContext(path, request, signal) {

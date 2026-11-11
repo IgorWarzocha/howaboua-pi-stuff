@@ -1,4 +1,4 @@
-import { Type } from "typebox";
+import { obj, str } from "@earendil-works/pi-schema";
 import { type ExtensionAPI, type KeybindingHints, type ToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { parsePatchActions } from "../../patch/parser.ts";
@@ -23,11 +23,11 @@ import {
 	type ApplyPatchSuccessDetails,
 } from "./render-state.ts";
 
-const APPLY_PATCH_PARAMETERS = Type.Object({
-	input: Type.String({
+const APPLY_PATCH_PARAMETERS = obj({
+	input: str({
 		description: "*** Begin Patch / *** End Patch; Add/Update/Delete File sections. *** Move to: path immediately follows its Update File header; requires a nonempty @@ hunk (one unchanged context line for pure moves). Hunks follow file order; indentation is literal",
 	}),
-});
+}, { open: true });
 
 interface ApplyPatchRenderContextLike extends Partial<KeybindingHints> {
 	toolCallId?: string | undefined;
@@ -154,11 +154,14 @@ export type {
 export { clearApplyPatchRenderState, isApplyPatchToolDetails } from "./render-state.ts";
 
 const renderApplyPatchCallWithOptionalContext = (
-	args: { input?: unknown | undefined },
+	args: unknown,
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context?: ApplyPatchRenderContextLike,
 	options: ApplyPatchToolOptions = {},
-) => new Text(renderApplyPatchCallFromState(args, theme, { ...context, showCollapsedDiff: options.showDiffWhenCollapsed }), 0, 0);
+) => new Text(renderApplyPatchCallFromState(
+	args && typeof args === "object" && "input" in args ? { input: args.input } : {},
+	theme, { ...context, showCollapsedDiff: options.showDiffWhenCollapsed },
+), 0, 0);
 
 function renderCompactApplyPatchCall(theme: { fg(role: string, text: string): string; bold(text: string): string }): Text {
 	return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
@@ -248,14 +251,9 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}): Apply
 				});
 				throw error;
 			}
-			const summary = [
-				"Applied patch successfully",
-				`Changed files: ${result.changedFiles.length}`,
-				`Created files: ${result.createdFiles.length}`,
-				`Deleted files: ${result.deletedFiles.length}`,
-				`Moved files: ${result.movedFiles.length}`,
-				`Fuzz: ${result.fuzz}`,
-			].join("\n");
+			const summary = result.fuzz > 0
+				? "Applied patch. Change details may be incomplete. Inspect the affected paths"
+				: "Applied patch";
 
 			const details = { status: "success", result } satisfies ApplyPatchSuccessDetails;
 			recordApplyPatchDisplayOutcome(toolCallId, {

@@ -95,6 +95,7 @@ export function parseMonitoredAgent(
 	const record = value as Record<string, unknown>;
 	if (
 		(record["scope"] !== "task" && record["scope"] !== "persistent") ||
+		(record["worker"] !== undefined && record["worker"] !== true) ||
 		typeof record["paneId"] !== "string" ||
 		typeof record["terminalId"] !== "string" ||
 		(record["workspaceId"] !== undefined &&
@@ -131,6 +132,7 @@ export function parseMonitoredAgent(
 	}
 	return {
 		scope: record["scope"],
+		...(record["worker"] === true ? { worker: true } : {}),
 		...(instructions ? { instructions } : {}),
 		...(latestInstruction ? { latestInstruction } : {}),
 		activity,
@@ -157,6 +159,7 @@ export function recordForPanel(
 	const cwd = panel.foreground_cwd ?? panel.cwd;
 	return {
 		scope,
+		...(panel.worker ? { worker: true } : {}),
 		activity,
 		paneId: panel.pane_id,
 		terminalId: panel.terminal_id,
@@ -175,6 +178,7 @@ export function sameMonitorRecord(
 ): boolean {
 	return (
 		left.scope === right.scope &&
+		left.worker === right.worker &&
 		left.instructions === right.instructions &&
 		left.latestInstruction === right.latestInstruction &&
 		left.paneId === right.paneId &&

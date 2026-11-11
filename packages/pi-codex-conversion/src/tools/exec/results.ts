@@ -8,6 +8,7 @@ export interface ExecResultSessionState extends ExecOutputSessionState {
 	startedAt: number;
 	updatedAt: number;
 	terminating: boolean;
+	completionNotified?: boolean | undefined;
 }
 
 function fromSnapshot(session: ExecResultSessionState, waitMs: number, snapshot: ReturnType<typeof truncateOutput>): UnifiedExecResult {
@@ -36,8 +37,9 @@ export function snapshotSession(session: ExecResultSessionState, maxOutputChars 
 		exitCode: session.exitCode ?? undefined,
 		startedAt: session.startedAt,
 		updatedAt: session.updatedAt,
-		outputTail: session.buffer.slice(-maxOutputChars),
+		outputTail: maxOutputChars > 0 ? session.buffer.slice(-maxOutputChars) : "",
 		terminating: session.terminating,
+		...(session.completionNotified ? { completionNotified: true } : {}),
 	};
 }
 

@@ -12,6 +12,7 @@ import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexUiController } from "./ui.ts";
+import type { CodexShellLifecycle } from "./shell-lifecycle.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import type { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
@@ -28,6 +29,7 @@ export function createCodexTurnLifecycle(
 	codeMode: CodeModeRegistration,
 	reserve: ReturnType<typeof createCodexReserveController>,
 	session: Pick<ReturnType<typeof createCodexSessionLifecycle>, "activate" | "flushToolRefresh">,
+	shells: CodexShellLifecycle,
 ) {
 	const { state } = runtime;
 	const refreshNotebookStatus = (
@@ -107,6 +109,9 @@ export function createCodexTurnLifecycle(
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
 			if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
+				messages = runtime.projectContextMessages(ctx, event.messages);
+			// Runtime shell state follows the admitted conversation and other notices, never the static prefix.
+			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const required = plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			try {

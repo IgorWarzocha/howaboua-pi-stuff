@@ -9,8 +9,11 @@ const MAX_MESSAGE = 512 * 1024 + 128;
  * @param {(message:unknown)=>void} receive
  * @param {(error:Error)=>void} fail
  * @param {()=>void} [onLive]
+ * @param {{maxMessageBytes?:number,maxQueuedBytes?:number}} [limits]
  */
-export function focusWire(nonce, write, receive, fail, onLive) {
+export function focusWire(nonce, write, receive, fail, onLive, limits = {}) {
+	const maxMessage = limits.maxMessageBytes ?? MAX_MESSAGE;
+	const maxQueued = limits.maxQueuedBytes ?? LIMIT;
 	const prefix = `!${nonce}!`;
 	let buffer = "";
 	let ended = false;
@@ -78,9 +81,9 @@ export function focusWire(nonce, write, receive, fail, onLive) {
 				const json = JSON.stringify(message);
 				if (json === undefined) throw new Error("Focus stream requires JSON");
 				const bytes = Buffer.from(json);
-				if (bytes.length > MAX_MESSAGE)
-					throw new Error("Focus stream message exceeds 512 KiB");
-				if (queuedBytes + Math.ceil(bytes.length / 3) * 4 > LIMIT)
+				if (bytes.length > maxMessage)
+					throw new Error("Remote message exceeds its size limit");
+				if (queuedBytes + Math.ceil(bytes.length / 3) * 4 > maxQueued)
 					throw new Error("Focus stream output exceeded its buffer");
 				for (let at = 0; at < bytes.length; at += CHUNK) {
 					const data = bytes.subarray(at, at + CHUNK).toString("base64");
@@ -140,8 +143,8 @@ export function focusWire(nonce, write, receive, fail, onLive) {
 						throw new Error("Focus stream data is out of order or invalid");
 					const chunk = Buffer.from(frame.data, "base64");
 					chunkBytes += chunk.length;
-					if (chunkBytes > MAX_MESSAGE)
-						throw new Error("Focus stream message exceeds 512 KiB");
+					if (chunkBytes > maxMessage)
+						throw new Error("Remote message exceeds its size limit");
 					chunks.push(chunk);
 					received++;
 					if (frame.end) {

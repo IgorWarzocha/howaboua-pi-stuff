@@ -228,6 +228,22 @@ export class CoreClient {
 		for (const connection of this.connections) connection.close();
 	}
 
+	/** Local snapshot avoids aggregate terminal.list's remote timeout/omission policy. */
+	async localSnapshot(): Promise<{ terminals: CoreObject[] }> {
+		let terminals: CoreObject[] | undefined;
+		const subscription = await this.subscribe({}, (event) => {
+			if (event.method === "snapshot")
+				terminals = event.terminals.filter(
+					(terminal) =>
+						typeof terminal["address"] === "string" &&
+						!terminal["address"].includes("/"),
+				);
+		});
+		subscription.close();
+		if (!terminals) throw new Error("Core returned no local terminal snapshot");
+		return { terminals };
+	}
+
 	private open(
 		method: string,
 		params: CoreObject,

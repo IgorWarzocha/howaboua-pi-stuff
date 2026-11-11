@@ -1,5 +1,10 @@
 import type { defineTool as definePiTool } from "@earendil-works/pi-coding-agent";
-import type { Type as SchemaType } from "typebox";
+import type {
+	Static,
+	obj as schemaObj,
+	opt as schemaOpt,
+	str as schemaStr,
+} from "@earendil-works/pi-schema";
 import { browserHelp } from "./browser/help.js";
 import { isRecordValue } from "./browser/parse-operation.js";
 import { parseBrowserRequest } from "./browser/request.js";
@@ -27,25 +32,37 @@ export function prepareBrowserInput(input: unknown): { command: string } {
 export function createBrowserTool(
 	{
 		defineTool,
-		Type,
-	}: { defineTool: typeof definePiTool; Type: typeof SchemaType },
+		obj,
+		opt,
+		str,
+	}: {
+		defineTool: typeof definePiTool;
+		obj: typeof schemaObj;
+		opt: typeof schemaOpt;
+		str: typeof schemaStr;
+	},
 	runtime: BrowserRuntime,
 	isGpt = () => false,
 ) {
+	const parameters = obj(
+		{
+			command: opt(str({ description: "help or JSON request" })),
+		},
+		{ open: false },
+	);
 	return defineTool({
 		name: "browser",
 		label: "Browser",
 		description: "Control logged-in browser",
-		parameters: Type.Object(
-			{
-				command: Type.Optional(
-					Type.String({ description: "help or JSON request" }),
-				),
-			},
-			{ additionalProperties: false },
-		),
+		parameters,
 		prepareArguments: prepareBrowserInput,
-		async execute(_toolCallId, input, signal, onUpdate, ctx) {
+		async execute(
+			_toolCallId,
+			input: Static<typeof parameters>,
+			signal,
+			onUpdate,
+			ctx,
+		) {
 			const request = parseBrowserRequest(input.command);
 			let result = await runtime.execute(request, {
 				ownerId: ctx.sessionManager.getSessionId(),

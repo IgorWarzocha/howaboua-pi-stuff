@@ -1,48 +1,56 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "./core/backend.js";
+import {
+	compile,
+	lit,
+	obj,
+	type Static,
+	str,
+	union,
+} from "@earendil-works/pi-schema";
+import { getSnapshot, sessionPath } from "./core/agents.js";
 import type { AgentFleet } from "./fleet/index.js";
-import { getSnapshot, sessionPath } from "./herdr.js";
 import type { PaneInfo } from "./types.js";
 
-export const ENTRY = "herdr-owned-worker-v1";
-
-export interface OwnedWorker {
-	workerId: string;
-	pulseId: string;
-	runId: string;
-	parent: string;
-	host: string;
-	session: string;
-	target: string;
-	terminal: string;
-	sessionPath: string;
-	cwd: string;
-}
+export const ENTRY = "herdr-owned-worker-v2";
+const Ownership = obj(
+	{
+		workerId: str(),
+		scope: str(),
+		key: str(),
+		requestId: str(),
+		lifetime: union([
+			{
+				...lit("parent"),
+				type: "string",
+			},
+			{
+				...lit("detached"),
+				type: "string",
+			},
+		]),
+		parent: str(),
+		host: str(),
+		session: str(),
+		target: str(),
+		terminal: str(),
+		sessionPath: str(),
+		cwd: str(),
+	},
+	{ open: true },
+);
+const checkOwnership = compile(Ownership).check;
+export type OwnedWorker = Static<typeof Ownership>;
 
 export function records(ctx: ExtensionContext): OwnedWorker[] {
 	const workers = new Map<string, OwnedWorker>();
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type !== "custom" || entry.customType !== ENTRY) continue;
-		const value = entry.data as Record<string, unknown> | undefined;
-		if (
-			!value ||
-			![
-				"workerId",
-				"pulseId",
-				"runId",
-				"parent",
-				"host",
-				"session",
-				"target",
-				"terminal",
-				"sessionPath",
-				"cwd",
-			].every((key) => typeof value[key] === "string")
-		)
+		const value: unknown = entry.data;
+		if (!checkOwnership(value))
 			throw new Error(
-				"Saved pulse worker ownership is invalid; inspect the session before retrying",
+				"Saved worker ownership is invalid; inspect the session before retrying",
 			);
-		const worker = value as unknown as OwnedWorker;
+		const worker = value;
 		if (worker.parent === ctx.sessionManager.getSessionFile())
 			workers.set(worker.workerId, worker);
 	}
@@ -69,12 +77,7 @@ export async function panelFor(
 	);
 	if (panel) {
 		if (
-			panel.pane_id ===
-				process.env[
-					fleet.connected().client instanceof CoreConnection
-						? "HC_TERMINAL_ID"
-						: "HERDR_PANE_ID"
-				] ||
+			panel.pane_id === process.env["HC_TERMINAL_ID"] ||
 			panel.terminal_id !== worker.terminal ||
 			panel.agent !== "pi" ||
 			sessionPath(panel) !== worker.sessionPath

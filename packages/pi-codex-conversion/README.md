@@ -55,6 +55,8 @@ Execution mode is separate from provider scope. Apply the adapter to **Codex and
 
 The Codex toolset reads files through the shell and edits with `apply_patch`, rather than Pi's separate text read, edit and write tools.
 
+Background shells survive context compaction and Notes rollover. The agent receives a fresh shell inventory without changing the standing prompt. If a command finishes with an uncollected result, PCC wakes the agent only when idle. Normal monitoring remains primary; these notices are a safety net.
+
 </details>
 
 <a name="settings"></a>
@@ -118,7 +120,7 @@ V2 can preserve 16k, 32k or 64k of recent user messages verbatim. The default is
 
 V2 and Both require Codex or a configured compatible passthrough. **Choose Both before creating a checkpoint you need across providers, or convert to Pi summary before switching.** Other routes use Pi summary without erasing your saved method.
 
-For notes, history, context-window rollover and shared agent context, install [Notes Compaction](../pi-notes-compaction/README.md) and configure it under `/notes`. These are not built into PCC. Existing Notes-enabled PCC configurations require Notes to be loaded or that old continuity setting to be explicitly disabled.
+For notes, history, context-window rollover and shared agent context, install [Agent Comms](../pi-agent-comms/docs/NOTES.md) and configure it under `/notes`. These are not built into PCC. Existing Notes-enabled PCC configurations require Notes to be loaded or that old continuity setting to be explicitly disabled.
 
 </details>
 
@@ -185,6 +187,8 @@ Whole-notebook profiles and isolated candidates replace the live state when load
 ### Extension tools and MCP
 
 Installed Pi tools and enabled MCP servers are available inside Code and all three notebook modes. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
+
+Use `content(result.content)` to emit mixed MCP text and images in their original order. The helper also accepts a single content block. Resource blocks remain JSON text; audio and encrypted text are not supported.
 
 `exec` and `wait` wait for their active Pi tool calls to return before yielding, even when the cell's yield timeout has elapsed.
 

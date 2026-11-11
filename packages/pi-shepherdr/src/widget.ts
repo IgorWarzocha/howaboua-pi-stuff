@@ -64,7 +64,12 @@ export function renderAgentWidget(
 	machines: MachineStatus[],
 ): void {
 	if (!ctx?.hasUI) return;
-	if (agents.length === 0) {
+	// Role comes from the live session, not watch scope or Core ancestry.
+	agents = agents.filter((agent) => !agent.worker);
+	if (
+		agents.length === 0 &&
+		!machines.some((machine) => machine.monitoringIssue)
+	) {
 		ctx.ui.setWidget(WIDGET_ID, undefined);
 		return;
 	}
@@ -79,7 +84,7 @@ export function renderAgentWidget(
 		machines.map((machine) => [machine.id, machine]),
 	);
 	const lines = [
-		`${theme.fg("accent", "╭─ herdr agents")} ${theme.fg("dim", `${agents.length} · ${machines.filter((machine) => machine.status === "connected").length}/${machines.length} machines`)}`,
+		`${theme.fg("accent", "╭─ herdr peers")} ${theme.fg("dim", `${agents.length} · ${machines.filter((machine) => machine.status === "connected").length}/${machines.length} machines`)}`,
 		...ordered
 			.slice(0, MAX_VISIBLE_AGENTS)
 			.map((agent) => agentLine(ctx, agent, machinesByName)),

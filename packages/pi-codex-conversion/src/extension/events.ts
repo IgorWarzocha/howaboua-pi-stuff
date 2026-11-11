@@ -13,6 +13,7 @@ import { recordCodexProxyMessage } from "../codex-usage/ledger-store.ts";
 import { createCodexSessionLifecycle } from "./session-lifecycle.ts";
 import { createCodexTurnLifecycle } from "./turn-lifecycle.ts";
 import { createCodexCompactionLifecycle } from "./compaction-lifecycle.ts";
+import { registerCodexShellLifecycle } from "./shell-lifecycle.ts";
 
 function commandArg(args: unknown): string | undefined {
 	if (!args || typeof args !== "object" || !("cmd" in args) || typeof args.cmd !== "string") return undefined;
@@ -36,7 +37,8 @@ export function registerCodexEvents(
 	const { state, tracker, sessions } = runtime;
 	const reserve = createCodexReserveController(pi);
 	const session = createCodexSessionLifecycle(pi, runtime, tools, ui, codeMode, proxyProvider, reserve.modelSelected);
-	const turn = createCodexTurnLifecycle(pi, runtime, ui, codeMode, reserve, session);
+	const shells = registerCodexShellLifecycle(pi, sessions, () => !state.config.voiceFeaturesOnly);
+	const turn = createCodexTurnLifecycle(pi, runtime, ui, codeMode, reserve, session, shells);
 	const compaction = createCodexCompactionLifecycle(pi, runtime, codeMode, turn.refreshNotebookStatus);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);

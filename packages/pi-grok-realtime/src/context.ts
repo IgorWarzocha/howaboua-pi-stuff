@@ -103,8 +103,13 @@ export async function prepareContext(
 			"text" in data &&
 			typeof data.text === "string" &&
 			(data.role === "user" || data.role === "assistant")
-		)
-			turns.push(`Prior voice ${data.role} (${entry.timestamp}): ${data.text}`);
+		) {
+			const time = new Date(entry.timestamp);
+			const timestamp = Number.isFinite(time.getTime())
+				? `${time.toISOString().slice(0, 16)}Z`
+				: entry.timestamp;
+			turns.push(`Prior voice ${data.role} (${timestamp}): ${data.text}`);
+		}
 	}
 	if (!turns.length) return "";
 	const separator = config.contextModel.indexOf("/");

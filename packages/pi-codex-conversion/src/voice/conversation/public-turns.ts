@@ -278,7 +278,7 @@ export class PublicRealtimeTurns {
 					if (delegated) {
 						this.callbacks.onTurn(delegated.turn);
 					}
-					output = { accepted: Boolean(delegated), task_id: id };
+					output = { accepted: Boolean(delegated) };
 				}
 			} else {
 				if (!this.access)

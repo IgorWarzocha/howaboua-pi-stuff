@@ -151,7 +151,7 @@ export function socketChannel(socket, initial = "") {
 }
 
 /**
- * @param {(method:string, params:object)=>Promise<unknown>} request
+ * @param {import('../core/terminal-peer.mjs').TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").FocusRequest} focus
  * @returns {Promise<import("../types.js").PeerChannel>}

@@ -29,14 +29,15 @@ export type TsWorkerEnvelope = { runId: number; message: TsWorkerMessage };
 export type TsWorkerOutcome = Extract<TsWorkerMessage, {kind: "done" | "live-done"}>;
 export interface TsWorkerReply { id: number; value?: unknown; error?: string }
 
-export const TS_GLOBAL_DECLARATIONS = `
+export function tsGlobalDeclarations(contentOccupied = false): string { return `
 declare const ALL_TOOLS: ReadonlyArray<{name:keyof typeof tools;description:string}>;
 declare function text(value: unknown): void;
 declare function image(value: unknown, detail?: "auto" | "low" | "high" | "original" | null): void;
+${contentOccupied ? "" : "declare function content(value: unknown): void;"}
 declare function generatedImage(value: unknown): void;
 declare function notify(value: unknown): void;
 declare function yield_control(): void;
 declare function exit(): never;
 declare function store(key: string, value: unknown): void;
 declare function load<T = unknown>(key: string): T | undefined;
-`;
+`; }

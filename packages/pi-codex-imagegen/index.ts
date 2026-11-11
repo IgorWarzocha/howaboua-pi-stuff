@@ -83,7 +83,11 @@ async function registerImagegenInCodeMode(
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import(CODE_MODE_MODULE);
 		return registerCodeModeExtensionTools(pi, () => {
-			const api = "size" in tool.parameters.properties;
+			const properties = tool.parameters["properties"];
+			const api =
+				typeof properties === "object" &&
+				properties !== null &&
+				"size" in properties;
 			const adapted = adaptToolForCodeMode(tool, {
 				discovery: "help",
 				usage:

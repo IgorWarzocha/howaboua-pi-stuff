@@ -8,6 +8,15 @@ import { basename, dirname } from "node:path";
 export const MAX_PEER_FRAME_BYTES = 8 * 1024 * 1024;
 export const PEER_PROTOCOL = 4;
 
+/** @param {unknown} error */
+export function isDispatchRejected(error) {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		error.code === "SHEPHERDR_DELIVERY_REJECTED"
+	);
+}
+
 /** @param {string} sessionFile @param {string} terminalId */
 export function peerInboxPath(sessionFile, terminalId) {
 	const terminal = createHash("sha256")
@@ -89,7 +98,7 @@ export async function readReceiver(path, signal) {
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").PeerMessage} message
  * @param {import("../types.js").FocusRequest} [focus]
@@ -140,7 +149,7 @@ export async function sendPeerMessage(
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").ExtensionReply} reply
  * @returns {Promise<string>}
@@ -183,19 +192,11 @@ export async function sendPeerExtensionReply(request, expected, reply) {
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  */
 export async function resolvePeerReceiver(request, expected) {
-	const result = await request("agent.get", { target: expected.pane_id });
-	const agent =
-		result &&
-		typeof result === "object" &&
-		"agent" in result &&
-		result.agent &&
-		typeof result.agent === "object"
-			? result.agent
-			: {};
+	const agent = await request.terminal(expected.terminal_id);
 	const session = "agent_session" in agent ? agent.agent_session : undefined;
 	const sessionFile =
 		session &&
@@ -251,7 +252,7 @@ export async function resolvePeerReceiver(request, expected) {
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").PeerMessage} message
  * @param {import("../types.js").FocusRequest | undefined} focus
@@ -369,7 +370,7 @@ function deliverPeerFrame(
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {import("../types.js").FocusRequest} focus
  */
@@ -401,7 +402,7 @@ export function readPeerCommands(value) {
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @returns {Promise<import("../types.js").PeerCommand[]>}
  */
@@ -417,18 +418,12 @@ export async function sendPeerCommands(request, expected) {
 }
 
 /**
- * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../core/terminal-peer.mjs").TerminalPeer} request
  * @param {import("../types.js").PaneInfo} expected
  * @param {string} sessionFile
  */
 async function closeExitedPane(request, expected, sessionFile) {
-	const result = await request("pane.current", {
-		caller_pane_id: expected.pane_id,
-	});
-	const pane =
-		result && typeof result === "object" && "pane" in result
-			? result.pane
-			: undefined;
+	const pane = await request.terminal(expected.terminal_id);
 	if (
 		!pane ||
 		typeof pane !== "object" ||
@@ -446,5 +441,5 @@ async function closeExitedPane(request, expected, sessionFile) {
 		pane.agent_session.value !== sessionFile
 	)
 		throw new Error("Target session changed; resolve it again");
-	await request("pane.close", { pane_id: pane.pane_id });
+	await request.closeTerminal(pane.terminal_id);
 }

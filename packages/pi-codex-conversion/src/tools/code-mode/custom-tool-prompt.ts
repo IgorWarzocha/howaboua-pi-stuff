@@ -13,12 +13,12 @@ import {
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Await work; use a timeout when an operation might not finish on its own
-Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
+Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value) emits MCP text/images in order; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
 
 export const GPT_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
 Await work; possibly nonterminating→timeout
-Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
+Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value)→emit MCP text/images in order; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
 
 export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
 export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
@@ -28,6 +28,7 @@ Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults
 For independent work while another cell runs, add "isolated":true to // @exec. Starts from last checkpoint; leaves shared variables unchanged
 Top-level await supported. Await host calls; dangling calls prevent checkpointing
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
+content(value) emits MCP text/images in order
 No Node, imports, fetch, timers or TypeScript checking`;
 
 export const GPT_JS_EXEC_DESCRIPTION = `Persistent JS kernel; source ONLY, NO JSON/fences
@@ -35,6 +36,7 @@ Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults
 ${GPT_ISOLATED_EXEC_GUIDANCE}
 Top-level await; await host calls; dangling calls block checkpoint
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
+content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers/TSchecking`;
 
 export const WAIT_DESCRIPTION =
@@ -54,6 +56,11 @@ export interface CodeModeSystemPromptOptions {
 }
 
 const customizationGuidance = new WeakMap<CodeModeSystemPromptOptions, () => string>();
+const promptToolNames = new WeakMap<CodeModeSystemPromptOptions, readonly string[]>();
+
+export function codeModePromptToolNames(options: CodeModeSystemPromptOptions): readonly string[] {
+	return promptToolNames.get(options) ?? [];
+}
 
 export function codeModeCustomizationGuidance(options: CodeModeSystemPromptOptions): string {
 	return customizationGuidance.get(options)?.() ?? "";
@@ -219,6 +226,8 @@ export function prepareCodeModeToolsPrompt(
 	gpt = false,
 ): string {
 	const sections = options.sections ??= {};
+	// Share this turn's canonical snapshot, not the changing live catalogue.
+	promptToolNames.set(options, tools.map((tool) => tool.name));
 	customizationGuidance.set(options, () => documentationPath && isEnabled()
 		? gpt
 			? `exec custom tools→read ${documentationPath}, NOT Pi docs`

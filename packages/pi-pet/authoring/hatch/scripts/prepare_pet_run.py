@@ -1117,7 +1117,7 @@ def main() -> None:
         "pet_id": args.pet_id,
         "display_name": args.display_name,
         "description": args.description,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "sprite_version_number": 2,
         "atlas": ATLAS,
         "rows": [
@@ -1182,7 +1182,7 @@ def main() -> None:
         )
     jobs = {
         "schema_version": 1,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "run_dir": str(run_dir),
         "primary_generation_capability": "image-generation",
         "jobs": make_jobs(run_dir, copied_refs),
