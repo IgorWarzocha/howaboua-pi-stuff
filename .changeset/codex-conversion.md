@@ -2,6 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
+- Code, Notebook, TS and JS Notebook now provide `content()` to emit mixed MCP text and images in order.
 - Code and Notebook now keep unchanged nested-tool images stable across progress updates.
 - Code and Notebook guidance now follows the available nested tools instead of recommending absent shell or patch bindings.
 - General guidance now asks for direct, supported conclusions, with caveats only when they change the answer or next action.
@@ -11,6 +12,7 @@
 - Unavailable image viewing and reasoning adjustment now report recovery options.
 - Voice task acknowledgements now omit unused task IDs.
 - Reduced temporary memory use when checking Codex conversation continuity and preparing WebSocket requests.
+- Codex now stops retrying recognised content-policy, inference-hook, access-program and workspace rejections while preserving transient-error retries.
 - JS Notebook now uses the Pi codemode 1.5.2 runtime.
 - TS notebooks now use tsrs 0.23, including upstream fixes for memory growth during repeated compiler rebuilds.
 - Code now uses the official 0.167 host runtime.

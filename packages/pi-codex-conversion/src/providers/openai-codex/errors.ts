@@ -198,13 +198,19 @@ export async function parseErrorResponse(response: Response, signal?: AbortSigna
 	let message = raw || response.statusText || "Request failed";
 	let friendlyMessage: string | undefined;
 	let code: string | undefined;
+	if (response.status === 403) {
+		const encoded = response.headers.get("x-error-json");
+		const decoded = encoded ? parseJsonObject(Buffer.from(encoded, "base64").toString("utf8")) : undefined;
+		const error = isRecord(decoded) && isRecord(decoded["error"]) ? decoded["error"] : undefined;
+		code = asString(error?.["code"]);
+	}
 
 	try {
-		const parsed = JSON.parse(raw) as { error?: { code?: string | undefined; type?: string | undefined; plan_type?: string | undefined; resets_at?: number | undefined; message?: string | undefined } | undefined };
+		const parsed = JSON.parse(raw) as { detail?: { code?: string | undefined; message?: string | undefined } | undefined; error?: { code?: string | undefined; type?: string | undefined; plan_type?: string | undefined; resets_at?: number | undefined; message?: string | undefined } | undefined };
 		friendlyMessage = formatCodexUsageLimitError({ ...parsed, status_code: response.status, headers: Object.fromEntries(response.headers.entries()) });
 		const err = parsed?.error;
 		if (err) {
-			code = err.code || err.type;
+			code = err.code || code || err.type;
 			if (!friendlyMessage && isTerminalRateLimitError(`${code ?? ""} ${err.message ?? ""}`)) {
 				const plan = err.plan_type ? ` (${err.plan_type.toLowerCase()} plan)` : "";
 				const mins = err.resets_at ? Math.max(0, Math.round((err.resets_at * 1000 - Date.now()) / 60000)) : undefined;
@@ -213,9 +219,13 @@ export async function parseErrorResponse(response: Response, signal?: AbortSigna
 			}
 			message = friendlyMessage || codexErrorMessage(code, err.message) || message;
 		}
+		if (response.status === 403) {
+			// Workspace rejections use detail.code before error.code upstream.
+			code = asString(parsed?.detail?.code) ?? code;
+			message = asString(parsed?.detail?.message) ?? message;
+		}
 	} catch {
 		// ignore malformed error bodies
 	}
-
 	return { message: boundedProviderErrorText(message), friendlyMessage, ...(code ? { code } : {}) };
 }

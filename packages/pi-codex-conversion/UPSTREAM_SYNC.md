@@ -13,6 +13,16 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## November 11 mixed content
+
+Adapted Codex `733a1cca06` (#60665): `content()` emits one MCP content block or an iterable in order across Code, Notebook, TS and JS Notebook. Text and images use the existing output paths; resources remain JSON text. Audio and encrypted text are rejected explicitly. The official Code host remains pinned to 0.167.0. The helper is supplied by PCC's cell integration and notebook runtimes without modifying that host or invalidating existing JS snapshots.
+
+## November 11 terminal rejections
+
+Reviewed Codex `e58bf8f523` for `codex-api/src/error.rs` and `codex-api/src/api_bridge.rs` rejection handling (#60479, #60480, #60481, #60511). PCC now stops retries for statusless content-policy, inference-hook and access-program rejections, plus recognised inference-hook, access-program and workspace 403s. Workspace HTTP parsing follows `detail.code`, `error.code`, then the base64 `x-error-json` header. Other statuses retain PCC's existing retry policy, including transient 503s carrying rejection codes. Request rejection does not mark the session unavailable.
+
+Pi still classifies outer automatic retries from final error text. Ordinary denial messages remain intact and do not trigger that heuristic. Pi exposes no structured terminal-rejection override, so denial text that itself resembles a transient error remains subject to Pi's heuristic.
+
 ## Pi 1.5.1 compatibility
 
 Compared the released `v1.5.0` to `v1.5.1` delta. The stock Codex provider's only transport change removes abort listeners after SSE retry delays. PCC already removes those listeners. Its `session-id` headers also already use the spelling corrected in Pi's OpenAI Responses provider.

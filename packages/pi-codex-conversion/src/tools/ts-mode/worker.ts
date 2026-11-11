@@ -3,6 +3,7 @@ import { serialize } from "node:v8";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { CheckpointRestoreError, checkpointRoots, PortableGraph } from "./portable-state.ts";
 import { LiveEvaluator } from "./live-evaluator.ts";
+import { createContentOutput } from "../code-mode/content-output.ts";
 import type { TsWorkerCommand, TsWorkerEnvelope, TsWorkerInput, TsWorkerMessage } from "./worker-protocol.ts";
 
 if (!process.send) throw new Error("TS execution requires a worker channel");
@@ -133,6 +134,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 		if (!record(value) || typeof value["image_url"] !== "string" || (value["output_hint"] !== undefined && typeof value["output_hint"] !== "string")) throw new Error("generatedImage expects an image result with an optional string output_hint");
 		image(value); if (value["output_hint"] !== undefined) text(value["output_hint"]);
 	};
+	const content = createContentOutput(text, image);
 	const hooks: LiveHook[] = [];
 	if (live) liveHooks = hooks;
 	const dispatchHooks = async (type: "startup" | "tool_result", event: unknown): Promise<void> => {
@@ -196,9 +198,11 @@ async function run(input: TsWorkerInput): Promise<void> {
 	const declarations = (late: boolean): string => retained.filter(binding => deferred.has(binding.name) === late).map(binding => `${binding.kind === "const" || binding.kind === "import" ? "const" : "let"} ${binding.name} = __values[${JSON.stringify(binding.name)}];`).join("\n");
 	const dataPrelude = declarations(false);
 	const checkpointPrelude = declarations(true);
+	// Older notebooks may already own this name; preserve their value and closures.
+	const contentPrelude = retained.some(binding => binding.name === "content") ? "" : "const content = __tsContent;\n";
 	const names = Object.keys(input.bindings).filter(name => input.bindings[name]?.kind !== "type");
 	const hookBindings = Object.values(input.bindings).filter(binding => binding.hook && input.state.pins.includes(binding.name)).sort((a, b) => a.name.localeCompare(b.name));
-	const body = `"use strict";\n${lexicalPrelude}\nconst __decoded = __decode(__recipes); const __values = __decoded.values;\n${dataPrelude}\nawait __decoded.restoreCheckpoints(name => eval(name));\n${checkpointPrelude}\nawait __tsInitializeHooks({${hookBindings.map(binding => binding.name).join(",")}});\n${input.javascript}\nreturn {${names.join(",")}};`;
+	const body = `"use strict";\n${contentPrelude}${lexicalPrelude}\nconst __decoded = __decode(__recipes); const __values = __decoded.values;\n${dataPrelude}\nawait __decoded.restoreCheckpoints(name => eval(name));\n${checkpointPrelude}\nawait __tsInitializeHooks({${hookBindings.map(binding => binding.name).join(",")}});\n${input.javascript}\nreturn {${names.join(",")}};`;
 	const AsyncFunction: new (...parameters: string[]) => (...args: unknown[]) => Promise<Record<string, unknown>> = Object.getPrototypeOf(async function () {}).constructor;
 	let storeValues: Record<string, unknown> = {};
 	const store = (key: string, value: unknown): void => { Object.defineProperty(storeValues, key, { value, enumerable: true, writable: true, configurable: true }); };
@@ -227,7 +231,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 				if (typeof value === "function" && !value.name) Object.defineProperty(value, "name", { value: name, configurable: true });
 				graph.registerRecipe(value, name); return value;
 			},
-			tools, ALL_TOOLS: evaluator.values.clone(input.toolMetadata), text, image, generatedImage,
+			tools, ALL_TOOLS: evaluator.values.clone(input.toolMetadata), text, image, content, generatedImage,
 			notify: (value: unknown) => send({ kind: "notify", text: stringify(value) }),
 			yield_control: () => send({ kind: "yield" }), exit: () => { throw new Error("TS cell exited; earlier live mutations remain"); }, store, load });
 		let error: string | undefined;
@@ -278,7 +282,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 		}
 		return;
 	}
-	const fn = new AsyncFunction("__recipes", "__decode", "__tsImport", "__tsRegisterRecipe", "__tsPrepareRecipe", "__tsInitializeHooks", "tools", "ALL_TOOLS", "text", "image", "generatedImage", "notify", "yield_control", "exit", "store", "load", body);
+	const fn = new AsyncFunction("__recipes", "__decode", "__tsImport", "__tsRegisterRecipe", "__tsPrepareRecipe", "__tsInitializeHooks", "tools", "ALL_TOOLS", "text", "image", "__tsContent", "generatedImage", "notify", "yield_control", "exit", "store", "load", body);
 	const values = await fn(recipes, (resolved: Record<string, unknown>) => {
 		const decoded = graph.decode(input.state, name => resolved[name], node => {
 			const module = moduleBindings.get(JSON.stringify([node.specifier, node.attributes ? { with: node.attributes } : undefined]));
@@ -300,7 +304,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 			if (typeof invoke === "function" && binding.hook) hooks.push({ name: binding.name, type: binding.hook, invoke: event => invoke(event) });
 		}
 		await dispatchHooks("startup", { type: "startup" });
-	}, tools, input.toolMetadata, text, image, generatedImage,
+	}, tools, input.toolMetadata, text, image, content, generatedImage,
 		(value: unknown) => send({ kind: "notify", text: stringify(value) }), () => send({ kind: "yield" }), () => { throw new Error("TS cell exited without committing state"); }, store, load);
 	if (pending.size) throw new Error("TS cell has unawaited tool/import requests; await them before committing state");
 	for (const key of Reflect.ownKeys(globalThis)) if (!initialGlobals.has(key)) throw new Error(`globalThis.${String(key)} cannot transfer; declare a top-level binding instead`);

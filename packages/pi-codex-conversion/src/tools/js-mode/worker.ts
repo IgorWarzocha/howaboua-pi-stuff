@@ -1,6 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import type { QuickJS as QuickJSInstance, JSValueHandle } from "quickjs-wasi";
 import { JS_PRELUDE } from "./prelude.ts";
+import { contentOutputFactorySource } from "../code-mode/content-output.ts";
 import { inspectJsBindings } from "./bindings.ts";
 import { JsBindings } from "./managed-bindings.ts";
 import { JsSupport } from "./support.ts";
@@ -179,9 +180,13 @@ async function main(): Promise<void> {
 			controlToken = vm.exportHandle(control);
 		} finally { init.dispose(); fn.dispose(); }
 	}
+	// Add the helper after restore without changing the boot-image fingerprint
+	// or replacing a user's existing global of the same name.
+	const addedContent = vm.evalCode(`(() => { if (Object.hasOwn(globalThis, "content")) return false; Object.defineProperty(globalThis, "content", { value: (${contentOutputFactorySource})(globalThis.text, globalThis.image), configurable: false, writable: false }); return true; })()`, "js-notebook-content.js").consume(value => value.toBoolean());
 	// Old images still restore their entire heap. Never invent an inventory for
 	// lexical names which were created before declaration tracking existed.
 	inventory = data.snapshot?.inventory ?? { declarations: [], baseline: vm.global.getOwnPropertyNames(), complete: !data.snapshot };
+	if (addedContent && !inventory.baseline.includes("content")) inventory = { ...inventory, baseline: [...inventory.baseline, "content"] };
 	support = new JsSupport(vm, data.snapshot?.support);
 	bindings = new JsBindings(vm, inventory, data.snapshot?.bindings);
 	startup = data.snapshot?.startup?.status ?? "pending";

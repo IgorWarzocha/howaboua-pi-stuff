@@ -8,6 +8,7 @@ import type { NotebookRuntimeHealthState } from "./runtime-health.ts";
 const DIAGNOSTIC_TIMEOUT_MS = 30_000;
 const HOST_BINDINGS = new Set([
 	"ALL_TOOLS",
+	"content",
 	"exit",
 	"generatedImage",
 	"image",
