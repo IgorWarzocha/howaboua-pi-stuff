@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.14
+
+- Replaced the TypeBox dependency with Pi's native schema builders and validation.
+
 ## 0.0.13
 
 - Requires Pi 1.5 or newer.

@@ -1,5 +1,11 @@
 # @howaboua/pi-subagent-review
 
+## 0.2.26
+
+- Requires Pi 1.5 or newer.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Conversation summaries now use minute-precision timestamps.
+
 ## 0.2.25
 
 - Reviewer prompts now request evidence-backed findings without issue-count targets.

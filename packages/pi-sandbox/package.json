@@ -3,7 +3,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Persistent local Gondolin environments and managed app previews for Pi",
 	"type": "module",
 	"license": "MIT",
@@ -45,7 +45,7 @@
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.9",
+		"@howaboua/pi-codex-conversion": ">=4.0.10",
 		"@earendil-works/pi-tui": ">=1.0.0"
 	},
 	"peerDependenciesMeta": {
@@ -55,7 +55,7 @@
 	},
 	"devDependencies": {
 		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@howaboua/pi-codex-conversion": "4.0.9",
+		"@howaboua/pi-codex-conversion": "4.0.10",
 		"@types/node": "^26.6.6",
 		"@biomejs/biome": "^2.6.6",
 		"typescript": "^7.0.2"

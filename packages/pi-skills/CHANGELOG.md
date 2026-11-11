@@ -1,5 +1,11 @@
 # @howaboua/pi-skills
 
+## 0.0.27
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-harness-and-agent-engineering: Pi extension guidance now recommends native schema builders and validation.
+
 ## 0.0.26
 
 - Include bundled package updates:

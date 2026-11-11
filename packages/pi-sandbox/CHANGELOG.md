@@ -1,5 +1,11 @@
 # @howaboua/pi-sandbox
 
+## 0.1.6
+
+- Fixed short sandbox commands occasionally reporting a startup failure.
+- Sandbox creation dates now use minute precision.
+- Removed the TypeBox installation requirement.
+
 ## 0.1.5
 
 - Requires Pi 1.5 or newer.

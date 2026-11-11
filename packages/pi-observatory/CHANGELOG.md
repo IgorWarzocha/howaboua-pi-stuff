@@ -1,5 +1,11 @@
 # @howaboua/pi-observatory
 
+## 0.0.4
+
+- Requires Pi 1.5 or newer.
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Display and informational status dates now use minute precision.
+
 ## 0.0.3
 
 - Cache diagnostics now index with less disk-sync overhead.
