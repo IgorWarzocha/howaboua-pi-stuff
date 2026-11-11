@@ -2,7 +2,7 @@
 "@howaboua/pi-shepherdr": minor
 ---
 
-Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi 1.5+ and Node.js 22.19+. Update and restart controllers and workers together. Start fresh Core terminals for older Herdr sessions and reselect watches when changing Core namespaces. Replace pane placement with terminal, new-tab or new-workspace placement.
+Removed the legacy Herdr backend and SSH bridge. Requires Herdr Core 0.1.18+, Pi 1.5+ and Node.js 22.19+. Legacy Herdr TUI is unsupported. Its last supported release, Shepherdr 0.2.27, is unmaintained, with [source available for forks](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/5ede06bdc32da2b513f0709966af1f32908f243c/packages/pi-shepherdr). Update and restart controllers and workers together. Start fresh Core terminals for older Herdr sessions and reselect watches when changing Core namespaces. Replace pane placement with terminal, new-tab or new-workspace placement.
 
 - Shepherdr now runs without other extensions. Optional sharing supports Agent Comms or standalone Notes Compaction and Agent Board, preserving saved notes and boards.
 - Agent calls now accept current Core machine names or stable IDs. Saved routes and watches survive renames. Connections adds machines through `hc machine add`.

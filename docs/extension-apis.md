@@ -39,7 +39,7 @@ flowchart LR
 
 Agent Comms and the standalone Notes Compaction and Agent Board packages share maintained implementations. The standalone packages are not deprecated and retain their public import keys. Do not load Agent Comms alongside either standalone extension.
 
-The Agent Comms consolidation is not published yet. Migrate package imports together with host integrations. Existing Shepherdr releases, including the current Core preview, need the coordinated bridge update before switching to Comms. Persisted event channels, owner strings and session records retain their existing names, including `pi-notes-compaction:*` and `shepherdr-board-*`.
+When switching to Agent Comms, update Shepherdr in controllers and workers together. Older Shepherdr releases require the standalone providers. Persisted event channels, owner strings and session records retain their existing names, including `pi-notes-compaction:*` and `shepherdr-board-*`.
 
 `pi.extensions` in a package manifest tells Pi what to load. `exports` tells JavaScript which imports resolve. Neither a root extension entrypoint nor a wildcard export is a promise that every implementation module is an integration API.
 

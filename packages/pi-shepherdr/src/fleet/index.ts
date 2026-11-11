@@ -2,7 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { CoreConnection } from "../core/backend.js";
+import { CORE_REQUIRED, CoreConnection } from "../core/backend.js";
 import { CoreClient } from "../core/client.js";
 import { type CoreMachine, coreMachines } from "../core/machines.js";
 import { AgentMonitor } from "../monitor.js";
@@ -76,6 +76,7 @@ export class AgentFleet {
 		);
 	}
 	private context: ExtensionContext | undefined;
+	private activationFailure: Error | undefined;
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
 	private readonly runtimes = new Map<string, MachineRuntime>();
@@ -98,8 +99,14 @@ export class AgentFleet {
 		try {
 			coreId = (await identityClient.machineIdentity()).session;
 		} catch (error) {
+			const reason =
+				error instanceof Error &&
+				"code" in error &&
+				typeof error.code === "string"
+					? "Core is unreachable"
+					: errorMessage(error);
 			throw new Error(
-				`Shepherdr could not connect to Core: ${errorMessage(error)}. Start or reconnect Core, then retry from a Core terminal.`,
+				`Shepherdr could not connect to Core: ${reason}. Start or reconnect Core, then open /herdr → Status to retry.`,
 				{ cause: error },
 			);
 		} finally {
@@ -170,8 +177,9 @@ export class AgentFleet {
 			void this.connectMachine(machine.id, generation, true);
 	}
 
-	deactivate(): void {
+	deactivate(activationFailure?: Error): void {
 		this.generation += 1;
+		this.activationFailure = activationFailure;
 		this.localCoreId = undefined;
 		this.lastPersistedState = undefined;
 		for (const runtime of this.runtimes.values()) {
@@ -186,6 +194,17 @@ export class AgentFleet {
 
 	isActive(): boolean {
 		return this.context !== undefined;
+	}
+
+	inactiveError(): Error {
+		if (!process.env["HC_TERMINAL_ID"] || !process.env["HC_TERMINAL_SOCKET"])
+			return new Error(CORE_REQUIRED);
+		return (
+			this.activationFailure ??
+			new Error(
+				"Agent operations are unavailable; open /herdr → Status to reconnect Core. Help and current-session command discovery remain available.",
+			)
+		);
 	}
 
 	async reload(): Promise<void> {
@@ -216,6 +235,7 @@ export class AgentFleet {
 	}
 	connected(machine?: string): ConnectedMachine {
 		const ctx = this.context;
+		if (!ctx) throw this.inactiveError();
 		return connectedMachine(
 			this.runtimes,
 			ctx,
@@ -249,6 +269,7 @@ export class AgentFleet {
 	}
 
 	async snapshots(machine?: string): Promise<MachineSnapshot[]> {
+		if (!this.isActive()) throw this.inactiveError();
 		return machineSnapshots(this.runtimes, machine);
 	}
 	connect(machine?: string): string {

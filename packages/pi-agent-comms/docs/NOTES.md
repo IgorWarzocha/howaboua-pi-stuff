@@ -6,7 +6,7 @@ Part of [Pi Agent Comms](../README.md).
 
 ## Install
 
-Requires Pi 1.5.0 or newer and Node.js 22.18 or newer. See the [installation status and replacement steps](../README.md#install) before replacing the old packages.
+Requires Pi 1.5.0 or newer and Node.js 22.19 or newer. See the [installation choices and replacement steps](../README.md#install).
 
 ```sh
 pi install npm:@howaboua/pi-agent-comms

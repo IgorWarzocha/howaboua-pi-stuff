@@ -29,6 +29,9 @@ import { RemoteCoreEndpoint } from "./remote-endpoint.js";
 import { CoreRemoteReader } from "./remote-reader.js";
 import { terminalPeer } from "./terminal-peer.mjs";
 
+export const CORE_REQUIRED =
+	"Agent operations require Herdr Core 0.1.18+. Legacy Herdr TUI is unsupported. Start Pi in a fresh Core terminal. Help, current-session command discovery and /herdr settings remain available. Last legacy Shepherdr: 0.2.27, unmaintained source for forks: https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/5ede06bdc32da2b513f0709966af1f32908f243c/packages/pi-shepherdr";
+
 export class CoreConnection {
 	private readonly peer = terminalPeer((method, params) =>
 		this.core.request(method, params),
@@ -45,8 +48,7 @@ export class CoreConnection {
 		remote?: CoreMachine,
 		onNotice?: (message: string) => void,
 	) {
-		if (!socketPath)
-			throw new Error("Run Pi inside a Core terminal to connect Shepherdr");
+		if (!socketPath) throw new Error(CORE_REQUIRED);
 		this.remote = remote;
 		this.socketPath = socketPath;
 		this.admission = new CoreAdmission(socketPath, remote?.id);

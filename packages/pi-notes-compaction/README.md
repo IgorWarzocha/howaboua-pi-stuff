@@ -6,7 +6,7 @@ This standalone package remains maintained alongside [Agent Comms](../pi-agent-c
 
 ## Install
 
-Requires Pi 1.5.0 or newer and Node.js 22.18 or newer.
+Requires Pi 1.5.0 or newer and Node.js 22.19 or newer.
 
 ```sh
 pi install npm:@howaboua/pi-notes-compaction

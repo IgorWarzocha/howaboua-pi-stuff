@@ -14,7 +14,7 @@ With Pi Codex's compatible custom developer-message API active, asynchronous wor
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 1.5 or newer, Node.js 22.18 or newer and Herdr Core 0.1.18 or newer. Run Pi in a Core terminal, through `hc` or a Herdr app connected to that Core. Shepherdr reports Pi status to Core and discovers other Pi sessions with Shepherdr installed. No separate Pi integration is needed.
+Requires Pi 1.5 or newer, Node.js 22.19 or newer and Herdr Core 0.1.18 or newer. Run Pi in a Core terminal, through `hc` or a Herdr app connected to that Core. Shepherdr reports Pi status to Core and discovers other Pi sessions with Shepherdr installed. No separate Pi integration is needed.
 
 Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; they own the same agent surface.
 
@@ -27,6 +27,8 @@ Ordinary workers end when their parent's program exits. Active remote connection
 For remote Core workers, add machines with `hc machine add` and install Node.js, Herdr Core and Shepherdr on each target. Delegation, supervision, shared context and boards work across those machines.
 
 ### Migrating from the older Herdr TUI
+
+Current Shepherdr is Core-native and is not backward-compatible with the legacy Herdr TUI. Shepherdr 0.2.27 was the last release supporting it. Its [source is available for forks](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/5ede06bdc32da2b513f0709966af1f32908f243c/packages/pi-shepherdr), but the legacy version is unmaintained.
 
 Update and restart controllers and workers together. The older Herdr backend, SSH bridge, machine catalogue and legacy environment overrides are no longer used. Existing Herdr TUI sessions cannot migrate to Core. Start fresh Core terminals and configure remote machines with `hc machine add` on the host running Pi.
 

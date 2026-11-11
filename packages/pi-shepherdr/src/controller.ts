@@ -10,6 +10,7 @@ import {
 	registerContextBriefing,
 } from "./context-briefing.js";
 import { controlPanelStatus, openControlPanel } from "./control-panel/index.js";
+import { CORE_REQUIRED } from "./core/backend.js";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet/index.js";
 import {
@@ -63,8 +64,7 @@ export function registerAgentController(
 		if (!fleet.isActive()) {
 			await activateController(fleet, ctx);
 			signal.throwIfAborted();
-			if (!fleet.isActive())
-				throw new Error("Fleet inactive. Pi must run inside Herdr.");
+			if (!fleet.isActive()) throw fleet.inactiveError();
 		}
 		await fleet.reload();
 		signal.throwIfAborted();
@@ -215,14 +215,15 @@ async function activateController(
 	ctx: ExtensionContext,
 ): Promise<boolean> {
 	if (!process.env["HC_TERMINAL_ID"] || !process.env["HC_TERMINAL_SOCKET"]) {
-		ctx.ui.notify("Shepherdr requires Pi to run inside Herdr", "error");
+		fleet.deactivate();
+		ctx.ui.notify(CORE_REQUIRED, "error");
 		return false;
 	}
 	try {
 		await fleet.activate(ctx);
 		return true;
 	} catch (error) {
-		fleet.deactivate();
+		fleet.deactivate(error instanceof Error ? error : new Error(String(error)));
 		ctx.ui.notify(
 			`Shepherdr could not start: ${error instanceof Error ? error.message : String(error)}`,
 			"error",
