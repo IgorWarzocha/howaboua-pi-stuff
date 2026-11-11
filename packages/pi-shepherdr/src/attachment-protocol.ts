@@ -69,7 +69,7 @@ const ContextLink = obj(
 	},
 	{ open: true },
 );
-export const Plan = obj({
+const Plan = obj({
 	controllerSessionId: str({ minLength: 1 }),
 	targetSessionId: str({ minLength: 1 }),
 	upstream: str({ minLength: 1 }),
