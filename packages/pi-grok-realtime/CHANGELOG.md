@@ -1,5 +1,12 @@
 # @howaboua/pi-grok-realtime
 
+## 0.0.6
+
+- Voice task acknowledgements now omit unused task IDs.
+- Voice context timestamps now use minute precision.
+- Bundled audio helpers now use refreshed Rust dependencies.
+- Local voice tools now use Pi's native schema types instead of TypeBox.
+
 ## 0.0.5
 
 - Requires Pi 1.5 or newer.

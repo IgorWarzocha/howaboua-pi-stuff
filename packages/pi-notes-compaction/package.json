@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-notes-compaction",
-	"version": "0.0.15",
+	"version": "0.0.16",
 	"publishConfig": {
 		"access": "public"
 	},
@@ -41,7 +41,7 @@
 		"better-sqlite3": "13.0.3"
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.9",
+		"@howaboua/pi-codex-conversion": "4.0.10",
 		"@types/better-sqlite3": "9.6.0"
 	},
 	"peerDependencies": {
@@ -49,7 +49,7 @@
 		"@earendil-works/pi-agent-core": ">=1.0.4",
 		"@earendil-works/pi-ai": ">=1.0.4",
 		"@earendil-works/pi-tui": ">=1.0.4",
-		"@howaboua/pi-codex-conversion": ">=4.0.9"
+		"@howaboua/pi-codex-conversion": ">=4.0.10"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {

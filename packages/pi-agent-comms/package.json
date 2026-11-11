@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-agent-comms",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Session notes, context continuity and agent message boards for Pi",
 	"type": "module",
 	"license": "MIT",
@@ -55,7 +55,7 @@
 		"unicode-case-folding": "1.1.2"
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.9",
+		"@howaboua/pi-codex-conversion": "4.0.10",
 		"@types/better-sqlite3": "9.6.0"
 	},
 	"peerDependencies": {
@@ -63,7 +63,7 @@
 		"@earendil-works/pi-agent-core": ">=1.0.4",
 		"@earendil-works/pi-ai": ">=1.1.0",
 		"@earendil-works/pi-tui": ">=1.1.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.9"
+		"@howaboua/pi-codex-conversion": ">=4.0.10"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {

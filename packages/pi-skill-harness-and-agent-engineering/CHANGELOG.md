@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-harness-and-agent-engineering
 
+## 0.0.8
+
+- Pi extension guidance now recommends native schema builders and validation.
+
 ## 0.0.7
 
 - Clarified help-backed tool design: ignore unused presentation hints without weakening validation of meaningful arguments.

@@ -45,7 +45,7 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=4.0.9",
+		"@howaboua/pi-codex-conversion": ">=4.0.10",
 		"@earendil-works/pi-ai": ">=1.0.0",
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.0.0"
@@ -56,7 +56,7 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "4.0.9",
+		"@howaboua/pi-codex-conversion": "4.0.10",
 		"@biomejs/biome": "^2.6.6",
 		"@earendil-works/pi-ai": "1.5.2",
 		"@earendil-works/pi-coding-agent": "1.5.2",

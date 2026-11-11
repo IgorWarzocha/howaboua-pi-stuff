@@ -1,5 +1,10 @@
 # @howaboua/pi-ask
 
+## 0.0.19
+
+- Requires Node.js 22.19 or newer.
+  - Replaced the TypeBox dependency with Pi's native schema builders and validation.
+
 ## 0.0.18
 
 - Requires Pi 1.5 or newer.

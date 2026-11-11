@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.32
+
+- Voice task acknowledgements now omit unused task IDs.
+- Bundled voice helpers now use refreshed Rust dependencies.
+- Local voice tools now use Pi's native schema types instead of TypeBox.
+
 ## 0.0.31
 
 - Requires Pi 1.5 or newer.
