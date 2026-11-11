@@ -59,27 +59,35 @@ export function noteResult(payload: unknown): AgentToolResult<unknown> {
 		throw new Error(
 			"Notes returned invalid data. Read the note before retrying a write.",
 		);
-	// Sharing annotations and storage bookkeeping are not note contents.
+	// Keep recovery warnings, but omit sharing and storage bookkeeping.
 	const {
 		read_only: _readOnly,
-		warning: _warning,
+		warning,
 		saved_at: _savedAt,
 		captured_at: _capturedAt,
 		...visible
 	} = payload;
+	if (warning !== undefined)
+		visible.warnings = [...(visible.warnings ?? []), warning];
 	if (visible.file)
 		visible.file = {
 			path: visible.file.path,
 			...(visible.file.content === undefined
 				? {}
 				: { content: visible.file.content }),
+			...(visible.file.append_only === undefined
+				? {}
+				: { append_only: visible.file.append_only }),
 		};
 	if (visible.files)
-		visible.files = visible.files.map(({ path, matches, truncated }) => ({
-			path,
-			...(matches === undefined ? {} : { matches }),
-			...(truncated === undefined ? {} : { truncated }),
-		}));
+		visible.files = visible.files.map(
+			({ path, matches, truncated, append_only }) => ({
+				path,
+				...(matches === undefined ? {} : { matches }),
+				...(truncated === undefined ? {} : { truncated }),
+				...(append_only === undefined ? {} : { append_only }),
+			}),
+		);
 	return {
 		content: [{ type: "text", text: JSON.stringify(visible) }],
 		structuredContent: visible,

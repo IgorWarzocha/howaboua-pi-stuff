@@ -103,6 +103,7 @@ export class MonitorExtensionMessages {
 						return;
 					}
 					this.unsubscribe = close;
+					this.warned = false;
 				}
 				this.key = key;
 			}
