@@ -24,29 +24,29 @@ function communicationGuidance(
 	return [
 		board
 			? gpt
-				? "Board→peer findings/discovery, ownership/decisions/blockers affecting peers. Self-contained detail welcome; direct discovery≠parent relay. Existing thread replies; known shared peers→link≠repeat. No ack/status spam/duplicate completion reports."
-				: "Board: share findings, discoveries, ownership, decisions and blockers that change peers' work. Self-contained detail lets peers read directly, without a parent relay. Reply in existing threads. Link rather than repeat for peers with known Board access. Skip acknowledgements, routine status and duplicate completion reports."
+				? "Board→peer findings/decisions/ownership/blockers; existing threads; no ack/status spam/duplicate reports."
+				: "Board: share findings, decisions, ownership and blockers that change peers' work. Reply in existing threads; skip acknowledgements, routine status and duplicate reports."
 			: "",
 		notes
 			? [
 					board
 						? gpt
-							? "Notes→current work/progress/recovery + Board references."
-							: "Notes: current work, progress and recovery, with Board references."
+							? "Notes→recovery; link Board evidence."
+							: "Notes holds recovery checkpoints; link Board evidence."
 						: "",
 					gpt
-						? "Keep Notes checkpoints. Known recipient access→brief outcome/blocker + path; recipient READS checkpoint≠request full report."
-						: "Keep checkpoints in Notes. When the recipient is known to have access, return a brief outcome or blocker plus its path. The recipient reads the checkpoint for details rather than asking for a full report.",
+						? "Known recipient Notes access→brief outcome/blocker + checkpoint path; recipient reads details."
+						: "With known recipient Notes access, return a brief outcome or blocker plus the checkpoint path; the recipient reads the details.",
 				]
 					.filter(Boolean)
 					.join(" ")
 			: "",
 		notes || board
 			? gpt
-				? `${notes && board ? "Notes/Board" : notes ? "Notes" : "Board"} available here≠recipient access. Unknown/unshared access→self-contained actions taken/findings/unresolved state, not bare references.`
-				: `${notes && board ? "Notes and Board" : notes ? "Notes" : "Board"} availability here does not establish recipient access. If access is unknown or unshared, send a self-contained account of what you did, found and left unresolved, not just private references.`
+				? `${notes && board ? "Notes/Board" : notes ? "Notes" : "Board"} available here≠recipient access. Known access→link≠repeat; otherwise self-contained actions/findings/unresolved state.`
+				: `${notes && board ? "Notes and Board" : notes ? "Notes" : "Board"} availability here does not establish recipient access. Link rather than repeat when access is known; otherwise give a self-contained account of actions, findings and unresolved state.`
 			: "",
-		agents && notes && board
+		agents && (notes || board)
 			? gpt
 				? "agents→assignments/urgent action≠default peer knowledge bus."
 				: "Use agents for assignments and urgent action, not as the default peer knowledge relay."

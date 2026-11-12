@@ -88,7 +88,7 @@ recovery keep their existing Notes settings.
 
 `/notes` opens the settings panel in interactive Pi. It shows continuity status, storage counts and remote capabilities. Changes save immediately.
 
-- **Active** selects **All models** (the default), **Whitelist** or **Off**. Whitelist enables the extension only for exact model IDs in the global settings file, regardless of provider. Switching models applies the choice immediately; other models keep their installed compaction behaviour. Off disables Notes without deleting saved data.
+- **Enabled** selects **Off**, **On** (all models, the default) or **Whitelist**. Whitelist enables the extension only for exact model IDs in the global settings file, regardless of provider. Switching models applies the choice immediately; other models keep their installed compaction behaviour. Off disables Notes without deleting saved data.
 - **Normal compaction** uses the installed Pi or PCC compaction flow for `/compact` and `new_context`. Off keeps notes-only rollover, the default.
 - **New window requests** controls the agent's `new_context` tool independently of the compaction method. **off** disables the tool. **pi-limits** uses Pi's eligibility check and continues in the current window when there is too little history. **unrestricted**, the default, accepts requests at any size. With normal compaction on and nothing to summarise, unrestricted requests open a new window identity without discarding the existing context. Manual `/compact` and idle rollover retain their separate policies.
 - **Idle rollover** selects the interval or disables it.

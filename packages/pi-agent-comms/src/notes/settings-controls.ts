@@ -36,24 +36,24 @@ export function createNotesSettingsControls(
 	const list = new SettingsList(
 		[
 			{
+				id: "active",
+				label: "Enabled",
+				description: `On uses all models. Whitelist matches exact model IDs from any provider. Edit modelWhitelist in ${options.settingsPath}, then reload Pi.`,
+				currentValue:
+					settings.active === "off"
+						? "Off"
+						: settings.active === "all"
+							? "On"
+							: "Whitelist",
+				values: ["Off", "On", "Whitelist"],
+			},
+			{
 				id: "sessionPruning",
 				label: "Session auto-pruning",
 				currentValue: "select…",
 				values: ["select…", "settings…"],
 				description:
 					"Per-session history limits and Run now. Memory savings require restarting Pi.",
-			},
-			{
-				id: "active",
-				label: "Active",
-				description: `Whitelist matches exact model IDs from any provider. Edit modelWhitelist in ${options.settingsPath}, then reload Pi. Example: ["gpt-6-luna", "gpt-6.1-sol"].`,
-				currentValue:
-					settings.active === "off"
-						? "Off"
-						: settings.active === "all"
-							? "All models"
-							: "Whitelist",
-				values: ["Off", "All models", "Whitelist"],
 			},
 			{
 				id: "roles",
@@ -157,11 +157,7 @@ export function createNotesSettingsControls(
 				save({
 					...current,
 					active:
-						value === "Off"
-							? "off"
-							: value === "All models"
-								? "all"
-								: "whitelist",
+						value === "Off" ? "off" : value === "On" ? "all" : "whitelist",
 				});
 			else if (id === "sharing")
 				save({ ...current, shareSubagentContext: value === "on" });

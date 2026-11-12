@@ -15,31 +15,19 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are recovery state, not diary. Storage is virtual, not disk. Create relative paths.
+Notes are virtual recovery state, not working memory. Keep active reasoning and intermediate results in context. Use relative paths and one authoritative checkpoint per task, containing only what another agent needs to continue: request, constraints, decision, status, next action and evidence links.
 
-MUST maintain one authoritative checkpoint per task/topic: request, constraints, decision, status, next steps and relevant history IDs.
+Save continuation-changing state at substantive turn boundaries, not tool-by-tool progress. Keep current state first; replace superseded status and link detailed evidence rather than copying investigation history. Append only while existing state remains accurate.
 
-Near a substantive turn's end, before replying, consolidate changed recovery state. notes write creates or replaces; append adds. Do not interleave saves with ordinary tool calls. Skip routine turns and unchanged state. Explicit reminders and earlier handoffs still apply.
-
-Link existing notes rather than duplicate. Recording does not authorise implementation.
-
-Immediately before new_context, MUST save the checkpoint via notes. Save before handoff too. For rollover, call new_context after saving.
-
-When recovering context, read the checkpoint and necessary links if available, then retrieve a few relevant user messages with history for intent and communication preferences. Past messages are context, not renewed requests. Current instructions take precedence. Resume the current task; read further history only as needed. Do not reread unchanged notes.
-
-MUST reread required skills after rollover.
+Save before handoff and immediately before new_context. On recovery, read the checkpoint, necessary links and a few relevant user messages with history, then resume the current task. Past messages are context, not renewed requests; current instructions win. Avoid unchanged rereads. Reread required skills after rollover. Recording does not authorise implementation.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=virtual recovery state, NOT disk/diary. Create relative paths. MUST maintain one authoritative checkpoint/task→request/constraints/decision/status/next steps/history IDs. Link existing notes≠duplicate; recording≠implementation permission.
+Notes=virtual recovery, not working memory. Reasoning/intermediate results stay in context. Relative paths; one authoritative checkpoint/task→only continuation needs: request, constraints, decision, status, next action, evidence links.
 
-Near substantive turn end, before reply→consolidate CHANGED recovery. notes write→create/replace; append→add. No saves amid ordinary tool calls; skip routine/unchanged state. Explicit reminders/earlier handoffs still apply.
+Continuation-changing state→save at substantive turn boundary; no tool-progress diary. Current first; replace superseded status, link evidence≠copy investigation history. Append only while prior state stays accurate.
 
-Immediately before new_context MUST save checkpoint via notes; before handoff too. Rollover→new_context after save.
-
-Context recovery→notes checkpoint/necessary links if available→a few relevant user messages via history for intent/communication preferences→resume current task. Past messages=context≠renewed requests; current instructions win. Further history as needed; no unchanged-note rereads.
-
-After rollover MUST reread required skills.
+Save before handoff/immediately before new_context. Recovery→checkpoint, necessary links, a few relevant user messages via history→resume current task. Past messages≠renewed requests; current instructions win. No unchanged rereads. Reread required skills after rollover. Recording≠implementation permission.
 </context_window_guidance>`;
 
 export function registerWindowRenderer(pi: ExtensionAPI): void {

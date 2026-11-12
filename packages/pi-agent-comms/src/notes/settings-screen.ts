@@ -29,7 +29,7 @@ export async function openNotesSettings(
 		sessionPruning: SessionPruningSettings;
 	},
 ): Promise<"roles" | "board" | undefined> {
-	let selected = "sessionPruning";
+	let selected = "active";
 	while (true) {
 		const action = await ctx.ui.custom<ScreenAction>(
 			(tui, theme, _kb, done) => {
@@ -46,17 +46,13 @@ export async function openNotesSettings(
 						const rule = theme.fg("accent", "─".repeat(Math.max(0, width)));
 						return [
 							rule,
-							`  ${theme.bold("Notes & Compaction")}  /  ${theme.fg("dim", options.boardTab === false ? "Roles" : "Board")}`,
+							`  ${theme.bold("Notes")}  /  ${theme.fg("dim", options.boardTab === false ? "Roles" : "Board")}`,
 							"",
 							...options
 								.status()
 								.flatMap((line) =>
 									wrap(line).map((part) => theme.fg("dim", part)),
 								),
-							"",
-							...wrap(
-								"This extension works best on GPT6+ models. For other models we recommend switching the active option to whitelist or switching normal compaction on to work alongside the notes system.",
-							),
 							"",
 							...list.render(width).slice(0, -2),
 							"",
