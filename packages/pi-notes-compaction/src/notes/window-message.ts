@@ -15,7 +15,7 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are virtual recovery state, not working memory. Keep active reasoning and intermediate results in context. Use relative paths and one authoritative checkpoint per task, containing only what another agent needs to continue: request, constraints, decision, status, next action and evidence links.
+Notes are virtual recovery, not working memory. Keep reasoning and intermediate results in context. Use relative paths and one authoritative checkpoint per task with only continuation needs: request, task-specific constraints or exceptions, decision, status, next action and evidence links. Omit harness instructions, tool usage and skill-read bookkeeping.
 
 Save continuation-changing state at substantive turn boundaries, not tool-by-tool progress. Keep current state first; replace superseded status and link detailed evidence rather than copying investigation history. Append only while existing state remains accurate.
 
@@ -23,7 +23,7 @@ Save before handoff and immediately before new_context. On recovery, read the ch
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=virtual recovery, not working memory. Reasoning/intermediate results stay in context. Relative paths; one authoritative checkpoint/task→only continuation needs: request, constraints, decision, status, next action, evidence links.
+Notes=virtual recovery, not working memory. Reasoning/intermediate results stay in context. Relative paths; one authoritative checkpoint/task→only continuation needs: request, task constraints/exceptions, decision, status, next action, evidence links. Omit harness/tool instructions and skill-read state.
 
 Continuation-changing state→save at substantive turn boundary; no tool-progress diary. Current first; replace superseded status, link evidence≠copy investigation history. Append only while prior state stays accurate.
 
