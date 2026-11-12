@@ -13,7 +13,7 @@ export const JS_PRELUDE = String.raw`(bridge => {
   const format = value => {
     if (typeof value === 'string') return value;
     if (value instanceof Error) return describe(value);
-    try { return stringify(value, (_, v) => typeof v === 'bigint' ? String(v) + 'n' : v, 2) ?? String(value); }
+    try { return stringify(value, (_, v) => typeof v === 'bigint' ? String(v) + 'n' : v) ?? String(value); }
     catch { return String(value); }
   };
   const text = value => bridge('text', outputs.has(value) && typeof value.output === 'string' ? formatCommand(value, outputs.get(value)) : format(value));
