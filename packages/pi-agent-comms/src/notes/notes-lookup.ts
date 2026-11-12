@@ -79,7 +79,7 @@ export async function lookupNotes(
 		);
 	else if (lookupFailed)
 		warnings.push(
-			"Some notes could not be retrieved. Available notes are shown; retry the lookup to check for missing results.",
+			"Remote notes could not be checked. Local results are shown; retry to check for remote-only notes.",
 		);
 	if (responses.length && canProject && replacementsInScope)
 		warnings.push(

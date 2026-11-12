@@ -16,7 +16,15 @@ export interface ManagedCell { source: string; declarations: JsDeclaration[]; re
 /** Native cell-local lexicals retain const/TDZ/closure semantics. Free references
  * capture stable binding records rather than looking up later replacement names. */
 export function managedCell(source: string, existing: ReadonlyMap<string, JsDeclaration["kind"]>): ManagedCell {
-	const program = parse(source, { ecmaVersion: "latest", sourceType: "script", allowAwaitOutsideFunction: true });
+	const options = { ecmaVersion: "latest", sourceType: "script", allowAwaitOutsideFunction: true } as const;
+	const semicolons: number[] = [];
+	let program = parse(source, { ...options, onInsertedSemicolon: position => { semicolons.push(position); } });
+	// Unbound calls below introduce a leading `(`. Materialise the original ASI
+	// boundaries first, so newline-separated calls cannot become call chains.
+	if (semicolons.length) {
+		for (const position of semicolons.reverse()) source = source.slice(0, position) + ";" + source.slice(position);
+		program = parse(source, options);
+	}
 	const scopes = new WeakMap<AnyNode, Scope>(), declarations = new Map<string, JsDeclaration>();
 	const bindingIds = new WeakSet<AnyNode>(), variables = new Map<VariableDeclaration, boolean>(), functions: FunctionDeclaration[] = [];
 	const blockFunctions: { node: FunctionDeclaration; scope: Scope }[] = [];
