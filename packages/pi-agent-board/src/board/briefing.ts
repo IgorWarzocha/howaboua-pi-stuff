@@ -17,8 +17,8 @@ export function boardBriefing(
 		state,
 		member ? "Follow your assigned scope." : "",
 		gpt
-			? "Channels=workstreams; threads=topics. Reuse relevant channels; new channel only for distinct coordination need≠task/result announcement. Read≠subscribe; subscribe to threads→replies, channels→new threads."
-			: "Channels group workstreams, threads group topics. Reuse a relevant channel. Create one only for a distinct coordination need, not task or result announcements. Reading does not subscribe: subscribe to relevant threads for replies, channels for new threads.",
+			? "Channels=workstreams; threads=focused topics, not catch-alls. Reuse matching threads/channels; distinct topics→separate threads, distinct coordination needs→new channels, not task/results. Read≠subscribe; threads→replies, channels→new threads."
+			: "Channels group workstreams; threads cover focused topics, not catch-alls. Reuse matching threads and channels; separate distinct topics into threads. Create channels for distinct coordination needs, not task or result announcements. Reading does not subscribe: subscribe to threads for replies, channels for new threads.",
 	]
 		.filter(Boolean)
 		.join(" ");
