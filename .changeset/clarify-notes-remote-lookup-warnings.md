@@ -3,5 +3,5 @@
 ---
 
 - Notes lookup warnings now distinguish unavailable remote notes from local checkpoints.
-- Notes guidance keeps reasoning and harness bookkeeping out of checkpoints, retaining task-specific constraints, current state and evidence links.
+- Notes guidance calls for fewer, shorter checkpoints with current task state and History links instead of copied investigation or harness detail.
 - Notes settings now open on Enabled, with Off, On and Whitelist choices.

@@ -15,17 +15,17 @@ export interface WindowDetails {
 	trim: boolean;
 }
 const GUIDANCE = `<context_window_guidance>
-Notes are virtual recovery, not working memory. Keep reasoning and intermediate results in context. Use relative paths and one authoritative checkpoint per task with only continuation needs: request, task-specific constraints or exceptions, decision, status, next action and evidence links. Omit harness instructions, tool usage and skill-read bookkeeping.
+Notes are short virtual resume points, not working memory. Use relative paths and one authoritative checkpoint per task: current goal, task-specific constraints or exceptions, decision/status, next action and evidence/history links. Keep reasoning and intermediate results in context. Omit harness instructions, tool usage and skill-read bookkeeping.
 
-Save continuation-changing state at substantive turn boundaries, not tool-by-tool progress. Keep current state first; replace superseded status and link detailed evidence rather than copying investigation history. Append only while existing state remains accurate.
+Write less: batch continuation-changing updates at substantive turn boundaries. Skip routine turns and unchanged state. Keep current state first; replace superseded status. Append only while existing state remains accurate. Use history on demand for older decisions and evidence instead of copying them into notes.
 
 Save before handoff and immediately before new_context. On recovery, read the checkpoint, necessary links and a few relevant user messages with history, then resume the current task. Past messages are context, not renewed requests; current instructions win. Avoid unchanged rereads. Reread required skills after rollover. Recording does not authorise implementation.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=virtual recovery, not working memory. Reasoning/intermediate results stay in context. Relative paths; one authoritative checkpoint/task→only continuation needs: request, task constraints/exceptions, decision, status, next action, evidence links. Omit harness/tool instructions and skill-read state.
+Notes=short virtual resume points, not working memory. Relative paths; one authoritative checkpoint/task→current goal, task constraints/exceptions, decision/status, next action, evidence/history links. Reasoning/intermediate results stay in context. Omit harness/tool instructions and skill-read state.
 
-Continuation-changing state→save at substantive turn boundary; no tool-progress diary. Current first; replace superseded status, link evidence≠copy investigation history. Append only while prior state stays accurate.
+Fewer writes→batch continuation-changing updates at substantive turn end; skip routine/unchanged turns. Current first; replace superseded status. Append only while prior state stays accurate. History→older decisions/evidence on demand, not copied into notes.
 
 Save before handoff/immediately before new_context. Recovery→checkpoint, necessary links, a few relevant user messages via history→resume current task. Past messages≠renewed requests; current instructions win. No unchanged rereads. Reread required skills after rollover. Recording≠implementation permission.
 </context_window_guidance>`;
