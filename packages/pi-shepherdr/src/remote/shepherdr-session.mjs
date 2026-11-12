@@ -1,5 +1,6 @@
 // @howaboua/pi-shepherdr managed bridge
 
+import { createHash } from "node:crypto";
 import { open, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +13,8 @@ function record(value) {
 }
 
 const READ_CHUNK_BYTES = 64 * 1024;
-/** @type {Map<string,{mtimeMs:number,size:number,result:import("../types.js").SessionView}>} */
+/** @typedef {{leaf:string|undefined,entries:Record<string,unknown>[],result:import("../types.js").SessionView}} ViewSummary */
+/** @type {Map<string,{mtimeMs:number,ctimeMs:number,ino:number,dev:number,size:number,digest:string,terminated:boolean,summary:ViewSummary}>} */
 const sessionCache = new Map();
 
 /** @param {string} path */
@@ -95,9 +97,45 @@ export function extensionMessageKey(value) {
 	return JSON.stringify([value.extension, value.id]);
 }
 
-/** @param {string} path @param {number} size @returns {Promise<import("../types.js").SessionView>} */
-async function sessionView(path, size) {
-	const file = await open(path, "r");
+/** Verify the whole prefix: native Pi can rewrite a file in place, even to a larger size.
+ * @param {import("node:fs/promises").FileHandle} file
+ * @param {number} size
+ * @param {{size:number,digest:string}|undefined} cached
+ */
+async function fingerprint(file, size, cached) {
+	const hash = createHash("sha256");
+	const buffer = Buffer.allocUnsafe(1024 * 1024);
+	let position = 0;
+	let prefixMatches = false;
+	let terminated = false;
+	while (position < size) {
+		const boundary = cached && position < cached.size ? cached.size : size;
+		const length = Math.min(buffer.length, boundary - position);
+		const { bytesRead } = await file.read(buffer, 0, length, position);
+		if (!bytesRead) break;
+		hash.update(buffer.subarray(0, bytesRead));
+		position += bytesRead;
+		terminated = buffer[bytesRead - 1] === 0x0a;
+		if (position === cached?.size)
+			prefixMatches = hash.copy().digest("hex") === cached.digest;
+	}
+	return {
+		digest: hash.digest("hex"),
+		prefixMatches,
+		terminated,
+		complete: position === size,
+	};
+}
+
+/** @param {import("node:fs/promises").FileHandle} file @param {number} size
+ * @param {{size:number,summary:ViewSummary}|undefined} cached
+ * @returns {Promise<ViewSummary>}
+ */
+async function sessionView(file, size, cached) {
+	/** @type {string | undefined} */
+	let leaf;
+	/** @type {Record<string,unknown>[]} */
+	const entries = [];
 	/** @type {string | undefined} */
 	let targetId;
 	/** @type {import("../types.js").LatestAssistant | undefined} */
@@ -123,20 +161,14 @@ async function sessionView(path, size) {
 			? { assistantAfterInput: assistantDepth < inputDepth }
 			: {}),
 	});
-	/** @param {Buffer} line */
-	const inspect = (line) => {
-		if (line.length === 0) return false;
-		/** @type {unknown} */
-		let parsed;
-		try {
-			parsed = JSON.parse(line.toString("utf8"));
-		} catch {
-			return false;
-		}
-		const entry = record(parsed);
-		if (!entry || typeof entry["id"] !== "string") return false;
-		targetId ??= entry["id"];
-		if (entry["id"] !== targetId) return false;
+	/** Only retain semantic records, never image/tool payloads or the whole transcript.
+	 * @param {Record<string,unknown>} entry
+	 */
+	const consume = (entry) => {
+		if (typeof entry["id"] !== "string") return;
+		/** @type {Record<string,unknown>} */
+		const retained = { id: entry["id"], type: entry["type"] };
+		let keep = false;
 		const currentDepth = depth;
 		depth += 1;
 		if (
@@ -156,12 +188,16 @@ async function sessionView(path, size) {
 					id: update["id"],
 				});
 				if (!resolved.has(key)) {
-					if (update["state"] === "closed") resolved.add(key);
-					else {
+					if (update["state"] === "closed") {
+						// Suppress older pending records; closures need no cached replay.
+						resolved.add(key);
+					} else {
 						const pending = readExtensionMessage(update);
 						if (pending) {
 							extensionMessages.push(pending);
 							resolved.add(key);
+							retained["data"] = { version: 1, state: "pending", ...pending };
+							keep = true;
 						}
 					}
 				}
@@ -176,6 +212,8 @@ async function sessionView(path, size) {
 		) {
 			input = { id: entry["id"], text: entry["content"] };
 			inputDepth = currentDepth;
+			retained["content"] = input.text;
+			keep = true;
 		}
 		const message = record(entry["message"]);
 		if (message && typeof message === "object") {
@@ -185,8 +223,15 @@ async function sessionView(path, size) {
 				if (message["stopReason"] === "toolUse") {
 					assistantSeen = true;
 					assistantPending = !assistant;
+					retained["message"] = { role: "assistant", stopReason: "toolUse" };
+					keep = true;
 				} else {
 					const candidate = assistantFromMessage(entry["id"], message);
+					retained["message"] = {
+						role: "assistant",
+						content: candidate?.text,
+						stopReason: candidate?.stopReason,
+					};
 					if (
 						!assistant ||
 						candidate?.text ||
@@ -194,43 +239,81 @@ async function sessionView(path, size) {
 					) {
 						assistant = candidate;
 						if (assistant) assistantDepth = currentDepth;
+						keep = true;
 					}
 					assistantSeen = !!candidate?.text || candidate?.stopReason !== "stop";
 				}
 			}
 			if (!input) {
 				input = inputFromMessage(entry["id"], message);
-				if (input) inputDepth = currentDepth;
+				if (input) {
+					inputDepth = currentDepth;
+					retained["message"] = { role: "user", content: input.text };
+					keep = true;
+				}
 			}
 		}
 		if (input) assistantSeen = true;
+		if (keep) {
+			if (entry["customType"] !== undefined)
+				retained["customType"] = entry["customType"];
+			entries.push(retained);
+		}
+	};
+	const summary = () => ({ leaf, entries, result: result() });
+	/** @param {Buffer} line */
+	const inspect = (line) => {
+		if (line.length === 0) return false;
+		let parsed;
+		try {
+			parsed = JSON.parse(line.toString("utf8"));
+		} catch {
+			return false;
+		}
+		const entry = record(parsed);
+		if (!entry || typeof entry["id"] !== "string") return false;
+		leaf ??= entry["id"];
+		targetId ??= entry["id"];
+		if (entry["id"] !== targetId) return false;
+		consume(entry);
 		if (typeof entry["parentId"] !== "string") return true;
 		targetId = entry["parentId"];
 		return false;
 	};
 
-	try {
-		let position = size;
-		let partial = Buffer.alloc(0);
-		while (position > 0) {
-			const length = Math.min(READ_CHUNK_BYTES, position);
-			position -= length;
-			const chunk = Buffer.allocUnsafe(length);
-			const { bytesRead } = await file.read(chunk, 0, length, position);
-			const data = Buffer.concat([chunk.subarray(0, bytesRead), partial]);
-			let lineEnd = data["length"];
-			for (let index = data["length"] - 1; index >= 0; index -= 1) {
-				if (data[index] !== 0x0a) continue;
-				if (inspect(data["subarray"](index + 1, lineEnd))) return result();
-				lineEnd = index;
-			}
-			partial = data["subarray"](0, lineEnd);
+	let position = size;
+	const boundary = cached?.size ?? 0;
+	/** @type {Buffer[]} Fragments in reverse file order; join only at a newline. */
+	let fragments = [];
+	/** @param {Buffer} prefix */
+	const finishLine = (prefix) => {
+		if (!fragments.length) return inspect(prefix);
+		fragments.push(prefix);
+		const line = Buffer.concat(fragments.reverse());
+		fragments = [];
+		return inspect(line);
+	};
+	while (position > boundary) {
+		const length = Math.min(READ_CHUNK_BYTES, position - boundary);
+		position -= length;
+		const chunk = Buffer.allocUnsafe(length);
+		const { bytesRead } = await file.read(chunk, 0, length, position);
+		let lineEnd = bytesRead;
+		for (let index = bytesRead - 1; index >= 0; index -= 1) {
+			if (chunk[index] !== 0x0a) continue;
+			if (finishLine(chunk.subarray(index + 1, lineEnd))) return summary();
+			lineEnd = index;
 		}
-		inspect(partial);
-		return result();
-	} finally {
-		await file.close();
+		if (lineEnd) fragments.push(chunk.subarray(0, lineEnd));
 	}
+	if (finishLine(Buffer.alloc(0))) return summary();
+	if (cached) {
+		if (targetId !== undefined && targetId !== cached.summary.leaf)
+			return sessionView(file, size, undefined);
+		leaf ??= cached.summary.leaf;
+		for (const entry of cached.summary.entries) consume(entry);
+	}
+	return summary();
 }
 
 /** @param {string | undefined} path @returns {Promise<import("../types.js").SessionView>} */
@@ -241,20 +324,57 @@ export async function readSessionView(path) {
 	try {
 		metadata = await stat(expanded);
 	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT")
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			sessionCache.delete(expanded);
 			return {};
+		}
 		throw error;
 	}
 	const cached = sessionCache.get(expanded);
-	if (cached?.size === metadata.size && cached.mtimeMs === metadata.mtimeMs)
-		return cached.result;
-	const result = await sessionView(expanded, metadata.size);
-	sessionCache.set(expanded, {
-		size: metadata.size,
-		mtimeMs: metadata.mtimeMs,
-		result,
-	});
-	return result;
+	const sameFile = cached?.ino === metadata.ino && cached.dev === metadata.dev;
+	if (
+		sameFile &&
+		cached.size === metadata.size &&
+		cached.mtimeMs === metadata.mtimeMs &&
+		cached.ctimeMs === metadata.ctimeMs
+	)
+		return cached.summary.result;
+	const file = await open(expanded, "r");
+	try {
+		metadata = await file.stat();
+		const candidate =
+			sameFile && cached.terminated && cached.size < metadata.size
+				? cached
+				: undefined;
+		const fingerprinted = await fingerprint(file, metadata.size, candidate);
+		const summary = await sessionView(
+			file,
+			metadata.size,
+			fingerprinted.prefixMatches ? candidate : undefined,
+		);
+		const after = await file.stat();
+		// Never publish a cache built across a concurrent append, rewrite or truncation.
+		if (
+			fingerprinted.complete &&
+			after.size === metadata.size &&
+			after.mtimeMs === metadata.mtimeMs &&
+			after.ctimeMs === metadata.ctimeMs
+		) {
+			sessionCache.set(expanded, {
+				size: metadata.size,
+				mtimeMs: metadata.mtimeMs,
+				ctimeMs: metadata.ctimeMs,
+				ino: metadata.ino,
+				dev: metadata.dev,
+				digest: fingerprinted.digest,
+				terminated: fingerprinted.terminated,
+				summary,
+			});
+		} else sessionCache.delete(expanded);
+		return summary.result;
+	} finally {
+		await file.close();
+	}
 }
 
 /** Native session identity only; never create or load an entire transcript.
