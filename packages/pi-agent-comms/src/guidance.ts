@@ -24,8 +24,8 @@ function communicationGuidance(
 	return [
 		board
 			? gpt
-				? "Board→peer findings/decisions/ownership/blockers; existing threads; no ack/status spam/duplicate reports."
-				: "Board: share findings, decisions, ownership and blockers that change peers' work. Reply in existing threads; skip acknowledgements, routine status and duplicate reports."
+				? "Board→only new peer-work changes: findings/decisions/ownership/blockers. Report with no such change→no post. Existing threads."
+				: "Board: post only new findings, decisions, ownership changes or blockers that change peers' work. Reports without such a change need no post. Reply in existing threads."
 			: "",
 		notes
 			? [
