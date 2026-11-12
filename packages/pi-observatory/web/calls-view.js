@@ -148,7 +148,8 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 				Model: detail.call.model,
 				Project: detail.call.project,
 				Scope: detail.call.scope,
-				Source: `${detail.path}:${detail.line}`,
+				Source:
+					detail.line === null ? detail.path : `${detail.path}:${detail.line}`,
 				Session: detail.sessionId,
 				"Call ID": detail.callId,
 				"Parent call": detail.parentCallId || "—",
@@ -195,7 +196,7 @@ export function createCallsView(getQuery, selectCall, pageChanged) {
 				item.append(
 					node(
 						"summary",
-						`${message.role} · line ${message.line} · ${date(message.timestamp)}`,
+						`${message.role}${message.line === null ? "" : ` · line ${message.line}`} · ${date(message.timestamp)}`,
 					),
 					node("pre", message.text),
 				);

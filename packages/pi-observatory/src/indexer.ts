@@ -93,6 +93,21 @@ export function createIndexer(
 	const putRecord = db.prepare("INSERT INTO source_records VALUES (?,?,?,?,?)");
 	const provenance = createProvenance(db);
 	const pruning = createSourcePruning(db);
+	// Older releases blocked sparse rewrites before they could reconcile them.
+	// Retry that specific diagnostic once; genuinely unsupported rewrites reblock.
+	db.transaction(() => {
+		const migrated = db
+			.prepare(
+				"INSERT OR IGNORE INTO metadata VALUES ('sparsePruningRetry','1')",
+			)
+			.run();
+		if (migrated.changes)
+			db.prepare(
+				`UPDATE files SET blocked=0,issue=NULL WHERE blocked=1 AND issue=?`,
+			).run(
+				"File replaced, shortened or rewritten behind its cursor. Indexed history retained; use a fresh --db path to rebuild.",
+			);
+	})();
 	const missingHeaders = db.prepare<[number], FileState>(`
 		SELECT f.* FROM files f LEFT JOIN session_headers h ON h.file_id=f.id
 		WHERE h.file_id IS NULL AND f.offset>0 AND f.blocked=0 AND f.id>?

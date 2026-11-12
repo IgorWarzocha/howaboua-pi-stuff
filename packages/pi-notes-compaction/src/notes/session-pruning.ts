@@ -1,10 +1,16 @@
+import { dirname } from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { HistorySearch } from "./history-search.js";
+import {
+	recordCleanupFailure,
+	scheduleSessionCleanup,
+} from "./session-pruning-exit.mjs";
 import { planSessionPruning } from "./session-pruning-plan.js";
 import { RESTART_NOTICE } from "./session-pruning-policy.js";
+import { cleanupStatus } from "./session-pruning-state.mjs";
 import { commitSessionPruning } from "./session-pruning-transaction.js";
 import type { NotesStore } from "./store.js";
 import { windowDetails } from "./windows.js";
@@ -50,9 +56,36 @@ export class SessionPruning {
 		this.pending = undefined;
 	}
 	register(): void {
-		this.pi.on("session_shutdown", () => {
+		this.pi.on("session_shutdown", async (event, ctx) => {
 			this.epoch++;
 			this.pending = undefined;
+			if (event.reason !== "quit") {
+				return;
+			}
+			const file = ctx.sessionManager.getSessionFile();
+			if (!file) return;
+			const statusPath = cleanupStatus(file, dirname(this.store.path));
+			try {
+				const policy = this.store.pruningPolicy(
+					ctx.sessionManager.getSessionId(),
+				);
+				if (process.platform === "linux" && (policy.windows || policy.days))
+					await scheduleSessionCleanup(
+						file,
+						ctx.sessionManager.getSessionId(),
+						statusPath,
+					);
+			} catch (error) {
+				const message = `Session record cleanup could not start: ${String(error)}. Check local session storage and that Node.js is available as node, then exit Pi normally again. Retired payloads remain pruned.`;
+				recordCleanupFailure(
+					statusPath,
+					ctx.sessionManager.getSessionId(),
+					new Error(message),
+				);
+				ctx.ui.notify(message, "warning");
+			} finally {
+				this.store.close();
+			}
 		});
 		this.pi.on("agent_start", (_event, ctx) => {
 			// Pi emits agent_start before persisting incoming messages. Notes already

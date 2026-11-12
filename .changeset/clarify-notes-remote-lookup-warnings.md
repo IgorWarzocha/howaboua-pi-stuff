@@ -5,4 +5,6 @@
 - Notes lookup warnings now distinguish unavailable remote notes from local checkpoints.
 - Notes guidance calls for fewer, shorter updates, using task notes and/or checkpoints with History links instead of copied investigation or harness detail.
 - Notes guidance keeps no-action report updates to their ID and outcome when checkpointing is needed.
+- Retired session records are removed automatically after Pi exits.
+- Notes guidance distinguishes non-waking writes from direct messages, regardless of messaging tool.
 - Notes settings now open on Enabled, with Off, On and Whitelist choices.

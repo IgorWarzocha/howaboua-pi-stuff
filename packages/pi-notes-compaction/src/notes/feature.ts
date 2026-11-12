@@ -8,6 +8,11 @@ import type { CommsFeature } from "../guidance.js";
 import type { OpenSettings } from "../settings-navigation.js";
 import type { NotesRuntime } from "./index.js";
 import {
+	admitSessionCleanup,
+	previousCleanupFailure,
+} from "./session-pruning-exit.mjs";
+import { cleanupStatus } from "./session-pruning-state.mjs";
+import {
 	legacyNotesConfigured,
 	loadNotesSettings,
 	modelIsActive,
@@ -53,6 +58,43 @@ export function createNotesFeature(
 	let store: NotesStore | undefined;
 	let storage: Promise<NotesStore> | undefined;
 	let closed = false;
+	let staleOpening = false;
+	let releaseCleanupOwner: (() => void) | undefined;
+	const admit = async (ctx: ExtensionContext) => {
+		if (releaseCleanupOwner) return !staleOpening;
+		let reason: string | undefined;
+		try {
+			const claim = await admitSessionCleanup(
+				ctx.sessionManager.getSessionFile(),
+				ctx.sessionManager.getSessionId(),
+				ctx.sessionManager.getHeader(),
+			);
+			releaseCleanupOwner = claim?.release;
+			if (claim?.stale)
+				reason =
+					"This session was cleaned while Pi was opening it. Restart Pi to load its saved tree safely.";
+		} catch (error) {
+			reason = `Pi could not safely open this session: ${String(error)}. Resolve the problem and restart Pi.`;
+		}
+		if (!reason) return true;
+		staleOpening = true;
+		console.error(reason);
+		ctx.ui.notify(reason, "error");
+		if (ctx.mode === "rpc") {
+			// RPC honours startup shutdown after attaching input. Returning lets it
+			// reach that check before accepting normal commands.
+			ctx.shutdown();
+			return false;
+		}
+		if (ctx.mode === "tui") ctx.shutdown();
+		else {
+			// Released print/json mode installs graceful SIGTERM handling before
+			// session_start, but does not bind the documented ctx.shutdown action.
+			process.kill(process.pid, "SIGTERM");
+		}
+		// Do not finish binding or start an initial prompt/tree while exiting.
+		await new Promise<never>(() => {});
+	};
 	const ensureStore = () =>
 		(storage ??= (async () => {
 			const { NotesStore } = await import("./store.js");
@@ -110,6 +152,22 @@ export function createNotesFeature(
 			await open(ctx);
 		});
 	pi.on("session_start", async (_event, ctx) => {
+		if (!(await admit(ctx))) return;
+		const file = ctx.sessionManager.getSessionFile();
+		if (file) {
+			try {
+				const error = previousCleanupFailure(
+					cleanupStatus(file, dirname(notesSettingsPath())),
+					ctx.sessionManager.getSessionId(),
+				);
+				if (error) ctx.ui.notify(error, "warning");
+			} catch (error) {
+				ctx.ui.notify(
+					`Previous session cleanup status could not be read: ${String(error)}. Check Notes storage permissions and retry.`,
+					"warning",
+				);
+			}
+		}
 		try {
 			settings = loadNotesSettings(ctx);
 			writeSettings(notesSettingsPath(), settings);
@@ -126,12 +184,20 @@ export function createNotesFeature(
 			);
 		}
 	});
+	pi.on("agent_settled", async (_event, ctx) => {
+		// A brand-new session has no JSONL file until its first persisted turn.
+		await admit(ctx);
+	});
 	pi.on("model_select", async (_event, ctx) => {
 		if (!runtime && settings && modelIsActive(settings, ctx.model))
 			await ensure(ctx);
 	});
-	pi.on("session_shutdown", () => {
+	pi.on("session_shutdown", (event) => {
 		closed = true;
+		if (event.reason !== "quit") {
+			releaseCleanupOwner?.();
+			releaseCleanupOwner = undefined;
+		}
 		store?.close();
 	});
 	pi.registerCommand("notes", {

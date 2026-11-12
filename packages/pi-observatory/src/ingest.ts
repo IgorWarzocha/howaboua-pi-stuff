@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { createCallStore, type Source, type StoredCall } from "./calls.ts";
 import { createNestedIngestor } from "./nested.ts";
 import {
-	hash,
+	entryKey,
 	type JsonObject,
 	object,
 	string,
@@ -53,7 +53,7 @@ export function createIngestor(db: Database.Database) {
 		const role = string(message["role"], string(record["type"], "unknown"));
 		const at = timestamp(record["timestamp"] ?? message["timestamp"]);
 		// Branch exports can change parentId while preserving the original event and tool-call IDs.
-		const key = hash(JSON.stringify({ ...record, parentId: undefined }));
+		const key = entryKey(record);
 		putEntry.run({
 			key,
 			timestamp: at,

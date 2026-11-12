@@ -17,6 +17,10 @@ export function hash(value: string): string {
 	return createHash("sha256").update(value).digest("hex");
 }
 
+export function entryKey(record: JsonObject): string {
+	return hash(JSON.stringify({ ...record, parentId: undefined }));
+}
+
 export function timestamp(value: unknown): string {
 	if (typeof value !== "string" && typeof value !== "number") return "";
 	const date = new Date(value);

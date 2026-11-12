@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { open, stat } from "node:fs/promises";
 import type Database from "better-sqlite3";
-import { object } from "./normalise.ts";
+import { entryKey, object } from "./normalise.ts";
 
 const CHUNK_BYTES = 256 * 1024;
 const MAX_LINE_BYTES = 32 * 1024 * 1024;
@@ -21,6 +21,8 @@ interface Range {
 	length: number;
 	digest: string;
 	entry_id: string | null;
+	entry_key: string | null;
+	physicalLine?: number | null;
 }
 
 function generation(header: unknown): string | undefined {
@@ -38,7 +40,7 @@ function generation(header: unknown): string | undefined {
 		: undefined;
 }
 
-/** Notes preserves line order and IDs, but recipes cannot address changed payloads. */
+/** Logical source lines survive sparse rewrites; recipes cannot address changed payloads. */
 export function createSourcePruning(db: Database.Database) {
 	const key = (id: number) => `sessionPruneGeneration:${id}`;
 	const getGeneration = db.prepare<[string], { value: string }>(
@@ -48,7 +50,7 @@ export function createSourcePruning(db: Database.Database) {
 		"INSERT INTO metadata VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
 	);
 	const getRanges = db.prepare<[number], Range>(`
-		SELECT r.line,r.start,r.length,r.digest,e.entry_id FROM source_records r
+		SELECT r.line,r.start,r.length,r.digest,e.entry_id,e.entry_key FROM source_records r
 		LEFT JOIN file_entries e ON e.file_id=r.file_id AND e.line=r.line
 		WHERE r.file_id=? ORDER BY r.line
 	`);
@@ -58,6 +60,10 @@ export function createSourcePruning(db: Database.Database) {
 	const updateFile = db.prepare(
 		"UPDATE files SET identity=?,offset=?,tail=X'',skipping=0,mtime=? WHERE id=?",
 	);
+	const putPosition = db.prepare(`INSERT INTO source_positions VALUES (?,?,?)
+		ON CONFLICT(file_id,line) DO UPDATE SET physical_line=excluded.physical_line`);
+	const putDelta = db.prepare(`INSERT INTO source_position_files VALUES (?,?)
+		ON CONFLICT(file_id) DO UPDATE SET delta=excluded.delta`);
 	const revision = db.prepare(
 		"UPDATE metadata SET value=CAST(value AS INTEGER)+1 WHERE key='revision'",
 	);
@@ -104,15 +110,27 @@ export function createSourcePruning(db: Database.Database) {
 			)
 				return "unsupported";
 
-			// Only range metadata is retained. Payload memory is bounded to one record.
+			// Source lines are stable logical handles, not physical line numbers. New
+			// entries receive handles after file.line, even after physical deletions.
 			const ranges = getRanges.all(file.id);
-			let rangeIndex = 0;
-			let line = 0;
+			const byId = new Map<string, Range>();
+			for (const range of ranges) {
+				if (range.line === 1) continue;
+				if (!range.entry_id || byId.has(range.entry_id)) return "unsupported";
+				byId.set(range.entry_id, range);
+			}
+			const headerRange = ranges.find((range) => range.line === 1);
+			if (!headerRange) return "unsupported";
+			const seen = new Set<string>();
+			let previousLine = 0;
+			let physicalLine = 0;
 			let offset = 0;
 			let start = 0;
 			let length = 0;
+			let boundary: number | undefined;
+			let boundaryLine: number | undefined;
 			let pieces: Buffer[] = [];
-			while (line < file.line && offset < candidate.size) {
+			while (offset < candidate.size) {
 				if (!keepGoing()) return "retry";
 				const buffer = Buffer.allocUnsafe(
 					Math.min(CHUNK_BYTES, candidate.size - offset),
@@ -122,41 +140,58 @@ export function createSourcePruning(db: Database.Database) {
 				readBytes(read.bytesRead);
 				const chunk = buffer.subarray(0, read.bytesRead);
 				let cursor = 0;
-				while (cursor < chunk.length && line < file.line) {
+				while (cursor < chunk.length) {
 					const newline = chunk.indexOf(10, cursor);
 					const end = newline < 0 ? chunk.length : newline;
-					const range = ranges[rangeIndex];
-					const tracked = range?.line === line + 1;
 					length += end - cursor;
-					if (tracked) {
-						if (length > MAX_LINE_BYTES) return "unsupported";
-						pieces.push(chunk.subarray(cursor, end));
-					}
+					if (length > MAX_LINE_BYTES) return "unsupported";
+					pieces.push(chunk.subarray(cursor, end));
 					cursor = end + (newline < 0 ? 0 : 1);
 					if (newline < 0) continue;
-					line++;
-					if (tracked) {
-						const raw =
-							pieces.length === 1 ? pieces[0]! : Buffer.concat(pieces, length);
+					physicalLine++;
+					const raw =
+						pieces.length === 1 ? pieces[0]! : Buffer.concat(pieces, length);
+					let record: unknown;
+					try {
+						record = JSON.parse(raw.toString("utf8"));
+					} catch (error) {
+						if (error instanceof SyntaxError) return "unsupported";
+						throw error;
+					}
+					const id = object(record)["id"];
+					if (typeof id !== "string") return "unsupported";
+					const range = physicalLine === 1 ? headerRange : byId.get(id);
+					if (physicalLine === 1 && generation(record) !== nextGeneration)
+						return "retry";
+					if (!range) {
+						if (boundary === undefined) {
+							boundary = start;
+							boundaryLine = physicalLine - 1;
+						}
+					} else {
+						if (
+							boundary !== undefined ||
+							range.line <= previousLine ||
+							seen.has(id)
+						)
+							return "unsupported";
+						seen.add(id);
+						previousLine = range.line;
+						range.physicalLine = physicalLine;
 						const digest = createHash("sha256").update(raw).digest("hex");
-						if (digest !== range.digest || range.length === 0) {
-							let record: unknown;
-							try {
-								record = JSON.parse(raw.toString("utf8"));
-							} catch (error) {
-								if (error instanceof SyntaxError) return "unsupported";
-								throw error;
-							}
-							if (line === 1) {
-								if (generation(record) !== nextGeneration) return "retry";
-								range.digest = digest;
-							} else if (object(record)["id"] !== range.entry_id)
-								return "unsupported";
-							// Zero length is a durable tombstone; never apply an old recipe to a new shape.
-							range.length = line === 1 ? length : 0;
-						} else range.length = length;
+						if (physicalLine === 1) {
+							range.digest = digest;
+							range.length = length;
+						} else if (
+							range.length > 0 &&
+							(digest === range.digest ||
+								(range.entry_key !== null &&
+									entryKey(object(record)) === range.entry_key))
+						) {
+							range.length = length;
+							range.digest = digest;
+						} else range.length = 0;
 						range.start = start;
-						rangeIndex++;
 					}
 					start = offset + cursor;
 					pieces = [];
@@ -164,8 +199,10 @@ export function createSourcePruning(db: Database.Database) {
 				}
 				offset += read.bytesRead;
 			}
-			if (line !== file.line || rangeIndex !== ranges.length)
-				return "unsupported";
+			if (!physicalLine) return "unsupported";
+			for (const range of ranges)
+				if (range.line !== 1 && range.entry_id && !seen.has(range.entry_id))
+					range.length = 0;
 			const [current, path] = await Promise.all([
 				handle.stat(),
 				stat(file.path),
@@ -179,7 +216,7 @@ export function createSourcePruning(db: Database.Database) {
 			)
 				return "retry";
 			db.transaction(() => {
-				for (const range of ranges)
+				for (const range of ranges) {
 					updateRange.run(
 						range.start,
 						range.length,
@@ -187,7 +224,15 @@ export function createSourcePruning(db: Database.Database) {
 						file.id,
 						range.line,
 					);
-				updateFile.run(candidate.identity, start, current.mtimeMs, file.id);
+					putPosition.run(file.id, range.line, range.physicalLine ?? null);
+				}
+				putDelta.run(file.id, (boundaryLine ?? physicalLine) - file.line);
+				updateFile.run(
+					candidate.identity,
+					boundary ?? start,
+					current.mtimeMs,
+					file.id,
+				);
 				putGeneration.run(key(file.id), nextGeneration);
 				revision.run();
 			})();
