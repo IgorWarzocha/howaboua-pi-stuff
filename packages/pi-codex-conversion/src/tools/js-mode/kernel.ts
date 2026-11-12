@@ -1,12 +1,13 @@
 import { Worker } from "node:worker_threads";
 import type { JsRuntime } from "./runtime.ts";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
-import type { JsCommand, JsInput, JsMessage, JsOutcome, JsSnapshot, JsWorkerData } from "./protocol.ts";
+import type { JsCommand, JsInput, JsMessage, JsOutcome, JsWorkerData } from "./protocol.ts";
 
 interface Callbacks {
 	output(items: RuntimeContentItem[]): void;
 	notify(text: string): void;
 	yield(): void;
+	store(key: string, json?: string): void;
 	request(id: number, name: string, value: unknown): Promise<unknown>;
 }
 
@@ -19,10 +20,8 @@ export class JsKernel {
 	private failure: Error | undefined;
 	private stopping: Promise<void> | undefined;
 
-	static async create(runtime: JsRuntime, heapBytes: number, snapshot?: JsSnapshot, managementClone = false): Promise<JsKernel> {
-		const restored = snapshot ? { ...snapshot } : undefined;
-		if (restored && !managementClone) delete restored.startup;
-		return new JsKernel({ ...runtime, interrupt: new SharedArrayBuffer(4), heapBytes, ...(restored ? { snapshot: restored } : {}) });
+	static create(runtime: JsRuntime, heapBytes: number): JsKernel {
+		return new JsKernel({ ...runtime, interrupt: new SharedArrayBuffer(4), heapBytes });
 	}
 	private constructor(data: JsWorkerData) {
 		this.interrupt = new Int32Array(data.interrupt);
@@ -38,18 +37,20 @@ export class JsKernel {
 					case "output": active.callbacks.output(message.items); break;
 					case "notify": active.callbacks.notify(message.text); break;
 					case "yield": active.callbacks.yield(); break;
+					case "store": active.callbacks.store(message.key, message.json); break;
 					case "call": void this.request(message, active.callbacks); break;
 					case "done": this.active = undefined; active.resolve(message.outcome); break;
 				}
 			} catch (error) { this.fail(error instanceof Error ? error : new Error(String(error))); void this.stop(); }
 		});
-		this.worker.once("error", error => this.fail(new Error("JS Notebook stopped before the cell completed; use notebook restart", { cause: error })));
-		this.worker.once("exit", () => this.fail(new Error("JS Notebook stopped; use notebook restart to restore the last checkpoint")));
+		this.worker.once("error", error => this.fail(new Error("QuickJS Code stopped before the cell completed; run a new cell", { cause: error })));
+		this.worker.once("exit", () => this.fail(new Error("QuickJS Code stopped; run a new cell")));
 	}
+	get reusable(): boolean { return !this.failure && !this.stopping && !this.active; }
 
 	execute(input: JsInput, callbacks: Callbacks): Promise<JsOutcome> {
-		if (this.failure || this.stopping) return Promise.reject(this.failure ?? new Error("JS Notebook is stopping"));
-		if (this.active) return Promise.reject(new Error("A JS Notebook cell is already running"));
+		if (this.failure || this.stopping) return Promise.reject(this.failure ?? new Error("QuickJS Code is stopping"));
+		if (this.active) return Promise.reject(new Error("A QuickJS Code cell is already running"));
 		return new Promise((resolve, reject) => {
 			const run = ++this.next;
 			this.active = { run, callbacks, resolve, reject };
@@ -66,8 +67,8 @@ export class JsKernel {
 		try {
 			const result = await callbacks.request(message.id, message.name, message.json === "" ? undefined : JSON.parse(message.json));
 			const json = result === undefined ? "" : JSON.stringify(result);
-			if (typeof json !== "string") throw new Error("This tool result cannot be represented as JSON in JS Notebook");
-			if (json.length > 32 * 1024 * 1024) throw new Error("Tool result exceeds the JS Notebook limit; request less data");
+			if (typeof json !== "string") throw new Error("This tool result cannot be represented as JSON in QuickJS Code");
+			if (json.length > 32 * 1024 * 1024) throw new Error("Tool result exceeds the QuickJS Code limit; request less data");
 			reply = { kind: "reply", run: message.run, id: message.id, json };
 		} catch (error) { reply = { kind: "reply", run: message.run, id: message.id, error: error instanceof Error ? error.message : String(error) }; }
 		if (!this.stopping && this.active?.run === message.run) this.worker.postMessage(reply);

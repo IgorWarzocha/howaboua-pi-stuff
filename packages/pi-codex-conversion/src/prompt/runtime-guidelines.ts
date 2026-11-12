@@ -53,11 +53,6 @@ const TS_MODE_GUIDELINES = [
 	["After restart, recreate any values reported as unsaved", "Restart→recreate reported unsaved values"],
 ] as const;
 
-const JS_MODE_GUIDELINES = [
-	...STATEFUL_MODE_GUIDELINES,
-	["Normal exec cells share serial live state; inspect mutations after errors before retrying", "Normal cells→shared serial state; error→inspect mutations BEFORE retry"],
-] as const;
-
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
 	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
@@ -75,7 +70,6 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
 	...TS_MODE_GUIDELINES,
-	...JS_MODE_GUIDELINES,
 ];
 const GPT_GUIDELINES = new Map<string, string>(ALL_STATIC_CODEX_GUIDELINES.map(([normal, gpt]) => [normal, gpt]));
 
@@ -107,9 +101,9 @@ function buildCodexGuidelines(
 			NORMAL_CODEX_GUIDELINES[3][0],
 		].filter((guideline) => guideline !== undefined);
 	} else {
-		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || active.has("notebook"));
+		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || mode === "js" || active.has("notebook"));
 		guidelines = adapterSurfaceActive
-			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : mode === "js" ? JS_MODE_GUIDELINES : CODE_MODE_GUIDELINES)
+			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : CODE_MODE_GUIDELINES)
 				.filter(([, , tool]: RuntimeGuideline) => !tool || nestedTools.includes(tool))
 				.map(([guideline]) => guideline)
 			: [];
@@ -163,7 +157,7 @@ export function formatGuidelines(guidelines: readonly string[], shell?: string, 
 	const editing = new Set<string>([NORMAL_CODEX_GUIDELINES[2][0], CODE_MODE_GUIDELINES[4][0]]);
 	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES].map(([guideline]) => guideline));
 	execution.add("exec calls run sequentially");
-	const notebook = new Set<string>([...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES, ...JS_MODE_GUIDELINES].map(([guideline]) => guideline));
+	const notebook = new Set<string>([...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES].map(([guideline]) => guideline));
 	const general: string[] = [];
 	const groups: Record<string, string[]> = {
 		Execution: [],

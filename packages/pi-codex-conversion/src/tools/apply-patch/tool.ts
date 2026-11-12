@@ -253,7 +253,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}): Apply
 			}
 			const summary = result.fuzz > 0
 				? "Applied patch. Change details may be incomplete. Inspect the affected paths"
-				: "Applied patch";
+				: "OK";
 
 			const details = { status: "success", result } satisfies ApplyPatchSuccessDetails;
 			recordApplyPatchDisplayOutcome(toolCallId, {

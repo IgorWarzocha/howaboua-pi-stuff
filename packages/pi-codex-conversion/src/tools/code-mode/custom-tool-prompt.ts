@@ -23,18 +23,16 @@ Bare values discarded; globals: tools, image, generatedImage, store, load, exit,
 export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
 export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
 
-export const JS_EXEC_DESCRIPTION = `Run JavaScript in a persistent kernel; source only, no JSON or fences
+export const JS_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-For independent work while another cell runs, add "isolated":true to // @exec. Starts from last checkpoint; leaves shared variables unchanged
-Top-level await supported. Await host calls; dangling calls prevent checkpointing
+Await host calls; top-level await supported
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 content(value) emits MCP text/images in order
 No Node, imports, fetch, timers or TypeScript checking`;
 
-export const GPT_JS_EXEC_DESCRIPTION = `Persistent JS kernel; source ONLY, NO JSON/fences
+export const GPT_JS_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-${GPT_ISOLATED_EXEC_GUIDANCE}
-Top-level await; await host calls; dangling calls block checkpoint
+Top-level await; await host calls
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers/TSchecking`;
@@ -153,8 +151,8 @@ export function buildCodeModeToolsPrompt(
 	const sections = [
 		executionKind === "js"
 			? gpt
-				? "exec=project-shared JS; checkpoints preserve closures/classes/cycles; cancel→stop kernel; notebook restart→checkpoint≠external rollback"
-				: "exec=project-shared JavaScript kernel; checkpoints preserve closures/classes/cycles. Cancellation stops the kernel; notebook restart restores its checkpoint, not external tool effects"
+				? "exec=fresh QuickJS per call; max4 concurrent; store/load→conversation-local JSON, no disk persistence"
+				: "exec runs fresh QuickJS per call, with up to four concurrent cells. store/load retain conversation-local JSON, not disk state"
 			: executionKind === "ts"
 			? gpt
 				? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"

@@ -1,8 +1,7 @@
 import { commandOutputFormatterSource } from "../code-mode/command-output.ts";
 
-// Adapts Pi v1.4's tools-only JSON bridge and output-helper approach for a
-// persistent global-script context. No per-cell async-function wrapper: lexical
-// declarations and their closures belong to the VM and its native snapshots.
+// Synchronous output helpers need a direct bridge; public Pi sandbox globals
+// are async host calls and cannot replace its built-in output functions.
 export const JS_PRELUDE = String.raw`(bridge => {
   const parse = JSON.parse, stringify = JSON.stringify;
   const then = Function.prototype.call.bind(Promise.prototype.then);
@@ -33,16 +32,27 @@ export const JS_PRELUDE = String.raw`(bridge => {
     notify: value => bridge('notify', format(value)),
     yield_control: async () => { bridge('yield', ''); },
     exit: () => { throw EXIT; },
-    store: (key, value) => { if (typeof key !== 'string') throw new TypeError('store key must be a string'); stored.set(key, value); },
-    load: key => stored.get(key),
+    store: (key, value) => {
+      if (typeof key !== 'string') throw new TypeError('store key must be a string');
+      const json = value === undefined ? undefined : stringify(value);
+      if (value !== undefined && json === undefined) throw new TypeError('store expects JSON-compatible data');
+      if (json !== undefined && json.length > 256 * 1024) throw new Error('Stored value is too large; store less data');
+      let size = json === undefined ? 0 : key.length + json.length;
+      for (const [name, text] of stored) if (name !== key) size += name.length + text.length;
+      if (size > 1024 * 1024) throw new Error('Store is full; delete keys with store(key, undefined)');
+      if (json === undefined) stored.delete(key); else stored.set(key, json);
+      bridge('store', stringify({ key, json }));
+    },
+    load: key => { if (typeof key !== 'string') throw new TypeError('load key must be a string'); const json = stored.get(key); return json === undefined ? undefined : parse(json); },
     console: Object.freeze(Object.fromEntries(['log','info','warn','error','debug'].map(name => [name, (...args) => text(args.map(format).join(' '))])))
   };
   for (const [name, value] of Object.entries(helpers)) Object.defineProperty(globalThis, name, { value, configurable: false, writable: false });
   Object.defineProperty(globalThis, 'tools', { get: () => tools });
   Object.defineProperty(globalThis, 'ALL_TOOLS', { get: () => metadata });
   return Object.freeze({
-    configure(json) {
+    configure(json, state) {
       done = false; failure = undefined;
+      for (const [key, value] of Object.entries(parse(state))) stored.set(key, value);
       const definitions = parse(json), table = Object.create(null);
       for (const tool of definitions) table[tool.exposed] = (...args) => new Promise((resolve, reject) => {
         const value = args.length <= 1 ? args[0] : args;

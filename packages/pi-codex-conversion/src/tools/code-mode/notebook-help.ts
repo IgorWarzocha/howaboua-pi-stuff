@@ -1,23 +1,3 @@
-const JS_HELP = `Actions use {"input":"<JSON action object>"}
-{"action":"status","query"?:string}  Inspect retained binding names, kinds and types; query filters with * and ? globs
-{"action":"diagnostics"}  Inspect runtime health
-{"action":"hook","name":string,"event":"startup"|"tool_result"|false}  Register an existing function or remove its registration
-{"action":"checkpoint"}  Save the entire VM state
-{"action":"save","name":string,"names"?:string[]}  Save selected data, or omit names for a whole-notebook profile without project pin registrations
-{"action":"load","name":string}  Add selected data by value; a whole-notebook profile or isolated candidate REPLACES the live state
-{"action":"pin","names":string[]}  Protect plain-data bindings from release/prune and preserve them through reset
-{"action":"unpin","names":string[]}  Remove project pins, keeping live bindings
-{"action":"release","names":string[]}  Remove unprotected bindings, including const; names become reusable
-{"action":"prune","query":string}  Release bindings matching an explicit glob; pins and registered hooks survive
-{"action":"list","query"?:string}  List JS profiles and isolated candidates
-{"action":"restart"}  Stop active cells and restore the last checkpoint
-{"action":"reset"}  Reset the SHARED project notebook; pins and named profiles survive
-
-Conversations in the same Git project share the complete notebook, including hooks; outside Git, scope is the working folder. Normal cells serialize across conversations and refresh from the latest checkpoint. Failed cells may leave local live mutations; conflicting shared updates preserve a recovery profile instead of overwriting them. Cancellation stops that execution kernel; restart restores shared state, not external tool effects. Await all host calls. isolated:true saves a snapshot candidate; changed-base adoption requires explicit replacement. JS storage is separate from other modes
-Selective profiles and pins support primitives, mutable plain objects and arrays with aliases/cycles, not functions, classes, accessors or proxies. Unsupported pins leave the whole checkpoint intact and report failed reset-survival sync. Data loads reject name collisions. Release preserves aliases and captured values in surviving closures, so redeclaring a released name does not retarget them. Unreferenced values can be reclaimed; older native-scope images report any roots still retained
-Hooks persist across project conversations and full profiles. startup runs once per fresh execution kernel before its first user cell, without Pi tools; failure blocks user code until removal or restart. tool_result receives {type,toolName,input,status,result?,error?} after nested tools settle; hooks run in name order, awaited, without recursive triggering. Hook failures fail the cell and preserve live state. Registration does not run hooks
-Run state-changing controls after exec returns. Inside exec, tools.notebook({action:"status"}) without query, list and diagnostics are available`;
-
 const NOTEBOOK_HELP = `Actions use {"input":"<JSON action object>"}
 Example: {"input":"{\\"action\\":\\"status\\",\\"query\\":\\"*\\"}"}
 
@@ -102,26 +82,8 @@ Hooks=self-contained fn(event). startup→once/fresh restored kernel including i
 checkpoint registration: ONE binding, NO hook; named durable helpers snapshot(value)→portable current data, restore(data)→rebuilt value; either async. Restorers ALSO for profiles/isolated cells; reconnect MAY cause external effects. Restore failure→block execution, preserve checkpoint; recovery→unpin reported names
 TS state≠Deno. Normal cells share bindings/closures/modules. Snapshots retain supported data/helper recipes, report skipped live-only values. Live errors MAY leave mutations; tool/file effects NEVER roll back. Isolated cells→checkpoint copy→saved candidate; live state unchanged UNTIL explicit candidate load REPLACES kernel`;
 
-const JS_GPT_HELP = `Native {"input":"<JSON action object>"}; nested tools.notebook({action,...})
-status query?:string→retained names/kinds/types; * and ? glob filter
-diagnostics→health
-hook name:string event:"startup"|"tool_result"|false→register existing function/remove registration
-checkpoint→entire VM state
-save name:string names?:string[]→selected data; omit names→whole-notebook profile WITHOUT project pin registrations
-load name:string→add selected data by value; whole-notebook profile/isolated candidate→REPLACE live state
-pin names:string[]→plain-data release/prune protection+reset survival
-unpin names:string[]→remove project pins; keep live bindings
-release names:string[]→remove unprotected bindings including const; names reusable
-prune query:string→explicit glob release; pins/registered hooks survive
-list query?:string→JS profiles/isolated candidates
-restart→stop active cells; restore last checkpoint
-reset→reset SHARED project notebook; pins/named profiles survive
-Same Git project→shared complete notebook/hooks across conversations; outside Git→working folder. Normal cells→serial across conversations+refresh latest checkpoint. Failed cells MAY leave mutations; shared conflict→recovery profile, NOT overwrite. Cancel→stop execution kernel; restart→shared state, NOT external tool rollback. Await ALL host calls. isolated:true→snapshot candidate; changed-base adoption→EXPLICIT replacement. JS storage≠other modes
-Selective profiles/pins: primitives/mutable plain objects/arrays+aliases/cycles; NO functions/classes/accessors/proxies. Unsupported pins→preserve whole checkpoint+report failed reset-survival sync. Data loads reject collisions. Release preserves aliases/captured closure values; redeclaration NEVER retargets. Unreferenced values reclaimable; older native-scope images report retained roots
-Hooks persist across project conversations/full profiles. startup→once/fresh kernel BEFORE first user cell; NO Pi tools; failure blocks user code until removal/restart. tool_result→AFTER nested tools settle: {type,toolName,input,status,result?,error?}; awaited in name order; NO recursive trigger. Hook failure→fail cell, preserve live state. Registration≠invocation
-Controls AFTER exec; inside exec ONLY: status(no query), list, diagnostics`;
-
 export function notebookHelpForMode(kind: string, gpt: boolean): string {
-	if (gpt) return kind === "js" ? JS_GPT_HELP : kind === "ts" ? TS_GPT_HELP : NOTEBOOK_GPT_HELP;
-	return kind === "js" ? JS_HELP : kind === "ts" ? TS_HELP : NOTEBOOK_HELP;
+	if (kind !== "notebook" && kind !== "ts") throw new Error("Notebook controls require Notebook or TS mode.");
+	if (gpt) return kind === "ts" ? TS_GPT_HELP : NOTEBOOK_GPT_HELP;
+	return kind === "ts" ? TS_HELP : NOTEBOOK_HELP;
 }

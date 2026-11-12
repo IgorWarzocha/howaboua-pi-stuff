@@ -35,7 +35,7 @@ export async function registerCodexCodeMode(
 		if (ctx) latestContext = ctx as ExtensionContext;
 		const plan = resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state);
 		if (!isCodeModeRuntime(plan)) return false;
-		const requiredTools = plan.kind !== "code"
+		const requiredTools = plan.kind === "notebook" || plan.kind === "ts"
 			? NOTEBOOK_MODE_TOOL_NAMES
 			: CODE_MODE_TOOL_NAMES;
 		const activeTools = pi.getActiveTools();
@@ -49,7 +49,7 @@ export async function registerCodexCodeMode(
 			if (!latestContext) return undefined;
 			const plan = resolveCodexRuntimePlanForState(latestContext, runtime.state);
 			if (!isCodeModeRuntime(plan)) return undefined;
-			const required = plan.kind !== "code" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			const required = plan.kind === "notebook" || plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			if (!required.every((name) => loadout.declared.some((tool) => tool.name === name))) return undefined;
 			// MCP can activate native discovery after our preparation hook or during
 			// a run. Reconcile outside Pi's synchronous loadout callback.

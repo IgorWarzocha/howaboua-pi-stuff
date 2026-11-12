@@ -183,7 +183,7 @@ export function resolveCodexRuntimePlan(
 		const transport: "responses-lite" | "responses" = usesResponsesLite(ctx, config)
 			? "responses-lite"
 			: "responses";
-		if (requestedCodeMode === "notebook" || requestedCodeMode === "ts" || requestedCodeMode === "js") {
+		if (requestedCodeMode === "notebook" || requestedCodeMode === "ts") {
 			const statefulPlan = {
 				...base,
 				toolNames: [
@@ -192,22 +192,21 @@ export function resolveCodexRuntimePlan(
 				transport,
 				nativeCompaction,
 			};
-			return requestedCodeMode === "js"
-				? { ...statefulPlan, kind: "js", prompt: "js" }
-				: requestedCodeMode === "ts"
+			return requestedCodeMode === "ts"
 				? { ...statefulPlan, kind: "ts", prompt: "ts" }
 				: { ...statefulPlan, kind: "notebook", prompt: "notebook" };
 		}
-		return {
+		const statelessPlan = {
 			...base,
-			kind: "code",
 			toolNames: [
 				...CODE_MODE_TOOL_NAMES,
 			],
-			prompt: "code",
 			transport,
 			nativeCompaction,
 		};
+		return requestedCodeMode === "js"
+			? { ...statelessPlan, kind: "js", prompt: "js" }
+			: { ...statelessPlan, kind: "code", prompt: "code" };
 	}
 	return {
 		...base,

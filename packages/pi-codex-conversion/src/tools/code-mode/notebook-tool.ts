@@ -48,28 +48,17 @@ function notebookActionParameters(allowCheckpoint = false) {
 	]);
 }
 
-const JS_ACTION_PARAMETERS = union([
-	obj({ action: { ...lit("hook"), type: "string" }, name: str(), event: union([StringEnum(["startup", "tool_result"]), { ...lit(false), type: "boolean" }]) }),
-	obj({ action: StringEnum(["status", "list"]), query: opt(str()) }),
-	obj({ action: StringEnum(["checkpoint", "restart", "diagnostics", "reset"]) }),
-	obj({ action: { ...lit("save"), type: "string" }, name: str(), names: opt(arr(str(), { minItems: 1 })) }),
-	obj({ action: { ...lit("load"), type: "string" }, name: str() }),
-	obj({ action: StringEnum(["pin", "unpin", "release"]), names: arr(str(), { minItems: 1 }) }),
-	obj({ action: { ...lit("prune"), type: "string" }, query: str() }),
-]);
-
 function actionParameters(kind: string) {
-	return kind === "js" ? JS_ACTION_PARAMETERS : kind === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS;
+	return kind === "ts" ? TS_ACTION_PARAMETERS : NOTEBOOK_ACTION_PARAMETERS;
 }
 
 const NOTEBOOK_ACTION_PARAMETERS = notebookActionParameters();
 const TS_ACTION_PARAMETERS = notebookActionParameters(true);
 const notebookActions = compile(NOTEBOOK_ACTION_PARAMETERS);
 const tsActions = compile(TS_ACTION_PARAMETERS);
-const jsActions = compile(JS_ACTION_PARAMETERS);
 
 function actionValidator(kind: string) {
-	return kind === "js" ? jsActions : kind === "ts" ? tsActions : notebookActions;
+	return kind === "ts" ? tsActions : notebookActions;
 }
 
 export const NOTEBOOK_PARAMETERS = obj({
@@ -96,7 +85,6 @@ type NotebookToolParameters = {
 	name?: string | undefined;
 	names?: string[] | undefined;
 	hook?: string | false | undefined;
-	event?: string | false | undefined;
 	checkpoint?: { snapshot: string; restore: string } | undefined;
 };
 
@@ -156,7 +144,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 
 export function createNotebookControlProxy(
 	runtime: SharedCodeModeRuntime,
-	kind: "code" | "notebook" | "ts" | "js" = "notebook",
+	kind: "notebook" | "ts" = "notebook",
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
@@ -181,7 +169,7 @@ export async function executeNotebookControl(
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
 	validateModeRequest(runtime, params, context);
-	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts", runtime.executionKind(context.extensionContext) === "js"), context, signal);
+	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts"), context, signal);
 }
 
 export async function executeNotebookExecControl(
@@ -191,7 +179,7 @@ export async function executeNotebookExecControl(
 	signal?: AbortSignal,
 ): Promise<NotebookControlResult> {
 	validateModeRequest(runtime, params, context);
-	const request = normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts", runtime.executionKind(context.extensionContext) === "js");
+	const request = normalizeNotebookRequest(params, runtime.executionKind(context.extensionContext) === "ts");
 	if (!canExecuteNotebookControlInsideExec(request))
 		return {
 			message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify({ input: JSON.stringify(request) })}.`,
@@ -201,8 +189,9 @@ export async function executeNotebookExecControl(
 }
 
 function validateModeRequest(runtime: SharedCodeModeRuntime, params: NotebookToolParameters, context: ToolExecutionContext): void {
-	if (runtime.executionKind(context.extensionContext) === "js" && !jsActions.check(params))
-		throw new Error("Invalid JS Notebook action; call notebook({}) for supported controls");
+	const kind = runtime.executionKind(context.extensionContext);
+	if (kind !== "notebook" && kind !== "ts") throw new Error("Notebook controls require Notebook or TS mode.");
+	if (!actionValidator(kind).check(params)) throw new Error("Invalid notebook action; call notebook({}) for supported controls");
 }
 
 function executeNormalizedNotebookControl(
@@ -214,21 +203,15 @@ function executeNormalizedNotebookControl(
 	return runtime.controlNotebook(request, context, signal);
 }
 
-export function normalizeNotebookRequest(params: NotebookToolParameters, allowCheckpoint = false, allowSelectedData = false): NotebookControlRequest {
+export function normalizeNotebookRequest(params: NotebookToolParameters, allowCheckpoint = false): NotebookControlRequest {
 	params = {
 		action: params.action,
 		...(params.query == null ? {} : { query: params.query }),
 		...(params.name == null ? {} : { name: params.name }),
 		...(params.names == null ? {} : { names: params.names }),
 		...(params.hook == null ? {} : { hook: params.hook }),
-		...(params.event === undefined ? {} : { event: params.event }),
 		...(params.checkpoint === undefined ? {} : { checkpoint: params.checkpoint }),
 	};
-	if (params.action === "hook") {
-		if (!params.name || params.query !== undefined || params.names !== undefined || params.hook !== undefined || params.checkpoint !== undefined || params.event !== false && params.event !== "startup" && params.event !== "tool_result") throw new Error("notebook hook requires name and event: startup, tool_result, or false");
-		return { action: "hook", name: params.name, event: params.event };
-	}
-	if (params.event !== undefined) throw new Error("event requires notebook hook");
 	if (params.checkpoint !== undefined && (!allowCheckpoint || params.action !== "pin" || params.names?.length !== 1 || params.hook !== undefined || !params.checkpoint || typeof params.checkpoint.snapshot !== "string" || typeof params.checkpoint.restore !== "string")) throw new Error("TS checkpoint requires pin, one binding, named snapshot and restore helpers, and no hook");
 	if (params.hook !== undefined && (params.action !== "pin" || params.hook !== false && params.hook !== "startup" && params.hook !== "tool_result")) {
 		throw new Error("notebook hook requires pin and startup, tool_result, or false");
@@ -238,10 +221,6 @@ export function normalizeNotebookRequest(params: NotebookToolParameters, allowCh
 		return { action: params.action, ...(params.query === undefined ? {} : { query: params.query }) };
 	}
 	if (params.action === "save" || params.action === "load") {
-		if (allowSelectedData && params.action === "save" && params.names !== undefined) {
-			if (!params.name || !params.names.length || params.query !== undefined) throw new Error("Selective JS save requires name and nonempty names");
-			return { action: "save", name: params.name, names: [...new Set(params.names)] };
-		}
 		if (params.query !== undefined || params.names !== undefined) throw new Error(`notebook ${params.action} accepts name only`);
 		if (!params.name) throw new Error(`notebook ${params.action} requires name`);
 		return { action: params.action, name: params.name };
