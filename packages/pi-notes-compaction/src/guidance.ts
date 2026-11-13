@@ -23,8 +23,8 @@ function communicationGuidance(
 	return [
 		board
 			? gpt
-				? "Board→new peer-work findings/decisions/ownership/blockers only; no change→no post. No idle wake; active subscribers may be interrupted."
-				: "Board: post only new findings, decisions, ownership changes or blockers that change peers' work. Reports without such a change need no post. Posts do not wake idle agents but may interrupt active subscribers."
+				? "Board→new peer-work findings/decisions/ownership/blockers only; no change→no post. Peers read directly; no parent relay. No idle wake; active subscribers may be interrupted."
+				: "Board: post only findings, decisions, ownership changes or blockers that change peers' work. Peers read posts directly; do not relay them through the parent. Posts do not wake idle agents but may interrupt active subscribers."
 			: "",
 		notes
 			? [
@@ -37,8 +37,8 @@ function communicationGuidance(
 							: "Notes holds recovery checkpoints; link Board evidence."
 						: "",
 					gpt
-						? "Known recipient Notes access→brief outcome/blocker + checkpoint path; recipient reads details."
-						: "With known recipient Notes access, return a brief outcome or blocker plus the checkpoint path; the recipient reads the details.",
+						? "Known recipient Notes access→brief outcome/blocker + checkpoint path; recipient reads checkpoint instead of requesting its contents."
+						: "With known recipient Notes access, return a brief outcome or blocker plus the checkpoint path; the recipient reads the checkpoint instead of requesting its contents.",
 				]
 					.filter(Boolean)
 					.join(" ")

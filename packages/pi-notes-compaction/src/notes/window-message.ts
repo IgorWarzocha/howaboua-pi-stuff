@@ -17,15 +17,15 @@ export interface WindowDetails {
 const GUIDANCE = `<context_window_guidance>
 Notes are short virtual resume points, not working memory. Use task notes and/or checkpoints as needed. Reuse existing notes and avoid duplicating state. Use relative paths. Keep only current goal, task-specific constraints or exceptions, decision/status, next action and evidence/history links. Keep reasoning and intermediate results in context. Omit harness instructions, tool usage and skill-read bookkeeping.
 
-Write less: batch continuation-changing updates at substantive turn boundaries. Skip routine turns and unchanged state. If a no-action report needs recording, add only its run/report ID and "no owned action". Keep current state first; replace superseded status. Append only while existing state remains accurate. Use history on demand for older decisions and evidence instead of copying them into notes.
+Write less: consolidate changed recovery state at substantive turn end, before replying. Skip routine turns and unchanged state unless explicit reminders or earlier handoffs require a save. If a no-action report needs recording, add only its run/report ID and "no owned action". Keep current state first; replace superseded status. Append only while existing state remains accurate. Use history on demand for older decisions and evidence instead of copying them into notes.
 
 Save relevant notes before handoff and immediately before new_context. On recovery, read relevant notes, necessary links and a few relevant user messages with history, then resume the current task. Past messages are context, not renewed requests; current instructions win. Avoid unchanged rereads. Reread required skills after rollover. Recording does not authorise implementation.
 </context_window_guidance>`;
 
 const GPT_GUIDANCE = `<context_window_guidance>
-Notes=short virtual resume points, not working memory. Relative paths; task notes and/or checkpoints as needed. Reuse existing notes; avoid duplicate state→current goal, task constraints/exceptions, decision/status, next action, evidence/history links. Reasoning/intermediate results stay in context. Omit harness/tool instructions and skill-read state.
+Notes=short virtual resume points, not working memory. Relative paths; task notes and/or checkpoints as needed. Reuse existing notes; avoid duplicate state. Keep only current goal, task constraints/exceptions, decision/status, next action, evidence/history links. Reasoning/intermediate results stay in context. Omit harness/tool instructions and skill-read state.
 
-Fewer writes→batch continuation-changing updates at substantive turn end; skip routine/unchanged turns. No-action report + save needed→add only run/report ID + "no owned action". Current first; replace superseded status. Append only while prior state stays accurate. History→older decisions/evidence on demand, not copied into notes.
+Fewer writes→consolidate changed recovery at substantive turn end BEFORE reply; skip routine/unchanged turns unless explicit reminders/earlier handoffs require saving. No-action report + save needed→add only run/report ID + "no owned action". Current first; replace superseded status. Append only while prior state stays accurate. History→older decisions/evidence on demand, not copied into notes.
 
 Save relevant notes before handoff/immediately before new_context. Recovery→relevant notes, necessary links, a few relevant user messages via history→resume current task. Past messages≠renewed requests; current instructions win. No unchanged rereads. Reread required skills after rollover. Recording≠implementation permission.
 </context_window_guidance>`;
