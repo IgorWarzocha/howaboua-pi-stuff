@@ -4,7 +4,7 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-import { previewText, renderTextAndImages } from "./render-content.js";
+import { type EmittedImageCounts, previewText, renderTextAndImages } from "./render-content.js";
 import {
 	CodeModeNestedRenderStore,
 	type NestedRenderState,
@@ -29,8 +29,9 @@ export function renderTraceAndOutput(
 	options: { expanded: boolean; isPartial: boolean },
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
-	emittedImages: Map<string, Set<string>>,
+	emittedImages: EmittedImageCounts,
 	renderStore: CodeModeNestedRenderStore,
+	traceStates: Map<string, NestedRenderState>,
 ): Component {
 	if (traces.length === 0 && droppedTraceCount === 0) return output;
 	const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -53,6 +54,7 @@ export function renderTraceAndOutput(
 			context,
 			emittedImages,
 			renderStore,
+			traceStates,
 		);
 		for (const component of rendered) container.addChild(component);
 	}
@@ -69,14 +71,20 @@ function renderTrace(
 	options: { expanded: boolean; isPartial: boolean },
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
-	emittedImages: Map<string, Set<string>>,
+	emittedImages: EmittedImageCounts,
 	renderStore: CodeModeNestedRenderStore,
+	traceStates: Map<string, NestedRenderState>,
 ): Component[] {
-	const renderedTrace = withoutEmittedImages(trace, emittedImages);
 	const programmatic = isProgrammaticTool(tool) ? tool : undefined;
-	const renderState = renderStore.get(trace.id);
-	const rendererInput = renderState.input ?? trace.input;
-	const rendererResult = renderState.result ?? renderedTrace.result;
+	const captured = renderStore.get(trace.id);
+	const renderState = traceStates.get(trace.id) ?? { state: {} };
+	traceStates.set(trace.id, renderState);
+	const renderedTrace = withoutEmittedImages(
+		captured.result ? { ...trace, result: captured.result } : trace,
+		emittedImages,
+	);
+	const rendererInput = captured.input ?? trace.input;
+	const rendererResult = renderedTrace.result;
 	const partial = trace.status === "running" || trace.status === "blocked";
 	const renderContext: CodeModeNestedRenderContext = {
 		...(context?.keyHint ? { keyHint: context.keyHint } : {}),
@@ -115,7 +123,12 @@ function renderTrace(
 				rendererResult,
 				{ expanded: options.expanded, isPartial: partial },
 				theme,
-				{ ...renderContext, lastComponent: renderState.resultComponent },
+				{
+					...renderContext,
+					// Like Pi's native row, this wrapper owns result-content images.
+					showImages: rendererResult.content.some((item) => item.type === "image") ? false : renderContext.showImages,
+					lastComponent: renderState.resultComponent,
+				},
 			);
 			renderState.resultComponent = resultComponent;
 			components.push(resultComponent);
@@ -131,18 +144,26 @@ function renderTrace(
 	} else if (renderedTrace.result && !customResultRendered) {
 		components.push(renderGenericTraceResult(renderedTrace, theme, options.expanded || options.isPartial, context, renderState));
 	}
-	renderStore.rebalance(trace.id);
+	if (customResultRendered && rendererResult && context?.showImages !== false) {
+		const images = rendererResult.content.filter((item) => item.type === "image");
+		if (images.length) components.push(renderTextAndImages("", images, theme, renderState.images ??= []));
+	}
 	return components;
 }
 
 function withoutEmittedImages(
 	trace: RuntimeToolTrace,
-	emittedImages: Map<string, Set<string>>,
+	emittedImages: EmittedImageCounts,
 ): RuntimeToolTrace {
-	if (!trace.result) return trace;
-	const content = trace.result.content.filter(
-		(item) => item.type !== "image" || !emittedImages.get(item.mimeType)?.has(item.data),
-	);
+	if (!trace.result || emittedImages.size === 0) return trace;
+	const content = trace.result.content.filter((item) => {
+		if (item.type !== "image") return true;
+		const counts = emittedImages.get(item.mimeType);
+		const count = counts?.get(item.data) ?? 0;
+		if (!counts || count === 0) return true;
+		counts.set(item.data, count - 1);
+		return false;
+	});
 	if (content.length === trace.result.content.length) return trace;
 	return { ...trace, result: { ...trace.result, content } };
 }
@@ -174,7 +195,7 @@ function renderGenericTraceResult(
 		.filter((item): item is { type: "text"; text: string } => item.type === "text")
 		.map((item) => item.text)
 		.join("\n");
-	const images = result.content.filter(
+	const images = context?.showImages === false ? [] : result.content.filter(
 		(item): item is typeof item & { data: string; mimeType: string } =>
 			item.type === "image" && typeof item.data === "string" && typeof item.mimeType === "string",
 	);

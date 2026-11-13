@@ -2,13 +2,11 @@ import {
 	type KeybindingHints,
 	truncateToVisualLines,
 } from "@earendil-works/pi-coding-agent";
-import {
-	Container,
-	Image,
-	Spacer,
-	Text,
-} from "@earendil-works/pi-tui";
+import type { Container, Text } from "@earendil-works/pi-tui";
+import { type RenderedImage, renderTextWithImages } from "../../ui/tool-rendering/media.ts";
 import type { CodeModeRenderTheme } from "./types.js";
+
+export type { RenderedImage } from "../../ui/tool-rendering/media.ts";
 
 export interface RenderedToolContent {
 	type: string;
@@ -17,19 +15,15 @@ export interface RenderedToolContent {
 	mimeType?: string | undefined;
 }
 
-export interface RenderedImage {
-	data: string;
-	mimeType: string;
-	component: Image;
-}
+export type EmittedImageCounts = Map<string, Map<string, number>>;
 
 export function imagesByMimeType(
 	contents: Array<RenderedToolContent & { data: string; mimeType: string }>,
-): Map<string, Set<string>> {
-	const images = new Map<string, Set<string>>();
+): EmittedImageCounts {
+	const images: EmittedImageCounts = new Map();
 	for (const item of contents) {
-		const data = images.get(item.mimeType) ?? new Set<string>();
-		data.add(item.data);
+		const data = images.get(item.mimeType) ?? new Map<string, number>();
+		data.set(item.data, (data.get(item.data) ?? 0) + 1);
 		images.set(item.mimeType, data);
 	}
 	return images;
@@ -56,24 +50,5 @@ export function renderTextAndImages(
 	theme: CodeModeRenderTheme,
 	imageCache: RenderedImage[] = [],
 ): Text | Container {
-	const previousImages = imageCache.splice(0);
-	if (images.length === 0) return new Text(text, text ? 4 : 0, 0);
-	const container = new Container();
-	if (text) container.addChild(new Text(text, 4, 0));
-	for (const [index, image] of images.entries()) {
-		if (text || index > 0) container.addChild(new Spacer(1));
-		// Consume matches once so repeated images keep distinct placements, in result order.
-		const previousIndex = previousImages.findIndex((previous) =>
-			previous.data === image.data && previous.mimeType === image.mimeType);
-		const retained = previousIndex < 0 ? undefined : previousImages.splice(previousIndex, 1)[0];
-		const component = retained?.component ?? new Image(
-			image.data,
-			image.mimeType,
-			{ fallbackColor: (value) => theme.fg("dim", value) },
-			{ maxWidthCells: 60, maxHeightCells: 20 },
-		);
-		imageCache.push({ data: image.data, mimeType: image.mimeType, component });
-		container.addChild(component);
-	}
-	return container;
+	return renderTextWithImages(text, images, theme, { paddingX: text ? 4 : 0, maxHeightCells: 20, imageCache });
 }

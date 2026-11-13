@@ -182,14 +182,15 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			const path = args && typeof args === "object" && "path" in args && typeof args.path === "string" ? args.path : undefined;
 			return renderCodexToolCell("Viewed Image", path, theme);
 		},
-		renderResult(result, { isPartial }, theme) {
+		renderResult(result, { isPartial }, theme, context) {
 			if (isPartial) {
 				return new Text(theme.fg("warning", "Loading image..."), 0, 0);
 			}
 			const textBlock = result.content.find((item) => item.type === "text");
 			const text = theme.fg("dim", textBlock?.type === "text" ? textBlock.text : "");
-			const content = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromViewImageDetails(result.details)];
-			return renderTextWithImages(text, content, theme);
+			// Pi owns result-content images. Only text-model previews live exclusively in details.
+			const previews = result.content.some((item) => item.type === "image") ? [] : imageContentsFromViewImageDetails(result.details);
+			return renderTextWithImages(text, previews, theme, { showImages: context.showImages, lastComponent: context.lastComponent });
 		},
 		}),
 	};

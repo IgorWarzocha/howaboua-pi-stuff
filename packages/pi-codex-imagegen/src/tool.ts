@@ -16,7 +16,7 @@ import {
 	type ImagegenOutput,
 	imageContentsFromImagegenOutput,
 } from "./output.js";
-import { renderTextWithImages, renderToolCell } from "./render.js";
+import { renderToolCell } from "./render.js";
 import { readImagegenSettings } from "./settings.js";
 
 export function createImageGenerationTool(
@@ -92,9 +92,7 @@ export function createImageGenerationTool(
 							"dim",
 							textBlock?.type === "text" ? textBlock.text : "(no output)",
 						);
-						return result.content.some((item) => item.type === "image")
-							? renderTextWithImages(text, result.content, theme)
-							: new Text(text, 0, 0);
+						return new Text(text, 0, 0);
 					},
 				}),
 	};

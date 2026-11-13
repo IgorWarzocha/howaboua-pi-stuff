@@ -2,7 +2,6 @@ import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-
 import { truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { renderCodexToolCell } from "./codex-tool-cell.ts";
-import { renderTextWithImages } from "./media.ts";
 
 interface AuxiliaryToolPresentation {
 	active: string;
@@ -42,7 +41,7 @@ export function auxiliaryToolRenderers(
 						if (preview && preview.skippedCount > 0) lines.push(theme.fg("muted", `… ${preview.skippedCount} more lines · ${hint}`));
 					} else if (body && body !== summary) lines.push(theme.fg("dim", hint));
 					const text = lines.filter(Boolean).join("\n");
-					return renderTextWithImages(text, context.showImages ? result.content : [], theme, { paddingX: text ? 2 : 0 }).render(width);
+					return new Text(text, text ? 2 : 0, 0).render(width);
 				},
 				invalidate() {},
 			};
