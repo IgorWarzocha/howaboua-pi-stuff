@@ -77,8 +77,8 @@ export function createModelRoles(
 			? [
 					`Current role: ${currentRole}`,
 					lifecycle.gptPromptMode()
-						? 'Roles=user preferences, not capability limits. Switch for clear, sustained task/scope change, not one specialised prompt. Any role can do general work. Bounded specialist detour→consider subagent. Save notes→new_context({role: "name"}); omit role→keep role.'
-						: 'Roles are user preferences, not capability limits. Switch for clear, sustained change of task or scope, not single specialised prompt. Any role can do general work. Consider subagents for a bounded specialist detour. Save notes, then call new_context({role: "name"}); omit role to keep the current role.',
+						? 'Roles=user-configured model+reasoning presets, not capabilities/permissions. Each agent, including workers, chooses its own role autonomously; NO parent/user approval needed. Main work enters substantial new phase→reassess descriptions, switch for sustained better fit. Single specialised question/brief detour≠switch; any role can do general work. Change your own role, not delegate just to access one. Save notes→new_context({role: "name"})→fresh window, same session; omit role→keep preset.'
+						: 'Roles select user-configured model and reasoning presets, not capabilities or permissions. Each agent, including workers, chooses its own role autonomously; no parent or user approval needed. Reassess the descriptions when your main work enters a substantial new phase, and switch for a sustained better fit, not a single specialised question or brief detour. Any role can do general work. Change your own role rather than delegating just to access one. Save notes, then call new_context({role: "name"}) to open a fresh window in this session; omit role to keep the current preset.',
 					...config.roles.map((role) => `- ${role.id}: ${role.description}`),
 				].join("\n")
 			: "No model roles available. Call new_context without role.";
