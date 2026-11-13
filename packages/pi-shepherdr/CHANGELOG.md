@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 1.0.1
+
+- Reduce CPU use when monitoring long sessions.
+
 ## 1.0.0
 
 ### Breaking changes

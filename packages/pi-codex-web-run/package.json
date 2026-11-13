@@ -49,7 +49,7 @@
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=1.5.0",
 		"@earendil-works/pi-tui": ">=1.0.0",
-		"@howaboua/pi-codex-conversion": ">=4.0.10"
+		"@howaboua/pi-codex-conversion": ">=5.0.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.6",
@@ -58,7 +58,7 @@
 		"@types/node": "^26.6.6",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"@howaboua/pi-codex-conversion": "4.0.10"
+		"@howaboua/pi-codex-conversion": "5.0.0"
 	},
 	"pi": {
 		"extensions": [

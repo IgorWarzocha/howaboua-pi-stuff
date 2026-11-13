@@ -76,7 +76,7 @@
     "@howaboua/pi-gippity-control": ">=0.0.32",
     "@earendil-works/pi-coding-agent": ">=1.5.0",
     "@earendil-works/pi-tui": ">=1.0.0",
-    "@howaboua/pi-codex-conversion": ">=4.0.10"
+    "@howaboua/pi-codex-conversion": ">=5.0.0"
   },
   "peerDependenciesMeta": {
     "@howaboua/pi-gippity-control": {
@@ -95,7 +95,7 @@
     "knip": "^6.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "typescript": "^7.0.2",
-    "@howaboua/pi-codex-conversion": "4.0.10"
+    "@howaboua/pi-codex-conversion": "5.0.0"
   },
   "publishConfig": {
     "access": "public"
