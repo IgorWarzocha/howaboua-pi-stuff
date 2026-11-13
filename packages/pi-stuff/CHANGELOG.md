@@ -1,5 +1,12 @@
 # @howaboua/pi-stuff
 
+## 0.0.115
+
+- Include bundled package updates:
+
+  - @howaboua/pi-github-watch: Return `OK` after cancelling all watches.
+  - @howaboua/pi-shepherdr: Reduce CPU use when monitoring long sessions.
+
 ## 0.0.114
 
 - Include bundled package updates:

@@ -1,5 +1,9 @@
 # @howaboua/pi-github-watch
 
+## 0.0.6
+
+- Return `OK` after cancelling all watches.
+
 ## 0.0.5
 
 - Requires Pi 1.5 or newer.

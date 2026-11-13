@@ -1,5 +1,9 @@
 # @howaboua/pi-observatory
 
+## 0.0.5
+
+- Keep retained session details and historical statistics available after sparse history pruning.
+
 ## 0.0.4
 
 - Requires Pi 1.5 or newer.
