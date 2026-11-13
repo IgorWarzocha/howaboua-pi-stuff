@@ -3,7 +3,7 @@ import type { CoreConnection } from "../core/backend.js";
 import type { PaneInfo, PeerMessage } from "../types.js";
 
 const DELEGATED_WORKER_GUIDANCE =
-	"If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Finish with an assistant reply, not a separate send report; never watch your parent.";
+	"Your final assistant reply automatically reports the result or blocker to the parent. End the turn instead of sending a separate completion message. If blocked mid-run, use a question-asking tool, not peer messages. Without one, end with the blocker. Never watch your parent.";
 
 export function xml(value: string): string {
 	return value
