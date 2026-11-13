@@ -45,6 +45,7 @@ export interface SpawnOwnership {
 	terminal: string;
 	sessionFile: string;
 	agent?: string;
+	supervised?: boolean;
 	launch?: Static<typeof SavedLaunch>;
 	aliases?: string[];
 }
@@ -77,6 +78,9 @@ export function spawnedChildren(ctx: ExtensionContext): SpawnOwnership[] {
 			...("agent" in value && typeof value.agent === "string"
 				? { agent: value.agent }
 				: {}),
+			...("supervised" in value && typeof value.supervised === "boolean"
+				? { supervised: value.supervised }
+				: {}),
 			...("aliases" in value &&
 			Array.isArray(value.aliases) &&
 			value.aliases.every((alias) => typeof alias === "string")
@@ -93,6 +97,25 @@ export function spawnedChildren(ctx: ExtensionContext): SpawnOwnership[] {
 		children.set(JSON.stringify([child.session, child.sessionFile]), child);
 	}
 	return [...children.values()];
+}
+
+/** Terminal closure ends a live watch, not the parent's saved delegation policy. */
+export function setChildSupervision(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	machine: string,
+	panel: Pick<PaneInfo, "pane_id" | "agent_session">,
+	supervised: boolean,
+): void {
+	const file = sessionPath(panel);
+	for (const child of spawnedChildren(ctx)) {
+		if (
+			child.session === machine &&
+			(child.pane === panel.pane_id || (file && child.sessionFile === file)) &&
+			(child.supervised !== false) !== supervised
+		)
+			pi.appendEntry(ENTRY, { ...child, supervised } satisfies SpawnOwnership);
+	}
 }
 
 // Capture before launch. A context switch must never adopt a completed spawn.

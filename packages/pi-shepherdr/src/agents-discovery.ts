@@ -68,8 +68,8 @@ export async function agentsHelp(
 				? "target=Pi session reference or terminal; /root=live spawn root"
 				: "Use the Pi session reference or terminal target; /root selects the live root of saved spawn ancestry",
 			resume: gpt
-				? "send/assign to owned closed worker→resume saved session; /quit never resumes"
-				: "Sending or assigning to a closed worker recorded by this parent resumes its saved session; /quit never resumes",
+				? "send/assign to owned closed worker→resume saved session+reporting unless unwatched; /quit never resumes"
+				: "Sending or assigning to an owned closed worker resumes its saved session and reporting unless unwatched; /quit never resumes",
 			label: "Short Pi session name; app tabs use default names",
 			placement:
 				"terminal (default), new_tab, new_workspace; new_tab needs space ID",

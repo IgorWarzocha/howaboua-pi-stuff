@@ -20,6 +20,27 @@ interface OwnedTarget {
 	runtime: ConnectedMachine;
 	panel: PaneInfo;
 	resumed: boolean;
+	restoreSupervision?: true;
+}
+
+function ownedTarget(
+	runtime: ConnectedMachine,
+	panel: PaneInfo,
+	resumed: boolean,
+	child?: SpawnOwnership,
+): OwnedTarget {
+	return {
+		runtime,
+		panel,
+		resumed,
+		...(child &&
+		child.supervised !== false &&
+		!runtime.monitor
+			.list()
+			.some((record) => record.terminalId === panel.terminal_id)
+			? { restoreSupervision: true as const }
+			: {}),
+	};
 }
 
 /** Parent-owned saved sessions, not a general session launcher or delivery retry. */
@@ -42,6 +63,7 @@ export class WorkerResumer {
 		const selected = machine
 			? this.fleet.connected(machine).machine
 			: undefined;
+		const children = spawnedChildren(ctx);
 		// A current native address/name always wins over a saved routing alias.
 		if (!target.startsWith("/")) {
 			const runtime = this.fleet.connected(machine);
@@ -50,20 +72,30 @@ export class WorkerResumer {
 			const live = exact
 				? [exact]
 				: snapshot.agents.filter((panel) => panel.name === target);
-			if (live.length)
-				return {
+			if (live.length) {
+				const panel = await resolvePiAgent(
+					runtime.client,
+					target,
+					runtime.local ? process.env["HC_TERMINAL_ID"] : "",
+				);
+				const machineId = runtime.local
+					? this.fleet.localMachine()
+					: runtime.machine;
+				return ownedTarget(
 					runtime,
-					panel: await resolvePiAgent(
-						runtime.client,
-						target,
-						runtime.local ? process.env["HC_TERMINAL_ID"] : "",
+					panel,
+					false,
+					children.find(
+						(child) =>
+							child.session === machineId &&
+							child.sessionFile === sessionPath(panel),
 					),
-					resumed: false,
-				};
+				);
+			}
 		}
 		const candidates: { child: SpawnOwnership; runtime: ConnectedMachine }[] =
 			[];
-		for (const child of spawnedChildren(ctx)) {
+		for (const child of children) {
 			const direct =
 				child.agent === target ||
 				child.pane === target ||
@@ -166,7 +198,7 @@ export class WorkerResumer {
 				throw new Error(
 					"Worker identity changed; resolve its current session before sending",
 				);
-			return { runtime, panel: live[0], resumed: false };
+			return ownedTarget(runtime, live[0], false, child);
 		}
 		if (!allowResume)
 			throw new Error("Worker is already closed; no session was resumed");
@@ -223,7 +255,7 @@ export class WorkerResumer {
 				started.agent,
 				agent,
 			);
-			return { runtime, panel: started.agent, resumed: true };
+			return ownedTarget(runtime, started.agent, true, child);
 		} catch (error) {
 			return rollbackStartedAgent(runtime.client, started, error);
 		}

@@ -128,7 +128,11 @@ export async function dispatchAgentWork(
 	signal: AbortSignal,
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
 	send: () => Promise<PeerDelivery | void>,
-	options: { expectUserMessage?: boolean; replyingTo?: ExtensionReply } = {},
+	options: {
+		expectUserMessage?: boolean;
+		onAccepted?: () => void;
+		replyingTo?: ExtensionReply;
+	} = {},
 ): Promise<{
 	settlement?: ClaimedSettlement;
 	command?: true;
@@ -207,6 +211,7 @@ export async function dispatchAgentWork(
 		} else {
 			runtime.monitor.acceptWork(attempt);
 			runtime.monitor.noteMessage(panel.pane_id, task);
+			options.onAccepted?.();
 		}
 		await runtime.monitor.reconcileNow();
 	} catch (error) {

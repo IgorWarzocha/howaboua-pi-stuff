@@ -70,7 +70,9 @@ export async function resolvePiAgent(
 	return agent;
 }
 
-export function sessionPath(agent: PaneInfo): string | undefined {
+export function sessionPath(
+	agent: Pick<PaneInfo, "agent_session">,
+): string | undefined {
 	return agent.agent_session?.kind === "path"
 		? agent.agent_session.value
 		: undefined;
