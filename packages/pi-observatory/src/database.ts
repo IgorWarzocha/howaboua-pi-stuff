@@ -36,6 +36,7 @@ export function initialiseDatabase(
 			throw new Error(
 				"This index belongs to another session directory. Choose a different --db path.",
 			);
+		initialiseSourcePositions(db);
 		return;
 	}
 	db.pragma("journal_mode = WAL");
@@ -137,6 +138,14 @@ export function initialiseDatabase(
 		);
 		db.prepare("INSERT OR IGNORE INTO metadata VALUES ('revision', '0')").run();
 		initialiseProvenance(db);
+		initialiseSourcePositions(db);
 		db.pragma("user_version = 3");
 	})();
+}
+
+function initialiseSourcePositions(db: Database.Database): void {
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS source_position_files (file_id INTEGER PRIMARY KEY REFERENCES files(id), delta INTEGER NOT NULL);
+		CREATE TABLE IF NOT EXISTS source_positions (file_id INTEGER NOT NULL REFERENCES files(id), line INTEGER NOT NULL, physical_line INTEGER, PRIMARY KEY(file_id,line));
+	`);
 }

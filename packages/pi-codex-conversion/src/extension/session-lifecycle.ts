@@ -151,7 +151,7 @@ export function createCodexSessionLifecycle(
 			syncAdapter(pi, ctx, state);
 			prepareCodeModeHost(codeMode, ctx);
 			if (stateful) {
-				ctx.ui.notify(`${state.executionMode === "js" ? "JS Notebook" : state.executionMode === "ts" ? "TS" : "Notebook"} state reset after conversation-tree navigation`, "info");
+				ctx.ui.notify(`${state.executionMode === "js" ? "QuickJS Code store" : state.executionMode === "ts" ? "TS state" : "Notebook state"} reset after conversation-tree navigation`, "info");
 			}
 		},
 		shutdown: async (_event, ctx) => {

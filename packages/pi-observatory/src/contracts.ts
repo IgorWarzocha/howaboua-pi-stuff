@@ -83,12 +83,12 @@ export interface CallDetail {
 	arguments: string;
 	result: string;
 	path: string;
-	line: number;
+	line: number | null;
 	sessionId: string;
 	callId: string;
 	parentCallId: string | null;
 	context: Array<{
-		line: number;
+		line: number | null;
 		role: string;
 		timestamp: string;
 		text: string;

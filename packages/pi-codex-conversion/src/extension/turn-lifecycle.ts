@@ -38,7 +38,7 @@ export function createCodexTurnLifecycle(
 		selectedTools = pi.getActiveTools(),
 	): Promise<boolean> => {
 		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
-		if ((kind !== "notebook" && kind !== "ts" && kind !== "js")
+		if ((kind !== "notebook" && kind !== "ts")
 			|| !["exec", "wait", "notebook"].every((name) => selectedTools.includes(name))) return Promise.resolve(false);
 		return recordNotebookStatus(pi, ctx, state, messages ?? runtime.projectContextMessages(ctx), codeMode, kind);
 	};
@@ -57,7 +57,7 @@ export function createCodexTurnLifecycle(
 			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "notebook" && plan.kind !== "ts" && plan.kind !== "js") state.notebookStatusMessageId = undefined;
+			if (plan.kind !== "notebook" && plan.kind !== "ts") state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
@@ -113,7 +113,7 @@ export function createCodexTurnLifecycle(
 			// Runtime shell state follows the admitted conversation and other notices, never the static prefix.
 			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
-			const required = plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			const required = plan.kind === "notebook" || plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
 			try {
 				messages = projectCodeModeMcpSections(messages, isCodeModeRuntime(plan)
 					&& required.every(name => pi.getActiveTools().includes(name)));

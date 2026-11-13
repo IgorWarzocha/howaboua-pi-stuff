@@ -137,7 +137,7 @@ function prepareStructuredSkills(
 		? options.selectedTools.includes("exec_command")
 		: options.selectedTools.includes("exec")
 			&& options.selectedTools.includes("wait")
-			&& (mode === "code" || options.selectedTools.includes("notebook"));
+			&& (mode === "code" || mode === "js" || options.selectedTools.includes("notebook"));
 	if (heavy && sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () => piWillRenderSkills() ? content : "");
 	}

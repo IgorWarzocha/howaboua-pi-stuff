@@ -18,38 +18,40 @@ export interface CommsFeature extends FeatureSettings {
 function communicationGuidance(
 	notes: boolean,
 	board: boolean,
-	agents: boolean,
 	gpt = false,
 ): string {
 	return [
 		board
 			? gpt
-				? "Board→peer findings/discovery, ownership/decisions/blockers affecting peers. Self-contained detail welcome; direct discovery≠parent relay. Existing thread replies; known shared peers→link≠repeat. No ack/status spam/duplicate completion reports."
-				: "Board: share findings, discoveries, ownership, decisions and blockers that change peers' work. Self-contained detail lets peers read directly, without a parent relay. Reply in existing threads. Link rather than repeat for peers with known Board access. Skip acknowledgements, routine status and duplicate completion reports."
+				? "Board→new peer-work findings/decisions/ownership/blockers only; no change→no post. Peers read directly; no parent relay. No idle wake; active subscribers may be interrupted."
+				: "Board: post only findings, decisions, ownership changes or blockers that change peers' work. Peers read posts directly; do not relay them through the parent. Posts do not wake idle agents but may interrupt active subscribers."
 			: "",
 		notes
 			? [
+					gpt
+						? "Notes writes don't wake peers."
+						: "Notes writes do not wake peers.",
 					board
 						? gpt
-							? "Notes→current work/progress/recovery + Board references."
-							: "Notes: current work, progress and recovery, with Board references."
+							? "Notes→recovery; link Board evidence."
+							: "Notes holds recovery checkpoints; link Board evidence."
 						: "",
 					gpt
-						? "Keep Notes checkpoints. Known recipient access→brief outcome/blocker + path; recipient READS checkpoint≠request full report."
-						: "Keep checkpoints in Notes. When the recipient is known to have access, return a brief outcome or blocker plus its path. The recipient reads the checkpoint for details rather than asking for a full report.",
+						? "Known recipient Notes access→brief outcome/blocker + checkpoint path; recipient reads checkpoint instead of requesting its contents."
+						: "With known recipient Notes access, return a brief outcome or blocker plus the checkpoint path; the recipient reads the checkpoint instead of requesting its contents.",
 				]
 					.filter(Boolean)
 					.join(" ")
 			: "",
 		notes || board
 			? gpt
-				? `${notes && board ? "Notes/Board" : notes ? "Notes" : "Board"} available here≠recipient access. Unknown/unshared access→self-contained actions taken/findings/unresolved state, not bare references.`
-				: `${notes && board ? "Notes and Board" : notes ? "Notes" : "Board"} availability here does not establish recipient access. If access is unknown or unshared, send a self-contained account of what you did, found and left unresolved, not just private references.`
+				? `${notes && board ? "Notes/Board" : notes ? "Notes" : "Board"} available here≠recipient access. Known access→link≠repeat; otherwise self-contained actions/findings/unresolved state.`
+				: `${notes && board ? "Notes and Board" : notes ? "Notes" : "Board"} availability here does not establish recipient access. Link rather than repeat when access is known; otherwise give a self-contained account of actions, findings and unresolved state.`
 			: "",
-		agents && notes && board
+		notes || board
 			? gpt
-				? "agents→assignments/urgent action≠default peer knowledge bus."
-				: "Use agents for assignments and urgent action, not as the default peer knowledge relay."
+				? "Direct messages→assignments or urgent action, not status or courtesy updates."
+				: "Use direct messages for assignments or urgent action, not status or courtesy updates."
 			: "",
 	]
 		.filter(Boolean)
@@ -73,11 +75,9 @@ export function registerCommunicationGuidance(
 		(ctx) => Boolean(notes?.enabled(ctx) || board?.enabled(ctx)),
 		async (ctx, windowId, messages) => {
 			// Feature owners supply enablement independently of provider declarations.
-			// Shepherdr keeps agents active, including as a nested Code/Notebook tool.
 			const capabilities = [
 				notes?.enabled(ctx) ?? false,
 				board?.enabled(ctx) ?? false,
-				pi.getActiveTools().includes("agents"),
 				Boolean(notes?.gptPromptMode() || board?.gptPromptMode()),
 			] as const;
 			const routing = communicationGuidance(...capabilities);

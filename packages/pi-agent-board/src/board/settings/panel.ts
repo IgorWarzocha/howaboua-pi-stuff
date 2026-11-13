@@ -33,7 +33,7 @@ export async function openBoardSettings(
 		return;
 	}
 	let scope: BoardScope = "session";
-	let selected = "scope";
+	let selected = "enabled";
 	const sessionId = ctx.sessionManager.getSessionId();
 	while (true) {
 		try {
@@ -42,16 +42,16 @@ export async function openBoardSettings(
 				const list = new SettingsList(
 					[
 						{
+							id: "enabled",
+							label: "Enabled",
+							currentValue: board.enabled(ctx) ? "On" : "Off",
+							values: ["Off", "On"],
+						},
+						{
 							id: "scope",
 							label: "Scope",
 							currentValue: scope,
 							values: ["session", "folder", "global"],
-						},
-						{
-							id: "enabled",
-							label: "Board",
-							currentValue: board.enabled(ctx) ? "on" : "off",
-							values: ["off", "on"],
 						},
 						{
 							id: "automatic",
@@ -106,6 +106,9 @@ export async function openBoardSettings(
 							...wrap(
 								`${tabs ? "Tab switch tab · " : ""}↑/↓ select · Enter/Space change · Esc close`,
 							).map((line) => theme.fg("dim", line)),
+							...wrap("Settings saved immediately").map((line) =>
+								theme.fg("dim", line),
+							),
 							rule,
 						].map((line) => truncateToWidth(line, width, ""));
 					},
@@ -139,7 +142,7 @@ export async function openBoardSettings(
 			if (binding(ctx).upstream)
 				throw new Error("Change Board settings in the owning root session");
 			if (action.id === "enabled")
-				await board.setSetting(ctx, scope, action.value === "on");
+				await board.setSetting(ctx, scope, action.value === "On");
 			else if (action.id === "automatic")
 				board.setAutomaticSummaries(ctx, action.value === "on");
 			else if (action.id === "model") {

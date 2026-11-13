@@ -159,7 +159,7 @@ export async function openSessionPruningSettings(
 					theme.bold("  Session auto-pruning"),
 					"",
 					...wrap(
-						"Runs once after a new context window's first completed turn commits its checkpoint. Settings follow this session on resume; new and forked sessions start Off. Forks made before restarting can retain unpruned history.",
+						`Retired payloads are pruned after a new window's first completed turn. ${process.platform === "linux" ? "Empty records are removed automatically after Pi exits." : "Physical record cleanup requires Linux."} Settings follow this session on resume; new and forked sessions start Off. Forks made before restarting can retain unpruned history.`,
 					),
 					"",
 					...wrap(RESTART_NOTICE),

@@ -9,7 +9,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 ## What you get
 
 - Codex-shaped shell, patch and image tools
-- tools exposed directly, composed in one-shot code, or used through persistent Deno, TypeScript and JavaScript notebooks
+- tools exposed directly, composed in one-shot code, or used through persistent Deno and TypeScript notebooks
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and a remote voice interface for your phone or browser
@@ -47,9 +47,9 @@ Choose an execution mode under `/codex` → **General**:
 | **Code** | Composes tools in one-shot JavaScript cells through `exec`, with `wait` for longer work. |
 | **Notebook** | Uses a persistent Deno notebook with JavaScript and TypeScript support. |
 | **TS** | Uses a persistent TypeScript notebook with strict checking before execution and Node APIs. |
-| **JS Notebook** | Uses a persistent JavaScript notebook that saves the full live state, including closures and class instances. |
+| **QuickJS Code** | Composes tools in fresh JavaScript environments, with up to four concurrent cells. |
 
-Code starts fresh for each cell. All three notebook modes retain state between cells and provide notebook management controls. They differ in runtime access and what can be restored after a restart. See [notebook modes](#code-mode-and-custom-tools) below.
+Code and QuickJS Code start fresh for each cell. Notebook and TS retain state between cells and provide notebook management controls. They differ in runtime access and what can be restored after a restart. See [execution modes](#code-mode-and-custom-tools) below.
 
 Execution mode is separate from provider scope. Apply the adapter to **Codex and configured** providers or **all providers**. **Extra tools only** adds selected patch and image tools without replacing the normal setup. **Voice only** keeps voice and dictation without changing the model's tools or requests.
 
@@ -150,11 +150,11 @@ Pi's footer shows cache percentage. Enable **Codex diagnostics** under `/codex o
 <a name="code-mode-and-custom-tools"></a>
 
 <details>
-<summary><strong>Notebook modes and custom tools</strong></summary>
+<summary><strong>Execution modes and custom tools</strong></summary>
 
-Code and Deno download their runtimes on first use. TS and JS Notebook reuse matching installed packages or download them with npm. First use needs registry access when packages are missing. Cached runtimes work offline, and unselected modes do not download anything.
+Code and Deno download their runtimes on first use. TS and QuickJS Code reuse matching installed packages or download them with npm. First use needs registry access when packages are missing. Cached runtimes work offline, and unselected modes do not download anything.
 
-Ask your agent to inspect, save, load or clean up notebook state. The `notebook` tool provides its own action help. **Restart and cancellation do not undo file changes or other external tool effects.**
+In Notebook and TS modes, ask your agent to inspect, save, load or clean up notebook state. The `notebook` tool provides its own action help. **Restart and cancellation do not undo file changes or other external tool effects.**
 
 ### Deno Notebook
 
@@ -172,21 +172,17 @@ Variables, closures, class instances and module state survive between cells. Che
 
 Concurrent isolated cells start from the last checkpoint and save separate candidates. Loading one replaces the live notebook rather than automatically merging changes. Releasing bindings also rebuilds the kernel and clears live-only values.
 
-### JS Notebook
+### QuickJS Code
 
-Select **JS Notebook** for JavaScript with full-state checkpoints, including closures, private class fields, aliases and cycles. The notebook is shared across conversations in the same project.
+Select **QuickJS Code** to compose tools in JavaScript. Each call starts fresh, with up to four cells running concurrently. Variables and closures do not carry between calls. Use `store` and `load` for conversation-local JSON data that does not persist to disk.
 
-Run Pi under Node. The notebook has no Node APIs, imports, direct network access or TypeScript checking. The agent uses tools for host operations.
+Run Pi under Node. The environment has no Node APIs, imports, direct network access, timers or TypeScript checking. The agent uses tools for host operations.
 
-Normal cells run serially and save the full state. Restart restores that checkpoint. Releasing a name makes it reusable without changing values captured by existing closures. Reset affects the shared project notebook, while preserving pinned data and named profiles.
-
-After a normal cell yields, isolated cells can run while it is still running. Each starts from the latest committed checkpoint, not the normal cell's unfinished changes, and saves a separate candidate without changing the live notebook. External tool and file effects remain shared.
-
-Whole-notebook profiles and isolated candidates replace the live state when loaded. Selective data profiles add saved data under unused names instead. Conflicting unsaved changes are kept in recovery profiles. Snapshots require compatible runtime versions and are never silently reset.
+QuickJS Code replaces JS Notebook. Existing `js` settings select QuickJS Code. Old notebook files are left untouched but are not loaded. There are no checkpoints, profiles, project-shared variables or `notebook` controls in this mode.
 
 ### Extension tools and MCP
 
-Installed Pi tools and enabled MCP servers are available inside Code and all three notebook modes. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
+Installed Pi tools and enabled MCP servers are available inside Code, QuickJS Code and both notebook modes. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
 
 Use `content(result.content)` to emit mixed MCP text and images in their original order. The helper also accepts a single content block. Resource blocks remain JSON text; audio and encrypted text are not supported.
 

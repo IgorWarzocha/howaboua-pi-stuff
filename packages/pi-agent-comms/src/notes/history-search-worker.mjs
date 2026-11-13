@@ -97,7 +97,7 @@ async function index(request) {
 			}
 		}
 		for (const item of request.items) {
-			if (excluded.has(item.item_id)) continue;
+			if (excluded(item.item_id)) continue;
 			const fingerprint = createHash("sha256")
 				.update(item.content)
 				.digest("hex");

@@ -84,11 +84,23 @@ unsupported reasoning levels. Provider capabilities and context limits still
 apply, and switching does not guarantee cache reuse. Context retirement and
 recovery keep their existing Notes settings.
 
+### Session pruning
+
+Open **Session auto-pruning** in `/notes` to set this session's retention limits. **Run now** previews and confirms irreversible removal of retired payloads. Automatic pruning runs after a new window's first completed turn. Saved SQLite notes and current context remain intact. Settings follow the session on resume. New and forked sessions start with pruning off.
+
+Live pruning keeps every history entry ID so Pi can still navigate its in-memory tree safely. With retention enabled, Notes automatically removes retired empty records after Pi exits. A separate helper waits for the actual process to end before changing the saved tree. Reloading, forking and switching sessions do not trigger this cleanup. No command or additional confirmation is needed. No backup is kept. Memory savings apply when the pruned session next opens.
+
+Physical cleanup currently requires Linux and an available `node` executable. Other platforms retain live payload pruning. Cleanup skips another registered local Notes process using the same saved session, known open-file holders and files that change during preparation. A simultaneous reopen is checked against the saved generation. If cleanup won that race, the new Pi process stops and asks you to reopen it rather than continue with a stale tree. Failures are reported when the session next opens. Tree branches, labels, compaction boundaries and supported Notes archive references are retained. Other content and saved notes are unchanged.
+
+Coordination covers local processes running this Notes release under the same OS user. Keep session storage free of concurrent writers from other machines, other OS users, older Notes versions and external JSONL editors while a Notes-enabled process is closing. Unrelated sessions do not block cleanup.
+
+Update Observatory before applying if you use its historical index. Older versions may block the rewritten file. Current versions reconcile removed records without discarding indexed statistics.
+
 ### Notes settings
 
 `/notes` opens the settings panel in interactive Pi. It shows continuity status, storage counts and remote capabilities. Changes save immediately.
 
-- **Active** selects **All models** (the default), **Whitelist** or **Off**. Whitelist enables the extension only for exact model IDs in the global settings file, regardless of provider. Switching models applies the choice immediately; other models keep their installed compaction behaviour. Off disables Notes without deleting saved data.
+- **Enabled** selects **Off**, **On** (all models, the default) or **Whitelist**. Whitelist enables the extension only for exact model IDs in the global settings file, regardless of provider. Switching models applies the choice immediately; other models keep their installed compaction behaviour. Off disables Notes without deleting saved data.
 - **Normal compaction** uses the installed Pi or PCC compaction flow for `/compact` and `new_context`. Off keeps notes-only rollover, the default.
 - **New window requests** controls the agent's `new_context` tool independently of the compaction method. **off** disables the tool. **pi-limits** uses Pi's eligibility check and continues in the current window when there is too little history. **unrestricted**, the default, accepts requests at any size. With normal compaction on and nothing to summarise, unrestricted requests open a new window identity without discarding the existing context. Manual `/compact` and idle rollover retain their separate policies.
 - **Idle rollover** selects the interval or disables it.

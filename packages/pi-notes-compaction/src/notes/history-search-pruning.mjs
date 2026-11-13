@@ -1,6 +1,7 @@
 import { open } from "node:fs/promises";
+import { StringDecoder } from "node:string_decoder";
 
-/** @typedef {{file:string; sessionId:string; generation:string; excluded:Set<string>}} PrunedHistory */
+/** @typedef {{file:string; sessionId:string; generation:string; size:number; surviving:Set<string>; excluded:Set<string>}} PrunedHistory */
 
 /** The live SessionManager still contains old text until restart. Read the committed
  * source so later indexing, settings toggles and /reload cannot resurrect its terms.
@@ -8,11 +9,11 @@ import { open } from "node:fs/promises";
 export function createHistoryPruning() {
 	/** @type {PrunedHistory | undefined} */
 	let cached;
-	const empty = new Set();
+	const empty = () => false;
 	/** @param {import("./sqlite.mjs").Database} db
 	 * @param {string} sessionId
 	 * @param {string | undefined} file
-	 * @returns {Promise<ReadonlySet<string>>}
+	 * @returns {Promise<(id:string) => boolean>}
 	 */
 	return async (db, sessionId, file) => {
 		if (!file) return empty;
@@ -25,90 +26,123 @@ export function createHistoryPruning() {
 				return empty;
 			throw error;
 		}
-		let stream;
 		try {
 			const { size } = await input.stat();
 			if (!size) return empty;
-			stream = input.createReadStream({
-				start: 0,
-				end: size - 1,
-				autoClose: false,
-				encoding: "utf8",
-			});
-			/** @type {PrunedHistory | undefined} */
-			let source;
-			let pending = "";
-			for await (const chunk of stream) {
-				pending += chunk;
-				let start = 0;
-				let end;
-				while ((end = pending.indexOf("\n", start)) >= 0) {
-					const entry = JSON.parse(pending.slice(start, end));
-					start = end + 1;
-					if (!source) {
-						if (entry.type !== "session" || entry.id !== sessionId)
-							throw new Error("History source identity changed");
-						const marker = entry.notesPruning;
-						if (marker === undefined) return empty;
-						if (
-							marker?.version !== 1 ||
-							marker.sessionId !== sessionId ||
-							typeof marker.generation !== "string"
-						)
-							throw new Error("Invalid history pruning marker");
-						if (
-							cached?.file === file &&
-							cached.sessionId === sessionId &&
-							cached.generation === marker.generation
-						)
-							return cached.excluded;
-						source = {
-							file,
-							sessionId,
-							generation: marker.generation,
-							excluded: new Set(),
-						};
-						continue;
-					}
-					const message = entry.type === "message" ? entry.message : undefined;
-					if (
-						(entry.type === "custom" &&
-							entry.customType === "notes-compaction:pruned:v1") ||
-						(["user", "assistant"].includes(message?.role) &&
-							!visibleText(message.content))
-					)
-						source.excluded.add(entry.id);
-				}
-				pending = pending.slice(start);
+			let header;
+			for await (const entry of records(input, 0, size)) {
+				header = entry;
+				break;
 			}
-			// Only complete lines from the opened inode count. A concurrent append's
-			// incomplete suffix is new history, never an old pruned conversation.
-			if (!source) throw new Error("History source header is missing");
-			const excluded = source.excluded;
-			const removeTerms = db.prepare(
-				"DELETE FROM history_terms WHERE rowid = ?",
-			);
-			const removeDocument = db.prepare(
-				"DELETE FROM history_documents WHERE id = ?",
-			);
-			/** @type {import("./sqlite.mjs").Statement<[string], {id:number; item_id:string}>} */
-			const documents = db.prepare(
-				"SELECT id, item_id FROM history_documents WHERE session_id = ?",
-			);
-			db.transaction(() => {
-				for (const row of documents.all(sessionId)) {
-					if (!excluded.has(row.item_id)) continue;
-					removeTerms.run(row.id);
-					removeDocument.run(row.id);
-				}
-			}).immediate();
+			if (header?.type !== "session" || header.id !== sessionId)
+				throw new Error("History source identity changed");
+			const marker = header.notesPruning;
+			if (marker === undefined) return empty;
+			if (
+				marker?.version !== 1 ||
+				marker.sessionId !== sessionId ||
+				typeof marker.generation !== "string"
+			)
+				throw new Error("Invalid history pruning marker");
+			const previous =
+				cached?.file === file &&
+				cached.sessionId === sessionId &&
+				cached.generation === marker.generation &&
+				cached.size <= size
+					? cached
+					: undefined;
+			const incremental = previous !== undefined;
+			if (previous?.size === size) return exclusion(previous);
+			/** @type {PrunedHistory} */
+			const source = previous ?? {
+				file,
+				sessionId,
+				generation: marker.generation,
+				size: 0,
+				surviving: new Set(),
+				excluded: new Set(),
+			};
+			// A failed suffix scan invalidates mutated cache sets. Ordinary appends
+			// scan only their suffix, not the full session or every indexed document.
+			cached = undefined;
+			for await (const entry of records(input, source.size, size)) {
+				if (!incremental && entry.type === "session") continue;
+				if (typeof entry.id !== "string" || source.surviving.has(entry.id))
+					throw new Error("Invalid history source entry identity");
+				source.surviving.add(entry.id);
+				const message = entry.type === "message" ? entry.message : undefined;
+				if (
+					(entry.type === "custom" &&
+						entry.customType === "notes-compaction:pruned:v1") ||
+					(["user", "assistant"].includes(message?.role) &&
+						!visibleText(message.content))
+				)
+					source.excluded.add(entry.id);
+			}
+			source.size = size;
+			const excluded = exclusion(source);
+			if (!incremental) {
+				const removeTerms = db.prepare(
+					"DELETE FROM history_terms WHERE rowid = ?",
+				);
+				const removeDocument = db.prepare(
+					"DELETE FROM history_documents WHERE id = ?",
+				);
+				/** @type {import("./sqlite.mjs").Statement<[string], {id:number; item_id:string}>} */
+				const documents = db.prepare(
+					"SELECT id, item_id FROM history_documents WHERE session_id = ?",
+				);
+				db.transaction(() => {
+					for (const row of documents.all(sessionId)) {
+						if (!excluded(row.item_id)) continue;
+						removeTerms.run(row.id);
+						removeDocument.run(row.id);
+					}
+				}).immediate();
+			}
 			cached = source;
 			return excluded;
 		} finally {
-			stream?.destroy();
 			await input.close();
 		}
 	};
+}
+
+/** @param {import("node:fs/promises").FileHandle} input @param {number} start @param {number} size */
+async function* records(input, start, size) {
+	const buffer = Buffer.alloc(64 * 1024);
+	const decoder = new StringDecoder("utf8");
+	let pending = "";
+	for (let position = start; position < size; ) {
+		const { bytesRead } = await input.read(
+			buffer,
+			0,
+			Math.min(buffer.length, size - position),
+			position,
+		);
+		if (!bytesRead)
+			throw new Error("History source changed during reconciliation");
+		position += bytesRead;
+		pending += decoder.write(buffer.subarray(0, bytesRead));
+		let offset = 0;
+		let end;
+		while ((end = pending.indexOf("\n", offset)) >= 0) {
+			yield JSON.parse(pending.slice(offset, end));
+			offset = end + 1;
+		}
+		pending = pending.slice(offset);
+	}
+	pending += decoder.end();
+	if (pending.length)
+		throw new Error(
+			"History source has an incomplete record; retry after the turn completes",
+		);
+}
+
+/** @param {PrunedHistory} source */
+function exclusion(source) {
+	/** @param {string} id */
+	return (id) => !source.surviving.has(id) || source.excluded.has(id);
 }
 
 /** @param {unknown} content */

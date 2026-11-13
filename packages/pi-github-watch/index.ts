@@ -159,7 +159,7 @@ export default async function (pi: ExtensionAPI) {
 			}
 			if (action === "cancel" && !args.thread?.trim()) {
 				clear();
-				return result("All watches cancelled.");
+				return result("OK");
 			}
 			if (!args.thread?.trim())
 				throw new Error(

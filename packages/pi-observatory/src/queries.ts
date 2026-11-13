@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import type Database from "better-sqlite3";
 import type {
 	CallDetail,
@@ -101,6 +102,22 @@ function integer(value: string | null, fallback: number, max: number): number {
 }
 
 export function createQueries(db: Database.Database) {
+	// Read-only --detail also supports indexes created before this migration.
+	const hasPositions = Boolean(
+		db
+			.prepare(
+				"SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_positions'",
+			)
+			.get(),
+	);
+	const physicalLine = (line: string) =>
+		hasPositions
+			? `CASE WHEN pos.file_id IS NOT NULL THEN pos.physical_line WHEN pf.file_id IS NULL THEN ${line} ELSE ${line}+pf.delta END`
+			: line;
+	const positionJoins = (file: string, line: string) =>
+		hasPositions
+			? `LEFT JOIN source_positions pos ON pos.file_id=${file} AND pos.line=${line} LEFT JOIN source_position_files pf ON pf.file_id=${file}`
+			: "";
 	function overview(params: URLSearchParams): Overview {
 		let { conditions, values } = filters(params);
 		const aggregated =
@@ -200,19 +217,34 @@ export function createQueries(db: Database.Database) {
 					arguments: string;
 					result: string;
 					path: string;
+					identity: string;
+					offset: number;
+					mtime: number;
 					line: number;
+					physicalLine: number | null;
 					sessionId: string;
 					callId: string;
 					parentCallId: string | null;
 					fileId: number;
 					unpaired: number;
 				}
-			>(`SELECT p.arguments,p.result,f.path,c.line,f.session_id sessionId,c.call_id callId,
+			>(`SELECT p.arguments,p.result,f.path,f.identity,f.offset,f.mtime,c.line,${physicalLine("c.line")} physicalLine,f.session_id sessionId,c.call_id callId,
 			parent.call_id parentCallId,c.file_id fileId,c.unpaired FROM calls c
 			JOIN payloads p ON p.call_id=c.id JOIN files f ON f.id=c.file_id
+			${positionJoins("c.file_id", "c.line")}
 			LEFT JOIN calls parent ON parent.id=c.parent_call_id WHERE c.id=?`)
 			.get(id);
 		if (!stored) throw new Error("Call detail is missing");
+		let currentSource = false;
+		try {
+			const info = statSync(stored.path);
+			currentSource =
+				`${info.dev}:${info.ino}` === stored.identity &&
+				info.size >= stored.offset &&
+				(info.size !== stored.offset || info.mtimeMs === stored.mtime);
+		} catch {
+			// Missing or inaccessible files cannot provide current physical lines.
+		}
 		const native = db
 			.prepare<
 				[number],
@@ -258,7 +290,8 @@ export function createQueries(db: Database.Database) {
 		);
 		const context = db
 			.prepare<[number, number, number], CallDetail["context"][number]>(`
-			SELECT f.line,e.role,e.timestamp,e.text FROM file_entries f JOIN entries e ON e.key=f.entry_key
+			SELECT ${physicalLine("f.line")} line,e.role,e.timestamp,e.text FROM file_entries f JOIN entries e ON e.key=f.entry_key
+			${positionJoins("f.file_id", "f.line")}
 			WHERE f.file_id=? AND f.line BETWEEN ? AND ? ORDER BY f.line
 		`)
 			.all(stored.fileId, Math.max(1, stored.line - 4), stored.line + 4);
@@ -267,11 +300,13 @@ export function createQueries(db: Database.Database) {
 			arguments: stored.arguments,
 			result: stored.result,
 			path: stored.path,
-			line: stored.line,
+			line: currentSource ? stored.physicalLine : null,
 			sessionId: stored.sessionId,
 			callId: stored.callId,
 			parentCallId: stored.parentCallId,
-			context,
+			context: currentSource
+				? context
+				: context.map((item) => ({ ...item, line: null })),
 			observations,
 			notes: [
 				...(recorded.length > 16

@@ -64,6 +64,8 @@ npx @howaboua/pi-observatory --sessions /path/to/sessions --db /path/to/index.sq
 
 To inspect one indexed call without starting the server or collectors, run `pi-observatory --detail ID`. Add `--db FILE` for a different index. It prints the call details and surrounding conversation as JSON.
 
+Detail line numbers refer to current source-file lines. A line is `null` when pruning removed that record or the source is unavailable or awaiting an update; historical metadata remains available.
+
 The server binds to `127.0.0.1` by default. To view it from another computer, forward its port with SSH and open the printed URL on that computer:
 
 ```sh

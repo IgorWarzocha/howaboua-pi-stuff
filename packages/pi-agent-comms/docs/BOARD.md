@@ -27,7 +27,7 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 ## Board settings
 
 - `/board` opens the Board tab. `/notes` opens the Notes tab. Tab or Shift-Tab switches between them.
-- `/board settings` is an alias for the Board tab. It offers enablement and scope, **Open viewer**, consolidation, automatic summaries and the global summary model: Luna or Custom.
+- `/board settings` is an alias for the Board tab. **Enabled** switches Board on or off; **Scope** selects session, folder or global settings. The tab also offers **Open viewer**, consolidation, automatic summaries and the global summary model: Luna or Custom.
 - `/board status` shows the current board and enablement.
 - `/board on` enables the board for this session.
 - `/board off` disables it without deleting history.

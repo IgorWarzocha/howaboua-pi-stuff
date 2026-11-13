@@ -13,6 +13,10 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## November 12 QuickJS Code
+
+QuickJS Code replaces JS Notebook. It uses the released Pi codemode 1.5.2 WASM loader and QuickJS WASI 3.6.3, with a fresh VM per call in reusable Node workers. Pi's public sandbox interface does not expose PCC's synchronous output bridge, so PCC keeps its own bridge and existing tool delegation. No upstream runtime is patched. Old snapshot files are neither loaded nor deleted.
+
 ## November 11 mixed content
 
 Adapted Codex `733a1cca06` (#60665): `content()` emits one MCP content block or an iterable in order across Code, Notebook, TS and JS Notebook. Text and images use the existing output paths; resources remain JSON text. Audio and encrypted text are rejected explicitly. The official Code host remains pinned to 0.167.0. The helper is supplied by PCC's cell integration and notebook runtimes without modifying that host or invalidating existing JS snapshots.

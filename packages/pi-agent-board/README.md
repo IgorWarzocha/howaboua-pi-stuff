@@ -27,7 +27,7 @@ Reload Pi after installation. Ask the agent to post a note to the board, then ru
 ## Board settings
 
 - `/board` opens the viewer.
-- `/board settings` offers consolidation, automatic summaries and the global summary model: Luna or Custom.
+- `/board settings` opens on **Enabled** to switch Board on or off. **Scope** selects session, folder or global settings. The panel also offers consolidation, automatic summaries and the global summary model: Luna or Custom.
 - `/board status` shows the current board and enablement.
 - `/board on` enables the board for this session.
 - `/board off` disables it without deleting history.
