@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { activityAttemptId } from "../activity.js";
+import { activityAttemptId, activityTask } from "../activity.js";
 import { injectAgentEvent } from "../messages/events.js";
 import type { WorkAttempt } from "../monitor-state.js";
 import type {
@@ -143,6 +143,17 @@ export class SettlementDelivery {
 			});
 			return;
 		}
+		// Notice-only turns can deliberately end without a report. Settle them
+		// silently, but keep assigned work and actionable events visible.
+		if (
+			settlement.status !== "blocked" &&
+			!blockedMessage &&
+			!activityTask(record.activity) &&
+			reply?.stopReason === "stop" &&
+			!reply.text.trim() &&
+			!settlement.extensionMessages?.length
+		)
+			return;
 		injectAgentEvent(this.pi, lifecycle.context, {
 			agent: settlement.agent,
 			agentToolName: "agents",
