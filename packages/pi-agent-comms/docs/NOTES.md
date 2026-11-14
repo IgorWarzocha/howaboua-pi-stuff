@@ -34,6 +34,8 @@ In Code Mode and Notebook, plaintext notes and history return ordinary JavaScrip
 
 By default, `new_context` starts a fresh window without generating a summary. The agent receives recent note paths, and Pi's saved history remains available for lookup.
 
+Turn on **Task-completion rollover** in `/notes` to let the agent call `new_context({resume: false})` when its task is complete. It finishes its reply, then opens a fresh window without starting another turn. The next input starts work in that window. This option is off by default. Omitting `resume`, or setting it to `true`, continues immediately as before.
+
 The tool requires a successful checkpoint write immediately before the request. Direct `notes` writes and writes completed through `exec` or `wait` count. A missing, pending or failed write keeps the current run active and asks the agent to save a note first.
 
 Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a fresh window immediately if the latest completed turn saved fresh notes. Otherwise it requests a checkpoint first. The new window waits for your next prompt; it does not start a continuation turn. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
@@ -104,6 +106,7 @@ recovery keep their existing Notes settings.
 - **Enabled** selects **Off**, **On** (all models, the default) or **Whitelist**. Whitelist enables Notes only for exact model IDs in the global settings file, regardless of provider. Off disables Notes independently of Board. Switching models applies the choice immediately; other models keep their installed compaction behaviour. Inactive Notes defers initialisation, but retained context projections can still load to preserve previously retired history.
 - **Normal compaction** uses the installed Pi or PCC compaction flow for `/compact` and `new_context`. Off keeps notes-only rollover, the default.
 - **New window requests** controls the agent's `new_context` tool independently of the compaction method. **off** disables the tool. **pi-limits** uses Pi's eligibility check and continues in the current window when there is too little history. **unrestricted**, the default, accepts requests at any size. With normal compaction on and nothing to summarise, unrestricted requests open a new window identity without discarding the existing context. Manual `/compact` and idle rollover retain their separate policies.
+- **Task-completion rollover** permits `resume: false` in `new_context`. Off by default. Checkpoint and new-window eligibility rules still apply. Aborting or failing the run cancels its pending task-completion rollover.
 - **Idle rollover** selects the interval or disables it.
 - **Prune missing sessions** removes notes, cached responses and history index entries for missing session files after confirmation. Unknown paths, permission errors and the active session are retained.
 

@@ -2,6 +2,7 @@ import type {
 	AgentToolResult,
 	ExtensionAPI,
 	ExtensionContext,
+	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { Schema } from "@earendil-works/pi-schema";
 import type { NotesActivation } from "./activation.js";
@@ -13,7 +14,6 @@ import {
 	NOTES_SCHEMA,
 	NOTES_USAGE,
 } from "./tool-contracts.js";
-import type { createTools } from "./tools.js";
 import { projectTreeCheckpointBranch } from "./tree-checkpoint.js";
 import { projectTreeHandoffBranch } from "./tree-handoff-read.js";
 import type { WindowCheckpoints } from "./window-checkpoint.js";
@@ -22,7 +22,7 @@ export async function registerNotesToolIntegrations(
 	pi: ExtensionAPI,
 	lifecycle: NotesLifecycle,
 	activation: NotesActivation,
-	tools: ReturnType<typeof createTools>,
+	tools: ToolDefinition[],
 ) {
 	try {
 		const { registerGptPromptMode } = await import(

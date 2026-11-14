@@ -95,6 +95,7 @@ export function createNotesActivation(
 		settings = value;
 		lifecycle.normalCompaction = value.normalCompaction;
 		lifecycle.newWindowRequests = value.newWindowRequests;
+		lifecycle.taskCompletionRollover = value.taskCompletionRollover;
 		lifecycle.idleMinutes = value.idleMinutes;
 		lifecycle.taskBoundaryReminder = value.taskBoundaryReminder;
 	}

@@ -57,7 +57,7 @@ export function createTools(
 	lifecycle: NotesLifecycle,
 	search: HistorySearch,
 	roles: ReturnType<typeof createModelRoles>,
-): ToolDefinition[] {
+) {
 	const assertActive = () => {
 		if (!lifecycle.active)
 			throw new Error(
@@ -100,22 +100,24 @@ export function createTools(
 			async execute(id, input, signal, _update, ctx) {
 				assertActive();
 				if (signal?.aborted) throw new Error("Rollover cancelled");
-				const { role } = prepareNewContextArguments(input);
+				const { role, resume = true } = prepareNewContextArguments(input);
 				const handoff =
 					role === undefined ? undefined : await roles.prepare(role, ctx);
 				if (signal?.aborted) throw new Error("Rollover cancelled");
-				const started = lifecycle.requestRollover(ctx, id, handoff);
-				if (started) ctx.abort();
+				const started = lifecycle.requestRollover(ctx, id, handoff, resume);
+				if (started && resume) ctx.abort();
 				return {
 					...result({
 						started,
 						message: started
-							? lifecycle.newWindowRequests === "pi-limits"
-								? "Window request queued"
-								: "New window queued"
+							? !resume
+								? "Window request queued without continuation. Finish your reply"
+								: lifecycle.newWindowRequests === "pi-limits"
+									? "Window request queued"
+									: "New window queued"
 							: "Checkpoint or rollover is already pending. Save notes and finish your response",
 					}),
-					...(started ? { terminate: true } : {}),
+					...(started && resume ? { terminate: true } : {}),
 				};
 			},
 		},
@@ -136,13 +138,19 @@ export function createTools(
 		},
 	];
 	const newContext = tools.find((tool) => tool.name === "new_context")!;
-	let advertisedRoles = "[]";
-	roles.onRoleIdsChanged((ids) => {
-		const key = JSON.stringify(ids);
-		if (key === advertisedRoles) return;
-		advertisedRoles = key;
-		newContext.parameters = newContextSchema(ids);
+	let roleIds: string[] = [];
+	let advertised = "";
+	const refresh = () => {
+		const schema = newContextSchema(roleIds, lifecycle.taskCompletionRollover);
+		const key = JSON.stringify(schema);
+		if (key === advertised) return;
+		advertised = key;
+		newContext.parameters = schema;
 		pi.registerTool(newContext);
+	};
+	roles.onRoleIdsChanged((ids) => {
+		roleIds = ids;
+		refresh();
 	});
-	return tools;
+	return { tools, refresh };
 }
