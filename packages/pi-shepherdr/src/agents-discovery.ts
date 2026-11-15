@@ -81,8 +81,8 @@ export async function agentsHelp(
 					}
 				: {}),
 			send: gpt
-				? "Messages wake idle agents; ONLY concrete blocker/ownership conflict/usable handoff that changes next action. NO plan/ack/status/standby exchanges. Agreement→act; reopen only with new evidence. Close→/quit directly, NO preceding message or wait/watch"
-				: "Messages wake idle agents. Send only a concrete blocker, ownership conflict or usable handoff that changes the recipient's next action. Skip plan exchanges, acknowledgements, status-only updates and standby reminders. After agreement, act; reopen only with new evidence. Close with /quit directly, without another message first. No waiting or watching.",
+				? "Messages wake idle agents; ONLY concrete blocker/ownership conflict/usable handoff that changes next action. NO acknowledgements/status-only/standby. Close→/quit directly, NO preceding message or wait/watch"
+				: "Messages wake idle agents. Send only a concrete blocker, ownership conflict or usable handoff that changes the recipient's next action; skip acknowledgements, status-only updates and standby reminders. Close with /quit directly, without another message first. No waiting or watching.",
 			assign: gpt
 				? "Delegate/update work; active→share pending result, NEVER replace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
