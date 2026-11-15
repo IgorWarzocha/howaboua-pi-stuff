@@ -81,8 +81,8 @@ export async function agentsHelp(
 					}
 				: {}),
 			send: gpt
-				? "Messages wake idle agents; send ONLY to change recipient next action, NO acknowledgements/status-only/standby. Close→/quit directly, NO preceding message or wait/watch"
-				: "Messages wake idle agents. Send only when it changes the recipient's next action; skip acknowledgements, status-only updates and standby reminders. Close with /quit directly, without another message first. No waiting or watching.",
+				? "Messages wake idle agents; ONLY concrete blocker/ownership conflict/usable handoff that changes next action. NO plan/ack/status/standby exchanges. Agreement→act; reopen only with new evidence. Close→/quit directly, NO preceding message or wait/watch"
+				: "Messages wake idle agents. Send only a concrete blocker, ownership conflict or usable handoff that changes the recipient's next action. Skip plan exchanges, acknowledgements, status-only updates and standby reminders. After agreement, act; reopen only with new evidence. Close with /quit directly, without another message first. No waiting or watching.",
 			assign: gpt
 				? "Delegate/update work; active→share pending result, NEVER replace wait"
 				: "Delegate or update work; active updates share its pending result, never replace an existing wait",
@@ -109,8 +109,8 @@ export async function agentsHelp(
 				? "Delegation/watch→report subsequent work UNTIL unwatch/close"
 				: "Delegation and watch keep reporting subsequent work until unwatch or close",
 			prompt: gpt
-				? "Task + necessary context; trust agent to choose approach. Avoid unnecessary restrictions and overly narrow scope"
-				: "Give the task and necessary context. Trust the agent to choose its approach. Avoid unnecessary restrictions and overly narrow scope",
+				? "Outcome + completion evidence + context. Shared dependency→ONE owner; peers consume handoff. Keep original outcome covered when redirecting. Trust agent approach; avoid needless restrictions/narrowing"
+				: "Give a distinct outcome, completion evidence and necessary context. Shared dependencies need one owner; peers consume its handoff. Keep the original outcome covered when redirecting work. Trust the agent's approach; avoid unnecessary restrictions and overly narrow scope",
 			slash: gpt
 				? "Leading / routes target commands/skills/templates; commands skip task wait EVEN assign/spawn; blocked→choices; /quit exits Pi+closes terminal"
 				: "Leading / routes target commands/skills/templates. Commands skip task waiting, even with assign/spawn; blocked commands return available choices. /quit shuts down Pi and closes its terminal",
