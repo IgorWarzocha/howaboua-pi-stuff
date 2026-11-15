@@ -1,4 +1,4 @@
-import { getCurrentPane, getSnapshot } from "../core/agents.js";
+import { getCurrentPane } from "../core/agents.js";
 import type { CoreConnection } from "../core/backend.js";
 import type { PaneInfo, PeerMessage } from "../types.js";
 
@@ -54,24 +54,15 @@ export async function attributeAgentPrompt(
 	kind: "message" | "task",
 	initialProfile?: string,
 ): Promise<PeerMessage> {
-	const [pane, snapshot] = await Promise.all([
+	const [pane, identity] = await Promise.all([
 		getCurrentPane(client),
-		getSnapshot(client),
+		client.machineIdentity(),
 	]);
-	const workspace = snapshot.workspaces.find(
-		(workspace) => workspace.workspace_id === pane.workspace_id,
-	)?.label;
-	const tab = snapshot.tabs.find((tab) => tab.tab_id === pane.tab_id)?.label;
-	const identity = await client.machineIdentity();
 	const source = {
 		kind,
-		host: identity.host,
 		machine: identity.session,
 		agent: `/${sessionId}`,
-		...agentSource(pane, {
-			...(workspace ? { workspace } : {}),
-			...(tab ? { tab } : {}),
-		}),
+		terminal: pane.terminal_id,
 	};
 	return {
 		sender: `<herdr_sender ${sourceAttributes(source)} />`,
