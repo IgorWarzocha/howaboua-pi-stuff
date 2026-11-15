@@ -70,7 +70,7 @@ export async function createNotesRuntime(pi: ExtensionAPI, store: NotesStore) {
 		pi,
 		lifecycle,
 		activation,
-		tools,
+		toolRegistration,
 	);
 	for (const tool of tools) pi.registerTool(tool);
 	const owner = createNotesContextOwner(pi, store, lifecycle, search);

@@ -172,6 +172,7 @@ export class NotesLifecycle {
 		callId: string,
 		handoff?: ModelRoleHandoff,
 		resume = true,
+		parentCallId?: string,
 	): boolean {
 		if (this.newWindowRequests === "off")
 			throw new Error(
@@ -189,6 +190,7 @@ export class NotesLifecycle {
 				this.windows.current?.currentWindowId,
 				this.runId,
 				callId,
+				parentCallId,
 			)
 		)
 			throw new Error(

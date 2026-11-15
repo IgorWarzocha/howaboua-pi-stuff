@@ -38,6 +38,8 @@ Turn on **Task-completion rollover** in `/notes` to let the agent call `new_cont
 
 The tool requires a successful checkpoint write immediately before the request. Direct `notes` writes and writes completed through `exec` or `wait` count. A missing, pending or failed write keeps the current run active and asks the agent to save a note first.
 
+Code and Notebook also accept `await tools.new_context(...)` after an awaited note save in the same cell. The native tool remains the advertised entry point. The nested callable does not add prompt guidance or a discovery listing.
+
 Reminders arrive at 85% and 90% context use. With normal compaction off, `/compact` opens a fresh window immediately if the latest completed turn saved fresh notes. Otherwise it requests a checkpoint first. The new window waits for your next prompt; it does not start a continuation turn. Abort, errors and failed writes retain the old context. Overflow recovery still uses Pi's normal compaction.
 
 Pi rejects `/compact` when there is too little history to prepare compaction, before extensions run. `new_context` follows the separate **New window requests** setting.

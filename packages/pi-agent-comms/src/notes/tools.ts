@@ -65,6 +65,41 @@ export function createTools(
 			);
 	};
 	const queries = createQueryExecutor(pi, store, lifecycle, search);
+	const requestContext = async (
+		id: string,
+		input: unknown,
+		signal: AbortSignal | undefined,
+		ctx: ExtensionContext,
+		parentCallId?: string,
+	) => {
+		assertActive();
+		if (signal?.aborted) throw new Error("Rollover cancelled");
+		const { role, resume = true } = prepareNewContextArguments(input);
+		const handoff =
+			role === undefined ? undefined : await roles.prepare(role, ctx);
+		if (signal?.aborted) throw new Error("Rollover cancelled");
+		const started = lifecycle.requestRollover(
+			ctx,
+			id,
+			handoff,
+			resume,
+			parentCallId,
+		);
+		if (started && resume) ctx.abort();
+		return {
+			...result({
+				started,
+				message: started
+					? !resume
+						? "Window request queued without continuation. Finish your reply"
+						: lifecycle.newWindowRequests === "pi-limits"
+							? "Window request queued"
+							: "New window queued"
+					: "Checkpoint or rollover is already pending. Save notes and finish your response",
+			}),
+			...(started && resume ? { terminate: true } : {}),
+		};
+	};
 	const tools: ToolDefinition[] = [
 		{
 			name: "notes",
@@ -97,29 +132,8 @@ export function createTools(
 			prepareArguments: prepareNewContextArguments,
 			exposure: "model-only",
 			executionMode: "sequential",
-			async execute(id, input, signal, _update, ctx) {
-				assertActive();
-				if (signal?.aborted) throw new Error("Rollover cancelled");
-				const { role, resume = true } = prepareNewContextArguments(input);
-				const handoff =
-					role === undefined ? undefined : await roles.prepare(role, ctx);
-				if (signal?.aborted) throw new Error("Rollover cancelled");
-				const started = lifecycle.requestRollover(ctx, id, handoff, resume);
-				if (started && resume) ctx.abort();
-				return {
-					...result({
-						started,
-						message: started
-							? !resume
-								? "Window request queued without continuation. Finish your reply"
-								: lifecycle.newWindowRequests === "pi-limits"
-									? "Window request queued"
-									: "New window queued"
-							: "Checkpoint or rollover is already pending. Save notes and finish your response",
-					}),
-					...(started && resume ? { terminate: true } : {}),
-				};
-			},
+			execute: (id, input, signal, _update, ctx) =>
+				requestContext(id, input, signal, ctx),
 		},
 		{
 			name: "get_context_remaining",
@@ -152,5 +166,5 @@ export function createTools(
 		roleIds = ids;
 		refresh();
 	});
-	return { tools, refresh };
+	return { tools, refresh, requestContext };
 }
