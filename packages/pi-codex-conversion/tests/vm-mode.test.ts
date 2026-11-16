@@ -161,9 +161,18 @@ test("top-level await keeps let, function and class bindings", async () => {
 		assert.match(textOf(defined), /11/);
 		const hidden = await code.execute("{ let hidden = 1 }\nawait Promise.resolve()\ntext(typeof hidden)", session("await"));
 		assert.match(textOf(hidden), /undefined/);
-		await code.execute("const fixed = await Promise.resolve(4)", session("await"));
+		const assigned = await code.execute("const fixed = await Promise.resolve(4)\nfixed = 9\ntext(fixed)", session("await"));
+		assert.match(assigned.kind === "result" ? assigned.errorText ?? "" : "", /constant/);
 		const readFixed = await code.execute("text(String(fixed))", session("await"));
 		assert.match(textOf(readFixed), /4/);
+		const hoisted = await code.execute("text(helper()); function helper() { return 6 }; await Promise.resolve()", session("await"));
+		assert.match(textOf(hoisted), /6/);
+		await code.execute("var retained = 7", session("await"));
+		const keptVar = await code.execute("var retained; await Promise.resolve(); text(retained)", session("await"));
+		assert.match(textOf(keptVar), /7/);
+		await code.execute("if (true) { var fromBlock = 8 }; await Promise.resolve()", session("await"));
+		const fromBlock = await code.execute("text(String(fromBlock))", session("await"));
+		assert.match(textOf(fromBlock), /8/);
 		const plain = await code.execute("const plain = 1\nplain = 2", session("await"));
 		assert.match(plain.kind === "result" ? plain.errorText ?? "" : "", /constant/);
 		const stillPlain = await code.execute("text(String(plain))", session("await"));
@@ -218,6 +227,34 @@ test("cancellation during await drops the context", async () => {
 		}
 		const fresh = await code.execute("text(typeof kept)", session("await-abort"));
 		assert.match(textOf(fresh), /undefined/);
+	} finally {
+		await code.shutdown();
+	}
+});
+
+test("a failed cell drains tool callbacks before the next exec", async () => {
+	const echo: CodeModeToolDefinition = {
+		name: "echo",
+		usage: "tools.echo(value)",
+		deferLoading: false,
+		kind: "function",
+		async invoke(input) {
+			await new Promise(resolve => setTimeout(resolve, 30));
+			return input;
+		},
+	};
+	const code = client();
+	try {
+		const failed = await code.execute(
+			"tools.echo(1).catch(() => { text('OLD CONTINUATION'); globalThis.leaked = 42 })\nthrow new Error('oops')",
+			session("leak"),
+			undefined,
+			[echo],
+		);
+		assert.match(failed.kind === "result" ? failed.errorText ?? "" : "", /oops/);
+		assert.match(textOf(failed), /OLD CONTINUATION/);
+		const next = await code.execute("text('NEW'); text(String(globalThis.leaked))", session("leak"));
+		assert.equal(textOf(next), "NEW\n42");
 	} finally {
 		await code.shutdown();
 	}

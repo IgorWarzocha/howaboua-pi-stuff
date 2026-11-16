@@ -6,7 +6,7 @@ interface Syntax {
 	end: number;
 	kind?: string;
 	await?: boolean;
-	id?: { name?: string };
+	directive?: string;
 	declarations?: Syntax[];
 	body?: Syntax | Syntax[];
 	[key: string]: unknown;
@@ -14,63 +14,108 @@ interface Syntax {
 
 interface Edit { start: number; end: number; text: string }
 
-const FUNCTION = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
+export interface VmStep { async: boolean; source: string }
+export type VmPlan = { awaited: false; source: string } | { awaited: true; steps: VmStep[] };
 
-/** Hoist bindings out of a top-level await cell. Node REPL can do this, but its evaluator always loads host modules. */
-export function prepareVmCell(source: string): { source: string; awaited: boolean } {
+const FUNCTION = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
+const INIT = `globalThis[Symbol.for("pi.vm-code/init")]`;
+
+/** Split an awaited cell into scripts that keep the same bindings as a normal cell. Node REPL is not used: its evaluator loads host modules. */
+export function planVmCell(source: string): VmPlan {
 	let program: Syntax;
 	try {
 		program = parse(source, { ecmaVersion: "latest", allowAwaitOutsideFunction: true, sourceType: "script" }) as unknown as Syntax;
 	} catch {
-		return { source, awaited: false };
+		return { awaited: false, source };
 	}
-	if (!hasTopLevelAwait(program)) return { source, awaited: false };
-	const lets: string[] = [];
+	if (!containsAwait(program)) return { awaited: false, source };
+	const body = statements(program);
+	const strict = body[0]?.directive === "use strict" ? `"use strict";\n` : "";
+	const preamble = preambleSource(program, source);
+	const steps: VmStep[] = [];
+	if (preamble) steps.push({ async: false, source: `${strict}${preamble}` });
+	for (const statement of body) steps.push(...stepsFor(statement, source, strict));
+	return { awaited: true, steps };
+}
+
+function stepsFor(statement: Syntax, source: string, strict: string): VmStep[] {
+	if (statement.type === "FunctionDeclaration") return [];
+	if (statement.type === "VariableDeclaration" && statement.kind !== "var" && statement.declarations && containsAwait(statement)) {
+		return statement.declarations.flatMap(declarator => lexicalSteps(statement.kind ?? "let", declarator, source, strict));
+	}
+	const text = statement.type === "VariableDeclaration" && statement.kind === "var" && containsAwait(statement)
+		? withoutVar(statement, source)
+		: containsAwait(statement) ? withoutVar(statement, source) : slice(statement, source);
+	if (!text.trim()) return [];
+	if (!containsAwait(statement)) return [{ async: false, source: `${strict}${text}` }];
+	return [{ async: true, source: `${strict}(async () => {\n${text}\n})()` }];
+}
+
+function lexicalSteps(kind: string, declarator: Syntax, source: string, strict: string): VmStep[] {
+	const id = declarator["id"];
+	const names = namesIn(id);
+	if (!isSyntax(id) || names.length === 0) return [];
+	const init = declarator["init"];
+	const initializer = isSyntax(init) ? slice(init, source) : "undefined";
+	const puts = names.map(name => `${INIT}.put(${name});`).join("\n");
+	const bindings = names.map(name => `${name} = ${INIT}.take()`).join(", ");
+	return [
+		{ async: true, source: `${strict}(async () => {\n${kind} ${slice(id, source)} = ${initializer};\n${puts}\n})()` },
+		{ async: false, source: `${strict}${kind} ${bindings};` },
+	];
+}
+
+function preambleSource(program: Syntax, source: string): string {
 	const vars: string[] = [];
-	const edits: Edit[] = [];
-	for (const statement of statements(program)) rewrite(statement, lets, vars, edits);
-	const preamble = [
-		lets.length ? `let ${unique(lets).join(", ")};` : "",
+	const functions: string[] = [];
+	for (const statement of statements(program)) {
+		if (statement.type === "FunctionDeclaration") functions.push(slice(statement, source));
+	}
+	walk(program, 0, (node, depth) => {
+		if (depth === 0 && node.type === "VariableDeclaration" && node.kind === "var") {
+			for (const declarator of node.declarations ?? []) vars.push(...namesIn(declarator["id"]));
+		}
+	});
+	return [
 		vars.length ? `var ${unique(vars).join(", ")};` : "",
+		...functions,
 	].filter(Boolean).join("\n");
-	const body = apply(source, edits);
-	return { source: `${preamble}\n(async () => {\n${body}\n})()`, awaited: true };
+}
+
+function withoutVar(statement: Syntax, source: string): string {
+	const edits: Edit[] = [];
+	walk(statement, 0, (node, depth) => {
+		if (depth !== 0 || node.type !== "VariableDeclaration" || node.kind !== "var" || !node.declarations) return;
+		const declarators = node.declarations;
+		edits.push({ start: node.start, end: node.start + node.kind.length, text: `void${declarators.length === 1 ? "" : " ("}` });
+		for (const declarator of declarators) {
+			if (declarator["init"]) {
+				edits.push({ start: declarator.start, end: declarator.start, text: "(" });
+				edits.push({ start: declarator.end, end: declarator.end, text: ")" });
+			} else {
+				edits.push({ start: declarator.start, end: declarator.end, text: "(void 0)" });
+			}
+		}
+		if (declarators.length !== 1) {
+			const last = declarators[declarators.length - 1];
+			if (last) edits.push({ start: last.end, end: last.end, text: ")" });
+		}
+	});
+	const base = statement.start;
+	return apply(slice(statement, source), edits.map(edit => ({ start: edit.start - base, end: edit.end - base, text: edit.text })));
+}
+
+function containsAwait(node: Syntax): boolean {
+	let found = false;
+	walk(node, 0, (child, depth) => {
+		if (depth === 0 && (child.type === "AwaitExpression" || (child.type === "ForOfStatement" && child.await === true))) found = true;
+	});
+	return found;
 }
 
 function statements(program: Syntax): Syntax[] {
 	const body = program["body"];
 	return Array.isArray(body) ? body.filter(isSyntax) : [];
-}
-
-function rewrite(statement: Syntax, lets: string[], vars: string[], edits: Edit[]): void {
-	if (statement.type === "LabeledStatement") {
-		const inner = statement["body"];
-		if (isSyntax(inner)) rewrite(inner, lets, vars, edits);
-		return;
-	}
-	if ((statement.type === "FunctionDeclaration" || statement.type === "ClassDeclaration") && statement.id?.name) {
-		(statement.type === "FunctionDeclaration" ? vars : lets).push(statement.id.name);
-		edits.push({ start: statement.start, end: statement.start, text: `${statement.id.name} = ` });
-		return;
-	}
-	if (statement.type !== "VariableDeclaration" || !statement.declarations || !statement.kind) return;
-	const names: string[] = [];
-	for (const declarator of statement.declarations) names.push(...namesIn(declarator["id"]));
-	(statement.kind === "var" ? vars : lets).push(...names);
-	const declarators = statement.declarations;
-	edits.push({
-		start: statement.start,
-		end: statement.start + statement.kind.length,
-		text: `void${declarators.length === 1 ? "" : " ("}`,
-	});
-	for (const declarator of declarators) {
-		edits.push({ start: declarator.start, end: declarator.start, text: "(" });
-		edits.push({ start: declarator.end, end: declarator.end, text: declarator["init"] ? ")" : "=undefined)" });
-	}
-	if (declarators.length !== 1) {
-		const last = declarators[declarators.length - 1];
-		if (last) edits.push({ start: last.end, end: last.end, text: ")" });
-	}
 }
 
 function namesIn(pattern: unknown): string[] {
@@ -85,14 +130,6 @@ function namesIn(pattern: unknown): string[] {
 	return [];
 }
 
-function hasTopLevelAwait(program: Syntax): boolean {
-	let found = false;
-	walk(program, 0, (node, depth) => {
-		if (depth === 0 && (node.type === "AwaitExpression" || (node.type === "ForOfStatement" && node.await === true))) found = true;
-	});
-	return found;
-}
-
 function walk(node: Syntax, depth: number, visit: (node: Syntax, depth: number) => void): void {
 	visit(node, depth);
 	const next = FUNCTION.has(node.type) ? depth + 1 : depth;
@@ -104,10 +141,15 @@ function walk(node: Syntax, depth: number, visit: (node: Syntax, depth: number) 
 }
 
 function apply(source: string, edits: Edit[]): string {
-	const ordered = [...edits].sort((left, right) => right.start - left.start || right.end - left.end);
 	let out = source;
-	for (const edit of ordered) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
+	for (const edit of [...edits].sort((left, right) => right.start - left.start || right.end - left.end)) {
+		out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
+	}
 	return out;
+}
+
+function slice(node: Syntax, source: string): string {
+	return source.slice(node.start, node.end);
 }
 
 function unique(names: string[]): string[] {

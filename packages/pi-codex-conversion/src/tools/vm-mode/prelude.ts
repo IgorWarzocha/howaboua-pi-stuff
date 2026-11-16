@@ -65,7 +65,7 @@ export const VM_PRELUDE = String.raw`(bridge => {
       metadata = Object.freeze(definitions.filter(t => t.description !== undefined).map(t => Object.freeze({ name: t.exposed, description: t.description })));
     },
     settle(id, json, error) {
-      const request = pending.get(id); if (!request) throw new Error('Unknown tool result');
+      const request = pending.get(id); if (!request) return;
       pending.delete(id);
       if (error !== undefined) request.reject(new Error(error));
       else {

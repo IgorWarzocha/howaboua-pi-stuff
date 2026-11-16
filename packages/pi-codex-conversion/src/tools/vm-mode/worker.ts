@@ -1,7 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { createContext, runInContext, Script } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
-import { prepareVmCell } from "./await-cell.ts";
+import { planVmCell, type VmStep } from "./await-cell.ts";
 import { VM_PRELUDE } from "./prelude.ts";
 import type { VmCommand, VmMessage, VmOutcome, VmWorkerData } from "./protocol.ts";
 
@@ -21,6 +21,16 @@ const context = createContext(Object.create(null), {
 const factory: unknown = runInContext(VM_PRELUDE, context, { filename: "vm-code-prelude.js" });
 if (typeof factory !== "function") throw new Error("VM Code prelude did not start");
 const control = factory((kind: unknown, payload: unknown) => bridge(String(kind), payload === undefined ? "" : String(payload))) as VmControl;
+const initValues: unknown[] = [];
+Object.defineProperty(context, Symbol.for("pi.vm-code/init"), {
+	value: {
+		put(value: unknown) { initValues.push(value); },
+		take() { return initValues.shift(); },
+	},
+	writable: false,
+	configurable: false,
+	enumerable: false,
+});
 runInContext(
 	`Object.defineProperty(globalThis, "content", { value: (${contentOutputFactorySource})(globalThis.text, globalThis.image), configurable: false, writable: false })`,
 	context,
@@ -119,6 +129,41 @@ function flushGuest(): void {
 	runInContext("void 0", context);
 }
 
+function runScript(source: string): unknown {
+	return new Script(source, { filename: "vm-code-cell.js" }).runInContext(context);
+}
+
+function asPromise(value: unknown): Promise<unknown> {
+	if (typeof value === "object" && value !== null && "then" in value && typeof value.then === "function") return value as Promise<unknown>;
+	throw new Error("Top-level await did not produce a promise");
+}
+
+async function executeSteps(steps: VmStep[]): Promise<void> {
+	for (const step of steps) {
+		const value = runScript(step.source);
+		if (step.async) await quiescent(asPromise(value));
+		if (failure) return;
+	}
+	await quiescent();
+}
+
+async function drainGuest(): Promise<void> {
+	for (let turn = 0; turn < 10_000; turn++) {
+		if (calls.size) await Promise.allSettled([...calls.values()]);
+		flushGuest();
+		await new Promise<void>(resolve => setImmediate(resolve));
+		if (calls.size === 0 && control.pending() === 0) return;
+	}
+	throw new Error("The script kept scheduling tool calls");
+}
+
+async function finishFailure(message: string): Promise<void> {
+	initValues.length = 0;
+	control.fail(message || "VM Code stopped");
+	await drainGuest();
+	finish({ error: message || "VM Code stopped" });
+}
+
 async function quiescent(completion?: Promise<unknown>): Promise<void> {
 	let settled = completion === undefined;
 	void completion?.then(() => { settled = true; }, (error: unknown) => {
@@ -144,20 +189,26 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 	truncated = false;
 	failure = undefined;
 	control.configure(JSON.stringify(message.input.tools), JSON.stringify(message.input.store));
+	initValues.length = 0;
 	try {
-		const prepared = prepareVmCell(message.input.source);
-		const value: unknown = new Script(prepared.source, { filename: "vm-code-cell.js" }).runInContext(context);
-		const completion = prepared.awaited && typeof value === "object" && value !== null && "then" in value && typeof value.then === "function"
-			? value as Promise<unknown>
-			: undefined;
-		if (prepared.awaited && !completion) throw new Error("Top-level await did not produce a promise");
-		await quiescent(completion);
-		if (failure) control.fail(failure);
-		finish(failure ? { error: failure } : {});
+		const planned = planVmCell(message.input.source);
+		if (planned.awaited) await executeSteps(planned.steps);
+		else {
+			runScript(planned.source);
+			await quiescent();
+		}
+		if (failure) {
+			await finishFailure(failure);
+			return;
+		}
+		finish({});
 	} catch (error) {
-		const message = scriptError(error);
-		control.fail(message || "VM Code stopped");
-		finish(isExit(error) ? {} : { error: failure ?? message });
+		if (isExit(error)) {
+			await drainGuest();
+			finish({});
+			return;
+		}
+		await finishFailure(failure || scriptError(error));
 	}
 }
 
