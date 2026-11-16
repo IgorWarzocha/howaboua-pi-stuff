@@ -26,10 +26,8 @@ type RuntimeGuideline = readonly [normal: string, gpt: string, tool?: string];
 const CODE_MODE_GUIDELINES = [
 	["Use tools.exec_command for shell commands; prefer rg and rg --files; filter large output at the source", "Shell→tools.exec_command; prefer rg/rg --files; largeoutput→sourcefilter", "exec_command"],
 	["Use the other JavaScript quote style around quoted text; preserve literal ${...} and backticks in shell, patches, and source", "Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks"],
-	["Await long tools.exec_command calls inside exec", "Long tools.exec_command→await inside exec", "exec_command"],
 	["Use tty=true for input and persistent processes", "Input/persistent processes→tty=true", "exec_command"],
 	["Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites", "tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites", "apply_patch"],
-	["Compose known tool calls in one exec; await dependencies in order and run independent calls concurrently. Bound output at the source", "Known calls→one exec; dependencies→ordered awaits; independent calls→concurrent; bound output at source"],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
 
@@ -58,11 +56,9 @@ const VM_MODE_GUIDELINES = [
 	["Keep one-offs block-local. Retain only what you plan to reuse", "One-offs→block-local; retain ONLY planned reuse"],
 	CODE_MODE_GUIDELINES[0],
 	CODE_MODE_GUIDELINES[1],
-	["Call tools.name(...).then(...) or an async function. Top-level await is unavailable", "tools.name(...).then(...) or async function; NO top-level await"],
+	CODE_MODE_GUIDELINES[2],
 	CODE_MODE_GUIDELINES[3],
 	CODE_MODE_GUIDELINES[4],
-	["Compose known tool calls in one exec. Chain dependencies with .then and run independent calls with Promise.allSettled. Bound output at the source", "Known calls→one exec; dependencies→.then; independent→Promise.allSettled; bound output at source"],
-	CODE_MODE_GUIDELINES[6],
 	["A stall, cancellation, memory limit or terminate drops conversation bindings. The next exec starts fresh", "Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh"],
 ] as const;
 
@@ -168,7 +164,7 @@ export function formatGuidelines(guidelines: readonly string[], shell?: string, 
 		shell ? formatShellContext(shell, true) : undefined,
 		customization,
 	].filter(Boolean).join("\n");
-	const editing = new Set<string>([NORMAL_CODEX_GUIDELINES[2][0], CODE_MODE_GUIDELINES[4][0]]);
+	const editing = new Set<string>([NORMAL_CODEX_GUIDELINES[2][0], CODE_MODE_GUIDELINES[3][0]]);
 	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES, ...VM_MODE_GUIDELINES].map(([guideline]) => guideline));
 	execution.add("exec calls run sequentially");
 	const notebook = new Set<string>([...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES].map(([guideline]) => guideline));

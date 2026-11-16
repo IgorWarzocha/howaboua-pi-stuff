@@ -10,3 +10,5 @@
 - Shepherdr now skips empty completion notices from unassigned worker turns.
 - Agent guidance now keeps delegation outcome-focused, limits peer messaging to actionable handoffs, blockers and ownership conflicts, and directs workers back to their assigned work after coordination.
 - Fixed agent launches and window focus when Pi runs as a standalone Bun executable.
+
+- Agent tool examples now omit mode-specific `await` syntax.

@@ -86,7 +86,7 @@ function drain(): void {
 	if (!record(status) || typeof status["done"] !== "boolean" || typeof status["pending"] !== "number") throw new Error("Invalid cell completion");
 	if (!status["done"] && status["pending"] > 0 && calls.size > 0) return;
 	if (!status["done"] || status["pending"] > 0) {
-		finish({ error: status["done"] ? "The cell finished with outstanding tool calls. Await every tool call before the cell ends" : "The cell is waiting on a promise with no pending tool call to resume it" }); return;
+		finish({ error: status["done"] ? "The cell finished with outstanding tool calls" : "The cell is waiting on a promise with no pending tool call to resume it" }); return;
 	}
 	const error = typeof status["error"] === "string" ? status["error"] : rejections.values().next().value;
 	finish(error === undefined ? {} : { error });

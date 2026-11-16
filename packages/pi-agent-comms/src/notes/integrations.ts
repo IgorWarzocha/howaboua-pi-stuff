@@ -63,7 +63,7 @@ export async function registerNotesToolIntegrations(
 		const rollover: ReturnType<typeof adaptToolForCodeMode> = {
 			name: "new_context",
 			topLevelName: "new_context",
-			usage: "await tools.new_context(args)",
+			usage: "tools.new_context(args)",
 			description: "",
 			kind: "function",
 			inputOptional: true,

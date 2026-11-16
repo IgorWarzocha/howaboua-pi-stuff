@@ -52,10 +52,7 @@ function errorMessage(error: unknown): string {
 }
 function scriptError(error: unknown): string {
 	if (isExit(error)) return "";
-	const message = errorMessage(error);
-	return message.includes("await is only valid")
-		? `${message}. Top-level await is unavailable; call tools.name(...).then(...) or an async function`
-		: message;
+	return errorMessage(error);
 }
 
 function bridge(kind: string, value: string): void {

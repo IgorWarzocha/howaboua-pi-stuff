@@ -116,7 +116,7 @@ function agentEvent(options: AgentEventOptions): {
 				message: message.reply,
 			};
 			const call = codeMode
-				? `await tools.${agentToolName}(${JSON.stringify(request)})`
+				? `tools.${agentToolName}(${JSON.stringify(request)})`
 				: `${agentToolName} ${JSON.stringify(request)}`;
 			lines.push(`Reply: ${call}`);
 		}

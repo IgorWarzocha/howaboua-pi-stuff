@@ -22,7 +22,7 @@ export function createPiCodeModeBridge(pi: ExtensionAPI): {
 				const argumentsSchema = compile(tool.parameters, { unresolvedRefs: "reject" });
 				return {
 					name: tool.name,
-					usage: `await tools.${tool.name}(args)`,
+					usage: `tools.${tool.name}(args)`,
 					description: tool.description,
 					namespace: loadout.getNamespace(tool.name),
 					annotations: metadata?.annotations,

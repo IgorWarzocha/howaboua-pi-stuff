@@ -141,8 +141,6 @@ test("host process, require, import and string eval stay unavailable", async () 
 		assert.match(textOf(kinds), /undefined:undefined/);
 		const generated = await code.execute("Function('return process')()", session("host"));
 		assert.match(generated.kind === "result" ? generated.errorText ?? "" : "", /code generation|disallowed/i);
-		const awaited = await code.execute("await Promise.resolve(1)", session("host"));
-		assert.match(awaited.kind === "result" ? awaited.errorText ?? "" : "", /top-level await/i);
 	} finally {
 		await code.shutdown();
 	}

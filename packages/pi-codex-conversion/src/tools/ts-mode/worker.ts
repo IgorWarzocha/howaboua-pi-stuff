@@ -306,7 +306,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 		await dispatchHooks("startup", { type: "startup" });
 	}, tools, input.toolMetadata, text, image, content, generatedImage,
 		(value: unknown) => send({ kind: "notify", text: stringify(value) }), () => send({ kind: "yield" }), () => { throw new Error("TS cell exited without committing state"); }, store, load);
-	if (pending.size) throw new Error("TS cell has unawaited tool/import requests; await them before committing state");
+	if (pending.size) throw new Error("TS cell has unawaited tool/import requests");
 	for (const key of Reflect.ownKeys(globalThis)) if (!initialGlobals.has(key)) throw new Error(`globalThis.${String(key)} cannot transfer; declare a top-level binding instead`);
 	for (const binding of Object.values(input.bindings)) if (binding.module) graph.registerRecipe(values[binding.name], binding.name);
 	// An unused fresh store is not a write: overlapping cells must not invent competing roots.

@@ -9,3 +9,5 @@ Added opt-in task-completion rollover: `new_context({resume: false})` finishes t
 Added same-cell context rollover after an awaited note save in Code and Notebook.
 
 Shared Notes and History try exact saved-session discovery before searching the saved family. Unrecorded shortened UUID addresses report how to retry without scanning every saved conversation; live routing remains available.
+
+Notes and History tool examples now omit mode-specific `await` syntax.

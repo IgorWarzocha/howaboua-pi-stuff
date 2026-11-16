@@ -43,7 +43,7 @@ export function adaptToolForCodeMode<
 	const nestedTool = options.toolName
 		? { ...tool, name: codeModeNameForToolIdentity(options.toolName) }
 		: tool;
-	const usage = options.usage ?? `await tools.${codeModeGlobalName(nestedTool.name)}()`;
+	const usage = options.usage ?? `tools.${codeModeGlobalName(nestedTool.name)}()`;
 	const adapted = toNestedTool(nestedTool, usage, {}, {
 		modelVisibleResult: true,
 		executeViaPi: tool.name,

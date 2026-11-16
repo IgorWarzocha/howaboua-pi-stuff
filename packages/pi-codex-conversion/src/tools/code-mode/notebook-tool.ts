@@ -18,7 +18,7 @@ const PIN_FIELDS = {
 	action: { ...lit("pin"), type: "string" },
 	names: arr(str(), { minItems: 1 }),
 	hook: opt(union([StringEnum(["startup", "tool_result"]), { ...lit(false), type: "boolean" }], {
-		description: "Await self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
+		description: "Self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
 	})),
 };
 const PIN_PARAMETERS = obj(PIN_FIELDS);
@@ -148,7 +148,7 @@ export function createNotebookControlProxy(
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
-		usage: "await tools.notebook()",
+		usage: "tools.notebook()",
 		discovery: "help",
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,

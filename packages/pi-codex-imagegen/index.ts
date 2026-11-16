@@ -91,7 +91,7 @@ async function registerImagegenInCodeMode(
 			const adapted = adaptToolForCodeMode(tool, {
 				discovery: "help",
 				usage:
-					"await tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number" +
+					"tools.image_gen__imagegen({prompt:string,transparent_background?:boolean,referenced_image_paths?:string[],num_last_images_to_include?:number" +
 					(api
 						? ',output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}'
 						: "") +
