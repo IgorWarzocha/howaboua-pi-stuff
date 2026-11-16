@@ -143,6 +143,8 @@ test("host process, require, import and string eval stay unavailable", async () 
 		assert.match(textOf(kinds), /undefined:undefined/);
 		const generated = await code.execute("Function('return process')()", session("host"));
 		assert.match(generated.kind === "result" ? generated.errorText ?? "" : "", /code generation|disallowed/i);
+		const awaitedGenerated = await code.execute("await Promise.resolve(); Function('return process')()", session("host"));
+		assert.match(awaitedGenerated.kind === "result" ? awaitedGenerated.errorText ?? "" : "", /code generation|disallowed/i);
 	} finally {
 		await code.shutdown();
 	}
@@ -314,6 +316,16 @@ test("awaited closures share the bindings later cells read and write", async () 
 		await code.execute("if (true) { var fromAwait = await Promise.resolve(8) }", session("closure"));
 		const fromAwait = await code.execute("text(String(fromAwait))", session("closure"));
 		assert.equal(textOf(fromAwait), "8");
+		const crossed = await code.execute("text('before')\ntext(typeof future)\ntext('after')\nawait Promise.resolve()\nlet future = 1\nfunction getFuture() { return future }", session("closure-tdz"));
+		assert.match(crossed.kind === "result" ? crossed.errorText ?? "" : "", /before initialization/);
+		assert.equal(textOf(crossed), "before");
+		const futureAbsent = await code.execute("text(typeof future)", session("closure-tdz"));
+		assert.match(textOf(futureAbsent), /undefined/);
+		const ordered = await code.execute("await Promise.resolve()\ntext('mid')\nlet future = (text('init'), 1)\nfunction getFuture() { return future }", session("closure-live"));
+		assert.equal(textOf(ordered), "mid\ninit");
+		await code.execute("future = 4", session("closure-live"));
+		const seen = await code.execute("text(String(getFuture()))", session("closure-live"));
+		assert.equal(textOf(seen), "4");
 	} finally {
 		await code.shutdown();
 	}

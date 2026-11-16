@@ -1,5 +1,5 @@
 import { parentPort, workerData } from "node:worker_threads";
-import { createContext, runInContext, Script } from "node:vm";
+import { createContext, runInContext, Script, SourceTextModule } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
 import { planVmCell, type VmBindings } from "./await-cell.ts";
 import { VM_PRELUDE } from "./prelude.ts";
@@ -21,28 +21,23 @@ const context = createContext(Object.create(null), {
 const factory: unknown = runInContext(VM_PRELUDE, context, { filename: "vm-code-prelude.js" });
 if (typeof factory !== "function") throw new Error("VM Code prelude did not start");
 const control = factory((kind: unknown, payload: unknown) => bridge(String(kind), payload === undefined ? "" : String(payload))) as VmControl;
-interface Publication { kind: string; name: string; value: unknown }
-const publications: Publication[] = [];
-const readers: Array<() => void> = [];
-let slot: unknown;
+const exported = new Map<string, string>();
+let cells = 0;
+const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
 Object.defineProperty(context, Symbol.for("pi.vm-code/init"), {
 	value: {
-		publish(kind: unknown, name: unknown, value: unknown) {
-			if (typeof kind !== "string" || typeof name !== "string") throw new Error("Invalid binding");
-			const current = publications.findIndex(item => item.kind === kind && item.name === name);
-			const item = { kind, name, value };
-			if (current >= 0) publications[current] = item;
-			else publications.push(item);
-			return value;
+		bind(kind: unknown, name: unknown, read: unknown, write: unknown) {
+			if ((kind !== "let" && kind !== "const" && kind !== "class" && kind !== "function" && kind !== "var")
+				|| typeof name !== "string" || !IDENTIFIER.test(name)
+				|| typeof read !== "function" || typeof write !== "function") throw new Error("Invalid binding");
+			exported.set(name, kind);
+			Object.defineProperty(context, name, {
+				configurable: kind === "function" || kind === "var",
+				enumerable: false,
+				get() { return (read as () => unknown)(); },
+				set(value: unknown) { (write as (value: unknown) => void)(value); },
+			});
 		},
-		read(fn: unknown) {
-			if (typeof fn !== "function") throw new Error("Invalid binding");
-			readers.push(fn as () => void);
-		},
-		flush() {
-			for (const read of readers.splice(0)) read();
-		},
-		slot() { return slot; },
 	},
 	writable: false,
 	configurable: false,
@@ -61,7 +56,6 @@ let truncated = false;
 let failure: string | undefined;
 	const resolvers = new Map<number, { resolve(): void; reject(error: Error): void }>();
 const calls = new Map<number, Promise<void>>();
-const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
 
 function send(message: VmMessage): void { parentPort?.postMessage(message); }
 function memory(): VmOutcome["memory"] {
@@ -152,11 +146,6 @@ function runScript(source: string): unknown {
 	return new Script(source, { filename: "vm-code-cell.js" }).runInContext(context);
 }
 
-function asPromise(value: unknown): Promise<unknown> {
-	if (typeof value === "object" && value !== null && "then" in value && typeof value.then === "function") return value as Promise<unknown>;
-	throw new Error("Top-level await did not produce a promise");
-}
-
 function thrown(error: unknown): { name: string; message: string } {
 	if (typeof error === "object" && error !== null) {
 		const name = "name" in error && typeof error.name === "string" ? error.name : "";
@@ -192,28 +181,13 @@ function rejectConflicts(bindings: VmBindings): void {
 		seen.add(name);
 		declared(name);
 	}
-	for (const name of bindings.functions) if (bindingState(name) === "lexical") declared(name);
-	for (const name of bindings.vars) if (bindingState(name) === "lexical") declared(name);
+	for (const name of bindings.functions) if (bindingState(name) === "lexical" || lexicalExport(name)) declared(name);
+	for (const name of bindings.vars) if (bindingState(name) === "lexical" || lexicalExport(name)) declared(name);
 }
 
-function isPromise(value: unknown): value is Promise<unknown> {
-	return typeof value === "object" && value !== null && "then" in value && typeof value.then === "function";
-}
-
-function applyPublications(): void {
-	const items = publications.splice(0);
-	readers.length = 0;
-	for (const item of items) {
-		if (!IDENTIFIER.test(item.name)) continue;
-		slot = item.value;
-		const read = `globalThis[Symbol.for("pi.vm-code/init")].slot()`;
-		if (item.kind === "const") runScript(`const ${item.name} = ${read}`);
-		else if (item.kind === "let" || item.kind === "class") runScript(`let ${item.name} = ${read}`);
-		else if (item.kind === "function") {
-			if (bindingState(item.name) === "absent") runScript(`var ${item.name} = ${read}`);
-			else runScript(`${item.name} = ${read}`);
-		}
-	}
+function lexicalExport(name: string): boolean {
+	const kind = exported.get(name);
+	return kind === "let" || kind === "const" || kind === "class";
 }
 
 async function settleGuest(): Promise<void> {
@@ -227,34 +201,41 @@ async function settleGuest(): Promise<void> {
 
 async function finishFailure(message: string): Promise<void> {
 	const text = message || "VM Code stopped";
-	publications.length = 0;
-	readers.length = 0;
 	failure = text;
 	control.fail(text);
 	await settleGuest();
 	finish({ error: text });
 }
 
-async function quiescent(completion?: Promise<unknown>): Promise<void> {
+async function quiescent(completion?: Promise<unknown>): Promise<unknown> {
 	let notify: () => void = () => {};
 	const halted = new Promise<void>(resolve => { notify = resolve; });
 	let settled = completion === undefined;
+	let exit: unknown;
 	void completion?.then(() => { settled = true; }, (error: unknown) => {
 		settled = true;
-		if (!isExit(error) && !failure) failure = scriptError(error);
+		if (isExit(error)) exit = error;
+		else if (!failure) failure = scriptError(error);
 		notify();
 	});
 	for (let turn = 0; turn < 10_000 || calls.size === 0; turn++) {
-		if (failure) return;
+		if (failure || exit) return exit;
 		const pending = [...calls.values()];
 		if (pending.length) await Promise.race([Promise.allSettled(pending), halted]);
-		if (failure) return;
+		if (failure || exit) return exit;
 		flushGuest();
 		await new Promise<void>(resolve => setImmediate(resolve));
-		if (failure) return;
-		if (calls.size === 0 && control.pending() === 0 && settled) return;
+		if (failure || exit) return exit;
+		if (calls.size === 0 && control.pending() === 0 && settled) return exit;
 	}
 	throw new Error("The script kept scheduling tool calls");
+}
+
+async function runModule(source: string): Promise<void> {
+	const compiled = new SourceTextModule(source, { context, identifier: `vm-code://${++cells}` });
+	await compiled.link(() => { throw new Error("import is unavailable"); });
+	const exit = await quiescent(compiled.evaluate());
+	if (isExit(exit)) throw exit;
 }
 
 async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> {
@@ -265,31 +246,11 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 	truncated = false;
 	failure = undefined;
 	control.configure(JSON.stringify(message.input.tools), JSON.stringify(message.input.store));
-	slot = undefined;
-	publications.length = 0;
-	readers.length = 0;
 	try {
-		const planned = planVmCell(message.input.source);
-		if (planned.awaited) {
-			rejectConflicts(planned);
-			if (planned.publish && planned.vars.length) runScript(`var ${planned.vars.join(", ")};`);
-			try {
-				for (const segment of planned.segments) {
-					if (failure) break;
-					const result = runScript(segment);
-					if (!isPromise(result)) {
-						await quiescent();
-						continue;
-					}
-					const finished = planned.publish ? asPromise(result) : asPromise(result).then(value => { slot = value; });
-					await quiescent(finished);
-				}
-			} finally {
-				if (planned.publish) {
-					try { applyPublications(); } catch (error) { if (!failure) failure = scriptError(error); }
-				}
-			}
-		} else {
+		const planned = planVmCell(message.input.source, name => bindingState(name) !== "absent");
+		rejectConflicts(planned.bindings);
+		if (planned.awaited) await runModule(planned.source);
+		else {
 			runScript(planned.source);
 			await quiescent();
 		}

@@ -33,7 +33,7 @@ export class VmKernel {
 				maxYoungGenerationSizeMb: Math.min(32, heapMiB),
 				stackSizeMb: 4,
 			},
-			execArgv: [],
+			execArgv: ["--experimental-vm-modules", "--disable-warning=ExperimentalWarning"],
 			stdout: true,
 			stderr: true,
 		});

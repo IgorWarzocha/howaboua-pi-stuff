@@ -15,167 +15,63 @@ interface Syntax {
 interface Edit { start: number; end: number; text: string }
 
 export interface VmBindings { lexical: string[]; vars: string[]; functions: string[] }
-export type VmPlan = { awaited: false; source: string } | ({ awaited: true; segments: string[]; publish: boolean } & VmBindings);
+export type VmPlan = { awaited: boolean; source: string; bindings: VmBindings };
 
-const FUNCTION = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
+const FUNCTION = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression", "StaticBlock"]);
 const LOOP = new Set(["ForStatement", "ForInStatement", "ForOfStatement"]);
 const HOST = `globalThis[Symbol.for("pi.vm-code/init")]`;
-const SLOT = `${HOST}.slot()`;
 
 /**
- * A function keeps the context binding it closes over. Cells that close over a `let`, `const`
- * or class declared in that cell run as scripts in the context. Other awaited cells run as one
- * async function so a temporal-dead-zone throw does not leave the name stuck on the context.
+ * Awaited cells run as one module. `let`, `const` and `class` exist for the whole cell, and a
+ * function closes over those bindings. The module publishes each binding after it initializes.
  */
-export function planVmCell(source: string): VmPlan {
+export function planVmCell(source: string, bound: (name: string) => boolean = () => false): VmPlan {
 	let program: Syntax;
 	try {
 		program = parse(source, { ecmaVersion: "latest", allowAwaitOutsideFunction: true, sourceType: "script" }) as unknown as Syntax;
 	} catch (error) {
 		if (declaredEarly(error)) throw error;
-		return { awaited: false, source };
+		return { awaited: false, source, bindings: noBindings() };
 	}
-	if (!containsAwait(program)) return { awaited: false, source };
-	const body = statements(program);
 	const bindings = scriptBindings(program);
-	if (captures(program, bindings.lexical)) return { awaited: true, segments: compileSegments(body, source, bindings), publish: false, ...bindings };
-	return { awaited: true, segments: [compileWrapper(body, source, bindings)], publish: true, ...bindings };
+	if (!containsAwait(program)) return { awaited: false, source, bindings };
+	return { awaited: true, source: compileModule(source, program, bindings, bound), bindings };
 }
 
-function captures(program: Syntax, names: string[]): boolean {
-	const wanted = new Set(names);
-	if (!wanted.size) return false;
-	let found = false;
-	walk(program, 0, (node, depth) => {
-		if (depth > 0 && node.type === "Identifier" && wanted.has(String(node["name"] ?? ""))) found = true;
-	});
-	return found;
-}
-
-function compileWrapper(body: Syntax[], source: string, bindings: VmBindings): string {
-	const strict = body[0]?.directive === "use strict" ? `"use strict";\n` : "";
-	const functions = bindings.functions.flatMap(name => [
-		`${HOST}.publish("function",${JSON.stringify(name)},${name});`,
-		remember("function", name),
-	]).join("\n");
-	const rendered = body.flatMap(statement => statement.directive === "use strict" ? [] : renderStatement(statement, source)).join("\n");
-	return `(async () => {\n${strict}${functions}\ntry {\n${rendered}\n} finally {\n${HOST}.flush();\n}\n})()`;
-}
-
-function renderStatement(statement: Syntax, source: string): string[] {
-	if (statement.type === "FunctionDeclaration") return [slice(statement, source)];
-	if (statement.type === "ClassDeclaration") {
-		const name = namesIn(statement["id"])[0];
-		return [slice(statement, source), ...(name ? [remember("class", name)] : [])];
-	}
-	if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) return renderLexical(statement.kind, statement, source);
-	return [rewriteVars(statement, source)];
-}
-
-function renderLexical(kind: string, statement: Syntax, source: string): string[] {
-	const declarators = statement.declarations ?? [];
-	const names = declarators.flatMap(declarator => namesIn(declarator["id"]));
-	const simple = declarators.every(declarator => isSyntax(declarator["id"]) && declarator["id"].type === "Identifier");
-	const readers = names.map(name => remember(kind, name));
-	if (!simple) return [slice(statement, source), ...readers];
-	const parts = declarators.map(declarator => {
-		const id = declarator["id"];
-		if (!isSyntax(id) || id.type !== "Identifier") return slice(declarator, source);
-		const name = String(id["name"]);
-		const init = declarator["init"];
-		const expr = isSyntax(init) ? slice(init, source) : "undefined";
-		return `${slice(id, source)} = ${HOST}.publish(${JSON.stringify(kind)},${JSON.stringify(name)},(${expr}))`;
-	});
-	return [`${kind} ${parts.join(", ")};`, ...readers];
-}
-
-function remember(kind: string, name: string): string {
-	return `${HOST}.read(() => ${HOST}.publish(${JSON.stringify(kind)},${JSON.stringify(name)},${name}));`;
-}
-
-function compileSegments(body: Syntax[], source: string, bindings: VmBindings): string[] {
-	const strict = body[0]?.directive === "use strict";
-	const functions = body.filter(statement => statement.type === "FunctionDeclaration").map(statement => slice(statement, source));
-	const segments: string[][] = [];
-	let current = prologue(true);
-	let open = true;
-
-	function prologue(first: boolean): string[] {
-		const lines: string[] = [];
-		if (strict) lines.push(`"use strict";`);
-		if (first && bindings.vars.length) lines.push(`var ${bindings.vars.join(", ")};`);
-		if (first && functions.length) lines.push(functions.join("\n"));
-		return lines;
-	}
-	function emit(line: string): void {
-		if (!open) current = prologue(false);
-		open = true;
-		current.push(line);
-	}
-	function finish(expression?: string): void {
-		if (expression) emit(`;${expression}`);
-		if (current.some(line => line !== `"use strict";`)) segments.push(current);
-		current = [];
-		open = false;
-	}
-
+function compileModule(source: string, program: Syntax, bindings: VmBindings, bound: (name: string) => boolean): string {
+	const freshVars = bindings.vars.filter(name => !bound(name));
+	const header = moduleHeader(freshVars, bindings.functions);
+	const body = statements(program);
+	const headerAt = body[0]?.directive === "use strict" ? body[0].end : 0;
+	const edits: Edit[] = [];
+	if (header) edits.push({ start: headerAt, end: headerAt, text: headerAt === 0 ? header : `\n${header}` });
 	for (const statement of body) {
 		if (statement.directive === "use strict" || statement.type === "FunctionDeclaration") continue;
-		if (!containsAwait(statement)) {
-			emit(slice(statement, source));
+		if (statement.type === "ClassDeclaration") {
+			const names = namesIn(statement["id"]);
+			if (names.length) edits.push({ start: statement.end, end: statement.end, text: `\n${bindCalls("class", names)};` });
 			continue;
 		}
-		if (statement.type === "VariableDeclaration") emitVariable(statement);
-		else if (statement.type === "ClassDeclaration") emitClass(statement);
-		else if (statement.type === "ExpressionStatement" && isSyntax(statement["expression"])) finish(`(async () => (${slice(statement["expression"], source)}))()`);
-		else finish(`(async () => {\n${rewriteVars(statement, source)}\n})()`);
-	}
-	finish();
-	return segments.map(lines => lines.join("\n"));
-
-	function emitVariable(statement: Syntax): void {
-		const kind = statement.kind ?? "let";
-		for (const declarator of statement.declarations ?? []) {
-			const id = declarator["id"];
-			const init = declarator["init"];
-			if (!isSyntax(id)) continue;
-			if (containsAwait(id)) {
-				emitPattern(kind, id, isSyntax(init) ? init : undefined);
-				continue;
-			}
-			if (isSyntax(init) && containsAwait(init)) {
-				finish(`(async () => (${slice(init, source)}))()`);
-				emit(`${kind} ${slice(id, source)} = ${SLOT};`);
-				continue;
-			}
-			emit(`${kind} ${slice(declarator, source)};`);
+		if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) {
+			const names = (statement.declarations ?? []).flatMap(declarator => namesIn(declarator["id"]));
+			if (names.length) edits.push({ start: statement.end, end: statement.end, text: `\n${bindCalls(statement.kind, names)};` });
+			continue;
 		}
+		const rewritten = rewriteVars(statement, source);
+		if (rewritten !== slice(statement, source)) edits.push({ start: statement.start, end: statement.end, text: rewritten });
 	}
+	return apply(source, edits);
+}
 
-	function emitPattern(kind: string, id: Syntax, init: Syntax | undefined): void {
-		const names = namesIn(id);
-		const initText = init ? slice(init, source) : "undefined";
-		const binding = `(${slice(id, source)} = ${initText})`;
-		if (kind === "const") {
-			finish(`(async () => { const ${slice(id, source)} = ${initText}; return { ${names.join(", ")} }; })()`);
-			for (const name of names) emit(`const ${name} = ${SLOT}.${name};`);
-			return;
-		}
-		if (kind === "let") emit(`let ${names.join(", ")};`);
-		finish(`(async () => { ${binding}; })()`);
-	}
+function moduleHeader(vars: string[], functions: string[]): string {
+	const lines: string[] = [];
+	if (vars.length) lines.push(`var ${vars.join(", ")};`, `${bindCalls("var", vars)};`);
+	if (functions.length) lines.push(`${bindCalls("function", functions)};`);
+	return lines.length ? `${lines.join("\n")}\n` : "";
+}
 
-	function emitClass(statement: Syntax): void {
-		const heritage = statement["superClass"];
-		const id = statement["id"];
-		const bodyNode = statement["body"];
-		if (!isSyntax(heritage) || !containsAwait(heritage) || !isSyntax(id) || !isSyntax(bodyNode)) {
-			emit(slice(statement, source));
-			return;
-		}
-		finish(`(async () => (${slice(heritage, source)}))()`);
-		emit(`class ${slice(id, source)} extends (${SLOT}) ${slice(bodyNode, source)}`);
-	}
+function bindCalls(kind: string, names: string[]): string {
+	return names.map(name => `${HOST}.bind(${JSON.stringify(kind)},${JSON.stringify(name)},() => ${name},function(){${name} = arguments[0]})`).join(";\n");
 }
 
 function rewriteVars(statement: Syntax, source: string): string {
@@ -287,6 +183,10 @@ function slice(node: Syntax, source: string): string {
 
 function unique(names: string[]): string[] {
 	return [...new Set(names)];
+}
+
+function noBindings(): VmBindings {
+	return { lexical: [], vars: [], functions: [] };
 }
 
 function isSyntax(value: unknown): value is Syntax {
