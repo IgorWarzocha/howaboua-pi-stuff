@@ -23,8 +23,7 @@ export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isol
 
 export const VM_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-let, const, function and class persist in this conversation
-MUST use tools.name(args).then(result => text(result)). MUST NOT use await tools.name(args) or text(await tools.name(args)).
+let, const, function and class persist in this conversation, including across await
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
 content(value) emits MCP text/images in order
 No Node, imports, fetch or timers
@@ -32,8 +31,7 @@ A stall, cancellation, memory limit or terminate drops conversation bindings`;
 
 export const GPT_VM_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-let/const/function/class persist in this conversation
-MUST use tools.name(args).then(result => text(result)). MUST NOT use await tools.name(args) or text(await tools.name(args)).
+let/const/function/class persist in this conversation, including across await
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
 content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers

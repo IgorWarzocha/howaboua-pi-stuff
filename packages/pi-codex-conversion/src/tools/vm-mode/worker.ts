@@ -1,6 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { createContext, runInContext, Script } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
+import { prepareVmCell } from "./await-cell.ts";
 import { VM_PRELUDE } from "./prelude.ts";
 import type { VmCommand, VmMessage, VmOutcome, VmWorkerData } from "./protocol.ts";
 
@@ -118,14 +119,19 @@ function flushGuest(): void {
 	runInContext("void 0", context);
 }
 
-async function quiescent(): Promise<void> {
-	for (let turn = 0; turn < 10_000; turn++) {
+async function quiescent(completion?: Promise<unknown>): Promise<void> {
+	let settled = completion === undefined;
+	void completion?.then(() => { settled = true; }, (error: unknown) => {
+		settled = true;
+		if (!isExit(error) && !failure) failure = scriptError(error);
+	});
+	for (let turn = 0; turn < 10_000 || calls.size === 0; turn++) {
 		const pending = [...calls.values()];
 		if (pending.length) await Promise.allSettled(pending);
 		flushGuest();
 		await new Promise<void>(resolve => setImmediate(resolve));
 		if (failure) return;
-		if (calls.size === 0 && control.pending() === 0) return;
+		if (calls.size === 0 && control.pending() === 0 && settled) return;
 	}
 	throw new Error("The script kept scheduling tool calls");
 }
@@ -139,8 +145,14 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 	failure = undefined;
 	control.configure(JSON.stringify(message.input.tools), JSON.stringify(message.input.store));
 	try {
-		new Script(message.input.source, { filename: "vm-code-cell.js" }).runInContext(context);
-		await quiescent();
+		const prepared = prepareVmCell(message.input.source);
+		const value: unknown = new Script(prepared.source, { filename: "vm-code-cell.js" }).runInContext(context);
+		const completion = prepared.awaited && typeof value === "object" && value !== null && "then" in value && typeof value.then === "function"
+			? value as Promise<unknown>
+			: undefined;
+		if (prepared.awaited && !completion) throw new Error("Top-level await did not produce a promise");
+		await quiescent(completion);
+		if (failure) control.fail(failure);
 		finish(failure ? { error: failure } : {});
 	} catch (error) {
 		const message = scriptError(error);

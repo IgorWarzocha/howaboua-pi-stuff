@@ -187,7 +187,7 @@ Select **VM Code** to compose tools in JavaScript while keeping `let`, `const`, 
 
 Run Pi under Node. One context belongs to the conversation. There is no shared heap, project lock, checkpoint or disk image. The context is capped at 256 MiB. `store` and `load` keep conversation-local JSON, with the same size limits as QuickJS Code.
 
-Top-level `await` is unavailable. Call `tools.name(...).then(...)` or an async function. The environment has no Node APIs, imports, direct network access or timers. The agent uses tools for host operations.
+Top-level `await` works, and those bindings still persist. A `const` declared in a cell that uses `await` can be assigned later. The environment has no Node APIs, imports, direct network access or timers. The agent uses tools for host operations.
 
 A script error keeps the bindings. A stall, cancellation, memory limit, `terminate` or conversation change drops them, and the next `exec` starts fresh.
 

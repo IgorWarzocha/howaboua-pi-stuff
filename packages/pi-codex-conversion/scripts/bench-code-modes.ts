@@ -19,10 +19,10 @@ const CALLS = Number(process.env["BENCH_CALLS"] ?? 500);
 const WARMUP = 3;
 const SAMPLE_EVERY = 50;
 // No top-level bindings: TS rejects a later cell that redeclares them. Every mode keeps the string through store/load.
-const SOURCE = `store("held", (() => {
+const SOURCE = `store("held", await Promise.resolve((() => {
   var loaded = load("held");
   return typeof loaded === "string" ? loaded : "x".repeat(100000);
-})());
+})()));
 text(String(load("held")).length);`;
 const LOOP = "// @exec: {\"yield_time_ms\": 200}\nwhile (true);";
 

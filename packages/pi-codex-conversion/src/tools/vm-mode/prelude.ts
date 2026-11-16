@@ -2,8 +2,7 @@ import { commandOutputFormatterSource } from "../code-mode/command-output.ts";
 import { VM_STORE_TOTAL_MAX, VM_STORE_VALUE_MAX } from "./limits.ts";
 
 // Same tools.name binding as QuickJS Code. The host bridge stays in this closure.
-// Cell source is not rewritten: later scripts see let, const, function and class
-// because they run in this same context.
+// Later scripts see let, const, function and class because they run in this same context.
 export const VM_PRELUDE = String.raw`(bridge => {
   const parse = JSON.parse, stringify = JSON.stringify;
   const formatCommand = ${commandOutputFormatterSource};
