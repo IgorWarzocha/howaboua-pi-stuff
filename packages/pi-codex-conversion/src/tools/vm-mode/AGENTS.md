@@ -1,6 +1,7 @@
 - One `node:vm` context per conversation, inside one Node worker. No project heap, lock, snapshot, disk image or VM shared across conversations.
 - Cells without top-level `await` run unchanged. Cells with it run statement by statement in the same context, so `const`, `var`, function hoisting and block `var` match a normal cell. Do not turn `const` into `let`.
-- A failed cell rejects its outstanding tool promises and drains their callbacks before the next exec. Those callbacks must not emit into or call tools for the later cell.
+- Reject lexical redeclarations and same-cell declaration conflicts before any effect. Arm temporal-dead-zone traps for new `let`, `const` and `class` bindings and remove them when that declaration runs or the cell stops.
+- A failed cell cancels outstanding host tool calls, rejects their guest promises, and flushes callbacks before the next exec. Do not wait for those host calls. Callbacks must not emit into or call tools for the later cell.
 - Do not use Node REPL. Its evaluator always calls the host module loader, so `import("node:fs")` succeeds there. Do not pass `importModuleDynamically`.
 - Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`, with the same names and arguments as QuickJS Code. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
 - A script error keeps the context. Stall, abort, memory limit, terminate and conversation change terminate the worker. The next exec creates a new context. Say that bindings were dropped.

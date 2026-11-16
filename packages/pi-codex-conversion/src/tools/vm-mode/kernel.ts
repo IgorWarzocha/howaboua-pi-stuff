@@ -8,6 +8,7 @@ interface Callbacks {
 	yield(): void;
 	store(key: string, json?: string): void;
 	request(id: number, name: string, value: unknown): Promise<unknown>;
+	cancel(): void;
 }
 
 /** One worker owns one vm context. Termination is the hard stop; the context is not reused. */
@@ -83,6 +84,7 @@ export class VmKernel {
 				case "yield": active.callbacks.yield(); break;
 				case "store": active.callbacks.store(message.key, message.json); break;
 				case "call": void this.request(message, active); break;
+				case "cancel": active.callbacks.cancel(); break;
 				case "done": this.active = undefined; active.resolve(message.outcome); break;
 			}
 		} catch (error) {

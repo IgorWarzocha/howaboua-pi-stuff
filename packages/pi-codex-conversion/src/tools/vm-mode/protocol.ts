@@ -34,6 +34,7 @@ export type VmMessage =
 	| { run: number; kind: "yield" }
 	| { run: number; kind: "store"; key: string; json?: string }
 	| { run: number; kind: "call"; id: number; name: string; json: string }
+	| { run: number; kind: "cancel" }
 	| { run: number; kind: "done"; outcome: VmOutcome }
 	| { kind: "sample"; memory: VmMemory };
 

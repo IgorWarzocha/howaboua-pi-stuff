@@ -126,6 +126,7 @@ export class VmCodeClient implements CodeModeExecutionClient {
 				notify: text => this.delegate.notifyDirect(cell.id, text),
 				yield: () => { execution.cooperative = true; cell.requestYield(); },
 				store: (key, json) => this.writeStore(key, json),
+				cancel: () => { this.delegate.cancelCell(cell.id); },
 				request: async (id, name, value) => {
 					execution.inflight++;
 					cell.setBlocked(`vm-${id}`, true);

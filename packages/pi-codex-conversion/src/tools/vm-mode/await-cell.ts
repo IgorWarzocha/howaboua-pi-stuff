@@ -14,8 +14,9 @@ interface Syntax {
 
 interface Edit { start: number; end: number; text: string }
 
-export interface VmStep { async: boolean; source: string }
-export type VmPlan = { awaited: false; source: string } | { awaited: true; steps: VmStep[] };
+export interface VmStep { async: boolean; source: string; binds?: string[] }
+export interface VmBindings { lexical: string[]; vars: string[]; functions: string[] }
+export type VmPlan = { awaited: false; source: string } | ({ awaited: true; steps: VmStep[] } & VmBindings);
 
 const FUNCTION = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
 const INIT = `globalThis[Symbol.for("pi.vm-code/init")]`;
@@ -31,11 +32,12 @@ export function planVmCell(source: string): VmPlan {
 	if (!containsAwait(program)) return { awaited: false, source };
 	const body = statements(program);
 	const strict = body[0]?.directive === "use strict" ? `"use strict";\n` : "";
+	const bindings = scriptBindings(program);
 	const preamble = preambleSource(program, source);
 	const steps: VmStep[] = [];
 	if (preamble) steps.push({ async: false, source: `${strict}${preamble}` });
 	for (const statement of body) steps.push(...stepsFor(statement, source, strict));
-	return { awaited: true, steps };
+	return { awaited: true, steps, ...bindings };
 }
 
 function stepsFor(statement: Syntax, source: string, strict: string): VmStep[] {
@@ -43,11 +45,13 @@ function stepsFor(statement: Syntax, source: string, strict: string): VmStep[] {
 	if (statement.type === "VariableDeclaration" && statement.kind !== "var" && statement.declarations && containsAwait(statement)) {
 		return statement.declarations.flatMap(declarator => lexicalSteps(statement.kind ?? "let", declarator, source, strict));
 	}
-	const text = statement.type === "VariableDeclaration" && statement.kind === "var" && containsAwait(statement)
+	const awaited = containsAwait(statement);
+	const text = statement.type === "VariableDeclaration" && statement.kind === "var" && awaited
 		? withoutVar(statement, source)
-		: containsAwait(statement) ? withoutVar(statement, source) : slice(statement, source);
+		: awaited ? withoutVar(statement, source) : slice(statement, source);
 	if (!text.trim()) return [];
-	if (!containsAwait(statement)) return [{ async: false, source: `${strict}${text}` }];
+	const binds = lexicalBinds(statement);
+	if (!awaited) return [{ async: false, source: `${strict}${text}`, ...(binds ? { binds } : {}) }];
 	return [{ async: true, source: `${strict}(async () => {\n${text}\n})()` }];
 }
 
@@ -61,8 +65,32 @@ function lexicalSteps(kind: string, declarator: Syntax, source: string, strict: 
 	const bindings = names.map(name => `${name} = ${INIT}.take()`).join(", ");
 	return [
 		{ async: true, source: `${strict}(async () => {\n${kind} ${slice(id, source)} = ${initializer};\n${puts}\n})()` },
-		{ async: false, source: `${strict}${kind} ${bindings};` },
+		{ async: false, source: `${strict}${kind} ${bindings};`, binds: names },
 	];
+}
+
+function scriptBindings(program: Syntax): VmBindings {
+	const lexical: string[] = [];
+	const functions: string[] = [];
+	for (const statement of statements(program)) {
+		if (statement.type === "FunctionDeclaration") functions.push(...namesIn(statement["id"]));
+		else lexical.push(...lexicalBinds(statement) ?? []);
+	}
+	const vars: string[] = [];
+	walk(program, 0, (node, depth) => {
+		if (depth === 0 && node.type === "VariableDeclaration" && node.kind === "var") {
+			for (const declarator of node.declarations ?? []) vars.push(...namesIn(declarator["id"]));
+		}
+	});
+	return { lexical, vars: unique(vars), functions };
+}
+
+function lexicalBinds(statement: Syntax): string[] | undefined {
+	if (statement.type === "ClassDeclaration") return namesIn(statement["id"]);
+	if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) {
+		return (statement.declarations ?? []).flatMap(declarator => namesIn(declarator["id"]));
+	}
+	return undefined;
 }
 
 function preambleSource(program: Syntax, source: string): string {

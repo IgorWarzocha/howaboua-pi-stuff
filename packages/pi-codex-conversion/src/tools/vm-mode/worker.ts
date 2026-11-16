@@ -1,7 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { createContext, runInContext, Script } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
-import { planVmCell, type VmStep } from "./await-cell.ts";
+import { planVmCell, type VmBindings, type VmStep } from "./await-cell.ts";
 import { VM_PRELUDE } from "./prelude.ts";
 import type { VmCommand, VmMessage, VmOutcome, VmWorkerData } from "./protocol.ts";
 
@@ -44,6 +44,8 @@ let truncated = false;
 let failure: string | undefined;
 const resolvers = new Map<number, { resolve(): void; reject(error: Error): void }>();
 const calls = new Map<number, Promise<void>>();
+const armed = new Set<string>();
+const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
 
 function send(message: VmMessage): void { parentPort?.postMessage(message); }
 function memory(): VmOutcome["memory"] {
@@ -117,10 +119,12 @@ function emit(kind: "text" | "image", value: string): void {
 function finish(outcome: Omit<VmOutcome, "memory">): void {
 	if (active === undefined) return;
 	const run = active;
+	if (resolvers.size) send({ run, kind: "cancel" });
 	active = undefined;
 	failure = undefined;
 	resolvers.clear();
 	calls.clear();
+	disarmArmed();
 	send({ run, kind: "done", outcome: { ...outcome, memory: memory() } });
 }
 
@@ -138,8 +142,66 @@ function asPromise(value: unknown): Promise<unknown> {
 	throw new Error("Top-level await did not produce a promise");
 }
 
+function thrown(error: unknown): { name: string; message: string } {
+	if (typeof error === "object" && error !== null) {
+		const name = "name" in error && typeof error.name === "string" ? error.name : "";
+		const message = "message" in error && typeof error.message === "string" ? error.message : String(error);
+		return { name, message };
+	}
+	return { name: "", message: String(error) };
+}
+
+function bindingState(name: string): "absent" | "global" | "lexical" {
+	if (!IDENTIFIER.test(name)) throw new SyntaxError(`Identifier '${name}' has already been declared`);
+	if (runInContext(`Object.prototype.hasOwnProperty.call(globalThis, ${JSON.stringify(name)})`, context) === true) return "global";
+	try {
+		runInContext(`void ${name}`, context);
+		return "lexical";
+	} catch (error) {
+		const detail = thrown(error);
+		if (detail.name === "ReferenceError" && !detail.message.includes("before initialization")) return "absent";
+		return "lexical";
+	}
+}
+
+function declared(name: string): void {
+	if (bindingState(name) !== "absent") throw new SyntaxError(`Identifier '${name}' has already been declared`);
+}
+
+function armBindings(bindings: VmBindings): void {
+	const seen = new Set<string>();
+	for (const name of bindings.lexical) {
+		if (seen.has(name) || bindings.vars.includes(name) || bindings.functions.includes(name)) {
+			throw new SyntaxError(`Identifier '${name}' has already been declared`);
+		}
+		seen.add(name);
+		declared(name);
+	}
+	for (const name of bindings.functions) if (bindingState(name) === "lexical") declared(name);
+	for (const name of bindings.vars) if (bindingState(name) === "lexical") declared(name);
+	for (const name of bindings.lexical) arm(name);
+}
+
+function arm(name: string): void {
+	armed.add(name);
+	runInContext(
+		`Object.defineProperty(globalThis, ${JSON.stringify(name)}, { configurable: true, get() { throw new ReferenceError(${JSON.stringify(`Cannot access '${name}' before initialization`)}) } })`,
+		context,
+	);
+}
+
+function disarm(name: string): void {
+	if (!armed.delete(name)) return;
+	runInContext(`delete globalThis[${JSON.stringify(name)}]`, context);
+}
+
+function disarmArmed(): void {
+	for (const name of [...armed]) disarm(name);
+}
+
 async function executeSteps(steps: VmStep[]): Promise<void> {
 	for (const step of steps) {
+		for (const name of step.binds ?? []) disarm(name);
 		const value = runScript(step.source);
 		if (step.async) await quiescent(asPromise(value));
 		if (failure) return;
@@ -147,32 +209,38 @@ async function executeSteps(steps: VmStep[]): Promise<void> {
 	await quiescent();
 }
 
-async function drainGuest(): Promise<void> {
-	for (let turn = 0; turn < 10_000; turn++) {
-		if (calls.size) await Promise.allSettled([...calls.values()]);
+async function settleGuest(): Promise<void> {
+	for (let turn = 0; turn < 20; turn++) {
 		flushGuest();
 		await new Promise<void>(resolve => setImmediate(resolve));
-		if (calls.size === 0 && control.pending() === 0) return;
+		if (control.pending() === 0) return;
+		control.fail(failure || "VM Code stopped");
 	}
-	throw new Error("The script kept scheduling tool calls");
 }
 
 async function finishFailure(message: string): Promise<void> {
+	const text = message || "VM Code stopped";
 	initValues.length = 0;
-	control.fail(message || "VM Code stopped");
-	await drainGuest();
-	finish({ error: message || "VM Code stopped" });
+	failure = text;
+	control.fail(text);
+	await settleGuest();
+	finish({ error: text });
 }
 
 async function quiescent(completion?: Promise<unknown>): Promise<void> {
+	let notify: () => void = () => {};
+	const halted = new Promise<void>(resolve => { notify = resolve; });
 	let settled = completion === undefined;
 	void completion?.then(() => { settled = true; }, (error: unknown) => {
 		settled = true;
 		if (!isExit(error) && !failure) failure = scriptError(error);
+		notify();
 	});
 	for (let turn = 0; turn < 10_000 || calls.size === 0; turn++) {
+		if (failure) return;
 		const pending = [...calls.values()];
-		if (pending.length) await Promise.allSettled(pending);
+		if (pending.length) await Promise.race([Promise.allSettled(pending), halted]);
+		if (failure) return;
 		flushGuest();
 		await new Promise<void>(resolve => setImmediate(resolve));
 		if (failure) return;
@@ -192,8 +260,10 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 	initValues.length = 0;
 	try {
 		const planned = planVmCell(message.input.source);
-		if (planned.awaited) await executeSteps(planned.steps);
-		else {
+		if (planned.awaited) {
+			armBindings(planned);
+			await executeSteps(planned.steps);
+		} else {
 			runScript(planned.source);
 			await quiescent();
 		}
@@ -204,7 +274,7 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 		finish({});
 	} catch (error) {
 		if (isExit(error)) {
-			await drainGuest();
+			await settleGuest();
 			finish({});
 			return;
 		}

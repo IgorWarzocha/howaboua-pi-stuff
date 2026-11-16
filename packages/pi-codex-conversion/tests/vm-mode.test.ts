@@ -260,6 +260,61 @@ test("a failed cell drains tool callbacks before the next exec", async () => {
 	}
 });
 
+test("awaited cells reject declaration conflicts before effects", async () => {
+	let calls = 0;
+	const echo: CodeModeToolDefinition = {
+		name: "echo",
+		usage: "tools.echo(value)",
+		deferLoading: false,
+		kind: "function",
+		async invoke(input) { calls += 1; return input; },
+	};
+	const code = client();
+	try {
+		const dead = await code.execute("text(typeof later); let later = 1; await Promise.resolve()", session("declare"));
+		assert.match(dead.kind === "result" ? dead.errorText ?? "" : "", /before initialization/);
+		assert.equal(textOf(dead), "");
+		const absent = await code.execute("text(typeof later)", session("declare"));
+		assert.match(textOf(absent), /undefined/);
+		await code.execute("const fixed = 1", session("declare"));
+		const redeclared = await code.execute("tools.echo(1); text('SHOULD NOT PRINT'); const fixed = 8; await Promise.resolve()", session("declare"), undefined, [echo]);
+		assert.match(redeclared.kind === "result" ? redeclared.errorText ?? "" : "", /already been declared/);
+		assert.equal(textOf(redeclared), "");
+		assert.equal(calls, 0);
+		const kept = await code.execute("text(String(fixed))", session("declare"));
+		assert.match(textOf(kept), /1/);
+	} finally {
+		await code.shutdown();
+	}
+});
+
+test("a script error cancels an outstanding tool instead of waiting for it", async () => {
+	let aborted = false;
+	const slow: CodeModeToolDefinition = {
+		name: "slow",
+		usage: "tools.slow()",
+		deferLoading: false,
+		kind: "function",
+		invoke(_input, _context, signal) {
+			return new Promise((_resolve, reject) => {
+				const abort = () => { aborted = true; reject(new Error("aborted")); };
+				if (signal.aborted) abort();
+				else signal.addEventListener("abort", abort, { once: true });
+			});
+		},
+	};
+	const code = client();
+	try {
+		const started = Date.now();
+		const failed = await code.execute("tools.slow(); throw new Error('oops')", session("cancel-tool"), AbortSignal.timeout(1000), [slow]);
+		assert.match(failed.kind === "result" ? failed.errorText ?? "" : "", /oops/);
+		assert.ok(Date.now() - started < 800);
+		assert.equal(aborted, true);
+	} finally {
+		await code.shutdown();
+	}
+});
+
 test("memory limit drops the context and the next exec rebuilds it", async () => {
 	const code = client(64);
 	try {
