@@ -14,59 +14,73 @@ interface Syntax {
 
 interface Edit { start: number; end: number; text: string }
 
-export interface VmStep { async: boolean; source: string; binds?: string[] }
 export interface VmBindings { lexical: string[]; vars: string[]; functions: string[] }
-export type VmPlan = { awaited: false; source: string } | ({ awaited: true; steps: VmStep[] } & VmBindings);
+export type VmPlan = { awaited: false; source: string } | ({ awaited: true; source: string } & VmBindings);
 
 const FUNCTION = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
-const INIT = `globalThis[Symbol.for("pi.vm-code/init")]`;
+const HOST = `globalThis[Symbol.for("pi.vm-code/init")]`;
 
-/** Split an awaited cell into scripts that keep the same bindings as a normal cell. Node REPL is not used: its evaluator loads host modules. */
+/** Awaited cells stay one sloppy async function so let and const keep a real temporal dead zone. Node REPL is not used: its evaluator loads host modules. */
 export function planVmCell(source: string): VmPlan {
 	let program: Syntax;
 	try {
 		program = parse(source, { ecmaVersion: "latest", allowAwaitOutsideFunction: true, sourceType: "script" }) as unknown as Syntax;
-	} catch {
+	} catch (error) {
+		if (declaredEarly(error)) throw error;
 		return { awaited: false, source };
 	}
 	if (!containsAwait(program)) return { awaited: false, source };
 	const body = statements(program);
 	const strict = body[0]?.directive === "use strict" ? `"use strict";\n` : "";
 	const bindings = scriptBindings(program);
-	const preamble = preambleSource(program, source);
-	const steps: VmStep[] = [];
-	if (preamble) steps.push({ async: false, source: `${strict}${preamble}` });
-	for (const statement of body) steps.push(...stepsFor(statement, source, strict));
-	return { awaited: true, steps, ...bindings };
+	const functions = bindings.functions.flatMap(name => [
+		`${HOST}.publish("function",${JSON.stringify(name)},${name});`,
+		remember("function", name),
+	]).join("\n");
+	const rendered = body.flatMap((statement, index) => index === 0 && statement.directive === "use strict" ? [] : renderStatement(statement, source)).join("\n");
+	return {
+		awaited: true,
+		source: `(async () => {\n${strict}${functions}\ntry {\n${rendered}\n} finally {\n${HOST}.flush();\n}\n})()`,
+		...bindings,
+	};
 }
 
-function stepsFor(statement: Syntax, source: string, strict: string): VmStep[] {
-	if (statement.type === "FunctionDeclaration") return [];
-	if (statement.type === "VariableDeclaration" && statement.kind !== "var" && statement.declarations && containsAwait(statement)) {
-		return statement.declarations.flatMap(declarator => lexicalSteps(statement.kind ?? "let", declarator, source, strict));
+function renderStatement(statement: Syntax, source: string): string[] {
+	if (statement.type === "FunctionDeclaration") return [slice(statement, source)];
+	if (statement.type === "ClassDeclaration") {
+		const name = namesIn(statement["id"])[0];
+		return [slice(statement, source), ...(name ? [remember("class", name)] : [])];
 	}
-	const awaited = containsAwait(statement);
-	const text = statement.type === "VariableDeclaration" && statement.kind === "var" && awaited
-		? withoutVar(statement, source)
-		: awaited ? withoutVar(statement, source) : slice(statement, source);
-	if (!text.trim()) return [];
-	const binds = lexicalBinds(statement);
-	if (!awaited) return [{ async: false, source: `${strict}${text}`, ...(binds ? { binds } : {}) }];
-	return [{ async: true, source: `${strict}(async () => {\n${text}\n})()` }];
+	if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) {
+		return renderLexical(statement.kind, statement, source);
+	}
+	return [withoutVar(statement, source)];
 }
 
-function lexicalSteps(kind: string, declarator: Syntax, source: string, strict: string): VmStep[] {
-	const id = declarator["id"];
-	const names = namesIn(id);
-	if (!isSyntax(id) || names.length === 0) return [];
-	const init = declarator["init"];
-	const initializer = isSyntax(init) ? slice(init, source) : "undefined";
-	const puts = names.map(name => `${INIT}.put(${name});`).join("\n");
-	const bindings = names.map(name => `${name} = ${INIT}.take()`).join(", ");
-	return [
-		{ async: true, source: `${strict}(async () => {\n${kind} ${slice(id, source)} = ${initializer};\n${puts}\n})()` },
-		{ async: false, source: `${strict}${kind} ${bindings};`, binds: names },
-	];
+function renderLexical(kind: string, statement: Syntax, source: string): string[] {
+	const declarators = statement.declarations ?? [];
+	const names = declarators.flatMap(declarator => namesIn(declarator["id"]));
+	const simple = declarators.every(declarator => isSyntax(declarator["id"]) && declarator["id"].type === "Identifier");
+	const readers = names.map(name => remember(kind, name));
+	if (!simple) return [slice(statement, source), ...readers];
+	const parts = declarators.map(declarator => {
+		const id = declarator["id"];
+		if (!isSyntax(id) || id.type !== "Identifier") return slice(declarator, source);
+		const name = String(id["name"]);
+		const init = declarator["init"];
+		const expr = isSyntax(init) ? slice(init, source) : "undefined";
+		return `${slice(id, source)} = ${HOST}.publish(${JSON.stringify(kind)},${JSON.stringify(name)},(${expr}))`;
+	});
+	return [`${kind} ${parts.join(", ")};`, ...readers];
+}
+
+function remember(kind: string, name: string): string {
+	return `${HOST}.read(() => ${HOST}.publish(${JSON.stringify(kind)},${JSON.stringify(name)},${name}));`;
+}
+
+function declaredEarly(error: unknown): boolean {
+	return typeof error === "object" && error !== null && "name" in error && error.name === "SyntaxError"
+		&& "message" in error && typeof error.message === "string" && error.message.includes("already been declared");
 }
 
 function scriptBindings(program: Syntax): VmBindings {
@@ -74,7 +88,10 @@ function scriptBindings(program: Syntax): VmBindings {
 	const functions: string[] = [];
 	for (const statement of statements(program)) {
 		if (statement.type === "FunctionDeclaration") functions.push(...namesIn(statement["id"]));
-		else lexical.push(...lexicalBinds(statement) ?? []);
+		else if (statement.type === "ClassDeclaration") lexical.push(...namesIn(statement["id"]));
+		else if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) {
+			for (const declarator of statement.declarations ?? []) lexical.push(...namesIn(declarator["id"]));
+		}
 	}
 	const vars: string[] = [];
 	walk(program, 0, (node, depth) => {
@@ -83,31 +100,6 @@ function scriptBindings(program: Syntax): VmBindings {
 		}
 	});
 	return { lexical, vars: unique(vars), functions };
-}
-
-function lexicalBinds(statement: Syntax): string[] | undefined {
-	if (statement.type === "ClassDeclaration") return namesIn(statement["id"]);
-	if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) {
-		return (statement.declarations ?? []).flatMap(declarator => namesIn(declarator["id"]));
-	}
-	return undefined;
-}
-
-function preambleSource(program: Syntax, source: string): string {
-	const vars: string[] = [];
-	const functions: string[] = [];
-	for (const statement of statements(program)) {
-		if (statement.type === "FunctionDeclaration") functions.push(slice(statement, source));
-	}
-	walk(program, 0, (node, depth) => {
-		if (depth === 0 && node.type === "VariableDeclaration" && node.kind === "var") {
-			for (const declarator of node.declarations ?? []) vars.push(...namesIn(declarator["id"]));
-		}
-	});
-	return [
-		vars.length ? `var ${unique(vars).join(", ")};` : "",
-		...functions,
-	].filter(Boolean).join("\n");
 }
 
 function withoutVar(statement: Syntax, source: string): string {

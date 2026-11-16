@@ -1,7 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { createContext, runInContext, Script } from "node:vm";
 import { contentOutputFactorySource } from "../code-mode/content-output.ts";
-import { planVmCell, type VmBindings, type VmStep } from "./await-cell.ts";
+import { planVmCell, type VmBindings } from "./await-cell.ts";
 import { VM_PRELUDE } from "./prelude.ts";
 import type { VmCommand, VmMessage, VmOutcome, VmWorkerData } from "./protocol.ts";
 
@@ -21,11 +21,28 @@ const context = createContext(Object.create(null), {
 const factory: unknown = runInContext(VM_PRELUDE, context, { filename: "vm-code-prelude.js" });
 if (typeof factory !== "function") throw new Error("VM Code prelude did not start");
 const control = factory((kind: unknown, payload: unknown) => bridge(String(kind), payload === undefined ? "" : String(payload))) as VmControl;
-const initValues: unknown[] = [];
+interface Publication { kind: string; name: string; value: unknown }
+const publications: Publication[] = [];
+const readers: Array<() => void> = [];
+let slot: unknown;
 Object.defineProperty(context, Symbol.for("pi.vm-code/init"), {
 	value: {
-		put(value: unknown) { initValues.push(value); },
-		take() { return initValues.shift(); },
+		publish(kind: unknown, name: unknown, value: unknown) {
+			if (typeof kind !== "string" || typeof name !== "string") throw new Error("Invalid binding");
+			const current = publications.findIndex(item => item.kind === kind && item.name === name);
+			const item = { kind, name, value };
+			if (current >= 0) publications[current] = item;
+			else publications.push(item);
+			return value;
+		},
+		read(fn: unknown) {
+			if (typeof fn !== "function") throw new Error("Invalid binding");
+			readers.push(fn as () => void);
+		},
+		flush() {
+			for (const read of readers.splice(0)) read();
+		},
+		slot() { return slot; },
 	},
 	writable: false,
 	configurable: false,
@@ -42,9 +59,8 @@ let outputChars = 0;
 let outputItems = 0;
 let truncated = false;
 let failure: string | undefined;
-const resolvers = new Map<number, { resolve(): void; reject(error: Error): void }>();
+	const resolvers = new Map<number, { resolve(): void; reject(error: Error): void }>();
 const calls = new Map<number, Promise<void>>();
-const armed = new Set<string>();
 const IDENTIFIER = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
 
 function send(message: VmMessage): void { parentPort?.postMessage(message); }
@@ -124,7 +140,6 @@ function finish(outcome: Omit<VmOutcome, "memory">): void {
 	failure = undefined;
 	resolvers.clear();
 	calls.clear();
-	disarmArmed();
 	send({ run, kind: "done", outcome: { ...outcome, memory: memory() } });
 }
 
@@ -168,7 +183,7 @@ function declared(name: string): void {
 	if (bindingState(name) !== "absent") throw new SyntaxError(`Identifier '${name}' has already been declared`);
 }
 
-function armBindings(bindings: VmBindings): void {
+function rejectConflicts(bindings: VmBindings): void {
 	const seen = new Set<string>();
 	for (const name of bindings.lexical) {
 		if (seen.has(name) || bindings.vars.includes(name) || bindings.functions.includes(name)) {
@@ -179,34 +194,22 @@ function armBindings(bindings: VmBindings): void {
 	}
 	for (const name of bindings.functions) if (bindingState(name) === "lexical") declared(name);
 	for (const name of bindings.vars) if (bindingState(name) === "lexical") declared(name);
-	for (const name of bindings.lexical) arm(name);
 }
 
-function arm(name: string): void {
-	armed.add(name);
-	runInContext(
-		`Object.defineProperty(globalThis, ${JSON.stringify(name)}, { configurable: true, get() { throw new ReferenceError(${JSON.stringify(`Cannot access '${name}' before initialization`)}) } })`,
-		context,
-	);
-}
-
-function disarm(name: string): void {
-	if (!armed.delete(name)) return;
-	runInContext(`delete globalThis[${JSON.stringify(name)}]`, context);
-}
-
-function disarmArmed(): void {
-	for (const name of [...armed]) disarm(name);
-}
-
-async function executeSteps(steps: VmStep[]): Promise<void> {
-	for (const step of steps) {
-		for (const name of step.binds ?? []) disarm(name);
-		const value = runScript(step.source);
-		if (step.async) await quiescent(asPromise(value));
-		if (failure) return;
+function applyPublications(): void {
+	const items = publications.splice(0);
+	readers.length = 0;
+	for (const item of items) {
+		if (!IDENTIFIER.test(item.name)) continue;
+		slot = item.value;
+		const read = `globalThis[Symbol.for("pi.vm-code/init")].slot()`;
+		if (item.kind === "const") runScript(`const ${item.name} = ${read}`);
+		else if (item.kind === "let" || item.kind === "class") runScript(`let ${item.name} = ${read}`);
+		else if (item.kind === "function") {
+			if (bindingState(item.name) === "absent") runScript(`var ${item.name} = ${read}`);
+			else runScript(`${item.name} = ${read}`);
+		}
 	}
-	await quiescent();
 }
 
 async function settleGuest(): Promise<void> {
@@ -220,7 +223,8 @@ async function settleGuest(): Promise<void> {
 
 async function finishFailure(message: string): Promise<void> {
 	const text = message || "VM Code stopped";
-	initValues.length = 0;
+	publications.length = 0;
+	readers.length = 0;
 	failure = text;
 	control.fail(text);
 	await settleGuest();
@@ -257,12 +261,18 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 	truncated = false;
 	failure = undefined;
 	control.configure(JSON.stringify(message.input.tools), JSON.stringify(message.input.store));
-	initValues.length = 0;
+	publications.length = 0;
+	readers.length = 0;
 	try {
 		const planned = planVmCell(message.input.source);
 		if (planned.awaited) {
-			armBindings(planned);
-			await executeSteps(planned.steps);
+			rejectConflicts(planned);
+			if (planned.vars.length) runScript(`var ${planned.vars.join(", ")};`);
+			try {
+				await quiescent(asPromise(runScript(planned.source)));
+			} finally {
+				try { applyPublications(); } catch (error) { if (!failure) failure = scriptError(error); }
+			}
 		} else {
 			runScript(planned.source);
 			await quiescent();

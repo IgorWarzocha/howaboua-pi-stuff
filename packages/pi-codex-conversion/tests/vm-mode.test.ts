@@ -271,11 +271,14 @@ test("awaited cells reject declaration conflicts before effects", async () => {
 	};
 	const code = client();
 	try {
-		const dead = await code.execute("text(typeof later); let later = 1; await Promise.resolve()", session("declare"));
+		const dead = await code.execute("text('before')\ntext(typeof later)\ntext('after')\nlet later = 1\nawait Promise.resolve()", session("declare"));
 		assert.match(dead.kind === "result" ? dead.errorText ?? "" : "", /before initialization/);
-		assert.equal(textOf(dead), "");
+		assert.equal(textOf(dead), "before");
 		const absent = await code.execute("text(typeof later)", session("declare"));
 		assert.match(textOf(absent), /undefined/);
+		const assigned = await code.execute("later = 2\ntext('EFFECT')\nlet later = 1\nawait Promise.resolve()\ntext(later)", session("declare-assign"));
+		assert.match(assigned.kind === "result" ? assigned.errorText ?? "" : "", /before initialization/);
+		assert.equal(textOf(assigned), "");
 		await code.execute("const fixed = 1", session("declare"));
 		const redeclared = await code.execute("tools.echo(1); text('SHOULD NOT PRINT'); const fixed = 8; await Promise.resolve()", session("declare"), undefined, [echo]);
 		assert.match(redeclared.kind === "result" ? redeclared.errorText ?? "" : "", /already been declared/);
