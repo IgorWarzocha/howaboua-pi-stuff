@@ -196,6 +196,10 @@ function rejectConflicts(bindings: VmBindings): void {
 	for (const name of bindings.vars) if (bindingState(name) === "lexical") declared(name);
 }
 
+function isPromise(value: unknown): value is Promise<unknown> {
+	return typeof value === "object" && value !== null && "then" in value && typeof value.then === "function";
+}
+
 function applyPublications(): void {
 	const items = publications.splice(0);
 	readers.length = 0;
@@ -261,17 +265,29 @@ async function run(message: Extract<VmCommand, { kind: "run" }>): Promise<void> 
 	truncated = false;
 	failure = undefined;
 	control.configure(JSON.stringify(message.input.tools), JSON.stringify(message.input.store));
+	slot = undefined;
 	publications.length = 0;
 	readers.length = 0;
 	try {
 		const planned = planVmCell(message.input.source);
 		if (planned.awaited) {
 			rejectConflicts(planned);
-			if (planned.vars.length) runScript(`var ${planned.vars.join(", ")};`);
+			if (planned.publish && planned.vars.length) runScript(`var ${planned.vars.join(", ")};`);
 			try {
-				await quiescent(asPromise(runScript(planned.source)));
+				for (const segment of planned.segments) {
+					if (failure) break;
+					const result = runScript(segment);
+					if (!isPromise(result)) {
+						await quiescent();
+						continue;
+					}
+					const finished = planned.publish ? asPromise(result) : asPromise(result).then(value => { slot = value; });
+					await quiescent(finished);
+				}
 			} finally {
-				try { applyPublications(); } catch (error) { if (!failure) failure = scriptError(error); }
+				if (planned.publish) {
+					try { applyPublications(); } catch (error) { if (!failure) failure = scriptError(error); }
+				}
 			}
 		} else {
 			runScript(planned.source);

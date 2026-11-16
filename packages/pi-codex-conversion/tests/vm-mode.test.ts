@@ -291,6 +291,34 @@ test("awaited cells reject declaration conflicts before effects", async () => {
 	}
 });
 
+test("awaited closures share the bindings later cells read and write", async () => {
+	const code = client();
+	try {
+		await code.execute("let count = await Promise.resolve(0)\nfunction increment() { count++ }", session("closure"));
+		const up = await code.execute("increment(); text(String(count))", session("closure"));
+		assert.equal(textOf(up), "1");
+		await code.execute("count = 10", session("closure"));
+		const again = await code.execute("increment(); text(String(count))", session("closure"));
+		assert.equal(textOf(again), "11");
+		await code.execute("function add() { return total + 1 }\nlet total = await Promise.resolve(4)", session("closure-before"));
+		const shared = await code.execute("total = 7; text(String(add()))", session("closure-before"));
+		assert.equal(textOf(shared), "8");
+		await code.execute("let other = 1\nconst bump = () => { other++ }\nclass Box { bump() { other++ } value() { return other } }\nawait Promise.resolve()", session("closure-sync"));
+		await code.execute("bump(); new Box().bump(); other = 5", session("closure-sync"));
+		const boxed = await code.execute("new Box().bump(); text(String(other))", session("closure-sync"));
+		assert.equal(textOf(boxed), "6");
+		const caught = await code.execute("try { await Promise.reject(new Error('no')) } catch (error) { text(error.message) }\nlet kept = 5", session("closure"));
+		assert.equal(textOf(caught), "no");
+		const kept = await code.execute("text(String(kept))", session("closure"));
+		assert.equal(textOf(kept), "5");
+		await code.execute("if (true) { var fromAwait = await Promise.resolve(8) }", session("closure"));
+		const fromAwait = await code.execute("text(String(fromAwait))", session("closure"));
+		assert.equal(textOf(fromAwait), "8");
+	} finally {
+		await code.shutdown();
+	}
+});
+
 test("a script error cancels an outstanding tool instead of waiting for it", async () => {
 	let aborted = false;
 	const slow: CodeModeToolDefinition = {
