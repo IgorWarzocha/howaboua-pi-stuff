@@ -103,7 +103,11 @@ export async function focusCoreWindow(
 	try {
 		const created = object(
 			await core.request("terminal.run", {
-				argv: [process.execPath, "-e", "setTimeout(()=>{},120000)"],
+				argv: [
+					process.versions["bun"] ? "node" : process.execPath,
+					"-e",
+					"setTimeout(()=>{},120000)",
+				],
 				name,
 				labels: { "herdr.space": space, "herdr.tab": tab },
 				no_parent: true,
