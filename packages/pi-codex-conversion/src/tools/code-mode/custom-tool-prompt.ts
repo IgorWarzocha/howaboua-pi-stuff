@@ -23,6 +23,24 @@ Bare values discarded; globals: tools, image, generatedImage, store, load, exit,
 export const ISOLATED_EXEC_GUIDANCE = 'For independent work while another cell runs, add "isolated":true to // @exec. Starts from last saved state; leaves shared variables unchanged';
 export const GPT_ISOLATED_EXEC_GUIDANCE = 'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
 
+export const VM_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
+let, const, function and class persist in this conversation
+Call tools.name(...).then(...) or an async function; top-level await is unavailable
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
+content(value) emits MCP text/images in order
+No Node, imports, fetch or timers
+A stall, cancellation, memory limit or terminate drops conversation bindings`;
+
+export const GPT_VM_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
+let/const/function/class persist in this conversation
+tools.name(...).then(...) or async function; NO top-level await
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
+content(value)→emit MCP text/images in order
+NO Node/imports/fetch/timers
+Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh`;
+
 export const JS_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
 Await host calls; top-level await supported
@@ -149,7 +167,11 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		executionKind === "js"
+		executionKind === "vm"
+			? gpt
+				? "exec=one JS context for this conversation; let/const/function/class persist; NO top-level await; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
+				: "exec keeps one JavaScript context for this conversation. let, const, function and class persist. Top-level await is unavailable. No Node, imports, fetch or timers. A stall, cancellation, memory limit or terminate drops those bindings"
+			: executionKind === "js"
 			? gpt
 				? "exec=fresh QuickJS per call; max4 concurrent; store/load→conversation-local JSON, no disk persistence"
 				: "exec runs fresh QuickJS per call, with up to four concurrent cells. store/load retain conversation-local JSON, not disk state"

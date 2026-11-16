@@ -53,6 +53,19 @@ const TS_MODE_GUIDELINES = [
 	["After restart, recreate any values reported as unsaved", "Restart→recreate reported unsaved values"],
 ] as const;
 
+const VM_MODE_GUIDELINES = [
+	["Reuse matching retained let, const, function and class bindings", "Reuse retained let/const/function/class"],
+	["Keep one-offs block-local. Retain only what you plan to reuse", "One-offs→block-local; retain ONLY planned reuse"],
+	CODE_MODE_GUIDELINES[0],
+	CODE_MODE_GUIDELINES[1],
+	["Call tools.name(...).then(...) or an async function. Top-level await is unavailable", "tools.name(...).then(...) or async function; NO top-level await"],
+	CODE_MODE_GUIDELINES[3],
+	CODE_MODE_GUIDELINES[4],
+	["Compose known tool calls in one exec. Chain dependencies with .then and run independent calls with Promise.allSettled. Bound output at the source", "Known calls→one exec; dependencies→.then; independent→Promise.allSettled; bound output at source"],
+	CODE_MODE_GUIDELINES[6],
+	["A stall, cancellation, memory limit or terminate drops conversation bindings. The next exec starts fresh", "Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh"],
+] as const;
+
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
 	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
@@ -70,6 +83,7 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
 	...TS_MODE_GUIDELINES,
+	...VM_MODE_GUIDELINES,
 ];
 const GPT_GUIDELINES = new Map<string, string>(ALL_STATIC_CODEX_GUIDELINES.map(([normal, gpt]) => [normal, gpt]));
 
@@ -101,9 +115,9 @@ function buildCodexGuidelines(
 			NORMAL_CODEX_GUIDELINES[3][0],
 		].filter((guideline) => guideline !== undefined);
 	} else {
-		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || mode === "js" || active.has("notebook"));
+		const adapterSurfaceActive = active.has("exec") && active.has("wait") && (mode === "code" || mode === "js" || mode === "vm" || active.has("notebook"));
 		guidelines = adapterSurfaceActive
-			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : CODE_MODE_GUIDELINES)
+			? (mode === "notebook" ? NOTEBOOK_MODE_GUIDELINES : mode === "ts" ? TS_MODE_GUIDELINES : mode === "vm" ? VM_MODE_GUIDELINES : CODE_MODE_GUIDELINES)
 				.filter(([, , tool]: RuntimeGuideline) => !tool || nestedTools.includes(tool))
 				.map(([guideline]) => guideline)
 			: [];
@@ -155,7 +169,7 @@ export function formatGuidelines(guidelines: readonly string[], shell?: string, 
 		customization,
 	].filter(Boolean).join("\n");
 	const editing = new Set<string>([NORMAL_CODEX_GUIDELINES[2][0], CODE_MODE_GUIDELINES[4][0]]);
-	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES].map(([guideline]) => guideline));
+	const execution = new Set<string>([...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES, ...VM_MODE_GUIDELINES].map(([guideline]) => guideline));
 	execution.add("exec calls run sequentially");
 	const notebook = new Set<string>([...NOTEBOOK_MODE_GUIDELINES, ...TS_MODE_GUIDELINES].map(([guideline]) => guideline));
 	const general: string[] = [];

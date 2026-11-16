@@ -19,7 +19,7 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code" | "notebook" | "ts" | "js";
+	kind: "inactive" | "extras" | "normal" | "code" | "notebook" | "ts" | "js" | "vm";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -74,7 +74,13 @@ export interface JsRuntimePlan extends RuntimePlanBase {
 	transport: "responses" | "responses-lite";
 }
 
-export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan;
+export interface VmRuntimePlan extends RuntimePlanBase {
+	kind: "vm";
+	prompt: "vm";
+	transport: "responses" | "responses-lite";
+}
+
+export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan | VmRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
@@ -174,11 +180,9 @@ export function resolveCodexRuntimePlan(
 	const nativeCompaction = effectiveOpenAICodex && nativeCompactionConfigured(config.compaction);
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
-	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook" || configuredExecutionMode === "ts" || configuredExecutionMode === "js"
+	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook" || configuredExecutionMode === "ts" || configuredExecutionMode === "js" || configuredExecutionMode === "vm"
 		? configuredExecutionMode
-		: configuredExecutionMode === "normal"
-			? undefined
-			: undefined;
+		: undefined;
 	if (requestedCodeMode) {
 		const transport: "responses-lite" | "responses" = usesResponsesLite(ctx, config)
 			? "responses-lite"
@@ -206,7 +210,9 @@ export function resolveCodexRuntimePlan(
 		};
 		return requestedCodeMode === "js"
 			? { ...statelessPlan, kind: "js", prompt: "js" }
-			: { ...statelessPlan, kind: "code", prompt: "code" };
+			: requestedCodeMode === "vm"
+				? { ...statelessPlan, kind: "vm", prompt: "vm" }
+				: { ...statelessPlan, kind: "code", prompt: "code" };
 	}
 	return {
 		...base,
@@ -241,12 +247,12 @@ export function resolveCodexRuntimePlanForState(
 	};
 }
 
-export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan {
-	return plan.kind === "normal" || plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js";
+export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan | VmRuntimePlan {
+	return plan.kind === "normal" || plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js" || plan.kind === "vm";
 }
 
-export function isCodeModeRuntime(plan: CodexRuntimePlan): plan is CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan {
-	return plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js";
+export function isCodeModeRuntime(plan: CodexRuntimePlan): plan is CodeRuntimePlan | NotebookRuntimePlan | TsRuntimePlan | JsRuntimePlan | VmRuntimePlan {
+	return plan.kind === "code" || plan.kind === "notebook" || plan.kind === "ts" || plan.kind === "js" || plan.kind === "vm";
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

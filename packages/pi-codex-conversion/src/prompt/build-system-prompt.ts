@@ -18,7 +18,7 @@ export interface StructuredPromptSkill {
 
 export type PiSystemPromptOptions = NormalizedBuildSystemPromptOptions;
 
-export type CodexPromptMode = "normal" | "code" | "notebook" | "ts" | "js";
+export type CodexPromptMode = "normal" | "code" | "notebook" | "ts" | "js" | "vm";
 
 function decodeXml(text: string): string {
 	return text
@@ -137,7 +137,7 @@ function prepareStructuredSkills(
 		? options.selectedTools.includes("exec_command")
 		: options.selectedTools.includes("exec")
 			&& options.selectedTools.includes("wait")
-			&& (mode === "code" || mode === "js" || options.selectedTools.includes("notebook"));
+			&& (mode === "code" || mode === "js" || mode === "vm" || options.selectedTools.includes("notebook"));
 	if (heavy && sections["skills"] === undefined) {
 		defineOwnedSection(sections, "skills", () => piWillRenderSkills() ? content : "");
 	}

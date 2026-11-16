@@ -1,0 +1,6 @@
+- One `node:vm` context per conversation, inside one Node worker. No project heap, lock, snapshot, disk image or VM shared across conversations.
+- Do not rewrite cell source and do not wrap it in an async function. Scripts in one context already keep `let`, `const`, `function` and `class`. Top-level `await` is a syntax error here.
+- Bind tools as `tools.<name>` through `CodeModeDelegateRuntime`, with the same names and arguments as QuickJS Code. No bare globals, `$`, `edit`, `searchTools` or `describeTool`.
+- A script error keeps the context. Stall, abort, memory limit, terminate and conversation change terminate the worker. The next exec creates a new context. Say that bindings were dropped.
+- `worker.terminate()` is the hard stop. Do not enable Bun and do not rely on a cooperative interrupt.
+- The heap cap is `VM_HEAP_CAP_MIB`, not Notebook's 4096 MiB default. `store` values use the caps in `limits.ts`.

@@ -139,8 +139,8 @@ export function createCodexSessionLifecycle(
 			runtime.resetTransport(ctx.sessionManager.getSessionId());
 			// Internal rollover preserves the admission that requested it.
 			state.notebookStatusMessageId = undefined;
-			const stateful = previousMode === "notebook" || previousMode === "ts" || previousMode === "js"
-				|| state.executionMode === "notebook" || state.executionMode === "ts" || state.executionMode === "js";
+			const stateful = previousMode === "notebook" || previousMode === "ts" || previousMode === "js" || previousMode === "vm"
+				|| state.executionMode === "notebook" || state.executionMode === "ts" || state.executionMode === "js" || state.executionMode === "vm";
 			if (stateful) appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			await trackCheckpoint(ctx);
@@ -151,7 +151,7 @@ export function createCodexSessionLifecycle(
 			syncAdapter(pi, ctx, state);
 			prepareCodeModeHost(codeMode, ctx);
 			if (stateful) {
-				ctx.ui.notify(`${state.executionMode === "js" ? "QuickJS Code store" : state.executionMode === "ts" ? "TS state" : "Notebook state"} reset after conversation-tree navigation`, "info");
+				ctx.ui.notify(`${state.executionMode === "vm" ? "VM Code bindings" : state.executionMode === "js" ? "QuickJS Code store" : state.executionMode === "ts" ? "TS state" : "Notebook state"} reset after conversation-tree navigation`, "info");
 			}
 		},
 		shutdown: async (_event, ctx) => {

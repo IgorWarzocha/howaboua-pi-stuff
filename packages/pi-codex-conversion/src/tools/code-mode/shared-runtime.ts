@@ -14,7 +14,7 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-export type CodeModeExecutionKind = "code" | "notebook" | "ts" | "js";
+export type CodeModeExecutionKind = "code" | "notebook" | "ts" | "js" | "vm";
 
 export interface OpaqueContextGuard {
 	lazy: boolean;
@@ -205,10 +205,10 @@ export class SharedCodeModeRuntime {
 		return this.clientPromise;
 	}
 
-	private getRuntimeClient(ctx: unknown, kind: "notebook" | "ts" | "js"): Promise<CodeModeExecutionClient> {
+	private getRuntimeClient(ctx: unknown, kind: "notebook" | "ts" | "js" | "vm"): Promise<CodeModeExecutionClient> {
 		const options = this.activeProviders(ctx).find((provider) => provider.notebookOptions)?.notebookOptions?.(ctx);
 		if (!options) return Promise.reject(new Error("Execution settings are unavailable. Reload Pi and retry."));
-		const key = JSON.stringify([kind, options.agentDir, options.maxHeapMiB, kind === "js" ? null : options.profile ?? null]);
+		const key = JSON.stringify([kind, options.agentDir, options.maxHeapMiB, kind === "js" || kind === "vm" ? null : options.profile ?? null]);
 		if (this.runtimeClientPromise && this.runtimeClientOptionsKey === key) return this.runtimeClientPromise;
 		const transition = this.runtimeClientTransition.then(async () => {
 			if (this.runtimeClientPromise && this.runtimeClientOptionsKey !== key) {
@@ -222,6 +222,8 @@ export class SharedCodeModeRuntime {
 				const clientOptions = { ...options, prepareToolInput: prepareCodeModeToolInput };
 				const pending = kind === "js"
 					? import("../js-mode/client.ts").then(({ JsCodeClient }) => new JsCodeClient(clientOptions, this.renderStore))
+					: kind === "vm"
+					? import("../vm-mode/client.ts").then(({ VmCodeClient }) => new VmCodeClient(clientOptions, this.renderStore))
 					: kind === "ts"
 					? import("../ts-mode/client.ts").then(({ TsCodeModeClient }) => new TsCodeModeClient(clientOptions, this.renderStore))
 					: import("../notebook-mode/client.ts").then(({ NotebookCodeModeClient }) => new NotebookCodeModeClient(clientOptions, this.renderStore));
@@ -257,7 +259,7 @@ export class SharedCodeModeRuntime {
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
 		const kind = this.executionKind(context.extensionContext);
-		if (kind === "code" || kind === "js") {
+		if (kind === "code" || kind === "js" || kind === "vm") {
 			throw new Error("notebook is available only in Notebook or TS mode");
 		}
 		const client = await this.getRuntimeClient(context.extensionContext, kind);
@@ -294,7 +296,7 @@ export class SharedCodeModeRuntime {
 	private collectProviderTools(ctx?: unknown): CodeModeToolDefinition[] {
 		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
 		const kind = this.executionKind(ctx);
-		if (kind === "code" || kind === "js") return tools;
+		if (kind === "code" || kind === "js" || kind === "vm") return tools;
 		if (tools.some((tool) => tool.name === "notebook"))
 			throw new Error("Duplicate code-mode tool: notebook");
 		return [...tools, createNotebookControlProxy(this, kind)];

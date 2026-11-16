@@ -48,8 +48,9 @@ Choose an execution mode under `/codex` → **General**:
 | **Notebook** | Uses a persistent Deno notebook with JavaScript and TypeScript support. |
 | **TS** | Uses a persistent TypeScript notebook with strict checking before execution and Node APIs. |
 | **QuickJS Code** | Composes tools in fresh JavaScript environments, with up to four concurrent cells. |
+| **VM Code** | Composes tools in one JavaScript context kept for the conversation. |
 
-Code and QuickJS Code start fresh for each cell. Notebook and TS retain state between cells and provide notebook management controls. They differ in runtime access and what can be restored after a restart. See [execution modes](#code-mode-and-custom-tools) below.
+Code and QuickJS Code start fresh for each cell. VM Code keeps `let`, `const`, `function` and `class` bindings for the conversation, without notebook controls or a saved heap. Notebook and TS retain state between cells and provide notebook management controls. They differ in runtime access and what can be restored after a restart. See [execution modes](#code-mode-and-custom-tools) below.
 
 Execution mode is separate from provider scope. Apply the adapter to **Codex and configured** providers or **all providers**. **Extra tools only** adds selected patch and image tools without replacing the normal setup. **Voice only** keeps voice and dictation without changing the model's tools or requests.
 
@@ -180,9 +181,19 @@ Run Pi under Node. The environment has no Node APIs, imports, direct network acc
 
 QuickJS Code replaces JS Notebook. Existing `js` settings select QuickJS Code. Old notebook files are left untouched but are not loaded. There are no checkpoints, profiles, project-shared variables or `notebook` controls in this mode.
 
+### VM Code
+
+Select **VM Code** to compose tools in JavaScript while keeping `let`, `const`, `function` and `class` bindings across `exec` calls in the conversation. `exec` and `wait` stay the same, and tools stay `tools.name`.
+
+Run Pi under Node. One context belongs to the conversation. There is no shared heap, project lock, checkpoint or disk image. The context is capped at 256 MiB. `store` and `load` keep conversation-local JSON, with the same size limits as QuickJS Code.
+
+Top-level `await` is unavailable. Call `tools.name(...).then(...)` or an async function. The environment has no Node APIs, imports, direct network access or timers. The agent uses tools for host operations.
+
+A script error keeps the bindings. A stall, cancellation, memory limit, `terminate` or conversation change drops them, and the next `exec` starts fresh.
+
 ### Extension tools and MCP
 
-Installed Pi tools and enabled MCP servers are available inside Code, QuickJS Code and both notebook modes. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
+Installed Pi tools and enabled MCP servers are available inside Code, QuickJS Code, VM Code and both notebook modes. Configure MCP servers through Pi. Existing permissions, tool restrictions and disabled servers still apply.
 
 Use `content(result.content)` to emit mixed MCP text and images in their original order. The helper also accepts a single content block. Resource blocks remain JSON text; audio and encrypted text are not supported.
 

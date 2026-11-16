@@ -102,6 +102,7 @@
     "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun run build:host-settings",
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
+    "bench:code-modes": "tsx scripts/bench-code-modes.ts",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",

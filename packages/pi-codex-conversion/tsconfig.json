@@ -5,6 +5,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "scripts/bench-code-modes.ts"
   ]
 }

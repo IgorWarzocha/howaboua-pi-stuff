@@ -10,8 +10,10 @@ import {
 	GPT_EXEC_DESCRIPTION,
 	GPT_ISOLATED_EXEC_GUIDANCE,
 	GPT_JS_EXEC_DESCRIPTION,
+	GPT_VM_EXEC_DESCRIPTION,
 	ISOLATED_EXEC_GUIDANCE,
 	JS_EXEC_DESCRIPTION,
+	VM_EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
 } from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
@@ -82,9 +84,11 @@ export function registerPublicCodeModeTools(
 	registerGptPromptMode(pi, (active, context) => {
 		gpt = active;
 		const js = context !== undefined && runtime.executionKind(context) === "js";
+		const vm = context !== undefined && runtime.executionKind(context) === "vm";
 		const ts = context !== undefined && runtime.executionKind(context) === "ts";
 		const deno = context !== undefined && runtime.executionKind(context) === "notebook";
-		const description = js ? (active ? GPT_JS_EXEC_DESCRIPTION : JS_EXEC_DESCRIPTION)
+		const description = vm ? (active ? GPT_VM_EXEC_DESCRIPTION : VM_EXEC_DESCRIPTION)
+			: js ? (active ? GPT_JS_EXEC_DESCRIPTION : JS_EXEC_DESCRIPTION)
 			: (active ? GPT_EXEC_DESCRIPTION : EXEC_DESCRIPTION).replace("JavaScript", ts ? "TypeScript" : "JavaScript")
 				+ (ts || deno ? `\n${active ? GPT_ISOLATED_EXEC_GUIDANCE : ISOLATED_EXEC_GUIDANCE}` : "");
 		const executionMode = ts || js || deno ? "parallel" : "sequential";

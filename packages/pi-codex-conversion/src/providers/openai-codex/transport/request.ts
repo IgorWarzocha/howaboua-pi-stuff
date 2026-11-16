@@ -72,7 +72,7 @@ export class CodexTransportRequest<TApi extends Api> {
 		this.options = options;
 		this.runtimeConfig = deps.getConfig?.();
 		this.responsesLite = deps.useResponsesLite?.(model)
-			?? ((this.runtimeConfig?.executionMode === "code" || this.runtimeConfig?.executionMode === "notebook" || this.runtimeConfig?.executionMode === "ts" || this.runtimeConfig?.executionMode === "js")
+			?? ((this.runtimeConfig?.executionMode === "code" || this.runtimeConfig?.executionMode === "notebook" || this.runtimeConfig?.executionMode === "ts" || this.runtimeConfig?.executionMode === "js" || this.runtimeConfig?.executionMode === "vm")
 				&& supportsResponsesLiteModel(model.id));
 		this.resolvedContext = resolveCodexTranscript(model, context);
 		const modelSupportsGrammarTools = (model.compat as { supportsOpenAIGrammarTools?: boolean | undefined } | undefined)
