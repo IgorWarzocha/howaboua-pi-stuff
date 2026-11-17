@@ -23,7 +23,8 @@ const HOST = `globalThis[Symbol.for("pi.vm-code/init")]`;
 
 /**
  * Awaited cells run as one module. `let`, `const` and `class` exist for the whole cell, and a
- * function closes over those bindings. The module publishes each binding after it initializes.
+ * function closes over those bindings. Each declarator is published when its initializer
+ * finishes, so a later rejection keeps the earlier value.
  */
 export function planVmCell(source: string, bound: (name: string) => boolean = () => false): VmPlan {
 	let program: Syntax;
@@ -52,9 +53,8 @@ function compileModule(source: string, program: Syntax, bindings: VmBindings, bo
 			if (names.length) edits.push({ start: statement.end, end: statement.end, text: `\n${bindCalls("class", names)};` });
 			continue;
 		}
-		if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const")) {
-			const names = (statement.declarations ?? []).flatMap(declarator => namesIn(declarator["id"]));
-			if (names.length) edits.push({ start: statement.end, end: statement.end, text: `\n${bindCalls(statement.kind, names)};` });
+		if (statement.type === "VariableDeclaration" && (statement.kind === "let" || statement.kind === "const") && statement.declarations?.length) {
+			edits.push({ start: statement.start, end: statement.end, text: splitLexical(statement.kind, statement.declarations, source) });
 			continue;
 		}
 		const rewritten = rewriteVars(statement, source);
@@ -68,6 +68,14 @@ function moduleHeader(vars: string[], functions: string[]): string {
 	if (vars.length) lines.push(`var ${vars.join(", ")};`, `${bindCalls("var", vars)};`);
 	if (functions.length) lines.push(`${bindCalls("function", functions)};`);
 	return lines.length ? `${lines.join("\n")}\n` : "";
+}
+
+function splitLexical(kind: string, declarators: Syntax[], source: string): string {
+	return declarators.map(declarator => {
+		const names = namesIn(declarator["id"]);
+		const declaration = `${kind} ${slice(declarator, source)};`;
+		return names.length ? `${declaration}\n${bindCalls(kind, names)};` : declaration;
+	}).join("\n");
 }
 
 function bindCalls(kind: string, names: string[]): string {

@@ -211,6 +211,33 @@ test("awaited tool results stay ordered and a rejection keeps earlier bindings",
 		assert.match(thrown.kind === "result" ? thrown.errorText ?? "" : "", /later/);
 		const after = await code.execute("text(String(after))", session("await-tools"));
 		assert.match(textOf(after), /4/);
+		const partial = await code.execute("let first = 1, second = await Promise.reject(new Error('no'))\nfunction read() { return first }", session("await-partial"));
+		assert.match(partial.kind === "result" ? partial.errorText ?? "" : "", /no/);
+		const keptPartial = await code.execute("text(String(first))", session("await-partial"));
+		assert.equal(textOf(keptPartial), "1");
+		const closed = await code.execute("first = 5; text(String(read()))", session("await-partial"));
+		assert.equal(textOf(closed), "5");
+		const redeclared = await code.execute("let first = 3", session("await-partial"));
+		assert.match(redeclared.kind === "result" ? redeclared.errorText ?? "" : "", /already been declared/);
+		const absent = await code.execute("text(typeof second)", session("await-partial"));
+		assert.match(textOf(absent), /undefined/);
+		const fail: CodeModeToolDefinition = {
+			name: "fail",
+			usage: "tools.fail()",
+			deferLoading: false,
+			kind: "function",
+			async invoke() { throw new Error("no"); },
+		};
+		const toolPartial = await code.execute("let saved = await tools.echo({ text: 'kept' }), failed = await tools.fail()", session("await-partial-tool"), undefined, [echo, fail]);
+		assert.match(toolPartial.kind === "result" ? toolPartial.errorText ?? "" : "", /no/);
+		const saved = await code.execute("text(saved.text)", session("await-partial-tool"));
+		assert.match(textOf(saved), /kept/);
+		const fixedPartial = await code.execute("const fixed = 4, failed = await Promise.reject(new Error('no'))", session("await-partial-const"));
+		assert.match(fixedPartial.kind === "result" ? fixedPartial.errorText ?? "" : "", /no/);
+		const fixedRead = await code.execute("text(String(fixed))", session("await-partial-const"));
+		assert.equal(textOf(fixedRead), "4");
+		const assigned = await code.execute("fixed = 9", session("await-partial-const"));
+		assert.match(assigned.kind === "result" ? assigned.errorText ?? "" : "", /constant/);
 	} finally {
 		await code.shutdown();
 	}
