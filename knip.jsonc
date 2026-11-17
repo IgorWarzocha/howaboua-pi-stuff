@@ -119,6 +119,7 @@
 		"packages/pi-pet": {
 			"ignoreDependencies": ["@howaboua/pi-gippity-control"],
 			"entry": [
+				".htmlvalidate.cjs",
 				"src/authoring/prepare-cli.ts",
 				"src/authoring/rebuild-cli.ts",
 				"src/authoring/validate-cli.ts",
