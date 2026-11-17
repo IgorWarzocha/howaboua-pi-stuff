@@ -126,10 +126,17 @@ function splitModelRef(modelRef: string): ParsedModelRef | undefined {
 async function canUseModel(
 	ctx: ExtensionCommandContext,
 	modelRef: string,
+	allowCustomId = false,
 ): Promise<boolean> {
 	const parsed = splitModelRef(modelRef);
 	if (!parsed) return false;
-	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
+	// The reviewer CLI accepts custom IDs for known providers; summaries do not.
+	// Check provider auth with a registered model without replacing the requested ID.
+	const model =
+		ctx.modelRegistry.find(parsed.provider, parsed.modelId) ??
+		(allowCustomId
+			? ctx.modelRegistry.getProvider(parsed.provider)?.getModels()[0]
+			: undefined);
 	if (!model) return false;
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	return auth.ok;
@@ -159,7 +166,7 @@ export async function resolveReviewConfig(
 		}
 	}
 
-	if (await canUseModel(ctx, configured.model)) {
+	if (await canUseModel(ctx, configured.model, true)) {
 		return { ...configured, summary, source: "configured" };
 	}
 

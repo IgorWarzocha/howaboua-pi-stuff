@@ -15,12 +15,7 @@ export const NEW_WINDOW_REQUESTS = [
 	"unrestricted",
 ] as const;
 export type NewWindowRequests = (typeof NEW_WINDOW_REQUESTS)[number];
-const DEFAULT_MODEL_WHITELIST = [
-	"gpt-6-astra",
-	"gpt-6-sol",
-	"gpt-6-luna",
-	"gpt-6.1-sol",
-];
+const DEFAULT_MODEL_WHITELIST = ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"];
 export interface NotesSettings {
 	active: "all" | "whitelist" | "off";
 	modelWhitelist: string[];
