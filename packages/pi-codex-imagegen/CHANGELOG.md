@@ -1,5 +1,10 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.15
+
+- Generated images now display once in ordinary and nested tool results.
+- Image generation help no longer prescribes `await` or `.then()` syntax.
+
 ## 0.0.14
 
 - Replaced the TypeBox dependency with Pi's native schema builders and validation.

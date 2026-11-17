@@ -1,5 +1,14 @@
 # @howaboua/pi-codex-web-run
 
+## 0.0.11
+
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Replaced the TypeBox dependency with Pi's native schema builders.
+
+  Web search examples no longer prescribe `await`.
+
 ## 0.0.10
 
 - Added an extension API for Web Run search and navigation, using the existing provider and login without adding conversation messages.

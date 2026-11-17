@@ -1,5 +1,17 @@
 # @howaboua/pi-stuff
 
+## 0.0.116
+
+- Include bundled package updates:
+
+  - @howaboua/pi-ask: Ask help now identifies `handoff` as a boolean.
+  - @howaboua/pi-better-skills-tool: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - Removed the TypeBox installation requirement. Skills discovery examples no longer prescribe `await`.
+  - @howaboua/pi-github-watch: PR watches now notify when the head commit changes, even without a new comment or review.
+  - @howaboua/pi-gpt-switcher: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - `/sol` and `/astra` now select GPT-6.2 Sol and Astra, including without Codex Conversion. - Context defaults are now 500K for Sol, Terra and Luna, and 256K for Astra. Existing preferences are preserved.
+  - @howaboua/pi-pet: The animated pet canvas now exposes its accessible name to screen readers.
+  - @howaboua/pi-shepherdr: - Fixed resumed workers failing to start or losing completion reports after crashes or restarts. - Fixed agent launches and window focus in standalone Bun builds of Pi. - Sender labels now show machine, full agent address and terminal without repeated labels. - Empty turns from unassigned workers no longer trigger completion notices. - Agent guidance now favours outcome-focused delegation, actionable handoffs and fewer duplicate completion messages. - Tool examples no longer prescribe `await`. - New general profiles use GPT-6.2 Sol.
+  - @howaboua/pi-subagent-review: - New review configurations use GPT-6.2 Sol. - Custom reviewer model IDs now use Pi's CLI instead of falling back when their provider is configured.
+
 ## 0.0.115
 
 - Include bundled package updates:

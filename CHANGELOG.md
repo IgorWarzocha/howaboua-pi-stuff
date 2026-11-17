@@ -18,32 +18,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-agent-board — 0.0.7
+### @howaboua/pi-agent-board — 0.0.8
 
-- Board settings now open on Enabled with On and Off choices.
-- Board guidance reserves direct messages for assignments and urgent action, regardless of messaging tool; posts do not wake idle agents.
-- Board guidance skips report posts without a new peer-relevant finding, decision, ownership change or blocker.
-- Board guidance keeps distinct topics in focused threads instead of catch-alls.
+- Board catch-up examples no longer prescribe `await`.
 
 [Full changelog](./packages/pi-agent-board/CHANGELOG.md)
 
-### @howaboua/pi-agent-comms — 0.0.2
+### @howaboua/pi-agent-comms — 0.0.3
 
-- Notes lookup warnings now distinguish unavailable remote notes from local checkpoints.
-- Notes guidance calls for fewer, shorter updates, using task notes and/or checkpoints with History links instead of copied investigation or harness detail.
-- Notes guidance keeps no-action report updates to their ID and outcome when checkpointing is needed.
-- Retired session records are removed automatically after Pi exits.
-- Board guidance skips report posts without a new peer-relevant change.
-- Board guidance keeps distinct topics in focused threads instead of catch-alls.
-- Communication guidance distinguishes non-waking notes and board posts from direct messages, regardless of messaging tool.
-- Notes and Board settings now open on matching Enabled controls.
+- Added `new_context({resume: false})` to finish a reply and open fresh context without continuing automatically.
+- Added same-cell rollover after an awaited note save in Code and Notebook.
+- Role guidance now directs agents to choose presets for sustained phase changes.
+- Unknown shortened UUIDs now report how to retry without scanning saved conversations. Full addresses and live routing remain available.
+- Notes, History and Board examples no longer prescribe `await`.
+- New Notes whitelists use GPT-6.2 Sol and Astra alongside GPT-6 Luna.
 
 [Full changelog](./packages/pi-agent-comms/CHANGELOG.md)
 
-### @howaboua/pi-ask — 0.0.19
+### @howaboua/pi-ask — 0.0.20
 
-- Requires Node.js 22.19 or newer.
-  - Replaced the TypeBox dependency with Pi's native schema builders and validation.
+- Ask help now identifies `handoff` as a boolean.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -53,10 +47,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.12
+### @howaboua/pi-better-skills-tool — 0.0.13
 
-- - Skills now shows its exact discovery call in Code and Notebook modes and clarifies batch-read syntax in help.
-  - GPT mode uses note-style skill discovery and reading guidance.
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Removed the TypeBox installation requirement.
+
+  Skills discovery examples no longer prescribe `await`.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
@@ -76,21 +74,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-chatgpt-sites — 0.0.3
+### @howaboua/pi-chatgpt-sites — 0.0.4
 
-- - Sites calls now return their payload directly instead of an outer `result` wrapper.
-  - Errors show the problem and recovery information without diagnostic envelopes.
-  - GPT mode uses note-style guide and schema discovery.
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Replaced the TypeBox dependency with Pi's native schema builders.
+
+  Sites documentation examples no longer prescribe `await`.
 
 [Full changelog](./packages/pi-chatgpt-sites/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 5.0.0
+### @howaboua/pi-codex-conversion — 5.0.1
 
-### Breaking changes
-
-- Replaced JS Notebook with QuickJS Code. Existing `js` settings now run fresh JavaScript per call, with up to four concurrent cells. Notebook checkpoints, profiles and project-shared variables are no longer available in this mode. Existing saved files remain untouched but are not loaded.
-- QuickJS Code retains conversation-local JSON through `store` and `load` without disk persistence.
-- Exact patch success acknowledgements now use `OK`. Incomplete-change warnings remain unchanged.
+- Added VM Code with conversation-local bindings, top-level `await`, bounded memory and hard cancellation.
+- Added GPT-6.2 Sol and Astra with live reasoning controls and API-equivalent cost estimates.
+- TS mode now uses tsrs 0.25 with TypeScript 7.1 beta.
+- Tool images now appear once and respect visibility settings.
+- Image-heavy Code results now retain cached previews when toggling details.
+- Cache logs now locate prompt changes without recording prompt text.
+- Tool examples no longer prescribe `await`.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -105,24 +108,35 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-guardian/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.14
+### @howaboua/pi-codex-imagegen — 0.0.15
 
-- Replaced the TypeBox dependency with Pi's native schema builders and validation.
+- Generated images now display once in ordinary and nested tool results.
+- Image generation help no longer prescribes `await` or `.then()` syntax.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
-### @howaboua/pi-codex-web-run — 0.0.10
+### @howaboua/pi-codex-web-run — 0.0.11
 
-- Added an extension API for Web Run search and navigation, using the existing provider and login without adding conversation messages.
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Replaced the TypeBox dependency with Pi's native schema builders.
+
+  Web search examples no longer prescribe `await`.
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.107
+### @howaboua/pi-extensions — 0.0.108
 
 - Include bundled package updates:
 
-  - @howaboua/pi-github-watch: Return `OK` after cancelling all watches.
-  - @howaboua/pi-shepherdr: Reduce CPU use when monitoring long sessions.
+  - @howaboua/pi-ask: Ask help now identifies `handoff` as a boolean.
+  - @howaboua/pi-better-skills-tool: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - Removed the TypeBox installation requirement. Skills discovery examples no longer prescribe `await`.
+  - @howaboua/pi-github-watch: PR watches now notify when the head commit changes, even without a new comment or review.
+  - @howaboua/pi-gpt-switcher: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - `/sol` and `/astra` now select GPT-6.2 Sol and Astra, including without Codex Conversion. - Context defaults are now 500K for Sol, Terra and Luna, and 256K for Astra. Existing preferences are preserved.
+  - @howaboua/pi-pet: The animated pet canvas now exposes its accessible name to screen readers.
+  - @howaboua/pi-shepherdr: - Fixed resumed workers failing to start or losing completion reports after crashes or restarts. - Fixed agent launches and window focus in standalone Bun builds of Pi. - Sender labels now show machine, full agent address and terminal without repeated labels. - Empty turns from unassigned workers no longer trigger completion notices. - Agent guidance now favours outcome-focused delegation, actionable handoffs and fewer duplicate completion messages. - Tool examples no longer prescribe `await`. - New general profiles use GPT-6.2 Sol.
+  - @howaboua/pi-subagent-review: - New review configurations use GPT-6.2 Sol. - Custom reviewer model IDs now use Pi's CLI instead of falling back when their provider is configured.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -134,15 +148,20 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
-### @howaboua/pi-github-watch — 0.0.6
+### @howaboua/pi-github-watch — 0.0.7
 
-- Return `OK` after cancelling all watches.
+- PR watches now notify when the head commit changes, even without a new comment or review.
 
 [Full changelog](./packages/pi-github-watch/CHANGELOG.md)
 
-### @howaboua/pi-gpt-switcher — 0.1.6
+### @howaboua/pi-gpt-switcher — 0.1.7
 
-- Added `/terra` to switch to GPT-6.1 Terra with configurable context and reasoning defaults.
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+
+  - `/sol` and `/astra` now select GPT-6.2 Sol and Astra, including without Codex Conversion.
+  - Context defaults are now 500K for Sol, Terra and Luna, and 256K for Astra. Existing preferences are preserved.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
@@ -155,14 +174,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-grok-realtime/CHANGELOG.md)
 
-### @howaboua/pi-notes-compaction — 0.0.17
+### @howaboua/pi-notes-compaction — 0.0.18
 
-- Notes lookup warnings now distinguish unavailable remote notes from local checkpoints.
-- Notes guidance calls for fewer, shorter updates, using task notes and/or checkpoints with History links instead of copied investigation or harness detail.
-- Notes guidance keeps no-action report updates to their ID and outcome when checkpointing is needed.
-- Retired session records are removed automatically after Pi exits.
-- Notes guidance distinguishes non-waking writes from direct messages, regardless of messaging tool.
-- Notes settings now open on Enabled, with Off, On and Whitelist choices.
+- Added `new_context({resume: false})` to finish a reply and open fresh context without continuing automatically.
+- Added same-cell rollover after an awaited note save in Code and Notebook.
+- Role guidance now directs agents to choose presets for sustained phase changes.
+- Unknown shortened UUIDs now report how to retry without scanning saved conversations. Full addresses and live routing remain available.
+- Notes and History examples no longer prescribe `await`.
+- New Notes whitelists use GPT-6.2 Sol and Astra alongside GPT-6 Luna.
 
 [Full changelog](./packages/pi-notes-compaction/CHANGELOG.md)
 
@@ -172,12 +191,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-observatory/CHANGELOG.md)
 
-### @howaboua/pi-pet — 0.1.8
+### @howaboua/pi-pet — 0.1.9
 
-- Requires Pi 1.5 or newer and Node.js 22.19 or newer.
-  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
-  - Pet-authoring metadata now records UTC timestamps to the minute.
-  - Removed the TypeBox installation requirement.
+- The animated pet canvas now exposes its accessible name to screen readers.
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
@@ -189,9 +205,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-sandbox/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 1.0.1
+### @howaboua/pi-shepherdr — 1.0.2
 
-- Reduce CPU use when monitoring long sessions.
+- Fixed resumed workers failing to start or losing completion reports after crashes or restarts.
+- Fixed agent launches and window focus in standalone Bun builds of Pi.
+- Sender labels now show machine, full agent address and terminal without repeated labels.
+- Empty turns from unassigned workers no longer trigger completion notices.
+- Agent guidance now favours outcome-focused delegation, actionable handoffs and fewer duplicate completion messages.
+- Tool examples no longer prescribe `await`.
+- New general profiles use GPT-6.2 Sol.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -246,20 +268,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.115
+### @howaboua/pi-stuff — 0.0.116
 
 - Include bundled package updates:
 
-  - @howaboua/pi-github-watch: Return `OK` after cancelling all watches.
-  - @howaboua/pi-shepherdr: Reduce CPU use when monitoring long sessions.
+  - @howaboua/pi-ask: Ask help now identifies `handoff` as a boolean.
+  - @howaboua/pi-better-skills-tool: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - Removed the TypeBox installation requirement. Skills discovery examples no longer prescribe `await`.
+  - @howaboua/pi-github-watch: PR watches now notify when the head commit changes, even without a new comment or review.
+  - @howaboua/pi-gpt-switcher: Requires Pi 1.5 or newer. - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`. - `/sol` and `/astra` now select GPT-6.2 Sol and Astra, including without Codex Conversion. - Context defaults are now 500K for Sol, Terra and Luna, and 256K for Astra. Existing preferences are preserved.
+  - @howaboua/pi-pet: The animated pet canvas now exposes its accessible name to screen readers.
+  - @howaboua/pi-shepherdr: - Fixed resumed workers failing to start or losing completion reports after crashes or restarts. - Fixed agent launches and window focus in standalone Bun builds of Pi. - Sender labels now show machine, full agent address and terminal without repeated labels. - Empty turns from unassigned workers no longer trigger completion notices. - Agent guidance now favours outcome-focused delegation, actionable handoffs and fewer duplicate completion messages. - Tool examples no longer prescribe `await`. - New general profiles use GPT-6.2 Sol.
+  - @howaboua/pi-subagent-review: - New review configurations use GPT-6.2 Sol. - Custom reviewer model IDs now use Pi's CLI instead of falling back when their provider is configured.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.26
+### @howaboua/pi-subagent-review — 0.2.27
 
-- Requires Pi 1.5 or newer.
-  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
-  - Conversation summaries now use minute-precision timestamps.
+- New review configurations use GPT-6.2 Sol.
+- Custom reviewer model IDs now use Pi's CLI instead of falling back when their provider is configured.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 

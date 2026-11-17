@@ -1,5 +1,10 @@
 # @howaboua/pi-subagent-review
 
+## 0.2.27
+
+- New review configurations use GPT-6.2 Sol.
+- Custom reviewer model IDs now use Pi's CLI instead of falling back when their provider is configured.
+
 ## 0.2.26
 
 - Requires Pi 1.5 or newer.

@@ -1,5 +1,14 @@
 # @howaboua/pi-better-skills-tool
 
+## 0.0.13
+
+- Requires Pi 1.5 or newer.
+
+  - Removed custom changelog suppression. Updates use Pi's native notices and `collapseChangelog`.
+  - Removed the TypeBox installation requirement.
+
+  Skills discovery examples no longer prescribe `await`.
+
 ## 0.0.12
 
 - - Skills now shows its exact discovery call in Code and Notebook modes and clarifies batch-read syntax in help.

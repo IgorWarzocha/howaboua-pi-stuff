@@ -1,5 +1,9 @@
 # @howaboua/pi-pet
 
+## 0.1.9
+
+- The animated pet canvas now exposes its accessible name to screen readers.
+
 ## 0.1.8
 
 - Requires Pi 1.5 or newer and Node.js 22.19 or newer.
