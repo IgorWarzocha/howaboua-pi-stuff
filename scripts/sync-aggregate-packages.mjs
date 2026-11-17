@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
@@ -133,4 +134,16 @@ updateAggregate(
 	false,
 );
 updateAggregate("pi-skills", (entry) => has("skills", entry), false, true);
+execFileSync(
+	"bun",
+	[
+		"run",
+		"oxfmt",
+		"--write",
+		...Array.from(aggregateDirs, (dir) =>
+			join(packagesDir, dir, "package.json"),
+		),
+	],
+	{ stdio: "inherit" },
+);
 console.log("Synced aggregate package dependencies and Pi resource paths.");
