@@ -1,18 +1,37 @@
-import type { CodexUsageLimit, CodexUsageSnapshot, CodexUsageWindow } from "./payload.ts";
+import type {
+	CodexUsageLimit,
+	CodexUsageSnapshot,
+	CodexUsageWindow,
+} from "./payload.ts";
 import { CODEX_RESERVE_MODEL } from "./reserve-policy.ts";
 
-export const CODEX_RESERVE_USAGE_NOTE = "Luna Reserve: separate, limited allowance after ordinary quota runs out; availability is backend-controlled.";
-export const NONSTANDARD_CODEX_USAGE_WARNING = "Non-standard OpenAI Codex subscription configuration; usage values may be inaccurate.";
+export const CODEX_RESERVE_USAGE_NOTE =
+	"Luna Reserve: separate, limited allowance after ordinary quota runs out; availability is backend-controlled.";
+export const NONSTANDARD_CODEX_USAGE_WARNING =
+	"Non-standard OpenAI Codex subscription configuration; usage values may be inaccurate.";
 
 export function codexUsageLimitName(limit: CodexUsageLimit): string {
 	const name = limit.limitName ?? limit.limitId;
 	return name.toLowerCase() === CODEX_RESERVE_MODEL ? "Luna Reserve" : name;
 }
 
-export function formatUsageTable(headers: string[], rows: string[][]): string[] {
-	const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => (row[index] ?? "").length)));
-	return [headers, ...rows].map((row) => row.map((cell, index) => index === 0
-		? cell.padEnd(widths[index] ?? 0) : cell.padStart(widths[index] ?? 0)).join("  ").trimEnd());
+export function formatUsageTable(
+	headers: string[],
+	rows: string[][],
+): string[] {
+	const widths = headers.map((header, index) =>
+		Math.max(header.length, ...rows.map((row) => (row[index] ?? "").length)),
+	);
+	return [headers, ...rows].map((row) =>
+		row
+			.map((cell, index) =>
+				index === 0
+					? cell.padEnd(widths[index] ?? 0)
+					: cell.padStart(widths[index] ?? 0),
+			)
+			.join("  ")
+			.trimEnd(),
+	);
 }
 
 function formatReset(timestampSeconds: number | undefined): string {
@@ -21,26 +40,52 @@ function formatReset(timestampSeconds: number | undefined): string {
 	const minutes = Math.max(0, Math.round((ms - Date.now()) / 60000));
 	if (minutes < 90) return `resets in ${minutes}m`;
 	return `resets ${new Date(ms).toLocaleString(undefined, {
-		year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
+		year: "numeric",
+		month: "numeric",
+		day: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
 	})}`;
 }
 
-function formatWindow(label: string, window: CodexUsageWindow | undefined): string | undefined {
+function formatWindow(
+	label: string,
+	window: CodexUsageWindow | undefined,
+): string | undefined {
 	if (!window) return undefined;
-	const remainingPercent = window.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
-	const percent = remainingPercent === undefined ? "?" : `${Math.round(remainingPercent)}%`;
-	const span = window.windowMinutes ? `${Math.round(window.windowMinutes)}m` : "window";
+	const remainingPercent =
+		window.usedPercent === undefined
+			? undefined
+			: 100 - Math.max(0, Math.min(100, window.usedPercent));
+	const percent =
+		remainingPercent === undefined ? "?" : `${Math.round(remainingPercent)}%`;
+	const span = window.windowMinutes
+		? `${Math.round(window.windowMinutes)}m`
+		: "window";
 	return `${label}: ${percent} left (${span}, ${formatReset(window.resetsAt)})`;
 }
 
 export function formatCodexUsage(snapshot: CodexUsageSnapshot): string {
-	const lines = [`Codex usage${snapshot.planType ? ` (${snapshot.planType})` : ""}:`];
-	if (snapshot.resetCredits) lines.push(`- resets available: ${snapshot.resetCredits.availableCount}`);
+	const lines = [
+		`Codex usage${snapshot.planType ? ` (${snapshot.planType})` : ""}:`,
+	];
+	if (snapshot.resetCredits)
+		lines.push(`- resets available: ${snapshot.resetCredits.availableCount}`);
 	for (const limit of snapshot.limits) {
 		const title = codexUsageLimitName(limit);
-		const parts = [formatWindow("5h", limit.primary), formatWindow("weekly", limit.secondary)].filter(Boolean);
-		lines.push(`- ${title}: ${parts.length ? parts.join("; ") : "no usage data"}`);
+		const parts = [
+			formatWindow("5h", limit.primary),
+			formatWindow("weekly", limit.secondary),
+		].filter(Boolean);
+		lines.push(
+			`- ${title}: ${parts.length ? parts.join("; ") : "no usage data"}`,
+		);
 	}
-	if (snapshot.limits.some((limit) => codexUsageLimitName(limit) === "Luna Reserve")) lines.push(CODEX_RESERVE_USAGE_NOTE);
+	if (
+		snapshot.limits.some(
+			(limit) => codexUsageLimitName(limit) === "Luna Reserve",
+		)
+	)
+		lines.push(CODEX_RESERVE_USAGE_NOTE);
 	return lines.join("\n");
 }

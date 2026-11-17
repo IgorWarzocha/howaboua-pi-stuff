@@ -1,64 +1,64 @@
 {
-	"name": "@howaboua/pi-github-watch",
-	"version": "0.0.6",
-	"description": "Opt-in same-session GitHub comment and Actions run watches for Pi",
-	"type": "module",
-	"license": "MIT",
-	"author": "Igor Warzocha",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-github-watch"
-	},
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"github"
-	],
-	"files": [
-		"index.ts",
-		"src",
-		"README.md",
-		"LICENSE",
-		"tsconfig.json",
-		"biome.json",
-		"CHANGELOG.md"
-	],
-	"main": "index.ts",
-	"exports": "./index.ts",
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-ai": ">=1.2.0",
-		"@howaboua/pi-codex-conversion": ">=5.0.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "5.0.0",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@earendil-works/pi-ai": "1.5.2",
-		"@biomejs/biome": "^2.6.6",
-		"@types/node": "^26.6.6",
-		"typescript": "^7.0.2"
-	},
-	"scripts": {
-		"check": "bun run lint && bun run typecheck",
-		"lint": "biome check .",
-		"typecheck": "tsgo --noEmit",
-		"format": "biome check --write .",
-		"pack:dry": "npm pack --dry-run",
-		"prepack": "bun run check"
-	},
-	"dependencies": {
-		"@earendil-works/pi-schema": "1.5.2"
-	}
+  "name": "@howaboua/pi-github-watch",
+  "version": "0.0.6",
+  "description": "Opt-in same-session GitHub comment and Actions run watches for Pi",
+  "type": "module",
+  "license": "MIT",
+  "author": "Igor Warzocha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-github-watch"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "github"
+  ],
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json",
+    "CHANGELOG.md"
+  ],
+  "main": "index.ts",
+  "exports": "./index.ts",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-ai": ">=1.2.0",
+    "@howaboua/pi-codex-conversion": ">=5.0.0",
+    "@earendil-works/pi-tui": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  },
+  "scripts": {
+    "check": "bun run lint && bun run typecheck",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "typecheck": "tsrs --noEmit",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "pack:dry": "npm pack --dry-run",
+    "prepack": "bun run check",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "dependencies": {
+    "@earendil-works/pi-schema": "1.5.2"
+  }
 }

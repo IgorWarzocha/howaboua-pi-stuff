@@ -69,8 +69,15 @@ export class ConversationTurns {
 		}
 		if (event["type"] === "turn.created") {
 			const turn = event["turn"];
-			if (turn && typeof turn === "object" && "role" in turn && turn.role === "user")
-				{ this.inputGeneration++; this.turnTracker.inputStarted(); }
+			if (
+				turn &&
+				typeof turn === "object" &&
+				"role" in turn &&
+				turn.role === "user"
+			) {
+				this.inputGeneration++;
+				this.turnTracker.inputStarted();
+			}
 		}
 
 		if (
@@ -95,9 +102,7 @@ export class ConversationTurns {
 			return;
 		}
 		if (event["type"] === "output_transcript.added") {
-			const output = transcriptText(
-				transcriptItemText(event["item"]),
-			);
+			const output = transcriptText(transcriptItemText(event["item"]));
 			if (output) {
 				this.playback.outputAdded();
 				this.turnTracker.outputAdded(output);
@@ -137,9 +142,7 @@ export class ConversationTurns {
 			.join("")
 			.trim();
 		if (!input) {
-			this.onFailure(
-				new Error("Codex voice delegation was empty"),
-			);
+			this.onFailure(new Error("Codex voice delegation was empty"));
 			return;
 		}
 		const delegated = this.turnTracker.delegated(
@@ -172,9 +175,17 @@ export class ConversationTurns {
 						);
 					const prepared = await this.callbacks.rewriteDelegation(turn, signal);
 					const { input } = prepared;
-					if (prepared.endCall && this.isActive() && this.inputGeneration === inputAtDelegation)
-						this.callbacks.onEndCall?.(this.completedOutputs > outputsAtDelegation, input ? turn.delegationId : undefined);
-					if (!input && turn.delegationId) this.turnTracker.delegationSettled(turn.delegationId);
+					if (
+						prepared.endCall &&
+						this.isActive() &&
+						this.inputGeneration === inputAtDelegation
+					)
+						this.callbacks.onEndCall?.(
+							this.completedOutputs > outputsAtDelegation,
+							input ? turn.delegationId : undefined,
+						);
+					if (!input && turn.delegationId)
+						this.turnTracker.delegationSettled(turn.delegationId);
 					if (!signal.aborted && (this.isActive() || this.finishing) && input) {
 						const { transcriptDelta: _transcriptDelta, ...delegation } = turn;
 						this.callbacks.onTurn({ ...delegation, input });

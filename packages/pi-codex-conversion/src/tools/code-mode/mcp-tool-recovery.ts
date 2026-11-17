@@ -14,7 +14,8 @@ export function missingMcpToolMessage(
 		const matches: string[] = [];
 		for (const namespace of namespaces) {
 			const normalized = namespace.replace(/[^A-Za-z0-9_]/g, "_");
-			if (name.startsWith(`${normalized}__`) && !matches.includes(namespace)) matches.push(namespace);
+			if (name.startsWith(`${normalized}__`) && !matches.includes(namespace))
+				matches.push(namespace);
 		}
 		if (matches.length === 1) {
 			identity = `MCP namespace ${JSON.stringify(matches[0])}`;
@@ -28,15 +29,29 @@ export function missingMcpToolMessage(
 	return `Missing MCP tool: ${name}. ${identity}. If that server connects, retry in a new exec cell. If failures repeat, suggest disabling that specific server to the user.`;
 }
 
-export function mcpToolNamespaces(tools: Iterable<CodeModeToolDefinition>): string[] {
-	return [...new Set([...tools].flatMap((tool) =>
-		"executionPipeline" in tool && tool.executionPipeline === "pi" && tool.namespace
-			? [tool.namespace.name] : []))];
+export function mcpToolNamespaces(
+	tools: Iterable<CodeModeToolDefinition>,
+): string[] {
+	return [
+		...new Set(
+			[...tools].flatMap((tool) =>
+				"executionPipeline" in tool &&
+				tool.executionPipeline === "pi" &&
+				tool.namespace
+					? [tool.namespace.name]
+					: [],
+			),
+		),
+	];
 }
 
 /** The V8 host rejects absent properties before delegation, including caught errors. */
-export function withMissingMcpToolRecovery(source: string, tools: CodeModeToolDefinition[]): string {
-	return `(() => {
+export function withMissingMcpToolRecovery(
+	source: string,
+	tools: CodeModeToolDefinition[],
+): string {
+	return (
+		`(() => {
   const message = ${missingMcpToolMessage.toString()};
   const namespaces = ${JSON.stringify(mcpToolNamespaces(tools))};
   globalThis.tools = new Proxy(globalThis.tools, {
@@ -47,5 +62,6 @@ export function withMissingMcpToolRecovery(source: string, tools: CodeModeToolDe
       return recovery === undefined ? value : () => { throw new Error(recovery); };
     }
   });
-})();`.replaceAll("\n", "") + source;
+})();`.replaceAll("\n", "") + source
+	);
 }

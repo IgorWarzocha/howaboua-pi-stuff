@@ -14,7 +14,10 @@ export class LanVoiceActivity {
 		publish(message: LanVoiceActivityMessage): void;
 	}) {
 		this.publish = options.publish;
-		this.state = { type: "activity", state: options.initialWorking ? "working" : "idle" };
+		this.state = {
+			type: "activity",
+			state: options.initialWorking ? "working" : "idle",
+		};
 	}
 
 	snapshot(): LanVoiceActivityMessage {
@@ -43,8 +46,15 @@ export class LanVoiceActivity {
 	}
 }
 
-export function boundedAssistantText(parts: Array<{ type: string; text?: string | undefined }>): string | undefined {
-	const text = parts.flatMap((part) => part.type === "text" && typeof part.text === "string" ? [part.text] : []).join("\n").trim();
+export function boundedAssistantText(
+	parts: Array<{ type: string; text?: string | undefined }>,
+): string | undefined {
+	const text = parts
+		.flatMap((part) =>
+			part.type === "text" && typeof part.text === "string" ? [part.text] : [],
+		)
+		.join("\n")
+		.trim();
 	return text ? truncateUtf8(text, MAX_ACTIVITY_BYTES) : undefined;
 }
 

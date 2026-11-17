@@ -3,7 +3,13 @@ import type { CodexVoiceAuth } from "../auth.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 import { CodexDictationTranscriber } from "./transcriber.ts";
 
-type DictationState = "idle" | "starting" | "recording" | "finishing" | "failed" | "closed";
+type DictationState =
+	| "idle"
+	| "starting"
+	| "recording"
+	| "finishing"
+	| "failed"
+	| "closed";
 
 export interface CodexDictationCallbacks {
 	onError(error: Error): void;
@@ -28,7 +34,10 @@ export class CodexDictationSession {
 		this.helper.onExit((error) => this.fail(error));
 	}
 
-	async start(auth: CodexVoiceAuth, config: CodexConversionConfig): Promise<void> {
+	async start(
+		auth: CodexVoiceAuth,
+		config: CodexConversionConfig,
+	): Promise<void> {
 		this.state = "starting";
 		this.startupFailure = undefined;
 		try {
@@ -45,7 +54,9 @@ export class CodexDictationSession {
 			}
 			this.helper.send({
 				type: "start_dictation",
-				...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
+				...(config.voice.inputDevice
+					? { microphone: config.voice.inputDevice }
+					: {}),
 			});
 			this.state = "recording";
 		} catch (error) {
@@ -57,7 +68,12 @@ export class CodexDictationSession {
 	}
 
 	async finish(): Promise<void> {
-		if (this.state === "closed" || this.state === "failed" || this.state === "idle") return;
+		if (
+			this.state === "closed" ||
+			this.state === "failed" ||
+			this.state === "idle"
+		)
+			return;
 		this.state = "finishing";
 		try {
 			await this.helper.stop();
@@ -77,13 +93,25 @@ export class CodexDictationSession {
 	}
 
 	private handleHelperEvent(event: VoiceHelperEvent): void {
-		if (event.type === "error") { this.fail(new Error(event.message)); return; }
-		if (event.type !== "pcm" || (this.state !== "recording" && this.state !== "finishing")) return;
+		if (event.type === "error") {
+			this.fail(new Error(event.message));
+			return;
+		}
+		if (
+			event.type !== "pcm" ||
+			(this.state !== "recording" && this.state !== "finishing")
+		)
+			return;
 		this.transcriber.append(Buffer.from(event.audio, "base64"));
 	}
 
 	private fail(error: Error): void {
-		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
+		if (
+			this.state === "idle" ||
+			this.state === "closed" ||
+			this.state === "failed"
+		)
+			return;
 		this.state = "failed";
 		this.startupFailure = error;
 		this.callbacks.onError(error);

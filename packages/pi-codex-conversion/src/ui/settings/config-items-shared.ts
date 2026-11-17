@@ -1,4 +1,7 @@
-import { getSelectListTheme, type Theme } from "@earendil-works/pi-coding-agent";
+import {
+	getSelectListTheme,
+	type Theme,
+} from "@earendil-works/pi-coding-agent";
 import {
 	Container,
 	type Focusable,
@@ -8,14 +11,24 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-import type { CodexConversionConfig, CacheKeepaliveIntervalMinutes } from "../../adapter/activation/config.ts";
+import type {
+	CodexConversionConfig,
+	CacheKeepaliveIntervalMinutes,
+} from "../../adapter/activation/config.ts";
 
 export interface ConfigSetting {
 	item: SettingItem & { description: string };
 	update?:
 		| ((value: string, config: CodexConversionConfig) => CodexConversionConfig)
 		| undefined;
-	action?: "edit-config" | "global-notebook-journals" | "global-notebook-checkpoint-cleanup" | "global-luna-cache-keepalive" | "global-luna-cache-keepalive-interval" | "project-cache-keepalive" | undefined;
+	action?:
+		| "edit-config"
+		| "global-notebook-journals"
+		| "global-notebook-checkpoint-cleanup"
+		| "global-luna-cache-keepalive"
+		| "global-luna-cache-keepalive-interval"
+		| "project-cache-keepalive"
+		| undefined;
 }
 
 export class ChoiceSettingSubmenu extends Container {
@@ -29,7 +42,11 @@ export class ChoiceSettingSubmenu extends Container {
 	) {
 		super();
 		const values = item.values ?? [];
-		this.choices = new SelectList(values.map(value => ({ value, label: value })), values.length, getSelectListTheme());
+		this.choices = new SelectList(
+			values.map((value) => ({ value, label: value })),
+			values.length,
+			getSelectListTheme(),
+		);
 		this.choices.setSelectedIndex(Math.max(0, values.indexOf(currentValue)));
 		this.choices.onSelect = ({ value }) => done(value);
 		this.choices.onCancel = () => done();
@@ -39,10 +56,14 @@ export class ChoiceSettingSubmenu extends Container {
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(theme.fg("dim", item.description), 0, 0));
 		this.addChild(new Spacer(1));
-		this.addChild(new Text(theme.fg("dim", "Enter to apply · Esc to cancel"), 0, 0));
+		this.addChild(
+			new Text(theme.fg("dim", "Enter to apply · Esc to cancel"), 0, 0),
+		);
 	}
 
-	handleInput(data: string): void { this.choices.handleInput(data); }
+	handleInput(data: string): void {
+		this.choices.handleInput(data);
+	}
 }
 
 export class TextSettingSubmenu extends Container implements Focusable {
@@ -101,16 +122,31 @@ export function toggle(
 	description: string,
 ): ConfigSetting {
 	return setting(
-		{ id, label, currentValue: current ? "on" : "off", values: ["off", "on"], description },
+		{
+			id,
+			label,
+			currentValue: current ? "on" : "off",
+			values: ["off", "on"],
+			description,
+		},
 		(value, config) => update(value === "on", config),
 	);
 }
 
-export function projectCacheKeepalive(id: string, label: string, current: boolean, interval: CacheKeepaliveIntervalMinutes): ConfigSetting {
+export function projectCacheKeepalive(
+	id: string,
+	label: string,
+	current: boolean,
+	interval: CacheKeepaliveIntervalMinutes,
+): ConfigSetting {
 	return {
 		item: {
-			id, label, currentValue: current ? `${interval} mins` : "off", values: ["off", "25 mins", "55 mins"],
-			description: "Request interval for Astra, Sol and Terra across versions in this project. Uses quota. Cache retention is not guaranteed.",
+			id,
+			label,
+			currentValue: current ? `${interval} mins` : "off",
+			values: ["off", "25 mins", "55 mins"],
+			description:
+				"Request interval for Astra, Sol and Terra across versions in this project. Uses quota. Cache retention is not guaranteed.",
 		},
 		action: "project-cache-keepalive",
 	};

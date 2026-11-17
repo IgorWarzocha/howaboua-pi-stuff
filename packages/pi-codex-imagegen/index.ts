@@ -42,9 +42,8 @@ export default async function imagegenExtension(
 		description: tool.description,
 	};
 	try {
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		registerGptPromptMode(pi, (active) => {
 			if (gpt !== active) {
 				gpt = active;

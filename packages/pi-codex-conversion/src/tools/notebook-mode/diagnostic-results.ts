@@ -26,29 +26,67 @@ interface NotebookDiagnosticGroup {
 	source?: string | undefined;
 	name?: string | undefined;
 	message: string;
-	samples: Array<Pick<NotebookDiagnostic, "cellId" | "cellIndex" | "line" | "column" | "endLine" | "endColumn">>;
+	samples: Array<
+		Pick<
+			NotebookDiagnostic,
+			"cellId" | "cellIndex" | "line" | "column" | "endLine" | "endColumn"
+		>
+	>;
 }
 
-export function formatNotebookDiagnostics(path: string, cells: number, diagnostics: NotebookDiagnostic[], runtimeHealth: NotebookRuntimeHealthState = "not_started"): NotebookControlResult {
+export function formatNotebookDiagnostics(
+	path: string,
+	cells: number,
+	diagnostics: NotebookDiagnostic[],
+	runtimeHealth: NotebookRuntimeHealthState = "not_started",
+): NotebookControlResult {
 	const groups = groupDiagnostics(diagnostics);
 	const reportedPath = boundText(path);
-	const lines = [formatRuntimeHealth(runtimeHealth), `Historical static diagnostics for ${reportedPath} (${cells} code cells):`];
+	const lines = [
+		formatRuntimeHealth(runtimeHealth),
+		`Historical static diagnostics for ${reportedPath} (${cells} code cells):`,
+	];
 	const included: NotebookDiagnosticGroup[] = [];
 	for (const group of groups) {
 		const line = formatDiagnosticGroup(group);
 		const candidate = [...included, group];
-		const candidateDetails = diagnosticDetails(reportedPath, cells, runtimeHealth, diagnostics.length, candidate, groups.length - candidate.length);
-		if (Buffer.byteLength(JSON.stringify(candidateDetails), "utf8") > DETAILS_BUDGET) break;
-		if (Buffer.byteLength(`${lines.join("\n")}\n${line}`, "utf8") + 64 > MESSAGE_BUDGET) break;
+		const candidateDetails = diagnosticDetails(
+			reportedPath,
+			cells,
+			runtimeHealth,
+			diagnostics.length,
+			candidate,
+			groups.length - candidate.length,
+		);
+		if (
+			Buffer.byteLength(JSON.stringify(candidateDetails), "utf8") >
+			DETAILS_BUDGET
+		)
+			break;
+		if (
+			Buffer.byteLength(`${lines.join("\n")}\n${line}`, "utf8") + 64 >
+			MESSAGE_BUDGET
+		)
+			break;
 		lines.push(line);
 		included.push(group);
 	}
 	const omittedGroups = groups.length - included.length;
 	if (groups.length === 0) lines.push("No historical static Deno diagnostics");
-	if (omittedGroups > 0) lines.push(`${omittedGroups} additional historical diagnostic group${omittedGroups === 1 ? "" : "s"} omitted by the output bound`);
+	if (omittedGroups > 0)
+		lines.push(
+			`${omittedGroups} additional historical diagnostic group${omittedGroups === 1 ? "" : "s"} omitted by the output bound`,
+		);
 	return boundedDiagnosticResult(
 		lines.join("\n"),
-		diagnosticDetails(reportedPath, cells, runtimeHealth, diagnostics.length, included, omittedGroups),
+		diagnosticDetails(
+			reportedPath,
+			cells,
+			runtimeHealth,
+			diagnostics.length,
+			included,
+			omittedGroups,
+		),
 	);
 }
 
@@ -60,10 +98,19 @@ function diagnosticDetails(
 	diagnosticGroups: NotebookDiagnosticGroup[],
 	omittedGroups: number,
 ): Record<string, unknown> {
-	return { path, cells, runtime: { state: runtimeHealth }, diagnosticCount, diagnosticGroups, omittedGroups };
+	return {
+		path,
+		cells,
+		runtime: { state: runtimeHealth },
+		diagnosticCount,
+		diagnosticGroups,
+		omittedGroups,
+	};
 }
 
-function groupDiagnostics(diagnostics: NotebookDiagnostic[]): NotebookDiagnosticGroup[] {
+function groupDiagnostics(
+	diagnostics: NotebookDiagnostic[],
+): NotebookDiagnosticGroup[] {
 	const groups = new Map<string, NotebookDiagnosticGroup>();
 	for (const diagnostic of diagnostics) {
 		const key = JSON.stringify([
@@ -79,7 +126,9 @@ function groupDiagnostics(diagnostics: NotebookDiagnostic[]): NotebookDiagnostic
 				count: 0,
 				severity: diagnostic.severity,
 				...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
-				...(diagnostic.source === undefined ? {} : { source: diagnostic.source }),
+				...(diagnostic.source === undefined
+					? {}
+					: { source: diagnostic.source }),
 				...(diagnostic.name === undefined ? {} : { name: diagnostic.name }),
 				message: diagnostic.message,
 				samples: [],
@@ -87,39 +136,60 @@ function groupDiagnostics(diagnostics: NotebookDiagnostic[]): NotebookDiagnostic
 			groups.set(key, group);
 		}
 		group.count += 1;
-		if (group.samples.length < MAX_DIAGNOSTIC_SAMPLES) group.samples.push({
-			cellId: diagnostic.cellId,
-			cellIndex: diagnostic.cellIndex,
-			line: diagnostic.line,
-			column: diagnostic.column,
-			endLine: diagnostic.endLine,
-			endColumn: diagnostic.endColumn,
-		});
+		if (group.samples.length < MAX_DIAGNOSTIC_SAMPLES)
+			group.samples.push({
+				cellId: diagnostic.cellId,
+				cellIndex: diagnostic.cellIndex,
+				line: diagnostic.line,
+				column: diagnostic.column,
+				endLine: diagnostic.endLine,
+				endColumn: diagnostic.endColumn,
+			});
 	}
 	return [...groups.values()];
 }
 
 function formatDiagnosticGroup(group: NotebookDiagnosticGroup): string {
-	const code = group.code === undefined ? "" : ` ${group.source ?? "deno"}-${group.code}`;
+	const code =
+		group.code === undefined ? "" : ` ${group.source ?? "deno"}-${group.code}`;
 	const name = group.name ? ` [${group.name}]` : "";
-	const samples = group.samples.map((sample) => `${sample.cellId} cell ${sample.cellIndex + 1}:${sample.line}:${sample.column}`).join(", ");
+	const samples = group.samples
+		.map(
+			(sample) =>
+				`${sample.cellId} cell ${sample.cellIndex + 1}:${sample.line}:${sample.column}`,
+		)
+		.join(", ");
 	return `- ${group.count} occurrence${group.count === 1 ? "" : "s"} ${group.severity}${code}${name}: ${group.message.replaceAll("\n", " ")}; samples: ${samples}`;
 }
 
 export function formatRuntimeHealth(state: NotebookRuntimeHealthState): string {
 	switch (state) {
-		case "ready": return "Notebook runtime health: ready; bootstrap is available";
-		case "invalidated": return "Notebook runtime health: invalidated; exec or restart will recreate it from the last completed checkpoint. Durable project bindings are preserved; external side effects were not rolled back";
-		case "not_started": return "Notebook runtime health: not started; exec or restart will create it from the last completed checkpoint";
+		case "ready":
+			return "Notebook runtime health: ready; bootstrap is available";
+		case "invalidated":
+			return "Notebook runtime health: invalidated; exec or restart will recreate it from the last completed checkpoint. Durable project bindings are preserved; external side effects were not rolled back";
+		case "not_started":
+			return "Notebook runtime health: not started; exec or restart will create it from the last completed checkpoint";
 	}
 }
 
 export function boundText(value: string): string {
-	return boundUtf8(value, MAX_DIAGNOSTIC_TEXT_BYTES, " [diagnostic text truncated]");
+	return boundUtf8(
+		value,
+		MAX_DIAGNOSTIC_TEXT_BYTES,
+		" [diagnostic text truncated]",
+	);
 }
 
-export function boundedDiagnosticResult(message: string, details: Record<string, unknown>): NotebookControlResult {
-	const boundedMessage = boundUtf8(message, MESSAGE_BUDGET, "\n[diagnostics output truncated]");
+export function boundedDiagnosticResult(
+	message: string,
+	details: Record<string, unknown>,
+): NotebookControlResult {
+	const boundedMessage = boundUtf8(
+		message,
+		MESSAGE_BUDGET,
+		"\n[diagnostics output truncated]",
+	);
 	if (Buffer.byteLength(JSON.stringify(details), "utf8") <= DETAILS_BUDGET) {
 		return { message: boundedMessage, details };
 	}
@@ -139,7 +209,8 @@ function boundUtf8(value: string, maxBytes: number, suffix: string): string {
 	let high = value.length;
 	while (low < high) {
 		const middle = Math.ceil((low + high) / 2);
-		if (Buffer.byteLength(value.slice(0, middle), "utf8") <= available) low = middle;
+		if (Buffer.byteLength(value.slice(0, middle), "utf8") <= available)
+			low = middle;
 		else high = middle - 1;
 	}
 	let prefix = value.slice(0, low);

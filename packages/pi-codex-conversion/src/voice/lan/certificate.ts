@@ -14,7 +14,9 @@ export interface LanVoiceCertificate {
 	ipAddresses: string[];
 }
 
-export async function resolveLanVoiceCertificate(agentDir: string): Promise<LanVoiceCertificate> {
+export async function resolveLanVoiceCertificate(
+	agentDir: string,
+): Promise<LanVoiceCertificate> {
 	const hostnames = [
 		...new Set([hostname(), "localhost"].filter(Boolean)),
 	].sort();
@@ -47,7 +49,9 @@ export async function resolveLanVoiceCertificate(agentDir: string): Promise<LanV
 		{
 			algorithm: "sha256",
 			notBeforeDate,
-			notAfterDate: new Date(notBeforeDate.getTime() + CERTIFICATE_DAYS * 24 * 60 * 60 * 1_000),
+			notAfterDate: new Date(
+				notBeforeDate.getTime() + CERTIFICATE_DAYS * 24 * 60 * 60 * 1_000,
+			),
 			keyPair: { privateKey: keyPair.privateKey, publicKey: keyPair.publicKey },
 			extensions: [
 				{ name: "basicConstraints", cA: false },

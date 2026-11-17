@@ -10,7 +10,13 @@ export function normalizePatchPath({ path }: { path: string }): string {
 
 // Match Codex apply_patch path handling: absolute patch paths are accepted
 // as-is, while relative paths are resolved against ctx.cwd.
-export function resolvePatchPath({ cwd, patchPath }: { cwd: string; patchPath: string }): string {
+export function resolvePatchPath({
+	cwd,
+	patchPath,
+}: {
+	cwd: string;
+	patchPath: string;
+}): string {
 	const normalized = normalizePatchPath({ path: patchPath });
 	if (!normalized) {
 		throw new DiffError("Patch path cannot be empty");
@@ -19,7 +25,13 @@ export function resolvePatchPath({ cwd, patchPath }: { cwd: string; patchPath: s
 	return isAbsolute(normalized) ? normalized : resolve(cwd, normalized);
 }
 
-export function openFileAtPath({ cwd, path }: { cwd: string; path: string }): string {
+export function openFileAtPath({
+	cwd,
+	path,
+}: {
+	cwd: string;
+	path: string;
+}): string {
 	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
 	if (!existsSync(absolutePath)) {
 		throw new DiffError(`File not found: ${path}`);

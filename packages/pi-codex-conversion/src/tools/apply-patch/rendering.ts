@@ -4,7 +4,10 @@ import { renderDiff } from "@earendil-works/pi-coding-agent";
 import { parsePatchActions } from "../../patch/parser.ts";
 import type { ParsedPatchAction } from "../../patch/types.ts";
 
-export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()): string {
+export function formatApplyPatchSummary(
+	patchText: string,
+	cwd = process.cwd(),
+): string {
 	let actions: ParsedPatchAction[];
 	try {
 		actions = parsePatchActions({ text: patchText });
@@ -23,20 +26,30 @@ export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()):
 
 	if (files.length === 1) {
 		const file = files[0]!;
-		lines.push(`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`);
+		lines.push(
+			`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`,
+		);
 		return lines.join("\n");
 	}
 
-	lines.push(`${bulletHeader("Edited", `${files.length} files`)} ${renderCounts(totalAdded, totalRemoved)}`);
+	lines.push(
+		`${bulletHeader("Edited", `${files.length} files`)} ${renderCounts(totalAdded, totalRemoved)}`,
+	);
 	for (const [index, file] of files.entries()) {
 		const prefix = index === 0 ? "  └ " : "    ";
-		lines.push(`${prefix}${formatPatchTarget(file.path, file.movePath, cwd)} ${renderCounts(file.added, file.removed)}`);
+		lines.push(
+			`${prefix}${formatPatchTarget(file.path, file.movePath, cwd)} ${renderCounts(file.added, file.removed)}`,
+		);
 	}
 
 	return lines.join("\n");
 }
 
-export function collapseApplyPatchDiff(full: string, maxPreviewLines: number, expandHint: string): string {
+export function collapseApplyPatchDiff(
+	full: string,
+	maxPreviewLines: number,
+	expandHint: string,
+): string {
 	const fullLines = full.split("\n");
 	const visibleLines = fullLines.slice(0, maxPreviewLines + 1);
 	const remaining = fullLines.length - visibleLines.length;
@@ -47,7 +60,10 @@ export function collapseApplyPatchDiff(full: string, maxPreviewLines: number, ex
 	return lines.join("\n");
 }
 
-export function renderApplyPatchCall(patchText: string, cwd = process.cwd()): string {
+export function renderApplyPatchCall(
+	patchText: string,
+	cwd = process.cwd(),
+): string {
 	let actions: ParsedPatchAction[];
 	try {
 		actions = parsePatchActions({ text: patchText });
@@ -66,17 +82,23 @@ export function renderApplyPatchCall(patchText: string, cwd = process.cwd()): st
 
 	if (files.length === 1) {
 		const file = files[0]!;
-		lines.push(`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`);
+		lines.push(
+			`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`,
+		);
 		lines.push(...renderPreviewLines(file.lines));
 		return lines.join("\n");
 	}
 
-	lines.push(`${bulletHeader("Edited", `${files.length} files`)} ${renderCounts(totalAdded, totalRemoved)}`);
+	lines.push(
+		`${bulletHeader("Edited", `${files.length} files`)} ${renderCounts(totalAdded, totalRemoved)}`,
+	);
 	for (const [index, file] of files.entries()) {
 		if (index > 0) {
 			lines.push("");
 		}
-		lines.push(`  └ ${formatPatchTarget(file.path, file.movePath, cwd)} ${renderCounts(file.added, file.removed)}`);
+		lines.push(
+			`  └ ${formatPatchTarget(file.path, file.movePath, cwd)} ${renderCounts(file.added, file.removed)}`,
+		);
 		lines.push(...renderPreviewLines(file.lines));
 	}
 
@@ -84,7 +106,10 @@ export function renderApplyPatchCall(patchText: string, cwd = process.cwd()): st
 }
 
 function formatPreviewLine(line: PreviewLine, lines: PreviewLine[]): string {
-	const numberWidth = Math.max(1, ...lines.map((entry) => String(entry.lineNumber).length));
+	const numberWidth = Math.max(
+		1,
+		...lines.map((entry) => String(entry.lineNumber).length),
+	);
 	return `    ${String(line.lineNumber).padStart(numberWidth, " ")} ${line.marker}${line.text}`;
 }
 
@@ -93,9 +118,15 @@ function renderPreviewLines(lines: PreviewLine[]): string[] {
 		return [];
 	}
 
-	const numberWidth = Math.max(1, ...lines.map((entry) => String(entry.lineNumber).length));
+	const numberWidth = Math.max(
+		1,
+		...lines.map((entry) => String(entry.lineNumber).length),
+	);
 	const diffText = lines
-		.map((line) => `${line.marker}${String(line.lineNumber).padStart(numberWidth, " ")} ${line.text}`)
+		.map(
+			(line) =>
+				`${line.marker}${String(line.lineNumber).padStart(numberWidth, " ")} ${line.text}`,
+		)
 		.join("\n");
 	try {
 		return renderDiff(diffText)
@@ -106,7 +137,11 @@ function renderPreviewLines(lines: PreviewLine[]): string[] {
 	}
 }
 
-export function formatPatchTarget(path: string, movePath: string | undefined, cwd: string): string {
+export function formatPatchTarget(
+	path: string,
+	movePath: string | undefined,
+	cwd: string,
+): string {
 	const from = displayPath(path, cwd);
 	if (!movePath) {
 		return from;
@@ -120,7 +155,11 @@ function displayPath(path: string, cwd: string): string {
 	}
 
 	const relativePath = relative(cwd, path);
-	if (relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath)) {
+	if (
+		relativePath !== "" &&
+		!relativePath.startsWith("..") &&
+		!isAbsolute(relativePath)
+	) {
 		return relativePath;
 	}
 

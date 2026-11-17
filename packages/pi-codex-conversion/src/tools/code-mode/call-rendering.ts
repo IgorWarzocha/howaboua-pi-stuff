@@ -6,11 +6,17 @@ import type { CodeModeRenderContext, CodeModeRenderTheme } from "./types.js";
 
 // Keep one highlighting result with the native row, not a process-wide source cache.
 class CodeCallText extends Text {
-	private highlighted: { code: string; theme: CodeModeRenderTheme; lines: string[] } | undefined;
+	private highlighted:
+		| { code: string; theme: CodeModeRenderTheme; lines: string[] }
+		| undefined;
 
 	highlight(code: string, theme: CodeModeRenderTheme): string[] {
 		if (this.highlighted?.code !== code || this.highlighted.theme !== theme)
-			this.highlighted = { code, theme, lines: highlightCode(code, "javascript") };
+			this.highlighted = {
+				code,
+				theme,
+				lines: highlightCode(code, "javascript"),
+			};
 		return this.highlighted.lines;
 	}
 
@@ -40,16 +46,31 @@ export function renderExecCall(
 			0,
 		);
 	}
-	const component = context?.lastComponent instanceof CodeCallText ? context.lastComponent : new CodeCallText("", 0, 0);
+	const component =
+		context?.lastComponent instanceof CodeCallText
+			? context.lastComponent
+			: new CodeCallText("", 0, 0);
 	const status = tracker.status(context?.toolCallId);
-	const pending = context?.executionStarted === false && context.isPartial !== false;
-	const running = status === "running" || (status === undefined && context?.executionStarted && context.isPartial);
-	const verb = pending ? "Pending" : running ? "Running" : status === "yielded" ? "Started" : "Ran";
+	const pending =
+		context?.executionStarted === false && context.isPartial !== false;
+	const running =
+		status === "running" ||
+		(status === undefined && context?.executionStarted && context.isPartial);
+	const verb = pending
+		? "Pending"
+		: running
+			? "Running"
+			: status === "yielded"
+				? "Started"
+				: "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} code`)}`;
-	if (!context?.expanded && code.trim()) text += `\n${previewCode(component.highlight(code.trim(), theme), theme, context)}`;
+	if (!context?.expanded && code.trim())
+		text += `\n${previewCode(component.highlight(code.trim(), theme), theme, context)}`;
 	const names = customToolNames(code);
-	if (names.length > 0) text += `\n${theme.fg("dim", "  └ ")}${theme.fg("accent", names.join(" · "))}`;
-	if (context?.expanded && code.trim()) text += `\n\n${component.highlight(code, theme).join("\n")}`;
+	if (names.length > 0)
+		text += `\n${theme.fg("dim", "  └ ")}${theme.fg("accent", names.join(" · "))}`;
+	if (context?.expanded && code.trim())
+		text += `\n\n${component.highlight(code, theme).join("\n")}`;
 	component.setText(text);
 	return component;
 }
@@ -64,20 +85,35 @@ export function renderWaitCall(
 	tracker.register(context?.toolCallId, context?.invalidate);
 	if (!richRendering) return new Text("", 0, 0);
 	const status = tracker.status(context?.toolCallId);
-	const pending = context?.executionStarted === false && context.isPartial !== false;
-	const done = status !== "running" && !(status === undefined && context?.executionStarted && context.isPartial);
+	const pending =
+		context?.executionStarted === false && context.isPartial !== false;
+	const done =
+		status !== "running" &&
+		!(status === undefined && context?.executionStarted && context.isPartial);
 	const terminate = args.terminate === true;
-	const title = pending ? "Pending code cell request" : terminate
-		? done ? "Terminated code cell" : "Terminating code cell"
-		: done ? "Waited for code cell" : "Waiting for code cell";
+	const title = pending
+		? "Pending code cell request"
+		: terminate
+			? done
+				? "Terminated code cell"
+				: "Terminating code cell"
+			: done
+				? "Waited for code cell"
+				: "Waiting for code cell";
 	const cell = typeof args.cell_id === "string" ? ` #${args.cell_id}` : "";
-	return new Text(`${theme.fg("dim", "•")} ${theme.bold(title)}${theme.fg("muted", cell)}`, 0, 0);
+	return new Text(
+		`${theme.fg("dim", "•")} ${theme.bold(title)}${theme.fg("muted", cell)}`,
+		0,
+		0,
+	);
 }
 
 function customToolNames(code: string): string[] {
 	const names: string[] = [];
 	const seen = new Set<string>();
-	for (const match of code.matchAll(/\btools\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)) {
+	for (const match of code.matchAll(
+		/\btools\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g,
+	)) {
 		const name = match[1]!;
 		if (seen.has(name)) continue;
 		seen.add(name);
@@ -86,10 +122,27 @@ function customToolNames(code: string): string[] {
 	return names;
 }
 
-function previewCode(highlighted: string[], theme: CodeModeRenderTheme, context: CodeModeRenderContext | undefined): string {
+function previewCode(
+	highlighted: string[],
+	theme: CodeModeRenderTheme,
+	context: CodeModeRenderContext | undefined,
+): string {
 	// Truncation resets must preserve the surrounding tool panel background.
-	const lines = highlighted.slice(0, 3).map((line) => truncateToWidth(`  ${line}`, 100, "...").replaceAll("\x1b[0m", "\x1b[39m"));
+	const lines = highlighted
+		.slice(0, 3)
+		.map((line) =>
+			truncateToWidth(`  ${line}`, 100, "...").replaceAll(
+				"\x1b[0m",
+				"\x1b[39m",
+			),
+		);
 	const skippedCount = highlighted.length - lines.length;
-	if (skippedCount > 0) lines.push(theme.fg("muted", `  ... (${skippedCount} more lines, ${expandHint(context)})`));
+	if (skippedCount > 0)
+		lines.push(
+			theme.fg(
+				"muted",
+				`  ... (${skippedCount} more lines, ${expandHint(context)})`,
+			),
+		);
 	return lines.join("\n");
 }

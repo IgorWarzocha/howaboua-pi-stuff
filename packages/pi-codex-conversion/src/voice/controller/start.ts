@@ -1,5 +1,8 @@
 import { resolveRealtimeVoiceAuth } from "../realtime-auth.ts";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
 import { CANCELLED, interruptible } from "../cancellation.ts";
@@ -25,9 +28,16 @@ import type { CodexVoiceMode } from "../ui.ts";
 export interface RealtimePeerPlan {
 	createPeer(): CodexRealtimePeer;
 	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
-	onInactive?(session: CodexRealtimeConversation, error: Error, resuming: boolean): void;
+	onInactive?(
+		session: CodexRealtimeConversation,
+		error: Error,
+		resuming: boolean,
+	): void;
 	onStatus?(status: string): void;
-	onTransferred?(peer: CodexRealtimePeer, controls: TransferredVoiceControls): void;
+	onTransferred?(
+		peer: CodexRealtimePeer,
+		controls: TransferredVoiceControls,
+	): void;
 	onTransferEnded?(peer: CodexRealtimePeer, error?: Error): void;
 	onStopped?(): void;
 }
@@ -123,9 +133,10 @@ export async function startControllerMode(options: {
 	runtime.context = options.ctx;
 	runtime.config = options.config;
 	runtime.alternateVoice = options.resume
-		? runtime.alternateVoice ?? false
-		: options.alternateVoice ?? false;
-	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
+		? (runtime.alternateVoice ?? false)
+		: (options.alternateVoice ?? false);
+	runtime.realtimePeerPlan =
+		options.mode === "realtime" ? options.realtimePeerPlan : undefined;
 	// Only a prepared refresh preserves the existing call's queued Pi work.
 	if (!options.resume || !options.preparedRealtimeContext)
 		options.messages.setContext(options.ctx);
@@ -138,7 +149,8 @@ export async function startControllerMode(options: {
 			startGeneration !== runtime.startGeneration ||
 			runtime.startAbortController !== startAbortController ||
 			runtime.state.type !== "connecting"
-		) return;
+		)
+			return;
 		options.onStatus(status);
 		options.realtimePeerPlan?.onStatus?.(status);
 	};
@@ -146,19 +158,21 @@ export async function startControllerMode(options: {
 	try {
 		const startup = await interruptible(
 			Promise.all([
-				options.mode === "realtime" ? resolveRealtimeVoiceAuth(options.ctx, options.config, options.pi) : resolveCodexVoiceAuth(options.ctx),
+				options.mode === "realtime"
+					? resolveRealtimeVoiceAuth(options.ctx, options.config, options.pi)
+					: resolveCodexVoiceAuth(options.ctx),
 				options.mode === "realtime"
 					? options.preparedRealtimeContext
 						? Promise.resolve(options.preparedRealtimeContext)
 						: prepareControllerRealtimeContext({
-							pi: options.pi,
-							ctx: options.ctx,
-							config: options.config,
-							onSummaryStatus: (active) => {
-								setStartupStatus(active ? "summarizing…" : "connecting…");
-							},
-							signal: startSignal,
-						})
+								pi: options.pi,
+								ctx: options.ctx,
+								config: options.config,
+								onSummaryStatus: (active) => {
+									setStartupStatus(active ? "summarizing…" : "connecting…");
+								},
+								signal: startSignal,
+							})
 					: Promise.resolve(undefined),
 			]),
 			startSignal,
@@ -171,7 +185,8 @@ export async function startControllerMode(options: {
 		if (
 			startGeneration !== runtime.startGeneration ||
 			runtime.state.type !== "connecting"
-		) return;
+		)
+			return;
 		if (options.mode === "dictation") await startDictation(options, auth);
 		else
 			await startConversation(
@@ -240,7 +255,7 @@ async function startConversation(
 					voice: {
 						...options.config.voice,
 						v3Voice: options.config.voice.v3AlternateVoice,
- realtimeVoice: options.config.voice.realtimeAlternateVoice,
+						realtimeVoice: options.config.voice.realtimeAlternateVoice,
 					},
 				}
 			: options.config,
@@ -284,11 +299,14 @@ async function startConversation(
 			},
 			onStatus: options.onStatus,
 			onEndCall: options.onEndCall,
-			onTurn: (session, turn) => { void options.messages.voiceTurn(turn, session); },
+			onTurn: (session, turn) => {
+				void options.messages.voiceTurn(turn, session);
+			},
 			onEvent: (event) => options.messages.realtimeEvent(event),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
-			onAudioDiagnostics: (diagnostics) => options.messages.audioDiagnostics(diagnostics),
+			onAudioDiagnostics: (diagnostics) =>
+				options.messages.audioDiagnostics(diagnostics),
 			onTranscriptTail: (transcript) =>
 				options.messages.retainTranscriptTail(transcript),
 		},

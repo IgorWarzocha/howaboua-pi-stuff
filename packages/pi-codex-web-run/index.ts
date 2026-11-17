@@ -33,9 +33,8 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 		guidelines: tool.promptGuidelines,
 	};
 	try {
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		registerGptPromptMode(pi, (active) => {
 			if (gpt !== active) {
 				gpt = active;

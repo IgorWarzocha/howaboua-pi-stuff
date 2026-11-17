@@ -1,5 +1,8 @@
 import { formatCodeModeToolHelp } from "./custom-tool-prompt.js";
-import { codeModeNameForToolIdentity, resolveCodeModeToolIdentity } from "./tool-identity.ts";
+import {
+	codeModeNameForToolIdentity,
+	resolveCodeModeToolIdentity,
+} from "./tool-identity.ts";
 import type {
 	CodeModeToolDefinition,
 	CustomToolDefinition,
@@ -22,7 +25,9 @@ export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 		);
 	const toolName = resolveCodeModeToolIdentity(tool);
 	if (codeModeNameForToolIdentity(toolName) !== tool.name) {
-		throw new Error(`Code-mode tool identity does not match its JavaScript name: ${tool.name}`);
+		throw new Error(
+			`Code-mode tool identity does not match its JavaScript name: ${tool.name}`,
+		);
 	}
 	return {
 		name: tool.name,
@@ -43,7 +48,10 @@ export function isCustomToolDefinition(
 	return "command" in tool;
 }
 
-export function parseExecSource(source: string, features: { allowIsolated?: boolean } = {}): {
+export function parseExecSource(
+	source: string,
+	features: { allowIsolated?: boolean } = {},
+): {
 	code: string;
 	yieldTimeMs: number | null;
 	maxOutputTokens: number | null;
@@ -54,16 +62,28 @@ export function parseExecSource(source: string, features: { allowIsolated?: bool
 	const [first, ...rest] = source.split("\n");
 	const trimmed = first?.trimStart() ?? "";
 	if (!trimmed.startsWith("// @exec:"))
-		return { code: source, yieldTimeMs: null, maxOutputTokens: null, isolated: false };
+		return {
+			code: source,
+			yieldTimeMs: null,
+			maxOutputTokens: null,
+			isolated: false,
+		};
 	if (rest.join("\n").trim() === "")
 		throw new Error("exec pragma must be followed by JavaScript source");
 	const options = JSON.parse(
 		trimmed.slice("// @exec:".length).trim(),
 	) as Record<string, unknown>;
 	for (const key of Object.keys(options))
-		if (key !== "yield_time_ms" && key !== "max_output_tokens" && !(features.allowIsolated && key === "isolated"))
+		if (
+			key !== "yield_time_ms" &&
+			key !== "max_output_tokens" &&
+			!(features.allowIsolated && key === "isolated")
+		)
 			throw new Error(`Unsupported exec pragma field: ${key}`);
-	if (options["isolated"] !== undefined && typeof options["isolated"] !== "boolean")
+	if (
+		options["isolated"] !== undefined &&
+		typeof options["isolated"] !== "boolean"
+	)
 		throw new Error("isolated must be a boolean");
 	return {
 		code: rest.join("\n"),
@@ -90,13 +110,14 @@ export function parseRuntimeResponse(value: unknown): RuntimeResponse {
 				: undefined;
 	if (!kind)
 		throw new Error("Code-mode host returned an invalid runtime response");
-	const body = value[
-		kind === "yielded"
-			? "Yielded"
-			: kind === "terminated"
-				? "Terminated"
-				: "Result"
-	];
+	const body =
+		value[
+			kind === "yielded"
+				? "Yielded"
+				: kind === "terminated"
+					? "Terminated"
+					: "Result"
+		];
 	if (!isRecord(body) || typeof body["cell_id"] !== "string")
 		throw new Error("Code-mode host returned an invalid runtime response");
 	const contentItems = parseContentItems(body["content_items"]);
@@ -138,8 +159,14 @@ function parseContentItems(value: unknown): RuntimeContentItem[] {
 function isImageDetail(
 	value: unknown,
 ): value is "auto" | "low" | "high" | "original" | null | undefined {
-	return value === undefined || value === null ||
-		value === "auto" || value === "low" || value === "high" || value === "original";
+	return (
+		value === undefined ||
+		value === null ||
+		value === "auto" ||
+		value === "low" ||
+		value === "high" ||
+		value === "original"
+	);
 }
 
 function parseInteger(
@@ -178,14 +205,14 @@ export interface DelegateRequestMessage {
 	request:
 		| { type: "notification/send"; cellId: string; text: string }
 		| {
-			type: "tool/invoke";
-			invocation: {
-				cell_id: string;
-				input?: unknown;
-				runtime_tool_call_id: string;
-				tool_name: { name: string; namespace?: string | undefined };
-			};
-		};
+				type: "tool/invoke";
+				invocation: {
+					cell_id: string;
+					input?: unknown;
+					runtime_tool_call_id: string;
+					tool_name: { name: string; namespace?: string | undefined };
+				};
+		  };
 }
 
 export type HostResult =
@@ -197,17 +224,17 @@ export function parseHostMessage(value: unknown): HostMessage {
 		throw new Error("Code-mode host returned an invalid message");
 	const type = value["type"];
 	if (type === "connection/ready") {
-		if (
-			value["selectedVersion"] !== 1 ||
-			!isStringArray(value["capabilities"])
-		)
+		if (value["selectedVersion"] !== 1 || !isStringArray(value["capabilities"]))
 			throw new Error("Code-mode host negotiated an invalid protocol");
 		return { type, selectedVersion: 1, capabilities: value["capabilities"] };
 	}
-	if (type === "connection/rejected")
-		return { type, reason: value["reason"] };
+	if (type === "connection/rejected") return { type, reason: value["reason"] };
 	if (type === "operation/response" || type === "execute/initialResponse")
-		return { type, id: parseMessageId(value["id"]), result: parseHostResult(value["result"]) };
+		return {
+			type,
+			id: parseMessageId(value["id"]),
+			result: parseHostResult(value["result"]),
+		};
 	if (type === "delegate/cancel")
 		return { type, id: parseMessageId(value["id"]) };
 	if (type === "cell/closed") {
@@ -221,7 +248,8 @@ export function parseHostMessage(value: unknown): HostMessage {
 }
 
 export function executionCellId(value: unknown): string | undefined {
-	return isRecord(value) && value["type"] === "execution/started" &&
+	return isRecord(value) &&
+		value["type"] === "execution/started" &&
 		typeof value["cellId"] === "string"
 		? value["cellId"]
 		: undefined;
@@ -235,20 +263,32 @@ export function runtimeOutcome(value: unknown): unknown {
 export function isMissingRuntimeOutcome(value: unknown): boolean {
 	return Boolean(
 		isRecord(value) &&
-			isRecord(value["outcome"]) &&
-			"MissingCell" in value["outcome"],
+		isRecord(value["outcome"]) &&
+		"MissingCell" in value["outcome"],
 	);
 }
 
-function parseDelegateRequest(value: Record<string, unknown>): DelegateRequestMessage {
+function parseDelegateRequest(
+	value: Record<string, unknown>,
+): DelegateRequestMessage {
 	const id = parseMessageId(value["id"]);
 	const request = value["request"];
 	if (!isRecord(request) || typeof request["type"] !== "string")
 		throw new Error("Code-mode host returned an invalid delegate request");
 	if (request["type"] === "notification/send") {
-		if (typeof request["cellId"] !== "string" || typeof request["text"] !== "string")
+		if (
+			typeof request["cellId"] !== "string" ||
+			typeof request["text"] !== "string"
+		)
 			throw new Error("Code-mode host returned an invalid notification");
-		return { id, request: { type: "notification/send", cellId: request["cellId"], text: request["text"] } };
+		return {
+			id,
+			request: {
+				type: "notification/send",
+				cellId: request["cellId"],
+				text: request["text"],
+			},
+		};
 	}
 	if (request["type"] !== "tool/invoke" || !isRecord(request["invocation"]))
 		throw new Error("Code-mode host returned an invalid tool invocation");
@@ -260,7 +300,9 @@ function parseDelegateRequest(value: Record<string, unknown>): DelegateRequestMe
 		typeof invocation["runtime_tool_call_id"] !== "string" ||
 		!isRecord(toolName) ||
 		typeof toolName["name"] !== "string" ||
-		(namespace !== undefined && namespace !== null && typeof namespace !== "string")
+		(namespace !== undefined &&
+			namespace !== null &&
+			typeof namespace !== "string")
 	)
 		throw new Error("Code-mode host returned an invalid tool invocation");
 	return {
@@ -274,7 +316,9 @@ function parseDelegateRequest(value: Record<string, unknown>): DelegateRequestMe
 					name: toolName["name"],
 					...(typeof namespace === "string" ? { namespace } : {}),
 				},
-				...(invocation["input"] === undefined ? {} : { input: invocation["input"] }),
+				...(invocation["input"] === undefined
+					? {}
+					: { input: invocation["input"] }),
 			},
 		},
 	};
@@ -296,5 +340,7 @@ function parseMessageId(value: unknown): number {
 }
 
 function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+	return (
+		Array.isArray(value) && value.every((entry) => typeof entry === "string")
+	);
 }

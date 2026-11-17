@@ -7,19 +7,33 @@ export function buildToolsSettings(
 	return [
 		{
 			item: {
-				id: "notebookJournals", label: "Notebook journals",
-				currentValue: config.notebook.journals === "off" ? "Off & remove" : config.notebook.journals === "on" ? "On" : "Keep for 1 week",
+				id: "notebookJournals",
+				label: "Notebook journals",
+				currentValue:
+					config.notebook.journals === "off"
+						? "Off & remove"
+						: config.notebook.journals === "on"
+							? "On"
+							: "Keep for 1 week",
 				values: ["Off & remove", "Keep for 1 week", "On"],
-				description: "Applies to all projects. Off stops recording and removes journals. One week expires journals after 7 days without updates. On keeps normal per-session size limits. Saved variables and conversations are unaffected.",
+				description:
+					"Applies to all projects. Off stops recording and removes journals. One week expires journals after 7 days without updates. On keeps normal per-session size limits. Saved variables and conversations are unaffected.",
 			},
 			action: "global-notebook-journals",
 		},
 		{
 			item: {
-				id: "notebookCheckpointCleanup", label: "Cleanup session checkpoints",
-				currentValue: config.notebook.checkpointCleanup === "month" ? "1 month" : config.notebook.checkpointCleanup === "week" ? "1 week" : "Never",
+				id: "notebookCheckpointCleanup",
+				label: "Cleanup session checkpoints",
+				currentValue:
+					config.notebook.checkpointCleanup === "month"
+						? "1 month"
+						: config.notebook.checkpointCleanup === "week"
+							? "1 week"
+							: "Never",
 				values: ["Never", "1 month", "1 week"],
-				description: "Applies to all projects. Remove checkpoints after 30 or 7 days without session use, checked daily. Running sessions, shared bindings, notes and conversations are preserved.",
+				description:
+					"Applies to all projects. Remove checkpoints after 30 or 7 days without session use, checked daily. Running sessions, shared bindings, notes and conversations are preserved.",
 			},
 			action: "global-notebook-checkpoint-cleanup",
 		},
@@ -27,7 +41,10 @@ export function buildToolsSettings(
 			"autoReasoning",
 			"Auto reasoning",
 			config.tools.autoReasoning,
-			(enabled, current) => ({ ...current, tools: { ...current.tools, autoReasoning: enabled } }),
+			(enabled, current) => ({
+				...current,
+				tools: { ...current.tools, autoReasoning: enabled },
+			}),
 			"Let supported GPT-6 models, including GPT-6.1 Sol, adjust reasoning during a task, never below your starting level, then restore it when finished.",
 		),
 		toggle(

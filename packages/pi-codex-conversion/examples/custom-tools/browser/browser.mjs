@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readFile,
+	readdir,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,9 +50,22 @@ const ACTION_FIELDS = {
 	stop: fields("ref_id"),
 };
 const OPERATION_ORDER = [
-	"start", "tabs", "navigate", "open", "find", "click", "type",
-	"screenshot", "html", "evaluate", "network", "load_all", "raw",
-	"read_result", "discard_result", "stop",
+	"start",
+	"tabs",
+	"navigate",
+	"open",
+	"find",
+	"click",
+	"type",
+	"screenshot",
+	"html",
+	"evaluate",
+	"network",
+	"load_all",
+	"raw",
+	"read_result",
+	"discard_result",
+	"stop",
 ];
 const BATCH_FIELDS = new Set(["host", "response_length", ...OPERATION_ORDER]);
 
@@ -108,7 +128,9 @@ function parseHandle(value) {
 
 function parseRef(value, action) {
 	if (typeof value !== "string" || !value.trim())
-		throw new Error(`${action} requires a ref_id returned by tabs; call tabs first`);
+		throw new Error(
+			`${action} requires a ref_id returned by tabs; call tabs first`,
+		);
 	return value.trim();
 }
 
@@ -123,8 +145,13 @@ function parseActionRequest(text) {
 		);
 	}
 	if (!isObject(value)) throw new Error("input must be a JSON object");
-	if (typeof value.action !== "string" || !Object.hasOwn(ACTION_FIELDS, value.action))
-		throw new Error(`action must be one of: ${Object.keys(ACTION_FIELDS).join(", ")}`);
+	if (
+		typeof value.action !== "string" ||
+		!Object.hasOwn(ACTION_FIELDS, value.action)
+	)
+		throw new Error(
+			`action must be one of: ${Object.keys(ACTION_FIELDS).join(", ")}`,
+		);
 	const unknown = Object.keys(value).filter(
 		(key) => !ACTION_FIELDS[value.action].has(key),
 	);
@@ -133,25 +160,31 @@ function parseActionRequest(text) {
 	const host = parseHost(value.host);
 	const routed = (request) => (host ? { ...request, host } : request);
 
-	if (["help", "start"].includes(value.action)) return routed({ action: value.action });
+	if (["help", "start"].includes(value.action))
+		return routed({ action: value.action });
 	if (value.action === "tabs")
 		return routed({
 			action: "tabs",
-			...(optionalString(value.query, "query") ? { query: value.query.trim() } : {}),
+			...(optionalString(value.query, "query")
+				? { query: value.query.trim() }
+				: {}),
 			offset: parseOffset(value.offset),
 		});
 	if (value.action === "open") {
 		const refId = optionalString(value.ref_id, "ref_id");
 		const url = optionalString(value.url, "url");
-		if (Boolean(refId) === Boolean(url)) throw new Error("open requires exactly one of ref_id or url");
-		return routed(url
-			? { action: "open", url }
-			: {
-				action: "open",
-				ref_id: refId,
-				lineno: parseLine(value.lineno),
-				response_length: parseResponseLength(value.response_length),
-			});
+		if (Boolean(refId) === Boolean(url))
+			throw new Error("open requires exactly one of ref_id or url");
+		return routed(
+			url
+				? { action: "open", url }
+				: {
+						action: "open",
+						ref_id: refId,
+						lineno: parseLine(value.lineno),
+						response_length: parseResponseLength(value.response_length),
+					},
+		);
 	}
 	if (value.action === "find")
 		return routed({
@@ -162,55 +195,108 @@ function parseActionRequest(text) {
 			response_length: parseResponseLength(value.response_length),
 		});
 	if (value.action === "read_result")
-		return routed({ action: "read_result", handle: parseHandle(value.handle), offset: parseOffset(value.offset) });
+		return routed({
+			action: "read_result",
+			handle: parseHandle(value.handle),
+			offset: parseOffset(value.offset),
+		});
 	if (value.action === "discard_result")
-		return routed({ action: "discard_result", handle: parseHandle(value.handle) });
+		return routed({
+			action: "discard_result",
+			handle: parseHandle(value.handle),
+		});
 	if (value.action === "stop")
 		return routed({
 			action: "stop",
-			...(optionalString(value.ref_id, "ref_id") ? { ref_id: value.ref_id.trim() } : {}),
+			...(optionalString(value.ref_id, "ref_id")
+				? { ref_id: value.ref_id.trim() }
+				: {}),
 		});
 
 	const refId = parseRef(value.ref_id, value.action);
-	if (value.action === "network") return routed({ action: "network", ref_id: refId });
+	if (value.action === "network")
+		return routed({ action: "network", ref_id: refId });
 	if (value.action === "navigate")
-		return routed({ action: "navigate", ref_id: refId, url: requiredString(value.url, "url") });
+		return routed({
+			action: "navigate",
+			ref_id: refId,
+			url: requiredString(value.url, "url"),
+		});
 	if (value.action === "evaluate")
-		return routed({ action: "evaluate", ref_id: refId, expression: requiredString(value.expression, "expression") });
+		return routed({
+			action: "evaluate",
+			ref_id: refId,
+			expression: requiredString(value.expression, "expression"),
+		});
 	if (value.action === "click") {
 		const id = parseElementId(value.id);
 		const selector = optionalString(value.selector, "selector");
 		const hasX = value.x !== undefined;
 		const hasY = value.y !== undefined;
-		if (hasX !== hasY) throw new Error("click coordinates require both x and y");
-		if (hasX && (![value.x, value.y].every(item => typeof item === "number" && Number.isFinite(item))))
+		if (hasX !== hasY)
+			throw new Error("click coordinates require both x and y");
+		if (
+			hasX &&
+			![value.x, value.y].every(
+				(item) => typeof item === "number" && Number.isFinite(item),
+			)
+		)
 			throw new Error("x and y must be finite CSS-pixel numbers");
-		const modes = Number(id !== undefined) + Number(Boolean(selector)) + Number(hasX);
-		if (modes !== 1) throw new Error("click requires exactly one of id, selector, or x+y");
-		return routed({ action: "click", ref_id: refId, ...(id ? { id } : {}), ...(selector ? { selector } : {}), ...(hasX ? { x: value.x, y: value.y } : {}) });
+		const modes =
+			Number(id !== undefined) + Number(Boolean(selector)) + Number(hasX);
+		if (modes !== 1)
+			throw new Error("click requires exactly one of id, selector, or x+y");
+		return routed({
+			action: "click",
+			ref_id: refId,
+			...(id ? { id } : {}),
+			...(selector ? { selector } : {}),
+			...(hasX ? { x: value.x, y: value.y } : {}),
+		});
 	}
 	if (value.action === "type") {
 		if (typeof value.text !== "string" || value.text.length === 0)
 			throw new Error("text must be a non-empty string");
 		const id = parseElementId(value.id);
-		return routed({ action: "type", ref_id: refId, ...(id ? { id } : {}), text: value.text });
+		return routed({
+			action: "type",
+			ref_id: refId,
+			...(id ? { id } : {}),
+			text: value.text,
+		});
 	}
 	if (value.action === "screenshot" || value.action === "html") {
 		const id = parseElementId(value.id);
 		const selector = optionalString(value.selector, "selector");
-		if (id && selector) throw new Error(`${value.action} accepts id or selector, not both`);
-		return routed({ action: value.action, ref_id: refId, ...(id ? { id } : {}), ...(selector ? { selector } : {}) });
+		if (id && selector)
+			throw new Error(`${value.action} accepts id or selector, not both`);
+		return routed({
+			action: value.action,
+			ref_id: refId,
+			...(id ? { id } : {}),
+			...(selector ? { selector } : {}),
+		});
 	}
 	if (value.action === "load_all") {
 		const interval = value.interval_ms ?? 1500;
 		if (!Number.isInteger(interval) || interval < 0 || interval > 60_000)
 			throw new Error("interval_ms must be an integer from 0 to 60000");
-		return routed({ action: "load_all", ref_id: refId, selector: requiredString(value.selector, "selector"), interval_ms: interval });
+		return routed({
+			action: "load_all",
+			ref_id: refId,
+			selector: requiredString(value.selector, "selector"),
+			interval_ms: interval,
+		});
 	}
 	if (value.action === "raw") {
 		if (value.params !== undefined && !isObject(value.params))
 			throw new Error("params must be an object when provided");
-		return routed({ action: "raw", ref_id: refId, method: requiredString(value.method, "method"), params: value.params ?? {} });
+		return routed({
+			action: "raw",
+			ref_id: refId,
+			method: requiredString(value.method, "method"),
+			params: value.params ?? {},
+		});
 	}
 	throw new Error(`unsupported action: ${value.action}`);
 }
@@ -232,8 +318,9 @@ export function parseRequest(text) {
 		const { host, ...operation } = parsed;
 		return { operations: [operation], ...(host ? { host } : {}) };
 	}
-	const unknown = Object.keys(value).filter(key => !BATCH_FIELDS.has(key));
-	if (unknown.length) throw new Error(`unknown browser field(s): ${unknown.join(", ")}`);
+	const unknown = Object.keys(value).filter((key) => !BATCH_FIELDS.has(key));
+	if (unknown.length)
+		throw new Error(`unknown browser field(s): ${unknown.join(", ")}`);
 	const host = parseHost(value.host);
 	const responseLength = parseResponseLength(value.response_length);
 	const operations = [];
@@ -242,18 +329,31 @@ export function parseRequest(text) {
 		if (!Array.isArray(value[action]) || value[action].length === 0)
 			throw new Error(`${action} must be a non-empty array`);
 		for (const [index, item] of value[action].entries()) {
-			if (!isObject(item)) throw new Error(`${action}[${index}] must be an object`);
-			const reserved = ["action", "host", "response_length"].filter(key => Object.hasOwn(item, key));
-			if (reserved.length) throw new Error(`${action}[${index}] has top-level field(s): ${reserved.join(", ")}`);
-			const parsed = parseActionRequest(JSON.stringify({
-				action,
-				...item,
-				...(["open", "find"].includes(action) ? { response_length: responseLength } : {}),
-			}));
+			if (!isObject(item))
+				throw new Error(`${action}[${index}] must be an object`);
+			const reserved = ["action", "host", "response_length"].filter((key) =>
+				Object.hasOwn(item, key),
+			);
+			if (reserved.length)
+				throw new Error(
+					`${action}[${index}] has top-level field(s): ${reserved.join(", ")}`,
+				);
+			const parsed = parseActionRequest(
+				JSON.stringify({
+					action,
+					...item,
+					...(["open", "find"].includes(action)
+						? { response_length: responseLength }
+						: {}),
+				}),
+			);
 			operations.push(parsed);
 		}
 	}
-	if (operations.length === 0) throw new Error(`provide at least one operation: ${OPERATION_ORDER.join(", ")}`);
+	if (operations.length === 0)
+		throw new Error(
+			`provide at least one operation: ${OPERATION_ORDER.join(", ")}`,
+		);
 	return { operations, ...(host ? { host } : {}) };
 }
 
@@ -265,7 +365,11 @@ function canonicalHost(value) {
 export function planHostRoute(request, currentHostname = hostname()) {
 	const { host, ...localRequest } = request;
 	if (!host) return { remote: false, request: localRequest };
-	return { host, remote: canonicalHost(currentHostname) !== host, request: localRequest };
+	return {
+		host,
+		remote: canonicalHost(currentHostname) !== host,
+		request: localRequest,
+	};
 }
 
 function artifactDir() {
@@ -276,20 +380,47 @@ function artifactDir() {
 
 async function artifactPath(request) {
 	await mkdir(artifactDir(), { recursive: true, mode: 0o700 });
-	const suffix = request.id ? `-element-${request.id}` : request.selector ? "-element" : "";
+	const suffix = request.id
+		? `-element-${request.id}`
+		: request.selector
+			? "-element"
+			: "";
 	const safeRef = request.ref_id.slice(0, 12).replace(/[^A-Za-z0-9_-]/g, "_");
-	return join(artifactDir(), `browser-${safeRef}${suffix}-${crypto.randomUUID()}.png`);
+	return join(
+		artifactDir(),
+		`browser-${safeRef}${suffix}-${crypto.randomUUID()}.png`,
+	);
 }
 
 export async function cliInvocation(request) {
 	switch (request.action) {
-		case "start": return { args: ["start"] };
-		case "tabs": return { args: ["tabsjson"] };
-		case "open": return request.url
-			? { args: ["open", request.url] }
-			: { args: ["snap", request.ref_id, String(request.lineno), request.response_length] };
-		case "find": return { args: ["find", request.ref_id, request.pattern, String(request.lineno), request.response_length] };
-		case "evaluate": return { args: ["eval", request.ref_id, request.expression] };
+		case "start":
+			return { args: ["start"] };
+		case "tabs":
+			return { args: ["tabsjson"] };
+		case "open":
+			return request.url
+				? { args: ["open", request.url] }
+				: {
+						args: [
+							"snap",
+							request.ref_id,
+							String(request.lineno),
+							request.response_length,
+						],
+					};
+		case "find":
+			return {
+				args: [
+					"find",
+					request.ref_id,
+					request.pattern,
+					String(request.lineno),
+					request.response_length,
+				],
+			};
+		case "evaluate":
+			return { args: ["eval", request.ref_id, request.expression] };
 		case "screenshot": {
 			const file = await artifactPath(request);
 			return {
@@ -301,32 +432,63 @@ export async function cliInvocation(request) {
 				file,
 			};
 		}
-		case "html": return {
-			args: request.id
-				? ["htmlref", request.ref_id, String(request.id)]
-				: ["html", request.ref_id, ...(request.selector ? [request.selector] : [])],
-		};
-		case "navigate": return { args: ["nav", request.ref_id, request.url] };
-		case "network": return { args: ["net", request.ref_id] };
-		case "click": return {
-			args: request.id
-				? ["clickref", request.ref_id, String(request.id)]
-				: request.selector
-					? ["click", request.ref_id, request.selector]
-					: ["clickxy", request.ref_id, String(request.x), String(request.y)],
-		};
-		case "type": return { args: request.id
-			? ["typeref", request.ref_id, String(request.id), request.text]
-			: ["type", request.ref_id, request.text] };
-		case "load_all": return { args: ["loadall", request.ref_id, request.selector, String(request.interval_ms)] };
-		case "raw": return { args: ["evalraw", request.ref_id, request.method, JSON.stringify(request.params)] };
-		case "stop": return { args: ["stop", ...(request.ref_id ? [request.ref_id] : [])] };
-		default: throw new Error(`cannot execute action: ${request.action}`);
+		case "html":
+			return {
+				args: request.id
+					? ["htmlref", request.ref_id, String(request.id)]
+					: [
+							"html",
+							request.ref_id,
+							...(request.selector ? [request.selector] : []),
+						],
+			};
+		case "navigate":
+			return { args: ["nav", request.ref_id, request.url] };
+		case "network":
+			return { args: ["net", request.ref_id] };
+		case "click":
+			return {
+				args: request.id
+					? ["clickref", request.ref_id, String(request.id)]
+					: request.selector
+						? ["click", request.ref_id, request.selector]
+						: ["clickxy", request.ref_id, String(request.x), String(request.y)],
+			};
+		case "type":
+			return {
+				args: request.id
+					? ["typeref", request.ref_id, String(request.id), request.text]
+					: ["type", request.ref_id, request.text],
+			};
+		case "load_all":
+			return {
+				args: [
+					"loadall",
+					request.ref_id,
+					request.selector,
+					String(request.interval_ms),
+				],
+			};
+		case "raw":
+			return {
+				args: [
+					"evalraw",
+					request.ref_id,
+					request.method,
+					JSON.stringify(request.params),
+				],
+			};
+		case "stop":
+			return { args: ["stop", ...(request.ref_id ? [request.ref_id] : [])] };
+		default:
+			throw new Error(`cannot execute action: ${request.action}`);
 	}
 }
 
 export async function runProgram(command, args, input) {
-	const child = spawn(command, args, { stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+	const child = spawn(command, args, {
+		stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+	});
 	let stdout = "";
 	let stderr = "";
 	let outputBytes = 0;
@@ -343,19 +505,27 @@ export async function runProgram(command, args, input) {
 		}
 		return current + chunk;
 	};
-	child.stdout.on("data", chunk => { stdout = append(stdout, chunk); });
-	child.stderr.on("data", chunk => { stderr = append(stderr, chunk); });
-	const forward = signal => { if (!child.killed) child.kill(signal); };
+	child.stdout.on("data", (chunk) => {
+		stdout = append(stdout, chunk);
+	});
+	child.stderr.on("data", (chunk) => {
+		stderr = append(stderr, chunk);
+	});
+	const forward = (signal) => {
+		if (!child.killed) child.kill(signal);
+	};
 	process.once("SIGINT", forward);
 	process.once("SIGTERM", forward);
 	try {
 		if (input !== undefined) child.stdin.end(input);
 		const code = await new Promise((resolve, reject) => {
 			child.once("error", reject);
-			child.once("close", value => resolve(value ?? 1));
+			child.once("close", (value) => resolve(value ?? 1));
 		});
 		if (outputLimitExceeded)
-			throw new Error("browser child output exceeded 8 MiB; narrow the operation and retry");
+			throw new Error(
+				"browser child output exceeded 8 MiB; narrow the operation and retry",
+			);
 		return { code, stdout: stdout.trim(), stderr: stderr.trim() };
 	} finally {
 		process.off("SIGINT", forward);
@@ -380,10 +550,16 @@ export async function pruneResultCache(now = Date.now()) {
 		throw error;
 	}
 	let removed = 0;
-	for (const name of names.filter(item => /^(?:result-[a-f0-9-]{36}\.txt|(?:[A-Za-z0-9_.-]+-)?browser-.*\.png)$/.test(item))) {
+	for (const name of names.filter((item) =>
+		/^(?:result-[a-f0-9-]{36}\.txt|(?:[A-Za-z0-9_.-]+-)?browser-.*\.png)$/.test(
+			item,
+		),
+	)) {
 		const path = join(artifactDir(), name);
 		try {
-			const maxAge = name.startsWith("result-") ? RESULT_TTL_MS : SCREENSHOT_TTL_MS;
+			const maxAge = name.startsWith("result-")
+				? RESULT_TTL_MS
+				: SCREENSHOT_TTL_MS;
 			if (now - (await stat(path)).mtimeMs > maxAge) {
 				await rm(path, { force: true });
 				removed++;
@@ -434,11 +610,15 @@ export async function readCachedResult(request) {
 		value = await readFile(resultPath(request.handle), "utf8");
 	} catch (error) {
 		if (error?.code === "ENOENT")
-			throw new Error(`result handle not found: ${request.handle}; check the host or rerun the original action`);
+			throw new Error(
+				`result handle not found: ${request.handle}; check the host or rerun the original action`,
+			);
 		throw error;
 	}
 	if (request.offset > value.length)
-		throw new Error(`offset ${request.offset} exceeds result length ${value.length}`);
+		throw new Error(
+			`offset ${request.offset} exceeds result length ${value.length}`,
+		);
 	const chunk = chunkForJson(value, request.offset);
 	const complete = chunk.end >= value.length;
 	if (complete) await rm(resultPath(request.handle), { force: true });
@@ -464,19 +644,30 @@ function boundPage(page) {
 		lineno: page.lineno,
 		...(page.pattern ? { pattern: page.pattern } : {}),
 	};
-	const elements = new Map((page.elements || []).map(element => [element.id, element]));
+	const elements = new Map(
+		(page.elements || []).map((element) => [element.id, element]),
+	);
 	const content = [];
 	const includedElements = [];
 	const includedIds = new Set();
 	for (const line of page.content || []) {
 		const nextContent = [...content, line];
 		const nextElements = [...includedElements];
-		if (line.element_id && !includedIds.has(line.element_id) && elements.has(line.element_id))
+		if (
+			line.element_id &&
+			!includedIds.has(line.element_id) &&
+			elements.has(line.element_id)
+		)
 			nextElements.push(elements.get(line.element_id));
 		const candidate = { ...base, content: nextContent, elements: nextElements };
-		if (Buffer.byteLength(JSON.stringify(candidate)) > OUTPUT_BUDGET_BYTES) break;
+		if (Buffer.byteLength(JSON.stringify(candidate)) > OUTPUT_BUDGET_BYTES)
+			break;
 		content.push(line);
-		if (line.element_id && !includedIds.has(line.element_id) && elements.has(line.element_id)) {
+		if (
+			line.element_id &&
+			!includedIds.has(line.element_id) &&
+			elements.has(line.element_id)
+		) {
 			includedIds.add(line.element_id);
 			includedElements.push(elements.get(line.element_id));
 		}
@@ -486,8 +677,13 @@ function boundPage(page) {
 		...base,
 		content,
 		elements: includedElements,
-		...((omitted || page.next_lineno)
-			? { truncated: true, next_lineno: omitted ? page.lineno + content.length : page.next_lineno }
+		...(omitted || page.next_lineno
+			? {
+					truncated: true,
+					next_lineno: omitted
+						? page.lineno + content.length
+						: page.next_lineno,
+				}
 			: {}),
 	};
 }
@@ -496,7 +692,9 @@ function parseJsonOutput(stdout, action) {
 	try {
 		return JSON.parse(stdout);
 	} catch (error) {
-		throw new Error(`${action} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+		throw new Error(
+			`${action} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 }
 
@@ -506,10 +704,14 @@ export async function formatLocalResult(request, stdout, file) {
 		if (!Array.isArray(tabs)) throw new Error("tabs result is not an array");
 		if (request.query) {
 			const query = request.query.toLowerCase();
-			tabs = tabs.filter(tab => `${tab.title}\n${tab.url}`.toLowerCase().includes(query));
+			tabs = tabs.filter((tab) =>
+				`${tab.title}\n${tab.url}`.toLowerCase().includes(query),
+			);
 		}
 		if (request.offset > tabs.length)
-			throw new Error(`offset ${request.offset} exceeds tab count ${tabs.length}`);
+			throw new Error(
+				`offset ${request.offset} exceeds tab count ${tabs.length}`,
+			);
 		const kept = [];
 		for (const tab of tabs.slice(request.offset)) {
 			const compact = {
@@ -517,27 +719,45 @@ export async function formatLocalResult(request, stdout, file) {
 				title: String(tab.title || "").slice(0, 500),
 				url: String(tab.url || "").slice(0, 8_000),
 			};
-			if (Buffer.byteLength(JSON.stringify({ tabs: [...kept, compact] })) > OUTPUT_BUDGET_BYTES) break;
+			if (
+				Buffer.byteLength(JSON.stringify({ tabs: [...kept, compact] })) >
+				OUTPUT_BUDGET_BYTES
+			)
+				break;
 			kept.push(compact);
 		}
 		const remaining = tabs.length - request.offset - kept.length;
 		return {
 			offset: request.offset,
 			tabs: kept,
-			...(remaining > 0 ? { truncated: true, omitted_tabs: remaining, next_offset: request.offset + kept.length } : {}),
+			...(remaining > 0
+				? {
+						truncated: true,
+						omitted_tabs: remaining,
+						next_offset: request.offset + kept.length,
+					}
+				: {}),
 		};
 	}
 	if (request.action === "open" && request.ref_id)
-		return boundPage({ ...parseJsonOutput(stdout, "open"), ref_id: request.ref_id });
+		return boundPage({
+			...parseJsonOutput(stdout, "open"),
+			ref_id: request.ref_id,
+		});
 	if (request.action === "find")
-		return boundPage({ ...parseJsonOutput(stdout, "find"), ref_id: request.ref_id });
+		return boundPage({
+			...parseJsonOutput(stdout, "find"),
+			ref_id: request.ref_id,
+		});
 	if (request.action === "open" && request.url) {
 		const match = stdout.match(/^Opened new tab: (\S+)\s+/);
 		if (!match) throw new Error(`could not parse opened tab: ${stdout}`);
 		return { ref_id: match[1], url: request.url };
 	}
 	if (request.action === "screenshot") {
-		const dpr = Number(stdout.match(/Device pixel ratio \(DPR\): ([0-9.]+)/)?.[1]);
+		const dpr = Number(
+			stdout.match(/Device pixel ratio \(DPR\): ([0-9.]+)/)?.[1],
+		);
 		return {
 			ref_id: request.ref_id,
 			...(request.id ? { id: request.id } : {}),
@@ -547,12 +767,20 @@ export async function formatLocalResult(request, stdout, file) {
 			coordinates: "CSS pixels; screenshot pixels / DPR",
 		};
 	}
-	if (request.action === "evaluate") return withLimitedText({ ref_id: request.ref_id }, "value", stdout);
-	if (request.action === "html") return withLimitedText({ ref_id: request.ref_id }, "html", stdout);
-	if (request.action === "network") return withLimitedText({ ref_id: request.ref_id }, "entries", stdout);
-	if (request.action === "raw") return withLimitedText({ ref_id: request.ref_id }, "result", stdout);
-	if (request.action === "stop") return { stopped: request.ref_id ?? "all tab daemons" };
-	return { ...(request.ref_id ? { ref_id: request.ref_id } : {}), result: stdout || "ok" };
+	if (request.action === "evaluate")
+		return withLimitedText({ ref_id: request.ref_id }, "value", stdout);
+	if (request.action === "html")
+		return withLimitedText({ ref_id: request.ref_id }, "html", stdout);
+	if (request.action === "network")
+		return withLimitedText({ ref_id: request.ref_id }, "entries", stdout);
+	if (request.action === "raw")
+		return withLimitedText({ ref_id: request.ref_id }, "result", stdout);
+	if (request.action === "stop")
+		return { stopped: request.ref_id ?? "all tab daemons" };
+	return {
+		...(request.ref_id ? { ref_id: request.ref_id } : {}),
+		result: stdout || "ok",
+	};
 }
 
 export function browserHelp() {
@@ -588,11 +816,21 @@ export function browserHelp() {
 
 async function executeOperation(request) {
 	if (request.action === "read_result") return readCachedResult(request);
-	if (request.action === "discard_result") return discardCachedResult(request.handle);
+	if (request.action === "discard_result")
+		return discardCachedResult(request.handle);
 	const invocation = await cliInvocation(request);
-	const result = await runProgram(process.execPath, [CDP_PATH, ...invocation.args]);
+	const result = await runProgram(process.execPath, [
+		CDP_PATH,
+		...invocation.args,
+	]);
 	if (result.code !== 0)
-		throw new Error(cleanFailure(result.stderr || result.stdout || `browser command exited with code ${result.code}`));
+		throw new Error(
+			cleanFailure(
+				result.stderr ||
+					result.stdout ||
+					`browser command exited with code ${result.code}`,
+			),
+		);
 	return await formatLocalResult(request, result.stdout, invocation.file);
 }
 
@@ -619,32 +857,59 @@ async function executeBatch(request) {
 
 async function copyRemoteArtifact(host, remoteFile) {
 	if (!/^\/[A-Za-z0-9_./-]+$/.test(remoteFile))
-		throw new Error(`remote browser returned an unsafe artifact path: ${remoteFile}`);
+		throw new Error(
+			`remote browser returned an unsafe artifact path: ${remoteFile}`,
+		);
 	await mkdir(artifactDir(), { recursive: true, mode: 0o700 });
 	const localFile = join(artifactDir(), `${host}-${basename(remoteFile)}`);
-	const copied = await runProgram("scp", ["-q", `${host}:${remoteFile}`, localFile]);
+	const copied = await runProgram("scp", [
+		"-q",
+		`${host}:${remoteFile}`,
+		localFile,
+	]);
 	if (copied.code !== 0)
-		throw new Error(copied.stderr || copied.stdout || "could not copy remote screenshot");
-	const removed = await runProgram("ssh", [host, `/usr/bin/rm -- ${remoteFile}`]);
+		throw new Error(
+			copied.stderr || copied.stdout || "could not copy remote screenshot",
+		);
+	const removed = await runProgram("ssh", [
+		host,
+		`/usr/bin/rm -- ${remoteFile}`,
+	]);
 	if (removed.code !== 0) await rm(localFile, { force: true });
 	if (removed.code !== 0)
-		throw new Error(removed.stderr || removed.stdout || "copied screenshot but could not remove remote artifact");
+		throw new Error(
+			removed.stderr ||
+				removed.stdout ||
+				"copied screenshot but could not remove remote artifact",
+		);
 	return localFile;
 }
 
 async function runRemote(host, request) {
 	if (!REMOTE_TOOL_PATH)
 		throw new Error("SSH browser routing requires REMOTE_TOOL_PATH");
-	const result = await runProgram("ssh", [host, `/usr/bin/node ${REMOTE_TOOL_PATH} --parsed`], JSON.stringify(request));
+	const result = await runProgram(
+		"ssh",
+		[host, `/usr/bin/node ${REMOTE_TOOL_PATH} --parsed`],
+		JSON.stringify(request),
+	);
 	if (result.code !== 0)
-		throw new Error(cleanFailure(result.stderr || result.stdout || `remote browser exited with code ${result.code}`));
+		throw new Error(
+			cleanFailure(
+				result.stderr ||
+					result.stdout ||
+					`remote browser exited with code ${result.code}`,
+			),
+		);
 	const parsed = parseJsonOutput(result.stdout, "remote browser");
-	if (!isObject(parsed)) throw new Error("remote browser result is not an object");
+	if (!isObject(parsed))
+		throw new Error("remote browser result is not an object");
 	const screenshotIndexes = request.operations
-		.map((operation, index) => operation.action === "screenshot" ? index : -1)
-		.filter(index => index >= 0);
+		.map((operation, index) => (operation.action === "screenshot" ? index : -1))
+		.filter((index) => index >= 0);
 	for (const index of screenshotIndexes) {
-		const result = request.operations.length === 1 ? parsed : parsed.results?.[index];
+		const result =
+			request.operations.length === 1 ? parsed : parsed.results?.[index];
 		if (!isObject(result) || typeof result.file !== "string")
 			throw new Error(`remote screenshot result ${index} has no file path`);
 		result.file = await copyRemoteArtifact(host, result.file);
@@ -660,7 +925,8 @@ async function readStdin() {
 
 async function main() {
 	const input = await readStdin();
-	const request = process.argv[2] === "--parsed" ? JSON.parse(input) : parseRequest(input);
+	const request =
+		process.argv[2] === "--parsed" ? JSON.parse(input) : parseRequest(input);
 	await pruneResultCache();
 	if (request.help) {
 		process.stdout.write(`${JSON.stringify(browserHelp())}\n`);
@@ -670,11 +936,15 @@ async function main() {
 	const result = !route.remote
 		? await executeBatch(route.request)
 		: await runRemote(route.host, route.request);
-	process.stdout.write(`${JSON.stringify(route.host ? { host: route.host, ...result } : result)}\n`);
+	process.stdout.write(
+		`${JSON.stringify(route.host ? { host: route.host, ...result } : result)}\n`,
+	);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url))
-	main().catch(error => {
-		process.stderr.write(`browser: ${error instanceof Error ? error.message : String(error)}\n`);
+	main().catch((error) => {
+		process.stderr.write(
+			`browser: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
 		process.exitCode = 1;
 	});

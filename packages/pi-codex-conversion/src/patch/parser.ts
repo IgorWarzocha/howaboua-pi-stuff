@@ -1,11 +1,25 @@
 import { normalizePatchPath } from "./paths.ts";
-import { DiffError, type ParsedPatchAction, type ParserState, type PatchAction } from "./types.ts";
+import {
+	DiffError,
+	type ParsedPatchAction,
+	type ParserState,
+	type PatchAction,
+} from "./types.ts";
 
-function parserIsDone({ state, prefixes }: { state: ParserState; prefixes?: string[] | undefined }): boolean {
+function parserIsDone({
+	state,
+	prefixes,
+}: {
+	state: ParserState;
+	prefixes?: string[] | undefined;
+}): boolean {
 	if (state.index >= state.lines.length) {
 		return true;
 	}
-	if (prefixes && prefixes.some((prefix) => state.lines[state.index]!.startsWith(prefix))) {
+	if (
+		prefixes &&
+		prefixes.some((prefix) => state.lines[state.index]!.startsWith(prefix))
+	) {
 		return true;
 	}
 	return false;
@@ -26,7 +40,9 @@ function parserReadStr({
 
 	const expectedPrefix = prefix ?? "";
 	if (state.lines[state.index]!.startsWith(expectedPrefix)) {
-		const text = returnEverything ? state.lines[state.index]! : state.lines[state.index]!.slice(expectedPrefix.length);
+		const text = returnEverything
+			? state.lines[state.index]!
+			: state.lines[state.index]!.slice(expectedPrefix.length);
 		state.index += 1;
 		return text;
 	}
@@ -38,7 +54,12 @@ function parseAddFile({ state }: { state: ParserState }): PatchAction {
 	while (
 		!parserIsDone({
 			state,
-			prefixes: ["*** End Patch", "*** Update File:", "*** Delete File:", "*** Add File:"],
+			prefixes: [
+				"*** End Patch",
+				"*** Update File:",
+				"*** Delete File:",
+				"*** Add File:",
+			],
 		})
 	) {
 		const value = parserReadStr({ state, prefix: "" });
@@ -61,9 +82,17 @@ const VALID_HUNK_HEADERS = [
 	"'*** Update File: {path}'",
 ].join(", ");
 
-export function parsePatchActions({ text }: { text: string }): ParsedPatchAction[] {
+export function parsePatchActions({
+	text,
+}: {
+	text: string;
+}): ParsedPatchAction[] {
 	const lines = text.trim().split("\n");
-	if (lines.length < 2 || !lines[0]!.startsWith("*** Begin Patch") || lines[lines.length - 1] !== "*** End Patch") {
+	if (
+		lines.length < 2 ||
+		!lines[0]!.startsWith("*** Begin Patch") ||
+		lines[lines.length - 1] !== "*** End Patch"
+	) {
 		throw new DiffError("Invalid patch text");
 	}
 
@@ -76,15 +105,22 @@ export function parsePatchActions({ text }: { text: string }): ParsedPatchAction
 		const lineNumber = index + 1;
 
 		if (line.startsWith("*** Update File: ")) {
-			const updatePath = normalizePatchPath({ path: line.slice("*** Update File: ".length) });
+			const updatePath = normalizePatchPath({
+				path: line.slice("*** Update File: ".length),
+			});
 			if (seenPaths.has(updatePath)) {
 				throw new DiffError(`Update File Error: Duplicate Path: ${updatePath}`);
 			}
 			seenPaths.add(updatePath);
 			index += 1;
 			let movePath: string | undefined;
-			if (index < lines.length - 1 && lines[index]!.startsWith("*** Move to: ")) {
-				movePath = normalizePatchPath({ path: lines[index]!.slice("*** Move to: ".length) });
+			if (
+				index < lines.length - 1 &&
+				lines[index]!.startsWith("*** Move to: ")
+			) {
+				movePath = normalizePatchPath({
+					path: lines[index]!.slice("*** Move to: ".length),
+				});
 				index += 1;
 			}
 			const bodyStart = index;
@@ -98,7 +134,9 @@ export function parsePatchActions({ text }: { text: string }): ParsedPatchAction
 			}
 			const bodyLines = lines.slice(bodyStart, index);
 			if (bodyLines.length === 0) {
-				throw new DiffError(`Invalid patch hunk on line ${lineNumber}: Update file hunk for path '${updatePath}' is empty`);
+				throw new DiffError(
+					`Invalid patch hunk on line ${lineNumber}: Update file hunk for path '${updatePath}' is empty`,
+				);
 			}
 			actions.push({
 				type: "update",
@@ -110,7 +148,9 @@ export function parsePatchActions({ text }: { text: string }): ParsedPatchAction
 		}
 
 		if (line.startsWith("*** Delete File: ")) {
-			const deletePath = normalizePatchPath({ path: line.slice("*** Delete File: ".length) });
+			const deletePath = normalizePatchPath({
+				path: line.slice("*** Delete File: ".length),
+			});
 			if (seenPaths.has(deletePath)) {
 				throw new DiffError(`Delete File Error: Duplicate Path: ${deletePath}`);
 			}
@@ -124,9 +164,12 @@ export function parsePatchActions({ text }: { text: string }): ParsedPatchAction
 		}
 
 		if (line.startsWith("*** Add File: ")) {
-			const addPath = normalizePatchPath({ path: line.slice("*** Add File: ".length) });
+			const addPath = normalizePatchPath({
+				path: line.slice("*** Add File: ".length),
+			});
 			const previous = actions.at(-1);
-			const replacesDeletedPath = previous?.type === "delete" && previous.path === addPath;
+			const replacesDeletedPath =
+				previous?.type === "delete" && previous.path === addPath;
 			if (seenPaths.has(addPath) && !replacesDeletedPath) {
 				throw new DiffError(`Add File Error: Duplicate Path: ${addPath}`);
 			}

@@ -1,11 +1,19 @@
 import { spawn } from "node:child_process";
-import { readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
+import {
+	readCodexConversionConfig,
+	writeCodexConversionConfig,
+} from "../../adapter/activation/config-store.ts";
 
 export function editorCommand(): string | undefined {
-	return process.env["VISUAL"]?.trim() || process.env["EDITOR"]?.trim() || undefined;
+	return (
+		process.env["VISUAL"]?.trim() || process.env["EDITOR"]?.trim() || undefined
+	);
 }
 
-export function splitEditorCommand(command: string, platform: NodeJS.Platform = process.platform): string[] {
+export function splitEditorCommand(
+	command: string,
+	platform: NodeJS.Platform = process.platform,
+): string[] {
 	const parts: string[] = [];
 	let current = "";
 	let quote: '"' | "'" | undefined;
@@ -52,8 +60,16 @@ export async function openCodexConfigInExternalEditor(
 	requestRender: (full?: boolean) => void,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
 	const editorCmd = editorCommand();
-	if (!editorCmd) return { ok: false, error: "Set $VISUAL or $EDITOR to edit the config file." };
-	writeCodexConversionConfig(readCodexConversionConfig(file), file, folderScope);
+	if (!editorCmd)
+		return {
+			ok: false,
+			error: "Set $VISUAL or $EDITOR to edit the config file.",
+		};
+	writeCodexConversionConfig(
+		readCodexConversionConfig(file),
+		file,
+		folderScope,
+	);
 	try {
 		stopTui();
 		const status = await new Promise<number | null>((resolve) => {
@@ -62,11 +78,15 @@ export async function openCodexConfigInExternalEditor(
 				resolve(null);
 				return;
 			}
-			const child = spawn(command, [...args, file], { stdio: "inherit", shell: false });
+			const child = spawn(command, [...args, file], {
+				stdio: "inherit",
+				shell: false,
+			});
 			child.on("error", () => resolve(null));
 			child.on("close", (code) => resolve(code));
 		});
-		if (status !== 0) return { ok: false, error: "Editor exited without saving." };
+		if (status !== 0)
+			return { ok: false, error: "Editor exited without saving." };
 		return { ok: true };
 	} finally {
 		startTui();

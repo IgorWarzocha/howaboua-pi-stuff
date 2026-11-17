@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	rmSync,
+	rmdirSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { basename, join } from "node:path";
-import { checkpointPaths, type NotebookCheckpointIdentity } from "./checkpoint-format.ts";
+import {
+	checkpointPaths,
+	type NotebookCheckpointIdentity,
+} from "./checkpoint-format.ts";
 import { acquireDirectoryLock } from "./directory-lock.ts";
 
 export interface NotebookCheckpointActivity {
@@ -14,15 +25,24 @@ function notebookStorageDirectory(agentDir: string): string {
 }
 
 function directoryEntries(path: string) {
-	try { return readdirSync(path, { withFileTypes: true }); } catch (error) {
+	try {
+		return readdirSync(path, { withFileTypes: true });
+	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
 		throw error;
 	}
 }
 
 function removeEmptyActivityDirectory(path: string): void {
-	try { rmdirSync(path); } catch (error) {
-		if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+	try {
+		rmdirSync(path);
+	} catch (error) {
+		if (
+			!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
+				(error as NodeJS.ErrnoException).code ?? "",
+			)
+		)
+			throw error;
 	}
 }
 
@@ -30,33 +50,50 @@ async function retentionLock(agentDir: string) {
 	const root = notebookStorageDirectory(agentDir);
 	mkdirSync(root, { recursive: true });
 	return acquireDirectoryLock(join(root, "checkpoint-retention.lock"), {
-		waitMs: 10_000, staleMs: 30_000, pollMs: 20,
+		waitMs: 10_000,
+		staleMs: 30_000,
+		pollMs: 20,
 	});
 }
 
 // Held for the Pi session, not just its lazy kernel. Multiple processes may resume the same identity.
-export async function activateNotebookCheckpoint(identity: NotebookCheckpointIdentity): Promise<NotebookCheckpointActivity> {
+export async function activateNotebookCheckpoint(
+	identity: NotebookCheckpointIdentity,
+): Promise<NotebookCheckpointActivity> {
 	const directory = checkpointPaths(identity).directory;
 	const lock = await retentionLock(identity.agentDir);
 	try {
-		const activityDirectory = join(notebookStorageDirectory(identity.agentDir), "active-sessions", basename(directory));
+		const activityDirectory = join(
+			notebookStorageDirectory(identity.agentDir),
+			"active-sessions",
+			basename(directory),
+		);
 		mkdirSync(activityDirectory, { recursive: true });
-		const owner = join(activityDirectory, `active-${process.pid}-${randomUUID()}`);
+		const owner = join(
+			activityDirectory,
+			`active-${process.pid}-${randomUUID()}`,
+		);
 		const used = join(directory, "last-used");
 		writeFileSync(owner, "", { mode: 0o600 });
 		const touch = () => {
-			try { if (existsSync(directory)) writeFileSync(used, "", { mode: 0o600 }); } catch (error) {
+			try {
+				if (existsSync(directory)) writeFileSync(used, "", { mode: 0o600 });
+			} catch (error) {
 				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 			}
 		};
-		try { touch(); } catch (error) {
+		try {
+			touch();
+		} catch (error) {
 			rmSync(owner, { force: true });
 			removeEmptyActivityDirectory(activityDirectory);
 			throw error;
 		}
 		let released = false;
 		return {
-			touch: () => { if (!released) touch(); },
+			touch: () => {
+				if (!released) touch();
+			},
 			release: () => {
 				if (released) return;
 				// Last use precedes removal of our protection, including long-idle live sessions.
@@ -66,12 +103,21 @@ export async function activateNotebookCheckpoint(identity: NotebookCheckpointIde
 				released = true;
 			},
 		};
-	} finally { lock?.release(); }
+	} finally {
+		lock?.release();
+	}
 }
 
-export async function expireNotebookSessionCheckpoints(agentDir: string, retentionAge: () => number | undefined, now = Date.now()): Promise<void> {
+export async function expireNotebookSessionCheckpoints(
+	agentDir: string,
+	retentionAge: () => number | undefined,
+	now = Date.now(),
+): Promise<void> {
 	const root = join(notebookStorageDirectory(agentDir), "sessions");
-	const activityRoot = join(notebookStorageDirectory(agentDir), "active-sessions");
+	const activityRoot = join(
+		notebookStorageDirectory(agentDir),
+		"active-sessions",
+	);
 	if (!existsSync(root) && !existsSync(activityRoot)) return;
 	const lock = await retentionLock(agentDir);
 	try {
@@ -82,8 +128,12 @@ export async function expireNotebookSessionCheckpoints(agentDir: string, retenti
 			for (const file of directoryEntries(directory)) {
 				const owner = file.name.match(/^active-([1-9][0-9]*)-[a-f0-9-]{36}$/);
 				if (!owner) continue;
-				try { process.kill(Number(owner[1]), 0); active.add(entry.name); } catch (error) {
-					if ((error as NodeJS.ErrnoException).code === "ESRCH") rmSync(join(directory, file.name), { force: true });
+				try {
+					process.kill(Number(owner[1]), 0);
+					active.add(entry.name);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code === "ESRCH")
+						rmSync(join(directory, file.name), { force: true });
 					else active.add(entry.name);
 				}
 			}
@@ -101,7 +151,9 @@ export async function expireNotebookSessionCheckpoints(agentDir: string, retenti
 			try {
 				modified = Math.max(
 					existsSync(activity) ? statSync(activity).mtimeMs : 0,
-					existsSync(manifest) ? statSync(manifest).mtimeMs : statSync(directory).mtimeMs,
+					existsSync(manifest)
+						? statSync(manifest).mtimeMs
+						: statSync(directory).mtimeMs,
 				);
 			} catch (error) {
 				if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
@@ -113,5 +165,7 @@ export async function expireNotebookSessionCheckpoints(agentDir: string, retenti
 				rmSync(directory, { recursive: true, force: true });
 			}
 		}
-	} finally { lock?.release(); }
+	} finally {
+		lock?.release();
+	}
 }

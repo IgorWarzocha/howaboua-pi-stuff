@@ -15,7 +15,11 @@ export class CodeModeHostDelegation {
 		send: (message: unknown) => void,
 		renderStore?: CodeModeNestedRenderStore,
 	) {
-		this.runtime = new CodeModeDelegateRuntime(send, prepareCodeModeToolInput, renderStore);
+		this.runtime = new CodeModeDelegateRuntime(
+			send,
+			prepareCodeModeToolInput,
+			renderStore,
+		);
 	}
 
 	bindResponse(

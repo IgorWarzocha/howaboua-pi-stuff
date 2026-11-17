@@ -21,7 +21,9 @@ export function realtimeEventIdentity(value: unknown): string | undefined {
 }
 
 function boundedIdentifier(id: unknown): string | undefined {
-	return typeof id === "string" && id.length > 0 && Buffer.byteLength(id) <= 256 ? id : undefined;
+	return typeof id === "string" && id.length > 0 && Buffer.byteLength(id) <= 256
+		? id
+		: undefined;
 }
 
 export function realtimeEventDetails(
@@ -31,13 +33,23 @@ export function realtimeEventDetails(
 	accepted: boolean,
 ): RealtimeVoiceEventDetails {
 	const item = event["item"];
-	const itemRecord = item && typeof item === "object" ? item as Record<string, unknown> : undefined;
-	const itemId = realtimeEventIdentity(item) ?? boundedIdentifier(event["delegation_item_id"]);
-	const turnId = realtimeEventIdentity(event["turn"]) ?? boundedIdentifier(itemRecord?.["user_bidi_turn_id"]);
+	const itemRecord =
+		item && typeof item === "object"
+			? (item as Record<string, unknown>)
+			: undefined;
+	const itemId =
+		realtimeEventIdentity(item) ??
+		boundedIdentifier(event["delegation_item_id"]);
+	const turnId =
+		realtimeEventIdentity(event["turn"]) ??
+		boundedIdentifier(itemRecord?.["user_bidi_turn_id"]);
 	const handoffId = boundedIdentifier(itemRecord?.["handoff_id"]);
 	const offset = event["offset_ms"];
 	const turn = event["turn"];
-	const record = turn && typeof turn === "object" ? turn as Record<string, unknown> : undefined;
+	const record =
+		turn && typeof turn === "object"
+			? (turn as Record<string, unknown>)
+			: undefined;
 	const role = record?.["role"];
 	const start = record?.["start_ms"] ?? event["start_ms"];
 	const end = record?.["end_ms"] ?? event["end_ms"];
@@ -49,16 +61,24 @@ export function realtimeEventDetails(
 		...(turnId ? { turnId } : {}),
 		...(handoffId ? { handoffId } : {}),
 		...(role === "user" || role === "assistant" ? { role } : {}),
-		...(typeof offset === "number" && Number.isFinite(offset) ? { offsetMs: offset } : {}),
-		...(typeof start === "number" && Number.isFinite(start) ? { startMs: start } : {}),
+		...(typeof offset === "number" && Number.isFinite(offset)
+			? { offsetMs: offset }
+			: {}),
+		...(typeof start === "number" && Number.isFinite(start)
+			? { startMs: start }
+			: {}),
 		...(typeof end === "number" && Number.isFinite(end) ? { endMs: end } : {}),
-		...(transcript ? { textHash: createHash("sha256").update(transcript).digest("hex") } : {}),
+		...(transcript
+			? { textHash: createHash("sha256").update(transcript).digest("hex") }
+			: {}),
 		accepted,
 	};
 }
 
 export function transcriptItemText(value: unknown): unknown {
-	return value && typeof value === "object" ? (value as Record<string, unknown>)["text"] : undefined;
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)["text"]
+		: undefined;
 }
 
 function boundedAssistantTranscript(value: unknown): string | undefined {
@@ -71,15 +91,21 @@ function boundedAssistantTranscript(value: unknown): string | undefined {
 export function remoteError(event: Record<string, unknown>): string {
 	if (typeof event["message"] === "string") return event["message"];
 	const error = event["error"];
-	return error && typeof error === "object" && typeof (error as Record<string, unknown>)["message"] === "string" ? (error as Record<string, unknown>)["message"] as string : "Codex realtime error";
+	return error &&
+		typeof error === "object" &&
+		typeof (error as Record<string, unknown>)["message"] === "string"
+		? ((error as Record<string, unknown>)["message"] as string)
+		: "Codex realtime error";
 }
 
 export function utf8Chunks(input: string, maxBytes: number): string[] {
 	const chunks: string[] = [];
 	let current = "";
 	for (const character of input) {
-		if (Buffer.byteLength(current + character) > maxBytes && current) { chunks.push(current); current = character; }
-		else current += character;
+		if (Buffer.byteLength(current + character) > maxBytes && current) {
+			chunks.push(current);
+			current = character;
+		} else current += character;
 	}
 	if (current) chunks.push(current);
 	return chunks;
@@ -98,8 +124,11 @@ function utf8Tail(value: string, maxBytes: number): string {
 	while (start > 0) {
 		let characterStart = start - 1;
 		const lastUnit = value.charCodeAt(characterStart);
-		if (lastUnit >= 0xdc00 && lastUnit <= 0xdfff && characterStart > 0) characterStart--;
-		const characterBytes = Buffer.byteLength(value.slice(characterStart, start));
+		if (lastUnit >= 0xdc00 && lastUnit <= 0xdfff && characterStart > 0)
+			characterStart--;
+		const characterBytes = Buffer.byteLength(
+			value.slice(characterStart, start),
+		);
 		if (bytes + characterBytes > maxBytes) break;
 		bytes += characterBytes;
 		start = characterStart;

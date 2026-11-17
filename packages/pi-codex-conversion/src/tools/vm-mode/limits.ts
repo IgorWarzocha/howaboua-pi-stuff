@@ -6,6 +6,8 @@ export const VM_STORE_TOTAL_MAX = 1024 * 1024;
 
 export function vmHeapMiB(requested: number): number {
 	if (!Number.isSafeInteger(requested) || requested < VM_HEAP_MIN_MIB)
-		throw new Error(`VM Code requires a heap budget of at least ${VM_HEAP_MIN_MIB} MiB`);
+		throw new Error(
+			`VM Code requires a heap budget of at least ${VM_HEAP_MIN_MIB} MiB`,
+		);
 	return Math.min(requested, VM_HEAP_CAP_MIB);
 }

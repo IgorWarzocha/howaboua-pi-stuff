@@ -6,7 +6,9 @@ export function codeModeGlobalName(toolKey: string): string {
 	let identifier = "";
 	let index = 0;
 	for (const character of toolKey) {
-		const valid = character === "_" || character === "$" ||
+		const valid =
+			character === "_" ||
+			character === "$" ||
 			(index === 0
 				? /[A-Za-z]/.test(character)
 				: /[A-Za-z0-9]/.test(character));
@@ -32,10 +34,7 @@ export function translateCodeModeToolReferences(
 	const replacement = () => `tools.${globalName}`;
 	const escapedName = escapeRegExp(toolName);
 	let translated = text.replace(
-		new RegExp(
-			`\\btools\\s*\\.\\s*${escapedName}(?![A-Za-z0-9_$-])`,
-			"g",
-		),
+		new RegExp(`\\btools\\s*\\.\\s*${escapedName}(?![A-Za-z0-9_$-])`, "g"),
 		replacement,
 	);
 	for (const literal of [
@@ -43,10 +42,7 @@ export function translateCodeModeToolReferences(
 		`'${toolName.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`,
 	]) {
 		translated = translated.replace(
-			new RegExp(
-				`\\btools\\s*\\[\\s*${escapeRegExp(literal)}\\s*\\]`,
-				"g",
-			),
+			new RegExp(`\\btools\\s*\\[\\s*${escapeRegExp(literal)}\\s*\\]`, "g"),
 			replacement,
 		);
 	}
@@ -64,11 +60,15 @@ export function translateCodeModeGuideline(
 		: translated;
 }
 
-export function resolveCodeModeToolIdentity(tool: CodeModeToolDefinition): CodeModeToolIdentity {
+export function resolveCodeModeToolIdentity(
+	tool: CodeModeToolDefinition,
+): CodeModeToolIdentity {
 	return tool.toolName ?? { name: tool.name };
 }
 
-export function codeModeNameForToolIdentity(identity: CodeModeToolIdentity): string {
+export function codeModeNameForToolIdentity(
+	identity: CodeModeToolIdentity,
+): string {
 	const namespace = identity.namespace;
 	if (!namespace || namespace === DEFAULT_TOOL_NAMESPACE) return identity.name;
 	return namespace.endsWith("_") || identity.name.startsWith("_")

@@ -30,10 +30,15 @@ export function readConfigDocument(
 	if (!existsSync(configPath)) return undefined;
 	try {
 		const document: unknown = JSON.parse(readFileSync(configPath, "utf-8"));
-		if (strict && !isRecord(document)) throw new Error("Expected a JSON object");
+		if (strict && !isRecord(document))
+			throw new Error("Expected a JSON object");
 		return document;
 	} catch (error) {
-		if (strict) throw new Error(`Cannot read global settings at ${configPath}. Correct the JSON or file permissions, then reload settings.`, { cause: error });
+		if (strict)
+			throw new Error(
+				`Cannot read global settings at ${configPath}. Correct the JSON or file permissions, then reload settings.`,
+				{ cause: error },
+			);
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(
 			`[pi-codex-conversion] Failed to read ${scope} config ${configPath}: ${message}`,

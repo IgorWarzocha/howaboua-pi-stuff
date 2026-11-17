@@ -7,7 +7,10 @@ export async function listNativeAudioDevices(
 	customRustBinariesDir?: string,
 ): Promise<{ inputs: VoiceDevice[]; outputs: VoiceDevice[] }> {
 	const helper = new VoiceHelperClient();
-	const result = Promise.withResolvers<{ inputs: VoiceDevice[]; outputs: VoiceDevice[] }>();
+	const result = Promise.withResolvers<{
+		inputs: VoiceDevice[];
+		outputs: VoiceDevice[];
+	}>();
 	const removeEvent = helper.onEvent((event) => {
 		if (event.type === "devices") result.resolve(event);
 		else if (event.type === "error") result.reject(new Error(event.message));
@@ -17,7 +20,10 @@ export async function listNativeAudioDevices(
 		result.reject(new Error("Device discovery cancelled"));
 		void helper.close();
 	};
-	const timeout = setTimeout(() => result.reject(new Error("Audio device discovery timed out")), 5_000);
+	const timeout = setTimeout(
+		() => result.reject(new Error("Audio device discovery timed out")),
+		5_000,
+	);
 	signal.addEventListener("abort", abort, { once: true });
 	// Observe discovery failures while helper startup is still pending.
 	void result.promise.catch(() => {});
@@ -33,14 +39,19 @@ export async function listNativeAudioDevices(
 		const message = error instanceof Error ? error.message : "";
 		if (signal.aborted) throw error;
 		if (message === "Audio device discovery timed out") throw error;
-		if (message.startsWith("pi-codex-voice cannot run on this system.")) throw error;
+		if (message.startsWith("pi-codex-voice cannot run on this system."))
+			throw error;
 		if (!started) {
 			const reason = message.startsWith("Codex voice helper is not bundled")
 				? `Native audio is unavailable for ${process.platform}-${process.arch}`
 				: "Native audio could not start on this system";
-			throw new Error(`${reason}. Install a compatible voice helper, or build locally and set tools.customRustBinariesDir, then /reload`);
+			throw new Error(
+				`${reason}. Install a compatible voice helper, or build locally and set tools.customRustBinariesDir, then /reload`,
+			);
 		}
-		throw new Error("Audio device discovery failed. Check system audio devices and permissions, then reopen to retry");
+		throw new Error(
+			"Audio device discovery failed. Check system audio devices and permissions, then reopen to retry",
+		);
 	} finally {
 		clearTimeout(timeout);
 		signal.removeEventListener("abort", abort);

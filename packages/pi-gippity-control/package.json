@@ -1,77 +1,77 @@
 {
-	"name": "@howaboua/pi-gippity-control",
-	"version": "0.0.32",
-	"description": "GipPity voice and LAN remote control for any Pi model",
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"voice",
-		"dictation",
-		"lan"
-	],
-	"license": "MIT",
-	"type": "module",
-	"main": "./index.ts",
-	"exports": {
-		".": "./index.ts",
-		"./lan-service": "./src/voice/lan/service.ts",
-		"./remote-app": "./src/voice/lan/remote-app.ts",
-		"./*": "./*",
-		"./host-settings": "./dist/host-settings.js"
-	},
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"files": [
-		"index.ts",
-		"src",
-		"scripts/build-voice-helper.mjs",
-		"README.md",
-		"LICENSE",
-		"tsconfig.json",
-		"biome.json",
-		"!src/**/AGENTS.md",
-		"!src/voice/rust/target/**",
-		"CHANGELOG.md",
-		"dist/host-settings.js"
-	],
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"scripts": {
-		"check": "bun run lint && bun run typecheck && bun run test",
-		"prepack": "bun run check && bun run build:host-settings",
-		"typecheck": "tsgo --noEmit",
-		"test": "bun test tests",
-		"lint": "biome check .",
-		"format": "biome check --write .",
-		"pack:dry": "npm pack --dry-run",
-		"build:voice-helper": "node scripts/build-voice-helper.mjs",
-		"build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js",
-		"prepare": "bun run build:host-settings"
-	},
-	"dependencies": {
-		"@howaboua/pi-browser": "^0.0.13",
-		"proxy-from-env": "2.1.0",
-		"selfsigned": "^5.5.0",
-		"undici": "8.12.4",
-		"ws": "^8.22.2",
-		"@earendil-works/pi-schema": "1.5.2"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.6.6",
-		"@earendil-works/pi-ai": "1.5.2",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@earendil-works/pi-tui": "1.5.2",
-		"@types/node": "^26.6.6",
-		"@types/ws": "^8.18.2",
-		"typescript": "^7.0.2"
-	}
+  "name": "@howaboua/pi-gippity-control",
+  "version": "0.0.32",
+  "description": "GipPity voice and LAN remote control for any Pi model",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "voice",
+    "dictation",
+    "lan"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./lan-service": "./src/voice/lan/service.ts",
+    "./remote-app": "./src/voice/lan/remote-app.ts",
+    "./*": "./*",
+    "./host-settings": "./dist/host-settings.js"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "scripts/build-voice-helper.mjs",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json",
+    "!src/**/AGENTS.md",
+    "!src/voice/rust/target/**",
+    "CHANGELOG.md",
+    "dist/host-settings.js"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "prepack": "bun run check && bun run build:host-settings",
+    "typecheck": "tsrs --noEmit",
+    "test": "bun test tests",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "pack:dry": "npm pack --dry-run",
+    "build:voice-helper": "node scripts/build-voice-helper.mjs",
+    "build:host-settings": "bun build ./src/host-settings.ts --target=node --outfile=./dist/host-settings.js",
+    "prepare": "bun run build:host-settings",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "dependencies": {
+    "@howaboua/pi-browser": "^0.0.13",
+    "proxy-from-env": "2.1.0",
+    "selfsigned": "^5.5.0",
+    "undici": "8.12.4",
+    "ws": "^8.22.2",
+    "@earendil-works/pi-schema": "1.5.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=1.0.0",
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-tui": "1.5.2",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  }
 }

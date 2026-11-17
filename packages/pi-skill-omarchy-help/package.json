@@ -32,5 +32,10 @@
   "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-omarchy-help#readme",
   "bugs": {
     "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "scripts": {
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "lint": "bun run format:check && oxlint --type-aware --no-error-on-unmatched-pattern",
+    "check": "bun run lint"
   }
 }

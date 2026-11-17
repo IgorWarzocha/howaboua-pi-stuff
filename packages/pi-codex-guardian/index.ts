@@ -201,7 +201,7 @@ export default async function guardian(
 					error.message === "Node argument matcher unavailable"
 						? "Argument matcher unavailable: Node required"
 						: error instanceof Error &&
-								error.message === "Argument matching timed out"
+							  error.message === "Argument matching timed out"
 							? "Rule matching timed out"
 							: "Rule matching unavailable";
 			return {
@@ -349,9 +349,8 @@ export default async function guardian(
 		);
 	});
 	try {
-		const { registerCodeModeToolPreflight } = await import(
-			"@howaboua/pi-codex-conversion/code-mode-preflight"
-		);
+		const { registerCodeModeToolPreflight } =
+			await import("@howaboua/pi-codex-conversion/code-mode-preflight");
 		preflight = registerCodeModeToolPreflight(pi, (call) =>
 			admit(
 				{

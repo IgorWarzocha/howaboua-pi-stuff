@@ -1,65 +1,66 @@
 {
-	"name": "@howaboua/pi-notes-compaction",
-	"version": "0.0.17",
-	"publishConfig": {
-		"access": "public"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-notes-compaction"
-	},
-	"files": [
-		"index.ts",
-		"src",
-		"README.md",
-		"CHANGELOG.md",
-		"LICENSE",
-		"tsconfig.json",
-		"PCC-INTEGRATION.md"
-	],
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"type": "module",
-	"description": "Provider-neutral session notes and notes-guided context windows for Pi",
-	"license": "MIT",
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"main": "index.ts",
-	"scripts": {
-		"check": "bun run lint && bun run typecheck",
-		"lint": "biome check .",
-		"format": "biome check --write .",
-		"typecheck": "tsgo --noEmit"
-	},
-	"dependencies": {
-		"@earendil-works/pi-schema": "1.5.2",
-		"better-sqlite3": "13.0.3"
-	},
-	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "5.0.0",
-		"@types/better-sqlite3": "9.6.0"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-agent-core": ">=1.0.4",
-		"@earendil-works/pi-ai": ">=1.0.4",
-		"@earendil-works/pi-tui": ">=1.0.4",
-		"@howaboua/pi-codex-conversion": ">=5.0.0"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"exports": {
-		".": "./index.ts",
-		"./context-sharing": "./src/notes/context-sharing.ts",
-		"./saved-session": "./src/notes/saved-session.mjs",
-		"./saved-session-index": "./src/notes/saved-session-index.mjs"
-	}
+  "name": "@howaboua/pi-notes-compaction",
+  "version": "0.0.17",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-notes-compaction"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "tsconfig.json",
+    "PCC-INTEGRATION.md"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "type": "module",
+  "description": "Provider-neutral session notes and notes-guided context windows for Pi",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "main": "index.ts",
+  "scripts": {
+    "check": "bun run lint && bun run typecheck",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "typecheck": "tsrs --noEmit",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "dependencies": {
+    "@earendil-works/pi-schema": "1.5.2",
+    "better-sqlite3": "13.0.3"
+  },
+  "devDependencies": {
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "@types/better-sqlite3": "9.6.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-agent-core": ">=1.0.4",
+    "@earendil-works/pi-ai": ">=1.0.4",
+    "@earendil-works/pi-tui": ">=1.0.4",
+    "@howaboua/pi-codex-conversion": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./context-sharing": "./src/notes/context-sharing.ts",
+    "./saved-session": "./src/notes/saved-session.mjs",
+    "./saved-session-index": "./src/notes/saved-session-index.mjs"
+  }
 }

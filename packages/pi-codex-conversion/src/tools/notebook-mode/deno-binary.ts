@@ -27,7 +27,8 @@ export interface DenoBinaryRuntime {
 }
 
 export async function ensureNotebookDenoBinary(
-	overrides: Partial<Omit<DenoBinaryRuntime, "agentDir">> & Pick<DenoBinaryRuntime, "agentDir">,
+	overrides: Partial<Omit<DenoBinaryRuntime, "agentDir">> &
+		Pick<DenoBinaryRuntime, "agentDir">,
 	signal?: AbortSignal,
 ): Promise<string> {
 	const runtime: DenoBinaryRuntime = {
@@ -45,11 +46,14 @@ export async function ensureNotebookDenoBinary(
 		`${runtime.platform}-${runtime.arch}`,
 		asset.executable,
 	);
-	if (validDenoBinary(destination, asset.binarySha256, asset.binaryBytes)) return destination;
+	if (validDenoBinary(destination, asset.binarySha256, asset.binaryBytes))
+		return destination;
 	rmSync(destination, { force: true });
 	await installDeno(destination, runtime, signal);
 	if (!validDenoBinary(destination, asset.binarySha256, asset.binaryBytes)) {
-		throw new Error(`Deno ${DENO_VERSION} cache validation failed after installation`);
+		throw new Error(
+			`Deno ${DENO_VERSION} cache validation failed after installation`,
+		);
 	}
 	return destination;
 }
@@ -61,7 +65,8 @@ async function installDeno(
 ): Promise<void> {
 	const asset = resolveDenoAsset(runtime.platform, runtime.arch);
 	const destination = resolve(destinationInput);
-	if (basename(destination) !== asset.executable) throw new Error(`Deno destination must end with ${asset.executable}`);
+	if (basename(destination) !== asset.executable)
+		throw new Error(`Deno destination must end with ${asset.executable}`);
 	mkdirSync(resolve(destination, ".."), { recursive: true });
 	const lockPath = `${destination}.lock`;
 	const lock = await acquireDirectoryLock(lockPath, {
@@ -78,9 +83,13 @@ async function installDeno(
 		let bytes: Buffer;
 		try {
 			const timeout = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
-			const { getProxyForUrl } = await dynamicImport("proxy-from-env") as { getProxyForUrl(url: string): string };
+			const { getProxyForUrl } = (await dynamicImport("proxy-from-env")) as {
+				getProxyForUrl(url: string): string;
+			};
 			const proxy = getProxyForUrl(url);
-			const { ProxyAgent } = await dynamicImport("undici") as typeof import("undici");
+			const { ProxyAgent } = (await dynamicImport(
+				"undici",
+			)) as typeof import("undici");
 			const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
 			try {
 				const response = await globalThis.fetch(url, {
@@ -88,19 +97,27 @@ async function installDeno(
 					signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
 					...(dispatcher ? { dispatcher } : {}),
 				} as RequestInit & { dispatcher?: InstanceType<typeof ProxyAgent> });
-				if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+				if (!response.ok)
+					throw new Error(`${response.status} ${response.statusText}`);
 				bytes = await readPinnedResponse(response, asset.archiveBytes);
 			} finally {
 				await dispatcher?.close();
 			}
 		} catch (error) {
-			throw new Error(`failed to download pinned Deno ${DENO_VERSION}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+			throw new Error(
+				`failed to download pinned Deno ${DENO_VERSION}: ${error instanceof Error ? error.message : String(error)}`,
+				{ cause: error },
+			);
 		}
 		const actualSha256 = createHash("sha256").update(bytes).digest("hex");
-		if (actualSha256 !== asset.archiveSha256) throw new Error(`checksum mismatch for ${asset.archive}`);
+		if (actualSha256 !== asset.archiveSha256)
+			throw new Error(`checksum mismatch for ${asset.archive}`);
 		const binary = await extractDenoArchive(bytes, asset);
 		signal?.throwIfAborted();
-		if (binary.length !== asset.binaryBytes || createHash("sha256").update(binary).digest("hex") !== asset.binarySha256) {
+		if (
+			binary.length !== asset.binaryBytes ||
+			createHash("sha256").update(binary).digest("hex") !== asset.binarySha256
+		) {
 			throw new Error("extracted Deno binary checksum mismatch");
 		}
 		writeFileSync(staged, binary, { mode: 0o755 });
@@ -112,12 +129,18 @@ async function installDeno(
 	}
 }
 
-async function readPinnedResponse(response: Response, expectedBytes: number): Promise<Buffer> {
+async function readPinnedResponse(
+	response: Response,
+	expectedBytes: number,
+): Promise<Buffer> {
 	const declared = response.headers.get("content-length");
 	if (declared !== null && Number(declared) !== expectedBytes) {
-		throw new Error(`pinned Deno archive size mismatch: expected ${expectedBytes} bytes, got ${declared}`);
+		throw new Error(
+			`pinned Deno archive size mismatch: expected ${expectedBytes} bytes, got ${declared}`,
+		);
 	}
-	if (!response.body) throw new Error("pinned Deno download had no response body");
+	if (!response.body)
+		throw new Error("pinned Deno download had no response body");
 	const reader = response.body.getReader();
 	const chunks: Uint8Array[] = [];
 	let total = 0;
@@ -126,21 +149,32 @@ async function readPinnedResponse(response: Response, expectedBytes: number): Pr
 			const { done, value } = await reader.read();
 			if (done) break;
 			total += value.byteLength;
-			if (total > expectedBytes) throw new Error(`pinned Deno archive exceeds ${expectedBytes} bytes`);
+			if (total > expectedBytes)
+				throw new Error(`pinned Deno archive exceeds ${expectedBytes} bytes`);
 			chunks.push(value);
 		}
 	} catch (error) {
 		await reader.cancel().catch(() => undefined);
 		throw error;
 	}
-	if (total !== expectedBytes) throw new Error(`pinned Deno archive size mismatch: expected ${expectedBytes} bytes, got ${total}`);
+	if (total !== expectedBytes)
+		throw new Error(
+			`pinned Deno archive size mismatch: expected ${expectedBytes} bytes, got ${total}`,
+		);
 	return Buffer.concat(chunks, total);
 }
 
-function validDenoBinary(path: string, expectedSha256: string, expectedBytes: number): boolean {
+function validDenoBinary(
+	path: string,
+	expectedSha256: string,
+	expectedBytes: number,
+): boolean {
 	try {
 		if (statSync(path).size !== expectedBytes) return false;
-		return createHash("sha256").update(readFileSync(path)).digest("hex") === expectedSha256;
+		return (
+			createHash("sha256").update(readFileSync(path)).digest("hex") ===
+			expectedSha256
+		);
 	} catch {
 		return false;
 	}

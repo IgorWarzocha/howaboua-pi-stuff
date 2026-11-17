@@ -17,8 +17,13 @@ export interface JupyterConnectionInfo {
 	kernel_name: "deno";
 }
 
-export async function createJupyterConnectionFile(): Promise<{ info: JupyterConnectionInfo; path: string; dir: string }> {
-	const [shellPort, iopubPort, stdinPort, controlPort, heartbeatPort] = await reserveLoopbackPorts(5);
+export async function createJupyterConnectionFile(): Promise<{
+	info: JupyterConnectionInfo;
+	path: string;
+	dir: string;
+}> {
+	const [shellPort, iopubPort, stdinPort, controlPort, heartbeatPort] =
+		await reserveLoopbackPorts(5);
 	const info: JupyterConnectionInfo = {
 		ip: "127.0.0.1",
 		transport: "tcp",
@@ -53,10 +58,16 @@ async function reserveLoopbackPorts(count: number): Promise<number[]> {
 		}
 		return servers.map((server) => {
 			const address = server.address();
-			if (!address || typeof address === "string") throw new Error("Could not reserve a Jupyter loopback port");
+			if (!address || typeof address === "string")
+				throw new Error("Could not reserve a Jupyter loopback port");
 			return address.port;
 		});
 	} finally {
-		await Promise.all(servers.map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+		await Promise.all(
+			servers.map(
+				(server) =>
+					new Promise<void>((resolve) => server.close(() => resolve())),
+			),
+		);
 	}
 }

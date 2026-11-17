@@ -1,5 +1,9 @@
 import { shortHash } from "./signatures.ts";
-import { assertRemoteDeliveryPairs, isEncryptedFunctionOutput, isOriginalExecCall } from "../../tools/code-mode/protected-delivery-protocol.ts";
+import {
+	assertRemoteDeliveryPairs,
+	isEncryptedFunctionOutput,
+	isOriginalExecCall,
+} from "../../tools/code-mode/protected-delivery-protocol.ts";
 
 type ToolFamily = "function" | "custom" | "search";
 
@@ -115,7 +119,12 @@ export function normalizeResponsesToolHistory(
 		if (!family) continue;
 		const call = id === undefined ? undefined : calls.get(id);
 		// Native exec relays encrypted function outputs in addition to its ordinary custom receipt.
-		if (call && call.index < index && isOriginalExecCall(input[call.index]) && isEncryptedFunctionOutput(item))
+		if (
+			call &&
+			call.index < index &&
+			isOriginalExecCall(input[call.index]) &&
+			isEncryptedFunctionOutput(item)
+		)
 			continue;
 		if (
 			!call ||

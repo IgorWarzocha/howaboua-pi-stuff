@@ -2,7 +2,9 @@ import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
 import { LAN_VOICE_MICROPHONE_BUFFER_WORKLET } from "./microphone-buffer-worklet.ts";
 
 const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
-const MICROPHONE_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_MICROPHONE_BUFFER_WORKLET);
+const MICROPHONE_WORKLET_SOURCE = JSON.stringify(
+	LAN_VOICE_MICROPHONE_BUFFER_WORKLET,
+);
 
 export const LAN_VOICE_BROWSER_REALTIME_SCRIPT = String.raw`
 async function createRealtimeBrowserAudio(stream) {

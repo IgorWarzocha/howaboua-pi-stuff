@@ -11,7 +11,11 @@ import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { registerVoiceHandoff } from "../voice/handoff.ts";
-import { hasCodexTransportConfigChanged, isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import {
+	hasCodexTransportConfigChanged,
+	isAdapterRuntime,
+	resolveCodexRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 import { recordCodexSpend } from "../codex-usage/ledger-store.ts";
 import { registerGptPromptModeBroker } from "../prompt-mode.ts";
@@ -25,70 +29,128 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerApplyPatchDisplayBroker(pi);
 	registerCodexAgentRelationships(pi);
 	const runtime = createCodexExtensionRuntime(pi, recordCodexSpend);
-	const promptMode = registerGptPromptModeBroker(pi, ctx =>
-		runtime.state.config.prompt.heavySystemPromptOverwrite === "gpt" &&
-		isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)));
+	const promptMode = registerGptPromptModeBroker(
+		pi,
+		(ctx) =>
+			runtime.state.config.prompt.heavySystemPromptOverwrite === "gpt" &&
+			isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state)),
+	);
 	// Pi clones prompt options before hooks. Refresh owned metadata before Code
 	// captures tools, and before the later conversion turn hook builds its prompt.
-	pi.on("before_agent_start", (event, ctx) => promptMode.prepare(ctx, event.systemPromptOptions));
+	pi.on("before_agent_start", (event, ctx) =>
+		promptMode.prepare(ctx, event.systemPromptOptions),
+	);
 	pi.on("session_shutdown", () => promptMode.dispose());
-	const codeMode = await registerCodexCodeMode(pi, runtime, ctx => promptMode.prepare(ctx))
-		.catch(error => { promptMode.dispose(); throw error; });
-	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
+	const codeMode = await registerCodexCodeMode(pi, runtime, (ctx) =>
+		promptMode.prepare(ctx),
+	).catch((error) => {
+		promptMode.dispose();
+		throw error;
+	});
+	let cleanupProxyProvider:
+		| ReturnType<typeof registerCodeModeProxyProvider>
+		| undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
-			useResponsesLite: (model) => resolveCodexRuntimePlanForState({ model }, runtime.state).transport === "responses-lite",
+			getConfig: () => ({
+				executionMode: runtime.state.executionMode,
+				openai: runtime.state.config.openai,
+				compaction: runtime.state.config.compaction,
+			}),
+			useResponsesLite: (model) =>
+				resolveCodexRuntimePlanForState({ model }, runtime.state).transport ===
+				"responses-lite",
 			turnState: runtime.state.codexTurnState,
-			getDiagnostics: sessionId => runtime.diagnosticsSink(sessionId),
+			getDiagnostics: (sessionId) => runtime.diagnosticsSink(sessionId),
 			beforeRequestSend: runtime.beforeRequestSend,
 			recordUsage: recordCodexSpend,
 		});
-		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames, runtime.beforeRequestSend);
+		const proxyProvider = registerCodeModeProxyProvider(
+			pi,
+			() => runtime.state.config,
+			() => runtime.state.executionMode,
+			() => runtime.state.availableToolNames,
+			runtime.beforeRequestSend,
+		);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
-		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
-			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
-			if (executionModeChanged || config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
-				config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB || config.notebook.profile !== previousConfig.notebook.profile)
-				runtime.state.notebookStatusMessageId = undefined;
-			tools.applyConfig(config);
-			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
-			promptMode.prepare(ctx);
-			proxyProvider.applyConfig(config, ctx.modelRegistry);
-			ui.applyConfig(config, ctx, previousConfig);
-			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {
-				void runtime.configureDiagnostics(
-					ctx,
-					previousConfig.openai.cacheDiagnostics !== "status-and-log"
-						&& config.openai.cacheDiagnostics === "status-and-log",
-				);
-			}
-			if (hasCodexCacheKeepalivePlanChanged(ctx.model?.id, previousConfig.openai, config.openai)) {
-				runtime.cancelCacheKeepalive();
-			}
-			if (hasCodexTransportConfigChanged(previousConfig, config)) {
-				runtime.resetTransport(ctx.sessionManager.getSessionId());
-			}
-			if (config.voiceFeaturesOnly && !previousConfig.voiceFeaturesOnly) {
-				void codeMode.shutdownHost().catch((error: unknown) => {
-					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
-				});
-			} else if (executionModeChanged) {
-				void codeMode.shutdownHost()
-					.then(() => prepareCodeModeHost(codeMode, ctx))
-					.catch((error: unknown) => {
-						ctx.ui.notify(`Could not switch execution mode: ${error instanceof Error ? error.message : String(error)}`, "warning");
+		registerCodexCommand(
+			pi,
+			runtime.state,
+			runtime.voice,
+			runtime.lanVoice,
+			(config, ctx, previousConfig) => {
+				const executionModeChanged =
+					config.executionMode !== previousConfig.executionMode;
+				if (
+					executionModeChanged ||
+					config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly ||
+					config.notebook.maxHeapMiB !== previousConfig.notebook.maxHeapMiB ||
+					config.notebook.profile !== previousConfig.notebook.profile
+				)
+					runtime.state.notebookStatusMessageId = undefined;
+				tools.applyConfig(config);
+				runtime.state.availableToolNames = pi
+					.getAllTools()
+					.map((tool) => tool.name);
+				promptMode.prepare(ctx);
+				proxyProvider.applyConfig(config, ctx.modelRegistry);
+				ui.applyConfig(config, ctx, previousConfig);
+				if (
+					config.openai.cacheDiagnostics !==
+					previousConfig.openai.cacheDiagnostics
+				) {
+					void runtime.configureDiagnostics(
+						ctx,
+						previousConfig.openai.cacheDiagnostics !== "status-and-log" &&
+							config.openai.cacheDiagnostics === "status-and-log",
+					);
+				}
+				if (
+					hasCodexCacheKeepalivePlanChanged(
+						ctx.model?.id,
+						previousConfig.openai,
+						config.openai,
+					)
+				) {
+					runtime.cancelCacheKeepalive();
+				}
+				if (hasCodexTransportConfigChanged(previousConfig, config)) {
+					runtime.resetTransport(ctx.sessionManager.getSessionId());
+				}
+				if (config.voiceFeaturesOnly && !previousConfig.voiceFeaturesOnly) {
+					void codeMode.shutdownHost().catch((error: unknown) => {
+						ctx.ui.notify(
+							`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`,
+							"warning",
+						);
 					});
-			}
-		});
+				} else if (executionModeChanged) {
+					void codeMode
+						.shutdownHost()
+						.then(() => prepareCodeModeHost(codeMode, ctx))
+						.catch((error: unknown) => {
+							ctx.ui.notify(
+								`Could not switch execution mode: ${error instanceof Error ? error.message : String(error)}`,
+								"warning",
+							);
+						});
+				}
+			},
+		);
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 		registerVoiceHandoff({
-			pi, voice: runtime.voice, lanVoice: runtime.lanVoice, getConfig: () => runtime.state.config,
-			priority: () => runtime.state.enabled || runtime.state.config.voiceFeaturesOnly ? 20 : 5,
+			pi,
+			voice: runtime.voice,
+			lanVoice: runtime.lanVoice,
+			getConfig: () => runtime.state.config,
+			priority: () =>
+				runtime.state.enabled || runtime.state.config.voiceFeaturesOnly
+					? 20
+					: 5,
 		});
-		const stopProtectedOutput = registerProtectedOutputHost(pi, ctx => {
+		const stopProtectedOutput = registerProtectedOutputHost(pi, (ctx) => {
 			const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
 			return plan.codexTransport && isAdapterRuntime(plan);
 		});

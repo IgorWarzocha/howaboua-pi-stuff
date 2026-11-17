@@ -45,17 +45,19 @@ export async function registerCustomTools(
 	options: { isActive?(ctx: unknown): boolean } = {},
 ): Promise<CodeModeRegistration> {
 	const usesDefaultDirs = toolsDir === undefined;
-	const toolsDirs = toolsDir === undefined
-		? [getCustomToolsDir()]
-		: typeof toolsDir === "string"
-			? [toolsDir]
-			: [...toolsDir];
+	const toolsDirs =
+		toolsDir === undefined
+			? [getCustomToolsDir()]
+			: typeof toolsDir === "string"
+				? [toolsDir]
+				: [...toolsDir];
 	let previousErrors = new Map<string, string>();
 	return registerCodeModeTools(pi, {
 		getTools: (ctx) => {
-			const activeDirs = usesDefaultDirs && isTrustedProjectContext(ctx)
-				? [...toolsDirs, getProjectCustomToolsDir(ctx.cwd)]
-				: toolsDirs;
+			const activeDirs =
+				usesDefaultDirs && isTrustedProjectContext(ctx)
+					? [...toolsDirs, getProjectCustomToolsDir(ctx.cwd)]
+					: toolsDirs;
 			const discovery = discoverCustomToolsFromDirectories(activeDirs);
 			previousErrors = reportCustomToolErrors(
 				ctx,
@@ -86,22 +88,22 @@ function reportCustomToolErrors(
 function isExtensionContext(value: unknown): value is ExtensionContext {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"ui" in value &&
-			value.ui &&
-			typeof value.ui === "object" &&
-			"notify" in value.ui &&
-			typeof value.ui.notify === "function",
+		typeof value === "object" &&
+		"ui" in value &&
+		value.ui &&
+		typeof value.ui === "object" &&
+		"notify" in value.ui &&
+		typeof value.ui.notify === "function",
 	);
 }
 
 function isTrustedProjectContext(value: unknown): value is ExtensionContext {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"isProjectTrusted" in value &&
-			typeof value.isProjectTrusted === "function" &&
-			value.isProjectTrusted(),
+		typeof value === "object" &&
+		"isProjectTrusted" in value &&
+		typeof value.isProjectTrusted === "function" &&
+		value.isProjectTrusted(),
 	);
 }
 
@@ -116,7 +118,12 @@ export async function registerCodeModeTools(
 		prepare: (ctx) => runtime.prepare(ctx),
 		getTools: (ctx) => runtime.collectTools(ctx),
 		getPromptTools: (ctx) => runtime.collectPromptTools(ctx),
-		notebookStatus: (ctx) => runtime.controlNotebook({ action: "status", query: "*" }, { cwd: ctx.cwd, extensionContext: ctx }, ctx.signal),
+		notebookStatus: (ctx) =>
+			runtime.controlNotebook(
+				{ action: "status", query: "*" },
+				{ cwd: ctx.cwd, extensionContext: ctx },
+				ctx.signal,
+			),
 		checkpointNotebook: () => runtime.checkpointNotebook(),
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {
@@ -128,7 +135,9 @@ export async function registerCodeModeTools(
 	};
 }
 
-async function getOrCreateRuntime(pi: ExtensionAPI): Promise<SharedCodeModeRuntime> {
+async function getOrCreateRuntime(
+	pi: ExtensionAPI,
+): Promise<SharedCodeModeRuntime> {
 	const state = pi.events as typeof pi.events & {
 		[REGISTRATION_KEY]?: CodeModeProcessState | SharedCodeModeRuntime;
 	};

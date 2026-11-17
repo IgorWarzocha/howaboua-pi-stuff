@@ -1,12 +1,27 @@
-import { calculateCost, type Api, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
+import {
+	calculateCost,
+	type Api,
+	type AssistantMessage,
+	type Model,
+} from "@earendil-works/pi-ai";
 import type { CodexPrewarmUsage, ServiceTier } from "./types.ts";
 
 export function readServiceTier(value: unknown): ServiceTier {
-	return value === "auto" || value === "default" || value === "flex" || value === "scale"
-		|| value === "priority" || value === "fast" || value === "ultrafast" ? value : undefined;
+	return value === "auto" ||
+		value === "default" ||
+		value === "flex" ||
+		value === "scale" ||
+		value === "priority" ||
+		value === "fast" ||
+		value === "ultrafast"
+		? value
+		: undefined;
 }
 
-export function codexUltrafastCostMultiplier(modelId: string | undefined, now = Date.now()): number | undefined {
+export function codexUltrafastCostMultiplier(
+	modelId: string | undefined,
+	now = Date.now(),
+): number | undefined {
 	if (modelId === "gpt-6.2-sol" || modelId === "gpt-6.2-astra") {
 		// The published promotion ends at midnight Pacific on March 1, 2027.
 		return now < Date.parse("2027-03-01T08:00:00Z") ? 3 : 6;
@@ -14,7 +29,10 @@ export function codexUltrafastCostMultiplier(modelId: string | undefined, now = 
 	return modelId === "gpt-6-astra" || modelId === "gpt-6.1-sol" ? 6 : undefined;
 }
 
-function getServiceTierCostMultiplier(model: Model<Api>, serviceTier: ServiceTier): number {
+function getServiceTierCostMultiplier(
+	model: Model<Api>,
+	serviceTier: ServiceTier,
+): number {
 	switch (serviceTier) {
 		case "ultrafast":
 			return codexUltrafastCostMultiplier(model.id) ?? 1;
@@ -28,32 +46,62 @@ function getServiceTierCostMultiplier(model: Model<Api>, serviceTier: ServiceTie
 	}
 }
 
-export function applyServiceTierPricing(usage: AssistantMessage["usage"], serviceTier: ServiceTier, model: Model<Api>): void {
+export function applyServiceTierPricing(
+	usage: AssistantMessage["usage"],
+	serviceTier: ServiceTier,
+	model: Model<Api>,
+): void {
 	const multiplier = getServiceTierCostMultiplier(model, serviceTier);
 	if (multiplier === 1) return;
 	usage.cost.input *= multiplier;
 	usage.cost.output *= multiplier;
 	usage.cost.cacheRead *= multiplier;
 	usage.cost.cacheWrite *= multiplier;
-	usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+	usage.cost.total =
+		usage.cost.input +
+		usage.cost.output +
+		usage.cost.cacheRead +
+		usage.cost.cacheWrite;
 }
 
-export function resolveCodexServiceTier(responseServiceTier: ServiceTier, requestServiceTier: ServiceTier): ServiceTier {
-	if (responseServiceTier === "default" && (requestServiceTier === "flex" || requestServiceTier === "priority" || requestServiceTier === "ultrafast")) {
+export function resolveCodexServiceTier(
+	responseServiceTier: ServiceTier,
+	requestServiceTier: ServiceTier,
+): ServiceTier {
+	if (
+		responseServiceTier === "default" &&
+		(requestServiceTier === "flex" ||
+			requestServiceTier === "priority" ||
+			requestServiceTier === "ultrafast")
+	) {
 		return requestServiceTier;
 	}
 	return responseServiceTier ?? requestServiceTier;
 }
 
 export function finalizeUsage(output: AssistantMessage): void {
-	output.usage.cost.total = output.usage.cost.input + output.usage.cost.output + output.usage.cost.cacheRead + output.usage.cost.cacheWrite;
+	output.usage.cost.total =
+		output.usage.cost.input +
+		output.usage.cost.output +
+		output.usage.cost.cacheRead +
+		output.usage.cost.cacheWrite;
 }
 
-export function priceGeneratedPrewarm(model: Model<Api>, prewarm: CodexPrewarmUsage, tier: ServiceTier): AssistantMessage["usage"] {
+export function priceGeneratedPrewarm(
+	model: Model<Api>,
+	prewarm: CodexPrewarmUsage,
+	tier: ServiceTier,
+): AssistantMessage["usage"] {
 	const usage = {
-		input: prewarm.inputTokens, cacheRead: prewarm.cachedInputTokens, cacheWrite: prewarm.cacheWriteInputTokens,
+		input: prewarm.inputTokens,
+		cacheRead: prewarm.cachedInputTokens,
+		cacheWrite: prewarm.cacheWriteInputTokens,
 		output: prewarm.outputTokens ?? 0,
-		totalTokens: prewarm.inputTokens + prewarm.cachedInputTokens + prewarm.cacheWriteInputTokens + (prewarm.outputTokens ?? 0),
+		totalTokens:
+			prewarm.inputTokens +
+			prewarm.cachedInputTokens +
+			prewarm.cacheWriteInputTokens +
+			(prewarm.outputTokens ?? 0),
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 	};
 	calculateCost(model, usage);

@@ -89,7 +89,9 @@ export function registerVoiceHandoff(options: {
 				busy:
 					!context ||
 					Boolean(pending) ||
-					(voice.active && voice.status !== "conversation" && voice.status !== "transferred"),
+					(voice.active &&
+						voice.status !== "conversation" &&
+						voice.status !== "transferred"),
 			};
 		},
 		async depart(channel) {
@@ -105,8 +107,22 @@ export function registerVoiceHandoff(options: {
 				connection = startVoiceDeparture({
 					channel,
 					captured,
-					onTakeoverUnavailable: (error) => ctx.ui.notify(`${error.message}. LAN remains on the origin; closing it ends the transferred call.`, "warning"),
-					...(options.lanVoice.hasActiveConversation() ? { lanTakeover: (offer, releaseAudio, verify) => options.lanVoice.releaseForTakeover(ctx, offer, releaseAudio, verify) } : {}),
+					onTakeoverUnavailable: (error) =>
+						ctx.ui.notify(
+							`${error.message}. LAN remains on the origin; closing it ends the transferred call.`,
+							"warning",
+						),
+					...(options.lanVoice.hasActiveConversation()
+						? {
+								lanTakeover: (offer, releaseAudio, verify) =>
+									options.lanVoice.releaseForTakeover(
+										ctx,
+										offer,
+										releaseAudio,
+										verify,
+									),
+							}
+						: {}),
 					waitForSettled: (signal) => waitForSettled(ctx, signal),
 					onReleased(controls) {
 						previous?.forwardTo(controls);

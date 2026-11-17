@@ -246,7 +246,7 @@ function normalizeShortcut(value: string): KeyId | "" {
 		parts.some((part) => !modifiers.includes(part)) ||
 		new Set(parts).size !== parts.length ||
 		!(
-			/^[a-z0-9`\-=\[\]\\;\',./!@#$%^&*()_+|~{}:"<>?]$/.test(key) ||
+			/^[a-z0-9`\-=[\]\\;',./!@#$%^&*()_+|~{}:"<>?]$/.test(key) ||
 			special.includes(key) ||
 			/^f([1-9]|1[0-2])$/.test(key)
 		)

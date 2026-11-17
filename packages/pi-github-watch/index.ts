@@ -72,6 +72,7 @@ export default async function (pi: ExtensionAPI) {
 
 	function schedule(watch: Watch, ctx: ExtensionContext, delay: number) {
 		watch.nextCheck = Date.now() + delay;
+		// oxlint-disable-next-line typescript/no-misused-promises -- Polling catches failures, pauses the watch and reports recovery instructions.
 		watch.timer = setTimeout(async () => {
 			try {
 				const client = githubClient(pi, ctx.cwd, watch.controller.signal);

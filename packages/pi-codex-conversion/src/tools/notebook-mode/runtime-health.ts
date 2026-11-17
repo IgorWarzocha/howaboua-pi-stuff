@@ -1,4 +1,7 @@
-export type NotebookRuntimeHealthState = "not_started" | "ready" | "invalidated";
+export type NotebookRuntimeHealthState =
+	| "not_started"
+	| "ready"
+	| "invalidated";
 
 export interface NotebookRuntimeHealth {
 	state: NotebookRuntimeHealthState;
@@ -13,10 +16,12 @@ export const NOTEBOOK_BOOTSTRAP_NOTICE =
 export const NOTEBOOK_KERNEL_FAILURE_NOTICE =
 	"Notebook runtime became unavailable during a host operation. The next operation will recreate it from the last completed checkpoint; durable project bindings were preserved. External side effects were not rolled back";
 
-const NOTEBOOK_RECOVERY_GUIDANCE = 'Call notebook({}) for recovery actions';
+const NOTEBOOK_RECOVERY_GUIDANCE = "Call notebook({}) for recovery actions";
 
 export function withNotebookRecoveryGuidance(message: string): string {
-	return message.includes(NOTEBOOK_RECOVERY_GUIDANCE) ? message : `${message}\n${NOTEBOOK_RECOVERY_GUIDANCE}`;
+	return message.includes(NOTEBOOK_RECOVERY_GUIDANCE)
+		? message
+		: `${message}\n${NOTEBOOK_RECOVERY_GUIDANCE}`;
 }
 
 export function isNotebookBootstrapFailure(value: unknown): boolean {
@@ -27,15 +32,22 @@ export function isNotebookBootstrapFailure(value: unknown): boolean {
 function errorText(value: unknown, depth = 0): string {
 	if (depth > 2) return "";
 	if (typeof value === "string") return value;
-	if (value instanceof Error) return [value.message, errorText(value.cause, depth + 1)].filter(Boolean).join(" ");
+	if (value instanceof Error)
+		return [value.message, errorText(value.cause, depth + 1)]
+			.filter(Boolean)
+			.join(" ");
 	if (value && typeof value === "object") {
 		const result = value as Record<string, unknown>;
 		return [
 			typeof result["errorText"] === "string" ? result["errorText"] : undefined,
 			typeof result["errorName"] === "string" ? result["errorName"] : undefined,
-			typeof result["errorValue"] === "string" ? result["errorValue"] : undefined,
+			typeof result["errorValue"] === "string"
+				? result["errorValue"]
+				: undefined,
 			errorText(result["cause"], depth + 1),
-		].filter(Boolean).join(" ");
+		]
+			.filter(Boolean)
+			.join(" ");
 	}
 	return "";
 }

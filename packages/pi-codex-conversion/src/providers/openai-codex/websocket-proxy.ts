@@ -17,19 +17,37 @@ type GetProxyForUrl = (url: string | object | URL) => string;
 
 let proxyFromEnvPromise: Promise<GetProxyForUrl> | undefined;
 async function getProxyFromEnv(): Promise<GetProxyForUrl> {
-	proxyFromEnvPromise ??= dynamicImport("proxy-from-env").then((module) => (module as { getProxyForUrl: GetProxyForUrl }).getProxyForUrl);
+	proxyFromEnvPromise ??= dynamicImport("proxy-from-env").then(
+		(module) => (module as { getProxyForUrl: GetProxyForUrl }).getProxyForUrl,
+	);
 	return proxyFromEnvPromise;
 }
 
 let _cachedWebSocket: WebSocketConstructorLike | null = null;
-export async function getWebSocketConstructor(url: string, env?: ProviderEnv): Promise<WebSocketConstructorLike | null> {
+export async function getWebSocketConstructor(
+	url: string,
+	env?: ProviderEnv,
+): Promise<WebSocketConstructorLike | null> {
 	if (typeof process !== "undefined" && process.versions["bun"]!) {
 		if (!env && _cachedWebSocket) return _cachedWebSocket;
 		const getProxyForUrl = await getProxyFromEnv();
 		const WebSocketWithProxy = class extends WebSocket {
-			constructor(url: string, options?: { headers?: Record<string, string> | undefined } | string | string[]) {
-				const proxy = resolveWebSocketProxyForTargetSync(getProxyForUrl, url, env);
-				const baseOptions = Array.isArray(options) || typeof options === "string" ? { protocols: options } : { ...options };
+			constructor(
+				url: string,
+				options?:
+					| { headers?: Record<string, string> | undefined }
+					| string
+					| string[],
+			) {
+				const proxy = resolveWebSocketProxyForTargetSync(
+					getProxyForUrl,
+					url,
+					env,
+				);
+				const baseOptions =
+					Array.isArray(options) || typeof options === "string"
+						? { protocols: options }
+						: { ...options };
 				super(url, { ...baseOptions, ...(proxy ? { proxy } : {}) } as never);
 			}
 		};
@@ -39,14 +57,29 @@ export async function getWebSocketConstructor(url: string, env?: ProviderEnv): P
 	const getProxyForUrl = await getProxyFromEnv();
 	const proxy = resolveWebSocketProxyForTargetSync(getProxyForUrl, url, env);
 	if (!proxy) {
-		const ctor = (globalThis as typeof globalThis & { WebSocket?: WebSocketConstructorLike | undefined }).WebSocket;
+		const ctor = (
+			globalThis as typeof globalThis & {
+				WebSocket?: WebSocketConstructorLike | undefined;
+			}
+		).WebSocket;
 		return typeof ctor === "function" ? ctor : null;
 	}
 	const proxyUrl = proxy;
-	const { ProxyAgent, WebSocket: UndiciWebSocket } = await dynamicImport("undici") as typeof import("undici");
+	const { ProxyAgent, WebSocket: UndiciWebSocket } = (await dynamicImport(
+		"undici",
+	)) as typeof import("undici");
 	const WebSocketWithProxy = class extends UndiciWebSocket {
-		constructor(socketUrl: string, options?: { headers?: Record<string, string> | undefined } | string | string[]) {
-			const baseOptions = Array.isArray(options) || typeof options === "string" ? { protocols: options } : { ...options };
+		constructor(
+			socketUrl: string,
+			options?:
+				| { headers?: Record<string, string> | undefined }
+				| string
+				| string[],
+		) {
+			const baseOptions =
+				Array.isArray(options) || typeof options === "string"
+					? { protocols: options }
+					: { ...options };
 			const dispatcher = new ProxyAgent(proxyUrl);
 			super(socketUrl, { ...baseOptions, dispatcher } as never);
 			let dispatcherClosed = false;
@@ -100,11 +133,20 @@ function withScopedProxyEnv<T>(env: ProviderEnv | undefined, run: () => T): T {
 	}
 }
 
-function resolveWebSocketProxyForTargetSync(getProxyForUrl: GetProxyForUrl, url: string, env?: ProviderEnv): string | undefined {
-	const proxy = withScopedProxyEnv(env, () => getProxyForUrl(proxyTargetUrl(url)));
+function resolveWebSocketProxyForTargetSync(
+	getProxyForUrl: GetProxyForUrl,
+	url: string,
+	env?: ProviderEnv,
+): string | undefined {
+	const proxy = withScopedProxyEnv(env, () =>
+		getProxyForUrl(proxyTargetUrl(url)),
+	);
 	return proxy || undefined;
 }
 
-export async function resolveWebSocketProxyForTarget(url: string, env?: ProviderEnv): Promise<string | undefined> {
+export async function resolveWebSocketProxyForTarget(
+	url: string,
+	env?: ProviderEnv,
+): Promise<string | undefined> {
 	return resolveWebSocketProxyForTargetSync(await getProxyFromEnv(), url, env);
 }

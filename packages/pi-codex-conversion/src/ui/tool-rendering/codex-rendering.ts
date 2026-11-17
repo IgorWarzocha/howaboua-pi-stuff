@@ -1,4 +1,7 @@
-import { summarizeShellCommand, type ShellAction } from "../../shell/summary.ts";
+import {
+	summarizeShellCommand,
+	type ShellAction,
+} from "../../shell/summary.ts";
 import type { ExecCommandStatus } from "../../tools/exec/command-state.ts";
 
 export interface RenderTheme {
@@ -6,15 +9,36 @@ export interface RenderTheme {
 	bold(text: string): string;
 }
 
-export function renderExecCommandCall(command: string, state: ExecCommandStatus, theme: RenderTheme, expanded = false): string {
+export function renderExecCommandCall(
+	command: string,
+	state: ExecCommandStatus,
+	theme: RenderTheme,
+	expanded = false,
+): string {
 	const summary = summarizeShellCommand(command);
 	return summary.maskAsExplored
-		? renderExplorationText([summary.actions], state, theme, expanded ? [command] : undefined)
+		? renderExplorationText(
+				[summary.actions],
+				state,
+				theme,
+				expanded ? [command] : undefined,
+			)
 		: renderCommandText(command, state, theme, expanded);
 }
 
-export function renderGroupedExecCommandCall(actionGroups: ShellAction[][], state: ExecCommandStatus, theme: RenderTheme, expanded = false, commands: string[] = []): string {
-	return renderExplorationText(actionGroups, state, theme, expanded ? commands : undefined);
+export function renderGroupedExecCommandCall(
+	actionGroups: ShellAction[][],
+	state: ExecCommandStatus,
+	theme: RenderTheme,
+	expanded = false,
+	commands: string[] = [],
+): string {
+	return renderExplorationText(
+		actionGroups,
+		state,
+		theme,
+		expanded ? commands : undefined,
+	);
 }
 
 export function renderWriteStdinCall(
@@ -25,7 +49,9 @@ export function renderWriteStdinCall(
 ): string {
 	const interacted = typeof input === "string" && input.length > 0;
 	const marker = interacted ? "↳ " : "• ";
-	const title = interacted ? "Interacted with background terminal" : "Waited for background terminal";
+	const title = interacted
+		? "Interacted with background terminal"
+		: "Waited for background terminal";
 	let text = `${theme.fg("dim", marker)}${theme.bold(title)}`;
 	const commandPreview = formatCommandPreview(command);
 	if (commandPreview) {
@@ -38,17 +64,28 @@ export function renderWriteStdinCall(
 	return text;
 }
 
-function renderExplorationText(actionGroups: ShellAction[][], state: ExecCommandStatus, theme: RenderTheme, commands?: string[]): string {
+function renderExplorationText(
+	actionGroups: ShellAction[][],
+	state: ExecCommandStatus,
+	theme: RenderTheme,
+	commands?: string[],
+): string {
 	const header = state === "running" ? "Exploring" : "Explored";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(header)}`;
 
-	for (const [index, line] of coalesceReadGroups(actionGroups).map(formatActionLine).entries()) {
+	for (const [index, line] of coalesceReadGroups(actionGroups)
+		.map(formatActionLine)
+		.entries()) {
 		const prefix = index === 0 ? "  └ " : "    ";
 		text += `\n${theme.fg("dim", prefix)}${theme.fg("accent", line.title)} ${theme.fg("muted", line.body)}`;
 	}
 
 	for (const command of commands ?? []) {
-		for (const line of formatCommandLines(command, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY)) {
+		for (const line of formatCommandLines(
+			command,
+			Number.POSITIVE_INFINITY,
+			Number.POSITIVE_INFINITY,
+		)) {
 			text += `\n${theme.fg("dim", "    ")}${theme.fg("muted", line)}`;
 		}
 	}
@@ -56,25 +93,43 @@ function renderExplorationText(actionGroups: ShellAction[][], state: ExecCommand
 	return text;
 }
 
-function renderCommandText(command: string, state: ExecCommandStatus, theme: RenderTheme, expanded: boolean): string {
+function renderCommandText(
+	command: string,
+	state: ExecCommandStatus,
+	theme: RenderTheme,
+	expanded: boolean,
+): string {
 	const verb = state === "running" ? "Running" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(verb)}`;
 	const maxLines = expanded ? Number.POSITIVE_INFINITY : 5;
 	const maxLength = expanded ? Number.POSITIVE_INFINITY : 100;
-	for (const [index, line] of formatCommandLines(command, maxLines, maxLength).entries()) {
+	for (const [index, line] of formatCommandLines(
+		command,
+		maxLines,
+		maxLength,
+	).entries()) {
 		const prefix = index === 0 ? "  └ " : "    ";
 		text += `\n${theme.fg("dim", prefix)}${theme.fg("accent", line)}`;
 	}
 	return text;
 }
 
-function formatCommandLines(command: string, maxLines = 5, maxLength = 100): string[] {
+function formatCommandLines(
+	command: string,
+	maxLines = 5,
+	maxLength = 100,
+): string[] {
 	const lines = command
 		.replace(/\t/g, "   ")
 		.split("\n")
 		.map((line) => line.trimEnd())
-		.filter((line, index, all) => line.length > 0 || (index > 0 && index < all.length - 1));
-	const visible = lines.slice(0, maxLines).map((line) => shortenLine(line, maxLength));
+		.filter(
+			(line, index, all) =>
+				line.length > 0 || (index > 0 && index < all.length - 1),
+		);
+	const visible = lines
+		.slice(0, maxLines)
+		.map((line) => shortenLine(line, maxLength));
 	if (lines.length > maxLines) {
 		visible.push("...");
 	}
@@ -100,7 +155,10 @@ function formatCommandPreview(command: string | undefined): string | undefined {
 	return shortenCommand(singleLine, 80);
 }
 
-function formatActionLine(action: ShellAction): { title: string; body: string } {
+function formatActionLine(action: ShellAction): {
+	title: string;
+	body: string;
+} {
 	if (action.kind === "read") {
 		return { title: "Read", body: formatReadLabel(action) };
 	}
@@ -119,7 +177,9 @@ function formatActionLine(action: ShellAction): { title: string; body: string } 
 	return { title: "Run", body: action.command };
 }
 
-function formatReadLabel(action: Extract<ShellAction, { kind: "read" }>): string {
+function formatReadLabel(
+	action: Extract<ShellAction, { kind: "read" }>,
+): string {
 	const skillName = skillNameFromSkillPath(action.path);
 	return skillName ? `${skillName} skill` : action.name;
 }
@@ -143,7 +203,11 @@ function coalesceReadGroups(actionGroups: ShellAction[][]): ShellAction[] {
 			const seenPaths = new Set<string>();
 			let lastRead: Extract<ShellAction, { kind: "read" }> | undefined;
 
-			for (let readIndex = index; readIndex < actionGroups.length; readIndex += 1) {
+			for (
+				let readIndex = index;
+				readIndex < actionGroups.length;
+				readIndex += 1
+			) {
 				const readActions = actionGroups[readIndex]!;
 				if (!readActions.every((action) => action.kind === "read")) {
 					break;

@@ -5,8 +5,16 @@ import { CodexDictationTranscriber } from "../dictation/transcriber.ts";
 export class LanVoiceDictation {
 	private readonly resolveAuth: () => Promise<CodexVoiceAuth>;
 	private readonly onError: (clientId: string, error: Error) => void;
-	private current: { clientId: string; transcriber: CodexDictationTranscriber; startAbort: AbortController } | undefined;
-	private finishing: { clientId: string; transcriber: CodexDictationTranscriber } | undefined;
+	private current:
+		| {
+				clientId: string;
+				transcriber: CodexDictationTranscriber;
+				startAbort: AbortController;
+		  }
+		| undefined;
+	private finishing:
+		| { clientId: string; transcriber: CodexDictationTranscriber }
+		| undefined;
 
 	constructor(options: {
 		resolveAuth(): Promise<CodexVoiceAuth>;
@@ -32,9 +40,11 @@ export class LanVoiceDictation {
 		this.current = current;
 		try {
 			const auth = await interruptible(this.resolveAuth(), startAbort.signal);
-			if (auth === CANCELLED) throw new Error("Codex dictation start was cancelled");
+			if (auth === CANCELLED)
+				throw new Error("Codex dictation start was cancelled");
 			await transcriber.start(auth);
-			if (this.current !== current) throw new Error("Codex dictation start was cancelled");
+			if (this.current !== current)
+				throw new Error("Codex dictation start was cancelled");
 		} catch (error) {
 			if (this.current?.transcriber === transcriber) this.current = undefined;
 			await transcriber.close();
@@ -62,8 +72,11 @@ export class LanVoiceDictation {
 	}
 
 	async cancel(clientId: string): Promise<void> {
-		const current = this.current?.clientId === clientId ? this.current : undefined;
-		const session = current ?? (this.finishing?.clientId === clientId ? this.finishing : undefined);
+		const current =
+			this.current?.clientId === clientId ? this.current : undefined;
+		const session =
+			current ??
+			(this.finishing?.clientId === clientId ? this.finishing : undefined);
 		if (!session) return;
 		if (this.current === session) this.current = undefined;
 		if (this.finishing === session) this.finishing = undefined;
@@ -78,6 +91,7 @@ export class LanVoiceDictation {
 		this.finishing = undefined;
 		current?.startAbort.abort();
 		await current?.transcriber.close();
-		if (finishing?.transcriber !== current?.transcriber) await finishing?.transcriber.close();
+		if (finishing?.transcriber !== current?.transcriber)
+			await finishing?.transcriber.close();
 	}
 }

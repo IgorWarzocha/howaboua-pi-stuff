@@ -1,8 +1,10 @@
 export const PI_PEER_RANGE = ">=1.5.0";
 
 export function pi1PeerDependencies(peers = {}) {
-	return Object.fromEntries(Object.entries(peers).map(([name, range]) => [
-		name,
-		name.startsWith("@earendil-works/pi-") ? PI_PEER_RANGE : range,
-	]));
+	return Object.fromEntries(
+		Object.entries(peers).map(([name, range]) => [
+			name,
+			name.startsWith("@earendil-works/pi-") ? PI_PEER_RANGE : range,
+		]),
+	);
 }

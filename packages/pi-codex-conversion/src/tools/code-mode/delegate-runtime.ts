@@ -12,7 +12,6 @@ import type {
 	ToolExecutionContext,
 } from "./types.js";
 
-
 interface DelegateController {
 	cellId?: string | undefined;
 	controller: AbortController;
@@ -26,7 +25,10 @@ export class CodeModeDelegateRuntime {
 	private readonly traces = new CodeModeTraceStore();
 	private readonly cells = new DelegateCellScheduling();
 	private readonly results = new DelegateCellResults();
-	private readonly cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly cleanupTimers = new Map<
+		string,
+		ReturnType<typeof setTimeout>
+	>();
 	private readonly send: SendMessage;
 	private readonly renderStore: CodeModeNestedRenderStore;
 	private readonly executor: DelegateToolExecutor;
@@ -38,7 +40,14 @@ export class CodeModeDelegateRuntime {
 	) {
 		this.send = send;
 		this.renderStore = renderStore;
-		this.executor = new DelegateToolExecutor(prepareToolInput, this.cells, this.results, this.traces, renderStore, this.traceRuntimeGeneration);
+		this.executor = new DelegateToolExecutor(
+			prepareToolInput,
+			this.cells,
+			this.results,
+			this.traces,
+			renderStore,
+			this.traceRuntimeGeneration,
+		);
 	}
 
 	bindCell(
@@ -59,11 +68,14 @@ export class CodeModeDelegateRuntime {
 		this.cells.closeCell(cellId);
 		const previous = this.cleanupTimers.get(cellId);
 		if (previous) clearTimeout(previous);
-		this.cleanupTimers.set(cellId, setTimeout(() => {
-			this.cleanupTimers.delete(cellId);
-			this.results.delete(cellId);
-			this.traces.delete(cellId);
-		}, 1_000));
+		this.cleanupTimers.set(
+			cellId,
+			setTimeout(() => {
+				this.cleanupTimers.delete(cellId);
+				this.results.delete(cellId);
+				this.traces.delete(cellId);
+			}, 1_000),
+		);
 	}
 
 	clear(): void {
@@ -83,7 +95,9 @@ export class CodeModeDelegateRuntime {
 		this.results.clearOpaqueResults();
 	}
 
-	isBlocked(cellId: string): boolean { return this.cells.isBlocked(cellId); }
+	isBlocked(cellId: string): boolean {
+		return this.cells.isBlocked(cellId);
+	}
 
 	waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
 		return this.cells.waitUntilUnblocked(cellId, signal);
@@ -109,9 +123,10 @@ export class CodeModeDelegateRuntime {
 		if (this.controllers.has(key))
 			throw new Error(`Duplicate code-mode delegate request: ${message.id}`);
 		const controller = new AbortController();
-		const cellId = message.request.type === "notification/send"
-			? message.request.cellId
-			: message.request.invocation.cell_id;
+		const cellId =
+			message.request.type === "notification/send"
+				? message.request.cellId
+				: message.request.invocation.cell_id;
 		this.controllers.set(key, { cellId, controller });
 		void this.invoke(message, key, controller);
 	}
@@ -128,7 +143,13 @@ export class CodeModeDelegateRuntime {
 		const controller = new AbortController();
 		this.controllers.set(key, { cellId, controller });
 		try {
-			return await this.executor.invoke(cellId, toolName, input, String(requestId), controller);
+			return await this.executor.invoke(
+				cellId,
+				toolName,
+				input,
+				String(requestId),
+				controller,
+			);
 		} finally {
 			this.controllers.delete(key);
 		}
@@ -184,7 +205,10 @@ export class CodeModeDelegateRuntime {
 	private handleNotification(
 		id: number,
 		key: string,
-		request: Extract<DelegateRequestMessage["request"], { type: "notification/send" }>,
+		request: Extract<
+			DelegateRequestMessage["request"],
+			{ type: "notification/send" }
+		>,
 	): void {
 		const cellId = request.cellId;
 		try {

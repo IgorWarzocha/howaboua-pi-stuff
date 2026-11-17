@@ -1,4 +1,9 @@
-import type { RuntimeResponse, OpaqueToolOutput, RuntimeContentItem, ToolExecutionContext } from "../types.ts";
+import type {
+	RuntimeResponse,
+	OpaqueToolOutput,
+	RuntimeContentItem,
+	ToolExecutionContext,
+} from "../types.ts";
 import type { CodeModeTraceStore } from "../trace-store.ts";
 
 const MAX_NOTIFICATION_CHARS = 16_384;
@@ -23,11 +28,21 @@ export class DelegateCellResults {
 		if (context.originalExecCallId && !this.originalExecCalls.has(cellId))
 			this.originalExecCalls.set(cellId, context.originalExecCallId);
 	}
-	originalExecCallId(cellId: string): string | undefined { return this.originalExecCalls.get(cellId); }
-	opaqueCellIds(): IterableIterator<string> { return this.opaqueResults.keys(); }
-	hasOpaqueResults(cellId: string): boolean { return this.opaqueResults.has(cellId); }
-	clearOpaqueResults(): void { this.opaqueResults.clear(); }
-	markTerminating(cellId: string): void { this.terminatingCells.add(cellId); }
+	originalExecCallId(cellId: string): string | undefined {
+		return this.originalExecCalls.get(cellId);
+	}
+	opaqueCellIds(): IterableIterator<string> {
+		return this.opaqueResults.keys();
+	}
+	hasOpaqueResults(cellId: string): boolean {
+		return this.opaqueResults.has(cellId);
+	}
+	clearOpaqueResults(): void {
+		this.opaqueResults.clear();
+	}
+	markTerminating(cellId: string): void {
+		this.terminatingCells.add(cellId);
+	}
 	delete(cellId: string): void {
 		this.notifications.delete(cellId);
 		this.opaqueResults.delete(cellId);
@@ -42,24 +57,42 @@ export class DelegateCellResults {
 		this.execSessions.clear();
 		this.terminatingCells.clear();
 	}
-	captureOpaqueResult(cellId: string, output: OpaqueToolOutput, images: RuntimeContentItem[]): void {
+	captureOpaqueResult(
+		cellId: string,
+		output: OpaqueToolOutput,
+		images: RuntimeContentItem[],
+	): void {
 		const pending = this.opaqueResults.get(cellId)!;
-		const bytes = Buffer.byteLength(output.encryptedOutput, "utf8") + images.reduce((sum, image) => sum + (image.image_url?.length ?? 0), 0);
-		const total = [...this.opaqueResults.values()].reduce((sum, entry) => sum + entry.bytes, 0);
+		const bytes =
+			Buffer.byteLength(output.encryptedOutput, "utf8") +
+			images.reduce((sum, image) => sum + (image.image_url?.length ?? 0), 0);
+		const total = [...this.opaqueResults.values()].reduce(
+			(sum, entry) => sum + entry.bytes,
+			0,
+		);
 		if (total + bytes > MAX_OPAQUE_BYTES)
-			throw new Error("Remote operation executed but result capacity was exceeded; check completed results before retrying");
+			throw new Error(
+				"Remote operation executed but result capacity was exceeded; check completed results before retrying",
+			);
 		pending.bytes += bytes;
 		pending.outputs.push(output);
 		pending.images.push(...images);
 	}
 
-	notifyDirect(cellId: string, value: string, context: ToolExecutionContext | undefined): void {
+	notifyDirect(
+		cellId: string,
+		value: string,
+		context: ToolExecutionContext | undefined,
+	): void {
 		if (!context) throw new Error("Code-mode notification cell is unavailable");
 		const notifications = this.notifications.get(cellId) ?? [];
 		const text = value.slice(0, MAX_NOTIFICATION_CHARS);
 		notifications.push(text);
 		if (notifications.length > MAX_NOTIFICATIONS_PER_CELL)
-			notifications.splice(0, notifications.length - MAX_NOTIFICATIONS_PER_CELL);
+			notifications.splice(
+				0,
+				notifications.length - MAX_NOTIFICATIONS_PER_CELL,
+			);
 		this.notifications.set(cellId, notifications);
 		context.onUpdate?.({
 			content: [{ type: "text", text }],
@@ -67,9 +100,13 @@ export class DelegateCellResults {
 		});
 	}
 
-	attach(response: RuntimeResponse, traces: CodeModeTraceStore): RuntimeResponse {
+	attach(
+		response: RuntimeResponse,
+		traces: CodeModeTraceStore,
+	): RuntimeResponse {
 		const originalExecCallId = this.originalExecCalls.get(response.cellId);
-		if (response.kind !== "yielded") this.originalExecCalls.delete(response.cellId);
+		if (response.kind !== "yielded")
+			this.originalExecCalls.delete(response.cellId);
 		const notifications = this.notifications.get(response.cellId) ?? [];
 		this.notifications.delete(response.cellId);
 		const opaque = this.opaqueResults.get(response.cellId);
@@ -86,8 +123,12 @@ export class DelegateCellResults {
 		}
 		const execSessionIds = [...(this.execSessions.get(response.cellId) ?? [])];
 		if (response.kind !== "yielded") this.execSessions.delete(response.cellId);
-		const terminate = response.kind === "result" && !response.errorText && this.terminatingCells.has(response.cellId);
-		if (response.kind !== "yielded") this.terminatingCells.delete(response.cellId);
+		const terminate =
+			response.kind === "result" &&
+			!response.errorText &&
+			this.terminatingCells.has(response.cellId);
+		if (response.kind !== "yielded")
+			this.terminatingCells.delete(response.cellId);
 		const withTraces = traces.attach(response);
 		return {
 			...withTraces,
@@ -102,26 +143,41 @@ export class DelegateCellResults {
 			],
 		};
 	}
-	recordExecSession(cellId: string, toolName: string, input: unknown, resultSessionId: number | undefined): void {
+	recordExecSession(
+		cellId: string,
+		toolName: string,
+		input: unknown,
+		resultSessionId: number | undefined,
+	): void {
 		if (toolName !== "exec_command" && toolName !== "write_stdin") return;
 		const sessions = this.execSessions.get(cellId) ?? new Set<number>();
 		const inputSessionId = numericSessionId(input);
-		if (toolName === "write_stdin" && inputSessionId !== undefined) sessions.delete(inputSessionId);
+		if (toolName === "write_stdin" && inputSessionId !== undefined)
+			sessions.delete(inputSessionId);
 		if (resultSessionId !== undefined) sessions.add(resultSessionId);
 		if (sessions.size > 0) this.execSessions.set(cellId, sessions);
 		else this.execSessions.delete(cellId);
 	}
 
 	reserveOpaqueCall(cellId: string): void {
-		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? { outputs: [], images: [], bytes: 0 };
+		const pending: PendingOpaqueResults = this.opaqueResults.get(cellId) ?? {
+			outputs: [],
+			images: [],
+			bytes: 0,
+		};
 		if (!this.opaqueResults.has(cellId) && this.opaqueResults.size >= 32)
-			throw new Error("Remote batch capacity reached; finish pending cells, then start a new exec cell");
+			throw new Error(
+				"Remote batch capacity reached; finish pending cells, then start a new exec cell",
+			);
 		this.opaqueResults.set(cellId, pending);
 	}
 }
 
 export function numericSessionId(value: unknown): number | undefined {
-	return value && typeof value === "object" && "session_id" in value && typeof value.session_id === "number"
+	return value &&
+		typeof value === "object" &&
+		"session_id" in value &&
+		typeof value.session_id === "number"
 		? value.session_id
 		: undefined;
 }

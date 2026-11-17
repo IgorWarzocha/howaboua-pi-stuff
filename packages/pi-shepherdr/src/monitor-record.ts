@@ -50,7 +50,7 @@ function stableActivity(value: unknown): StableAgentActivity | undefined {
 		: attemptId === false
 			? undefined
 			: expectedUserAfter === false ||
-					(expectedUserAfter !== undefined && !task)
+				  (expectedUserAfter !== undefined && !task)
 				? undefined
 				: {
 						phase: "working",
@@ -110,9 +110,9 @@ export function parseMonitoredAgent(
 		record["notifiedExtensionMessages"] === undefined
 			? undefined
 			: Array.isArray(record["notifiedExtensionMessages"]) &&
-					record["notifiedExtensionMessages"].every(
+				  record["notifiedExtensionMessages"].every(
 						(value) => typeof value === "string",
-					)
+				  )
 				? (record["notifiedExtensionMessages"] as string[])
 				: false;
 	const name = optionalString(record, "name");

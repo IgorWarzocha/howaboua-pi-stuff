@@ -7,7 +7,8 @@ export function imageFixture(size = 128, noise = false): string {
 		let crc = 0xffffffff;
 		for (const byte of body) {
 			crc ^= byte;
-			for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+			for (let bit = 0; bit < 8; bit++)
+				crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
 		}
 		const result = Buffer.alloc(body.length + 8);
 		result.writeUInt32BE(data.length);
@@ -24,12 +25,18 @@ export function imageFixture(size = 128, noise = false): string {
 	let seed = 42;
 	for (let y = 0; y < size; y++) {
 		for (let x = 0; x < size * 3; x++) {
-			seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
-			pixels[y * (size * 3 + 1) + x + 1] = noise ? seed & 255 : (x * 17 + y * 31) & 255;
+			seed ^= seed << 13;
+			seed ^= seed >>> 17;
+			seed ^= seed << 5;
+			pixels[y * (size * 3 + 1) + x + 1] = noise
+				? seed & 255
+				: (x * 17 + y * 31) & 255;
 		}
 	}
 	return Buffer.concat([
 		Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-		chunk("IHDR", header), chunk("IDAT", deflateSync(pixels)), chunk("IEND", Buffer.alloc(0)),
+		chunk("IHDR", header),
+		chunk("IDAT", deflateSync(pixels)),
+		chunk("IEND", Buffer.alloc(0)),
 	]).toString("base64");
 }

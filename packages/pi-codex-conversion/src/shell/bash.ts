@@ -10,12 +10,15 @@ export function initializeBashParser(): void {
 	});
 }
 
-export function extractBashCommand(command: string[]): [shell: string, script: string] | undefined {
+export function extractBashCommand(
+	command: string[],
+): [shell: string, script: string] | undefined {
 	if (command.length !== 3) return undefined;
 	const [shell, flag, script] = command as [string, string, string];
 	if (flag !== "-lc" && flag !== "-c") return undefined;
 	const shellName = shell.replace(/\\/g, "/").split("/").pop()?.toLowerCase();
-	if (shellName !== "bash" && shellName !== "zsh" && shellName !== "sh") return undefined;
+	if (shellName !== "bash" && shellName !== "zsh" && shellName !== "sh")
+		return undefined;
 	return [shell, script];
 }
 
@@ -24,7 +27,10 @@ export function tryParseShell(shellLcArg: string): Tree | undefined {
 	return parser?.parse(shellLcArg) ?? undefined;
 }
 
-export function tryParseWordOnlyCommandsSequence(tree: Tree, src: string): string[][] | undefined {
+export function tryParseWordOnlyCommandsSequence(
+	tree: Tree,
+	src: string,
+): string[][] | undefined {
 	if (tree.rootNode.hasError) {
 		return undefined;
 	}
@@ -53,7 +59,10 @@ export function tryParseWordOnlyCommandsSequence(tree: Tree, src: string): strin
 			if (!allowedKinds.has(node.type)) return undefined;
 			if (node.type === "command") commandNodes.push(node);
 		} else {
-			if ([...node.type].some((char) => "&;|".includes(char)) && !allowedPunctuation.has(node.type)) {
+			if (
+				[...node.type].some((char) => "&;|".includes(char)) &&
+				!allowedPunctuation.has(node.type)
+			) {
 				return undefined;
 			}
 			if (!allowedPunctuation.has(node.type) && node.type.trim().length > 0) {
@@ -75,7 +84,9 @@ export function tryParseWordOnlyCommandsSequence(tree: Tree, src: string): strin
 	return commands;
 }
 
-export function parseShellLcPlainCommands(command: string[]): string[][] | undefined {
+export function parseShellLcPlainCommands(
+	command: string[],
+): string[][] | undefined {
 	const bash = extractBashCommand(command);
 	if (!bash) return undefined;
 	const [, script] = bash;
@@ -88,7 +99,14 @@ async function createBashParser(): Promise<Parser | undefined> {
 	try {
 		const { Language, Parser } = await import("web-tree-sitter");
 		await Parser.init();
-		const language = await Language.load(fileURLToPath(new URL("../../vendor/tree-sitter-bash/tree-sitter-bash.wasm", import.meta.url)));
+		const language = await Language.load(
+			fileURLToPath(
+				new URL(
+					"../../vendor/tree-sitter-bash/tree-sitter-bash.wasm",
+					import.meta.url,
+				),
+			),
+		);
 		const parser = new Parser();
 		parser.setLanguage(language);
 		return parser;
@@ -97,7 +115,10 @@ async function createBashParser(): Promise<Parser | undefined> {
 	}
 }
 
-function parsePlainCommandFromNode(command: Node, src: string): string[] | undefined {
+function parsePlainCommandFromNode(
+	command: Node,
+	src: string,
+): string[] | undefined {
 	if (command.type !== "command") return undefined;
 
 	const words: string[] = [];

@@ -10,10 +10,20 @@ const sourceRoot = resolve(process.env.CODEX_TOOLS_SOURCE_DIR ?? "src/tools");
 const platform = process.platform;
 const arch = process.arch;
 const exe = platform === "win32" ? `${binName}.exe` : binName;
-const outDir = resolve("src", "tools", toolDirs[binName] ?? binName, "bin", `${platform}-${arch}`);
+const outDir = resolve(
+	"src",
+	"tools",
+	toolDirs[binName] ?? binName,
+	"bin",
+	`${platform}-${arch}`,
+);
 const source = join(sourceRoot, "target", "release", exe);
 
-const cargo = spawnSync("cargo", ["build", "--release", "-p", packageName], { cwd: sourceRoot, stdio: "inherit", env: process.env });
+const cargo = spawnSync("cargo", ["build", "--release", "-p", packageName], {
+	cwd: sourceRoot,
+	stdio: "inherit",
+	env: process.env,
+});
 if (cargo.status !== 0) process.exit(cargo.status ?? 1);
 if (!existsSync(source)) {
 	console.error(`Expected ${source} after cargo build`);

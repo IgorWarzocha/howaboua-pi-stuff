@@ -1,4 +1,7 @@
-import { BINDING_METADATA_READER_SOURCE, BINDING_METADATA_RESTORE_SOURCE } from "./binding-metadata-source.ts";
+import {
+	BINDING_METADATA_READER_SOURCE,
+	BINDING_METADATA_RESTORE_SOURCE,
+} from "./binding-metadata-source.ts";
 import {
 	MAX_PROJECT_ENTRIES,
 	MAX_PROJECT_MANIFEST_BYTES,
@@ -12,19 +15,35 @@ export function projectBindingNamesSource(marker: string): string {
 	return `if (typeof globalThis.__piNotebook?.projectBindings !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.projectBindings"); console.log(${JSON.stringify(marker)} + JSON.stringify(globalThis.__piNotebook.projectBindings())); undefined;`;
 }
 
-export function parseProjectBindingNames(result: KernelExecutionResult, marker: string): string[] {
-	if (result.status !== "ok") throw new Error(result.errorText ?? "Project binding selection failed");
-	const output = result.items.filter(({ type }) => type === "input_text").map(({ text }) => text ?? "").join("");
+export function parseProjectBindingNames(
+	result: KernelExecutionResult,
+	marker: string,
+): string[] {
+	if (result.status !== "ok")
+		throw new Error(result.errorText ?? "Project binding selection failed");
+	const output = result.items
+		.filter(({ type }) => type === "input_text")
+		.map(({ text }) => text ?? "")
+		.join("");
 	const start = output.indexOf(marker);
-	if (start === -1) throw new Error("Project binding selection returned no result");
+	if (start === -1)
+		throw new Error("Project binding selection returned no result");
 	try {
-		const value = JSON.parse(output.slice(start + marker.length).split("\n", 1)[0]!) as unknown;
-		if (!Array.isArray(value) || value.length > MAX_PROJECT_ENTRIES || !value.every((name) => typeof name === "string" && IDENTIFIER.test(name))) {
+		const value = JSON.parse(
+			output.slice(start + marker.length).split("\n", 1)[0]!,
+		) as unknown;
+		if (
+			!Array.isArray(value) ||
+			value.length > MAX_PROJECT_ENTRIES ||
+			!value.every((name) => typeof name === "string" && IDENTIFIER.test(name))
+		) {
 			throw new Error("invalid project binding list");
 		}
 		return [...new Set(value)].sort();
 	} catch (error) {
-		throw new Error(`Project binding selection returned an invalid result: ${error instanceof Error ? error.message : String(error)}`);
+		throw new Error(
+			`Project binding selection returned an invalid result: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 }
 
@@ -42,7 +61,9 @@ export function projectStateCaptureSource(options: {
 	manifestPath: string;
 	maxBytes: number;
 }): string {
-	const captures = options.candidates.map((name) => `
+	const captures = options.candidates
+		.map(
+			(name) => `
   try {
     const __value = ${name};
     let __kind = "value";
@@ -73,7 +94,9 @@ export function projectStateCaptureSource(options: {
     __total += __bytes.byteLength;
   } catch (__error) {
     __skipped.push({ name: ${JSON.stringify(name)}, reason: String(__error instanceof Error ? __error.message : __error).slice(0, 240) });
-  }`).join("");
+  }`,
+		)
+		.join("");
 	return `{
   const { serialize } = await import("node:v8");
   const __max = ${options.maxBytes};
@@ -110,12 +133,15 @@ export function projectStateRestoreSource(
 	payloadPath: string,
 	clearNames: string[] = [],
 ): string {
-	const bindingNames = [...new Set([
-		...manifest.entries.map(({ name }) => name),
-		...clearNames,
-	])].slice(0, MAX_PROJECT_ENTRIES);
-	const currentBindings = bindingNames.map((name) => `
-  try { __current.set(${JSON.stringify(name)}, ${name}); } catch {}`).join("");
+	const bindingNames = [
+		...new Set([...manifest.entries.map(({ name }) => name), ...clearNames]),
+	].slice(0, MAX_PROJECT_ENTRIES);
+	const currentBindings = bindingNames
+		.map(
+			(name) => `
+  try { __current.set(${JSON.stringify(name)}, ${name}); } catch {}`,
+		)
+		.join("");
 	return `{
   const { deserialize, serialize } = await import("node:v8");
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});

@@ -122,8 +122,8 @@ export class ControllerLifecycle {
 			this.runtime.state.type === "dictation"
 				? this.runtime.state.session
 				: this.runtime.state.type === "connecting" &&
-						this.runtime.state.mode === "dictation" &&
-						this.runtime.state.phase === "starting"
+					  this.runtime.state.mode === "dictation" &&
+					  this.runtime.state.phase === "starting"
 					? this.runtime.state.session
 					: undefined;
 		if (!session) {

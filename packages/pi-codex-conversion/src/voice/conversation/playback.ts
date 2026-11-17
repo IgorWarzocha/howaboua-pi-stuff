@@ -15,7 +15,8 @@ export class RealtimePlayback {
 	}
 
 	audioActivity(): void {
-		if (!this.suppressed) this.speakerActiveUntil = Date.now() + SPEAKER_ACTIVITY_HOLD_MS;
+		if (!this.suppressed)
+			this.speakerActiveUntil = Date.now() + SPEAKER_ACTIVITY_HOLD_MS;
 	}
 
 	inputStarted(speechPending: boolean): void {
@@ -23,7 +24,12 @@ export class RealtimePlayback {
 		this.inputActive = true;
 		this.inputGeneration++;
 		// Quiet turns must accept their first audio before captions arrive.
-		if (this.assistantGeneration !== undefined || speechPending || this.speakerActiveUntil > Date.now() || this.suppressed)
+		if (
+			this.assistantGeneration !== undefined ||
+			speechPending ||
+			this.speakerActiveUntil > Date.now() ||
+			this.suppressed
+		)
 			this.suppress(true);
 	}
 

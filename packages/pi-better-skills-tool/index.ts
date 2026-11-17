@@ -41,9 +41,8 @@ export default async function skillsExtension(pi: ExtensionAPI): Promise<void> {
 	const ordinaryGuidelines = tool.promptGuidelines;
 	pi.registerTool(tool);
 	try {
-		const { registerGptPromptMode } = await import(
-			"@howaboua/pi-codex-conversion/prompt-mode"
-		);
+		const { registerGptPromptMode } =
+			await import("@howaboua/pi-codex-conversion/prompt-mode");
 		registerGptPromptMode(pi, (active) => {
 			gpt = active;
 			if (active)

@@ -25,7 +25,10 @@ export interface CodexConversationCallbacks {
 	onStatus(status: string): void;
 	onAudioDiagnostics?(diagnostics: VoiceAudioDiagnostics): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
-	rewriteDelegation?(turn: RealtimeVoiceTurn, signal: AbortSignal): Promise<PreparedVoiceTask>;
+	rewriteDelegation?(
+		turn: RealtimeVoiceTurn,
+		signal: AbortSignal,
+	): Promise<PreparedVoiceTask>;
 	onEndCall?(finalOutputObserved?: boolean, resultDelegationId?: string): void;
 	onDelegationError?(error: Error): void;
 	onUserTranscript(transcript: string): void;
@@ -203,7 +206,10 @@ export class CodexRealtimeConversation {
 		this.turns.handoff.progress(content, reasoningSummary);
 	}
 
-	agentResult(content: string, stopReason: AssistantMessage["stopReason"]): void {
+	agentResult(
+		content: string,
+		stopReason: AssistantMessage["stopReason"],
+	): void {
 		if (this.ending) return;
 		if (stopReason !== "stop") {
 			this.turns.handoff.progress(content);
@@ -282,12 +288,16 @@ export class CodexRealtimeConversation {
 					finish(new Error("The voice call closed before playback finished"));
 					return;
 				}
-				if (this.completedOutputs >= minimumOutputs && !this.turns.speakableResponsePending)
+				if (
+					this.completedOutputs >= minimumOutputs &&
+					!this.turns.speakableResponsePending
+				)
 					quiet = setTimeout(() => finish(), 500);
 			};
 			const aborted = () => finish(new Error("Playback wait cancelled"));
 			const timeout = setTimeout(
-				() => finish(new Error("Voice output did not finish within 30 seconds")),
+				() =>
+					finish(new Error("Voice output did not finish within 30 seconds")),
 				30_000,
 			);
 			const removeEvent = this.peer.onEvent(check);
@@ -306,7 +316,9 @@ export class CodexRealtimeConversation {
 	async waitForInput(signal: AbortSignal): Promise<void> {
 		do {
 			while (this.state === "active" && this.turns.hasPendingInput) {
-				if ((await interruptible(this.inputChanged.promise, signal)) === CANCELLED)
+				if (
+					(await interruptible(this.inputChanged.promise, signal)) === CANCELLED
+				)
 					signal.throwIfAborted();
 			}
 			if (this.turns instanceof ConversationTurns)
@@ -325,8 +337,10 @@ export class CodexRealtimeConversation {
 		this.inputChanged.resolve();
 		this.inputMuted = false;
 		this.setup.finish();
-		const accepted = this.finishingAcceptedWork && this.turns instanceof ConversationTurns
-			? this.turns.finishDelegations() : undefined;
+		const accepted =
+			this.finishingAcceptedWork && this.turns instanceof ConversationTurns
+				? this.turns.finishDelegations()
+				: undefined;
 		await this.peer.close();
 		if (this.finishingAcceptedWork) {
 			await accepted;
@@ -351,7 +365,8 @@ export class CodexRealtimeConversation {
 			if (this.turns instanceof PublicRealtimeTurns) this.turns.audioActivity();
 			else this.turns.playback.audioActivity();
 		}
-		if (event.type === "audio_diagnostics") this.callbacks.onAudioDiagnostics?.(event.diagnostics);
+		if (event.type === "audio_diagnostics")
+			this.callbacks.onAudioDiagnostics?.(event.diagnostics);
 		if (event.type === "data") {
 			if (!event.message || typeof event.message !== "object") return;
 			const message = event.message as {

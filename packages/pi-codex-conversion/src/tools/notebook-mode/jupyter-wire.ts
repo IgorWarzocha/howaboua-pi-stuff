@@ -37,7 +37,10 @@ export function createJupyterMessage(
 	};
 }
 
-export function encodeJupyterMessage(message: JupyterMessage, key: string): Buffer[] {
+export function encodeJupyterMessage(
+	message: JupyterMessage,
+	key: string,
+): Buffer[] {
 	const parts = [
 		Buffer.from(JSON.stringify(message.header)),
 		Buffer.from(JSON.stringify(message.parent_header)),
@@ -47,17 +50,28 @@ export function encodeJupyterMessage(message: JupyterMessage, key: string): Buff
 	return [DELIMITER, signature(parts, key), ...parts];
 }
 
-export function decodeJupyterMessage(frames: Buffer[], key: string): JupyterMessage | undefined {
+export function decodeJupyterMessage(
+	frames: Buffer[],
+	key: string,
+): JupyterMessage | undefined {
 	const delimiterIndex = frames.findIndex((frame) => frame.equals(DELIMITER));
-	if (delimiterIndex < 0 || delimiterIndex + 5 >= frames.length) return undefined;
+	if (delimiterIndex < 0 || delimiterIndex + 5 >= frames.length)
+		return undefined;
 	const supplied = frames[delimiterIndex + 1]!;
 	const parts = frames.slice(delimiterIndex + 2, delimiterIndex + 6);
 	const expected = signature(parts, key);
-	if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return undefined;
+	if (
+		supplied.length !== expected.length ||
+		!timingSafeEqual(supplied, expected)
+	)
+		return undefined;
 	try {
 		return {
 			header: JSON.parse(parts[0]!.toString()) as JupyterMessage["header"],
-			parent_header: JSON.parse(parts[1]!.toString()) as Record<string, unknown>,
+			parent_header: JSON.parse(parts[1]!.toString()) as Record<
+				string,
+				unknown
+			>,
 			metadata: JSON.parse(parts[2]!.toString()) as Record<string, unknown>,
 			content: JSON.parse(parts[3]!.toString()) as Record<string, unknown>,
 		};

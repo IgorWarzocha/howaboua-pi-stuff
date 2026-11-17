@@ -48,7 +48,8 @@ export default function voiceBridge(pi: ExtensionAPI) {
 		}, 90_000);
 		cleanup.unref();
 		const commands = new Set(
-			pi.getCommands()
+			pi
+				.getCommands()
 				.filter((command) => command.source === "extension")
 				.map((command) => command.name),
 		);

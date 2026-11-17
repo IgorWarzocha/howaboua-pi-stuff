@@ -53,9 +53,8 @@ async function resolveProvider(
 	const isConfiguredCodexTransport = (model: ExtensionContext["model"]) =>
 		isCodexToolRoute(config, model);
 	if (isConfiguredCodexTransport(ctx.model)) {
-		const { resolveCodexToolProvider } = await import(
-			"./codex-runtime/resolve.js"
-		);
+		const { resolveCodexToolProvider } =
+			await import("./codex-runtime/resolve.js");
 		return resolveCodexToolProvider(
 			ctx,
 			options.allowConfiguredProvider,
@@ -75,9 +74,8 @@ async function resolveProvider(
 		throw codexProviderFailure(error, legacy);
 	}
 	if (hosted) return hosted;
-	const { resolveCodexToolProvider } = await import(
-		"./codex-runtime/resolve.js"
-	);
+	const { resolveCodexToolProvider } =
+		await import("./codex-runtime/resolve.js");
 	return resolveCodexToolProvider(
 		ctx,
 		options.allowConfiguredProvider,
@@ -91,9 +89,8 @@ export async function executeCodexWebSearch(
 	signal: AbortSignal | undefined | null,
 	options: WebSearchToolOptions = {},
 ): Promise<WebRunExecutionResult> {
-	const { readCodexToolRouteConfig, resolveCodexToolModel } = await import(
-		"./codex-runtime/config.js"
-	);
+	const { readCodexToolRouteConfig, resolveCodexToolModel } =
+		await import("./codex-runtime/config.js");
 	const routeConfig = readCodexToolRouteConfig();
 	const provider = await resolveProvider(ctx, options, routeConfig);
 	const [{ codexToolProviderHeaders }, { fetchCodexTool }] = await Promise.all([

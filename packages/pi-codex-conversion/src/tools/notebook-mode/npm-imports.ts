@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+	lstatSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { withProjectStateLock } from "./project-state-lock.ts";
 import { projectStatePaths } from "./project-state-format.ts";
@@ -20,21 +27,32 @@ interface NpmImportsManifest {
 export function extractNotebookNpmImports(source: string): string[] {
 	const imports = new Set<string>();
 	for (const literal of stringLiterals(source)) {
-		if (!isExactNpmSpecifier(literal.value) || Buffer.byteLength(literal.value) > MAX_SPECIFIER_BYTES) continue;
+		if (
+			!isExactNpmSpecifier(literal.value) ||
+			Buffer.byteLength(literal.value) > MAX_SPECIFIER_BYTES
+		)
+			continue;
 		const prefix = literal.maskedPrefix.trimEnd();
-		if (/(?:^|[^\w$.])import\s*(?:\(\s*)?$|(?:^|[^\w$])from\s*$/.test(prefix)) imports.add(literal.value);
+		if (/(?:^|[^\w$.])import\s*(?:\(\s*)?$|(?:^|[^\w$])from\s*$/.test(prefix))
+			imports.add(literal.value);
 	}
 	return [...imports].sort();
 }
 
-export function readNotebookNpmImports(identity: { project: string; agentDir: string }): string[] {
+export function readNotebookNpmImports(identity: {
+	project: string;
+	agentDir: string;
+}): string[] {
 	const paths = npmImportPaths(identity);
 	try {
 		const stat = lstatSync(paths.manifest);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_FILE_BYTES) return [];
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_FILE_BYTES)
+			return [];
 		const text = readFileSync(paths.manifest, "utf8");
 		const value = JSON.parse(text) as unknown;
-		return isNpmImportsManifest(value, resolve(identity.project)) ? value.imports : [];
+		return isNpmImportsManifest(value, resolve(identity.project))
+			? value.imports
+			: [];
 	} catch {
 		return [];
 	}
@@ -48,9 +66,16 @@ export async function recordNotebookNpmImports(
 	const paths = npmImportPaths(identity);
 	mkdirSync(paths.directory, { recursive: true });
 	await withProjectStateLock(paths.lock, async () => {
-		const combined = [...new Set([...readNotebookNpmImports(identity), ...imports])].sort();
-		if (combined.length > MAX_IMPORTS) throw new Error(`Notebook npm inventory exceeds ${MAX_IMPORTS} imports`);
-		writeManifest(paths.manifest, { schema: NPM_IMPORTS_SCHEMA, project: resolve(identity.project), imports: combined });
+		const combined = [
+			...new Set([...readNotebookNpmImports(identity), ...imports]),
+		].sort();
+		if (combined.length > MAX_IMPORTS)
+			throw new Error(`Notebook npm inventory exceeds ${MAX_IMPORTS} imports`);
+		writeManifest(paths.manifest, {
+			schema: NPM_IMPORTS_SCHEMA,
+			project: resolve(identity.project),
+			imports: combined,
+		});
 	});
 	return readNotebookNpmImports(identity);
 }
@@ -62,12 +87,17 @@ export function formatNotebookNpmImportsNotice(imports: string[]): string {
 
 function npmImportPaths(identity: { project: string; agentDir: string }) {
 	const project = projectStatePaths(identity.project, identity.agentDir);
-	return { ...project, manifest: join(project.directory, "npm-imports.json"), lock: join(project.directory, "npm-imports.lock") };
+	return {
+		...project,
+		manifest: join(project.directory, "npm-imports.json"),
+		lock: join(project.directory, "npm-imports.lock"),
+	};
 }
 
 function writeManifest(path: string, manifest: NpmImportsManifest): void {
 	const text = `${JSON.stringify(manifest, null, 2)}\n`;
-	if (Buffer.byteLength(text) > MAX_FILE_BYTES) throw new Error("Notebook npm inventory is too large");
+	if (Buffer.byteLength(text) > MAX_FILE_BYTES)
+		throw new Error("Notebook npm inventory is too large");
 	const temporary = `${path}.${randomUUID()}.tmp`;
 	try {
 		writeFileSync(temporary, text, { mode: 0o600 });
@@ -89,26 +119,38 @@ function boundedImportList(imports: string[]): string {
 	return `${output || "none"}${included < imports.length ? `, and ${imports.length - included} more` : ""}`;
 }
 
-function isNpmImportsManifest(value: unknown, project: string): value is NpmImportsManifest {
+function isNpmImportsManifest(
+	value: unknown,
+	project: string,
+): value is NpmImportsManifest {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const record = value as Record<string, unknown>;
-	return record["schema"] === NPM_IMPORTS_SCHEMA
-		&& record["project"] === project
-		&& Array.isArray(record["imports"])
-		&& record["imports"].length <= MAX_IMPORTS
-		&& record["imports"].every((specifier) =>
-			typeof specifier === "string"
-			&& isExactNpmSpecifier(specifier)
-			&& Buffer.byteLength(specifier) <= MAX_SPECIFIER_BYTES);
+	return (
+		record["schema"] === NPM_IMPORTS_SCHEMA &&
+		record["project"] === project &&
+		Array.isArray(record["imports"]) &&
+		record["imports"].length <= MAX_IMPORTS &&
+		record["imports"].every(
+			(specifier) =>
+				typeof specifier === "string" &&
+				isExactNpmSpecifier(specifier) &&
+				Buffer.byteLength(specifier) <= MAX_SPECIFIER_BYTES,
+		)
+	);
 }
 
 function isExactNpmSpecifier(specifier: string): boolean {
 	if (!NPM_SPECIFIER.test(specifier)) return false;
-	const version = "[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?";
-	return new RegExp(`^npm:(?:@[^/\\s]+/[^@/\\s]+|[^@/\\s]+)@${version}(?:/[^\\s]+)?$`).test(specifier);
+	const version =
+		"[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?";
+	return new RegExp(
+		`^npm:(?:@[^/\\s]+/[^@/\\s]+|[^@/\\s]+)@${version}(?:/[^\\s]+)?$`,
+	).test(specifier);
 }
 
-function stringLiterals(source: string): Array<{ value: string; maskedPrefix: string }> {
+function stringLiterals(
+	source: string,
+): Array<{ value: string; maskedPrefix: string }> {
 	const output: Array<{ value: string; maskedPrefix: string }> = [];
 	const masked = source.split("");
 	for (let index = 0; index < source.length;) {
@@ -124,7 +166,8 @@ function stringLiterals(source: string): Array<{ value: string; maskedPrefix: st
 		if (current === "/" && next === "*") {
 			const end = source.indexOf("*/", index + 2);
 			const stop = end === -1 ? source.length : end + 2;
-			for (let cursor = index; cursor < stop; cursor += 1) if (source[cursor] !== "\n") masked[cursor] = " ";
+			for (let cursor = index; cursor < stop; cursor += 1)
+				if (source[cursor] !== "\n") masked[cursor] = " ";
 			index = stop;
 			continue;
 		}
@@ -133,13 +176,21 @@ function stringLiterals(source: string): Array<{ value: string; maskedPrefix: st
 			let characterClass = false;
 			while (cursor < source.length) {
 				if (source[cursor] === "\\") cursor += 2;
-				else if (source[cursor] === "[") { characterClass = true; cursor += 1; }
-				else if (source[cursor] === "]") { characterClass = false; cursor += 1; }
-				else if (source[cursor] === "/" && !characterClass) { cursor += 1; break; }
-				else cursor += 1;
+				else if (source[cursor] === "[") {
+					characterClass = true;
+					cursor += 1;
+				} else if (source[cursor] === "]") {
+					characterClass = false;
+					cursor += 1;
+				} else if (source[cursor] === "/" && !characterClass) {
+					cursor += 1;
+					break;
+				} else cursor += 1;
 			}
-			while (cursor < source.length && /[a-z]/i.test(source[cursor]!)) cursor += 1;
-			for (let position = index; position < cursor; position += 1) if (source[position] !== "\n") masked[position] = " ";
+			while (cursor < source.length && /[a-z]/i.test(source[cursor]!))
+				cursor += 1;
+			for (let position = index; position < cursor; position += 1)
+				if (source[position] !== "\n") masked[position] = " ";
 			index = cursor;
 			continue;
 		}
@@ -149,14 +200,23 @@ function stringLiterals(source: string): Array<{ value: string; maskedPrefix: st
 		}
 		const start = index;
 		const literal = readStaticLiteral(source, start, current);
-		for (let cursor = start; cursor < literal.stop; cursor += 1) if (source[cursor] !== "\n") masked[cursor] = " ";
+		for (let cursor = start; cursor < literal.stop; cursor += 1)
+			if (source[cursor] !== "\n") masked[cursor] = " ";
 		index = literal.stop;
-		if (literal.value !== undefined) output.push({ value: literal.value, maskedPrefix: masked.slice(0, start).join("") });
+		if (literal.value !== undefined)
+			output.push({
+				value: literal.value,
+				maskedPrefix: masked.slice(0, start).join(""),
+			});
 	}
 	return output;
 }
 
-function readStaticLiteral(source: string, start: number, delimiter: string): { stop: number; value?: string | undefined } {
+function readStaticLiteral(
+	source: string,
+	start: number,
+	delimiter: string,
+): { stop: number; value?: string | undefined } {
 	let index = start + 1;
 	let raw = "";
 	let dynamic = false;
@@ -172,7 +232,8 @@ function readStaticLiteral(source: string, start: number, delimiter: string): { 
 			const value = dynamic ? undefined : decodeStaticLiteral(raw);
 			return { stop: index + 1, ...(value === undefined ? {} : { value }) };
 		}
-		if (delimiter === "`" && char === "$" && source[index + 1] === "{") dynamic = true;
+		if (delimiter === "`" && char === "$" && source[index + 1] === "{")
+			dynamic = true;
 		if (delimiter !== "`" && (char === "\n" || char === "\r")) dynamic = true;
 		raw += char;
 		index += 1;
@@ -196,11 +257,21 @@ function decodeStaticLiteral(raw: string): string | undefined {
 			continue;
 		}
 		const simple: Record<string, string> = {
-			b: "\b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v",
-			"0": "\0", "\\": "\\", "'": "'", '"': '"', "`": "`",
+			b: "\b",
+			f: "\f",
+			n: "\n",
+			r: "\r",
+			t: "\t",
+			v: "\v",
+			"0": "\0",
+			"\\": "\\",
+			"'": "'",
+			'"': '"',
+			"`": "`",
 		};
 		if (escaped in simple) {
-			if (escaped === "0" && /[0-9]/.test(raw[index + 1] ?? "")) return undefined;
+			if (escaped === "0" && /[0-9]/.test(raw[index + 1] ?? ""))
+				return undefined;
 			value += simple[escaped]!;
 			continue;
 		}
@@ -214,7 +285,9 @@ function decodeStaticLiteral(raw: string): string | undefined {
 		if (escaped === "u") {
 			const braced = raw[index + 1] === "{";
 			const end = braced ? raw.indexOf("}", index + 2) : index + 5;
-			const hex = braced ? raw.slice(index + 2, end) : raw.slice(index + 1, end);
+			const hex = braced
+				? raw.slice(index + 2, end)
+				: raw.slice(index + 1, end);
 			if (end < 0 || !/^[0-9a-f]{1,6}$/i.test(hex)) return undefined;
 			const point = Number.parseInt(hex, 16);
 			if (point > 0x10ffff) return undefined;
@@ -232,5 +305,7 @@ function isRegexLiteralStart(source: string, index: number): boolean {
 	const previous = source.slice(0, index).trimEnd();
 	if (!previous) return true;
 	if ("([{:;,=!?&|+-*%^~<>".includes(previous.at(-1)!)) return true;
-	return /(?:^|[^\w$])(return|throw|case|delete|void|typeof|instanceof|in|of|yield|await|else|do)$/.test(previous);
+	return /(?:^|[^\w$])(return|throw|case|delete|void|typeof|instanceof|in|of|yield|await|else|do)$/.test(
+		previous,
+	);
 }

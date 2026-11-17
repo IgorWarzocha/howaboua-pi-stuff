@@ -1,26 +1,52 @@
 import type { createCodexSessionLifecycle } from "./session-lifecycle.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { syncAdapter } from "../adapter/activation/activation.ts";
-import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import {
+	isAdapterRuntime,
+	isCodeModeRuntime,
+	resolveCodexRuntimePlanForState,
+} from "../adapter/activation/runtime-plan.ts";
 import { supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
-import { prepareCodexSystemPrompt, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
+import {
+	prepareCodexSystemPrompt,
+	resolvePromptSkills,
+} from "../prompt/build-system-prompt.ts";
 import { projectCodeModeMcpSections } from "../prompt/mcp-server-section.ts";
-import { CODE_MODE_TOOL_NAMES, NOTEBOOK_MODE_TOOL_NAMES } from "../adapter/activation/tool-set.ts";
+import {
+	CODE_MODE_TOOL_NAMES,
+	NOTEBOOK_MODE_TOOL_NAMES,
+} from "../adapter/activation/tool-set.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexUiController } from "./ui.ts";
 import type { CodexShellLifecycle } from "./shell-lifecycle.ts";
-import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
+import {
+	flushCodexReasoningUpdates,
+	recordCodexReasoningUpdate,
+} from "../adapter/reasoning-updates.ts";
 import type { createCodexReserveController } from "../codex-usage/reserve.ts";
 import { recordCurrentTimeReminder } from "../adapter/current-time-reminder.ts";
 import { recordCodexContextBriefings } from "../context-briefings.ts";
 import { recordCodeModeToolkit } from "../adapter/code-mode/toolkit-updates.ts";
 import { recordNotebookStatus } from "../adapter/notebook-status.ts";
 import { captureNativeCompactionContext } from "../adapter/replay/context.ts";
-import type { ExtensionHandler, InputEvent, BeforeAgentStartEvent, AgentStartEvent, AgentSettledEvent, ContextWithSystemEvent, InputEventResult, BeforeAgentStartEventResult, ContextEventResult } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionHandler,
+	InputEvent,
+	BeforeAgentStartEvent,
+	AgentStartEvent,
+	AgentSettledEvent,
+	ContextWithSystemEvent,
+	InputEventResult,
+	BeforeAgentStartEventResult,
+	ContextEventResult,
+} from "@earendil-works/pi-coding-agent";
 
 export function createCodexTurnLifecycle(
 	pi: ExtensionAPI,
@@ -28,7 +54,10 @@ export function createCodexTurnLifecycle(
 	ui: CodexUiController,
 	codeMode: CodeModeRegistration,
 	reserve: ReturnType<typeof createCodexReserveController>,
-	session: Pick<ReturnType<typeof createCodexSessionLifecycle>, "activate" | "flushToolRefresh">,
+	session: Pick<
+		ReturnType<typeof createCodexSessionLifecycle>,
+		"activate" | "flushToolRefresh"
+	>,
 	shells: CodexShellLifecycle,
 ) {
 	const { state } = runtime;
@@ -38,9 +67,21 @@ export function createCodexTurnLifecycle(
 		selectedTools = pi.getActiveTools(),
 	): Promise<boolean> => {
 		const kind = resolveCodexRuntimePlanForState(ctx, state).kind;
-		if ((kind !== "notebook" && kind !== "ts")
-			|| !["exec", "wait", "notebook"].every((name) => selectedTools.includes(name))) return Promise.resolve(false);
-		return recordNotebookStatus(pi, ctx, state, messages ?? runtime.projectContextMessages(ctx), codeMode, kind);
+		if (
+			(kind !== "notebook" && kind !== "ts") ||
+			!["exec", "wait", "notebook"].every((name) =>
+				selectedTools.includes(name),
+			)
+		)
+			return Promise.resolve(false);
+		return recordNotebookStatus(
+			pi,
+			ctx,
+			state,
+			messages ?? runtime.projectContextMessages(ctx),
+			codeMode,
+			kind,
+		);
 	};
 
 	return {
@@ -49,7 +90,8 @@ export function createCodexTurnLifecycle(
 				session.activate(ctx);
 				syncAdapter(pi, ctx, state);
 			}
-			if (event.source !== "extension") runtime.voice.piInput(event.text, event.streamingBehavior);
+			if (event.source !== "extension")
+				runtime.voice.piInput(event.text, event.streamingBehavior);
 		},
 		beforeAgentStart: async (event, ctx) => {
 			session.activate(ctx);
@@ -57,20 +99,29 @@ export function createCodexTurnLifecycle(
 			if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 			runtime.autoReasoning.begin(ctx);
 			const plan = syncAdapter(pi, ctx, state);
-			if (plan.kind !== "notebook" && plan.kind !== "ts") state.notebookStatusMessageId = undefined;
+			if (plan.kind !== "notebook" && plan.kind !== "ts")
+				state.notebookStatusMessageId = undefined;
 			if (!isAdapterRuntime(plan)) {
 				state.preparedPrompt = undefined;
 				return undefined;
 			}
 			recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx));
-			const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
+			const skills = resolvePromptSkills(
+				event.systemPromptOptions?.skills,
+				hasNoSkillsFlag() ? [] : state.promptSkills,
+			);
 			prepareCodexSystemPrompt(event.systemPromptOptions, {
 				skills,
 				shell: getPiCodexRuntimeShell(ctx),
 				mode: plan.prompt ?? "normal",
-				heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
+				heavySystemPromptOverwrite:
+					state.config.prompt.heavySystemPromptOverwrite,
 			});
-			await refreshNotebookStatus(ctx, runtime.projectContextMessages(ctx), event.systemPromptOptions.selectedTools);
+			await refreshNotebookStatus(
+				ctx,
+				runtime.projectContextMessages(ctx),
+				event.systemPromptOptions.selectedTools,
+			);
 			return undefined;
 		},
 		agentStarted: async (_event, ctx) => {
@@ -85,7 +136,8 @@ export function createCodexTurnLifecycle(
 			runtime.finishTurn();
 			flushCodexReasoningUpdates(pi, ctx);
 			runtime.autoReasoning.settle(ctx);
-			const quotaExhausted = !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
+			const quotaExhausted =
+				!state.config.voiceFeaturesOnly && (await reserve.settled(ctx));
 			session.flushToolRefresh(ctx);
 			state.codexTurnState.reset();
 			runtime.voice.settleTurn();
@@ -97,7 +149,12 @@ export function createCodexTurnLifecycle(
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			try {
 				captureNativeCompactionContext(event.messages, ctx, state);
-				await recordCodexContextBriefings(pi, ctx, undefined, runtime.projectContextMessages(ctx, event.messages));
+				await recordCodexContextBriefings(
+					pi,
+					ctx,
+					undefined,
+					runtime.projectContextMessages(ctx, event.messages),
+				);
 			} catch (error) {
 				ctx.abort();
 				throw error;
@@ -105,18 +162,41 @@ export function createCodexTurnLifecycle(
 			let messages = runtime.projectContextMessages(ctx, event.messages);
 			if (await refreshNotebookStatus(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
-			if (isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) && recordCodeModeToolkit(pi, ctx, messages, codeMode.getTools(ctx), codeMode.getPromptTools(ctx)))
+			if (
+				isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state)) &&
+				recordCodeModeToolkit(
+					pi,
+					ctx,
+					messages,
+					codeMode.getTools(ctx),
+					codeMode.getPromptTools(ctx),
+				)
+			)
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			const developerMessages = supportsCodexDeveloperMessages(ctx, state);
-			if (developerMessages && recordCurrentTimeReminder(pi, ctx, messages, state.config.prompt.currentTimeReminderMinutes))
+			if (
+				developerMessages &&
+				recordCurrentTimeReminder(
+					pi,
+					ctx,
+					messages,
+					state.config.prompt.currentTimeReminderMinutes,
+				)
+			)
 				messages = runtime.projectContextMessages(ctx, event.messages);
 			// Runtime shell state follows the admitted conversation and other notices, never the static prefix.
 			if (shells.recordBriefing(ctx, messages))
 				messages = runtime.projectContextMessages(ctx, event.messages);
-			const required = plan.kind === "notebook" || plan.kind === "ts" ? NOTEBOOK_MODE_TOOL_NAMES : CODE_MODE_TOOL_NAMES;
+			const required =
+				plan.kind === "notebook" || plan.kind === "ts"
+					? NOTEBOOK_MODE_TOOL_NAMES
+					: CODE_MODE_TOOL_NAMES;
 			try {
-				messages = projectCodeModeMcpSections(messages, isCodeModeRuntime(plan)
-					&& required.every(name => pi.getActiveTools().includes(name)));
+				messages = projectCodeModeMcpSections(
+					messages,
+					isCodeModeRuntime(plan) &&
+						required.every((name) => pi.getActiveTools().includes(name)),
+				);
 			} catch (error) {
 				// Pi reports hook errors and continues; abort rather than send unadapted discovery guidance.
 				ctx.abort();
@@ -136,11 +216,21 @@ export function createCodexTurnLifecycle(
 		},
 		refreshNotebookStatus,
 	} satisfies {
-		refreshNotebookStatus: (ctx: ExtensionContext, messages?: readonly AgentMessage[], selectedTools?: string[]) => Promise<boolean>;
+		refreshNotebookStatus: (
+			ctx: ExtensionContext,
+			messages?: readonly AgentMessage[],
+			selectedTools?: string[],
+		) => Promise<boolean>;
 		input: ExtensionHandler<InputEvent, InputEventResult>;
-		beforeAgentStart: ExtensionHandler<BeforeAgentStartEvent, BeforeAgentStartEventResult>;
+		beforeAgentStart: ExtensionHandler<
+			BeforeAgentStartEvent,
+			BeforeAgentStartEventResult
+		>;
 		agentStarted: ExtensionHandler<AgentStartEvent>;
 		agentSettled: ExtensionHandler<AgentSettledEvent>;
-		contextWithSystem: ExtensionHandler<ContextWithSystemEvent, ContextEventResult>;
+		contextWithSystem: ExtensionHandler<
+			ContextWithSystemEvent,
+			ContextEventResult
+		>;
 	};
 }

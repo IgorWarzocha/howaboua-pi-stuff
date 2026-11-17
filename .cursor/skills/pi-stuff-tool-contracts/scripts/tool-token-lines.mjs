@@ -5,30 +5,46 @@ import { getEncoding } from "js-tiktoken";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
-const unknownFlags = args.filter((arg) => arg.startsWith("--") && arg !== "--json");
+const unknownFlags = args.filter(
+	(arg) => arg.startsWith("--") && arg !== "--json",
+);
 const positional = args.filter((arg) => !arg.startsWith("--"));
 
 if (unknownFlags.length > 0 || positional.length > 1) {
-	console.error("Usage: tool-token-lines.mjs [--json] [extension-file-or-directory]");
+	console.error(
+		"Usage: tool-token-lines.mjs [--json] [extension-file-or-directory]",
+	);
 	process.exit(1);
 }
 
 const root = resolve(positional[0] ?? process.cwd());
 const enc = getEncoding("o200k_base");
-const skipDirs = new Set(["node_modules", "dist", ".git", ".pi", ".changeset", "tests", "test", "coverage"]);
+const skipDirs = new Set([
+	"node_modules",
+	"dist",
+	".git",
+	".pi",
+	".changeset",
+	"tests",
+	"test",
+	"coverage",
+]);
 const codeExts = new Set([".ts", ".tsx", ".js", ".mjs"]);
 const legacyPatterns = [
 	{
 		pattern: /@sinclair\/typebox(?:\/compiler)?/,
-		message: "Replace @sinclair/typebox with typebox 1.x and update the schema imports.",
+		message:
+			"Replace @sinclair/typebox with typebox 1.x and update the schema imports.",
 	},
 	{
 		pattern: /@mariozechner\/pi-[A-Za-z0-9-]+/,
-		message: "Replace the old Pi package scope with the matching @earendil-works/pi-* package.",
+		message:
+			"Replace the old Pi package scope with the matching @earendil-works/pi-* package.",
 	},
 	{
 		pattern: /\b(?:CustomAgentTool|ToolAPI|ToolContext|ToolSessionEvent)\b/,
-		message: "Port removed custom-tool types and execution APIs to the current ExtensionAPI tool contract.",
+		message:
+			"Port removed custom-tool types and execution APIs to the current ExtensionAPI tool contract.",
 	},
 ];
 
@@ -79,15 +95,27 @@ function findLegacyIssues(path) {
 		let inImport = false;
 		lines.forEach((line, index) => {
 			const trimmed = line.trim();
-			if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return;
+			if (
+				trimmed.startsWith("//") ||
+				trimmed.startsWith("*") ||
+				trimmed.startsWith("/*")
+			)
+				return;
 			if (/^\s*import\b/.test(line)) inImport = true;
-			const dependencyContext = packageJson || inImport || /\brequire\s*\(/.test(line);
+			const dependencyContext =
+				packageJson || inImport || /\brequire\s*\(/.test(line);
 			if (!dependencyContext) return;
 			for (const legacy of legacyPatterns) {
 				if (!legacy.pattern.test(line)) continue;
-				issues.push({ file: relative(base, file), line: index + 1, message: legacy.message, text: shownText(line) });
+				issues.push({
+					file: relative(base, file),
+					line: index + 1,
+					message: legacy.message,
+					text: shownText(line),
+				});
 			}
-			if (inImport && (/\bfrom\s*["']/.test(line) || /;\s*$/.test(line))) inImport = false;
+			if (inImport && (/\bfrom\s*["']/.test(line) || /;\s*$/.test(line)))
+				inImport = false;
 		});
 	}
 	return issues;
@@ -131,8 +159,9 @@ function startsToolDefinition(line) {
 
 function startsParameterSchema(line) {
 	return (
-		/\b(?:export\s+)?(?:const|let|var)\s+[A-Za-z0-9_]+\s*=\s*(?:Type\.|StringEnum\s*\()/.test(line) ||
-		/\bparameters\s*:\s*(?:Type\.|StringEnum\s*\()/.test(line)
+		/\b(?:export\s+)?(?:const|let|var)\s+[A-Za-z0-9_]+\s*=\s*(?:Type\.|StringEnum\s*\()/.test(
+			line,
+		) || /\bparameters\s*:\s*(?:Type\.|StringEnum\s*\()/.test(line)
 	);
 }
 
@@ -145,15 +174,26 @@ function isToolPromptLine(line) {
 }
 
 function isSchemaLine(line) {
-	const property = line.match(/^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*(?:Type\.|StringEnum\b)/)?.[1];
+	const property = line.match(
+		/^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*(?:Type\.|StringEnum\b)/,
+	)?.[1];
 	if (property && property !== "parameters") return true;
-	return /^\s*description\s*:/.test(line) || /\b(?:Type\.[A-Za-z]+|StringEnum)\b.*\bdescription\s*:/.test(line);
+	return (
+		/^\s*description\s*:/.test(line) ||
+		/\b(?:Type\.[A-Za-z]+|StringEnum)\b.*\bdescription\s*:/.test(line)
+	);
 }
 
 function addRow(rows, rel, index, line, kind) {
 	const text = shownText(line);
 	if (!text) return;
-	rows.push({ file: rel, line: index + 1, tokens: tokenCount(text), kind, text });
+	rows.push({
+		file: rel,
+		line: index + 1,
+		tokens: tokenCount(text),
+		kind,
+		text,
+	});
 }
 
 if (!existsSync(root)) {
@@ -169,7 +209,8 @@ if (legacyIssues.length > 0) {
 				{
 					root,
 					error: "legacy_pi_tool_api",
-					message: "Port this extension to the current Pi tool API before model-facing review.",
+					message:
+						"Port this extension to the current Pi tool API before model-facing review.",
 					issues: legacyIssues,
 				},
 				null,
@@ -177,7 +218,9 @@ if (legacyIssues.length > 0) {
 			),
 		);
 	} else {
-		console.error("Legacy Pi tool API detected. Port before model-facing review:\n");
+		console.error(
+			"Legacy Pi tool API detected. Port before model-facing review:\n",
+		);
 		for (const issue of legacyIssues) {
 			console.error(`- ${issue.file}:${issue.line}: ${issue.message}`);
 			console.error(`  ${issue.text}`);
@@ -188,7 +231,10 @@ if (legacyIssues.length > 0) {
 
 const rows = [];
 for (const file of walk(root)) {
-	const rel = relative(statSync(root).isDirectory() ? root : resolve(root, ".."), file);
+	const rel = relative(
+		statSync(root).isDirectory() ? root : resolve(root, ".."),
+		file,
+	);
 	const lines = readFileSync(file, "utf8").split(/\r?\n/);
 	let inTool = false;
 	let inParameterSchema = false;
@@ -226,15 +272,24 @@ for (const file of walk(root)) {
 		if (pendingProp && /["`']/.test(line)) {
 			addRow(rows, rel, index, line, pendingProp);
 			if (/[,;]\s*$/.test(line.trim())) pendingProp = null;
-		} else if (wasInGuidelines && /["'`]/.test(line) && !/^[\]})]/.test(line.trim())) {
+		} else if (
+			wasInGuidelines &&
+			/["'`]/.test(line) &&
+			!/^[\]})]/.test(line.trim())
+		) {
 			addRow(rows, rel, index, line, "prompt");
-		} else if ((kind === "prompt" && isToolPromptLine(line)) || (kind === "schema" && isSchemaLine(line))) {
+		} else if (
+			(kind === "prompt" && isToolPromptLine(line)) ||
+			(kind === "schema" && isSchemaLine(line))
+		) {
 			addRow(rows, rel, index, line, kind);
-			if (/\b(description|promptSnippet)\s*:\s*$/.test(line)) pendingProp = kind;
+			if (/\b(description|promptSnippet)\s*:\s*$/.test(line))
+				pendingProp = kind;
 		}
 
 		if (wasInGuidelines && /^\s*\]/.test(line)) inPromptGuidelines = false;
-		if (inInlineParameters && inlineParameterDepth <= 0) inInlineParameters = false;
+		if (inInlineParameters && inlineParameterDepth <= 0)
+			inInlineParameters = false;
 		if (depth <= 0) {
 			inTool = false;
 			inParameterSchema = false;
@@ -247,15 +302,22 @@ for (const file of walk(root)) {
 
 rows.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 const totalTokens = rows.reduce((sum, row) => sum + row.tokens, 0);
-const measurement = "o200k tokens over detected source lines; heuristic proxy, not serialized prompt cost";
+const measurement =
+	"o200k tokens over detected source lines; heuristic proxy, not serialized prompt cost";
 
 if (json) {
-	console.log(JSON.stringify({ root, measurement, totalTokens, rows }, null, 2));
+	console.log(
+		JSON.stringify({ root, measurement, totalTokens, rows }, null, 2),
+	);
 } else {
 	for (const row of rows) {
-		console.log(`${String(row.tokens).padStart(4)}  ${row.file}:${row.line}  ${row.kind.padEnd(6)}  ${row.text}`);
+		console.log(
+			`${String(row.tokens).padStart(4)}  ${row.file}:${row.line}  ${row.kind.padEnd(6)}  ${row.text}`,
+		);
 	}
 	console.error(`\ndetected surface lines: ${rows.length}`);
 	console.error(`o200k source-line token proxy: ${totalTokens}`);
-	console.error("heuristic only; dynamic strings and provider serialization may differ");
+	console.error(
+		"heuristic only; dynamic strings and provider serialization may differ",
+	);
 }

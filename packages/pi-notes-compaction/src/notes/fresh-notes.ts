@@ -181,9 +181,9 @@ function noteEvidence(
 		.filter((receipt): receipt is NoteReceipt =>
 			Boolean(
 				receipt &&
-					receipt.origin !== "routed" &&
-					receipt.windowId === windowId &&
-					(!runId || receipt.runId === runId),
+				receipt.origin !== "routed" &&
+				receipt.windowId === windowId &&
+				(!runId || receipt.runId === runId),
 			),
 		);
 	const messages = buildSessionProjection(run).messages;

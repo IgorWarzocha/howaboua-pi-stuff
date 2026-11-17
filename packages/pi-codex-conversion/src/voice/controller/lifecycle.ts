@@ -46,7 +46,10 @@ export class ControllerLifecycle {
 			if (currentVoiceSession(this.runtime.state) === session)
 				await this.stop({ announce: true, finishAcceptedWork: true });
 		} catch (error) {
-			if (currentVoiceSession(this.runtime.state) === session && session.playbackSealed) {
+			if (
+				currentVoiceSession(this.runtime.state) === session &&
+				session.playbackSealed
+			) {
 				this.runtime.context?.ui.notify(
 					`Voice ended before speaker playback could be confirmed: ${error instanceof Error ? error.message : String(error)}`,
 					"error",
@@ -123,8 +126,8 @@ export class ControllerLifecycle {
 			this.runtime.state.type === "dictation"
 				? this.runtime.state.session
 				: this.runtime.state.type === "connecting" &&
-						this.runtime.state.mode === "dictation" &&
-						this.runtime.state.phase === "starting"
+					  this.runtime.state.mode === "dictation" &&
+					  this.runtime.state.phase === "starting"
 					? this.runtime.state.session
 					: undefined;
 		if (!session) {

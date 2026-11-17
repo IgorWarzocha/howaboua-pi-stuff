@@ -8,14 +8,25 @@ export interface CodexTurnState {
 	reset(): void;
 }
 
-export function withCodexTurnState<T extends { client_metadata?: Record<string, unknown> | undefined }>(body: T, turnState: CodexTurnState | undefined): T {
+export function withCodexTurnState<
+	T extends { client_metadata?: Record<string, unknown> | undefined },
+>(body: T, turnState: CodexTurnState | undefined): T {
 	const current = turnState?.current();
 	return current
-		? { ...body, client_metadata: { ...(body.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: current } }
+		? {
+				...body,
+				client_metadata: {
+					...(body.client_metadata ?? {}),
+					[CODEX_TURN_STATE_HEADER]: current,
+				},
+			}
 		: body;
 }
 
-export function withCodexTurnStateHeader(headers: Headers, turnState: CodexTurnState | undefined): Headers {
+export function withCodexTurnStateHeader(
+	headers: Headers,
+	turnState: CodexTurnState | undefined,
+): Headers {
 	const attemptHeaders = new Headers(headers);
 	const current = turnState?.current();
 	if (current) attemptHeaders.set(CODEX_TURN_STATE_HEADER, current);
@@ -50,14 +61,23 @@ export function createCodexTurnState(): CodexTurnState {
 	};
 }
 
-export function extractCodexTurnStateFromWebSocketEvent(event: unknown): string | undefined {
+export function extractCodexTurnStateFromWebSocketEvent(
+	event: unknown,
+): string | undefined {
 	if (!event || typeof event !== "object") return undefined;
 	const type = (event as { type?: unknown }).type;
-	if (type !== "response.metadata" && type !== "codex.response.metadata") return undefined;
+	if (type !== "response.metadata" && type !== "codex.response.metadata")
+		return undefined;
 	const headers = (event as { headers?: unknown }).headers;
-	if (!headers || typeof headers !== "object" || Array.isArray(headers)) return undefined;
+	if (!headers || typeof headers !== "object" || Array.isArray(headers))
+		return undefined;
 	for (const [name, value] of Object.entries(headers)) {
-		if (name.toLowerCase() === CODEX_TURN_STATE_HEADER && typeof value === "string" && value.trim()) return value.trim();
+		if (
+			name.toLowerCase() === CODEX_TURN_STATE_HEADER &&
+			typeof value === "string" &&
+			value.trim()
+		)
+			return value.trim();
 	}
 	return undefined;
 }

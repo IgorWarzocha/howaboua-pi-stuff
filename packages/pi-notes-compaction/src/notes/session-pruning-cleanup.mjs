@@ -155,6 +155,7 @@ export async function cleanSparseSession(file, sessionId, checkOwners) {
 		try {
 			unlinkSync(temp);
 		} catch (error) {
+			// oxlint-disable-next-line no-unsafe-finally -- Cleanup failure must remain visible, even when the primary operation failed.
 			if (!vanished(error)) throw error;
 		} finally {
 			releaseLock?.();

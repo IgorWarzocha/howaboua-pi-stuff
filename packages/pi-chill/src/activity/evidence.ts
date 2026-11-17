@@ -9,6 +9,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 export function compact(value: string): string {
 	const plain = stripTerminalSequences(value)
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		.replace(/[\x00-\x1f\x7f-\x9f]/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();

@@ -15,15 +15,21 @@ export class PiToolCallScope {
 		this.signal = signal;
 	}
 
-	run(...[name, args, options]: Parameters<ExecuteTool>): ReturnType<ExecuteTool> | undefined {
+	run(
+		...[name, args, options]: Parameters<ExecuteTool>
+	): ReturnType<ExecuteTool> | undefined {
 		if (!this.accepting) return undefined;
 		if (typeof this.context.executeTool !== "function")
 			throw new Error("MCP calls require Pi's nested tool executor");
-		const signals = [this.signal, options?.signal].filter((signal): signal is AbortSignal => Boolean(signal));
-		const pending = this.context.executeTool(name, args, {
-			...options,
-			...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
-		}).finally(() => this.pending.delete(pending));
+		const signals = [this.signal, options?.signal].filter(
+			(signal): signal is AbortSignal => Boolean(signal),
+		);
+		const pending = this.context
+			.executeTool(name, args, {
+				...options,
+				...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
+			})
+			.finally(() => this.pending.delete(pending));
 		this.pending.add(pending);
 		return pending;
 	}

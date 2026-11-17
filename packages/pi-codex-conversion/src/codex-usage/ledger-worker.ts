@@ -11,7 +11,12 @@ import {
 import { dirname } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
-import { observeWeeklyUsage, recordSpend, usageAccount, WEEK_MS } from "./ledger.ts";
+import {
+	observeWeeklyUsage,
+	recordSpend,
+	usageAccount,
+	WEEK_MS,
+} from "./ledger.ts";
 import {
 	parseUsageLedger,
 	type UsageAccount,
@@ -106,10 +111,18 @@ async function updateUsageLedger(
 	}
 }
 
-function historyRange(ledger: UsageLedger, key: string): Extract<LedgerResult, { kind: "history" }> | undefined {
+function historyRange(
+	ledger: UsageLedger,
+	key: string,
+): Extract<LedgerResult, { kind: "history" }> | undefined {
 	const account = ledger.accounts[key];
-	if (!account?.current || account.since <= account.current.start - WEEK_MS || account.history
-		|| (ledger.historyOwner && ledger.historyOwner !== key)) return;
+	if (
+		!account?.current ||
+		account.since <= account.current.start - WEEK_MS ||
+		account.history ||
+		(ledger.historyOwner && ledger.historyOwner !== key)
+	)
+		return;
 	return { kind: "history", start: account.current.start, to: account.since };
 }
 
@@ -127,7 +140,10 @@ async function execute(request: LedgerRequest): Promise<LedgerResult> {
 	}
 	// Most refreshes have nothing to import. Avoid rewriting the ledger just to
 	// discover that; eligible reservations are checked again under the lock.
-	if (request.operation.kind === "reserve-history" && !historyRange(readUsageLedgerFile(path), key))
+	if (
+		request.operation.kind === "reserve-history" &&
+		!historyRange(readUsageLedgerFile(path), key)
+	)
 		return { kind: "updated" };
 	let result: LedgerResult = { kind: "updated" };
 	await updateUsageLedger(

@@ -1,5 +1,12 @@
-import { BINDING_METADATA_READER_SOURCE, BINDING_METADATA_RESTORE_SOURCE } from "./binding-metadata-source.ts";
-import { CHECKPOINT_SCHEMA, type CheckpointManifest, type NotebookCheckpointIdentity } from "./checkpoint-format.ts";
+import {
+	BINDING_METADATA_READER_SOURCE,
+	BINDING_METADATA_RESTORE_SOURCE,
+} from "./binding-metadata-source.ts";
+import {
+	CHECKPOINT_SCHEMA,
+	type CheckpointManifest,
+	type NotebookCheckpointIdentity,
+} from "./checkpoint-format.ts";
 import { MAX_PROJECT_MANIFEST_BYTES } from "./project-state-format.ts";
 
 export function checkpointSource(options: {
@@ -15,7 +22,9 @@ export function checkpointSource(options: {
 	skippedInvalid: Array<{ name: string; reason: string }>;
 	maxBytes: number;
 }): string {
-	const captures = options.candidates.map((name) => `
+	const captures = options.candidates
+		.map(
+			(name) => `
   try {
     const __value = ${name};
     let __kind = "value";
@@ -50,7 +59,9 @@ export function checkpointSource(options: {
     }
   } catch (__error) {
     __skip(${JSON.stringify(name)}, __error instanceof Error ? __error.message : String(__error));
-  }`).join("");
+  }`,
+		)
+		.join("");
 	return `{
   const { serialize } = await import("node:v8");
   const __max = ${options.maxBytes};
@@ -98,7 +109,11 @@ ${BINDING_METADATA_READER_SOURCE}
 }`;
 }
 
-export function restoreSource(manifest: CheckpointManifest, payloadPath: string, excludeNames: ReadonlySet<string> = new Set()): string {
+export function restoreSource(
+	manifest: CheckpointManifest,
+	payloadPath: string,
+	excludeNames: ReadonlySet<string> = new Set(),
+): string {
 	return `{
   const { deserialize } = await import("node:v8");
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});

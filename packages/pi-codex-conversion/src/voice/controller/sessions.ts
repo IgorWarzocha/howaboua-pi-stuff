@@ -45,28 +45,53 @@ export async function startControllerConversation(options: {
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
 }): Promise<void> {
-	if (options.signal?.aborted) { await options.peer?.close(); return; }
-	const { CodexRealtimeConversation } = await import("../conversation/session.ts");
-	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) { await options.peer?.close(); return; }
-	const realtimePeer = options.peer ?? new (await import("../conversation/native-peer.ts")).NativeCodexRealtimePeer();
-	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) { await realtimePeer.close(); return; }
+	if (options.signal?.aborted) {
+		await options.peer?.close();
+		return;
+	}
+	const { CodexRealtimeConversation } =
+		await import("../conversation/session.ts");
+	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
+		await options.peer?.close();
+		return;
+	}
+	const realtimePeer =
+		options.peer ??
+		new (
+			await import("../conversation/native-peer.ts")
+		).NativeCodexRealtimePeer();
+	if (!options.lifecycle.stillAuthorizing() || options.signal?.aborted) {
+		await realtimePeer.close();
+		return;
+	}
 	let session!: CodexRealtimeConversation;
-	session = new CodexRealtimeConversation({
-		onError: (error) => options.lifecycle.onError(session, error),
-		onDrop: (error) => options.lifecycle.onDrop(session, error),
-		onStatus: options.lifecycle.onStatus,
-		onEndCall: () => options.lifecycle.onEndCall(session),
-		onTurn: (turn) => options.lifecycle.onTurn(session, turn),
-		onUserTranscript: options.lifecycle.onUserTranscript,
-		onTranscriptTail: options.lifecycle.onTranscriptTail,
-		onAudioDiagnostics: options.lifecycle.onAudioDiagnostics,
-		rewriteDelegation: (turn, signal) => rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
-		onDelegationError: (error) => options.ctx.ui.notify(error.message, "error"),
-		onEvent: options.lifecycle.onEvent,
-	}, realtimePeer, options.config.voice.model !== "codex-live-1.1");
+	session = new CodexRealtimeConversation(
+		{
+			onError: (error) => options.lifecycle.onError(session, error),
+			onDrop: (error) => options.lifecycle.onDrop(session, error),
+			onStatus: options.lifecycle.onStatus,
+			onEndCall: () => options.lifecycle.onEndCall(session),
+			onTurn: (turn) => options.lifecycle.onTurn(session, turn),
+			onUserTranscript: options.lifecycle.onUserTranscript,
+			onTranscriptTail: options.lifecycle.onTranscriptTail,
+			onAudioDiagnostics: options.lifecycle.onAudioDiagnostics,
+			rewriteDelegation: (turn, signal) =>
+				rewriteTaskDelegation(options.ctx, options.config.voice, turn, signal),
+			onDelegationError: (error) =>
+				options.ctx.ui.notify(error.message, "error"),
+			onEvent: options.lifecycle.onEvent,
+		},
+		realtimePeer,
+		options.config.voice.model !== "codex-live-1.1",
+	);
 	options.lifecycle.onCreated(session);
-	if (options.signal?.aborted) { await session.close(); return; }
-	const closeOnAbort = () => { void session.close(); };
+	if (options.signal?.aborted) {
+		await session.close();
+		return;
+	}
+	const closeOnAbort = () => {
+		void session.close();
+	};
 	options.signal?.addEventListener("abort", closeOnAbort, { once: true });
 	try {
 		await session.start(
@@ -85,11 +110,13 @@ export async function startControllerConversation(options: {
 		if (options.greeting) {
 			setTimeout(() => {
 				if (options.lifecycle.isCurrent(session))
-					session.greet(options.greeting === "contextual", options.greeting === "handoff");
+					session.greet(
+						options.greeting === "contextual",
+						options.greeting === "handoff",
+					);
 			}, 0).unref?.();
 		}
-	}
-	else await session.close();
+	} else await session.close();
 }
 
 export async function startControllerDictation(options: {

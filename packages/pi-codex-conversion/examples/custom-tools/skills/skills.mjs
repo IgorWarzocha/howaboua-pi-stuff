@@ -57,14 +57,18 @@ function parseBlockScalar(lines, start, parentIndent, style) {
 		}
 		const indent = line.match(/^\s*/)[0].length;
 		if (indent <= parentIndent) break;
-		commonIndent = commonIndent === undefined ? indent : Math.min(commonIndent, indent);
+		commonIndent =
+			commonIndent === undefined ? indent : Math.min(commonIndent, indent);
 		values.push(line);
 	}
 	const indent = commonIndent ?? parentIndent + 1;
-	const normalized = values.map((line) => line.slice(Math.min(indent, line.length)));
-	const value = style === ">"
-		? normalized.join("\n").replace(/([^\n])\n(?=[^\n])/g, "$1 ")
-		: normalized.join("\n");
+	const normalized = values.map((line) =>
+		line.slice(Math.min(indent, line.length)),
+	);
+	const value =
+		style === ">"
+			? normalized.join("\n").replace(/([^\n])\n(?=[^\n])/g, "$1 ")
+			: normalized.join("\n");
 	return { value: value.trim(), nextIndex: index };
 }
 
@@ -72,7 +76,9 @@ export function parseSkillDocument(content, label) {
 	const normalized = content.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
 	const lines = normalized.split("\n");
 	if (lines[0] !== "---") throw new Error(`${label}: missing YAML frontmatter`);
-	const end = lines.findIndex((line, index) => index > 0 && (line === "---" || line === "..."));
+	const end = lines.findIndex(
+		(line, index) => index > 0 && (line === "---" || line === "..."),
+	);
 	if (end < 0) throw new Error(`${label}: unterminated YAML frontmatter`);
 
 	const fields = {};
@@ -83,7 +89,12 @@ export function parseSkillDocument(content, label) {
 		const [, whitespace, field, rawValue] = match;
 		const block = /^([>|])[-+]?\s*$/.exec(rawValue);
 		if (block) {
-			const parsed = parseBlockScalar(lines.slice(0, end), index + 1, whitespace.length, block[1]);
+			const parsed = parseBlockScalar(
+				lines.slice(0, end),
+				index + 1,
+				whitespace.length,
+				block[1],
+			);
 			fields[field] = parsed.value;
 			index = parsed.nextIndex - 1;
 			continue;
@@ -92,7 +103,10 @@ export function parseSkillDocument(content, label) {
 	}
 	return {
 		frontmatter: fields,
-		body: lines.slice(end + 1).join("\n").trim(),
+		body: lines
+			.slice(end + 1)
+			.join("\n")
+			.trim(),
 	};
 }
 
@@ -100,9 +114,12 @@ function validateSkill(skill) {
 	const errors = [];
 	if (!skill.name) errors.push("name is required");
 	else {
-		if (skill.name.length > MAX_NAME_LENGTH) errors.push(`name exceeds ${MAX_NAME_LENGTH} characters`);
+		if (skill.name.length > MAX_NAME_LENGTH)
+			errors.push(`name exceeds ${MAX_NAME_LENGTH} characters`);
 		if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skill.name)) {
-			errors.push("name must contain only lowercase letters, numbers, and single hyphens");
+			errors.push(
+				"name must contain only lowercase letters, numbers, and single hyphens",
+			);
 		}
 	}
 	if (!skill.description?.trim()) errors.push("description is required");
@@ -110,12 +127,16 @@ function validateSkill(skill) {
 		errors.push(`description exceeds ${MAX_DESCRIPTION_LENGTH} characters`);
 	}
 	if (!skill.body) errors.push("Markdown body is required");
-	if (errors.length) throw new Error(`${skill.packageName}: ${errors.join("; ")}`);
+	if (errors.length)
+		throw new Error(`${skill.packageName}: ${errors.join("; ")}`);
 }
 
 function skillFileIn(directory, packageName) {
-	const matches = SKILL_FILENAMES.map((name) => join(directory, name)).filter(existsSync);
-	if (matches.length > 1) throw new Error(`${packageName}: keep only one of SKILL.md or SKILL.MD`);
+	const matches = SKILL_FILENAMES.map((name) => join(directory, name)).filter(
+		existsSync,
+	);
+	if (matches.length > 1)
+		throw new Error(`${packageName}: keep only one of SKILL.md or SKILL.MD`);
 	return matches[0];
 }
 
@@ -169,12 +190,18 @@ export function discoverSkills(root = defaultSkillsDir()) {
 			continue;
 		}
 		if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.name)) {
-			throw new Error(`${entry.name}: category names must contain only lowercase letters, numbers, and single hyphens`);
+			throw new Error(
+				`${entry.name}: category names must contain only lowercase letters, numbers, and single hyphens`,
+			);
 		}
 		for (const child of directoryEntries(directory)) {
 			const childDirectory = join(directory, child.name);
 			if (entryKind(child, childDirectory) !== "directory") continue;
-			const skill = loadSkill(childDirectory, `${entry.name}/${child.name}`, entry.name);
+			const skill = loadSkill(
+				childDirectory,
+				`${entry.name}/${child.name}`,
+				entry.name,
+			);
 			if (skill) skills.push(skill);
 		}
 	}
@@ -183,7 +210,9 @@ export function discoverSkills(root = defaultSkillsDir()) {
 	for (const skill of skills) {
 		const existing = names.get(skill.name);
 		if (existing) {
-			throw new Error(`Duplicate skill name "${skill.name}" in packages ${existing} and ${skill.packageName}`);
+			throw new Error(
+				`Duplicate skill name "${skill.name}" in packages ${existing} and ${skill.packageName}`,
+			);
 		}
 		names.set(skill.name, skill.packageName);
 	}
@@ -197,7 +226,12 @@ function categoryRank(category) {
 }
 
 function sortSkills(skills) {
-	return skills.sort((a, b) => categoryRank(a.category) - categoryRank(b.category) || (a.category ?? "").localeCompare(b.category ?? "") || a.name.localeCompare(b.name));
+	return skills.sort(
+		(a, b) =>
+			categoryRank(a.category) - categoryRank(b.category) ||
+			(a.category ?? "").localeCompare(b.category ?? "") ||
+			a.name.localeCompare(b.name),
+	);
 }
 
 export function discoverVisibleSkills(
@@ -206,7 +240,9 @@ export function discoverVisibleSkills(
 		? defaultSessionSkillsDir()
 		: undefined,
 ) {
-	const byName = new Map(discoverSkills(globalRoot).map((skill) => [skill.name, skill]));
+	const byName = new Map(
+		discoverSkills(globalRoot).map((skill) => [skill.name, skill]),
+	);
 	if (!sessionRoot) return sortSkills([...byName.values()]);
 	for (const skill of discoverSkills(sessionRoot)) {
 		byName.set(skill.name, { ...skill, category: "session" });
@@ -234,22 +270,29 @@ function referenceCandidates(name, skill) {
 		stripPathPrefix(normalized, "./references/"),
 		"references/",
 	);
-	const skillRelative = stripPathPrefix(packageRelative, `${skill.name}/references/`);
-	return [...new Set([
-		name,
-		withoutMarkdownSuffix(name),
-		normalized,
-		withoutMarkdownSuffix(normalized),
+	const skillRelative = stripPathPrefix(
 		packageRelative,
-		withoutMarkdownSuffix(packageRelative),
-		skillRelative,
-		withoutMarkdownSuffix(skillRelative),
-	])];
+		`${skill.name}/references/`,
+	);
+	return [
+		...new Set([
+			name,
+			withoutMarkdownSuffix(name),
+			normalized,
+			withoutMarkdownSuffix(normalized),
+			packageRelative,
+			withoutMarkdownSuffix(packageRelative),
+			skillRelative,
+			withoutMarkdownSuffix(skillRelative),
+		]),
+	];
 }
 
 function findSkillByName(skills, name) {
-	return skills.find((skill) => skill.name === name)
-		?? skills.find((skill) => skill.name === withoutMarkdownSuffix(name));
+	return (
+		skills.find((skill) => skill.name === name) ??
+		skills.find((skill) => skill.name === withoutMarkdownSuffix(name))
+	);
 }
 
 function resolveSkillRead(skills, name, references) {
@@ -275,7 +318,9 @@ function resolveSkillRead(skills, name, references) {
 	const requestedPath = resolve(name);
 	for (const skill of skills) {
 		if (requestedPath === resolve(skill.path)) return { skill, references };
-		const reference = referenceFiles(skill).find((path) => resolve(path) === requestedPath);
+		const reference = referenceFiles(skill).find(
+			(path) => resolve(path) === requestedPath,
+		);
 		if (reference) {
 			return {
 				skill,
@@ -287,30 +332,53 @@ function resolveSkillRead(skills, name, references) {
 
 function isOwnSkillDocument(reference, skill) {
 	const normalized = normalizedPath(reference).toLowerCase();
-	return normalized === "skill.md"
-		|| normalized === `${skill.name}/skill.md`
-		|| (isAbsolute(reference) && resolve(reference) === resolve(skill.path));
+	return (
+		normalized === "skill.md" ||
+		normalized === `${skill.name}/skill.md` ||
+		(isAbsolute(reference) && resolve(reference) === resolve(skill.path))
+	);
 }
 
 export function parseRequest(input) {
-	if (typeof input !== "string") throw new Error("skills expects a string command");
+	if (typeof input !== "string")
+		throw new Error("skills expects a string command");
 	const parts = input.trim().split(/\s+/).filter(Boolean);
 	const [action, ...arguments_] = parts;
-	if (!action || action === "list") return { action: "list", categories: [...new Set(arguments_)] };
+	if (!action || action === "list")
+		return { action: "list", categories: [...new Set(arguments_)] };
 	if (action === "read" && arguments_.length >= 1) {
-		return { action, name: arguments_[0], references: [...new Set(arguments_.slice(1))] };
+		return {
+			action,
+			name: arguments_[0],
+			references: [...new Set(arguments_.slice(1))],
+		};
 	}
 	if (action === "read") {
-		throw new Error('read expects one skill name and optional reference names: "read <exact-skill-name> [reference...]"');
+		throw new Error(
+			'read expects one skill name and optional reference names: "read <exact-skill-name> [reference...]"',
+		);
 	}
-	throw new Error('Expected "list", "list <category>...", or "read <exact-skill-name> [reference...]"');
+	throw new Error(
+		'Expected "list", "list <category>...", or "read <exact-skill-name> [reference...]"',
+	);
 }
 
 function formatSkillList(skills, requestedCategories = []) {
-	const availableCategories = [...new Set(skills.flatMap(({ category }) => category ? [category] : []))].sort();
-	const unknown = requestedCategories.filter((category) => !availableCategories.includes(category));
+	const availableCategories = [
+		...new Set(skills.flatMap(({ category }) => (category ? [category] : []))),
+	].sort();
+	const unknown = requestedCategories.filter(
+		(category) => !availableCategories.includes(category),
+	);
 	if (unknown.length) {
-		throw new Error("Unknown categor" + (unknown.length === 1 ? "y" : "ies") + ": " + unknown.join(", ") + ". Available: " + (availableCategories.join(", ") || "none"));
+		throw new Error(
+			"Unknown categor" +
+				(unknown.length === 1 ? "y" : "ies") +
+				": " +
+				unknown.join(", ") +
+				". Available: " +
+				(availableCategories.join(", ") || "none"),
+		);
 	}
 	const selected = requestedCategories.length
 		? skills.filter(({ category }) => requestedCategories.includes(category))
@@ -325,12 +393,20 @@ function formatSkillList(skills, requestedCategories = []) {
 		group.push(skill);
 		groups.set(skill.category, group);
 	}
-	const lines = topLevel.map((skill) => "- " + skill.name + ": " + skill.description.replace(/\s+/g, " ").trim());
+	const lines = topLevel.map(
+		(skill) =>
+			"- " + skill.name + ": " + skill.description.replace(/\s+/g, " ").trim(),
+	);
 	if (topLevel.length && groups.size) lines.push("");
 	for (const [category, categorySkills] of groups) {
 		lines.push("# " + category.replace(/-/g, " ").toUpperCase());
 		for (const skill of categorySkills) {
-			lines.push("- " + skill.name + ": " + skill.description.replace(/\s+/g, " ").trim());
+			lines.push(
+				"- " +
+					skill.name +
+					": " +
+					skill.description.replace(/\s+/g, " ").trim(),
+			);
 		}
 	}
 	return lines.join("\n");
@@ -338,7 +414,10 @@ function formatSkillList(skills, requestedCategories = []) {
 
 function isWithin(root, path) {
 	const child = relative(root, path);
-	return child === "" || (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child));
+	return (
+		child === "" ||
+		(!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
+	);
 }
 
 export function packageFiles(skill) {
@@ -361,7 +440,8 @@ export function packageFiles(skill) {
 
 	function visit(directory) {
 		const realDirectory = realpathSync(directory);
-		if (!isWithin(root, realDirectory) || visitedDirectories.has(realDirectory)) return;
+		if (!isWithin(root, realDirectory) || visitedDirectories.has(realDirectory))
+			return;
 		visitedDirectories.add(realDirectory);
 		for (const entry of directoryEntries(directory)) {
 			const path = join(directory, entry.name);
@@ -375,7 +455,8 @@ export function packageFiles(skill) {
 			}
 			if (!isWithin(root, realPath)) continue;
 			if (kind === "directory") {
-				if (directory === skill.directory && entry.name === "assets") listAssetEntries(path);
+				if (directory === skill.directory && entry.name === "assets")
+					listAssetEntries(path);
 				else visit(path);
 			} else paths.push(resolve(path));
 		}
@@ -400,52 +481,85 @@ function formatSkill(skill) {
 
 function referenceFiles(skill) {
 	const root = resolve(skill.directory, "references");
-	return packageFiles(skill).filter((path) => isWithin(root, path) && path.toLowerCase().endsWith(".md") && statSync(path).isFile());
+	return packageFiles(skill).filter(
+		(path) =>
+			isWithin(root, path) &&
+			path.toLowerCase().endsWith(".md") &&
+			statSync(path).isFile(),
+	);
 }
 
 function readReferences(skill, references, skills) {
 	const root = resolve(skill.directory, "references");
-	const available = new Map(referenceFiles(skill).map((path) => [
-		relative(root, path).replaceAll(sep, "/").replace(/\.md$/i, ""),
-		path,
-	]));
+	const available = new Map(
+		referenceFiles(skill).map((path) => [
+			relative(root, path).replaceAll(sep, "/").replace(/\.md$/i, ""),
+			path,
+		]),
+	);
 	const selected = [];
 	const seen = new Set();
 	for (const requestedReference of references) {
 		const absoluteReference = isAbsolute(requestedReference)
-			? [...available].find(([, path]) => resolve(path) === resolve(requestedReference))?.[0]
+			? [...available].find(
+					([, path]) => resolve(path) === resolve(requestedReference),
+				)?.[0]
 			: undefined;
-		const reference = absoluteReference
-			?? referenceCandidates(requestedReference, skill).find((candidate) => available.has(candidate));
+		const reference =
+			absoluteReference ??
+			referenceCandidates(requestedReference, skill).find((candidate) =>
+				available.has(candidate),
+			);
 		const path = available.get(reference);
 		if (!path) {
 			const separate = resolveSkillRead(skills, requestedReference, []);
 			if (separate && separate.skill !== skill) {
-				const command = ["read", separate.skill.name, ...separate.references].join(" ");
-				throw new Error(`"${requestedReference}" is a separate skill, not a reference of "${skill.name}". Read it separately with "${command}"`);
+				const command = [
+					"read",
+					separate.skill.name,
+					...separate.references,
+				].join(" ");
+				throw new Error(
+					`"${requestedReference}" is a separate skill, not a reference of "${skill.name}". Read it separately with "${command}"`,
+				);
 			}
 			const choices = [...available.keys()].join(", ") || "none";
-			throw new Error(`Unknown reference "${requestedReference}" for skill "${skill.name}". Available: ${choices}`);
+			throw new Error(
+				`Unknown reference "${requestedReference}" for skill "${skill.name}". Available: ${choices}`,
+			);
 		}
 		if (seen.has(reference)) continue;
 		seen.add(reference);
 		selected.push({ reference, content: readFileSync(path, "utf8").trim() });
 	}
-	const content = selected.length === 1
-		? selected[0].content
-		: selected.map(({ reference, content: body }) => `--- ${reference} ---\n${body}`).join("\n\n");
+	const content =
+		selected.length === 1
+			? selected[0].content
+			: selected
+					.map(
+						({ reference, content: body }) => `--- ${reference} ---\n${body}`,
+					)
+					.join("\n\n");
 	return `${content}\n\n${formatSkillPaths(skill)}`;
 }
 
 function enforceOutputLimit(output) {
 	const bytes = Buffer.byteLength(output);
 	if (bytes > MAX_OUTPUT_BYTES) {
-		throw new Error(`skills output is ${bytes} bytes; maximum is ${MAX_OUTPUT_BYTES} bytes`);
+		throw new Error(
+			`skills output is ${bytes} bytes; maximum is ${MAX_OUTPUT_BYTES} bytes`,
+		);
 	}
 	return output;
 }
 
-export function run(input, globalRoot = defaultSkillsDir(), sessionRoot = globalRoot === defaultSkillsDir() ? defaultSessionSkillsDir() : undefined) {
+export function run(
+	input,
+	globalRoot = defaultSkillsDir(),
+	sessionRoot = globalRoot === defaultSkillsDir()
+		? defaultSessionSkillsDir()
+		: undefined,
+) {
 	const request = parseRequest(input);
 	const skills = discoverVisibleSkills(globalRoot, sessionRoot);
 	if (request.action === "list") {
@@ -453,12 +567,18 @@ export function run(input, globalRoot = defaultSkillsDir(), sessionRoot = global
 	}
 	const target = resolveSkillRead(skills, request.name, request.references);
 	if (!target) {
-		throw new Error(`Unknown skill "${request.name}". Available: ${skills.map(({ name }) => name).join(", ") || "none"}`);
+		throw new Error(
+			`Unknown skill "${request.name}". Available: ${skills.map(({ name }) => name).join(", ") || "none"}`,
+		);
 	}
-	const references = target.references.filter((reference) => !isOwnSkillDocument(reference, target.skill));
-	return enforceOutputLimit(references.length
-		? readReferences(target.skill, references, skills)
-		: formatSkill(target.skill));
+	const references = target.references.filter(
+		(reference) => !isOwnSkillDocument(reference, target.skill),
+	);
+	return enforceOutputLimit(
+		references.length
+			? readReferences(target.skill, references, skills)
+			: formatSkill(target.skill),
+	);
 }
 
 function isMainModule() {
@@ -469,7 +589,9 @@ if (isMainModule()) {
 	try {
 		process.stdout.write(run(readFileSync(0, "utf8")));
 	} catch (error) {
-		process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+		process.stderr.write(
+			`${error instanceof Error ? error.message : String(error)}\n`,
+		);
 		process.exitCode = 1;
 	}
 }

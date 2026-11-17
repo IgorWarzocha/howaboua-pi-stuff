@@ -35,9 +35,10 @@ export function registerCodeModeToolCompletion(
 		if (disposed || !isPreflightBroker(value) || value === broker) return;
 		unregister?.();
 		broker = value;
-		unregister = typeof value.registerCompletion === "function"
-			? value.registerCompletion(completion)
-			: undefined;
+		unregister =
+			typeof value.registerCompletion === "function"
+				? value.registerCompletion(completion)
+				: undefined;
 	});
 	const registration: CodeModeToolCompletionRegistration = {
 		get available() {

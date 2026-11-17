@@ -2,7 +2,11 @@ import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 	MAX_CODE_MODE_OUTPUT_TOKENS,
 } from "./host-protocol.js";
-import type { NotebookMemoryUsage, RuntimeContentItem, RuntimeResponse } from "./types.js";
+import type {
+	NotebookMemoryUsage,
+	RuntimeContentItem,
+	RuntimeResponse,
+} from "./types.js";
 
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
@@ -13,7 +17,9 @@ export function toCodeModeToolResult(
 	gpt = false,
 ) {
 	const scriptError =
-		response.kind === "result" ? withScriptErrorRecovery(response.errorText) : undefined;
+		response.kind === "result"
+			? withScriptErrorRecovery(response.errorText)
+			: undefined;
 	const status = scriptError
 		? `Script error: ${scriptError}`
 		: response.kind === "yielded"
@@ -22,7 +28,9 @@ export function toCodeModeToolResult(
 				? "Script terminated"
 				: undefined;
 	const output = boundedCodeModeContent(response.contentItems);
-	const memoryWarning = response.notebookMemory && formatNotebookMemoryWarning(response.notebookMemory);
+	const memoryWarning =
+		response.notebookMemory &&
+		formatNotebookMemoryWarning(response.notebookMemory);
 	const outputTokens = Math.min(
 		MAX_CODE_MODE_OUTPUT_TOKENS,
 		Math.max(
@@ -39,23 +47,36 @@ export function toCodeModeToolResult(
 		})),
 		...truncateTextContent(output, outputTokens * 4, gpt),
 	];
-	const empty = !content.some((item) => item.type !== "text" || item.text.length > 0);
+	const empty = !content.some(
+		(item) => item.type !== "text" || item.text.length > 0,
+	);
 	if (empty) content.unshift({ type: "text", text: "OK" });
 	return {
-		...(response.terminate && response.kind === "result" && !scriptError ? { terminate: true } : {}),
+		...(response.terminate && response.kind === "result" && !scriptError
+			? { terminate: true }
+			: {}),
 		content,
 		details: {
 			codeMode: true,
 			cellId: response.cellId,
-			...(response.opaqueOutputs?.length ? { opaqueOutputs: response.opaqueOutputs, opaqueScope: response.opaqueScope } : {}),
+			...(response.opaqueOutputs?.length
+				? {
+						opaqueOutputs: response.opaqueOutputs,
+						opaqueScope: response.opaqueScope,
+					}
+				: {}),
 			status: response.kind,
-			...(response.opaqueDeliveryId ? { opaqueDeliveryId: response.opaqueDeliveryId } : {}),
+			...(response.opaqueDeliveryId
+				? { opaqueDeliveryId: response.opaqueDeliveryId }
+				: {}),
 			statusPrefix: Boolean(status) || empty,
 			...(response.traces ? { traces: response.traces } : {}),
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
 				: {}),
-			...(response.notebookMemory ? { notebookMemory: response.notebookMemory } : {}),
+			...(response.notebookMemory
+				? { notebookMemory: response.notebookMemory }
+				: {}),
 			...(scriptError ? { scriptError } : {}),
 		},
 	};
@@ -65,34 +86,54 @@ export function boundedCodeModeContent(items: RuntimeContentItem[]) {
 	let imageChars = 0;
 	let imageCount = 0;
 	let omittedImages = 0;
-	const output = items.map(item => {
-		const content = toPiContent(item);
-		if (content?.type !== "image") return content;
-		if (imageCount >= MAX_OUTPUT_IMAGE_COUNT || imageChars + content.data.length > MAX_OUTPUT_IMAGE_CHARS) {
-			omittedImages++;
-			return undefined;
-		}
-		imageCount++;
-		imageChars += content.data.length;
-		return content;
-	}).filter((item): item is NonNullable<typeof item> => Boolean(item));
-	if (omittedImages > 0) output.push({ type: "text",
-		text: `[${omittedImages} code-mode image${omittedImages === 1 ? "" : "s"} omitted]` });
+	const output = items
+		.map((item) => {
+			const content = toPiContent(item);
+			if (content?.type !== "image") return content;
+			if (
+				imageCount >= MAX_OUTPUT_IMAGE_COUNT ||
+				imageChars + content.data.length > MAX_OUTPUT_IMAGE_CHARS
+			) {
+				omittedImages++;
+				return undefined;
+			}
+			imageCount++;
+			imageChars += content.data.length;
+			return content;
+		})
+		.filter((item): item is NonNullable<typeof item> => Boolean(item));
+	if (omittedImages > 0)
+		output.push({
+			type: "text",
+			text: `[${omittedImages} code-mode image${omittedImages === 1 ? "" : "s"} omitted]`,
+		});
 	return output;
 }
 
-function withScriptErrorRecovery(errorText: string | undefined): string | undefined {
-	if (!errorText || !/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)) return errorText;
+function withScriptErrorRecovery(
+	errorText: string | undefined,
+): string | undefined {
+	if (
+		!errorText ||
+		!/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)
+	)
+		return errorText;
 	return `${errorText}\nRecovery: reuse the existing binding, choose a new name, or retry one-off code inside { ... }; restart only if the binding itself is unusable`;
 }
 
-export function formatNotebookMemoryWarning(memory: NotebookMemoryUsage): string | undefined {
-	const ratio = memory.heapLimitBytes > 0 ? memory.heapUsedBytes / memory.heapLimitBytes : 0;
-	const pressure = ratio >= 0.9
-		? " · CRITICAL: finish essential work and release unneeded notebook state"
-		: ratio >= 0.8
-			? " · WARNING: release unneeded notebook state"
-			: "";
+export function formatNotebookMemoryWarning(
+	memory: NotebookMemoryUsage,
+): string | undefined {
+	const ratio =
+		memory.heapLimitBytes > 0
+			? memory.heapUsedBytes / memory.heapLimitBytes
+			: 0;
+	const pressure =
+		ratio >= 0.9
+			? " · CRITICAL: finish essential work and release unneeded notebook state"
+			: ratio >= 0.8
+				? " · WARNING: release unneeded notebook state"
+				: "";
 	if (!pressure) return undefined;
 	return `Notebook memory: heap ${formatBinaryBytes(memory.heapUsedBytes)} / ${formatBinaryBytes(memory.heapLimitBytes)} · RSS ${formatBinaryBytes(memory.rssBytes)}${pressure}`;
 }
@@ -108,18 +149,28 @@ export function formatRunningExecSessionGuidance(sessionId: number): string {
 	return `Session ${sessionId} still running. Resume near completion with tools.write_stdin and an appropriate yield_time_ms; do not use wait`;
 }
 
-function toPiContent(
-	item: RuntimeContentItem,
-):
+function toPiContent(item: RuntimeContentItem):
 	| { type: "text"; text: string }
-	| { type: "image"; data: string; mimeType: string; detail?: "auto" | "high" | "original" }
+	| {
+			type: "image";
+			data: string;
+			mimeType: string;
+			detail?: "auto" | "high" | "original";
+	  }
 	| undefined {
 	if (item.type === "input_text" && typeof item.text === "string")
 		return { type: "text", text: item.text };
 	if (item.type === "input_image" && typeof item.image_url === "string") {
 		const match = item.image_url.match(/^data:([^;,]+);base64,(.+)$/s);
-		if (match) return { type: "image", mimeType: match[1]!, data: match[2]!,
-			...(item.detail && item.detail !== "low" ? { detail: item.detail } : {}) };
+		if (match)
+			return {
+				type: "image",
+				mimeType: match[1]!,
+				data: match[2]!,
+				...(item.detail && item.detail !== "low"
+					? { detail: item.detail }
+					: {}),
+			};
 	}
 	return undefined;
 }

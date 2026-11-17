@@ -1,22 +1,13 @@
 {
-  "name": "h-stack",
-  "displayName": "H Stack",
-  "version": "1.0.0",
-  "description": "Portable skills for maintained code and agent harnesses, plus a command that tunes this repository's voice.",
-  "author": {
-    "name": "Howaboua"
-  },
-  "license": "MIT",
-  "keywords": [
-    "skills",
-    "agents",
-    "code-review",
-    "communication"
-  ],
-  "category": "developer-tools",
-  "tags": [
-    "skills",
-    "harness",
-    "voice"
-  ]
+	"name": "h-stack",
+	"displayName": "H Stack",
+	"version": "1.0.0",
+	"description": "Portable skills for maintained code and agent harnesses, plus a command that tunes this repository's voice.",
+	"author": {
+		"name": "Howaboua"
+	},
+	"license": "MIT",
+	"keywords": ["skills", "agents", "code-review", "communication"],
+	"category": "developer-tools",
+	"tags": ["skills", "harness", "voice"]
 }

@@ -9,7 +9,9 @@ type ContextMessage = {
 	content?: unknown;
 };
 
-export function isVoiceContextExcludedMessage(message: ContextMessage): boolean {
+export function isVoiceContextExcludedMessage(
+	message: ContextMessage,
+): boolean {
 	if (message.role !== "custom") return false;
 	if (message.customType === REALTIME_VOICE_MESSAGE_TYPE) return true;
 	return (

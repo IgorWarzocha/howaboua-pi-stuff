@@ -1,7 +1,10 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 import { startRealtimeOffer } from "./helper-offer.ts";
-import type { CodexRealtimePeerEvent, CodexRealtimeWebRtcPeer } from "./peer.ts";
+import type {
+	CodexRealtimePeerEvent,
+	CodexRealtimeWebRtcPeer,
+} from "./peer.ts";
 
 export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
@@ -38,7 +41,11 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	setSpeakerSuppressed(suppressed: boolean): void {
 		if (this.speakerSuppressed === suppressed) return;
-		this.helper.send({ type: "set_speaker_suppressed", suppressed, epoch: ++this.playbackEpoch });
+		this.helper.send({
+			type: "set_speaker_suppressed",
+			suppressed,
+			epoch: ++this.playbackEpoch,
+		});
 		this.speakerSuppressed = suppressed;
 	}
 
@@ -50,7 +57,13 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 function toPeerEvent(
 	event: VoiceHelperEvent,
 ): CodexRealtimePeerEvent | undefined {
-	if (event.type === "state" || event.type === "data" || event.type === "error" || event.type === "playback_activity" || event.type === "audio_diagnostics")
+	if (
+		event.type === "state" ||
+		event.type === "data" ||
+		event.type === "error" ||
+		event.type === "playback_activity" ||
+		event.type === "audio_diagnostics"
+	)
 		return event;
 	return undefined;
 }

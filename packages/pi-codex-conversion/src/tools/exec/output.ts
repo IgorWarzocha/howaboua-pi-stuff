@@ -8,33 +8,45 @@ export interface ExecOutputSessionState {
 	emittedOffset: number;
 }
 
-function maxCharsForTokens(maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS): number {
+function maxCharsForTokens(
+	maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS,
+): number {
 	return Math.max(256, maxOutputTokens * 4);
 }
 
 function stripTerminalControlSequences(text: string): string {
 	const withoutOscAndDcs = text
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		.replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, "")
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		.replace(/\u001B[P_X^][\s\S]*?\u001B\\/g, "");
-	return withoutOscAndDcs
-		.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "")
-		.replace(/\u001B[@-_]/g, "")
-		.replaceAll("\u001B", "");
+	return (
+		withoutOscAndDcs
+			// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
+			.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "")
+			// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
+			.replace(/\u001B[@-_]/g, "")
+			.replaceAll("\u001B", "")
+	);
 }
 
 function sanitizeBinaryOutput(text: string): string {
-	return Array.from(text).filter((char) => {
-		const code = char.codePointAt(0);
-		if (code === undefined) return false;
-		if (code === 0x09 || code === 0x0a || code === 0x0d) return true;
-		if (code <= 0x1f) return false;
-		if (code >= 0xfff9 && code <= 0xfffb) return false;
-		return true;
-	}).join("");
+	return Array.from(text)
+		.filter((char) => {
+			const code = char.codePointAt(0);
+			if (code === undefined) return false;
+			if (code === 0x09 || code === 0x0a || code === 0x0d) return true;
+			if (code <= 0x1f) return false;
+			if (code >= 0xfff9 && code <= 0xfffb) return false;
+			return true;
+		})
+		.join("");
 }
 
 export function normalizePipeOutput(text: string): string {
-	return sanitizeBinaryOutput(stripTerminalControlSequences(text)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+	return sanitizeBinaryOutput(stripTerminalControlSequences(text))
+		.replace(/\r\n/g, "\n")
+		.replace(/\r/g, "\n");
 }
 
 export function renderTerminalOutput(text: string): string {
@@ -44,7 +56,15 @@ export function renderTerminalOutput(text: string): string {
 
 	for (const char of stripTerminalControlSequences(text)) {
 		const code = char.codePointAt(0);
-		if (code === undefined || (code < 0x20 && char !== "\t" && char !== "\n" && char !== "\r" && char !== "\b") || (code >= 0x7f && code <= 0x9f))
+		if (
+			code === undefined ||
+			(code < 0x20 &&
+				char !== "\t" &&
+				char !== "\n" &&
+				char !== "\r" &&
+				char !== "\b") ||
+			(code >= 0x7f && code <= 0x9f)
+		)
 			continue;
 		if (char === "\r") {
 			cursor = 0;
@@ -69,9 +89,13 @@ export function renderTerminalOutput(text: string): string {
 	return committed + line.join("");
 }
 
-export function truncateToTail(text: string, maxChars: number): { output: string; removed: number } {
+export function truncateToTail(
+	text: string,
+	maxChars: number,
+): { output: string; removed: number } {
 	let start = Math.max(0, text.length - maxChars);
-	if (start > 0 && start < text.length && /[\uDC00-\uDFFF]/.test(text[start]!)) start += 1;
+	if (start > 0 && start < text.length && /[\uDC00-\uDFFF]/.test(text[start]!))
+		start += 1;
 	return { output: text.slice(start), removed: start };
 }
 
@@ -79,15 +103,33 @@ export function generateChunkId(): string {
 	return randomBytes(3).toString("hex");
 }
 
-export function truncateOutput(text: string, maxOutputTokens?: number, originalCharCount = text.length): { output: string; original_token_count?: number | undefined; truncated?: true | undefined } {
+export function truncateOutput(
+	text: string,
+	maxOutputTokens?: number,
+	originalCharCount = text.length,
+): {
+	output: string;
+	original_token_count?: number | undefined;
+	truncated?: true | undefined;
+} {
 	if (text.length === 0 && originalCharCount === 0) return { output: "" };
 	const maxChars = maxCharsForTokens(maxOutputTokens);
-	const originalTokenCount = Math.ceil(Math.max(text.length, originalCharCount) / 4);
-	const output = text.length <= maxChars ? text : truncateToTail(text, maxChars).output;
-	return { output, original_token_count: originalTokenCount, ...(output.length < originalCharCount ? { truncated: true } : {}) };
+	const originalTokenCount = Math.ceil(
+		Math.max(text.length, originalCharCount) / 4,
+	);
+	const output =
+		text.length <= maxChars ? text : truncateToTail(text, maxChars).output;
+	return {
+		output,
+		original_token_count: originalTokenCount,
+		...(output.length < originalCharCount ? { truncated: true } : {}),
+	};
 }
 
-function outputSince(session: ExecOutputSessionState, offset: number): { text: string; originalCharCount: number; endOffset: number } {
+function outputSince(
+	session: ExecOutputSessionState,
+	offset: number,
+): { text: string; originalCharCount: number; endOffset: number } {
 	const endOffset = session.bufferStartOffset + session.buffer.length;
 	const startOffset = Math.max(offset, session.bufferStartOffset);
 	return {
@@ -97,18 +139,28 @@ function outputSince(session: ExecOutputSessionState, offset: number): { text: s
 	};
 }
 
-export function consumeOutput(session: ExecOutputSessionState, maxOutputTokens?: number): ReturnType<typeof truncateOutput> {
+export function consumeOutput(
+	session: ExecOutputSessionState,
+	maxOutputTokens?: number,
+): ReturnType<typeof truncateOutput> {
 	const output = outputSince(session, session.emittedOffset);
 	session.emittedOffset = output.endOffset;
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
-export function peekUnconsumedOutput(session: ExecOutputSessionState, maxOutputTokens?: number): ReturnType<typeof truncateOutput> {
+export function peekUnconsumedOutput(
+	session: ExecOutputSessionState,
+	maxOutputTokens?: number,
+): ReturnType<typeof truncateOutput> {
 	const output = outputSince(session, session.emittedOffset);
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
-export function peekOutputSince(session: ExecOutputSessionState, baselineOffset: number, maxOutputTokens?: number): ReturnType<typeof truncateOutput> {
+export function peekOutputSince(
+	session: ExecOutputSessionState,
+	baselineOffset: number,
+	maxOutputTokens?: number,
+): ReturnType<typeof truncateOutput> {
 	const output = outputSince(session, baselineOffset);
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }

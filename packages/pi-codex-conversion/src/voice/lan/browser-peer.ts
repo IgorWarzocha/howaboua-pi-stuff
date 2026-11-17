@@ -1,14 +1,20 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 import { startRealtimeOffer } from "../conversation/helper-offer.ts";
-import type { CodexRealtimePeerEvent, CodexRealtimeWebRtcPeer } from "../conversation/peer.ts";
+import type {
+	CodexRealtimePeerEvent,
+	CodexRealtimeWebRtcPeer,
+} from "../conversation/peer.ts";
 
 export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
 	private readonly helper = new VoiceHelperClient();
 	private readonly onAudio: (pcm: Buffer) => void;
 	private readonly onSpeakerSuppressed: (suppressed: boolean) => void;
-	private readonly drainPlayback: (signal: AbortSignal, seal: () => Promise<void>) => Promise<void>;
+	private readonly drainPlayback: (
+		signal: AbortSignal,
+		seal: () => Promise<void>,
+	) => Promise<void>;
 	private finishing = false;
 	private playbackEpoch = 0;
 	private speakerSuppressed = false;
@@ -17,23 +23,35 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	constructor(options: {
 		onAudio(pcm: Buffer): void;
 		onSpeakerSuppressed(suppressed: boolean): void;
-		drainPlayback(signal: AbortSignal, seal: () => Promise<void>): Promise<void>;
+		drainPlayback(
+			signal: AbortSignal,
+			seal: () => Promise<void>,
+		): Promise<void>;
 	}) {
 		this.onAudio = options.onAudio;
 		this.onSpeakerSuppressed = options.onSpeakerSuppressed;
 		this.drainPlayback = options.drainPlayback;
 		// PCM forwarding has one owner, independent of event subscriptions.
 		this.helper.onEvent((event) => {
-			if (event.type !== "pcm" || this.inputState === "closed" || this.speakerSuppressed || event.epoch !== this.playbackEpoch) return;
+			if (
+				event.type !== "pcm" ||
+				this.inputState === "closed" ||
+				this.speakerSuppressed ||
+				event.epoch !== this.playbackEpoch
+			)
+				return;
 			this.onAudio(Buffer.from(event.audio, "base64"));
 		});
 	}
 
-	get isSpeakerSuppressed(): boolean { return this.speakerSuppressed; }
+	get isSpeakerSuppressed(): boolean {
+		return this.speakerSuppressed;
+	}
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
 		return this.helper.onEvent((event) => {
-			if (this.finishing && event.type === "state" && event.state === "closed") return;
+			if (this.finishing && event.type === "state" && event.state === "closed")
+				return;
 			const peerEvent = toPeerEvent(event);
 			if (peerEvent) listener(peerEvent);
 		});
@@ -64,7 +82,12 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	sendAudio(pcm: Buffer): void {
 		if (this.inputState !== "ready") return;
-		this.helper.send({ type: "send_pcm", audio: pcm.toString("base64"), sample_rate: 24_000, num_channels: 1 });
+		this.helper.send({
+			type: "send_pcm",
+			audio: pcm.toString("base64"),
+			sample_rate: 24_000,
+			num_channels: 1,
+		});
 	}
 
 	setInputMuted(muted: boolean): void {
@@ -100,7 +123,16 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 }
 
-function toPeerEvent(event: VoiceHelperEvent): CodexRealtimePeerEvent | undefined {
-	if (event.type === "state" || event.type === "data" || event.type === "error" || event.type === "playback_activity" || event.type === "audio_diagnostics") return event;
+function toPeerEvent(
+	event: VoiceHelperEvent,
+): CodexRealtimePeerEvent | undefined {
+	if (
+		event.type === "state" ||
+		event.type === "data" ||
+		event.type === "error" ||
+		event.type === "playback_activity" ||
+		event.type === "audio_diagnostics"
+	)
+		return event;
 	return undefined;
 }

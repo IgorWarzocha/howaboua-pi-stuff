@@ -51,9 +51,8 @@ async function resolveProvider(
 	const isConfiguredCodexTransport = (model: ExtensionContext["model"]) =>
 		isCodexToolRoute(config, model);
 	if (isConfiguredCodexTransport(ctx.model)) {
-		const { resolveCodexToolProvider } = await import(
-			"./codex-runtime/resolve.js"
-		);
+		const { resolveCodexToolProvider } =
+			await import("./codex-runtime/resolve.js");
 		return resolveCodexToolProvider(
 			ctx,
 			options.allowConfiguredProvider,
@@ -73,9 +72,8 @@ async function resolveProvider(
 		throw codexProviderFailure(error, legacy);
 	}
 	if (hosted) return hosted;
-	const { resolveCodexToolProvider } = await import(
-		"./codex-runtime/resolve.js"
-	);
+	const { resolveCodexToolProvider } =
+		await import("./codex-runtime/resolve.js");
 	return resolveCodexToolProvider(
 		ctx,
 		options.allowConfiguredProvider,
@@ -101,9 +99,8 @@ export async function executeCodexImageGeneration(
 		throw new Error(
 			"These output controls require OpenAI API access. The user can select it in /imagegen; Codex access is unchanged. For Codex, describe size and aspect ratio in the prompt.",
 		);
-	const { readCodexToolRouteConfig, resolveCodexToolModel } = await import(
-		"./codex-runtime/config.js"
-	);
+	const { readCodexToolRouteConfig, resolveCodexToolModel } =
+		await import("./codex-runtime/config.js");
 	const routeConfig =
 		settings.access === "codex" ? readCodexToolRouteConfig() : undefined;
 	const recentImages =
@@ -138,9 +135,8 @@ export async function executeCodexImageGeneration(
 	const { fetchCodexTool } = await import("./codex-runtime/http.js");
 	let headers: Headers;
 	if (provider) {
-		const { codexToolProviderHeaders } = await import(
-			"./codex-runtime/headers.js"
-		);
+		const { codexToolProviderHeaders } =
+			await import("./codex-runtime/headers.js");
 		headers = codexToolProviderHeaders(provider);
 	} else {
 		const key = await ctx.modelRegistry.getApiKeyForProvider("openai");

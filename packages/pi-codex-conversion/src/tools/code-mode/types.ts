@@ -41,8 +41,7 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 	disabledReason?: string | undefined;
 }
 
-export interface ProgrammaticCodeModeToolDefinition
-	extends CodeModeToolMetadata {
+export interface ProgrammaticCodeModeToolDefinition extends CodeModeToolMetadata {
 	kind: "function" | "freeform";
 	textOutput?: "command" | "plain-command" | undefined;
 	blocking?: boolean | undefined;
@@ -97,7 +96,9 @@ export interface ToolExecutionContext {
 	completion?: CodeModeToolCompletion | undefined;
 	onUpdate?: ((result: AgentToolResult<unknown>) => void) | undefined;
 	captureResult?: ((result: RuntimeToolResult) => void) | undefined;
-	captureOpaqueResult?: ((output: OpaqueToolOutput, images: RuntimeContentItem[]) => void) | undefined;
+	captureOpaqueResult?:
+		| ((output: OpaqueToolOutput, images: RuntimeContentItem[]) => void)
+		| undefined;
 	opaqueScope?: string | undefined;
 	opaqueContextGeneration?: number | undefined;
 	opaqueContextValid?: (() => Promise<boolean>) | undefined;
@@ -181,7 +182,12 @@ export type NotebookControlRequest =
 	| { action: "checkpoint" }
 	| { action: "save"; name: string }
 	| { action: "load"; name: string }
-	| { action: "pin"; names: string[]; hook?: NotebookHook | false | undefined; checkpoint?: { snapshot: string; restore: string } | undefined }
+	| {
+			action: "pin";
+			names: string[];
+			hook?: NotebookHook | false | undefined;
+			checkpoint?: { snapshot: string; restore: string } | undefined;
+	  }
 	| { action: "unpin"; names: string[] }
 	| { action: "release"; names: string[] }
 	| { action: "prune"; query: string }

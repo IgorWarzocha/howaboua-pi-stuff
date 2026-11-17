@@ -1,9 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
-import type {
-	RealtimePeerPlan,
-	VoiceControllerRuntime,
-} from "./start.ts";
+import type { RealtimePeerPlan, VoiceControllerRuntime } from "./start.ts";
 import type { VoiceSession } from "./support.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import type { CodexVoiceSessionMessages } from "../session-messages.ts";

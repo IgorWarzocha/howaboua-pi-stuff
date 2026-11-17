@@ -19,7 +19,13 @@ export type VoiceHelperEvent =
 	| { type: "offer"; sdp: string }
 	| { type: "state"; state: string }
 	| { type: "data"; message: unknown }
-	| { type: "pcm"; audio: string; sample_rate: number; num_channels: number; epoch?: number }
+	| {
+			type: "pcm";
+			audio: string;
+			sample_rate: number;
+			num_channels: number;
+			epoch?: number;
+	  }
 	| { type: "playback_activity" }
 	| { type: "audio_diagnostics"; diagnostics: VoiceAudioDiagnostics }
 	| { type: "error"; message: string }
@@ -65,7 +71,15 @@ export interface VoiceAudioDiagnostics {
 }
 
 const AUDIO_COUNTERS = [
-	"elapsed_ms", "transitions", "drained_packets", "release_drained_packets", "rejected_packets", "buffering_entries", "tail_flushes", "clock_rebases", "decode_failures",
+	"elapsed_ms",
+	"transitions",
+	"drained_packets",
+	"release_drained_packets",
+	"rejected_packets",
+	"buffering_entries",
+	"tail_flushes",
+	"clock_rebases",
+	"decode_failures",
 	"received_packets",
 	"missing_packets",
 	"decoded_packets",
@@ -89,12 +103,25 @@ const AUDIO_COUNTERS = [
 function validAudioDiagnostics(value: unknown): value is VoiceAudioDiagnostics {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const data = value as Record<string, unknown>;
-	const counter = (item: unknown) => typeof item === "number" && Number.isInteger(item) && item >= 0 && item <= 0xffff_ffff;
-	return data["epoch"] !== undefined && validEpoch(data["epoch"])
-		&& typeof data["suppressed"] === "boolean"
-		&& AUDIO_COUNTERS.every((key) => counter(data[key]))
-		&& (data["first_packet_ms"] === null || counter(data["first_packet_ms"]))
-		&& Object.keys(data).every((key) => key === "epoch" || key === "suppressed" || key === "first_packet_ms" || AUDIO_COUNTERS.some((field) => field === key));
+	const counter = (item: unknown) =>
+		typeof item === "number" &&
+		Number.isInteger(item) &&
+		item >= 0 &&
+		item <= 0xffff_ffff;
+	return (
+		data["epoch"] !== undefined &&
+		validEpoch(data["epoch"]) &&
+		typeof data["suppressed"] === "boolean" &&
+		AUDIO_COUNTERS.every((key) => counter(data[key])) &&
+		(data["first_packet_ms"] === null || counter(data["first_packet_ms"])) &&
+		Object.keys(data).every(
+			(key) =>
+				key === "epoch" ||
+				key === "suppressed" ||
+				key === "first_packet_ms" ||
+				AUDIO_COUNTERS.some((field) => field === key),
+		)
+	);
 }
 
 const MAX_PCM_BYTES = 64 * 1024;
@@ -154,9 +181,10 @@ export class BoundedJsonlReader {
 	}
 
 	private emitLine(): void {
-		let line = this.chunks.length === 1
-			? this.chunks[0]!
-			: Buffer.concat(this.chunks, this.byteLength);
+		let line =
+			this.chunks.length === 1
+				? this.chunks[0]!
+				: Buffer.concat(this.chunks, this.byteLength);
 		this.chunks.length = 0;
 		this.byteLength = 0;
 		if (line.at(-1) === 0x0d) line = line.subarray(0, -1);
@@ -165,33 +193,79 @@ export class BoundedJsonlReader {
 }
 
 export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
-	if (!value || typeof value !== "object" || !("type" in value) || typeof value.type !== "string") throw new Error("Invalid Codex voice helper event");
+	if (
+		!value ||
+		typeof value !== "object" ||
+		!("type" in value) ||
+		typeof value.type !== "string"
+	)
+		throw new Error("Invalid Codex voice helper event");
 	const event = value as Record<string, unknown>;
-	if (event["type"] === "ready" && Number.isSafeInteger(event["version"])) return event as VoiceHelperEvent;
-	if (event["type"] === "devices" && validDevices(event["inputs"]) && validDevices(event["outputs"])) return event as VoiceHelperEvent;
-	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_REALTIME_SDP_BYTES)) return event as VoiceHelperEvent;
-	if (event["type"] === "state" && boundedString(event["state"], 128)) return event as VoiceHelperEvent;
-	if (event["type"] === "data" && boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)) return event as VoiceHelperEvent;
-	if (event["type"] === "playback_activity") return { type: "playback_activity" };
-	if (event["type"] === "audio_diagnostics" && validAudioDiagnostics(event["diagnostics"])) return { type: "audio_diagnostics", diagnostics: event["diagnostics"] };
-	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1 && validEpoch(event["epoch"])) return event as VoiceHelperEvent;
-	if (event["type"] === "error" && boundedString(event["message"], MAX_TEXT_BYTES)) return event as VoiceHelperEvent;
+	if (event["type"] === "ready" && Number.isSafeInteger(event["version"]))
+		return event as VoiceHelperEvent;
+	if (
+		event["type"] === "devices" &&
+		validDevices(event["inputs"]) &&
+		validDevices(event["outputs"])
+	)
+		return event as VoiceHelperEvent;
+	if (
+		event["type"] === "offer" &&
+		boundedString(event["sdp"], MAX_REALTIME_SDP_BYTES)
+	)
+		return event as VoiceHelperEvent;
+	if (event["type"] === "state" && boundedString(event["state"], 128))
+		return event as VoiceHelperEvent;
+	if (
+		event["type"] === "data" &&
+		boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)
+	)
+		return event as VoiceHelperEvent;
+	if (event["type"] === "playback_activity")
+		return { type: "playback_activity" };
+	if (
+		event["type"] === "audio_diagnostics" &&
+		validAudioDiagnostics(event["diagnostics"])
+	)
+		return { type: "audio_diagnostics", diagnostics: event["diagnostics"] };
+	if (
+		event["type"] === "pcm" &&
+		validBase64(event["audio"], MAX_PCM_BYTES) &&
+		event["sample_rate"] === 24_000 &&
+		event["num_channels"] === 1 &&
+		validEpoch(event["epoch"])
+	)
+		return event as VoiceHelperEvent;
+	if (
+		event["type"] === "error" &&
+		boundedString(event["message"], MAX_TEXT_BYTES)
+	)
+		return event as VoiceHelperEvent;
 	if (event["type"] === "stopped") return event as VoiceHelperEvent;
 	throw new Error(`Invalid Codex voice helper ${event["type"]} event`);
 }
 
 function validEpoch(value: unknown): boolean {
-	return value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+	return (
+		value === undefined ||
+		(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+	);
 }
 
 function validDevices(value: unknown): value is VoiceDevice[] {
-	return Array.isArray(value) && value.length <= MAX_DEVICES && value.every((item) => {
-		if (!item || typeof item !== "object") return false;
-		const device = item as Record<string, unknown>;
-		return boundedString(device["id"], MAX_DEVICE_BYTES)
-			&& boundedString(device["name"], MAX_DEVICE_BYTES)
-			&& typeof device["is_default"] === "boolean";
-	});
+	return (
+		Array.isArray(value) &&
+		value.length <= MAX_DEVICES &&
+		value.every((item) => {
+			if (!item || typeof item !== "object") return false;
+			const device = item as Record<string, unknown>;
+			return (
+				boundedString(device["id"], MAX_DEVICE_BYTES) &&
+				boundedString(device["name"], MAX_DEVICE_BYTES) &&
+				typeof device["is_default"] === "boolean"
+			);
+		})
+	);
 }
 
 function boundedString(value: unknown, maxBytes: number): value is string {
@@ -200,12 +274,19 @@ function boundedString(value: unknown, maxBytes: number): value is string {
 
 function boundedJson(value: unknown, maxBytes: number): boolean {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-	try { return Buffer.byteLength(JSON.stringify(value)) <= maxBytes; }
-	catch { return false; }
+	try {
+		return Buffer.byteLength(JSON.stringify(value)) <= maxBytes;
+	} catch {
+		return false;
+	}
 }
 
 function validBase64(value: unknown, maxBytes: number): value is string {
-	return boundedString(value, maxBytes)
-		&& value.length > 0
-		&& /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value);
+	return (
+		boundedString(value, maxBytes) &&
+		value.length > 0 &&
+		/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+			value,
+		)
+	);
 }

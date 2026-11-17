@@ -10,12 +10,14 @@ type Delivery =
 let optionalDelivery: Promise<Delivery | undefined> | undefined;
 
 function loadDelivery() {
-	return (optionalDelivery ??= import(
-		"@howaboua/pi-codex-conversion/developer-messages"
-	).catch((error) => {
-		if (isMissingOptionalModule(error, "developer-messages")) return undefined;
-		throw error;
-	}));
+	return (optionalDelivery ??=
+		import("@howaboua/pi-codex-conversion/developer-messages").catch(
+			(error) => {
+				if (isMissingOptionalModule(error, "developer-messages"))
+					return undefined;
+				throw error;
+			},
+		));
 }
 
 export function isMissingOptionalModule(error: unknown, subpath: string) {

@@ -42,9 +42,8 @@ export async function connectBrowserVoice(
 			["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
 		)
 			throw new Error("A remote browser needs a non-loopback server URL");
-		const { startBrowserVoice } = await import(
-			"@howaboua/pi-browser/voice-start"
-		);
+		const { startBrowserVoice } =
+			await import("@howaboua/pi-browser/voice-start");
 		signal?.throwIfAborted();
 		const result = await startBrowserVoice({
 			url,

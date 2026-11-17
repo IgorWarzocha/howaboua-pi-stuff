@@ -21,7 +21,9 @@ function gitString(cwd, args) {
 	const result = runGit(cwd, args);
 	if (result.code !== 0)
 		throw new Error(
-			result.stderr || result.stdout || `git ${args.join(" ")} failed with exit ${result.code}`,
+			result.stderr ||
+				result.stdout ||
+				`git ${args.join(" ")} failed with exit ${result.code}`,
 		);
 	return result.stdout;
 }
@@ -42,9 +44,16 @@ function hasLocalBranch(cwd, branch) {
 }
 
 function selectBaseBranch(current, branches) {
-	if (current === "dev") return branches.main ? "main" : branches.master ? "master" : undefined;
+	if (current === "dev")
+		return branches.main ? "main" : branches.master ? "master" : undefined;
 	if (current !== "main" && current !== "master")
-		return branches.dev ? "dev" : branches.main ? "main" : branches.master ? "master" : undefined;
+		return branches.dev
+			? "dev"
+			: branches.main
+				? "main"
+				: branches.master
+					? "master"
+					: undefined;
 	if (branches.dev) return "dev";
 	if (current === "main" && branches.master) return "master";
 	if (current === "master" && branches.main) return "main";
@@ -54,11 +63,17 @@ function selectBaseBranch(current, branches) {
 function resolveBaseRef(cwd, branch) {
 	if (runGit(cwd, ["check-ref-format", "--branch", branch]).code !== 0)
 		throw new Error(`base is not a valid branch name: ${branch}`);
-	const refs = branch.startsWith("refs/heads/") || branch.startsWith("refs/remotes/")
-		? [branch]
-		: [`refs/heads/${branch}`, `refs/remotes/${branch}`];
+	const refs =
+		branch.startsWith("refs/heads/") || branch.startsWith("refs/remotes/")
+			? [branch]
+			: [`refs/heads/${branch}`, `refs/remotes/${branch}`];
 	for (const ref of refs) {
-		const result = runGit(cwd, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+		const result = runGit(cwd, [
+			"rev-parse",
+			"--verify",
+			"--quiet",
+			`${ref}^{commit}`,
+		]);
 		if (result.code === 0 && result.stdout) return ref;
 	}
 	throw new Error(`base branch does not exist locally: ${branch}`);
@@ -73,18 +88,35 @@ function reviewContext(cwd, requestedBase) {
 		master: hasLocalBranch(root, "master"),
 	};
 	const base = requestedBase ?? selectBaseBranch(current, branches);
-	const baseRef = requestedBase ? resolveBaseRef(root, requestedBase) : base ? `refs/heads/${base}` : undefined;
-	const status = gitString(root, ["status", "--short", "--untracked-files=all"]);
+	const baseRef = requestedBase
+		? resolveBaseRef(root, requestedBase)
+		: base
+			? `refs/heads/${base}`
+			: undefined;
+	const status = gitString(root, [
+		"status",
+		"--short",
+		"--untracked-files=all",
+	]);
 	if (!baseRef)
 		return { root, current: current || "HEAD", scope: "current-state", status };
 	const mergeBase = gitStringOrUndefined(root, ["merge-base", baseRef, "HEAD"]);
 	if (!mergeBase && requestedBase)
 		throw new Error(`base branch ${requestedBase} has no merge base with HEAD`);
 	if (!mergeBase)
-		return { root, current: current || "HEAD", scope: "current-state", status, base };
+		return {
+			root,
+			current: current || "HEAD",
+			scope: "current-state",
+			status,
+			base,
+		};
 	const diff = runGit(root, ["diff", "--quiet", mergeBase]);
 	if (diff.code !== 0 && diff.code !== 1)
-		throw new Error(diff.stderr || `git diff --quiet ${mergeBase} failed with exit ${diff.code}`);
+		throw new Error(
+			diff.stderr ||
+				`git diff --quiet ${mergeBase} failed with exit ${diff.code}`,
+		);
 	return {
 		root,
 		current: current || gitString(root, ["rev-parse", "--short", "HEAD"]),

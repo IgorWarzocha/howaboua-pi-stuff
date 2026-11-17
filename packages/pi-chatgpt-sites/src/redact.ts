@@ -46,7 +46,7 @@ function redactValue(value: unknown, seen: WeakSet<object>): unknown {
 function redactString(value: string) {
 	return value
 		.replace(/(https?:\/\/)[^/@\s:]+:[^/@\s]+@/gi, "$1[redacted]@")
-		.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/-]+=*/gi, "$1 [redacted]")
+		.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/-]+=*/gi, "$1 [redacted]")
 		.replace(
 			/([?&](?:token|access_token|key|signature|sig)=)[^&#\s]+/gi,
 			"$1[redacted]",

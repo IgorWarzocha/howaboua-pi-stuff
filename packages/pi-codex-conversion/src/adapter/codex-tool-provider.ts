@@ -165,10 +165,10 @@ function isConfiguredProviderRequest(
 ): value is ConfiguredProviderRequest {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"model" in value &&
-			"allow" in value &&
-			typeof value.allow === "function",
+		typeof value === "object" &&
+		"model" in value &&
+		"allow" in value &&
+		typeof value.allow === "function",
 	);
 }
 
@@ -177,9 +177,9 @@ function isProviderResolverRequest(
 ): value is ProviderResolverRequest {
 	return Boolean(
 		value &&
-			typeof value === "object" &&
-			"use" in value &&
-			typeof value.use === "function",
+		typeof value === "object" &&
+		"use" in value &&
+		typeof value.use === "function",
 	);
 }
 

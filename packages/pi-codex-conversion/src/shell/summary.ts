@@ -1,4 +1,7 @@
-import { parseCommandString, type ParsedShellCommand } from "./parse-command.ts";
+import {
+	parseCommandString,
+	type ParsedShellCommand,
+} from "./parse-command.ts";
 import type { CommandSummary, ShellAction } from "./types.ts";
 
 export type { CommandSummary, ShellAction } from "./types.ts";
@@ -16,7 +19,9 @@ function parsedToAction(command: ParsedShellCommand): ShellAction {
 		return { kind: "run", command: command.command };
 	}
 	if (command.kind === "list") {
-		return command.path ? { kind: "list", command: command.command, path: command.path } : { kind: "list", command: command.command };
+		return command.path
+			? { kind: "list", command: command.command, path: command.path }
+			: { kind: "list", command: command.command };
 	}
 	if (command.kind === "search") {
 		return {
@@ -26,5 +31,10 @@ function parsedToAction(command: ParsedShellCommand): ShellAction {
 			...(command.path ? { path: command.path } : {}),
 		};
 	}
-	return { kind: "read", command: command.command, name: command.name, path: command.path };
+	return {
+		kind: "read",
+		command: command.command,
+		name: command.name,
+		path: command.path,
+	};
 }

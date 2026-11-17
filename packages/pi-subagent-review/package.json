@@ -1,70 +1,70 @@
 {
-	"name": "@howaboua/pi-subagent-review",
-	"version": "0.2.26",
-	"description": "Pi extension that adds /review via an isolated review subagent.",
-	"type": "module",
-	"main": "index.ts",
-	"exports": "./index.ts",
-	"license": "MIT",
-	"files": [
-		"index.ts",
-		"src",
-		"review.prompt.md",
-		"README.md",
-		"tsconfig.json",
-		"biome.json",
-		"CHANGELOG.md"
-	],
-	"keywords": [
-		"pi-package",
-		"pi",
-		"pi-extension",
-		"review",
-		"code-review",
-		"subagent",
-		"agent"
-	],
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-subagent-review"
-	},
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-subagent-review#readme",
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"pi": {
-		"extensions": [
-			"./index.ts"
-		]
-	},
-	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=5.0.0",
-		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"scripts": {
-		"check": "bun run lint && bun run typecheck",
-		"prepack": "bun run check",
-		"typecheck": "tsgo --noEmit",
-		"lint": "biome check .",
-		"format": "biome check --write ."
-	},
-	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "5.0.0",
-		"@earendil-works/pi-ai": "1.5.2",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@types/node": "^26.6.6",
-		"typescript": "^7.0.2",
-		"@biomejs/biome": "^2.6.6"
-	},
-	"publishConfig": {
-		"access": "public"
-	}
+  "name": "@howaboua/pi-subagent-review",
+  "version": "0.2.26",
+  "description": "Pi extension that adds /review via an isolated review subagent.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": "./index.ts",
+  "license": "MIT",
+  "files": [
+    "index.ts",
+    "src",
+    "review.prompt.md",
+    "README.md",
+    "tsconfig.json",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "review",
+    "code-review",
+    "subagent",
+    "agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-subagent-review"
+  },
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-subagent-review#readme",
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@howaboua/pi-codex-conversion": ">=5.0.0",
+    "@earendil-works/pi-ai": ">=1.0.0",
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "check": "bun run lint && bun run typecheck",
+    "prepack": "bun run check",
+    "typecheck": "tsrs --noEmit",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "format": "oxfmt --write '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "devDependencies": {
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

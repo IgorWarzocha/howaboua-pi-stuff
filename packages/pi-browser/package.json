@@ -1,95 +1,95 @@
 {
-	"name": "@howaboua/pi-browser",
-	"version": "0.0.13",
-	"description": "Logged-in browser inspection and control for Pi, Code Mode and Notebook Mode.",
-	"type": "module",
-	"license": "MIT",
-	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser#readme",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-browser"
-	},
-	"bugs": {
-		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	},
-	"keywords": [
-		"pi-package",
-		"pi-extension",
-		"pi",
-		"browser",
-		"chrome",
-		"cdp",
-		"code-mode"
-	],
-	"files": [
-		"dist/**/*.js",
-		"dist/**/*.d.ts",
-		"extension.ts",
-		"index.ts",
-		"remote-worker.ts",
-		"src",
-		"README.md",
-		"LICENSE",
-		"CHANGELOG.md",
-		"tsconfig.json",
-		"biome.json"
-	],
-	"scripts": {
-		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build remote-worker.ts --target=node --format=esm --outfile=dist/remote-worker.js --banner='// @howaboua/pi-browser managed worker'",
-		"check": "bun run lint && bun run typecheck",
-		"prepack": "bun run check && bun run build",
-		"typecheck": "tsgo --noEmit",
-		"lint": "biome check .",
-		"pack:dry": "npm pack --dry-run"
-	},
-	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=5.0.0",
-		"@earendil-works/pi-ai": ">=1.0.0",
-		"@earendil-works/pi-coding-agent": ">=1.5.0",
-		"@earendil-works/pi-tui": ">=1.0.0"
-	},
-	"peerDependenciesMeta": {
-		"@howaboua/pi-codex-conversion": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "5.0.0",
-		"@biomejs/biome": "^2.6.6",
-		"@earendil-works/pi-ai": "1.5.2",
-		"@earendil-works/pi-coding-agent": "1.5.2",
-		"@types/node": "^26.6.6",
-		"typescript": "^7.0.2"
-	},
-	"pi": {
-		"extensions": [
-			"./extension.ts"
-		]
-	},
-	"engines": {
-		"node": ">=22.19.0"
-	},
-	"bin": {
-		"pi-browser-worker": "./dist/remote-worker.js"
-	},
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		"./voice-start": {
-			"types": "./dist/src/browser/voice-start.d.ts",
-			"import": "./dist/src/browser/voice-start.js"
-		},
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"dependencies": {
-		"@earendil-works/pi-schema": "1.5.2"
-	}
+  "name": "@howaboua/pi-browser",
+  "version": "0.0.13",
+  "description": "Logged-in browser inspection and control for Pi, Code Mode and Notebook Mode.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Igor Warzocha",
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-browser"
+  },
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "browser",
+    "chrome",
+    "cdp",
+    "code-mode"
+  ],
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "extension.ts",
+    "index.ts",
+    "remote-worker.ts",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "tsconfig.json"
+  ],
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build remote-worker.ts --target=node --format=esm --outfile=dist/remote-worker.js --banner='// @howaboua/pi-browser managed worker'",
+    "check": "bun run lint && bun run typecheck",
+    "prepack": "bun run check && bun run build",
+    "typecheck": "tsrs --noEmit",
+    "lint": "bun run format:check && oxlint --type-aware",
+    "pack:dry": "npm pack --dry-run",
+    "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'"
+  },
+  "peerDependencies": {
+    "@howaboua/pi-codex-conversion": ">=5.0.0",
+    "@earendil-works/pi-ai": ">=1.0.0",
+    "@earendil-works/pi-coding-agent": ">=1.5.0",
+    "@earendil-works/pi-tui": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-codex-conversion": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@howaboua/pi-codex-conversion": "5.0.0",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "oxfmt": "^0.78.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extension.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "pi-browser-worker": "./dist/remote-worker.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./voice-start": {
+      "types": "./dist/src/browser/voice-start.d.ts",
+      "import": "./dist/src/browser/voice-start.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@earendil-works/pi-schema": "1.5.2"
+  }
 }

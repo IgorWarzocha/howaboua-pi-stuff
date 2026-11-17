@@ -37,10 +37,7 @@ export class CodeModeTraceStore {
 		const traces = this.traces.get(cellId) ?? [];
 		if (traces.length >= MAX_TRACE_COUNT) {
 			traces.shift();
-			this.droppedCounts.set(
-				cellId,
-				(this.droppedCounts.get(cellId) ?? 0) + 1,
-			);
+			this.droppedCounts.set(cellId, (this.droppedCounts.get(cellId) ?? 0) + 1);
 		}
 		const trace: RuntimeToolTrace = {
 			id,

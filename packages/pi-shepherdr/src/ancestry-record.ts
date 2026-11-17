@@ -30,6 +30,7 @@ function nativeIdentity(value: unknown): NativeSessionIdentity {
 		!("sessionId" in value) ||
 		typeof value.sessionId !== "string" ||
 		!value.sessionId ||
+		// oxlint-disable-next-line no-control-regex -- Intentionally matches terminal controls or rejects control characters at the boundary.
 		/[/\\\u0000]/.test(value.sessionId) ||
 		!("sessionFile" in value) ||
 		typeof value.sessionFile !== "string" ||

@@ -16,38 +16,86 @@ export type VoiceState =
 	| { type: "idle" }
 	| { type: "reconnecting"; session: CodexRealtimeConversation }
 	| { type: "connecting"; mode: "realtime"; phase: "authorizing" }
-	| { type: "connecting"; mode: "realtime"; phase: "starting"; session: CodexRealtimeConversation }
+	| {
+			type: "connecting";
+			mode: "realtime";
+			phase: "starting";
+			session: CodexRealtimeConversation;
+	  }
 	| { type: "connecting"; mode: "dictation"; phase: "authorizing" }
-	| { type: "connecting"; mode: "dictation"; phase: "starting"; session: CodexDictationSession }
+	| {
+			type: "connecting";
+			mode: "dictation";
+			phase: "starting";
+			session: CodexDictationSession;
+	  }
 	| { type: "conversation"; session: CodexRealtimeConversation }
 	| { type: "dictation"; session: CodexDictationSession }
 	| { type: "failed"; message: string };
 
-export function currentVoiceSession(state: VoiceState): VoiceSession | undefined {
-	if (state.type === "conversation" || state.type === "dictation" || state.type === "reconnecting") return state.session;
-	return state.type === "connecting" && state.phase === "starting" ? state.session : undefined;
+export function currentVoiceSession(
+	state: VoiceState,
+): VoiceSession | undefined {
+	if (
+		state.type === "conversation" ||
+		state.type === "dictation" ||
+		state.type === "reconnecting"
+	)
+		return state.session;
+	return state.type === "connecting" && state.phase === "starting"
+		? state.session
+		: undefined;
 }
 
-export function voiceModeForState(state: Exclude<VoiceState, { type: "idle" } | { type: "failed" }>): CodexVoiceMode {
+export function voiceModeForState(
+	state: Exclude<VoiceState, { type: "idle" } | { type: "failed" }>,
+): CodexVoiceMode {
 	return state.type === "connecting"
 		? state.mode
-		: state.type === "dictation" ? "dictation" : "realtime";
+		: state.type === "dictation"
+			? "dictation"
+			: "realtime";
 }
 
-export function prepareRealtimeVoicePrompt(ctx: ExtensionContext): string | undefined {
+export function prepareRealtimeVoicePrompt(
+	ctx: ExtensionContext,
+): string | undefined {
 	try {
 		const status = prepareCodexVoiceSystemPrompt();
-		if (!status.current) ctx.ui.notify(formatCodexVoicePromptSchemaMismatch(status.currentSchemaVersion), "warning");
-		return loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined);
+		if (!status.current)
+			ctx.ui.notify(
+				formatCodexVoicePromptSchemaMismatch(status.currentSchemaVersion),
+				"warning",
+			);
+		return loadCodexVoiceSystemPrompt(
+			undefined,
+			ctx.isProjectTrusted()
+				? getProjectCodexVoiceSystemPromptPath(ctx.cwd)
+				: undefined,
+		);
 	} catch (error) {
-		ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+		ctx.ui.notify(
+			error instanceof Error ? error.message : String(error),
+			"error",
+		);
 		return undefined;
 	}
 }
 
-export function renderVoiceStatus(ctx: ExtensionContext | undefined, status: string, muted: boolean, inputTooQuiet: boolean): void {
+export function renderVoiceStatus(
+	ctx: ExtensionContext | undefined,
+	status: string,
+	muted: boolean,
+	inputTooQuiet: boolean,
+): void {
 	if (!ctx || !status) return;
 	const mute = muted ? ctx.ui.theme.fg("warning", " · mic muted") : "";
-	const level = !muted && inputTooQuiet ? ctx.ui.theme.fg("warning", " · mic too quiet") : "";
-	ctx.ui.setStatus(VOICE_STATUS_KEY, `${ctx.ui.theme.fg("accent", `voice: ${status}`)}${mute}${level}`);
+	const level =
+		!muted && inputTooQuiet
+			? ctx.ui.theme.fg("warning", " · mic too quiet")
+			: "";
+	ctx.ui.setStatus(
+		VOICE_STATUS_KEY,
+		`${ctx.ui.theme.fg("accent", `voice: ${status}`)}${mute}${level}`,
+	);
 }

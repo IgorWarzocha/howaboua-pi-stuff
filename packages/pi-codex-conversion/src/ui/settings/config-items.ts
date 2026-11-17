@@ -28,6 +28,10 @@ export function buildConfigSettings(
 	if (tab === "openai") return buildOpenAISettings(config);
 	if (tab === "display") return buildDisplaySettings(config);
 	if (tab === "voice")
-		return buildVoiceSettings(config, availableContextModels, webSearchAvailable);
+		return buildVoiceSettings(
+			config,
+			availableContextModels,
+			webSearchAvailable,
+		);
 	return [];
 }

@@ -83,7 +83,8 @@ checkpoint registration: ONE binding, NO hook; named durable helpers snapshot(va
 TS state≠Deno. Normal cells share bindings/closures/modules. Snapshots retain supported data/helper recipes, report skipped live-only values. Live errors MAY leave mutations; tool/file effects NEVER roll back. Isolated cells→checkpoint copy→saved candidate; live state unchanged UNTIL explicit candidate load REPLACES kernel`;
 
 export function notebookHelpForMode(kind: string, gpt: boolean): string {
-	if (kind !== "notebook" && kind !== "ts") throw new Error("Notebook controls require Notebook or TS mode.");
+	if (kind !== "notebook" && kind !== "ts")
+		throw new Error("Notebook controls require Notebook or TS mode.");
 	if (gpt) return kind === "ts" ? TS_GPT_HELP : NOTEBOOK_GPT_HELP;
 	return kind === "ts" ? TS_HELP : NOTEBOOK_HELP;
 }

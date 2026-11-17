@@ -2,7 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { codeModeHostBinaryName, HOST_RELEASE } from "./host-assets.ts";
-import { installCodeModeHost, type InstallCodeModeHostOptions } from "./install-host.ts";
+import {
+	installCodeModeHost,
+	type InstallCodeModeHostOptions,
+} from "./install-host.ts";
 
 interface CodeModeHostBinaryRuntime {
 	platform: string;
@@ -11,7 +14,9 @@ interface CodeModeHostBinaryRuntime {
 	install(options: InstallCodeModeHostOptions): Promise<void>;
 }
 
-function resolveRuntime(overrides: Partial<CodeModeHostBinaryRuntime> = {}): CodeModeHostBinaryRuntime {
+function resolveRuntime(
+	overrides: Partial<CodeModeHostBinaryRuntime> = {},
+): CodeModeHostBinaryRuntime {
 	return {
 		platform: overrides.platform ?? process.platform,
 		arch: overrides.arch ?? process.arch,
@@ -20,7 +25,9 @@ function resolveRuntime(overrides: Partial<CodeModeHostBinaryRuntime> = {}): Cod
 	};
 }
 
-export function codeModeHostBinaryPath(overrides: Partial<CodeModeHostBinaryRuntime> = {}): string {
+export function codeModeHostBinaryPath(
+	overrides: Partial<CodeModeHostBinaryRuntime> = {},
+): string {
 	const runtime = resolveRuntime(overrides);
 	const name = codeModeHostBinaryName(runtime.platform);
 	const cached = codeModeHostCachePath(name, runtime);
@@ -30,7 +37,10 @@ export function codeModeHostBinaryPath(overrides: Partial<CodeModeHostBinaryRunt
 	);
 }
 
-export async function ensureCodeModeHostBinary(signal?: AbortSignal, overrides: Partial<CodeModeHostBinaryRuntime> = {}): Promise<string> {
+export async function ensureCodeModeHostBinary(
+	signal?: AbortSignal,
+	overrides: Partial<CodeModeHostBinaryRuntime> = {},
+): Promise<string> {
 	const runtime = resolveRuntime(overrides);
 	try {
 		return codeModeHostBinaryPath(runtime);
@@ -46,7 +56,10 @@ export async function ensureCodeModeHostBinary(signal?: AbortSignal, overrides: 
 	}
 }
 
-function codeModeHostCachePath(name: string, runtime: CodeModeHostBinaryRuntime): string {
+function codeModeHostCachePath(
+	name: string,
+	runtime: CodeModeHostBinaryRuntime,
+): string {
 	return join(
 		runtime.agentDir,
 		"cache",
