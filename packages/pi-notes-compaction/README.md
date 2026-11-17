@@ -118,7 +118,7 @@ The whitelist is preseeded in `<Pi agent directory>/notes-compaction/settings.js
 ```json
 {
 	"active": "whitelist",
-	"modelWhitelist": ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"],
+	"modelWhitelist": ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"],
 	"normalCompaction": false,
 	"rankedHistorySearch": false,
 	"newWindowRequests": "unrestricted",

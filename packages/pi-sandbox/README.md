@@ -155,7 +155,7 @@ The terminal uses a newly generated key, disables agent forwarding, and disconne
 From this monorepo checkout, refresh a disposable live review candidate using your existing host Pi login:
 
 ```sh
-bun run sandbox:setup --name review --live-model openai-codex/gpt-6-sol
+bun run sandbox:setup --name review --live-model openai-codex/gpt-6.2-sol
 ```
 
 Add `--config sandbox.yaml` to create the environment first. The host needs Node 24 or newer and installed repository dependencies. The guest needs Bun, Node 24 or newer, Python 3, tar, make, g++, node-gyp, released [Herdr Core](https://github.com/herdrdev/herdr-core) 0.1.18 or newer (`hc`) and `fd` on PATH. Provision node-gyp explicitly, for example with `npm install --global node-gyp@13.1.0`, rather than relying on Bun's first-use auto-install during native builds. Install `fd` through your guest's package manager because Pi's automatic download can fail behind the VM network gateway. The command checks Core's version. Shepherdr supplies Pi status and session discovery directly inside Core terminals, without a separate integration installation. Allow the package registry and any build-download hosts required by the lockfile in your environment YAML.

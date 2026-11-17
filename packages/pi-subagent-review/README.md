@@ -48,7 +48,7 @@ On first load, the extension creates `~/.pi/agent/pi-subagent-review.json`, or t
 
 ```json
 {
-	"model": "openai-codex/gpt-6-sol",
+	"model": "openai-codex/gpt-6.2-sol",
 	"thinking": "medium",
 	"summary": {
 		"enabled": true,
@@ -59,6 +59,8 @@ On first load, the extension creates `~/.pi/agent/pi-subagent-review.json`, or t
 ```
 
 Models use Pi's `provider/model` format. Thinking levels through `max` are accepted and clamped. If a configured model is unavailable, the command falls back to the current session model.
+
+Reviewer IDs absent from Pi's catalogue use its CLI's custom-model support when their provider is configured. Invalid IDs fail in the reviewer rather than selecting another model. Summary models must be registered in Pi.
 
 The `summary` model prepares both reviewer conversation context and review-loop increment summaries.
 

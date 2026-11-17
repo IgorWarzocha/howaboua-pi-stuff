@@ -16,7 +16,7 @@ export const REVIEW_PROMPT_PATH = path.join(
 );
 
 export const DEFAULT_CONFIG = {
-	model: "openai-codex/gpt-6-sol",
+	model: "openai-codex/gpt-6.2-sol",
 	thinking: "medium",
 	summary: {
 		enabled: true,

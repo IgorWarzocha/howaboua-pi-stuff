@@ -10,8 +10,11 @@ Run from the candidate checkout inside the VM. Use the isolated agent directory 
 
 Choose the execution mode and continuity settings in that directory before launch. For a Notes test, include Notes in the loaded packages. For a PCC Remote test, do not let Notes take over continuity. Put the task in `scenario.txt`. For example, a continuity task can request a note write, a history lookup, a fresh checkpoint, `new_context` and readback after rollover.
 
+Set `PI_TEST_MODEL` to an authenticated `provider/model` already registered in the guest's `models.json` or Pi's built-in catalogue. Register newer models missing from the catalogue before running. This lookup happens before extensions load.
+
 ```sh
 export PI_CODING_AGENT_DIR=/path/to/isolated/guest-agent
+export PI_TEST_MODEL=provider/registered-model-id
 node --input-type=module <<'JS'
 import { readFile, mkdir, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -22,15 +25,15 @@ import {
 const cwd = process.cwd();
 const agentDir = process.env.PI_CODING_AGENT_DIR;
 if (!agentDir) throw new Error('Set the isolated guest agent directory');
-const provider = 'openai-codex';
-const modelId = 'gpt-6-sol';
+const modelRef = process.env.PI_TEST_MODEL;
+if (!modelRef) throw new Error('Set PI_TEST_MODEL to a registered provider/model');
 const runtime = await ModelRuntime.create({
   authPath: join(agentDir, 'auth.json'),
   modelsPath: join(agentDir, 'models.json'),
   allowModelNetwork: true,
 });
-const model = runtime.getModels(provider).find(model => model.id === modelId);
-if (!model) throw new Error(`Model unavailable: ${provider}/${modelId}`);
+const model = runtime.getModels().find(model => `${model.provider}/${model.id}` === modelRef);
+if (!model) throw new Error(`Model unavailable: ${modelRef}. Register it in the guest models.json first.`);
 const settingsManager = SettingsManager.create(cwd, agentDir);
 await mkdir('evidence', { recursive: true });
 const audit = pi => {
@@ -66,7 +69,7 @@ process.exit(process.exitCode ?? 0);
 JS
 ```
 
-Change `provider`, `modelId` and the thinking level for the route under test. This example deliberately exits its disposable process after disposal because extensions may retain transport handles. The original acceptance runner also needed its completed process stopped.
+Choose `PI_TEST_MODEL` and the thinking level for the route under test. This example deliberately exits its disposable process after disposal because extensions may retain transport handles. The original acceptance runner also needed its completed process stopped.
 
 ## Inspect the result
 
