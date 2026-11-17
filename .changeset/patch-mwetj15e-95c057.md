@@ -2,12 +2,8 @@
 "@howaboua/pi-notes-compaction": patch
 ---
 
-Role guidance now directs each agent to choose its own preset at sustained phase changes, without waiting for approval or delegating just to switch roles.
-
-Added opt-in task-completion rollover: `new_context({resume: false})` finishes the reply and opens fresh context without starting another turn.
-
-Added same-cell context rollover after an awaited note save in Code and Notebook.
-
-Shared Notes and History try exact saved-session discovery before searching the saved family. Unrecorded shortened UUID addresses report how to retry without scanning every saved conversation; live routing remains available.
-
-Notes and History tool examples now omit mode-specific `await` syntax.
+- Added `new_context({resume: false})` to finish a reply and open fresh context without continuing automatically.
+- Added same-cell rollover after an awaited note save in Code and Notebook.
+- Role guidance now directs agents to choose presets for sustained phase changes.
+- Unknown shortened UUIDs now report how to retry without scanning saved conversations. Full addresses and live routing remain available.
+- Notes and History examples no longer prescribe `await`.
