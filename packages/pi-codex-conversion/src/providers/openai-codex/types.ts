@@ -76,6 +76,11 @@ export interface CodexDiagnosticsFailure {
 }
 export interface CodexRequestDiagnostics {
 	instructionsFingerprint: string;
+	instructionItems: Array<{
+		fingerprint: string;
+		textBytes: number;
+		textBlockFingerprints: string[];
+	}>;
 	toolsFingerprint: string;
 	cacheKeyFingerprint: string;
 	routingFingerprint: string;

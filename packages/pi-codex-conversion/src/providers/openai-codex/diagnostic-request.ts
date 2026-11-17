@@ -2,6 +2,28 @@ import { createHash } from "node:crypto";
 import { isResponsesLiteRequest } from "./responses-lite.ts";
 import type { CodexRequestDiagnostics, ResponsesBody } from "./types.ts";
 
+const INSTRUCTION_TEXT_BLOCK_BYTES = 1024;
+
+function fingerprint(value: unknown): string {
+	return createHash("sha256").update(JSON.stringify(value ?? null)).digest("hex");
+}
+
+function instructionItemDiagnostics(item: unknown): CodexRequestDiagnostics["instructionItems"][number] {
+	const content = typeof item === "string" ? item
+		: item && typeof item === "object" && "content" in item ? item.content : undefined;
+	const text = typeof content === "string" ? content : Array.isArray(content)
+		? content.flatMap((part: unknown) => part && typeof part === "object" && "type" in part
+			&& part.type === "input_text" && "text" in part && typeof part.text === "string" ? [part.text] : []).join("")
+		: "";
+	const bytes = Buffer.from(text, "utf8");
+	const textBlockFingerprints: string[] = [];
+	for (let offset = 0; offset < bytes.length; offset += INSTRUCTION_TEXT_BLOCK_BYTES) {
+		textBlockFingerprints.push(createHash("sha256")
+			.update(bytes.subarray(offset, offset + INSTRUCTION_TEXT_BLOCK_BYTES)).digest("hex"));
+	}
+	return { fingerprint: fingerprint(item), textBytes: bytes.length, textBlockFingerprints };
+}
+
 /** Reduce request state before it crosses the diagnostics privacy boundary. */
 export function codexRequestDiagnostics(body: ResponsesBody, headers: Headers, headersSent = true): CodexRequestDiagnostics {
 	const metadata = body.client_metadata;
@@ -18,9 +40,9 @@ export function codexRequestDiagnostics(body: ResponsesBody, headers: Headers, h
 			leadingInstructions.push(item);
 		}
 	}
-	const fingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(value ?? null)).digest("hex");
 	return {
 		instructionsFingerprint: fingerprint(body.instructions ?? leadingInstructions),
+		instructionItems: (body.instructions === undefined ? leadingInstructions : [body.instructions]).map(instructionItemDiagnostics),
 		toolsFingerprint: fingerprint(lite ? first?.["tools"] : body.tools),
 		cacheKeyFingerprint: fingerprint(body.prompt_cache_key),
 		routingFingerprint: fingerprint(["x-codex-routing-hint", "originator", "openai-beta", "x-openai-internal-codex-responses-lite"].map(name => [name, headers.get(name)])),
