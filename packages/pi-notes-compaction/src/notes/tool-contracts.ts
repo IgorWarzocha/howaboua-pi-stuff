@@ -31,8 +31,8 @@ const HISTORY_ACTIONS = [
 	"read",
 	"search",
 ] as const;
-export const NOTES_USAGE = "await tools.notes()";
-export const HISTORY_USAGE = "await tools.history()";
+export const NOTES_USAGE = "tools.notes()";
+export const HISTORY_USAGE = "tools.history()";
 export const NOTES_DESCRIPTION = "Virtual filesystem task checkpoints";
 export const NOTES_ROUTING_GUIDELINE =
 	"notes: task checkpoints and internal handoffs. MUST revise via write/append actions. Paths are virtual: read/write only through notes, never shell/filesystem tools. MUST NOT store project files or deliverables";

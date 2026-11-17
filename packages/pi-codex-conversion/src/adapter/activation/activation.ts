@@ -89,7 +89,7 @@ function enableAdapter(
 	state: AdapterState,
 	plan: Extract<
 		CodexRuntimePlan,
-		{ kind: "normal" | "code" | "notebook" | "ts" | "js" }
+		{ kind: "normal" | "code" | "notebook" | "ts" | "js" | "vm" }
 	>,
 	extensionTools: ExtensionToolSnapshot,
 ): void {
@@ -257,7 +257,8 @@ function applyRuntimeTools(
 		plan.kind === "code" ||
 		plan.kind === "notebook" ||
 		plan.kind === "ts" ||
-		plan.kind === "js"
+		plan.kind === "js" ||
+		plan.kind === "vm"
 	) {
 		const nativeSearch = pi
 			.getAllTools()

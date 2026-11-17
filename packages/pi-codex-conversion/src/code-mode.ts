@@ -60,7 +60,7 @@ export function adaptToolForCodeMode<
 		? { ...tool, name: codeModeNameForToolIdentity(options.toolName) }
 		: tool;
 	const usage =
-		options.usage ?? `await tools.${codeModeGlobalName(nestedTool.name)}()`;
+		options.usage ?? `tools.${codeModeGlobalName(nestedTool.name)}()`;
 	const adapted = toNestedTool(
 		nestedTool,
 		usage,

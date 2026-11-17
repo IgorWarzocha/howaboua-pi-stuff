@@ -142,7 +142,10 @@ export async function registerCodexCodeMode(
 				ctx as ExtensionContext,
 				runtime.state,
 			).kind;
-			return kind === "notebook" || kind === "ts" || kind === "js"
+			return kind === "notebook" ||
+				kind === "ts" ||
+				kind === "js" ||
+				kind === "vm"
 				? kind
 				: "code";
 		},
@@ -200,7 +203,7 @@ function createNestedTools(
 				promptSnippet: false,
 				showDiffWhenCollapsed: runtime.state.config.ui.compactTools === "off",
 			}),
-			"await tools.apply_patch(patch) // *** Begin Patch / *** End Patch; actions: *** Add File: path | *** Update File: path | *** Delete File: path; *** Move to: path must immediately follow its Update File header and still needs a nonempty @@ hunk (use one unchanged context line for a pure move); Update hunks MUST follow file order; copy exact context; @@ text is context, not a line range; reread a file before patching if it changed since your last read",
+			"tools.apply_patch(patch) // *** Begin Patch / *** End Patch; actions: *** Add File: path | *** Update File: path | *** Delete File: path; *** Move to: path must immediately follow its Update File header and still needs a nonempty @@ hunk (use one unchanged context line for a pure move); Update hunks MUST follow file order; copy exact context; @@ text is context, not a line range; reread a file before patching if it changed since your last read",
 			{},
 			{
 				kind: "freeform",
@@ -228,7 +231,7 @@ function createNestedTools(
 		),
 		toNestedTool(
 			createExecCommandTool(runtime.tracker, runtime.sessions, options),
-			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean }) // returns { output: string, session_id?: number, exit_code?: number }",
+			"tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean }) // returns { output: string, session_id?: number, exit_code?: number }",
 			{
 				start(id, input) {
 					const cmd =
@@ -271,7 +274,7 @@ function createNestedTools(
 		),
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
-			"await tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number }) // non-empty chars only when the original exec_command used tty=true",
+			"tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number }) // non-empty chars only when the original exec_command used tty=true",
 			{},
 			{ yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS, ...textOutput },
 		),
@@ -292,8 +295,8 @@ function createNestedTools(
 					customRendering: runtime.state.config.ui.toolRenaming,
 				}),
 				imageCapable
-					? 'const result = await tools.view_image({ path: string, detail?: "original" }); image(result)'
-					: "const description = await tools.view_image({ path: string }); text(description)",
+					? 'tools.view_image({ path: string, detail?: "original" })'
+					: "tools.view_image({ path: string })",
 				{},
 				{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
 			),
@@ -306,7 +309,7 @@ function createNestedTools(
 		tools.push(
 			toNestedTool(
 				runtime.autoReasoning.tool,
-				`await tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" }) // ${runtime.autoReasoning.tool.description}`,
+				`tools.change_reasoning({ level: "low" | "medium" | "high" | "xhigh" | "max" }) // ${runtime.autoReasoning.tool.description}`,
 			),
 		);
 	}

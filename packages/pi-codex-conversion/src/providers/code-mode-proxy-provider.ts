@@ -274,7 +274,8 @@ function resolveProviderApis(
 			(mode === "code" ||
 				mode === "notebook" ||
 				mode === "ts" ||
-				mode === "js") &&
+				mode === "js" ||
+				mode === "vm") &&
 			config.openai.proxyResponsesLite &&
 			config.scope.additionalProviders.includes(
 				model.provider.trim().toLowerCase(),

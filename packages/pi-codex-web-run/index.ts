@@ -82,8 +82,8 @@ async function registerWebRunInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				usage: gpt()
-					? 'await tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls=returned ref_ids; final citations=Markdown result URLs; never refs/cite markers'
-					: 'await tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls use returned ref_ids; final answers use Markdown result URLs, never refs/cite markers',
+					? 'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls=returned ref_ids; final citations=Markdown result URLs; never refs/cite markers'
+					: 'tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls use returned ref_ids; final answers use Markdown result URLs, never refs/cite markers',
 				promptMetadata: false,
 				toolName: { namespace: "web", name: "run" },
 				resultValue: webRunCodeModeResult,

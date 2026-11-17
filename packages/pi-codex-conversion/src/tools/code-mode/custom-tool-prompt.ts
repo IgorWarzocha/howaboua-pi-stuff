@@ -9,12 +9,10 @@ import {
 
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Await work; use a timeout when an operation might not finish on its own
 Bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value) emits MCP text/images in order; text(value) prints serialized output; notify(value) emits; both return undefined; yield_control() yields`;
 
 export const GPT_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-Await work; possibly nonterminating→timeout
 Bare values discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; content(value)→emit MCP text/images in order; text(value)→print serialized output; notify(value)→emit; both→undefined; yield_control()→yield`;
 
 export const ISOLATED_EXEC_GUIDANCE =
@@ -22,16 +20,30 @@ export const ISOLATED_EXEC_GUIDANCE =
 export const GPT_ISOLATED_EXEC_GUIDANCE =
 	'Concurrent isolated: // @exec: {"isolated":true}; last checkpoint; shared vars unchanged';
 
+export const VM_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
+let, const, function and class persist in this conversation, including across await
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
+content(value) emits MCP text/images in order
+No Node, imports, fetch or timers
+A stall, cancellation, memory limit or terminate drops conversation bindings`;
+
+export const GPT_VM_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
+let/const/function/class persist in this conversation, including across await
+Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, console, ALL_TOOLS
+content(value)→emit MCP text/images in order
+NO Node/imports/fetch/timers
+Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh`;
+
 export const JS_EXEC_DESCRIPTION = `Run JavaScript; source only, no JSON or fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Await host calls; top-level await supported
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 content(value) emits MCP text/images in order
 No Node, imports, fetch, timers or TypeScript checking`;
 
 export const GPT_JS_EXEC_DESCRIPTION = `JavaScript tool composition; source ONLY, NO JSON/fences
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults=30000ms/10000tokens
-Top-level await; await host calls
 Bare values discarded; globals: tools, text, image, notify, generatedImage, store, load, yield_control, exit, ALL_TOOLS
 content(value)→emit MCP text/images in order
 NO Node/imports/fetch/timers/TSchecking`;
@@ -178,21 +190,25 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		executionKind === "js"
+		executionKind === "vm"
 			? gpt
-				? "exec=fresh QuickJS per call; max4 concurrent; store/load→conversation-local JSON, no disk persistence"
-				: "exec runs fresh QuickJS per call, with up to four concurrent cells. store/load retain conversation-local JSON, not disk state"
-			: executionKind === "ts"
+				? "exec=one JS context for this conversation; let/const/function/class persist; NO Node/imports/fetch/timers; stall/cancel/memory limit/terminate drops bindings"
+				: "exec keeps one JavaScript context for this conversation. let, const, function and class persist. No Node, imports, fetch or timers. A stall, cancellation, memory limit or terminate drops those bindings"
+			: executionKind === "js"
 				? gpt
-					? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
-					: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
-				: executionKind === "notebook"
+					? "exec=fresh QuickJS per call; max4 concurrent; store/load→conversation-local JSON, no disk persistence"
+					: "exec runs fresh QuickJS per call, with up to four concurrent cells. store/load retain conversation-local JSON, not disk state"
+				: executionKind === "ts"
 					? gpt
-						? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals MAY predate agent/session"
-						: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
-					: gpt
-						? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
-						: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
+						? "exec=persistent TS; imports/npm/Node/Web APIs; bindings/modules persist"
+						: "exec is a persistent TypeScript kernel with imports, npm, Node and Web APIs; live bindings and module instances persist across cells"
+					: executionKind === "notebook"
+						? gpt
+							? "exec=persistent Deno/TS; console/imports/npm/Deno/Web APIs; small programs across cells; globals MAY predate agent/session"
+							: "exec is a persistent Deno/TypeScript notebook with console, imports, npm, Deno, and Web APIs; globals may come from earlier agents and sessions. Build small programs on retained state across cells"
+						: gpt
+							? "exec=fresh restricted JS; NO console/imports/Node/browser APIs"
+							: "exec runs fresh restricted JavaScript; no console, imports, Node, or browser APIs",
 		executionKind === "ts"
 			? gpt
 				? "Whole-cell strictcheck INCL toolargs; typeerror→NO execution"

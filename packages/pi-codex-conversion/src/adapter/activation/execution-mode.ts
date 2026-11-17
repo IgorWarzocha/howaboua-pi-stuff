@@ -2,7 +2,7 @@
 export const EXECUTION_MODE_SESSION_ENTRY =
 	"pi-codex-conversion-execution-mode";
 
-export type ExecutionMode = "normal" | "code" | "notebook" | "ts" | "js";
+export type ExecutionMode = "normal" | "code" | "notebook" | "ts" | "js" | "vm";
 
 export function normalizeExecutionMode(
 	value: unknown,
@@ -11,7 +11,8 @@ export function normalizeExecutionMode(
 		value === "code" ||
 		value === "notebook" ||
 		value === "ts" ||
-		value === "js"
+		value === "js" ||
+		value === "vm"
 		? value
 		: undefined;
 }

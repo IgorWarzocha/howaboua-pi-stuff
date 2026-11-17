@@ -102,6 +102,7 @@
     "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun run build:host-settings",
     "typecheck": "tsrs --noEmit -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
+    "bench:code-modes": "tsx scripts/bench-code-modes.ts",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run lint && bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",
@@ -145,6 +146,7 @@
   "dependencies": {
     "@earendil-works/pi-schema": "1.5.2",
     "@howaboua/pi-browser": "^0.0.13",
+    "acorn": "8.15.0",
     "openai": "7.55.0",
     "proxy-from-env": "2.1.0",
     "selfsigned": "^5.5.0",

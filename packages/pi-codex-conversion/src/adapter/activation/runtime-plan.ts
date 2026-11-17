@@ -27,7 +27,15 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code" | "notebook" | "ts" | "js";
+	kind:
+		| "inactive"
+		| "extras"
+		| "normal"
+		| "code"
+		| "notebook"
+		| "ts"
+		| "js"
+		| "vm";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
@@ -82,6 +90,12 @@ export interface JsRuntimePlan extends RuntimePlanBase {
 	transport: "responses" | "responses-lite";
 }
 
+export interface VmRuntimePlan extends RuntimePlanBase {
+	kind: "vm";
+	prompt: "vm";
+	transport: "responses" | "responses-lite";
+}
+
 export type CodexRuntimePlan =
 	| InactiveRuntimePlan
 	| ExtrasRuntimePlan
@@ -89,7 +103,8 @@ export type CodexRuntimePlan =
 	| CodeRuntimePlan
 	| NotebookRuntimePlan
 	| TsRuntimePlan
-	| JsRuntimePlan;
+	| JsRuntimePlan
+	| VmRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	"change_reasoning",
@@ -266,11 +281,10 @@ export function resolveCodexRuntimePlan(
 		configuredExecutionMode === "code" ||
 		configuredExecutionMode === "notebook" ||
 		configuredExecutionMode === "ts" ||
-		configuredExecutionMode === "js"
+		configuredExecutionMode === "js" ||
+		configuredExecutionMode === "vm"
 			? configuredExecutionMode
-			: configuredExecutionMode === "normal"
-				? undefined
-				: undefined;
+			: undefined;
 	if (requestedCodeMode) {
 		const transport: "responses-lite" | "responses" = usesResponsesLite(
 			ctx,
@@ -297,7 +311,9 @@ export function resolveCodexRuntimePlan(
 		};
 		return requestedCodeMode === "js"
 			? { ...statelessPlan, kind: "js", prompt: "js" }
-			: { ...statelessPlan, kind: "code", prompt: "code" };
+			: requestedCodeMode === "vm"
+				? { ...statelessPlan, kind: "vm", prompt: "vm" }
+				: { ...statelessPlan, kind: "code", prompt: "code" };
 	}
 	return {
 		...base,
@@ -344,13 +360,15 @@ export function isAdapterRuntime(
 	| CodeRuntimePlan
 	| NotebookRuntimePlan
 	| TsRuntimePlan
-	| JsRuntimePlan {
+	| JsRuntimePlan
+	| VmRuntimePlan {
 	return (
 		plan.kind === "normal" ||
 		plan.kind === "code" ||
 		plan.kind === "notebook" ||
 		plan.kind === "ts" ||
-		plan.kind === "js"
+		plan.kind === "js" ||
+		plan.kind === "vm"
 	);
 }
 
@@ -360,12 +378,14 @@ export function isCodeModeRuntime(
 	| CodeRuntimePlan
 	| NotebookRuntimePlan
 	| TsRuntimePlan
-	| JsRuntimePlan {
+	| JsRuntimePlan
+	| VmRuntimePlan {
 	return (
 		plan.kind === "code" ||
 		plan.kind === "notebook" ||
 		plan.kind === "ts" ||
-		plan.kind === "js"
+		plan.kind === "js" ||
+		plan.kind === "vm"
 	);
 }
 

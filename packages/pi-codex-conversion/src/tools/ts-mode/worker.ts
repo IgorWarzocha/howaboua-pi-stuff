@@ -689,9 +689,7 @@ async function run(input: TsWorkerInput): Promise<void> {
 		load,
 	);
 	if (pending.size)
-		throw new Error(
-			"TS cell has unawaited tool/import requests; await them before committing state",
-		);
+		throw new Error("TS cell has unawaited tool/import requests");
 	for (const key of Reflect.ownKeys(globalThis))
 		if (!initialGlobals.has(key))
 			throw new Error(

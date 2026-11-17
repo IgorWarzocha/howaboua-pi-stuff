@@ -84,13 +84,14 @@ export function createSettingsConfiguration(
 							item: {
 								id: "executionMode",
 								description:
-									"Structured: standard JSON schemas. Code: JavaScript. QuickJS Code: independent JavaScript sandboxes. Notebook: persistent Deno shell with checkpoints. TS: persistent TypeScript with concurrent cells.",
+									"Structured: standard JSON schemas. Code: JavaScript. QuickJS Code: independent JavaScript sandboxes. VM Code: JavaScript bindings kept for this conversation. Notebook: persistent Deno shell with checkpoints. TS: persistent TypeScript with concurrent cells.",
 								label: "Execution mode",
 								currentValue: formatExecutionMode(draft.executionMode),
 								values: [
 									"Structured",
 									"Code",
 									"QuickJS Code",
+									"VM Code",
 									"Notebook (recommended)",
 									"TS",
 								],
@@ -425,6 +426,7 @@ export type SettingsConfiguration = ReturnType<
 >;
 
 function formatExecutionMode(mode: ExecutionMode): string {
+	if (mode === "vm") return "VM Code";
 	if (mode === "js") return "QuickJS Code";
 	if (mode === "ts") return "TS";
 	if (mode === "code") return "Code";
@@ -433,6 +435,7 @@ function formatExecutionMode(mode: ExecutionMode): string {
 }
 
 function parseExecutionMode(value: string): ExecutionMode {
+	if (value === "VM Code") return "vm";
 	if (value === "QuickJS Code") return "js";
 	if (value === "TS") return "ts";
 	if (value === "Code") return "code";

@@ -6,4 +6,5 @@
 - Added same-cell rollover after an awaited note save in Code and Notebook.
 - Role guidance now directs agents to choose presets for sustained phase changes.
 - Unknown shortened UUIDs now report how to retry without scanning saved conversations. Full addresses and live routing remain available.
+- Notes and History examples no longer prescribe `await`.
 - New Notes whitelists use GPT-6.2 Sol and Astra alongside GPT-6 Luna.

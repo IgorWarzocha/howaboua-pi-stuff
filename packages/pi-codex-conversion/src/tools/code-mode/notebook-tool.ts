@@ -40,7 +40,7 @@ const PIN_FIELDS = {
 			],
 			{
 				description:
-					"Await self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
+					"Self-contained fn(event); tool_result gets {type,toolName,input,status,result?,error?}; hook tool calls do not retrigger; false removes hook",
 			},
 		),
 	),
@@ -223,7 +223,7 @@ export function createNotebookControlProxy(
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: "notebook",
-		usage: "await tools.notebook()",
+		usage: "tools.notebook()",
 		discovery: "help",
 		description: NOTEBOOK_DESCRIPTION,
 		deferLoading: true,

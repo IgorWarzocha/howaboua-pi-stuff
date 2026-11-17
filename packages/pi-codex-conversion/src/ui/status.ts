@@ -11,7 +11,7 @@ export function renderCodexStatus(
 	state: AdapterState,
 	plan: Extract<
 		CodexRuntimePlan,
-		{ kind: "normal" | "code" | "notebook" | "ts" | "js" }
+		{ kind: "normal" | "code" | "notebook" | "ts" | "js" | "vm" }
 	>,
 ): void {
 	if (!ctx.hasUI) return;

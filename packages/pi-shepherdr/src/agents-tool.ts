@@ -200,7 +200,7 @@ export function createAgentsTool(
 					watched: true,
 					machine: runtime.machine,
 					target: panel.pane_id,
-					next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
+					next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll",
 				});
 			}
 			if (params.action === "read") {
@@ -300,7 +300,7 @@ export function createAgentsTool(
 										machine: runtime.machine,
 										target: panel.pane_id,
 										status: "working",
-										next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll or await timers/extra Promises for reports",
+										next: "Do other work or end this turn; completion/blockage arrives automatically. Do not poll",
 									}),
 					},
 					dispatch.warning,

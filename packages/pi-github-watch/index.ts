@@ -24,6 +24,7 @@ const checkParameters = compile(WatchParameters).check;
 interface Watch {
 	thread: WatchTarget;
 	seen: ThreadSnapshot;
+	headSha: string | undefined;
 	controller: AbortController;
 	timer?: ReturnType<typeof setTimeout>;
 	state: "watching" | "paused";
@@ -33,10 +34,10 @@ const MINUTE = 60000;
 const AUTOMATIC_UPDATES =
 	"Updates arrive automatically; no polling or gh run watch needed";
 const HELP =
-	"watch:{action:'watch', thread:issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status:{action:'status'}. cancel:{action:'cancel', thread:reference}; omit thread to cancel all offline. Issues/runs check each minute; PRs after 7 minutes, then each minute. PRs surface unresolved review threads, including existing ones; unchanged lists stay quiet. Conversation comments and standalone reviews notify on changes, excluding the authenticated gh user. PR watches stop on closure or merge; closed PRs return immediately. Issue watches continue. Runs follow the latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no comment bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry";
+	"watch:{action:'watch', thread:issue/PR URL | Actions run URL | owner/repo#123 | issue/PR number}. status:{action:'status'}. cancel:{action:'cancel', thread:reference}; omit thread to cancel all offline. Issues/runs check each minute; PRs after 7 minutes, then each minute. PRs notify on head commit changes and surface unresolved review threads, including existing ones; unchanged lists stay quiet. Conversation comments and standalone reviews notify on changes, excluding the authenticated gh user. PR watches stop on closure or merge; closed PRs return immediately. Issue watches continue. Runs follow the latest attempt, notify on completion and stop; completed runs return immediately. Metadata only, no comment bodies/logs. Cancellation/session switch/reload/shutdown ends watches. Failed checks pause; watch again to retry";
 
 const GPT_HELP =
-	"watch:{action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}; status:{action:'status'}; cancel:{action:'cancel',thread:reference}, omit thread=cancel all offline. Issues/runs:1min; PRs:7min then1min. PR unresolved review threads INCLUDING existing; unchanged=quiet. Conversation comments/standalone reviews notify changes EXCEPT authenticated gh user. PR closed/merged→stop; already closed→return. Issues continue. Runs latest attempt; completed→notify+stop; already completed→return. Metadata ONLY; NO comment bodies/logs. Cancel/session switch/reload/shutdown→end watches. Check failure→pause; retry→watch again";
+	"watch:{action:'watch',thread:issue/PR URL|Actions run URL|owner/repo#123|issue/PR number}; status:{action:'status'}; cancel:{action:'cancel',thread:reference}, omit thread=cancel all offline. Issues/runs:1min; PRs:7min then1min. PR head changes+unresolved review threads INCLUDING existing; unchanged=quiet. Conversation comments/standalone reviews notify changes EXCEPT authenticated gh user. PR closed/merged→stop; already closed→return. Issues continue. Runs latest attempt; completed→notify+stop; already completed→return. Metadata ONLY; NO comment bodies/logs. Cancel/session switch/reload/shutdown→end watches. Check failure→pause; retry→watch again";
 
 function runResult(
 	run: WorkflowRun,
@@ -87,11 +88,14 @@ export default async function (pi: ExtensionAPI) {
 					schedule(watch, ctx, MINUTE);
 					return;
 				}
-				if (watch.thread.kind === "pr") {
-					const state = await client.prState(watch.thread);
+				const pr =
+					watch.thread.kind === "pr"
+						? await client.prSnapshot(watch.thread)
+						: undefined;
+				if (pr) {
 					if (watch.controller.signal.aborted) return;
-					if (state !== "open") {
-						deliver(pi, `${watch.thread.url}: PR ${state}. Watch stopped.`);
+					if (pr.state !== "open") {
+						deliver(pi, `${watch.thread.url}: PR ${pr.state}. Watch stopped.`);
 						watches.delete(watch.thread.url);
 						watch.controller.abort();
 						return;
@@ -106,9 +110,22 @@ export default async function (pi: ExtensionAPI) {
 					([id, item]) =>
 						watch.seen.unresolved.get(id)?.version !== item.version,
 				);
-				if (conversationChanges || reviewChanged)
-					deliver(pi, feedbackMessage(watch.thread, seen, conversationChanges));
+				const headChange =
+					pr && watch.headSha && pr.headSha !== watch.headSha
+						? { before: watch.headSha, after: pr.headSha }
+						: undefined;
+				if (conversationChanges || reviewChanged || headChange)
+					deliver(
+						pi,
+						feedbackMessage(
+							watch.thread,
+							seen,
+							conversationChanges,
+							headChange,
+						),
+					);
 				watch.seen = seen;
+				watch.headSha = pr?.headSha;
 				schedule(watch, ctx, MINUTE);
 			} catch {
 				if (watch.controller.signal.aborted) return;
@@ -133,7 +150,7 @@ export default async function (pi: ExtensionAPI) {
 		name: "github_watch",
 		label: "GitHub watch",
 		description:
-			"Watch selected GitHub threads for comments or Actions runs for completion in this session",
+			"Watch GitHub feedback, PR commits or Actions completion in this session",
 		parameters: WatchParameters,
 		async execute(_id, args, signal, _update, ctx) {
 			if (!checkParameters(args))
@@ -192,9 +209,9 @@ export default async function (pi: ExtensionAPI) {
 			};
 			const runSnapshot =
 				thread.kind === "run" ? await client.runSnapshot(thread) : undefined;
-			const prState =
-				thread.kind === "pr" ? await client.prState(thread) : undefined;
-			if (thread.kind !== "run" && (!prState || prState === "open"))
+			const pr =
+				thread.kind === "pr" ? await client.prSnapshot(thread) : undefined;
+			if (thread.kind !== "run" && (!pr || pr.state === "open"))
 				seen = await client.snapshot(thread);
 			if (generation !== epoch || signal?.aborted)
 				throw new Error(
@@ -203,9 +220,9 @@ export default async function (pi: ExtensionAPI) {
 			if (watches.get(thread.url)?.state === "watching")
 				return result(`${thread.url}: already watching. ${AUTOMATIC_UPDATES}`);
 			previous?.controller.abort();
-			if (prState && prState !== "open") {
+			if (pr && pr.state !== "open") {
 				watches.delete(thread.url);
-				return result(`${thread.url}: PR ${prState}. No watch started.`);
+				return result(`${thread.url}: PR ${pr.state}. No watch started.`);
 			}
 			if (thread.kind === "run" && runSnapshot?.completed) {
 				watches.delete(thread.url);
@@ -213,6 +230,7 @@ export default async function (pi: ExtensionAPI) {
 			}
 			const watch: Watch = {
 				thread,
+				headSha: previous?.headSha ?? pr?.headSha,
 				// Baseline conversation history, but surface existing unresolved threads on the first check.
 				seen: previous?.seen ?? {
 					conversation: seen.conversation,

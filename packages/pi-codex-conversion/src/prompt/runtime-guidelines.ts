@@ -64,11 +64,6 @@ const CODE_MODE_GUIDELINES = [
 		"Quoted text→alternate JS quotes; shell/patch/source→literal ${...}/backticks",
 	],
 	[
-		"Await long tools.exec_command calls inside exec",
-		"Long tools.exec_command→await inside exec",
-		"exec_command",
-	],
-	[
 		"Use tty=true for input and persistent processes",
 		"Input/persistent processes→tty=true",
 		"exec_command",
@@ -77,10 +72,6 @@ const CODE_MODE_GUIDELINES = [
 		"Patch each file in one tools.apply_patch call, splitting oversized patches sequentially; batch independent files with Promise.allSettled; reserve shell/Python for formatting and bulk rewrites",
 		"tools.apply_patch: 1/file; oversized→serial splits; independent files→Promise.allSettled; shell/Python ONLY formatting/bulk rewrites",
 		"apply_patch",
-	],
-	[
-		"Compose known tool calls in one exec; await dependencies in order and run independent calls concurrently. Bound output at the source",
-		"Known calls→one exec; dependencies→ordered awaits; independent calls→concurrent; bound output at source",
 	],
 	["Return concise exec output with text()", "Output→concise text()"],
 ] as const;
@@ -121,6 +112,26 @@ const TS_MODE_GUIDELINES = [
 	],
 ] as const;
 
+const VM_MODE_GUIDELINES = [
+	[
+		"Reuse matching retained let, const, function and class bindings",
+		"Reuse retained let/const/function/class",
+	],
+	[
+		"Keep one-offs block-local. Retain only what you plan to reuse",
+		"One-offs→block-local; retain ONLY planned reuse",
+	],
+	CODE_MODE_GUIDELINES[0],
+	CODE_MODE_GUIDELINES[1],
+	CODE_MODE_GUIDELINES[2],
+	CODE_MODE_GUIDELINES[3],
+	CODE_MODE_GUIDELINES[4],
+	[
+		"A stall, cancellation, memory limit or terminate drops conversation bindings. The next exec starts fresh",
+		"Stall/cancel/memory limit/terminate→bindings dropped; next exec fresh",
+	],
+] as const;
+
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
 	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text edits, creates, deletes, and moves; split oversized patches",
@@ -138,6 +149,7 @@ const ALL_STATIC_CODEX_GUIDELINES = [
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
 	...TS_MODE_GUIDELINES,
+	...VM_MODE_GUIDELINES,
 ];
 const GPT_GUIDELINES = new Map<string, string>(
 	ALL_STATIC_CODEX_GUIDELINES.map(([normal, gpt]) => [normal, gpt]),
@@ -180,13 +192,18 @@ function buildCodexGuidelines(
 		const adapterSurfaceActive =
 			active.has("exec") &&
 			active.has("wait") &&
-			(mode === "code" || mode === "js" || active.has("notebook"));
+			(mode === "code" ||
+				mode === "js" ||
+				mode === "vm" ||
+				active.has("notebook"));
 		guidelines = adapterSurfaceActive
 			? (mode === "notebook"
 					? NOTEBOOK_MODE_GUIDELINES
 					: mode === "ts"
 						? TS_MODE_GUIDELINES
-						: CODE_MODE_GUIDELINES
+						: mode === "vm"
+							? VM_MODE_GUIDELINES
+							: CODE_MODE_GUIDELINES
 				)
 					.filter(
 						([, , tool]: RuntimeGuideline) =>
@@ -273,12 +290,14 @@ export function formatGuidelines(
 			.join("\n");
 	const editing = new Set<string>([
 		NORMAL_CODEX_GUIDELINES[2][0],
-		CODE_MODE_GUIDELINES[4][0],
+		CODE_MODE_GUIDELINES[3][0],
 	]);
 	const execution = new Set<string>(
-		[...NORMAL_CODEX_GUIDELINES, ...CODE_MODE_GUIDELINES].map(
-			([guideline]) => guideline,
-		),
+		[
+			...NORMAL_CODEX_GUIDELINES,
+			...CODE_MODE_GUIDELINES,
+			...VM_MODE_GUIDELINES,
+		].map(([guideline]) => guideline),
 	);
 	execution.add("exec calls run sequentially");
 	const notebook = new Set<string>(

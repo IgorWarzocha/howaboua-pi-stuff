@@ -178,7 +178,7 @@ function drain(): void {
 	if (!status["done"] || status["pending"] > 0) {
 		finish({
 			error: status["done"]
-				? "The cell finished with outstanding tool calls. Await every tool call before the cell ends"
+				? "The cell finished with outstanding tool calls"
 				: "The cell is waiting on a promise with no pending tool call to resume it",
 		});
 		return;

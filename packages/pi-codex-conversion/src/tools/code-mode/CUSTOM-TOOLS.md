@@ -14,7 +14,7 @@ Only the active session working directory is checked; parent directories are not
 Definitions remain live for execution. Promoted usage stays fixed in the standing instructions until a session or model reset. Added or renamed tools remain deferred until that reset. Contract changes and removals are announced before the next model request without rebuilding standing instructions, including after compaction. `ALL_TOOLS` contains complete callable contracts; later updates supersede earlier usage.
 
 ```toml
-usage = 'await tools.port_info(port_number)'
+usage = 'tools.port_info(port_number)'
 description = "Returns listener and owning-process information."
 output = "Normalized JSON."
 command = "./port-info/port-info.mjs"

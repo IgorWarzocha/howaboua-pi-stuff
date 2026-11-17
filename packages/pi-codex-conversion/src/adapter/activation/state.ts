@@ -33,6 +33,7 @@ export interface AdapterState {
 		| "notebook"
 		| "ts"
 		| "js"
+		| "vm"
 		| undefined;
 	appliedRuntimeToolNames?: string[] | undefined;
 	appliedActiveToolNames?: string[] | undefined;

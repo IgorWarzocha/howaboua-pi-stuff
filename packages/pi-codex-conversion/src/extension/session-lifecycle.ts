@@ -162,9 +162,11 @@ export function createCodexSessionLifecycle(
 				previousMode === "notebook" ||
 				previousMode === "ts" ||
 				previousMode === "js" ||
+				previousMode === "vm" ||
 				state.executionMode === "notebook" ||
 				state.executionMode === "ts" ||
-				state.executionMode === "js";
+				state.executionMode === "js" ||
+				state.executionMode === "vm";
 			if (stateful) appendNotebookTreeEpoch(pi);
 			await codeMode.shutdownHost();
 			await trackCheckpoint(ctx);
@@ -176,7 +178,7 @@ export function createCodexSessionLifecycle(
 			prepareCodeModeHost(codeMode, ctx);
 			if (stateful) {
 				ctx.ui.notify(
-					`${state.executionMode === "js" ? "QuickJS Code store" : state.executionMode === "ts" ? "TS state" : "Notebook state"} reset after conversation-tree navigation`,
+					`${state.executionMode === "vm" ? "VM Code bindings" : state.executionMode === "js" ? "QuickJS Code store" : state.executionMode === "ts" ? "TS state" : "Notebook state"} reset after conversation-tree navigation`,
 					"info",
 				);
 			}

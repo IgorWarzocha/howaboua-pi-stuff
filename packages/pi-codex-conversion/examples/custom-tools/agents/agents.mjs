@@ -636,7 +636,7 @@ async function help() {
 			"Specialists know their job. MUST provide only the concrete task and relevant context they cannot access, including session details and prior decisions. MUST stop after the task and inaccessible context. MUST NOT append generic method, evidence, or reporting instructions",
 		reuse:
 			"Reuse explorers only for the same investigation. General agents get follow-ups only on user request or to finish their assigned task. Keep reviewers independent. New scope gets a new agent",
-		call: "await tools.agents(JSON.stringify(request))",
+		call: "tools.agents(JSON.stringify(request))",
 		common: "host?: desktop|laptop|server",
 		actions: {
 			spawn:

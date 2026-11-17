@@ -27,7 +27,7 @@ export function buildExtraToolsOnlyStatusText(
 
 export function buildStatusText(
 	options: {
-		mode?: "normal" | "code" | "notebook" | "ts" | "js" | undefined;
+		mode?: "normal" | "code" | "notebook" | "ts" | "js" | "vm" | undefined;
 		verbosity?: string | undefined;
 		fast: "priority" | "ultrafast" | undefined;
 		baseTierEstimate?: boolean | undefined;
@@ -40,15 +40,17 @@ export function buildStatusText(
 	theme?: StatusTheme | undefined,
 ): string {
 	const extras = [
-		options.mode === "js"
-			? "QuickJS Code"
-			: options.mode === "ts"
-				? "TS mode"
-				: options.mode === "notebook"
-					? "notebook mode"
-					: options.mode === "code"
-						? "code mode"
-						: undefined,
+		options.mode === "vm"
+			? "VM Code"
+			: options.mode === "js"
+				? "QuickJS Code"
+				: options.mode === "ts"
+					? "TS mode"
+					: options.mode === "notebook"
+						? "notebook mode"
+						: options.mode === "code"
+							? "code mode"
+							: undefined,
 		options.useOnAllModels ? "all models" : undefined,
 		options.additionalProvider ? "additional provider" : undefined,
 		options.compaction ? "compact v2" : undefined,

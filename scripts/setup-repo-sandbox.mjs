@@ -7,14 +7,15 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const usage = `Usage: bun run sandbox:setup --name NAME [--config YAML] [--live-model openai-codex/MODEL]
+const usage = `Usage: bun run sandbox:setup --name NAME [--config YAML] [--live-model PROVIDER/MODEL]
 Snapshot this checkout's tracked working files into an existing sandbox, or create
 one from YAML. Replaces this script's previous disposable candidate.
 Trusts that candidate's project resources in its isolated Pi agent directory.
 Requires host Node 24+, installed repo dependencies, and guest bun, node, tar, python3, make, g++, node-gyp, hc 0.1.18+, fd.
 Without --live-model, never copies credentials. Live mode explicitly syncs only the
-selected provider's short-lived host access token, clears its guest model override,
-and verifies a real candidate response. Refresh credentials stay on the host.
+selected provider's credential and verifies a real candidate response.
+Supported providers: openai-codex (short-lived access token), opencode-go (API key).
+Refresh credentials stay on the host. Log out of OpenCode Go in the guest after review.
 Never changes existing sandbox services or host account/model preferences.`;
 const args = process.argv.slice(2);
 if (!args.length || args.includes("--help")) {
@@ -33,11 +34,12 @@ for (let i = 0; i < args.length; i++) {
 if (!name || !/^[a-z][a-z0-9-]{0,39}$/.test(name)) throw new Error(usage);
 if (
 	args.includes("--live-model") &&
-	!/^openai-codex\/[a-zA-Z0-9._-]+$/.test(liveModel ?? "")
+	!/^(openai-codex|opencode-go)\/[a-zA-Z0-9._-]+$/.test(liveModel ?? "")
 )
 	throw new Error(
-		"--live-model requires openai-codex/MODEL. Other providers are not supported by this access-token sync.",
+		"--live-model requires openai-codex/MODEL or opencode-go/MODEL.",
 	);
+const [liveProvider, liveModelId] = liveModel?.split("/") ?? [];
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 const host = (command, argv) => execFileSync(command, argv, { cwd: root });
@@ -118,7 +120,7 @@ try {
 	const inspection = await call({ action: "inspect" });
 	const home = `${inspection.workspace}/pi-stuff-review`;
 	const stage = `${home}/candidate-${randomUUID()}`;
-	// Refresh host OAuth only through Pi's supported resolver. Never put the token
+	// Resolve host credentials only through Pi. Never put the credential
 	// in argv, the source archive, output, or a reusable image/template.
 	let accessToken;
 	let accessExpires;
@@ -128,11 +130,12 @@ try {
 				join(root, "node_modules/.bin/pi"),
 				[
 					"auth",
-					"print-bearer-token",
+					liveProvider === "openai-codex"
+						? "print-bearer-token"
+						: "print-api-key",
 					"--provider",
-					"openai-codex",
-					"--min-expiry",
-					"30m",
+					liveProvider,
+					...(liveProvider === "openai-codex" ? ["--min-expiry", "30m"] : []),
 				],
 				{
 					cwd: root,
@@ -141,19 +144,22 @@ try {
 					stdio: ["ignore", "pipe", "pipe"],
 				},
 			).trim();
-			const claims = JSON.parse(
-				Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
-			);
-			if (
-				!claims["https://api.openai.com/auth"]?.chatgpt_account_id ||
-				!Number.isFinite(claims.exp) ||
-				claims.exp * 1000 < Date.now() + 300000
-			)
-				throw new Error("Unusable Codex access token");
-			accessExpires = new Date(claims.exp * 1000).toISOString();
+			if (!accessToken) throw new Error("Missing credential");
+			if (liveProvider === "openai-codex") {
+				const claims = JSON.parse(
+					Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
+				);
+				if (
+					!claims["https://api.openai.com/auth"]?.chatgpt_account_id ||
+					!Number.isFinite(claims.exp) ||
+					claims.exp * 1000 < Date.now() + 300000
+				)
+					throw new Error("Unusable Codex access token");
+				accessExpires = new Date(claims.exp * 1000).toISOString();
+			}
 		} catch {
 			throw new Error(
-				"Live setup could not resolve a usable host Codex OAuth access token. Check the host Pi login, then rerun --live-model. No credentials were transferred.",
+				`Live setup could not resolve a usable host ${liveProvider} credential. Check the host Pi login, then rerun --live-model. No credentials were transferred.`,
 			);
 		}
 	}
@@ -257,7 +263,7 @@ os.chmod(home + "/pi", 0o755)
 PY
 `);
 	if (liveModel) {
-		const transfer = `${home}/agent/.access-token-${randomUUID()}`;
+		const transfer = `${home}/agent/.credential-${randomUUID()}`;
 		// Codex's stock provider is OAuth-only. A supported auth-only provider
 		// configuration enables stored API-key access without overriding its route.
 		const credentialReader = `import {AuthStorage} from ${JSON.stringify(`file://${home}/current/node_modules/@earendil-works/pi-coding-agent/dist/core/auth-storage.js`)}; const value = await AuthStorage.create(${JSON.stringify(`${home}/agent/auth.json`)}).read('openai-codex'); if (value?.type !== 'api_key') throw new Error('Resync the sandbox Codex access token with sandbox:setup --live-model'); process.stdout.write(value.key);`;
@@ -270,16 +276,30 @@ cd ${quote(`${home}/current`)}
 PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} node --input-type=module <<'JS'
 import { readFileSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { AuthStorage } from './node_modules/@earendil-works/pi-coding-agent/dist/core/auth-storage.js';
+import { ModelRuntime } from './node_modules/@earendil-works/pi-coding-agent/dist/index.js';
 const tokenPath = ${JSON.stringify(transfer)};
 try {
   const token = readFileSync(tokenPath, 'utf8');
-  await AuthStorage.create(${JSON.stringify(`${home}/agent/auth.json`)}).modify('openai-codex', async () => ({type:'api_key', key:token}));
   const path = ${JSON.stringify(`${home}/agent/models.json`)};
   const models = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
   models.providers ??= {};
-  models.providers['openai-codex'] = {apiKey:${JSON.stringify(credentialCommand)}};
+  const provider = ${JSON.stringify(liveProvider)};
+  if (provider === 'openai-codex') models.providers[provider] = {apiKey:${JSON.stringify(credentialCommand)}};
+  else delete models.providers[provider];
   writeFileSync(path, JSON.stringify(models, null, 2)+'\\n', {mode:0o600});
-  console.log('Selected stored-token auth with the candidate default Codex backend; removed disposable guest endpoint/model overrides.');
+  if (provider === 'openai-codex') {
+    await AuthStorage.create(${JSON.stringify(`${home}/agent/auth.json`)}).modify(provider, async () => ({type:'api_key', key:token}));
+  } else {
+    const runtime = await ModelRuntime.create({authPath:${JSON.stringify(`${home}/agent/auth.json`)}, modelsPath:path, refreshOnCreate:false});
+    await runtime.login(provider, 'api_key', {
+      async prompt(prompt) { if (prompt.type !== 'secret') throw new Error('Unexpected API key login prompt'); return token; },
+      notify() {},
+    });
+  }
+  console.log('Configured ' + provider + ' with its default backend; removed disposable guest endpoint/model overrides.');
+} catch {
+  console.error('Guest credential setup failed. Check the selected provider login and retry sandbox:setup.');
+  process.exitCode = 1;
 } finally { unlinkSync(tokenPath); }
 JS`);
 		} finally {
@@ -287,17 +307,31 @@ JS`);
 			await execute(`rm -f ${quote(transfer)}`);
 		}
 		console.log(
-			`Guest Codex access token expires ${accessExpires}. Rerun --live-model to resync; the guest cannot refresh it.`,
+			liveProvider === "openai-codex"
+				? `Guest Codex access token expires ${accessExpires}. Rerun --live-model to resync; the guest cannot refresh it.`
+				: "Guest OpenCode Go API key configured. Remove it with the guest Pi auth logout opencode-go after review.",
 		);
 		await execute(`cd ${quote(`${home}/current`)} && PI_CODING_AGENT_DIR=${quote(`${home}/agent`)} node --input-type=module <<'JS'
 import { spawnSync } from 'node:child_process';
+import { ModelRuntime } from './node_modules/@earendil-works/pi-coding-agent/dist/index.js';
+let credential;
+try {
+  const runtime = await ModelRuntime.create({refreshOnCreate:false});
+  credential = (await runtime.getAuth(${JSON.stringify(liveProvider)}))?.auth.apiKey;
+} catch {
+  console.error('Guest credential resolution failed. Check the selected provider login and retry sandbox:setup.');
+  process.exit(1);
+}
 const result = spawnSync(${JSON.stringify(`${home}/pi`)}, ['--mode','json','--print','--no-session','--no-tools','--no-skills','--no-prompt-templates','--no-mcp','--model',${JSON.stringify(liveModel)},'--thinking','low','Reply only LIVE_SANDBOX_READY. Do not use tools.'], {encoding:'utf8',timeout:90000,maxBuffer:8*1024*1024});
 const events = (result.stdout ?? '').split('\\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
 const message = events.findLast(event => event.type === 'message_end' && event.message?.role === 'assistant')?.message;
 const text = message?.content?.filter(block => block.type === 'text').map(block => block.text).join('');
 const usage = message?.usage;
-if (result.status !== 0 || message?.provider !== 'openai-codex' || message?.model !== ${JSON.stringify(liveModel.slice("openai-codex/".length))} || message?.stopReason !== 'stop' || text?.trim() !== 'LIVE_SANDBOX_READY' || !usage || usage.input + usage.cacheRead <= 0 || usage.output <= 0) {
-  const safe = value => String(value ?? '').replace(/Bearer\\s+\\S+/gi, 'Bearer [redacted]').replace(/(?:eyJ|sk-)[A-Za-z0-9._-]+/g, '[redacted]').slice(-1500);
+if (result.status !== 0 || message?.provider !== ${JSON.stringify(liveProvider)} || message?.model !== ${JSON.stringify(liveModelId)} || message?.stopReason !== 'stop' || text?.trim() !== 'LIVE_SANDBOX_READY' || !usage || usage.input + usage.cacheRead <= 0 || usage.output <= 0) {
+  const safe = value => {
+    const text = String(value ?? '');
+    return (credential ? text.replaceAll(credential, '[redacted]') : text).replace(/Bearer\\s+\\S+/gi, 'Bearer [redacted]').replace(/(?:eyJ|sk-)[A-Za-z0-9._-]+/g, '[redacted]').slice(-1500);
+  };
   console.error(JSON.stringify({status:result.status,signal:result.signal,stopReason:message?.stopReason,error:safe(message?.errorMessage ?? result.error?.message),stderr:safe(result.stderr)}));
   console.error('Live candidate response failed. Check guest networking/model availability and token expiry, then rerun --live-model. Snapshot is selected, but LIVE acceptance has not passed.');
   process.exit(1);
