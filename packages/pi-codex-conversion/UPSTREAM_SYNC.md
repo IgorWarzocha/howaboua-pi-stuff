@@ -13,6 +13,14 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
 - Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
+## November 17 GPT-6.2
+
+The authenticated Codex catalogue advertises GPT-6.2 Sol with a 500K context and Astra with a 272K context, both supporting Responses Lite and live reasoning updates. Supplemental registrations fill the released Pi 1.5.2 catalogue gap without replacing future upstream entries. Pi's supported reasoning selectors map to `low` through `max`; backend-only `ultra` is not exposed.
+
+API-equivalent pricing follows the published [Sol](https://developers.openai.com/api/docs/models/gpt-6.2-sol) and [Astra](https://developers.openai.com/api/docs/models/gpt-6.2-astra) specifications, including the tier above 272K input tokens. Their Ultrafast multiplier is 3 through February 28, 2027, then 6 from March 1 at midnight Pacific. This does not change the older models' multiplier.
+
+Reviewed Codex `c08843a5bd` and stable `rust-v0.169.0`. The Code host remains pinned to `0.167.0`: the native `content()` helper does not replace Pi's content adaptation, and the lazy catalogue, catalogue reuse and WebSocket size preflight changes are not in that stable release. `interrupt_on_cancel` remains disabled upstream, matching PCC.
+
 ## November 12 QuickJS Code
 
 QuickJS Code replaces JS Notebook. It uses the released Pi codemode 1.5.2 WASM loader and QuickJS WASI 3.6.3, with a fresh VM per call in reusable Node workers. Pi's public sandbox interface does not expose PCC's synchronous output bridge, so PCC keeps its own bridge and existing tool delegation. No upstream runtime is patched. Old snapshot files are neither loaded nor deleted.

@@ -18,6 +18,7 @@ const CODEX_TOOL_ORIGINATOR = "codex_cli_rs";
 const OPENAI_CODEX_PROVIDER = "openai-codex";
 const PREFERRED_MODELS = [
 	"gpt-6-luna",
+	"gpt-6.2-sol",
 	"gpt-6-sol",
 	"gpt-5.6-luna",
 	"gpt-5.6-terra",

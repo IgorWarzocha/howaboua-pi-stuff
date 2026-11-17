@@ -6,11 +6,18 @@ export function readServiceTier(value: unknown): ServiceTier {
 		|| value === "priority" || value === "fast" || value === "ultrafast" ? value : undefined;
 }
 
+export function codexUltrafastCostMultiplier(modelId: string | undefined, now = Date.now()): number | undefined {
+	if (modelId === "gpt-6.2-sol" || modelId === "gpt-6.2-astra") {
+		// The published promotion ends at midnight Pacific on March 1, 2027.
+		return now < Date.parse("2027-03-01T08:00:00Z") ? 3 : 6;
+	}
+	return modelId === "gpt-6-astra" || modelId === "gpt-6.1-sol" ? 6 : undefined;
+}
+
 function getServiceTierCostMultiplier(model: Model<Api>, serviceTier: ServiceTier): number {
 	switch (serviceTier) {
 		case "ultrafast":
-			// Published Ultrafast prices are six times Standard for these models only.
-			return model.id === "gpt-6-astra" || model.id === "gpt-6.1-sol" ? 6 : 1;
+			return codexUltrafastCostMultiplier(model.id) ?? 1;
 		case "flex":
 			return 0.5;
 		case "priority":
