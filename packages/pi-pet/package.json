@@ -98,7 +98,11 @@
     "typescript": "^7.0.2",
     "@howaboua/pi-codex-conversion": "5.0.0",
     "oxfmt": "^0.78.0",
-    "tsrs": "0.25.0-ts7.1.0-beta"
+    "tsrs": "0.25.0-ts7.1.0-beta",
+    "oxlint": "1.94.0",
+    "html-validate": "11.4.0",
+    "stylelint": "17.16.0",
+    "aria-query": "5.3.2"
   },
   "publishConfig": {
     "access": "public"

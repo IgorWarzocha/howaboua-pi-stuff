@@ -42,7 +42,7 @@
   "scripts": {
     "prepack": "bun run ../../scripts/prepare-aggregate-package.mjs",
     "format:check": "oxfmt --check '**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,json,jsonc,json5,css}'",
-    "lint": "bun run format:check && oxlint --type-aware",
+    "lint": "bun run format:check && oxlint --type-aware --no-error-on-unmatched-pattern",
     "check": "bun run lint"
   }
 }
