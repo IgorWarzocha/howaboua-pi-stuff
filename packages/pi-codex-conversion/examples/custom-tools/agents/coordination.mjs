@@ -722,7 +722,7 @@ function askOutput(ask) {
 
 export function coordinationHelp() {
 	return {
-		call: "await tools.agents(JSON.stringify(request))",
+		call: "tools.agents(JSON.stringify(request))",
 		routing: {
 			host: "desktop | laptop | server? (default current host)",
 			note: "host routes Herdr agent operations over SSH; use normal SSH for shell commands",

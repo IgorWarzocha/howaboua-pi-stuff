@@ -24,7 +24,7 @@ export default function codeModeExtensionExample(pi: ExtensionAPI): void {
 	pi.registerTool(echo);
 	const registration = registerCodeModeExtensionTools(pi, () => [
 		adaptToolForCodeMode(echo, {
-			usage: 'await tools.echo({ text: "hello" })',
+			usage: 'tools.echo({ text: "hello" })',
 		}),
 	]);
 	pi.on("session_shutdown", () => registration.unregister());

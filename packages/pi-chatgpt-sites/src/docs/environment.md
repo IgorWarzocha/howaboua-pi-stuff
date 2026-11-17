@@ -11,7 +11,7 @@ Get configured production runtime entries and their revision. The facade recursi
 Pass `set_values` and optional `remove`:
 
 ```js
-await tools.sites({
+tools.sites({
 	resource: "environment",
 	action: "update",
 	params: {

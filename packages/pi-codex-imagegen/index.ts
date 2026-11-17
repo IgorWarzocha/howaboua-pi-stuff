@@ -94,7 +94,7 @@ async function registerImagegenInCodeMode(
 					(api
 						? ',output_format?:"png"|"jpeg"|"webp"|"gif"|"svg",size?:string,gif?:{frame_count?:number,frame_duration_ms?:number}'
 						: "") +
-					'}).then(r=>typeof r==="string"?text(r):generatedImage(r)) // ' +
+					"}) // String result: text(result); image result: generatedImage(result). " +
 					(gpt()
 						? "prompt: aspect ratio+quality; cutouts=transparent; edits retain transparency; no selectors=generate; paths/recent count=edit; " +
 							(api ? "GIF/SVG=generate; " : "") +
